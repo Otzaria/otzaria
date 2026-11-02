@@ -1045,6 +1045,117 @@ void main() {
     );
 
     test(
+      'חיפוש ראשוני יוצר בקשה מפורשת וטעינה חוזרת אינה מחדשת אותה',
+      () async {
+        final bloc = _createBloc(
+          repository: _FakeTextBookRepository(),
+          showPageShapeView: false,
+          initialIndex: 12,
+          searchText: 'מקור',
+        );
+        addTearDown(bloc.close);
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: true,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'initial search load',
+        );
+        final initial = bloc.state as TextBookLoaded;
+        expect(initial.searchResultNavigation!.line, 12);
+        bloc.add(const UpdateSelectedIndex(5));
+        await _waitFor(
+          () => (bloc.state as TextBookLoaded).selectedIndex == 5,
+          description: 'cancel initial request',
+        );
+        expect((bloc.state as TextBookLoaded).searchResultNavigation, isNull);
+        bloc.add(
+          const LoadContent(
+            fontSize: 22,
+            showSplitView: true,
+            removeNikud: false,
+            loadCommentators: false,
+            preserveState: true,
+          ),
+        );
+        await _waitFor(
+          () =>
+              bloc.state is TextBookLoaded &&
+              (bloc.state as TextBookLoaded).fontSize == 22,
+          description: 'reload',
+        );
+        expect((bloc.state as TextBookLoaded).searchResultNavigation, isNull);
+      },
+    );
+
+    test('ניווט חיפוש מפורש נפרד מבחירת שורה ומתבטל בשינוי החיפוש', () async {
+      final bloc = _createBloc(
+        repository: _FakeTextBookRepository(),
+        showPageShapeView: false,
+      );
+      addTearDown(bloc.close);
+      bloc.add(
+        const LoadContent(
+          fontSize: 20,
+          showSplitView: true,
+          removeNikud: false,
+          loadCommentators: false,
+        ),
+      );
+      await _waitFor(() => bloc.state is TextBookLoaded, description: 'load');
+      TextBookLoaded loaded() => bloc.state as TextBookLoaded;
+      expect(loaded().searchResultNavigation, isNull);
+      bloc.add(const SelectSearchResult(12));
+      await _waitFor(
+        () => loaded().searchResultNavigation != null,
+        description: 'first result',
+      );
+      final first = loaded().searchResultNavigation!;
+      expect(first.line, 12);
+      expect(loaded().selectedIndex, 12);
+      expect(loaded().selectedIndices, {12});
+      bloc.add(const SelectSearchResult(12));
+      await _waitFor(
+        () => loaded().searchResultNavigation!.requestId > first.requestId,
+        description: 'same result',
+      );
+      expect(loaded().searchResultNavigation!.requestId, first.requestId + 1);
+      bloc.add(const UpdateSelectedIndex(5));
+      await _waitFor(
+        () => loaded().selectedIndex == 5,
+        description: 'manual selection',
+      );
+      expect(loaded().searchResultNavigation, isNull);
+      bloc.add(const SelectSearchResult(12));
+      await _waitFor(
+        () => loaded().searchResultNavigation != null,
+        description: 'new result',
+      );
+      bloc.add(const UpdateSearchText('מקור'));
+      await _waitFor(
+        () => loaded().searchText == 'מקור',
+        description: 'new query',
+      );
+      expect(loaded().searchResultNavigation, isNull);
+      bloc.add(const SelectSearchResult(12));
+      await _waitFor(
+        () => loaded().searchResultNavigation != null,
+        description: 'new selection',
+      );
+      bloc.add(const UpdateSearchText('מקור', searchDistance: 1));
+      await _waitFor(
+        () => loaded().searchDistance == 1,
+        description: 'new parameters',
+      );
+      expect(loaded().searchResultNavigation, isNull);
+    });
+
+    test(
       'Ctrl+בחירה (additive) צובר ומסיר קטעים מ-selectedIndices',
       () async {
         final repository = _FakeTextBookRepository();
@@ -2205,6 +2316,7 @@ TextBookBloc _createBloc({
   List<String> commentators = const [],
   TextBook? book,
   int initialIndex = 10,
+  String searchText = '',
   SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
   Set<int>? initialSearchResultLines,
   Future<String?> Function(
@@ -2226,6 +2338,7 @@ TextBookBloc _createBloc({
       initialIndex,
       false,
       commentators,
+      searchText: searchText,
       searchMode: SearchMode.exact,
       matchPolicy: matchPolicy,
       initialSearchResultLines: initialSearchResultLines,

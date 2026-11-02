@@ -199,6 +199,11 @@ class UpdateSelectedIndex extends TextBookEvent {
   List<Object?> get props => [index, additive];
 }
 
+/// בחירה מפורשת בתוצאת חיפוש; גם בחירה חוזרת באותה שורה היא ניווט חדש.
+class SelectSearchResult extends UpdateSelectedIndex {
+  const SelectSearchResult(super.index) : assert(index != null);
+}
+
 class HighlightLine extends TextBookEvent {
   final int lineIndex;
 

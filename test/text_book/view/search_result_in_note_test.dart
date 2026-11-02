@@ -30,10 +30,8 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
-/// תוצאת חיפוש בספר שנחתה בהערת שוליים (issue #3824): הלחיצה עליה מביאה את
-/// ההערה לתצוגה, וההתאמה מודגשת בתוכה כמו בטקסט הספר.
-///
-/// ההדגשה ובניית התבנית במנוע הנייטיבי, ולכן הבדיקות מדולגות כשאין build.
+/// תוצאת חיפוש בהערה נחשפת ומודגשת דרך המסך האמיתי.
+/// ההדגשה דורשת מנוע נייטיבי; בלעדיו הבדיקות מדולגות.
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
 
@@ -113,8 +111,11 @@ Future<void> main() async {
   group('"מפרשים בצד": לחיצה על תוצאה שנחתה בהערה', () {
     late TextBookTab tab;
 
-    Future<_TestTextBookBloc> pumpSplitedView(WidgetTester tester) async {
-      final bloc = _TestTextBookBloc(loadedState());
+    Future<_TestTextBookBloc> pumpSplitedView(
+      WidgetTester tester, {
+      TextBookLoaded? initial,
+    }) async {
+      final bloc = _TestTextBookBloc(initial ?? loadedState());
       final book = (bloc.state as TextBookLoaded).book;
       final personalNotesBloc = _TestPersonalNotesBloc(
         const PersonalNotesState.initial(),
@@ -177,7 +178,8 @@ Future<void> main() async {
       UpdateSearchText search = const UpdateSearchText(query),
     }) async {
       bloc.add(search);
-      bloc.add(UpdateSelectedIndex(line));
+      bloc.add(UpdateSearchResultLines({line}));
+      bloc.add(SelectSearchResult(line));
       bloc.add(HighlightLine(line));
       await tester.pumpAndSettle();
     }
@@ -256,6 +258,155 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+
+    for (final search in const [
+      UpdateSearchText(
+        'הערה מקור',
+        searchMode: SearchMode.fuzzy,
+      ),
+      UpdateSearchText(
+        'על ראשון',
+        searchMode: SearchMode.advanced,
+        searchDistance: 1,
+      ),
+    ]) {
+      testWidgets('תוצאת מנוע ${search.text} נחשפת ומודגשת באותם פרמטרים', (
+        tester,
+      ) async {
+        final bloc = await pumpSplitedView(tester);
+        await openResult(tester, bloc, 0, search: search);
+        expect(find.byType(PanelOpenHandle), findsNothing);
+        expect(
+          isHighlightedIn(
+            tester,
+            'מקור ראשון',
+            term: search.searchMode == SearchMode.fuzzy ? 'מקור' : 'ראשון',
+          ),
+          isTrue,
+        );
+      }, skip: !engineReady);
+    }
+
+    testWidgets('בחירת שורה רגילה אינה פותחת חלונית שנסגרה', (tester) async {
+      final bloc = await pumpSplitedView(tester);
+      await openResult(tester, bloc, 0);
+      await togglePane(tester);
+      bloc.add(const UpdateSelectedIndex(1));
+      await tester.pumpAndSettle();
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
+
+    testWidgets('בחירה חוזרת באותה תוצאת חיפוש פותחת את ההערה', (tester) async {
+      final bloc = await pumpSplitedView(tester);
+      await openResult(tester, bloc, 0);
+      await togglePane(tester);
+      await openResult(tester, bloc, 0);
+      expect(find.byType(PanelOpenHandle), findsNothing);
+      expect(isHighlightedIn(tester, 'מקור ראשון'), isTrue);
+    }, skip: !engineReady);
+
+    TextBookLoaded pendingState({int line = 1, bool initial = false}) =>
+        loadedState(
+          searchText: initial ? query : '',
+        ).copyWith(
+          content: [content[0], '', content[2], content[3]],
+          bookNotes: BookNotes.empty,
+          loadedLineFlags: const [true, false, true, true],
+          searchResultNavigation: initial ? (line: line, requestId: 100) : null,
+        );
+
+    Future<void> finishLoading(
+      WidgetTester tester,
+      _TestTextBookBloc bloc,
+    ) async {
+      final state = bloc.state as TextBookLoaded;
+      bloc.emitLoaded(
+        state.copyWith(
+          content: [
+            content[0],
+            'פסקה שנייה<i class="footnote">הערה על מקור שני</i>',
+            content[2],
+            content[3],
+          ],
+          loadedLineFlags: const [true, true, true, true],
+          contentVersion: state.contentVersion + 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('תוצאה ממתינה לתוכן באורך קבוע ונפתחת כשההערה נטענת', (
+      tester,
+    ) async {
+      final bloc = await pumpSplitedView(tester, initial: pendingState());
+      await openResult(tester, bloc, 1);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsNothing);
+      expect(isHighlightedIn(tester, 'מקור שני'), isTrue);
+    }, skip: !engineReady);
+
+    testWidgets('בחירה ידנית מבטלת תוצאה שממתינה לתוכן', (tester) async {
+      final bloc = await pumpSplitedView(tester, initial: pendingState());
+      await openResult(tester, bloc, 1);
+      bloc.add(const UpdateSelectedIndex(0));
+      await tester.pumpAndSettle();
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
+
+    testWidgets('שינוי חיפוש מבטל תוצאה שממתינה לתוכן', (tester) async {
+      final bloc = await pumpSplitedView(tester, initial: pendingState());
+      await openResult(tester, bloc, 1);
+      bloc.add(const UpdateSearchText('מקור שני'));
+      await tester.pumpAndSettle();
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
+
+    testWidgets('סגירה ידנית צורכת בקשה גם לפני שהתוכן נטען', (tester) async {
+      final bloc = await pumpSplitedView(tester, initial: pendingState());
+      await togglePane(tester);
+      await openResult(tester, bloc, 1);
+      await togglePane(tester);
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
+
+    testWidgets('תוצאה ראשונית מהחיפוש הכללי ממתינה להערה', (tester) async {
+      final bloc = await pumpSplitedView(
+        tester,
+        initial: pendingState(initial: true),
+      );
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsNothing);
+    }, skip: !engineReady);
+
+    testWidgets('שינוי שאילתה מבטל גם תוצאה ראשונית שטרם נטענה', (
+      tester,
+    ) async {
+      final bloc = await pumpSplitedView(
+        tester,
+        initial: pendingState(initial: true),
+      );
+      bloc.add(const UpdateSearchText('מקור שני'));
+      await tester.pumpAndSettle();
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
+
+    testWidgets('בחירה ידנית מבטלת גם תוצאה ראשונית שטרם נטענה', (
+      tester,
+    ) async {
+      final bloc = await pumpSplitedView(
+        tester,
+        initial: pendingState(initial: true),
+      );
+      bloc.add(const UpdateSelectedIndex(0));
+      await tester.pumpAndSettle();
+      await finishLoading(tester, bloc);
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    }, skip: !engineReady);
 
     testWidgets(
       'חלונית שנסגרה אינה נפתחת שוב מעצמה לאותה תוצאה',
@@ -343,19 +494,40 @@ Future<void> main() async {
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
+  int _requestId = 0;
+
+  void emitLoaded(TextBookLoaded value) => emit(value);
+
   _TestTextBookBloc(super.initialState) {
     on<UpdateSearchText>(
       (event, emit) => emit(
         (state as TextBookLoaded).copyWith(
           searchText: event.text,
+          clearSearchResultNavigation:
+              event.text != (state as TextBookLoaded).searchText ||
+              event.searchMode != null ||
+              event.alternativeWords != null,
           alternativeWords: event.alternativeWords,
           searchMode: event.searchMode,
+          searchDistance: event.searchDistance,
+          searchOptions: event.searchOptions,
+          spacingValues: event.spacingValues,
+          matchPolicy: event.matchPolicy,
         ),
+      ),
+    );
+    on<UpdateSearchResultLines>(
+      (event, emit) => emit(
+        (state as TextBookLoaded).copyWith(searchResultLines: event.lines),
       ),
     );
     on<UpdateSelectedIndex>(
       (event, emit) => emit(
         (state as TextBookLoaded).copyWith(
+          searchResultNavigation: event is SelectSearchResult
+              ? (line: event.index!, requestId: ++_requestId)
+              : null,
+          clearSearchResultNavigation: event is! SelectSearchResult,
           selectedIndex: event.index,
           clearSelectedIndex: event.index == null,
           selectedIndices: {if (event.index != null) event.index!},

@@ -59,10 +59,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _paneOpen = false;
   // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
   bool _didAutoOpenCommentary = false;
-  // פתיחה אוטומטית של חלונית ההערות כשתוצאת החיפוש נחתה בהערה — פעם אחת,
-  // ושוב רק כשהבחירה עוברת לשורה אחרת.
-  bool _didOpenNotesForSearch = false;
-  int? _lastSelectedLine;
+  int? _handledSearchResultRequest;
   // מונח החיפוש להדגשה בטאב המפרשים (התוצאה שנחתה בהערה).
   late final ValueNotifier<String> _searchHighlightNotifier;
   int? _currentTabIndex;
@@ -153,9 +150,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (!mounted) return;
     final isOnCommentary = _paneOpen && _currentTabIndex == kCommentaryTabIndex;
     if (isOnCommentary) {
-      setState(() {
-        _paneOpen = false;
-      });
+      _closePane();
     } else {
       // רישום interaction של TourCubit לפני הפתיחה — בעקבי עם השאר
       // המסלולים שפותחים את חלונית המפרשים (ע' text_book_screen).
@@ -244,15 +239,22 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     );
   }
 
+  void _closePane() {
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      _handledSearchResultRequest =
+          state.searchResultNavigation?.requestId ?? 0;
+    }
+    setState(() => _paneOpen = false);
+  }
+
   void _togglePane() {
     if (!_paneOpen) {
       // פתיחת הטור - בחר את הטאב הנכון
       _openPaneWithSmartTab();
     } else {
       // סגירת הטור
-      setState(() {
-        _paneOpen = false;
-      });
+      _closePane();
     }
   }
 
@@ -324,26 +326,23 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     );
   }
 
-  /// כשתוצאת החיפוש נחתה בגוף הערת שוליים (המונח אינו נראה בטקסט הראשי),
-  /// פותח את חלונית ההערות על טאב המפרשים ומוודא שמפרש "הערות" פעיל — גם אם
-  /// הגדרת הפתיחה האוטומטית כבויה, כי בלעדיה אין דרך לראות את ההתאמה.
-  /// פעם אחת, ושוב בכל מעבר לשורה אחרת, ורק במצב "מפרשים בצד".
+  /// חושף התאמה בהערה פעם אחת לכל ניווט חיפוש מפורש, גם באותה שורה.
   void _maybeOpenNotesForSearchMatch() {
     if (!mounted || !widget.showSplitView) return;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
-    // עדכון מצב באותה בחירה, או בחירה שהתאפסה בגלילה, אינו פותח שוב חלונית
-    // שהמשתמש סגר; מעבר לתוצאה (שורה) אחרת — כן.
-    final selected = state.selectedIndex;
-    final movedToLine = selected != null && selected != _lastSelectedLine;
-    _lastSelectedLine = selected;
-    if (_didOpenNotesForSearch && !movedToLine) return;
-    // ערך אמין: state.searchText מתעדכן בחיפוש בתוך הספר (UpdateSearchText),
-    // בעוד widget.tab.searchText הוא הערך ההתחלתי בלבד.
+    final request = state.searchResultNavigation;
+    if (request == null) return;
+    final requestId = request.requestId;
+    if (_handledSearchResultRequest == requestId) return;
+    final idx = request.line;
     final query = state.searchText;
-    if (query.trim().isEmpty) return;
-    final idx = selected ?? widget.tab.index;
-    if (idx < 0 || idx >= state.content.length) return;
+    if (query.trim().isEmpty || idx < 0 || idx >= state.content.length) {
+      _handledSearchResultRequest = requestId;
+      return;
+    }
+    if (!state.isContentLineLoaded(idx)) return;
+    _handledSearchResultRequest = requestId;
     if (!queryMatchesInlineNoteOnly(
       state.content[idx],
       query,
@@ -359,7 +358,6 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       return;
     }
 
-    _didOpenNotesForSearch = true;
     if (!state.activeCommentators.contains(kNotesCommentatorTitle)) {
       context.read<TextBookBloc>().add(
         UpdateCommentators(
@@ -420,12 +418,13 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     return BlocListener<TextBookBloc, TextBookState>(
       listenWhen: (previous, current) {
         if (previous is TextBookLoaded && current is TextBookLoaded) {
-          // הוספת מפרשים, טעינת/הרחבת תוכן, שינוי שורת התוצאה או מונח החיפוש —
-          // כולם רלוונטיים לפתיחה האוטומטית ולזיהוי תוצאה שנחתה בהערה.
+          // טעינה משלימה ניווט שעדיין ממתין לתוכן; בחירה רגילה אינה ניווט חיפוש.
           return current.activeCommentators.length >
                   previous.activeCommentators.length ||
               previous.content.length != current.content.length ||
-              previous.selectedIndex != current.selectedIndex ||
+              previous.contentVersion != current.contentVersion ||
+              previous.searchResultNavigation !=
+                  current.searchResultNavigation ||
               previous.searchText != current.searchText;
         }
         return true;
@@ -459,11 +458,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                 alignment: AlignmentDirectional.centerStart,
                 paneWidth: paneWidths.paneWidth,
                 minMainContentWidth: 200,
-                onClose: () {
-                  setState(() {
-                    _paneOpen = false;
-                  });
-                },
+                onClose: _closePane,
                 paneContent: ValueListenableBuilder<String?>(
                   valueListenable: _savedSelectedText,
                   // אין SelectionArea חיצוני כאן: CommentaryListBase (בתוך
