@@ -3,7 +3,6 @@ import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/search/view/in_book_snippet_style.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
@@ -61,6 +60,8 @@ class TextBookSearchView extends StatefulWidget {
   final Future<List<String>> Function() contentLoader;
   final LineScrollController lines;
   final FocusNode focusNode;
+
+  /// נקרא אחרי מעבר לתוצאה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final String initialQuery;
   final Map<String, Map<String, bool>> initialSearchOptions;
@@ -759,7 +760,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   void _navigateToSearchResult(
     int resultListIndex, {
-    bool closePaneOnAndroid = false,
+    bool closePane = false,
   }) {
     if (resultListIndex < 0 || resultListIndex >= searchResults.length) {
       return;
@@ -809,7 +810,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       intraLineFraction: intraLineFraction,
     );
 
-    if (closePaneOnAndroid && Platform.isAndroid) {
+    if (closePane) {
       unawaited(
         closePaneAfterNavigation(
           navigation: navigation,
@@ -1102,7 +1103,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                         isSelected: selected == resultListIndex,
                         onTap: () => _navigateToSearchResult(
                           resultListIndex,
-                          closePaneOnAndroid: true,
+                          closePane: true,
                         ),
                         child: child!,
                       ),

@@ -1,7 +1,6 @@
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
@@ -49,6 +48,8 @@ String altTocEntryMatchText(AltTocEntry entry) =>
 
 class AltTocSidebarView extends StatefulWidget {
   final TextBook book;
+
+  /// נקרא אחרי מעבר לשורה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final LineScrollController lines;
 
@@ -685,18 +686,14 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       curve: Curves.easeInOut,
     );
 
-    if (Platform.isAndroid) {
-      unawaited(
-        closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ),
-      );
-    } else {
-      unawaited(navigation);
-    }
+    unawaited(
+      closePaneAfterNavigation(
+        navigation: navigation,
+        closePane: () {
+          if (mounted) widget.closeLeftPaneCallback();
+        },
+      ),
+    );
   }
 
   Future<void> _openLink(Link link, {String? markerTitle}) async {

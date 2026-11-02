@@ -256,6 +256,38 @@ Future<void> main() async {
     );
   });
 
+  // DD-26: ההחלטה אם לסגור נמצאת אצל ההורה (לפי פריסת החלונית), לא לפי פלטפורמה.
+  testWidgets('מעבר לערך מבקש מההורה לסגור את החלונית, בכל פלטפורמה', (
+    tester,
+  ) async {
+    final bloc = _TestTextBookBloc(
+      _loadedState(
+        toc: _buildLargeToc(simanim: 3, seifim: 0),
+        visibleIndices: const [0],
+      ),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    var closeRequests = 0;
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          lines: LineScrollController(),
+          closeLeftPaneCallback: () => closeRequests++,
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('siman 1'));
+    await tester.pumpAndSettle();
+    expect(closeRequests, 1);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   // issue #1725 — ברשימה הוירטואלית הכותרת עם אייקון החיפוש נפרקת בגלילה.
   testWidgets('גלילה בעץ גדול מציגה אייקון חיפוש צף שפותח את השדה', (
     tester,
