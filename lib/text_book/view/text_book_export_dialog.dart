@@ -32,12 +32,12 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
 }) async {
   var holyName = profile.holyName;
   var divineNames = profile.divineNames;
-  final result = await showTwoActionsDialog(
+  final format = await showChoiceDialog<TextBookExportFormat>(
     context: context,
     title: 'בחירת סוג קובץ',
     icon: FluentIcons.document_arrow_right_24_regular,
     size: AppDialogSize.medium,
-    // רוחב קבוע: AlertDialog מודד רוחב פנימי, ו-segmentedTile בנוי על LayoutBuilder.
+    // רוחב קבוע: segmentedTile בנוי על LayoutBuilder.
     customContent: StatefulBuilder(
       builder: (context, setDialogState) => SizedBox(
         width: 480,
@@ -114,14 +114,19 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
         ),
       ),
     ),
-    cancelText: 'טקסט',
-    confirmText: 'Word',
-    barrierDismissible: true,
+    choices: const [
+      AppDialogChoice(value: TextBookExportFormat.text, label: 'טקסט'),
+      AppDialogChoice(
+        value: TextBookExportFormat.word,
+        label: 'Word',
+        recommended: true,
+      ),
+    ],
   );
 
-  if (result == null) return null;
+  if (format == null) return null;
   return (
-    format: result ? TextBookExportFormat.word : TextBookExportFormat.text,
+    format: format,
     holyName: holyName,
     divineNames: divineNames,
   );

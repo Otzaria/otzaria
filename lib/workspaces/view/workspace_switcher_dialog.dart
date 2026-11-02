@@ -15,10 +15,11 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
-import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 class WorkspaceSwitcherDialog extends StatefulWidget {
@@ -30,20 +31,12 @@ class WorkspaceSwitcherDialog extends StatefulWidget {
 }
 
 class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
-  final TextEditingController _textFieldController = TextEditingController();
   bool _switchPending = false;
 
   @override
   void initState() {
     super.initState();
-    _textFieldController.text = getHebrewTimeStamp();
     context.read<WorkspaceBloc>().add(LoadWorkspaces());
-  }
-
-  @override
-  void dispose() {
-    _textFieldController.dispose();
-    super.dispose();
   }
 
   @override
@@ -56,14 +49,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
       child: BlocBuilder<WorkspaceBloc, WorkspaceState>(
         builder: (context, state) {
           if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingIndicator();
           }
 
           if (state.error != null) {
-            return Center(
-              child: Text(
-                'שגיאה: ${state.error}',
-              ),
+            return OtzariaErrorState(
+              title: 'לא ניתן לטעון את שולחנות העבודה',
+              details: state.error,
             );
           }
 
@@ -236,28 +228,18 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
               ],
             ),
           ),
-          Positioned(
+          PositionedDirectional(
             top: 4,
-            right: 4,
+            start: 4,
             child: IconButton(
               tooltip: 'מחק שולחן עבודה',
               icon: const Icon(FluentIcons.dismiss_24_regular, size: 16),
-              onPressed: () {
-                // Remove the workspace
-                if (isActive) {
-                  UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
-                  return;
-                }
-                context.read<WorkspaceBloc>().add(
-                  RemoveWorkspace(workspace.id),
-                );
-                UiSnack.show(NotesMessages.workspaceDeleted);
-              },
+              onPressed: () => _deleteWorkspace(context, workspace, isActive),
             ),
           ),
-          Positioned(
+          PositionedDirectional(
             top: 4,
-            left: 4,
+            end: 4,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -285,6 +267,27 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteWorkspace(
+    BuildContext context,
+    Workspace workspace,
+    bool isActive,
+  ) async {
+    if (isActive) {
+      UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
+      return;
+    }
+    final workspaceBloc = context.read<WorkspaceBloc>();
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'למחוק את שולחן העבודה?',
+      content: 'שולחן העבודה "${workspace.name}" והכרטיסיות שנשמרו בו יימחקו.',
+      confirmText: 'מחק',
+    );
+    if (confirmed != true) return;
+    workspaceBloc.add(RemoveWorkspace(workspace.id));
+    UiSnack.show(NotesMessages.workspaceDeleted);
   }
 
   void _togglePinned(BuildContext context, Workspace workspace, bool isActive) {

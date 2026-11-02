@@ -357,6 +357,7 @@ Future<T?> showChoiceDialog<T>({
   IconData? icon,
   TextDirection? textDirection,
   bool barrierDismissible = true,
+  AppDialogSize size = AppDialogSize.small,
 }) {
   assert(content != null || customContent != null);
   assert(choices.where((c) => c.recommended).length <= 1);
@@ -371,7 +372,7 @@ Future<T?> showChoiceDialog<T>({
           return AppDialogFrame(
             title: title,
             icon: icon ?? AppDialogIcons.confirm,
-            size: AppDialogSize.small,
+            size: size,
             actions: [
               ActionButton.neutral(
                 text: cancelText ?? context.settingsText('ביטול'),
