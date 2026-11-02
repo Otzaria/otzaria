@@ -232,16 +232,22 @@ void main() {
       await registry.enableEngineSources();
       registry.noteEngineUse();
 
-      registry.closeIdle(now: DateTime.now().add(const Duration(minutes: 1)));
+      await registry.closeIdle(
+        now: DateTime.now().add(const Duration(minutes: 1)),
+      );
       await registry.engineSourcesSettled;
       expect(calls, ['a=a.db']);
 
-      registry.closeIdle(now: DateTime.now().add(const Duration(minutes: 6)));
+      await registry.closeIdle(
+        now: DateTime.now().add(const Duration(minutes: 6)),
+      );
       await registry.engineSourcesSettled;
       expect(calls, ['a=a.db', 'a=null', 'a=a.db']);
       expect(registry.isEngineSourceConfigured('a'), isTrue);
 
-      registry.closeIdle(now: DateTime.now().add(const Duration(minutes: 12)));
+      await registry.closeIdle(
+        now: DateTime.now().add(const Duration(minutes: 12)),
+      );
       await registry.engineSourcesSettled;
       expect(calls, hasLength(3), reason: 'בלי שימוש חדש אין מה לשחרר');
     });
