@@ -169,7 +169,7 @@ class ContextMenuUtils {
         if (targetBookId != null)
           AppContextMenuIconAction(
             label: 'קישור',
-            icon: OtzariaIcons.link_copy_24_regular,
+            icon: OtzariaIcons.link_24_regular,
             submenuBuilder: () => buildDirectLinkSubmenuActions(
               bookId: targetBookId,
               source: link.targetSource,
