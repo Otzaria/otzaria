@@ -13,6 +13,8 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 // LEFT/RIGHT swapped (flutter_quill doesn't flip them for RTL). UP/DOWN use
@@ -639,75 +641,94 @@ class _PersonalNoteToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 4,
-      children: [
-        IconButton(
-          tooltip: 'מודגש',
-          icon: const Icon(FluentIcons.text_bold_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.bold),
-        ),
-        IconButton(
-          tooltip: 'נטוי',
-          icon: const Icon(FluentIcons.text_italic_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.italic),
-        ),
-        IconButton(
-          tooltip: 'קו תחתי',
-          icon: const Icon(FluentIcons.text_underline_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.underline),
-        ),
-        IconButton(
-          tooltip: 'קו חוצה',
-          icon: const Icon(FluentIcons.text_strikethrough_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.strikeThrough),
-        ),
-        IconButton(
-          tooltip: 'הדגשה',
-          icon: const Icon(FluentIcons.circle_highlight_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(
-            const quill.BackgroundAttribute('#fff59d'),
-          ),
-        ),
-        IconButton(
-          tooltip: 'הגדל כתב',
-          icon: const Icon(FluentIcons.font_increase_24_regular, size: 18),
-          onPressed: () => _adjustFontSize(_fontSizeStep),
-        ),
-        IconButton(
-          tooltip: 'הקטן כתב',
-          icon: const Icon(FluentIcons.font_decrease_24_regular, size: 18),
-          onPressed: () => _adjustFontSize(-_fontSizeStep),
-        ),
-        IconButton(
-          tooltip: 'כותרת',
-          icon: const Icon(FluentIcons.text_header_2_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.h2),
-        ),
-        IconButton(
-          tooltip: 'רשימה',
-          icon: const Icon(OtzariaIcons.text_bullet_list_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.ul),
-        ),
-        IconButton(
-          tooltip: 'רשימה ממוספרת',
-          icon: const Icon(
-            OtzariaIcons.text_number_list_24_regular,
-            size: 18,
-          ),
-          onPressed: () => _toggleAttribute(quill.Attribute.ol),
-        ),
-        IconButton(
-          tooltip: 'ציטוט',
-          icon: const Icon(FluentIcons.text_quote_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.blockQuote),
-        ),
-        IconButton(
-          tooltip: 'הוסף קישור',
-          icon: const Icon(OtzariaIcons.link_24_regular, size: 18),
-          onPressed: onInsertLink,
-        ),
-      ],
+    final compact = AppDensity.of(context).isCompact;
+    // נבנה מחדש בכל שינוי בחירה, כדי שכפתורי העיצוב יראו מה פעיל בה.
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final selected = controller.getSelectionStyle().attributes;
+        Widget button({
+          required String tooltip,
+          required IconData icon,
+          quill.Attribute? attribute,
+          VoidCallback? onPressed,
+        }) => BarButton.icon(
+          tooltip: tooltip,
+          icon: icon,
+          iconSize: 18,
+          compact: compact,
+          selected:
+              attribute != null && _isAttributeActive(attribute, selected),
+          onPressed:
+              onPressed ??
+              (attribute == null ? null : () => _toggleAttribute(attribute)),
+        );
+        return Wrap(
+          spacing: 4,
+          children: [
+            button(
+              tooltip: 'מודגש',
+              icon: FluentIcons.text_bold_24_regular,
+              attribute: quill.Attribute.bold,
+            ),
+            button(
+              tooltip: 'נטוי',
+              icon: FluentIcons.text_italic_24_regular,
+              attribute: quill.Attribute.italic,
+            ),
+            button(
+              tooltip: 'קו תחתי',
+              icon: FluentIcons.text_underline_24_regular,
+              attribute: quill.Attribute.underline,
+            ),
+            button(
+              tooltip: 'קו חוצה',
+              icon: FluentIcons.text_strikethrough_24_regular,
+              attribute: quill.Attribute.strikeThrough,
+            ),
+            button(
+              tooltip: 'הדגשה',
+              icon: FluentIcons.circle_highlight_24_regular,
+              attribute: const quill.BackgroundAttribute('#fff59d'),
+            ),
+            button(
+              tooltip: 'הגדל כתב',
+              icon: FluentIcons.font_increase_24_regular,
+              onPressed: () => _adjustFontSize(_fontSizeStep),
+            ),
+            button(
+              tooltip: 'הקטן כתב',
+              icon: FluentIcons.font_decrease_24_regular,
+              onPressed: () => _adjustFontSize(-_fontSizeStep),
+            ),
+            button(
+              tooltip: 'כותרת',
+              icon: FluentIcons.text_header_2_24_regular,
+              attribute: quill.Attribute.h2,
+            ),
+            button(
+              tooltip: 'רשימה',
+              icon: OtzariaIcons.text_bullet_list_24_regular,
+              attribute: quill.Attribute.ul,
+            ),
+            button(
+              tooltip: 'רשימה ממוספרת',
+              icon: OtzariaIcons.text_number_list_24_regular,
+              attribute: quill.Attribute.ol,
+            ),
+            button(
+              tooltip: 'ציטוט',
+              icon: FluentIcons.text_quote_24_regular,
+              attribute: quill.Attribute.blockQuote,
+            ),
+            button(
+              tooltip: 'הוסף קישור',
+              icon: OtzariaIcons.link_24_regular,
+              onPressed: onInsertLink,
+            ),
+          ],
+        );
+      },
     );
   }
 }
