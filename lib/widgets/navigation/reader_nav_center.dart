@@ -1,7 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// אזור המרכז האחיד לסרגלי הקריאה: [prev-major] [prev-minor] | כותרת | [next-minor] [next-major].
@@ -42,7 +41,7 @@ class ReaderNavCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     const gap = 4.0;
     return LayoutBuilder(
       builder: (context, constraints) {

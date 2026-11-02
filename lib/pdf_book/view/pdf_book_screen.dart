@@ -4543,10 +4543,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         tooltip: context.settingsText('חזרה למיקום הקודם'),
                         icon: FluentIcons.arrow_left_24_regular,
                         flipInRtl: true,
-                        compact: context
-                            .read<SettingsBloc>()
-                            .state
-                            .compactMenuMode,
+                        compact: AppDensity.of(context).isCompact,
                         onPressed: available ? _returnToPreviousLocation : null,
                       ),
                     ),
@@ -5436,7 +5433,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   List<ActionButtonData> _buildDisplayOrderPdfActions(BuildContext context) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     unawaited(_resolveParallelEditions());
     return [
       // מהדורה מקבילה — המובנית (מהדורת טקסט) כפעולה ראשית, ומהדורות
@@ -5522,7 +5519,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   List<(int, ActionButtonData)> _buildAlwaysInMenuPdfActions(
     BuildContext context,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return [
       (
         10,
@@ -5768,7 +5765,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ActionButtonData _buildParallelEditionsAction(BuildContext context) =>
       buildParallelEditionsAction(
         editions: _parallelEditions,
-        compact: context.read<SettingsBloc>().state.compactMenuMode,
+        compact: AppDensity.of(context).isCompact,
         companionIcon: OtzariaIcons.document_column_24_regular,
         companionTooltip: 'פתח בתצוגת טקסט',
         companionMenuSuffix: 'מהדורת טקסט (אוצריא)',

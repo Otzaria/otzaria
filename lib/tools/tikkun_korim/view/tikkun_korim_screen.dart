@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/tikkun_korim/bloc/tikkun_korim_bloc.dart';
@@ -546,7 +547,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     double availableWidth,
   ) {
     final bloc = context.read<TikkunKorimBloc>();
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final nav = state.nav;
     final selectors = <Widget>[
       _selector<TikkunSection>(

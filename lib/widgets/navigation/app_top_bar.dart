@@ -1,22 +1,12 @@
 // lib/widgets/navigation/app_top_bar.dart
 //
 // AppTopBar — סרגל עליון בסגנון Chrome / M3.
-//
-// שינויים v3:
-// • תוקן: Colors.black → cs.shadow (לא hardcoded colors, עמידה ב-AGENTS.md)
-// • תוקן: shadowColor משתמש ב-cs.shadow בהתאמה לבהיר/כהה
-// • ללא שינוי ב-API.
-//
-// שינויים v4:
-// • הוספת תלות אוטומטית ב-SettingsBloc לקביעת isCompact
-// • הסרת הצורך להעביר isCompact מכל מסך
 
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -48,7 +38,7 @@ class AppTopBarItem {
 /// תכונות:
 /// - שורה ראשית: [leadingItems] | [center] | [trailingItems]
 /// - שורה שניה אופציונלית עם אנימציית גלילה (SizeTransition + FadeTransition)
-/// - [isCompact] מתקבל אוטומטית מ-SettingsBloc (compactMenuMode)
+/// - הצפיפות נקראת מ-[AppDensity] שב-Theme
 /// - [secondaryRowVisible] – ValueNotifier חיצוני לשליטה בשורה שניה
 /// - [scrollDebounceMs] – debounce למניעת flicker בגלילה (ברירת מחדל: 80ms)
 class AppTopBar extends StatefulWidget {
@@ -91,7 +81,7 @@ class AppTopBar extends StatefulWidget {
 
   /// גובה הסרגל לפי מצב compact
   static double barHeight(bool isCompact) =>
-      isCompact ? _kCompactHeight : _kTouchHeight;
+      AppDensity(isCompact: isCompact).topBarHeight;
 
   /// הריווח האופקי בקצות הסרגל. ווידג'ט שצריך להתיישר לתוכן שמתחתיו
   /// (כמו סרגל חלונית הניווט) מפחית אותו מהרוחב/מהשוליים שלו.
@@ -141,8 +131,6 @@ class _ShadowBelowOnlyClipper extends CustomClipper<Rect> {
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
 }
 
-const double _kTouchHeight = 56.0;
-const double _kCompactHeight = 44.0;
 const Duration _kAnimDuration = Duration(milliseconds: 220);
 
 class _AppTopBarState extends State<AppTopBar>
@@ -152,6 +140,7 @@ class _AppTopBarState extends State<AppTopBar>
   final GlobalKey _secondaryRowKey = GlobalKey();
   Timer? _debounceTimer;
   bool _pendingVisible = true;
+  bool? _isCompact;
 
   @override
   void initState() {
@@ -173,6 +162,12 @@ class _AppTopBarState extends State<AppTopBar>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _anim.duration = AppMotion.duration(context, _kAnimDuration);
+    final isCompact = AppDensity.of(context).isCompact;
+    // גובה הסרגל השתנה — מעדכנים את totalHeightNotifier אחרי ה-frame.
+    if (_isCompact != null && _isCompact != isCompact) {
+      _scheduleHeightSync(_notifyHeight);
+    }
+    _isCompact = isCompact;
   }
 
   @override
@@ -203,9 +198,7 @@ class _AppTopBarState extends State<AppTopBar>
     final notifier = widget.totalHeightNotifier;
     if (notifier == null) return;
 
-    // קבלת isCompact מה-context
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
-    final mainBarHeight = AppTopBar.barHeight(isCompact);
+    final mainBarHeight = AppDensity.of(context).topBarHeight;
     double secondaryRowHeight = 0;
     if (widget.secondaryRow != null) {
       final renderObject = _secondaryRowKey.currentContext?.findRenderObject();
@@ -255,7 +248,7 @@ class _AppTopBarState extends State<AppTopBar>
     BuildContext context,
     List<AppTopBarItem> items,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final List<Widget> result = [];
     final double buttonSpacing = AppTopBar.itemSpacing(isCompact);
     for (int i = 0; i < items.length; i++) {
@@ -295,139 +288,130 @@ class _AppTopBarState extends State<AppTopBar>
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<SettingsBloc, SettingsState>(
-      listenWhen: (prev, next) => prev.compactMenuMode != next.compactMenuMode,
-      listener: (context, _) {
-        // גובה הסרגל השתנה — מעדכנים את totalHeightNotifier אחרי הframe
-        _scheduleHeightSync(_notifyHeight);
-      },
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
-        // סרגל משותף לעשרות מסכים; מחוץ להיקף חלון (בדיקות מסך) אין מסך מלא.
-        final isFullscreen = context.select(
-          (WindowFullscreenCubit? cubit) => cubit?.state ?? false,
-        );
-        final cs = Theme.of(context).colorScheme;
-        final barColor =
-            widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
-        final shadowColor = cs.shadow.withValues(alpha: 0.14);
-        final barH = isCompact ? _kCompactHeight : _kTouchHeight;
-        final hPad = AppTopBar.horizontalPadding(isCompact);
-        final vPad = isCompact ? 4.0 : 8.0;
+    final density = AppDensity.of(context);
+    final isCompact = density.isCompact;
+    // סרגל משותף לעשרות מסכים; מחוץ להיקף חלון (בדיקות מסך) אין מסך מלא.
+    final isFullscreen = context.select(
+      (WindowFullscreenCubit? cubit) => cubit?.state ?? false,
+    );
+    final cs = Theme.of(context).colorScheme;
+    final barColor =
+        widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
+    final shadowColor = cs.shadow.withValues(alpha: 0.14);
+    final barH = density.topBarHeight;
+    final hPad = AppTopBar.horizontalPadding(isCompact);
+    final vPad = isCompact ? 4.0 : 8.0;
 
-        // בחלונית של טאב מפוצל הפריט הראשון הוא ידית גרירה שמחזירה את
-        // החלונית לשורת הכרטיסיות.
-        final dragPane = PaneDragHandleScope.paneOf(context);
+    // בחלונית של טאב מפוצל הפריט הראשון הוא ידית גרירה שמחזירה את
+    // החלונית לשורת הכרטיסיות.
+    final dragPane = PaneDragHandleScope.paneOf(context);
 
-        final leadingItems = [
-          if (dragPane != null)
-            AppTopBarItem(widget: PaneDragHandleButton(pane: dragPane)),
-          ...widget.leadingItems,
-        ];
+    final leadingItems = [
+      if (dragPane != null)
+        AppTopBarItem(widget: PaneDragHandleButton(pane: dragPane)),
+      ...widget.leadingItems,
+    ];
 
-        // במסך מלא לחצן היציאה משולב כפריט האחרון בסרגל (ולא כלחצן צף) —
-        // בקצה השמאלי, באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
-        final trailingItems = [
-          ...widget.trailingItems,
-          if (isFullscreen)
-            AppTopBarItem(
-              widget: BarButton.icon(
-                tooltip: 'צא ממסך מלא',
-                icon: FluentIcons.full_screen_minimize_24_regular,
-                compact: isCompact,
-                onPressed: () => FullscreenHelper.toggleFullscreen(
-                  context,
-                  false,
-                ),
-              ),
+    // במסך מלא לחצן היציאה משולב כפריט האחרון בסרגל (ולא כלחצן צף) —
+    // בקצה השמאלי, באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
+    final trailingItems = [
+      ...widget.trailingItems,
+      if (isFullscreen)
+        AppTopBarItem(
+          widget: BarButton.icon(
+            tooltip: 'צא ממסך מלא',
+            icon: FluentIcons.full_screen_minimize_24_regular,
+            compact: isCompact,
+            onPressed: () => FullscreenHelper.toggleFullscreen(
+              context,
+              false,
             ),
-        ];
+          ),
+        ),
+    ];
 
-        final leadingWidget = leadingItems.isEmpty
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: _itemsToWidgets(context, leadingItems),
-              );
+    final leadingWidget = leadingItems.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: _itemsToWidgets(context, leadingItems),
+          );
 
-        final trailingWidget = trailingItems.isEmpty
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: _itemsToWidgets(
-                  context,
-                  trailingItems,
+    final trailingWidget = trailingItems.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: _itemsToWidgets(
+              context,
+              trailingItems,
+            ),
+          );
+
+    final Widget toolbar =
+        widget.minCenterWidth == null && widget.minTrailingWidth == null
+        ? NavigationToolbar(
+            middleSpacing: 8.0,
+            leading: leadingWidget,
+            middle: widget.center,
+            trailing: trailingWidget,
+          )
+        : _AdaptiveTopBarToolbar(
+            leading: leadingWidget,
+            middle: widget.center,
+            trailing: trailingWidget,
+            middleSpacing: 8.0,
+            minMiddleWidth: widget.minCenterWidth ?? 0.0,
+            minTrailingWidth: trailingWidget == null
+                ? 0.0
+                : widget.minTrailingWidth ?? BarButton.toolbarWidth(isCompact),
+          );
+
+    final mainBar = ClipRect(
+      clipper: const _ShadowBelowOnlyClipper(),
+      child: Material(
+        color: barColor,
+        elevation: 2.0,
+        shadowColor: shadowColor,
+        surfaceTintColor: Colors.transparent,
+        child: SizedBox(
+          height: barH,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+            child: toolbar,
+          ),
+        ),
+      ),
+    );
+
+    // תמיד מחזירים Column כדי לשמור על מיקום יציב של mainBar (position 0).
+    // שינוי מ-Material ישיר ל-Column גורם ל-Flutter למחוק ולאחזר את mainBar
+    // (ולאבד פוקוס מקלדת). עם Column קבוע, mainBar תמיד ב-position 0
+    // ו-Flutter שומר על ה-element (ועל הפוקוס) גם כשהשורה השניה מופיעה/נעלמת.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        mainBar,
+        if (widget.secondaryRow != null)
+          SizeTransition(
+            sizeFactor: _progress,
+            alignment: AlignmentDirectional.topStart,
+            child: FadeTransition(
+              opacity: _progress,
+              child: SizedBox(
+                width: double.infinity,
+                child: Material(
+                  key: _secondaryRowKey,
+                  color: barColor,
+                  elevation: 1.0,
+                  shadowColor: cs.shadow.withValues(alpha: 0.08),
+                  surfaceTintColor: Colors.transparent,
+                  child: widget.secondaryRow!,
                 ),
-              );
-
-        final Widget toolbar =
-            widget.minCenterWidth == null && widget.minTrailingWidth == null
-            ? NavigationToolbar(
-                middleSpacing: 8.0,
-                leading: leadingWidget,
-                middle: widget.center,
-                trailing: trailingWidget,
-              )
-            : _AdaptiveTopBarToolbar(
-                leading: leadingWidget,
-                middle: widget.center,
-                trailing: trailingWidget,
-                middleSpacing: 8.0,
-                minMiddleWidth: widget.minCenterWidth ?? 0.0,
-                minTrailingWidth: trailingWidget == null
-                    ? 0.0
-                    : widget.minTrailingWidth ??
-                          BarButton.toolbarWidth(isCompact),
-              );
-
-        final mainBar = ClipRect(
-          clipper: const _ShadowBelowOnlyClipper(),
-          child: Material(
-            color: barColor,
-            elevation: 2.0,
-            shadowColor: shadowColor,
-            surfaceTintColor: Colors.transparent,
-            child: SizedBox(
-              height: barH,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-                child: toolbar,
               ),
             ),
           ),
-        );
-
-        // תמיד מחזירים Column כדי לשמור על מיקום יציב של mainBar (position 0).
-        // שינוי מ-Material ישיר ל-Column גורם ל-Flutter למחוק ולאחזר את mainBar
-        // (ולאבד פוקוס מקלדת). עם Column קבוע, mainBar תמיד ב-position 0
-        // ו-Flutter שומר על ה-element (ועל הפוקוס) גם כשהשורה השניה מופיעה/נעלמת.
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            mainBar,
-            if (widget.secondaryRow != null)
-              SizeTransition(
-                sizeFactor: _progress,
-                alignment: AlignmentDirectional.topStart,
-                child: FadeTransition(
-                  opacity: _progress,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Material(
-                      key: _secondaryRowKey,
-                      color: barColor,
-                      elevation: 1.0,
-                      shadowColor: cs.shadow.withValues(alpha: 0.08),
-                      surfaceTintColor: Colors.transparent,
-                      child: widget.secondaryRow!,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+      ],
     );
   }
 }

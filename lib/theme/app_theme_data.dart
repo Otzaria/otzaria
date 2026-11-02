@@ -4,6 +4,7 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuMetrics;
 
 import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -147,6 +148,7 @@ class AppThemeData {
         menuMetrics,
         AppThemeVariantTheme(variant),
         AppSurfaceColors.fromScheme(cs),
+        AppDensity(isCompact: compactMenuMode),
       ],
     ).copyWith(
       dialogTheme: DialogThemeData(

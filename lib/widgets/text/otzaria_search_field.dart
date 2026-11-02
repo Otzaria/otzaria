@@ -1,10 +1,8 @@
 // lib/widgets/text/otzaria_search_field.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
@@ -227,7 +225,7 @@ class _ActionButton extends StatelessWidget {
 ///
 /// [child] — התוכן המוצג (טקסט / תצוגת מילות חיפוש).
 /// [icon] — האייקון בראש הסרגל, ומרמז על הפעולה שהלחיצה מבצעת.
-/// [slim] = null: יורש אוטומטית מ-[SettingsBloc.compactMenuMode].
+/// [slim] = null: יורש אוטומטית מ-[AppDensity].
 class OtzariaSearchDisplayBar extends StatelessWidget {
   final Widget child;
   final IconData icon;
@@ -247,8 +245,7 @@ class OtzariaSearchDisplayBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isSlim =
-        slim ?? context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final isSlim = slim ?? AppDensity.of(context).isCompact;
 
     Widget bar = Container(
       height: isSlim ? _ST.heightSlim : _ST.height,
@@ -290,7 +287,7 @@ class OtzariaSearchDisplayBar extends StatelessWidget {
 /// שדה חיפוש של אוצריא.
 ///
 /// מצבים:
-/// • [slim] = null: יורש אוטומטית מ-[compactMenuMode] אם זמין
+/// • [slim] = null: יורש אוטומטית מ-[AppDensity]
 /// • [slim] = false (touch / מרווח): גובה 48px, גופן 16px
 /// • [slim] = true  (desktop / compact): גובה 36px, גופן 13px
 /// • [isCompact] = true: מתכווץ לאייקון עגול (scroll-hide)
@@ -311,7 +308,7 @@ class OtzariaSearchField extends StatefulWidget {
   /// שאינו מוצג על המסך. `leading` דוחה אותו.
   final IconData icon;
 
-  /// `null` = יורש אוטומטית מ-compactMenuMode אם זמין.
+  /// `null` = יורש אוטומטית מ-[AppDensity].
   /// `true` = שדה צר, `false` = שדה רחב.
   final bool? slim;
 
@@ -362,7 +359,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
   bool _resolveSlim(BuildContext context) {
     if (widget.slim != null) return widget.slim!;
-    return context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    return AppDensity.of(context).isCompact;
   }
 
   @override

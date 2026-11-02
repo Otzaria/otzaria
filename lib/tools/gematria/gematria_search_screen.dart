@@ -1,3 +1,4 @@
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -5,7 +6,6 @@ import 'package:otzaria/tools/gematria/widgets/gematria_status_bar.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -374,8 +374,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
       },
       child: Column(
         children: [
-          BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) => AppTopBar(
+          Builder(
+            builder: (context) => AppTopBar(
               center: OtzariaSearchField(
                 controller: _searchController,
                 focusNode: _searchFocusNode,
@@ -394,7 +394,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
               trailingItems: [
                 AppTopBarItem(
                   widget: BarButton.icon(
-                    compact: settingsState.compactMenuMode,
+                    compact: AppDensity.of(context).isCompact,
                     tooltip: 'הגדרות גימטריה',
                     icon: FluentIcons.settings_24_regular,
                     selected: _showingSettings,

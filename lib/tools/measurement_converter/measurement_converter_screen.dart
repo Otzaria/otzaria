@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'measurement_data.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -693,9 +691,9 @@ class _MeasurementConverterScreenState
     final cs = Theme.of(context).colorScheme;
     final showOpinion = _shouldShowOpinionSelector();
 
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
+    return Builder(
+      builder: (context) {
+        final isCompact = AppDensity.of(context).isCompact;
         final fieldHeight = isCompact ? AppInputTokens.compactHeight : 40.0;
         final fieldFontSize = AppInputTokens.fontSize(isCompact);
 

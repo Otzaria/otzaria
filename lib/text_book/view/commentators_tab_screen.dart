@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
 import 'package:otzaria/book_common/view/commentators_side_pane.dart';
@@ -987,7 +988,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     TextBookLoaded state,
     List<TocEntry> chapters,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     void addBookmark() => _addBookmark(
       context,
       state,
