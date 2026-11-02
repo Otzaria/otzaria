@@ -258,6 +258,16 @@ class SearchingTab extends OpenedTab {
     );
   }
 
+  /// "ניקוד"/"טעמים" מסומנים (במצב מתקדם, גלובלית או פר-מילה), ולכן אסור למחוק
+  /// ניקוד מהשאילתה. נבדק על מפות המקור, כי האפקטיביות נבנות אחרי המחיקה.
+  bool get requestsVocalizedSearch =>
+      searchBloc.state.configuration.searchMode == SearchMode.advanced &&
+      (useGlobalSearchOptions.value
+          ? SearchQueryBuilder.globalOptionsRequestVocalized(
+              globalSearchOptions,
+            )
+          : SearchQueryBuilder.optionsRequestVocalized(searchOptions));
+
   /// מעתיק הגדרות פר-מילה לעריכה בטאב הזה. המקור עשוי להיות פלט מנורמל
   /// (רשימות באורך קבוע), ועריכה בטאב אינה משנה אותו.
   void copyWordSettingsFrom({
