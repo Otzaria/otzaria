@@ -644,7 +644,7 @@
 **[מחייב]**
 1. החלפת ערכת נושא לא מחייבת שינוי ברכיבים. רכיב שבודק `brightness == Brightness.dark` כדי לבחור צבע מפר את התקן: ההחלטה שייכת ל־`AppSurfaces` או ל־ThemeExtension. היום יש 57 בדיקות כאלה מחוץ ל־`lib/theme`.
 2. הגדרות קריאה והגדרות ממשק נשארות נפרדות. לא מאחדים אותן ל"גודל טקסט" אחד.
-3. **תוספים (DD-25 A) · יעד — טרם מומש (MIG-06):** תוספים (WebView) מקבלים את ערכת הנושא דרך `buildThemePayloadFromScheme`. ה־payload מורחב, כתוספת שאינה שוברת, ב־`surfaces` (reader, panel, card, topBar), `radius`, `spacing` ו־`uiFont`, עם עדכון ה־SDK, `otzaria_plugin.d.ts`, התיעוד ושער `minAppVersion`. כשמוסיפים טוקן משטח או גופן ממשק, מוסיפים אותו גם ל־payload.
+3. **תוספים (DD-25 A):** תוספים (WebView) מקבלים את ערכת הנושא דרך `buildThemePayloadFromScheme`. מ־0.9.99 ה־payload כולל, כתוספת שאינה שוברת, גם `surfaces` (reader, panel, card, topBar מתוך `AppSurfaceColors`), `radius`, `spacing`, `density` (מתוך `AppDensity`) ו־`typography.uiFont` (גופן הממשק של המארח כערך CSS). `uiFontFamily` נשאר 'Rubik' לתאימות. השדות מתועדים ב־`otzaria_plugin.d.ts`, ב־`API_REFERENCE.md` וב־`DESIGN_GUIDE.md` כאופציונליים מ־0.9.99. כשמוסיפים טוקן משטח או גופן ממשק, מוסיפים אותו גם ל־payload.
 
 ---
 

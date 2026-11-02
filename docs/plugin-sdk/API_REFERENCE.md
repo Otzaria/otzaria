@@ -489,9 +489,17 @@ const { data } = await Otzaria.call('app.getTheme');
 //     commentatorsFontFamily: "NotoRashiHebrew",
 //     commentatorsFontSize:   22,
 //     uiFontFamily:           "Rubik",           // גופן הממשק — כפתורים ותפריטים
-//   }
+//     uiFont:                 "'Segoe UI', …, system-ui, sans-serif", // גופן הממשק של אוצריא עצמה (0.9.99)
+//   },
+//   // מ-0.9.99 — אופציונליים, חסרים במארח ישן:
+//   surfaces: { reader: "#...", panel: "#...", card: "#...", topBar: "#..." },
+//   radius:   8,
+//   spacing:  { "2xs": 2, xs: 4, sm: 8, smd: 12, md: 16, lg: 24, xl: 32 },
+//   density:  { compact: false, topBarHeight: 56, fieldHeight: 48 }
 // }
 ```
+
+> **משטחים, ריווח וצפיפות (מ-0.9.99):** `surfaces` הם רקעי המסכים של אוצריא כפי שהם מצוירים בפועל. במצב כהה רקע הלוח אינו אף תפקיד של `colorScheme`, ולכן תוסף שרוצה להיראות כמו מסך כלים מקורי צובע את הטאב ב-`surfaces.panel` ואת פס הכותרת ב-`surfaces.topBar`. `density` משקף את ההגדרה "צפיפות ממשק", ו-`theme.changed` נשלח גם כשהיא משתנה. כל השדות האלה נוספו בלי לשנות שדה קיים, ולכן תוסף שמשתמש בהם צריך ערך ברירת מחדל למארח ישן, או `minAppVersion` של `0.9.99`.
 
 הצבעים הם **Material Design 3 Color Roles** בפורמט hex RGB (`#rrggbb`).
 ראה [DESIGN_GUIDE.md](DESIGN_GUIDE.md) להסבר מלא על השימוש בהם.
