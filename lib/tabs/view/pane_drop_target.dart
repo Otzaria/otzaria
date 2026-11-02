@@ -125,7 +125,7 @@ class _DropPreview extends StatelessWidget {
                     color: AppSurfaces.paneDropPreviewBorder(colorScheme),
                     width: 2,
                   ),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppTokens.borderRadiusAll,
                 ),
               ),
             ),

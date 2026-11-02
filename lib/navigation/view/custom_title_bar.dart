@@ -119,6 +119,10 @@ const double _kTopBarHeight = 40.0;
 /// המוחלק ברוחב שברירי נמהל בצבע הכרטיסיה ולא ברקע הסרגל (קו בהיר דק).
 const double _kTabBottomBleed = 1.0;
 
+/// רדיוס הקשת שמחברת את תחתית הכרטיסייה הנבחרת לסרגל. זו צורת הכרטיסייה ולא
+/// פינת רכיב, ולכן אינה ברדיוס 8.
+const double _kTabFlareRadius = 15.0;
+
 /// רוחבי הטאבים בשורה: הנבחר עשוי להיות רחב מהשאר (ראה [_kTabSelectedMinWidth]).
 typedef _TabWidths = ({double selected, double unselected});
 
@@ -1378,8 +1382,8 @@ class _TabBackgroundPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final path = Path();
-    const topRadius = 8.0;
-    const bottomRadius = 15.0;
+    const topRadius = AppTokens.radius;
+    const bottomRadius = _kTabFlareRadius;
 
     // הצורה יושבת בתוך הגבולות, מ-[topInset] ועד `size.height`, ומוסיפה רק
     // [_kTabBottomBleed] מתחת לסרגל — ראו [_kTopBarHeight]. המירכוז נעשה כאן ולא

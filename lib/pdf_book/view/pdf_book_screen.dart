@@ -6788,11 +6788,13 @@ class _BookViewTurnButton extends StatelessWidget {
           ),
         ],
       ),
+      // ההדגשה נחתכת לעיגול של המכל.
       child: Material(
         color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: AppTokens.borderRadiusAll,
           child: Center(
             child: Tooltip(
               message: tooltip,

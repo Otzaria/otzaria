@@ -508,11 +508,7 @@ class _AnchoredMenu<T> extends StatelessWidget {
       ).animate(animation),
       child: Material(
         type: MaterialType.card,
-        shape:
-            menuTheme.shape ??
-            const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(4)),
-            ),
+        shape: menuTheme.shape ?? AppTokens.roundedShape,
         color: menuTheme.color ?? theme.colorScheme.surfaceContainer,
         elevation: menuTheme.elevation ?? 3,
         shadowColor: menuTheme.shadowColor ?? theme.colorScheme.shadow,

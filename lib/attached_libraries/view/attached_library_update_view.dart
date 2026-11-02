@@ -4,6 +4,7 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
 import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// צ'יפ קטן בכרטיס המסדים המצורפים.
@@ -26,7 +27,7 @@ class AttachedInfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: background ?? cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Text(
         label,
