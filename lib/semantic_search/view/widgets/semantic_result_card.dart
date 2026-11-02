@@ -10,6 +10,7 @@ import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/result_card_frame.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SemanticResultSource;
@@ -211,25 +212,10 @@ class SemanticSourceLabel extends StatelessWidget {
   final SemanticResultSource source;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        context.settingsText(semanticSourceLabel(source)),
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => MetaChip(
+    size: MetaChipSize.small,
+    label: context.settingsText(semanticSourceLabel(source)),
+  );
 }
 
 class _VoteButton extends StatelessWidget {

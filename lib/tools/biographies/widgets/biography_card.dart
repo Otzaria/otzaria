@@ -202,7 +202,6 @@ class _BiographyCardState extends State<BiographyCard> {
                     MetaChip(
                       label: _bio.generation!,
                       icon: FluentIcons.people_24_regular,
-                      outlined: true,
                     ),
                 ],
               ),

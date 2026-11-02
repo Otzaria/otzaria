@@ -106,7 +106,7 @@ void main() {
   });
 
   group('MetaChip', () {
-    testWidgets('ברירת מחדל: secondaryContainer, פינות 8, טקסט 12', (
+    testWidgets('ברירת מחדל: neutral, פינות 8, labelMedium 12, אייקון 16', (
       tester,
     ) async {
       await pumpInApp(
@@ -117,18 +117,18 @@ void main() {
       );
       final cs = schemeAt(tester, find.byType(MetaChip));
       final decoration = _decorationIn(tester, find.byType(MetaChip));
-      expect(decoration.color, cs.secondaryContainer);
+      expect(decoration.color, cs.surfaceContainerHighest);
       expect(decoration.border, isNull);
       expect(decoration.borderRadius, AppTokens.borderRadiusAll);
 
       final text = tester.widget<Text>(find.text('ראשונים'));
       expect(text.style?.fontSize, 12);
-      expect(text.style?.color, cs.onSecondaryContainer);
+      expect(text.style?.color, cs.onSurfaceVariant);
       expect(text.maxLines, 1);
       expect(text.overflow, TextOverflow.ellipsis);
       final icon = tester.widget<Icon>(find.byType(Icon));
-      expect(icon.size, 14);
-      expect(icon.color, cs.onSecondaryContainer);
+      expect(icon.size, 16);
+      expect(icon.color, cs.onSurfaceVariant);
       expect(
         tester
             .widget<Padding>(
@@ -142,37 +142,90 @@ void main() {
             .padding,
         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       );
+      expect(find.byType(Tooltip), findsNothing);
     });
 
-    testWidgets('outlined: בלי מילוי, מסגרת outlineVariant', (tester) async {
+    testWidgets('small: labelSmall 11, אייקון 12, ריפוד 6×2', (tester) async {
       await pumpInApp(
         tester,
-        const Center(child: MetaChip(label: 'דור', outlined: true)),
+        const Center(
+          child: MetaChip(
+            label: 'דור',
+            icon: FluentIcons.clock_24_regular,
+            size: MetaChipSize.small,
+          ),
+        ),
       );
-      final cs = schemeAt(tester, find.byType(MetaChip));
-      final decoration = _decorationIn(tester, find.byType(MetaChip));
-      expect(decoration.color, isNull);
-      expect(decoration.border, Border.all(color: cs.outlineVariant));
+      expect(tester.widget<Text>(find.text('דור')).style?.fontSize, 11);
+      expect(tester.widget<Icon>(find.byType(Icon)).size, 12);
       expect(
-        tester.widget<Text>(find.text('דור')).style?.color,
-        cs.onSurfaceVariant,
+        tester
+            .widget<Padding>(
+              find
+                  .descendant(
+                    of: find.byType(MetaChip),
+                    matching: find.byType(Padding),
+                  )
+                  .first,
+            )
+            .padding,
+        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       );
     });
 
-    testWidgets('error: errorContainer ו-onErrorContainer', (tester) async {
+    for (final brightness in Brightness.values) {
+      testWidgets('ב-$brightness: צבעי הטונים; success חום ולא ירוק', (
+        tester,
+      ) async {
+        await pumpInApp(
+          tester,
+          Column(
+            children: [
+              for (final tone in MetaChipTone.values)
+                MetaChip(label: tone.name, tone: tone),
+            ],
+          ),
+          brightness: brightness,
+        );
+        final context = tester.element(find.byType(Column).first);
+        final cs = Theme.of(context).colorScheme;
+        final expected = {
+          MetaChipTone.neutral: (
+            cs.surfaceContainerHighest,
+            cs.onSurfaceVariant,
+          ),
+          MetaChipTone.primary: (cs.primaryContainer, cs.onPrimaryContainer),
+          MetaChipTone.error: (cs.errorContainer, cs.onErrorContainer),
+          MetaChipTone.warning: (
+            AppSurfaces.warningContainer(context),
+            AppSurfaces.onWarningContainer(context),
+          ),
+          MetaChipTone.success: (
+            cs.secondaryContainer,
+            cs.onSecondaryContainer,
+          ),
+        };
+        for (final MapEntry(key: tone, value: (bg, fg)) in expected.entries) {
+          final chip = find.widgetWithText(MetaChip, tone.name);
+          expect(_decorationIn(tester, chip).color, bg, reason: tone.name);
+          expect(
+            tester.widget<Text>(find.text(tone.name)).style?.color,
+            fg,
+            reason: tone.name,
+          );
+        }
+      });
+    }
+
+    testWidgets('tooltip ו-maxLines', (tester) async {
       await pumpInApp(
         tester,
-        const Center(child: MetaChip(label: 'חסר', error: true)),
+        const Center(
+          child: MetaChip(label: 'א ב', tooltip: 'תאריך', maxLines: 2),
+        ),
       );
-      final cs = schemeAt(tester, find.byType(MetaChip));
-      expect(
-        _decorationIn(tester, find.byType(MetaChip)).color,
-        cs.errorContainer,
-      );
-      expect(
-        tester.widget<Text>(find.text('חסר')).style?.color,
-        cs.onErrorContainer,
-      );
+      expect(tester.widget<Tooltip>(find.byType(Tooltip)).message, 'תאריך');
+      expect(tester.widget<Text>(find.text('א ב')).maxLines, 2);
     });
   });
 

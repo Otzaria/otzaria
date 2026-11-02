@@ -443,16 +443,17 @@ class _PluginIdentity extends StatelessWidget {
                   ? FluentIcons.checkmark_circle_24_regular
                   : FluentIcons.dismiss_circle_24_regular,
               label: plugin.enabled ? 'פעיל' : 'מושבת',
-              outlined: !plugin.enabled,
+              tone: plugin.enabled
+                  ? MetaChipTone.success
+                  : MetaChipTone.neutral,
             ),
             Directionality(
               textDirection: TextDirection.ltr,
-              child: MetaChip(outlined: true, label: 'v${plugin.version}'),
+              child: MetaChip(label: 'v${plugin.version}'),
             ),
-            if (author.isNotEmpty) MetaChip(outlined: true, label: author),
+            if (author.isNotEmpty) MetaChip(label: author),
             if (plugin.isDevelopment)
               const MetaChip(
-                outlined: true,
                 icon: FluentIcons.code_24_regular,
                 label: 'פיתוח',
               ),

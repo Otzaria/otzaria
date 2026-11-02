@@ -140,7 +140,6 @@ class _CreditsContent extends StatelessWidget {
                     MetaChip(
                       label: label,
                       icon: FluentIcons.arrow_sync_24_regular,
-                      outlined: true,
                     ),
                 ],
               ),

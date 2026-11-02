@@ -189,6 +189,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                                 start: AppTokens.spaceSM,
                               ),
                               child: MetaChip(
+                                tone: MetaChipTone.success,
                                 icon: FluentIcons.checkmark_circle_24_regular,
                                 label: 'נבחרו ${_selectedBooks.length}',
                               ),
