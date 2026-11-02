@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -26,6 +25,7 @@ class TocViewer extends StatefulWidget {
     required this.focusNode,
   });
 
+  /// נקרא אחרי מעבר לשורה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final LineScrollController lines;
   final FocusNode focusNode;
@@ -163,18 +163,14 @@ class _TocViewerState extends State<TocViewer>
       duration: const Duration(milliseconds: 250),
       curve: Curves.ease,
     );
-    if (Platform.isAndroid) {
-      unawaited(
-        closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ),
-      );
-    } else {
-      unawaited(navigation);
-    }
+    unawaited(
+      closePaneAfterNavigation(
+        navigation: navigation,
+        closePane: () {
+          if (mounted) widget.closeLeftPaneCallback();
+        },
+      ),
+    );
   }
 
   /// אנטר בשדה החיפוש: פתיחת התוצאה המסומנת, ובהיעדר סימון — הראשונה.

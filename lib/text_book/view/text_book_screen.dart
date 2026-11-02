@@ -2832,9 +2832,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     dibburim: _dibburim,
                     tableOfContents: state.tableOfContents,
                     focusNode: altTitlesSearchFocusNode,
-                    closeLeftPaneCallback: () => context
-                        .read<TextBookBloc>()
-                        .add(const ToggleLeftPane(false)),
+                    closeLeftPaneCallback: _closeLeftPaneIfCovering,
                     lines: widget.tab.lines,
                   ),
                 ),
@@ -2910,8 +2908,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       initialMatchPolicy: state.matchPolicy,
       initialSearchOrigin: state.searchOrigin,
       initialSearchTemplate: state.searchTemplate,
-      closeLeftPaneCallback: () =>
-          context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
+      closeLeftPaneCallback: _closeLeftPaneIfCovering,
     );
   }
 
@@ -2919,9 +2916,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return TocViewer(
       lines: widget.tab.lines,
       focusNode: navigationSearchFocusNode,
-      closeLeftPaneCallback: () =>
-          context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
+      closeLeftPaneCallback: _closeLeftPaneIfCovering,
     );
+  }
+
+  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay או
+  /// צפה); חלונית מוצמדת לצד התוכן נשארת פתוחה.
+  void _closeLeftPaneIfCovering() {
+    if (!mounted || _paneUsesPushLayout) return;
+    context.read<TextBookBloc>().add(const ToggleLeftPane(false));
   }
 }
 
