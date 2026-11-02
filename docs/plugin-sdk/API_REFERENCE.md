@@ -104,7 +104,7 @@
 | הטקסט | מה מוחלף | איפה |
 |-------|----------|------|
 | שורות ספר שיש להן זהות במסד | שם הוי"ה לפי הסגנון; שאר השמות — רק במופעים שמסד הספרייה מסמן, ורק אם המשתמש בחר להחליף אותם | `library.getBookContent`, `library.getLinkContent`, הבחירה בטקסט הראשי (`reader.getSelection`, `reader.selection_changed`, אירועי תפריט ההקשר), השכבה המוצגת (`rendered`) של `reader.getSectionTextMap` ו-`reader.findTextOccurrences` |
-| טקסט נגזר בלי זהות שורה | שם הוי"ה בלבד (זיהוי לפי תבנית, כמו בתוצאות החיפוש של אוצריא) | תקצירי `search.fullText` / `search.query`, כותרות `library.getBookToc` / `library.getBookAltToc`, `heTitle` של `library.listBookAltStructures`, `anchor.label` של `library.getLinks`, טקסט שסומן במפרש או ב-PDF ונמסר בתפריט ההקשר |
+| טקסט נגזר בלי זהות שורה | שם הוי"ה בלבד (זיהוי לפי תבנית, כמו בתוצאות החיפוש של אוצריא) | תקצירי `search.fullText` / `search.query`, כותרות `library.getBookToc` / `library.getBookAltToc`, `heTitle` של `library.listBookAltStructures`, `anchor.label` של `library.getLinks`, `body` של `library.getLineNotes`, טקסט שסומן במפרש או ב-PDF ונמסר בתפריט ההקשר |
 | מידע על ספרים וכלים | שם הוי"ה בלבד, לפי ההגדרה לספר (או הכללית) | `shortDescription` / `fullDescription` של `library.getBookDetails`, `meanings` של `tools.dictionary`, `summary` / `remember` של `tools.biographies` |
 | מסד נתונים של טקסט ספרייה | שם הוי"ה בלבד, לפי ההגדרה הכללית, בכל ערך מחרוזת בתוצאה | `database.query`, `database.batchQuery` ו-`database.select` הדקלרטיבי על המקור `talmud_synopsis` |
 
@@ -285,6 +285,7 @@ if (response.success) {
 | `library.getCommentators` | 0.9.97 |
 | `library.getLinks` | 0.9.97 |
 | `library.getRawLinks` | 0.9.97 |
+| `library.getLineNotes` | 0.9.98.4 |
 | `library.getLinkTargetsSummary` | 0.9.97 |
 | `library.getLinkContent` | 0.9.97 |
 | `library.refreshUserBooks` | 0.9.97 |
@@ -1375,6 +1376,45 @@ const { data } = await Otzaria.call('library.getLinks', {
 //   }]
 // }
 ```
+
+### `library.getLineNotes`
+**הרשאה:** `library.content.read` · **מגרסה:** 0.9.98.4
+
+הערות השוליים של טווח שורות בספר. בספר שהערות השוליים שלו בטבלה נפרדת
+(`line_note`), `library.getBookContent` ו-`reader.getSectionTextMap` מחזירים
+את השורה בלי גופי ההערות, ורק סימן ההערה (למשל `*`) נשאר בטקסט. בקריאה הזו
+התוסף מקבל את הגופים.
+
+`startLine` ו-`endLine` חובה (0-based, כולל), והחלון מוגבל ל-**200 שורות**,
+כמו ב-`library.getLinks`. הספר מאותר כמו שם: `bookId` (עם `categoryId`
+אופציונלי), `bookUid` או `id`.
+
+```javascript
+const { data } = await Otzaria.call('library.getLineNotes', {
+  bookId: 'שמירת הלשון',
+  startLine: 140,
+  endLine: 150
+});
+// { notes: [
+//   { line: 143,        // 0-based
+//     noteIndex: 0,     // סדר ההערה בשורה
+//     marker: '*',      // סימן ההערה בשורה, או null להערה בלי סימן
+//     charPos: 512,     // האופסט הגלוי בשורה השמורה שבו עמד הגוף, או -1
+//     body: 'וזה לשון ספר הקנה…' }
+// ] }
+```
+
+- שורות בלי הערות אינן מוחזרות. ההערות מוחזרות לפי השורה, ובתוך השורה
+  לפי סדר הקריאה.
+- `charPos` נספר בטקסט **השמור**, כפי ש-`getBookContent` מחזיר אותו עם
+  `rawDivineNames: true`.
+- `body` הוא ה-HTML השמור של גוף ההערה. שם הוי"ה מוצג בו לפי בחירת
+  המשתמש, כמו בשאר הטקסט הנגזר. `rawDivineNames: true` מחזיר אותו כפי
+  שנשמר (⚠️ [האזהרה](#rawdivinenames--טקסט-כפי-שנשמר)).
+- ספר שההערות שלו בתוך השורה עצמה (ספר אישי, קובץ, מהדורה חלופית, או
+  ספרייה בגרסה שלפני הטבלה): `notes` ריק, וההערות כבר נמצאות בטקסט.
+- חלון של יותר מ-200 שורות, או `endLine` קטן מ-`startLine`: `error.invalid_params`.
+  ספר שלא נמצא: `error.not_found`.
 
 ### `library.getRawLinks`
 **הרשאה:** `library.links.read` · **מגרסה:** 0.9.97
