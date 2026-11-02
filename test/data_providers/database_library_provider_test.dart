@@ -1469,6 +1469,135 @@ void main() {
     );
 
     test(
+      'buildLibraryCatalog: נתיב הקטגוריה מחושב פעם אחת לקטגוריה ונכון גם בקטגוריות אחיות ומקוננות',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_db_category_paths',
+        );
+        final dbPath = path.join(
+          tempDir.path,
+          DatabaseConstants.databaseFileName,
+        );
+        final database = MyDatabase.withPath(dbPath);
+        final repository = SeforimRepository(database);
+        final provider = DatabaseLibraryProvider.instance;
+        final previousLibraryPath = Settings.getValue<String>(
+          SettingsRepository.keyLibraryPath,
+        );
+        final previousFolderName = Settings.getValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+        );
+        final previousEffectiveDbPath = Settings.getValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+        );
+
+        try {
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          await repository.ensureInitialized();
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            tempDir.path,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            '',
+          );
+
+          final sourceId = await repository.insertSource('local-test', -10);
+          Future<int> category(String title, {int? parentId}) =>
+              repository.insertCategory(
+                migration_models.Category(
+                  title: title,
+                  parentId: parentId,
+                  level: parentId == null ? 0 : 1,
+                ),
+              );
+          final tanachId = await category('תנ"ך');
+          final torahId = await category('תורה', parentId: tanachId);
+          final neviimId = await category('נביאים', parentId: tanachId);
+          final halachaId = await category('הלכה');
+          final booksByCategory = {
+            torahId: ['בראשית', 'שמות'],
+            neviimId: ['יהושע'],
+            tanachId: ['מבוא לתנ"ך'],
+            halachaId: ['משנה ברורה'],
+          };
+          var bookId = 0;
+          for (final MapEntry(key: categoryId, value: titles)
+              in booksByCategory.entries) {
+            for (final title in titles) {
+              bookId++;
+              await repository.insertBook(
+                migration_models.Book(
+                  id: bookId,
+                  categoryId: categoryId,
+                  sourceId: sourceId,
+                  title: title,
+                  filePath: path.join(tempDir.path, 'book_$bookId.txt'),
+                  fileType: 'txt',
+                ),
+              );
+            }
+          }
+
+          await provider.initialize();
+          final library = await provider.buildLibraryCatalog({}, tempDir.path);
+          final books = {
+            for (final book in library.getAllBooks())
+              if (book.source.isOfficial) book.title: book,
+          };
+
+          const expectedPaths = {
+            'בראשית': 'תנ"ך, תורה',
+            'שמות': 'תנ"ך, תורה',
+            'יהושע': 'תנ"ך, נביאים',
+            'מבוא לתנ"ך': 'תנ"ך',
+            'משנה ברורה': 'הלכה',
+          };
+          for (final MapEntry(key: title, value: expected)
+              in expectedPaths.entries) {
+            expect(books[title]?.categoryPath, expected, reason: title);
+            expect(books[title]?.topics, expected, reason: title);
+          }
+          final [bereshit, shemot] = [books['בראשית']!, books['שמות']!];
+          expect(identical(bereshit.categoryPath, shemot.categoryPath), isTrue);
+          expect(identical(bereshit.topics, shemot.topics), isTrue);
+          expect(
+            await provider.findCategoryPathForBook(
+              'יהושע',
+              categoryId: neviimId,
+            ),
+            'תנ"ך, נביאים',
+          );
+        } finally {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            previousLibraryPath ?? '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            previousFolderName ?? '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            previousEffectiveDbPath ?? '',
+          );
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          database.close();
+          try {
+            await tempDir.delete(recursive: true);
+          } catch (_) {}
+        }
+      },
+    );
+
+    test(
       'getLinksForBookRange מחזיר קישורים דרך Isolate.run ללא קריסת "object is unsendable"',
       () async {
         // רגרסיה: הסגירה של Isolate.run לכדה את this (עם FfiDatabase).
