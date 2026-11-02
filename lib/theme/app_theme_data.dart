@@ -98,6 +98,36 @@ class AppThemeData {
     platform: defaultTargetPlatform,
   ).black.bodyMedium?.fontFamily;
 
+  /// סולם הטקסט של הממשק (DD-02). משקל שלא צוין נשאר של M3; המשפחה, הצבע
+  /// וגובה השורה באים מ-Typography של Flutter.
+  static const TextTheme textTheme = TextTheme(
+    headlineSmall: TextStyle(
+      fontSize: AppTokens.font2XL,
+      fontWeight: FontWeight.w600,
+    ),
+    titleLarge: TextStyle(
+      fontSize: AppTokens.fontXL,
+      fontWeight: FontWeight.w600,
+    ),
+    titleMedium: TextStyle(
+      fontSize: AppTokens.fontLG,
+      fontWeight: FontWeight.w700,
+    ),
+    titleSmall: TextStyle(
+      fontSize: AppTokens.fontMD,
+      fontWeight: FontWeight.w600,
+    ),
+    bodyLarge: TextStyle(fontSize: AppTokens.fontLG),
+    bodyMedium: TextStyle(fontSize: AppTokens.fontMD),
+    bodySmall: TextStyle(fontSize: AppTokens.fontSM),
+    labelLarge: TextStyle(
+      fontSize: AppTokens.fontMD,
+      fontWeight: FontWeight.w500,
+    ),
+    labelMedium: TextStyle(fontSize: AppTokens.fontSM),
+    labelSmall: TextStyle(fontSize: AppTokens.fontXS),
+  );
+
   // ── Light Theme ──────────────────────────────────────────────────────────
   /// [variant] — הערכה של הזרע שממנו נבנתה [cs] ([AppThemeVariant.ofSeed]).
   static ThemeData light(
@@ -109,14 +139,12 @@ class AppThemeData {
     final menuBackground = _menuBackground(cs);
     final menuMetrics = AppMenuMetrics.create(compactMenus: compactMenus);
 
-    return ThemeData(
+    final theme = ThemeData(
       useMaterial3: true,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       fontFamilyFallback: uiFontFamilyFallback,
       colorScheme: cs,
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 18.0),
-      ),
+      textTheme: textTheme,
       cardTheme: const CardThemeData(shape: AppTokens.roundedShape),
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(cs.primary),
@@ -150,11 +178,17 @@ class AppThemeData {
         AppSurfaceColors.fromScheme(cs),
         AppDensity(isCompact: compactMenuMode),
       ],
-    ).copyWith(
+    );
+    return theme.copyWith(
       dialogTheme: DialogThemeData(
         barrierColor: AppColors.dialogBarrier,
         backgroundColor: cs.surfaceContainerHigh,
         shape: AppTokens.roundedShape,
+        // כותרת דיאלוג היא titleLarge, כמו ב-AppDialogHeader (M3: headlineSmall).
+        // גובה השורה בא מה-geometry, ש-Theme.of ממזג רק לתוך textTheme.
+        titleTextStyle: theme.typography.englishLike.titleLarge
+            ?.merge(theme.textTheme.titleLarge)
+            .copyWith(color: cs.onSurface),
       ),
       datePickerTheme: const DatePickerThemeData(
         shape: AppTokens.roundedShape,

@@ -8,7 +8,7 @@ import 'contract_harness.dart';
 void main() {
   group('AppThemeData — טיפוגרפיה', () {
     for (final brightness in Brightness.values) {
-      testWidgets('ב-$brightness: רק bodyMedium מוגדל ל-18, השאר M3', (
+      testWidgets('ב-$brightness: סולם DD-02, גוף 14', (
         tester,
       ) async {
         late TextTheme text;
@@ -23,28 +23,38 @@ void main() {
             ),
           ),
         );
-        expect(text.bodyMedium?.fontSize, 18);
-        expect(text.bodyLarge?.fontSize, 16);
-        expect(text.bodySmall?.fontSize, 12);
-        expect(text.titleLarge?.fontSize, 22);
+        expect(text.headlineSmall?.fontSize, 22);
+        expect(text.headlineSmall?.fontWeight, FontWeight.w600);
+        expect(text.titleLarge?.fontSize, 18);
+        expect(text.titleLarge?.fontWeight, FontWeight.w600);
         expect(text.titleMedium?.fontSize, 16);
+        expect(text.titleMedium?.fontWeight, FontWeight.w700);
         expect(text.titleSmall?.fontSize, 14);
+        expect(text.titleSmall?.fontWeight, FontWeight.w600);
+        expect(text.bodyLarge?.fontSize, 16);
+        expect(text.bodyMedium?.fontSize, 14);
+        expect(text.bodySmall?.fontSize, 12);
         expect(text.labelLarge?.fontSize, 14);
+        expect(text.labelMedium?.fontSize, 12);
         expect(text.labelSmall?.fontSize, 11);
       });
     }
 
-    test('ב-ThemeData: רק ל-bodyMedium יש גודל, וגופן הממשק של הפלטפורמה', () {
+    test('ב-ThemeData: גדלים מהסולם, וגופן הממשק של הפלטפורמה', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final theme = appTheme(Brightness.light);
       final text = theme.textTheme;
-      expect(text.bodyMedium?.fontSize, 18);
-      expect(text.titleLarge?.fontSize, isNull);
+      expect(text.bodyMedium?.fontSize, AppTokens.fontMD);
+      expect(text.titleLarge?.fontSize, AppTokens.fontXL);
+      expect(text.displayLarge?.fontSize, isNull);
+      expect(theme.dialogTheme.titleTextStyle?.fontSize, AppTokens.fontXL);
+      expect(theme.dialogTheme.titleTextStyle?.fontWeight, FontWeight.w600);
       expect(AppThemeData.uiFontFamily, 'Segoe UI');
       for (final style in [
         text.bodyMedium,
         text.titleLarge,
+        theme.dialogTheme.titleTextStyle,
         theme.popupMenuTheme.textStyle,
         theme.dropdownMenuTheme.textStyle,
         theme.menuButtonTheme.style?.textStyle?.resolve({}),
@@ -57,12 +67,14 @@ void main() {
     test('סולם הגופן ב-AppTokens', () {
       expect(
         [
+          AppTokens.fontXS,
           AppTokens.fontSM,
           AppTokens.fontMD,
           AppTokens.fontLG,
           AppTokens.fontXL,
+          AppTokens.font2XL,
         ],
-        [12, 14, 16, 18],
+        [11, 12, 14, 16, 18, 22],
       );
       expect(AppTextStyles.settingTitle.fontSize, 16);
       expect(AppTextStyles.settingSubtitle.fontSize, 13);

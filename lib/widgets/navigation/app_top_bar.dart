@@ -90,21 +90,19 @@ class AppTopBar extends StatefulWidget {
   /// הרווח בין פריטים סמוכים בסרגל.
   static double itemSpacing(bool isCompact) => isCompact ? 4.0 : 8.0;
 
-  /// סגנון טקסט אחיד לכותרת הסרגל העליון — ישמש בכל מסכי הקריאה.
+  /// סגנון טקסט אחיד לכותרת הסרגל העליון (titleLarge) — בכל מסכי הקריאה.
   static TextStyle titleStyle(BuildContext context) {
-    return TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: Theme.of(context).colorScheme.onSurface,
+    final theme = Theme.of(context);
+    return (theme.textTheme.titleLarge ?? const TextStyle()).copyWith(
+      color: theme.colorScheme.onSurface,
     );
   }
 
-  /// סגנון טקסט אחיד לכותרת משנה/מחבר בסרגל העליון.
+  /// סגנון טקסט אחיד לכותרת משנה/מחבר בסרגל העליון (bodySmall).
   static TextStyle subtitleStyle(BuildContext context) {
-    return TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+    return (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
     );
   }
 

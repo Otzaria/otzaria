@@ -66,35 +66,13 @@ class OtzariaEmptyState extends StatelessWidget {
               )
             : null);
 
-    final titleStyle = isCompact
-        ? (theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ) ??
-              TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ))
-        : (theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ) ??
-              TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ));
+    final titleStyle =
+        (isCompact ? theme.textTheme.bodyMedium : theme.textTheme.titleMedium)
+            ?.copyWith(fontWeight: FontWeight.w600, color: cs.onSurface);
 
-    final messageStyle = isCompact
-        ? (theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ) ??
-              TextStyle(fontSize: 12, color: cs.onSurfaceVariant))
-        : (theme.textTheme.bodyMedium?.copyWith(
-                color: cs.onSurfaceVariant,
-              ) ??
-              TextStyle(fontSize: 14, color: cs.onSurfaceVariant));
+    final messageStyle =
+        (isCompact ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+            ?.copyWith(color: cs.onSurfaceVariant);
 
     final effectiveActions = actions ?? (action != null ? [action!] : null);
 
