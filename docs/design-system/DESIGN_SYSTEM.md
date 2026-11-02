@@ -462,7 +462,7 @@
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
 | תגית / מונה | `MetaChip(tone: neutral\|primary\|error\|warning\|success, size: regular\|small, tooltip:)` (DD-13 A). תווית `labelMedium` 12 (`small`: `labelSmall` 11), צורה 8. `success` בגוון החום הנייטרלי (`secondaryContainer`), לא ירוק. `neutral` ב־`surfaceContainerHighest` (השלמה 2.11) | לא נבנה צ'יפ מקומי. נשארו: `SearchResultSourceTag`, `PluginDevBadge`, `PluginUpdateChip`, תג הגימטריה |
 | תג אייקון | `ListIconBadge` / `AppDialogIconBadge` | ריבוע מעוגל 8 בשניהם (DD-04, MIG-13). היום תג הדיאלוג עגול |
-| כותרת מקטע | `AppSectionLabel` (יעד, DD-14 A, MIG-13): `titleMedium`, `primary`. חריג: בדיאלוג החיפוש ובאיתור המקורות הכותרות הקטנות (13, w600, `primary`) נשארות (השלמה 2.11) | היום 7+ עותקים מקומיים. עד אז: `text.titleMedium` + `cs.primary` |
+| כותרת מקטע | `AppSectionLabel` (DD-14 A): `titleMedium`, `primary`, כותרת לקורא מסך. חריג: בדיאלוג החיפוש ובאיתור המקורות הכותרות הקטנות (13, w600, `primary`) נשארות (השלמה 2.11) | `SettingsCard` מצייר את כותרתו דרכו |
 | מפריד שורות בדיאלוג | `listDialogRowDivider` | |
 
 **[מחייב]** רשימה ארוכה (יותר מכ־50 פריטים) נבנית עם `ListView.builder` או `SliverList`. לא מחשבים סגנון בכל פריט: את `Theme.of` קוראים פעם אחת מחוץ ל־builder.

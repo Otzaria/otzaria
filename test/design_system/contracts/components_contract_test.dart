@@ -229,6 +229,44 @@ void main() {
     });
   });
 
+  group('AppSectionLabel', () {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+        'ב-$brightness: titleMedium 16 w700 ב-primary, כותרת לקורא מסך',
+        (
+          tester,
+        ) async {
+          final handle = tester.ensureSemantics();
+          await pumpInApp(
+            tester,
+            const Center(child: AppSectionLabel('תצוגת הטקסט')),
+            brightness: brightness,
+          );
+          final cs = schemeAt(tester, find.byType(AppSectionLabel));
+          final style = tester.widget<Text>(find.text('תצוגת הטקסט')).style!;
+          expect(style.fontSize, 16);
+          expect(style.fontWeight, FontWeight.w700);
+          expect(style.color, cs.primary);
+          expect(
+            tester.getSemantics(find.text('תצוגת הטקסט')),
+            matchesSemantics(label: 'תצוגת הטקסט', isHeader: true),
+          );
+          handle.dispose();
+        },
+      );
+    }
+
+    testWidgets('SettingsCard: הכותרת היא AppSectionLabel', (tester) async {
+      await pumpInApp(
+        tester,
+        const SingleChildScrollView(
+          child: SettingsCard(title: 'כללי', children: [Text('שורה')]),
+        ),
+      );
+      expect(find.widgetWithText(AppSectionLabel, 'כללי'), findsOneWidget);
+    });
+  });
+
   group('BarButton', () {
     testWidgets('icon בלי label: עיגול 40, אייקון 20 ב-onSurfaceVariant', (
       tester,
