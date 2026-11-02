@@ -218,6 +218,29 @@ class InlineHtmlDocument {
   static const Set<String> _headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 }
 
+/// צבע קבוע מערך CSS (`red`, `#rgb[a]`, `#rrggbb[aa]`, `rgb()`/`rgba()`,
+/// `hsl()`/`hsla()`, `transparent`), כפי שה-IR מפרש `color` ו-`background-color`.
+/// null לערך לא חוקי, ל-`currentcolor` ולסימני צבע של ערכת הנושא.
+Color? parseCssColor(String value) {
+  final cached = _cssColorCache[value];
+  if (cached != null || _cssColorCache.containsKey(value)) return cached;
+  Color? color;
+  try {
+    final declarations = css_parser
+        .parse('*{color: $value}')
+        .collectDeclarations();
+    if (declarations.isNotEmpty) {
+      color = _InlineBuilder._parseColor(declarations.first.value)?.color;
+    }
+  } on _Unsupported {
+    color = null;
+  }
+  if (_cssColorCache.length >= 256) _cssColorCache.clear();
+  return _cssColorCache[value] = color;
+}
+
+final Map<String, Color?> _cssColorCache = {};
+
 bool _isAsciiSpace(int c) =>
     c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0C || c == 0x0D;
 
