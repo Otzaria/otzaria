@@ -1253,7 +1253,8 @@ class SeforimRepository {
     for (final candidate in candidates) {
       if (resolved.containsKey(candidate.bookId)) continue;
       final heRef = candidate.heRef;
-      if (heRef == null || !_endsWithTokens(refKeyTokens(heRef), keyTokens)) {
+      if (heRef == null ||
+          !endsWithRefKeyTokens(refKeyTokens(heRef), keyTokens)) {
         continue;
       }
       resolved[candidate.bookId] = candidate;
@@ -1405,7 +1406,7 @@ class SeforimRepository {
       final heRef = candidate.heRef;
       if (heRef == null) continue;
       final tokens = refKeyTokens(heRef);
-      if (!_endsWithTokens(tokens, keyTokens)) continue;
+      if (!endsWithRefKeyTokens(tokens, keyTokens)) continue;
       final part = tokens
           .sublist(0, tokens.length - keyTokens.length)
           .join(' ');
@@ -1483,15 +1484,6 @@ class SeforimRepository {
     int bookId,
     String refKey,
   ) async => (await resolveRefKeyInBooks([bookId], refKey))[bookId];
-
-  static bool _endsWithTokens(List<String> tokens, List<String> suffix) {
-    if (suffix.isEmpty || suffix.length > tokens.length) return false;
-    final offset = tokens.length - suffix.length;
-    for (var i = 0; i < suffix.length; i++) {
-      if (tokens[offset + i] != suffix[i]) return false;
-    }
-    return true;
-  }
 
   Future<int> insertLine(Line line) async {
     _logger.fine('Repository inserting line with bookId: ${line.bookId}');
