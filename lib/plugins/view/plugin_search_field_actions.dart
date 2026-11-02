@@ -11,6 +11,47 @@ import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.da
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+
+/// כפתורי התוספים של [field] כ־[OtzariaSearchField.extraActions].
+class PluginSearchFieldExtraActions extends OtzariaSearchFieldExtraActions {
+  final PluginSearchField field;
+
+  /// ההקשר שנשלח לתוסף בלחיצה על כפתורו; ראו [PluginSearchFieldActions].
+  final Map<String, dynamic> Function()? invocationContext;
+
+  const PluginSearchFieldExtraActions(this.field, {this.invocationContext});
+
+  PluginSearchFieldActionsRegistry get _registry =>
+      PluginSearchFieldActionsRegistry.instance;
+
+  @override
+  void addListener(VoidCallback listener) => _registry.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) =>
+      _registry.removeListener(listener);
+
+  @override
+  Widget? build(
+    BuildContext context, {
+    required TextEditingController controller,
+    required ValueChanged<String>? onChanged,
+    required ValueChanged<String>? onSubmitted,
+    required bool slim,
+  }) {
+    if (!_registry.hasActionsFor(field)) return null;
+    return PluginSearchFieldActions(
+      field: field,
+      controller: controller,
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      invocationContext: invocationContext,
+      buttonSize: slim ? 26 : 32,
+      iconSize: slim ? 16 : 20,
+    );
+  }
+}
 
 /// כפתורי התוספים בתוך שדה חיפוש [field]. ריק כשאין תוסף שתרם כפתור לשדה.
 ///

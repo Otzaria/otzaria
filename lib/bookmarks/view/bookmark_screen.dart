@@ -10,6 +10,7 @@ import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_location.dart';
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/models/bookmark_sort_mode.dart';
 import 'package:otzaria/bookmarks/view/save_group_bookmark_dialog.dart';
@@ -333,7 +334,7 @@ class _BookmarkViewState extends State<BookmarkView> {
     final bloc = context.read<BookmarkBloc>();
     final current = bookmark.label?.trim().isNotEmpty == true
         ? bookmark.label!.trim()
-        : (ItemsListView.locationSubtitle(bookmark) ?? '');
+        : bookmarkLocationSubtitle(bookmark);
     final result = await showInputDialog(
       context: context,
       title: 'עריכת תיאור הסימניה',
@@ -443,13 +444,13 @@ class _BookmarkViewState extends State<BookmarkView> {
           subtitleBuilder: (item) {
             final label = (item as Bookmark).label?.trim();
             if (label != null && label.isNotEmpty) return label;
-            return ItemsListView.locationSubtitle(item);
+            return bookmarkLocationSubtitle(item);
           },
           // כשמוצג ה-label, המיקום (פרק/עמוד) זמין בריחוף כדי לא לאבד אותו.
           subtitleTooltipBuilder: (item) {
             final label = (item as Bookmark).label?.trim();
             if (label == null || label.isEmpty) return null;
-            return ItemsListView.locationSubtitle(item);
+            return bookmarkLocationSubtitle(item);
           },
         );
 

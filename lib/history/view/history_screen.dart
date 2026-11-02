@@ -13,6 +13,7 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_location.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_search_aliases.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -437,7 +438,7 @@ class _HistoryViewState extends State<HistoryView> {
                     }
                     return segments.isEmpty ? null : segments.join('  •  ');
                   }
-                  return ItemsListView.locationSubtitle(item);
+                  return bookmarkLocationSubtitle(item);
                 },
                 subtitleTooltipBuilder: (item) {
                   if (!(item.isSearch as bool)) return null;

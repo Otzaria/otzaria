@@ -43,7 +43,9 @@ void main() {
             body: OtzariaSearchField(
               controller: controller,
               hintText: 'חיפוש',
-              pluginActionsField: field,
+              extraActions: field == null
+                  ? null
+                  : PluginSearchFieldExtraActions(field),
               autofocus: true,
             ),
           ),

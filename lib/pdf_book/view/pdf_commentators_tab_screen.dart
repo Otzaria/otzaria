@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
@@ -702,6 +703,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               child: NavSidePanel(
                 isOpen: _navPaneOpen || _pinLeftPane,
                 isPinned: _pinLeftPane,
+                isGloballyPinned:
+                    Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
+                    false,
                 alignment: AlignmentDirectional.centerEnd,
                 paneWidth: _kNavPaneWidth,
                 onClose: () {

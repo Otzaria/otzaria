@@ -3,7 +3,6 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -117,31 +116,6 @@ class ItemsListView extends StatefulWidget {
     this.titleBuilder,
     this.titleSpanBuilder,
   });
-
-  /// כותרת המיקום בתוך הספר — חותך את שם הספר מ-ref.
-  /// fallback: "תחילת הספר" (index 0), "עמוד X" (PDF), "פסקה X" (טקסט).
-  static String? locationSubtitle(dynamic item) {
-    final ref = item.ref as String;
-    final bookTitle = item.book.title as String;
-
-    String location;
-    if (ref == bookTitle) {
-      location = '';
-    } else if (ref.startsWith('$bookTitle, ')) {
-      location = ref.substring('$bookTitle, '.length);
-    } else if (ref.startsWith('$bookTitle ')) {
-      location = ref.substring('$bookTitle '.length);
-    } else {
-      location = ref;
-    }
-
-    if (location.isEmpty) {
-      if (item.index as int == 0) return 'תחילת הספר';
-      if (item.book is PdfBook) return 'עמוד ${item.index as int}';
-      return 'פסקה ${item.index as int}';
-    }
-    return location;
-  }
 
   @override
   State<ItemsListView> createState() => _ItemsListViewState();

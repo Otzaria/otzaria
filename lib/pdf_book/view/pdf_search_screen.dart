@@ -1,4 +1,5 @@
 import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'dart:async';
 
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
@@ -1194,7 +1195,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
     return SearchPaneBase(
       searchController: widget.searchController,
-      pluginActionsField: PluginSearchField.inBook,
+      searchFieldExtraActions: const PluginSearchFieldExtraActions(
+        PluginSearchField.inBook,
+      ),
       focusNode: widget.focusNode,
       progressWidget: _isSearching
           ? LinearProgressIndicator(

@@ -5,9 +5,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
-import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
-import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 abstract class _ST {
@@ -297,6 +294,21 @@ class OtzariaSearchDisplayBar extends StatelessWidget {
 //  OtzariaSearchField
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// כפתורים שמוזרקים לשדה מבחוץ, לפני [OtzariaSearchField.trailingActions]
+/// (למשל כפתורי תוספים). השדה נבנה מחדש כשהמקור מודיע על שינוי.
+abstract class OtzariaSearchFieldExtraActions implements Listenable {
+  const OtzariaSearchFieldExtraActions();
+
+  /// הכפתורים לשדה פעיל; null כשאין כרגע כפתורים.
+  Widget? build(
+    BuildContext context, {
+    required TextEditingController controller,
+    required ValueChanged<String>? onChanged,
+    required ValueChanged<String>? onSubmitted,
+    required bool slim,
+  });
+}
+
 /// שדה חיפוש של אוצריא.
 ///
 /// מצבים:
@@ -334,11 +346,8 @@ class OtzariaSearchField extends StatefulWidget {
   /// ניווט כשללשונית הנבחרת אין פעולת חיפוש.
   final bool enabled;
 
-  /// שדה שתוספים רשאים להוסיף בו כפתור (`searchFieldActions`); null = אין.
-  final PluginSearchField? pluginActionsField;
-
-  /// ההקשר שנשלח לתוסף בלחיצה על כפתורו; ראו [PluginSearchFieldActions].
-  final Map<String, dynamic> Function()? pluginInvocationContext;
+  /// כפתורים נוספים מבחוץ, למשל של תוספים; null = אין.
+  final OtzariaSearchFieldExtraActions? extraActions;
 
   const OtzariaSearchField({
     super.key,
@@ -358,8 +367,7 @@ class OtzariaSearchField extends StatefulWidget {
     this.onExpand,
     this.selectAllOnFocus = true,
     this.enabled = true,
-    this.pluginActionsField,
-    this.pluginInvocationContext,
+    this.extraActions,
   });
 
   @override
@@ -382,9 +390,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _hasFocus = _effectiveFocusNode.hasFocus;
     _effectiveFocusNode.addListener(_onFocusChange);
     widget.controller.addListener(_onTextChange);
-    PluginSearchFieldActionsRegistry.instance.addListener(
-      _onPluginActionsChanged,
-    );
+    widget.extraActions?.addListener(_onExtraActionsChanged);
   }
 
   @override
@@ -401,6 +407,10 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       oldWidget.controller.removeListener(_onTextChange);
       widget.controller.addListener(_onTextChange);
     }
+    if (!identical(oldWidget.extraActions, widget.extraActions)) {
+      oldWidget.extraActions?.removeListener(_onExtraActionsChanged);
+      widget.extraActions?.addListener(_onExtraActionsChanged);
+    }
   }
 
   @override
@@ -408,9 +418,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _effectiveFocusNode.removeListener(_onFocusChange);
     if (widget.focusNode == null) _effectiveFocusNode.dispose();
     widget.controller.removeListener(_onTextChange);
-    PluginSearchFieldActionsRegistry.instance.removeListener(
-      _onPluginActionsChanged,
-    );
+    widget.extraActions?.removeListener(_onExtraActionsChanged);
     super.dispose();
   }
 
@@ -435,8 +443,8 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     if (mounted) setState(() {});
   }
 
-  void _onPluginActionsChanged() {
-    if (widget.pluginActionsField != null && mounted) setState(() {});
+  void _onExtraActionsChanged() {
+    if (mounted) setState(() {});
   }
 
   // ── מצב compact (אייקון עגול) ────────────────────────────────────────────
@@ -499,22 +507,16 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
     // Suffix
     final List<Widget> suffixChildren = [];
-    final pluginField = widget.pluginActionsField;
-    if (pluginField != null &&
-        widget.enabled &&
-        PluginSearchFieldActionsRegistry.instance.hasActionsFor(pluginField)) {
-      suffixChildren.add(
-        PluginSearchFieldActions(
-          field: pluginField,
-          controller: widget.controller,
-          onChanged: widget.onChanged,
-          onSubmitted: widget.onSubmitted,
-          invocationContext: widget.pluginInvocationContext,
-          buttonSize: isSlim ? 26 : 32,
-          iconSize: isSlim ? 16 : 20,
-        ),
-      );
-    }
+    final extraActions = widget.enabled
+        ? widget.extraActions?.build(
+            context,
+            controller: widget.controller,
+            onChanged: widget.onChanged,
+            onSubmitted: widget.onSubmitted,
+            slim: isSlim,
+          )
+        : null;
+    if (extraActions != null) suffixChildren.add(extraActions);
     if (widget.trailingActions != null) {
       suffixChildren.addAll(widget.trailingActions!);
     }

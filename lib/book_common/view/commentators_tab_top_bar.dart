@@ -1,4 +1,5 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:flutter/foundation.dart';
@@ -139,6 +140,9 @@ class CommentatorsTabTopBar extends StatelessWidget {
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: navPanePinned,
+              isGloballyPinned:
+                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
+                  false,
               onToggle: onTogglePin,
             ),
           ),

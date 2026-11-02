@@ -4528,6 +4528,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         valueListenable: widget.tab.pinLeftPane,
                         builder: (context, isPinned, _) => NavPanelPinButton(
                           isPinned: isPinned,
+                          isGloballyPinned:
+                              Settings.getValue<bool>(
+                                SettingsRepository.keyPinSidebar,
+                              ) ??
+                              false,
                           onToggle: () =>
                               widget.tab.pinLeftPane.value = !isPinned,
                         ),
@@ -4595,6 +4600,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     builder: (context, isPinned, _) => NavSidePanel(
                       isOpen: showLeftPane,
                       isPinned: isPinned,
+                      isGloballyPinned:
+                          Settings.getValue<bool>(
+                            SettingsRepository.keyPinSidebar,
+                          ) ??
+                          false,
                       alignment: AlignmentDirectional.centerEnd,
                       paneWidth: leftPaneWidth,
                       minMainContentWidth: 200,

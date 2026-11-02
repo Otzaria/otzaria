@@ -1411,6 +1411,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: state.pinLeftPane,
+              isGloballyPinned:
+                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
+                  false,
               onToggle: () => context.read<TextBookBloc>().add(
                 TogglePinLeftPane(!state.pinLeftPane),
               ),
@@ -2655,6 +2658,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return NavSidePanel(
       isOpen: state.showLeftPane,
       isPinned: state.pinLeftPane,
+      isGloballyPinned:
+          Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth.value,
       minMainContentWidth: 520,

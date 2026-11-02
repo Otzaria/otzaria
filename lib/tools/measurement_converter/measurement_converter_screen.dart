@@ -11,7 +11,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:otzaria/core/ui_snack.dart';
 
