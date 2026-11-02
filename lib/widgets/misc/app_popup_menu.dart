@@ -13,7 +13,7 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
 import 'package:otzaria/widgets/misc/app_menu_presentation.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show

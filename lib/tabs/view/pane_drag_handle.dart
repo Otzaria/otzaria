@@ -4,8 +4,10 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
-/// מסמן לסרגל העליון של חלונית בטאב מפוצל שהיא ניתנת לגרירה החוצה.
+/// מסמן לסרגל העליון של חלונית בטאב מפוצל שהיא ניתנת לגרירה החוצה: כל
+/// [AppTopBar] שמתחתיו פותח בידית גרירה.
 ///
 /// עוטף כל חלונית תמיד — גם כשהטאב אינו מפוצל — כדי שפיצול ופירוק לא ישנו
 /// את צורת העץ ויבנו מחדש את הספר; רק [enabled] מתחלף.
@@ -16,12 +18,21 @@ class PaneDragHandleScope extends InheritedWidget {
   /// `true` רק כשהחלונית חלק מטאב מפוצל.
   final bool enabled;
 
-  const PaneDragHandleScope({
+  PaneDragHandleScope({
     super.key,
     required this.pane,
     required this.enabled,
-    required super.child,
-  });
+    required Widget child,
+  }) : super(
+         child: AppTopBarScope(leading: _topBarItems, child: child),
+       );
+
+  static List<AppTopBarItem> _topBarItems(BuildContext context, bool compact) {
+    final pane = paneOf(context);
+    return [
+      if (pane != null) AppTopBarItem(widget: PaneDragHandleButton(pane: pane)),
+    ];
+  }
 
   /// החלונית לגרירה, או `null` כשאין טאב מפוצל בהקשר הזה.
   static OpenedTab? paneOf(BuildContext context) {

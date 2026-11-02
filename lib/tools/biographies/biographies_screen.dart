@@ -18,6 +18,7 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 

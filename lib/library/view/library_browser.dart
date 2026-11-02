@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -918,16 +919,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 args: {'category': state.currentCategory?.title ?? ''},
               ),
               maxWidth: isCompact ? 500 : 400,
-              pluginActionsField: PluginSearchField.library,
-              pluginInvocationContext: () {
-                final current = context.read<LibraryBloc>().state;
-                return {
-                  PluginSearchFieldContext.categoryPathKey: pluginCategoryPath(
-                    current.currentCategory,
-                    root: current.library,
-                  ),
-                };
-              },
+              extraActions: PluginSearchFieldExtraActions(
+                PluginSearchField.library,
+                invocationContext: () {
+                  final current = context.read<LibraryBloc>().state;
+                  return {
+                    PluginSearchFieldContext.categoryPathKey:
+                        pluginCategoryPath(
+                          current.currentCategory,
+                          root: current.library,
+                        ),
+                  };
+                },
+              ),
               onChanged: (value) {
                 context.read<LibraryBloc>().add(UpdateSearchQuery(value));
                 context.read<LibraryBloc>().add(const SelectTopics([]));

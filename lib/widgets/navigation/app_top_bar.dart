@@ -5,12 +5,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
-import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,6 +22,85 @@ class AppTopBarItem {
     this.dividerBefore = false,
     this.flexible = false,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  AppTopBarScope
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// בונה פריטים ל-[AppTopBar]. נקרא מתוך build של הסרגל עם ה-context שלו,
+/// כך שתלות שנרשמת בו (InheritedWidget, `context.select`) בונה אותו מחדש.
+typedef AppTopBarItemsBuilder =
+    List<AppTopBarItem> Function(BuildContext context, bool compact);
+
+/// פריטים שהסביבה מוסיפה לכל [AppTopBar] שמתחתיה, בלי שהסרגל יכיר את
+/// מקורם — למשל ידית גרירה בחלונית מפוצלת, או יציאה ממסך מלא.
+///
+/// scope פנימי מצטרף לחיצוני: פריטי ההתחלה של החיצוני קודמים, ופריטי הסיום
+/// שלו אחרונים. כדאי להעביר פונקציות קבועות (top-level/static), כדי שבנייה
+/// מחדש של ה-scope לא תבנה מחדש את הסרגלים.
+class AppTopBarScope extends StatelessWidget {
+  final AppTopBarItemsBuilder? leading;
+  final AppTopBarItemsBuilder? trailing;
+  final Widget child;
+
+  const AppTopBarScope({
+    super.key,
+    this.leading,
+    this.trailing,
+    required this.child,
+  });
+
+  static List<AppTopBarItem> _collect(
+    BuildContext context,
+    bool compact, {
+    required bool leading,
+  }) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>();
+    if (scope == null) return const [];
+    final items = <AppTopBarItem>[];
+    for (_AppTopBarScopeData? s = scope; s != null; s = s.parent) {
+      final builder = leading ? s.leading : s.trailing;
+      if (builder == null) continue;
+      final built = builder(context, compact);
+      if (leading) {
+        items.insertAll(0, built);
+      } else {
+        items.addAll(built);
+      }
+    }
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppTopBarScopeData(
+      parent: context.dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>(),
+      leading: leading,
+      trailing: trailing,
+      child: child,
+    );
+  }
+}
+
+class _AppTopBarScopeData extends InheritedWidget {
+  final _AppTopBarScopeData? parent;
+  final AppTopBarItemsBuilder? leading;
+  final AppTopBarItemsBuilder? trailing;
+
+  const _AppTopBarScopeData({
+    required this.parent,
+    required this.leading,
+    required this.trailing,
+    required super.child,
+  });
+
+  @override
+  bool updateShouldNotify(_AppTopBarScopeData oldWidget) =>
+      parent != oldWidget.parent ||
+      leading != oldWidget.leading ||
+      trailing != oldWidget.trailing;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -288,10 +362,6 @@ class _AppTopBarState extends State<AppTopBar>
   Widget build(BuildContext context) {
     final density = AppDensity.of(context);
     final isCompact = density.isCompact;
-    // סרגל משותף לעשרות מסכים; מחוץ להיקף חלון (בדיקות מסך) אין מסך מלא.
-    final isFullscreen = context.select(
-      (WindowFullscreenCubit? cubit) => cubit?.state ?? false,
-    );
     final cs = Theme.of(context).colorScheme;
     final barColor =
         widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
@@ -300,32 +370,13 @@ class _AppTopBarState extends State<AppTopBar>
     final hPad = AppTopBar.horizontalPadding(isCompact);
     final vPad = isCompact ? 4.0 : 8.0;
 
-    // בחלונית של טאב מפוצל הפריט הראשון הוא ידית גרירה שמחזירה את
-    // החלונית לשורת הכרטיסיות.
-    final dragPane = PaneDragHandleScope.paneOf(context);
-
     final leadingItems = [
-      if (dragPane != null)
-        AppTopBarItem(widget: PaneDragHandleButton(pane: dragPane)),
+      ...AppTopBarScope._collect(context, isCompact, leading: true),
       ...widget.leadingItems,
     ];
-
-    // במסך מלא לחצן היציאה משולב כפריט האחרון בסרגל (ולא כלחצן צף) —
-    // בקצה השמאלי, באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
     final trailingItems = [
       ...widget.trailingItems,
-      if (isFullscreen)
-        AppTopBarItem(
-          widget: BarButton.icon(
-            tooltip: 'צא ממסך מלא',
-            icon: FluentIcons.full_screen_minimize_24_regular,
-            compact: isCompact,
-            onPressed: () => FullscreenHelper.toggleFullscreen(
-              context,
-              false,
-            ),
-          ),
-        ),
+      ...AppTopBarScope._collect(context, isCompact, leading: false),
     ];
 
     final leadingWidget = leadingItems.isEmpty

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -149,7 +150,9 @@ void main() {
                   BlocProvider<SettingsBloc>.value(value: settingsBloc),
                   BlocProvider<WindowFullscreenCubit>.value(value: cubit),
                 ],
-                child: const Column(children: [AppTopBar()]),
+                child: const WindowFullscreenTopBarScope(
+                  child: Column(children: [AppTopBar()]),
+                ),
               ),
             ),
           ),
@@ -169,7 +172,9 @@ void main() {
             home: Scaffold(
               body: BlocProvider<SettingsBloc>.value(
                 value: settingsBloc,
-                child: const Column(children: [AppTopBar()]),
+                child: const WindowFullscreenTopBarScope(
+                  child: Column(children: [AppTopBar()]),
+                ),
               ),
             ),
           ),
@@ -299,7 +304,9 @@ Widget _buildBar({
             ),
           ),
         ],
-        child: Column(children: [wrap == null ? bar : wrap(bar)]),
+        child: WindowFullscreenTopBarScope(
+          child: Column(children: [wrap == null ? bar : wrap(bar)]),
+        ),
       ),
     ),
   );

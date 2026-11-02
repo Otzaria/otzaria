@@ -18,6 +18,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 String _bookNameWithoutTextExtension(String fileName) {

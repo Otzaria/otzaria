@@ -52,6 +52,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
