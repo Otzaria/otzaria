@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -348,12 +349,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               color: colorScheme.onSurfaceVariant,
             ),
             suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-                    tooltip: 'ניקוי',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _searchController.clear(),
-                  )
+                ? OtzariaSearchClearButton(controller: _searchController)
                 : Icon(
                     FluentIcons.chevron_down_16_regular,
                     size: 16,
