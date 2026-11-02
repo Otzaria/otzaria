@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -910,24 +911,20 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                         // הכל בקבלת פוקוס הייתה מוחקת את השאילתה בתו הבא.
                         selectAllOnFocus: false,
                         trailingActions: [
-                          if (query.isNotEmpty && total > 1) ...[
-                            if (currentIndex >= 0)
-                              OtzariaSearchAction.resultCounter(
-                                current: currentIndex + 1,
-                                total: total,
-                                context: context,
-                              ),
-                            OtzariaSearchAction.prevResult(
-                              onPressed: currentIndex > 0
+                          if (query.isNotEmpty && total > 1)
+                            SearchResultNavigator(
+                              current: currentIndex >= 0
+                                  ? currentIndex + 1
+                                  : null,
+                              total: total,
+                              onPrevious: currentIndex > 0
                                   ? () {
                                       _currentSearchIndexNotifier.value =
                                           currentIndex - 1;
                                       _scrollToSearchResult();
                                     }
                                   : null,
-                            ),
-                            OtzariaSearchAction.nextResult(
-                              onPressed: currentIndex < total - 1
+                              onNext: currentIndex < total - 1
                                   ? () {
                                       _currentSearchIndexNotifier.value =
                                           currentIndex + 1;
@@ -935,7 +932,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                                     }
                                   : null,
                             ),
-                          ],
                           OtzariaSearchAction.icon(
                             iconData: FluentIcons.dismiss_24_regular,
                             tooltip: 'סגור חיפוש',

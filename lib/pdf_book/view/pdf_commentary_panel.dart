@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/book_common/bloc/commentary_search_bloc.dart';
@@ -1353,22 +1354,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       // all on focus would erase the query on the next key.
       selectAllOnFocus: false,
       trailingActions: [
-        if (_searchQuery.isNotEmpty && _totalSearchResults > 1) ...[
-          if (_currentSearchIndex >= 0)
-            OtzariaSearchAction.resultCounter(
-              current: _currentSearchIndex + 1,
-              total: _totalSearchResults,
-              context: context,
-            ),
-          OtzariaSearchAction.prevResult(
-            onPressed: _currentSearchIndex > 0 ? navigateSearchPrev : null,
-          ),
-          OtzariaSearchAction.nextResult(
-            onPressed: _currentSearchIndex < _totalSearchResults - 1
+        if (_searchQuery.isNotEmpty && _totalSearchResults > 1)
+          SearchResultNavigator(
+            current: _currentSearchIndex >= 0 ? _currentSearchIndex + 1 : null,
+            total: _totalSearchResults,
+            onPrevious: _currentSearchIndex > 0 ? navigateSearchPrev : null,
+            onNext: _currentSearchIndex < _totalSearchResults - 1
                 ? navigateSearchNext
                 : null,
           ),
-        ],
         OtzariaSearchAction.icon(
           iconData: FluentIcons.dismiss_24_regular,
           tooltip: 'סגור חיפוש',

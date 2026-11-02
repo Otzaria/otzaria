@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
@@ -174,8 +175,7 @@ void main() {
         tester,
         Row(
           children: [
-            OtzariaSearchAction.prevResult(onPressed: () {}),
-            OtzariaSearchAction.nextResult(onPressed: () {}),
+            SearchResultNavigator(onPrevious: () {}, onNext: () {}),
             OtzariaSearchAction.clear(onPressed: () {}),
           ],
         ),
