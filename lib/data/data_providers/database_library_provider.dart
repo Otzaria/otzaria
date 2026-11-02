@@ -3643,12 +3643,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
         return orderA.compareTo(orderB);
       });
+    final categoryPathInfo = _categoryPathInfo(category);
     for (final dbBook in dbBooks) {
       final book = _convertMinimalBookMapToBook(
         dbBook,
         category,
         metadata,
         authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
+        categoryPathInfo: categoryPathInfo,
       );
       if (book == null) continue;
       category.books.add(book);
