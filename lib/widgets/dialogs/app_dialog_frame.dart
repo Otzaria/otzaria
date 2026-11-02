@@ -74,11 +74,12 @@ class AppDialogFrame extends StatelessWidget {
     this.showClose,
     this.onClose,
     this.isDirty,
+    this.onDismissRequest,
     this.onConfirm,
     this.handleEnterKey = true,
     this.dismissResult,
     this.surfaceKey,
-  });
+  }) : assert(isDirty == null || onDismissRequest == null);
 
   final String title;
 
@@ -131,6 +132,10 @@ class AppDialogFrame extends StatelessWidget {
 
   /// כל עוד true, X, Escape ולחיצה בחוץ שואלים לפני הסגירה.
   final ValueListenable<bool>? isDirty;
+
+  /// במקום [isDirty], לטופס ששואל שאלת סגירה משלו: X, Escape, לחיצה בחוץ
+  /// וחזרה קוראים לו, והדיאלוג נסגר רק כשהקורא סוגר אותו.
+  final VoidCallback? onDismissRequest;
 
   /// הפעולה הראשית: Enter בשדה חד־שורתי, או כשאין רכיב ממוקד שמגיב ל-Enter.
   final VoidCallback? onConfirm;
@@ -229,6 +234,7 @@ class AppDialogFrame extends StatelessWidget {
     return DialogDismissGuard.listenable(
       canDismiss: closeEnabled,
       isDirty: isDirty,
+      onDismissRequest: onDismissRequest,
       child: DialogKeyboardNavigator(
         onConfirm: onConfirm,
         handleEnterKey: handleEnterKey,

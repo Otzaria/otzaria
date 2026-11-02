@@ -13,16 +13,22 @@ class DialogDismissGuard extends StatelessWidget {
     required this.child,
     this.isDirty = false,
     this.canDismiss = true,
+    this.onDismissRequest,
   });
 
   /// כמו הבנאי, כשמצב השינויים מגיע כ-[ValueListenable] ולא בבנייה מחדש.
   static Widget listenable({
     required ValueListenable<bool>? isDirty,
     bool canDismiss = true,
+    VoidCallback? onDismissRequest,
     required Widget child,
   }) {
     if (isDirty == null) {
-      return DialogDismissGuard(canDismiss: canDismiss, child: child);
+      return DialogDismissGuard(
+        canDismiss: canDismiss,
+        onDismissRequest: onDismissRequest,
+        child: child,
+      );
     }
     return ValueListenableBuilder<bool>(
       valueListenable: isDirty,
@@ -42,15 +48,23 @@ class DialogDismissGuard extends StatelessWidget {
 
   final bool canDismiss;
 
+  /// במקום הסגירה: היציאה קוראת לו, והקורא סוגר ב-[Navigator.pop] — לטופס
+  /// ששואל שאלת סגירה משלו.
+  final VoidCallback? onDismissRequest;
+
   Future<void> _onBlockedPop(BuildContext context, Object? result) async {
     if (!canDismiss) return;
+    if (onDismissRequest != null) {
+      onDismissRequest!();
+      return;
+    }
     if (isDirty && await confirmDiscardChanges(context) != true) return;
     if (context.mounted) Navigator.of(context).pop(result);
   }
 
   @override
   Widget build(BuildContext context) => PopScope<Object?>(
-    canPop: canDismiss && !isDirty,
+    canPop: canDismiss && !isDirty && onDismissRequest == null,
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) _onBlockedPop(context, result);
     },
