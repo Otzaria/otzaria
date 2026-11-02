@@ -29,7 +29,8 @@ class AttachedLibraryRegistry {
   AttachedLibraryRegistry({
     this._store = const AttachedLibraryStore(),
     this.idleTimeout = const Duration(minutes: 5),
-  });
+    @visibleForTesting Future<void> Function(MyDatabase)? closeIdleDatabase,
+  }) : _closeIdleDatabase = closeIdleDatabase ?? _closeInBackground;
 
   /// ניתן להחלפה בבדיקות.
   static AttachedLibraryRegistry instance = AttachedLibraryRegistry();
@@ -43,6 +44,10 @@ class AttachedLibraryRegistry {
   static Duration openTimeout = const Duration(seconds: 5);
 
   final AttachedLibraryStore _store;
+  final Future<void> Function(MyDatabase) _closeIdleDatabase;
+
+  static Future<void> _closeInBackground(MyDatabase database) =>
+      database.closeInBackground();
 
   /// null — בלי סגירה אוטומטית.
   final Duration? idleTimeout;
@@ -297,15 +302,22 @@ class AttachedLibraryRegistry {
     final cutoff = (now ?? DateTime.now()).subtract(timeout);
     for (final MapEntry(key: slug, value: entry) in _open.entries) {
       if (entry.lastUsed.isBefore(cutoff) && entry.repository.database.isOpen) {
-        final done = entry.repository.database.closeInBackground().catchError((
+        final done = _closeIdleDatabase(entry.repository.database).catchError((
           Object e,
         ) {
           debugPrint('[AttachedLibraryRegistry] idle close: $e');
         });
-        _idleClosing[slug] = done;
-        closing.add(
-          done.whenComplete(() {
-            if (identical(_idleClosing[slug], done)) _idleClosing.remove(slug);
+        final previous = _idleClosing[slug];
+        final allDone = previous == null
+            ? done
+            : Future.wait([previous, done]).then((_) {});
+        _idleClosing[slug] = allDone;
+        closing.add(done);
+        unawaited(
+          allDone.whenComplete(() {
+            if (identical(_idleClosing[slug], allDone)) {
+              _idleClosing.remove(slug);
+            }
           }),
         );
       }

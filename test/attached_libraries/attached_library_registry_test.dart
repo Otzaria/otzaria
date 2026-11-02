@@ -264,6 +264,68 @@ void main() {
       File(pathA).deleteSync();
     });
 
+    for (final closeAll in [false, true]) {
+      for (final firstFinishesFirst in [false, true]) {
+        test(
+          '${closeAll ? 'closeAll' : 'close'} ממתין לשתי סגירות סרק '
+          'כשהסגירה ${firstFinishesFirst ? 'הראשונה' : 'השנייה'} מסתיימת קודם',
+          () async {
+            final gates = <Completer<void>>[];
+            final registry = AttachedLibraryRegistry(
+              idleTimeout: const Duration(minutes: 5),
+              closeIdleDatabase: (database) async {
+                final gate = Completer<void>();
+                gates.add(gate);
+                await database.closeInBackground();
+                await gate.future;
+              },
+            )..update([_library('a', pathA)]);
+            Future<void>? first;
+            Future<void>? second;
+            try {
+              final repository = (await registry.repositoryFor('a'))!;
+              first = registry.closeIdle(
+                now: DateTime.now().add(const Duration(minutes: 6)),
+              );
+              expect(registry.isOpen('a'), isFalse);
+              expect(await registry.repositoryFor('a'), same(repository));
+              expect(
+                await repository.getBook(SeforimFixtureIds.bereshitId),
+                isNotNull,
+              );
+              second = registry.closeIdle(
+                now: DateTime.now().add(const Duration(minutes: 6)),
+              );
+              expect(gates, hasLength(2));
+              final completed = firstFinishesFirst ? 0 : 1;
+              gates[completed].complete();
+              await (firstFinishesFirst ? first : second);
+
+              var finished = false;
+              final explicit =
+                  (closeAll ? registry.closeAll() : registry.close('a')).then(
+                    (_) => finished = true,
+                  );
+              await Future<void>.delayed(Duration.zero);
+              expect(finished, isFalse);
+
+              gates[1 - completed].complete();
+              await explicit;
+              expect(finished, isTrue);
+              File(pathA).deleteSync();
+            } finally {
+              for (final gate in gates) {
+                if (!gate.isCompleted) gate.complete();
+              }
+              await first;
+              await second;
+              await registry.closeAll();
+            }
+          },
+        );
+      }
+    }
+
     test('שינוי נתיב ב-update סוגר את החיבור הישן', () async {
       final registry = AttachedLibraryRegistry(idleTimeout: null)
         ..update([_library('a', pathA)]);
