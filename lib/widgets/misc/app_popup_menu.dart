@@ -924,7 +924,6 @@ class _AnchoredSearchMenuContentState<T>
                                   widget.filterLabels![i],
                                   style: TextStyle(
                                     fontSize: widget.metrics.fontSize - 1,
-                                    fontFamily: 'Roboto',
                                   ),
                                 ),
                                 selected: _activeFilter == i,
@@ -1074,7 +1073,8 @@ double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
   const double chipChrome = 22.0;
 
   final chipTextStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: AppThemeData.uiFontFamily,
+    fontFamilyFallback: AppThemeData.uiFontFamilyFallback,
     fontSize: metrics.fontSize - 1,
   );
 
