@@ -427,6 +427,9 @@ void main() {
       await pumpEventQueue();
       await _d.requestKeyboardFocus(_pid);
       expect(controller.focusCalls, 1);
+      // הדף סיים boot — זה מה שמבדיל השהיה של דף טעון מטעינה מחדש.
+      await _d.onForegroundInstanceReady(_pid);
+      expect(controller.focusCalls, 1);
 
       // מעבר לטאב אחר משהה את המופע.
       _d.setVisiblePluginInstances({_fg(_other)});
@@ -454,6 +457,9 @@ void main() {
       await pumpEventQueue();
       await _d.requestKeyboardFocus(_pid);
       expect(controller.focusCalls, 1);
+      // הדף סיים boot — זה מה שמבדיל השהיה של דף טעון מטעינה מחדש.
+      await _d.onForegroundInstanceReady(_pid);
+      expect(controller.focusCalls, 1);
 
       _d.setReaderScreenVisible(false);
       await pumpEventQueue();
@@ -470,6 +476,33 @@ void main() {
       await pumpEventQueue();
 
       expect(controller.focusCalls, 2);
+    });
+
+    test('דף שעוד לא סיים boot ומושהה — עדות הדף עדיין קובעת', () async {
+      // כך גם טעינה מחדש אחרי מסירה שלא אושרה, שמסמנת `suspended` בזמן
+      // הטעינה: קליק של המשתמש בדף שנטען הוא עדות אמת, ו-MoveFocus מאוחר
+      // היה מבטל אותו (#2736).
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      expect(controller.focusCalls, 1);
+
+      _d.setVisiblePluginInstances({_fg(_other)});
+      await pumpEventQueue();
+
+      final gate = Completer<void>();
+      controller.resumeGate = gate;
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      controller.resumeGate = null;
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(controller.focusCalls, 1);
     });
 
     test('מופע שעוד לא נוצר — עדות הדף עדיין קובעת', () async {
