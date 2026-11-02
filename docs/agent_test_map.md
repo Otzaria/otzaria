@@ -268,7 +268,7 @@
 | Note text utils | `test/personal_notes/note_text_utils_test.dart` |
 | Shortcut validator | `test/shortcuts/shortcut_validator_test.dart` |
 | Core (activation queue/channel, error log) | `test/core/` |
-| כל הודעה ל-`UiSnack` מגיעה מקטלוג `lib/core/messages/` (issue #1473) | `test/core/messages/uisnack_literal_scan_test.dart` |
+| כל הודעה ל-`UiSnack` מגיעה מקטלוג `lib/core/messages/` (issue #1473, UIL-009) | `test/design_system/ui_lint_test.dart` |
 | תעודות ה-CA של נטפרי שנטענות בהפעלה (שלושת הבאנדלים ב-`assets/ca/`) | `test/core/netfree_ca_assets_test.dart` |
 | Error logging | `test/core/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
 | דיווח על התוכנה — מודל (חוזה, גבולות, חיתוך גוף, JSON, צירוף minidump) | `test/app_report/app_report_model_test.dart` |
