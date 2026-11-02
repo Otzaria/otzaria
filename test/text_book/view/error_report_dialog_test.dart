@@ -1488,10 +1488,12 @@ void main() {
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
+      // ברוחב 720 טקסט נבחר ארוך מאוד עם פירוט מלא נגלל מעט (DD-07).
+      final scroll = formScroll(tester);
       expect(
-        formScroll(tester).maxScrollExtent,
-        0,
-        reason: 'טקסט נבחר ארוך ושדה פירוט מלא נכנסים בלי גלילה',
+        scroll.maxScrollExtent,
+        lessThan(scroll.viewportDimension / 4),
+        reason: 'טקסט נבחר ארוך ושדה פירוט מלא נגללים רק מעט',
       );
     });
 

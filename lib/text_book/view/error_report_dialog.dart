@@ -25,6 +25,7 @@ import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -1146,8 +1147,6 @@ const double _comfortableReportDialogHeight = 660;
 /// טופס בלי עורך תיקון קצר; הגובה קבוע כדי שלא ישתנה בזמן הקלדה.
 const double _freeTextReportDialogHeight = 560;
 
-const double _minReportDialogWidth = 400;
-
 class _TabbedReportDialogState extends State<TabbedReportDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -1218,72 +1217,36 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         mediaQuery.padding.top -
         mediaQuery.padding.bottom;
 
-    // minWidth/minHeight נסגרים ל-max, אחרת במסך קטן הקונסטריינטים
-    // אינם נורמליים → BoxConstraints assertion crash.
-    final screenWidth = mediaQuery.size.width;
-    final isNarrow = WindowClass.of(context).isCompact;
-    final maxWidth = isNarrow ? screenWidth : screenWidth * 0.6;
-    final minWidth = math.min(maxWidth, _minReportDialogWidth);
-    final maxHeight = widget.correctionTemplate == null && !isNarrow
+    // בחלון צר הדיאלוג במסך מלא (DD-16), והגובה כאן חל רק בחלון רחב.
+    final height = widget.correctionTemplate == null
         ? math.min(availableHeight, _freeTextReportDialogHeight)
-        // במסך נמוך 70% חותך את הטופס; Dialog עצמו מצמצם לגובה הפנוי.
+        // במסך נמוך 70% חותך את הטופס; המסגרת מגבילה לגובה החלון.
         : math.max(
             availableHeight * 0.7,
             math.min(availableHeight, _comfortableReportDialogHeight),
           );
-    final minHeight = maxHeight < 400 ? maxHeight : 400.0;
-    final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
-    final dialog = Dialog(
-      clipBehavior: Clip.antiAlias,
-      insetPadding: isCompact ? const EdgeInsets.all(8) : null,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: minWidth,
-          maxWidth: maxWidth,
-          minHeight: minHeight,
-          maxHeight: maxHeight,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(context),
-            TabBar(
-              controller: _tabController,
-              splashBorderRadius: AppTokens.borderRadiusAll,
-              tabs: const [
-                Tab(text: 'שליחת דיווח'),
-                Tab(text: 'דיווח דרך קו אוצריא'),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildRegularReportTab(),
-                  _buildPhoneReportTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    return DialogDismissGuard.listenable(
-      isDirty: _regularTabDirty,
-      child: dialog,
-    );
-  }
-
-  /// כותרת בצורת כותרת [AppReportDialog]: אייקון מסומל, שם הטופס ואיפה
-  /// מדווחים.
-  Widget _buildHeader(BuildContext context) {
-    return AppDialogHeader(
+    return AppDialogFrame(
       icon: OtzariaIcons.book_exclamation_24_regular,
       title: 'דיווח על טעות בספר',
       subtitle: widget.bookTitle,
       subtitleMaxLines: 1,
-      compact: true,
+      size: AppDialogSize.large,
+      height: height,
+      padding: EdgeInsets.zero,
+      isDirty: _regularTabDirty,
+      tabs: TabBar(
+        controller: _tabController,
+        splashBorderRadius: AppTokens.borderRadiusAll,
+        tabs: const [
+          Tab(text: 'שליחת דיווח'),
+          Tab(text: 'דיווח דרך קו אוצריא'),
+        ],
+      ),
+      child: TabBarView(
+        controller: _tabController,
+        children: [_buildRegularReportTab(), _buildPhoneReportTab()],
+      ),
     );
   }
 
