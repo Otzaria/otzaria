@@ -571,7 +571,7 @@
    - **הוכרע:** A. Windows (כהמלצה).
    - **תשובות:**
      - q1: להוסיף job של Windows ל־CI עבור golden tests? → **כן**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — test/goldens/flutter_test_config.dart משרשר את test/flutter_test_config.dart ומוסיף גופנים ו־TolerantGoldenFileComparator (סובלנות 0.05%, גודל אחר נכשל תמיד); test/support/golden_fonts.dart רושם את Rubik בשם 'Segoe UI' (המשפחה שה־textTheme מבקש ב־TargetPlatform.windows, פלטפורמת ה־golden) וטוען את גופני האייקונים; goldenTest/pumpGolden/expectGolden ב־golden_harness.dart (skip מחוץ ל־Windows); goldens ראשונים ל־ActionButton (בהיר/כהה) ול־AppDialog (twoActions בהיר/כהה, warning); test/goldens/ מוחרג מה־shards (isShardedTestFile); job ‏goldens_windows, ‏regenerate_goldens.yml ו־goldens_guard.yml (תווית goldens-approved). מגבלה: טקסט בלי fontFamily בכלל מצויר בגופן הבדיקה המובנה (ריבועים). נשאר: שאר רכיבי הגל הראשון והמטריצה (CI_ENFORCEMENT §5.7–5.8), יצירת התווית ב־GitHub, וציור התמונות מחדש ב־CI (נוצרו מקומית ב־Flutter 3.47.2, ה־CI מוצמד ל־3.47.7).
 
 ### DD-23 · מנוע האכיפה ⚙
 1. **הבעיה:** הכללים מתועדים אבל לא נאכפים. בדיקת ה־AST היחידה שקיימת לעולם לא נכשלת: היא מבקרת `InstanceCreationExpression` על AST לא מפוענח.

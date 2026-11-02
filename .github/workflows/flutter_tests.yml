@@ -520,6 +520,43 @@ jobs:
       - name: Run Windows-relevant tests
         run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart
 
+  # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
+  # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux
+  # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
+  goldens_windows:
+    name: Goldens (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Run golden tests
+        run: flutter test test/goldens/
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: golden-failures
+          path: test/goldens/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
+
   build_linux:
     name: Build (Linux)
     runs-on: ubuntu-26.04
