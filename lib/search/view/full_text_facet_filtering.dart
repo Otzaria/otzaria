@@ -1,9 +1,7 @@
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -86,15 +84,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   /// לפי הטקסט הקודם.
   void _onQueryChanged(String query) {
     context.read<SearchBloc>().add(UpdateFilterQuery(query));
-  }
-
-  /// ב-Mac המוסכמה לריבוי בחירה היא Cmd+Click, בשאר הפלטפורמות Ctrl+Click.
-  bool _isMultiSelectModifierPressed() {
-    final keyboard = HardwareKeyboard.instance;
-    if (Platform.isMacOS) {
-      return keyboard.isMetaPressed || keyboard.isControlPressed;
-    }
-    return keyboard.isControlPressed;
   }
 
   void _handleFacetToggle(BuildContext context, String facet) {
@@ -358,7 +347,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                       onToggleExpand: (path, isExpanded) => setState(() {
                         _expansionState[path] = !isExpanded;
                       }),
-                      isMultiSelectPressed: _isMultiSelectModifierPressed,
                       onClearAll: () => _clearAllScope(context),
                       extraRootCategories: extraRoots,
                       extraCategoriesFirst: settingsState.externalResultsFirst,

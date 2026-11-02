@@ -1,10 +1,8 @@
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
-import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -54,15 +52,6 @@ class _SemanticFacetFilteringState extends State<SemanticFacetFiltering>
     super.dispose();
   }
 
-  /// ב-Mac המוסכמה לריבוי בחירה היא Cmd+Click, בשאר הפלטפורמות Ctrl+Click.
-  bool _isMultiSelectModifierPressed() {
-    final keyboard = HardwareKeyboard.instance;
-    if (Platform.isMacOS) {
-      return keyboard.isMetaPressed || keyboard.isControlPressed;
-    }
-    return keyboard.isControlPressed;
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -104,7 +93,6 @@ class _SemanticFacetFilteringState extends State<SemanticFacetFiltering>
             onToggleFacet: widget.onToggleFacet,
             onToggleExpand: (path, isExpanded) =>
                 setState(() => _expansionState[path] = !isExpanded),
-            isMultiSelectPressed: _isMultiSelectModifierPressed,
             onClearAll: widget.onClearAll,
             rootHeaderAction: SearchDimensionFilterButton(
               selectedFacets: widget.selectedFacets,
