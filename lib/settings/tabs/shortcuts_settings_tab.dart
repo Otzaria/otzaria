@@ -49,7 +49,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לספרייה',
       subtitle: 'פתיחת מסך הספרייה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['ספרייה', 'ctrl+l', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -57,7 +57,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לאיתור',
       subtitle: 'פתיחת מסך איתור מהיר',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['איתור', 'ctrl+o', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -65,7 +65,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לעיון',
       subtitle: 'פתיחת מסך העיון בספרים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['עיון', 'ctrl+r', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -73,7 +73,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לחיפוש חדש בכל הספרים',
       subtitle: 'פתיחת חלון חיפוש',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['חיפוש', 'ctrl+shift+f', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -81,7 +81,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לחיפוש מתקדם',
       subtitle: 'פתיחת חלון חיפוש במצב מתקדם',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['חיפוש', 'מתקדם', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -89,7 +89,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להגדרות',
       subtitle: 'פתיחת מסך ההגדרות',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['הגדרות', 'ctrl+comma', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -97,7 +97,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לכלים',
       subtitle: 'פתיחת מסך הכלים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['כלים', 'ctrl+m', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -105,7 +105,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לסימניות',
       subtitle: 'פתיחת מסך הסימניות',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['סימניות', 'ctrl+shift+b', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -113,7 +113,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להיסטוריה',
       subtitle: 'פתיחת מסך ההיסטוריה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['היסטוריה', 'ctrl+h', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -121,7 +121,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להחלף שולחן עבודה',
       subtitle: 'מעבר בין שולחנות עבודה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.nav',
       keywords: ['שולחן עבודה', 'workspace', 'ctrl+k', 'מקלדת'],
     ),
     // ── תצוגת ספר ──
@@ -130,7 +130,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לחיפוש בספר הפתוח',
       subtitle: 'משמש לחיפוש מהיר במסכי תוכן וכלים תומכים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['חיפוש', 'בספר', 'ctrl+f', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -138,7 +138,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להדפסה',
       subtitle: 'הדפסת התוכן הנוכחי',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['הדפסה', 'ctrl+p', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -146,7 +146,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להוסף סימניה',
       subtitle: 'שמירת סימניה במיקום הנוכחי',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['סימניה', 'הוסף סימניה', 'ctrl+b', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -154,7 +154,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לשמירת סימניה מרוכזת',
       subtitle: 'שמירת סימניה אחת לכל הספרים הפתוחים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['סימניה מרוכזת', 'סימניות', 'ספרים פתוחים', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -162,7 +162,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להוספת הערה',
       subtitle: 'הוספת הערה אישית',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['הערה', 'אישית', 'ctrl+n', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -170,7 +170,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לסגור ספר נוכחי',
       subtitle: 'סגירת הספר הפתוח',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['סגור ספר', 'ctrl+w', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -178,7 +178,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לסגור כל הספרים',
       subtitle: 'סגירת כל הספרים הפתוחים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['סגור הכל', 'ctrl+shift+w', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -186,7 +186,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת כרטיסייה אחרונה שנסגרה',
       subtitle: 'שחזור הכרטיסייה האחרונה שנסגרה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['שחזור', 'כרטיסייה', 'ctrl+shift+t', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -194,7 +194,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתח/סגור חלונית ניווט',
       subtitle: 'טוגל לחלונית הניווט הצדדית',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['ניווט', 'חלונית', 'ctrl+shift+l', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -202,7 +202,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתח/סגור חלונית מפרשים',
       subtitle: 'טוגל לחלונית המפרשים בצד',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['מפרשים', 'חלונית', 'ctrl+shift+c', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -210,7 +210,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת כרטיסיית מפרשים',
       subtitle: 'פתיחת המפרשים בכרטיסייה נפרדת ליד הספר הנוכחי',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['מפרשים', 'כרטיסייה', 'טאב', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -218,7 +218,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להחלפת מצב תצוגה PDF/טקסט',
       subtitle: 'מעבר בין תצוגת PDF לתצוגת טקסט',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['PDF', 'טקסט', 'תצוגה', 'מקלדת', 'ctrl+shift+p'],
     ),
     SettingsSearchEntry(
@@ -226,7 +226,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לדף/פרק הקודם',
       subtitle: 'מעבר לכותרת הקודמת (דף/פרק) בספר',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['דף', 'פרק', 'ניווט', 'קודם', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -234,7 +234,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לדף/פרק הבא',
       subtitle: 'מעבר לכותרת הבאה (דף/פרק) בספר',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['דף', 'פרק', 'ניווט', 'הבא', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -242,7 +242,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לקטע הקודם',
       subtitle: 'גלילה לקטע הקודם בספר',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['קטע', 'ניווט', 'קודם', 'גלילה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -250,7 +250,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לקטע הבא',
       subtitle: 'גלילה לקטע הבא בספר',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['קטע', 'ניווט', 'הבא', 'גלילה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -258,7 +258,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחה/סגירה זמני היום בלוח שנה',
       subtitle: 'הצגה/הסתרה של זמני היום',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['לוח שנה', 'זמנים', 'זמני היום', 'מקלדת', 'ctrl+t'],
     ),
     SettingsSearchEntry(
@@ -266,7 +266,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחה/סגירה אירועים בלוח שנה',
       subtitle: 'הצגה/הסתרה של אירועים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['לוח שנה', 'אירועים', 'מקלדת', 'ctrl+e'],
     ),
     SettingsSearchEntry(
@@ -274,7 +274,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור למעבר להיום בלוח שנה',
       subtitle: 'ניווט מהיר לתאריך היום',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['לוח שנה', 'היום', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -282,7 +282,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור ליצירת אירוע בלוח שנה',
       subtitle: 'פתיחת חלון יצירת אירוע',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['לוח שנה', 'אירוע', 'יצירה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -290,7 +290,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור למעבר בין תצוגות לוח שנה',
       subtitle: 'החלפה בין תצוגות שונות',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['לוח שנה', 'תצוגה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -298,7 +298,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור למעבר בין סינונים בשמור וזכור',
       subtitle: 'מחזור בין הסינונים השונים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.calendar',
       keywords: ['שמור וזכור', 'סינון', 'מקלדת', 'ctrl+s'],
     ),
     // ── פתיחת כלים ──
@@ -307,7 +307,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת לוח שנה',
       subtitle: 'פתיחה מהירה של כלי לוח השנה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['לוח שנה', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -315,7 +315,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת שמור וזכור',
       subtitle: 'פתיחה מהירה של כלי שמור וזכור',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['שמור וזכור', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -323,7 +323,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת מדות ושיעורים',
       subtitle: 'פתיחה מהירה של כלי מדות ושיעורים',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['מדות', 'שיעורים', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -331,7 +331,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת הערות אישיות',
       subtitle: 'פתיחה מהירה של כלי ההערות האישיות',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['הערות', 'אישיות', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -339,7 +339,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת גימטריה',
       subtitle: 'פתיחה מהירה של כלי הגימטריה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['גימטריה', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -347,7 +347,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת מילון ארמי-עברי',
       subtitle: 'פתיחה מהירה של המילון הארמי-עברי',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['מילון', 'ארמי', 'עברי', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -355,7 +355,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור לפתיחת ראשי תיבות',
       subtitle: 'פתיחה מהירה של מילון ראשי התיבות',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.open_tools',
       keywords: ['ראשי תיבות', 'מילון', 'כלים', 'פתיחה', 'מקלדת'],
     ),
     // ── העתקת קישורים ──
@@ -364,7 +364,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להעתקת קישור ישיר לספר',
       subtitle: 'העתקת קישור ישיר לספר המוצג',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.copy_links',
       keywords: ['קישור', 'העתק', 'ספר', 'deep link', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -372,7 +372,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצורים להגדלה והקטנה של הטקסט',
       subtitle: 'בספר טקסט — גודל הגופן; ב-PDF — זום התצוגה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.book',
       keywords: ['זום', 'הגדלה', 'הקטנה', 'גופן', 'pdf', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -380,7 +380,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להעתקת קישור למקטע / לעמוד',
       subtitle: 'בטקסט — קישור למקטע הנוכחי; ב-PDF — קישור לעמוד הנוכחי',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.copy_links',
       keywords: ['קישור', 'העתק', 'מקטע', 'עמוד', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -388,7 +388,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להעתקת קישור עם הדגשת המקטע',
       subtitle: 'קישור שמדגיש את המקטע הנוכחי בעת הפתיחה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.copy_links',
       keywords: ['קישור', 'העתק', 'הדגשה', 'מקטע', 'מקלדת'],
     ),
     SettingsSearchEntry(
@@ -396,7 +396,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       title: 'קיצור להעתקת קישור עם הדגשת הטקסט',
       subtitle: 'קישור שמדגיש את הטקסט המסומן בעת הפתיחה',
       tab: SettingsTab.shortcuts,
-      cardId: 'shortcuts.main',
+      cardId: 'shortcuts.copy_links',
       keywords: ['קישור', 'העתק', 'הדגשה', 'טקסט', 'מקלדת'],
     ),
   ];
@@ -637,6 +637,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── ניווט כללי ────────────────────────────────────────────────
         SettingsCard(
+          cardId: 'shortcuts.nav',
           title: context.settingsText('ניווט כללי'),
           children: _onlyConfigured(currentValues, [
             _ShortcutTile(
@@ -714,6 +715,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── תצוגת ספר ─────────────────────────────────────────────────
         SettingsCard(
+          cardId: 'shortcuts.book',
           title: context.settingsText('תצוגת ספר'),
           children: _onlyConfigured(currentValues, [
             _ShortcutTile(
@@ -879,6 +881,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── לוח שנה ושמור וזכור ───────────────────────────────────────
         SettingsCard(
+          cardId: 'shortcuts.calendar',
           title: context.settingsText('לוח שנה ושמור וזכור'),
           children: _onlyConfigured(currentValues, [
             _ShortcutTile(
@@ -945,6 +948,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
         if (openToolTiles.isNotEmpty) ...[
           kSettingsCardSpacing,
           SettingsCard(
+            cardId: 'shortcuts.open_tools',
             title: context.settingsText('פתיחת כלים'),
             subtitle: context.settingsText(
               'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים',
@@ -969,6 +973,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
         if (copyLinkTiles.isNotEmpty) ...[
           kSettingsCardSpacing,
           SettingsCard(
+            cardId: 'shortcuts.copy_links',
             title: context.settingsText('העתקת קישורים'),
             subtitle: context.settingsText(
               'קיצורים להעתקת קישור ישיר לספר, למקטע/לעמוד ולהדגשות',
