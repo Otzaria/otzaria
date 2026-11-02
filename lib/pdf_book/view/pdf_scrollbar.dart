@@ -162,9 +162,8 @@ class _PdfScrollbarState extends State<PdfScrollbar> {
         widget.orientation == ScrollbarOrientation.left;
 
     if (!isVertical || widget.scrollBoundsBuilder == null) {
-      // PdfViewerScrollThumb זורק אם ה-controller לא מוכן עדיין (race condition ב-pdfrx).
-      // חשוב: PdfViewerScrollThumb חייב להיות בתוך ה-builder, לא כ-child,
-      // כדי שלא יבצע build() כשה-controller לא מוכן.
+      // PdfViewerScrollThumb זורק כשה-controller עוד לא מוכן, ולכן הוא נבנה
+      // בתוך ה-builder ולא כ-child.
       return AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
