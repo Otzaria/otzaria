@@ -397,6 +397,53 @@ void main() {
     });
   });
 
+  group('onDismissRequest: שאלת סגירה של הטופס עצמו', () {
+    final exits = <String, Future<void> Function(WidgetTester)>{
+      'Escape': (t) => t.sendKeyEvent(LogicalKeyboardKey.escape),
+      'X': (t) => t.tap(find.byTooltip('סגור')),
+      'לחיצה בחוץ': (t) => t.tapAt(const Offset(5, 5)),
+      'חזרה': (t) => t.binding.handlePopRoute(),
+    };
+
+    for (final MapEntry(key: name, value: exit) in exits.entries) {
+      testWidgets('$name קורא לו ולא סוגר', (tester) async {
+        var requests = 0;
+        final outcome = await showInApp<void>(
+          tester,
+          AppDialogFrame(
+            title: 'עורך',
+            icon: Icons.edit,
+            onDismissRequest: () => requests++,
+            child: const Focus(autofocus: true, child: Text('גוף')),
+          ),
+        );
+        await exit(tester);
+        await tester.pumpAndSettle();
+        expect(requests, 1);
+        expect(outcome.closed, isFalse);
+        expect(find.text('לסגור בלי לשמור?'), findsNothing);
+      });
+    }
+
+    testWidgets('הקורא סוגר ב-Navigator.pop', (tester) async {
+      final outcome = await openDialog<void>(
+        tester,
+        (context) => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AppDialogFrame(
+            title: 'עורך',
+            icon: Icons.edit,
+            onDismissRequest: () => Navigator.of(dialogContext).pop(),
+            child: const Focus(autofocus: true, child: Text('גוף')),
+          ),
+        ),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(outcome.closed, isTrue);
+    });
+  });
+
   group('AppDialogFrame — מקלדת', () {
     const focusedBody = Focus(autofocus: true, child: Text('גוף'));
 
