@@ -50,6 +50,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/custom_switch.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
 import 'package:otzaria/theme/app_motion.dart';
 
@@ -834,73 +835,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  Widget _buildHeader(bool isShort) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: AppSurfaces.topBarBackground(context),
-      child: Padding(
-        padding: isShort
-            ? const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8)
-            : const EdgeInsetsDirectional.fromSTEB(24, 16, 12, 14),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(isShort ? 7 : 9),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-              child: Icon(
-                OtzariaIcons.book_search_24_filled,
-                size: isShort ? 18 : 22,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.settingsText('איתור מקורות'),
-                    style: TextStyle(
-                      fontSize: isShort ? 17 : 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (!isShort) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      context.settingsText(
-                        'הקלד מקור מדויק והספר ייפתח במקומו',
-                      ),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular),
-              onPressed: () => Navigator.of(context).pop(),
-              tooltip: context.settingsText('סגור'),
-              // 48x48 של ברירת המחדל קובעים לבדם את גובה הכותרת בחלון נמוך.
-              visualDensity: isShort ? VisualDensity.compact : null,
-              constraints: isShort
-                  ? const BoxConstraints(minWidth: 32, minHeight: 32)
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// כרטיס ההקלדה: שדה המקור, מתג הספרים האישיים ומספר התוצאות.
   Widget _buildQueryCard(FindRefState state, bool isShort) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1644,12 +1578,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final screenSize = media.size;
     // insetPadding של Dialog מתווסף ל-viewInsets (המקלדת במובייל), ולכן
     // הגובה הפנוי נמדד אחרי הורדתם — אחרת הדיאלוג נחתך כשהמקלדת עולה.
-    final maxWidth = screenSize.width - 24;
     final maxHeight = screenSize.height - media.viewInsets.vertical - 24;
-    final dialogWidth = math.min(
-      maxWidth,
-      (screenSize.width * 0.6).clamp(540.0, 720.0),
-    );
     final dialogHeight = math.min(
       maxHeight,
       (screenSize.height * 0.7).clamp(440.0, 560.0),
@@ -1662,27 +1591,36 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final isTiny = dialogHeight < 300;
     final horizontalPadding = isCompact ? 12.0 : 16.0;
 
-    return Dialog(
-      insetPadding: const EdgeInsets.all(12),
-      backgroundColor: AppSurfaces.panelBackground(context),
-      clipBehavior: Clip.antiAlias,
-      // הפאנל בגובה קבוע, ולכן הגדלת גופן מעבר לכך הייתה דוחקת את הכותרת
-      // והתחתית זו על זו. הכיתוב עדיין גדל, עד גבול שהפריסה נושאת.
-      child: MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 1.6,
-        child: SizedBox(
-          key: TourTargetKeys.of(context).findRefDialog,
-          width: dialogWidth,
-          height: dialogHeight,
-          child: Column(
+    // הפאנל בגובה קבוע, ולכן הגדלת גופן מעבר לכך הייתה דוחקת את הכותרת
+    // והתחתית זו על זו. הכיתוב עדיין גדל, עד גבול שהפריסה נושאת.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.6,
+      child: AppDialogFrame(
+        surfaceKey: TourTargetKeys.of(context).findRefDialog,
+        icon: OtzariaIcons.book_search_24_filled,
+        title: context.settingsText('איתור מקורות'),
+        subtitle: isShort
+            ? null
+            : context.settingsText('הקלד מקור מדויק והספר ייפתח במקומו'),
+        subtitleMaxLines: 1,
+        size: AppDialogSize.large,
+        height: dialogHeight,
+        padding: EdgeInsets.zero,
+        backgroundColor: AppSurfaces.panelBackground(context),
+        child: LayoutBuilder(
+          builder: (context, body) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(isShort),
-              const Divider(height: 1),
               // חסם הגובה מבטיח שגם בגופן מוגדל אזור ההקלדה יגלול בתוך
-              // עצמו במקום לדחוק את רשימת התוצאות אל מחוץ לדיאלוג.
+              // עצמו במקום לדחוק את רשימת התוצאות אל מחוץ לדיאלוג. בחלון
+              // נמוך מאוד (מקלדת פתוחה) הגוף שמתחת לרצועה הוא המגבלה.
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: dialogHeight * 0.5),
+                constraints: BoxConstraints(
+                  maxHeight: math.min(
+                    dialogHeight * 0.5,
+                    body.maxHeight * 0.6,
+                  ),
+                ),
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPadding,

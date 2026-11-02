@@ -151,4 +151,57 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsNothing);
     });
   });
+
+  group('AppDialogFrame — גובה קבוע ומשטח', () {
+    Future<void> pumpFixed(
+      WidgetTester tester, {
+      required double height,
+      Key? surfaceKey,
+      String? subtitle,
+      int? subtitleMaxLines,
+    }) async {
+      tester.view.physicalSize = const Size(800, 560);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: AppDialogFrame(
+              title: 'חיפוש',
+              icon: FluentIcons.search_24_regular,
+              size: AppDialogSize.large,
+              height: height,
+              surfaceKey: surfaceKey,
+              subtitle: subtitle,
+              subtitleMaxLines: subtitleMaxLines,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('גובה קבוע אינו נחתך ל-85%, רק לגובה החלון', (tester) async {
+      const surface = Key('surface');
+      await pumpFixed(tester, height: 500, surfaceKey: surface);
+      expect(tester.getSize(find.byKey(surface)), const Size(720, 500));
+
+      await pumpFixed(tester, height: 900, surfaceKey: surface);
+      expect(
+        tester.getSize(find.byKey(surface)).height,
+        560 - 2 * AppDialogSize.inset.top,
+      );
+    });
+
+    testWidgets('subtitleMaxLines מגיע לכותרת', (tester) async {
+      await pumpFixed(
+        tester,
+        height: 400,
+        subtitle: 'שם ספר',
+        subtitleMaxLines: 1,
+      );
+      expect(tester.widget<Text>(find.text('שם ספר')).maxLines, 1);
+    });
+  });
 }
