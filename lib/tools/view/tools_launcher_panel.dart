@@ -678,9 +678,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                     Padding(
                                       padding: EdgeInsets.only(
                                         bottom:
-                                            AppInputTokens.height(
-                                              settingsState.compactMenuMode,
-                                            ) +
+                                            AppDensity.of(context).fieldHeight +
                                             AppTokens.spaceMD,
                                       ),
                                       child: pluginsFooter,
@@ -692,9 +690,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                   openToolIds,
                                   footer: pluginsFooter,
                                   bottomInset:
-                                      AppInputTokens.height(
-                                        settingsState.compactMenuMode,
-                                      ) +
+                                      AppDensity.of(context).fieldHeight +
                                       AppTokens.spaceMD,
                                 ),
                         ),

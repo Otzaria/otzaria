@@ -537,7 +537,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           // האם יש מספיק מקום ל-DafYomi בשורה הראשית?
                           final dafYomiInline =
                               constraints.maxWidth >= _kDafYomiInlineMinWidth;
-                          final isCompact = settingsState.compactMenuMode;
+                          final isCompact = AppDensity.of(context).isCompact;
 
                           // גובה הסרגל הראשי (קבוע) — ממנו נגזר ה-padding התחתון
                           final primaryBarH = AppTopBar.barHeight(isCompact);
@@ -640,7 +640,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     SettingsState settingsState, {
     required bool dafYomiInline,
   }) {
-    final isCompact = settingsState.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final isLibraryEmpty = context.select<NavigationBloc, bool>(
       (b) => b.state.isLibraryEmpty,
     );
@@ -778,7 +778,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     SettingsState settingsState, {
     required bool isLibraryEmpty,
   }) {
-    final isCompact = settingsState.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final screenWidth = MediaQuery.of(context).size.width;
 
     final maxButtons = screenWidth < 400

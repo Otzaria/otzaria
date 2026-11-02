@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' show min;
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'dart:ui';
@@ -645,10 +646,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     // תצוגת ספר PDF (או מהדורת ה-PDF הנלווית של מסכת בבלי)
     final displayedPdf = _displayedPdfBook;
     if (displayedPdf != null && _pdfController != null) {
-      return BlocBuilder<SettingsBloc, SettingsState>(
-        buildWhen: (p, c) => p.compactMenuMode != c.compactMenuMode,
-        builder: (context, settingsState) {
-          final compact = settingsState.compactMenuMode;
+      return Builder(
+        builder: (context) {
+          final compact = AppDensity.of(context).isCompact;
           return Stack(
             children: [
               _buildPdfViewer(displayedPdf.path),
@@ -679,11 +679,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     }
 
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) =>
-          p.compactMenuMode != c.compactMenuMode ||
-          p.textDisplayPolicy != c.textDisplayPolicy,
+      buildWhen: (p, c) => p.textDisplayPolicy != c.textDisplayPolicy,
       builder: (context, settingsState) {
-        final compact = settingsState.compactMenuMode;
+        final compact = AppDensity.of(context).isCompact;
         return Stack(
           children: [
             GestureDetector(

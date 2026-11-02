@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -116,6 +117,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        // הצפיפות מגיעה מערכת הנושא, כמו ב-App.
+        theme: ThemeData(extensions: const [AppDensity.compact]),
         home: BlocProvider<SettingsBloc>.value(
           value: compactBloc,
           child: const Scaffold(

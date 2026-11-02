@@ -1,8 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// כמה משטח המגע של הידית נכנס פנימה לתוך הפאנל. בקצה הפנימי יושב גם פס
@@ -13,8 +11,7 @@ const double kPaneHandleInnerReach = 4;
 
 /// שטח המגע המלא של הידית: 24px רגיל, 18px במצב קומפקטי.
 double handleHitSize(BuildContext context) {
-  final isCompact =
-      context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+  final isCompact = AppDensity.of(context).isCompact;
   return isCompact
       ? AppTokens.dragHandleCompactHitSize
       : AppTokens.dragHandleRegularHitSize;
@@ -51,7 +48,7 @@ class ResizableDragHandle extends StatefulWidget {
   final MouseCursor? cursor;
 
   /// Total interactive thickness (width for vertical, height for horizontal).
-  /// If null, auto-selects 24 when compactMenuMode is off, 18 when on.
+  /// If null, auto-selects 24 in regular density, 18 in compact ([AppDensity]).
   final double? hitSize;
 
   /// Called with the delta along the resize axis (dx if vertical, dy if horizontal).
@@ -87,8 +84,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onDragDelta != null;
-    final isCompact =
-        context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final isCompact = AppDensity.of(context).isCompact;
     final effectiveHitSize =
         widget.hitSize ??
         (isCompact

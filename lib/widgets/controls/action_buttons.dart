@@ -3,8 +3,6 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -323,7 +321,7 @@ enum _SquareVariant { field, toolbar }
 /// - [SquareIconButton.field] — רקע tonal, לשורה אחת עם [OtzariaSearchField]
 /// - [SquareIconButton.toolbar] — רקע שקוף, בתוך סרגל צף שכבר צבוע
 ///
-/// [slim] = null: יורש מ-[SettingsBloc.compactMenuMode], בדיוק כמו שדה החיפוש,
+/// [slim] = null: יורש מ-[AppDensity], בדיוק כמו שדה החיפוש,
 /// כדי שהגבהים יישארו זהים בשני המצבים.
 class SquareIconButton extends StatelessWidget {
   final IconData icon;
@@ -351,8 +349,7 @@ class SquareIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isSlim =
-        slim ?? context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final isSlim = slim ?? AppDensity.of(context).isCompact;
     final side = AppInputTokens.height(isSlim);
 
     return SizedBox(

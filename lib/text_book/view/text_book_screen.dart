@@ -1,3 +1,4 @@
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'dart:io';
@@ -1422,7 +1423,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         AppTopBarItem(
           widget: ReaderBackButton(
             lines: widget.tab.lines,
-            compact: context.read<SettingsBloc>().state.compactMenuMode,
+            compact: AppDensity.of(context).isCompact,
           ),
         ),
         if (state.showLeftPane && NavPanelSearch.isWide(context))
@@ -1463,7 +1464,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     BuildContext context,
     TextBookLoaded state,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: 'הגדרות צורת הדף',
       icon: FluentIcons.settings_24_regular,
@@ -1707,13 +1708,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ActionButtonData(
         widget: TextBookDisplayBarButton(
           state: state,
-          compact: context.read<SettingsBloc>().state.compactMenuMode,
+          compact: AppDensity.of(context).isCompact,
         ),
         icon: textDisplayBarIcon(state.removeNikud),
         tooltip: textDisplayBarTooltip(state.removeNikud),
         actionId: ToolbarActionId.textDisplay,
         toolbarWidth: BarSplitButton.toolbarWidth(
-          context.read<SettingsBloc>().state.compactMenuMode,
+          AppDensity.of(context).isCompact,
         ),
         onPressed: () => toggleTextBookNikud(context, state, TextTarget.body),
       ),
@@ -1805,7 +1806,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         buildBookBookmarksAction(
           context,
           book: state.book,
-          compact: context.read<SettingsBloc>().state.compactMenuMode,
+          compact: AppDensity.of(context).isCompact,
           tourKey: TourTargetsScope.enabledOf(context)
               ? TourTargetKeys.of(context).textBookBookmark
               : null,
@@ -1819,7 +1820,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           widget: BarButton.icon(
             tooltip: 'הצג הערות אישיות',
             icon: FluentIcons.note_24_regular,
-            compact: context.read<SettingsBloc>().state.compactMenuMode,
+            compact: AppDensity.of(context).isCompact,
             onPressed: () => _openPersonalNotesForCurrentView(state),
           ),
           icon: FluentIcons.note_24_regular,
@@ -2160,7 +2161,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     BuildContext context,
     TextBookLoaded state,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: state.continuousReadingMode
           ? 'הצג כשורות בודדות'
@@ -2183,7 +2184,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ShortcutValidator.currentWindowSearchKey,
         ) ??
         '';
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       key: key,
       tooltip: shortcut.isEmpty
@@ -2196,7 +2197,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildZoomInButton(BuildContext context, TextBookLoaded state) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: _withShortcut('הגדל את גודל הטקסט', ShortcutValidator.zoomInKey),
       icon: FluentIcons.zoom_in_24_regular,
@@ -2206,7 +2207,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildZoomOutButton(BuildContext context, TextBookLoaded state) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: _withShortcut(
         'הקטן את גודל הטקסט',
@@ -2414,7 +2415,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   Widget _buildShamorZachorButton(BuildContext context, TextBookLoaded state) {
     final isTracked = _isBookTrackedInShamorZachor(state.book);
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: isTracked
           ? 'סמן קטע פתוח כנלמד בשמור וזכור'
@@ -2555,7 +2556,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         icon: FluentIcons.split_vertical_24_regular,
         label: title,
         selected: open != null,
-        compact: context.read<SettingsBloc>().state.compactMenuMode,
+        compact: AppDensity.of(context).isCompact,
         onPressed: toggle,
       ),
       icon: FluentIcons.split_vertical_24_regular,
@@ -2590,7 +2591,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
   ) => buildParallelEditionsAction(
     editions: _parallelEditions,
-    compact: context.read<SettingsBloc>().state.compactMenuMode,
+    compact: AppDensity.of(context).isCompact,
     companionIcon: FluentIcons.document_pdf_24_regular,
     companionTooltip: 'פתח בתצוגת PDF',
     companionMenuSuffix: 'מהדורה מודפסת (אוצריא)',

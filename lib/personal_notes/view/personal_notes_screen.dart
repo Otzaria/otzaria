@@ -444,9 +444,9 @@ class _PersonalNotesManagerScreenState
   }
 
   Widget _buildTopBar() {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
+    return Builder(
+      builder: (context) {
+        final isCompact = AppDensity.of(context).isCompact;
         return AppTopBar(
           leadingItems: [
             AppTopBarItem(

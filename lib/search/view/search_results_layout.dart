@@ -5,6 +5,7 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
@@ -290,13 +291,11 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   /// לחצן עין לכיבוי/הפעלה קבועים של התצוגה המקדימה של תוצאות — כמו בספרייה.
   Widget _buildPreviewToggleButton() {
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) =>
-          p.searchShowPreview != c.searchShowPreview ||
-          p.compactMenuMode != c.compactMenuMode,
+      buildWhen: (p, c) => p.searchShowPreview != c.searchShowPreview,
       builder: (context, settingsState) {
         final showPreview = settingsState.searchShowPreview;
         return BarButton.icon(
-          compact: settingsState.compactMenuMode,
+          compact: AppDensity.of(context).isCompact,
           tooltip: showPreview ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
           icon: showPreview
               ? FluentIcons.eye_24_filled

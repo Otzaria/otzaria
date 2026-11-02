@@ -12,7 +12,6 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuEntry;
 import 'package:otzaria/widgets/misc/app_menu_presentation.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
@@ -153,7 +152,7 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     } else if (widget.iconData != null) {
       // מצב Toolbar: BarButton.icon עם אייקון מסוגנן. חייב לגבור על מצב מגע —
       // כפתור טקסט רחב מפוצץ את תקציב הרוחב של הסרגל וגורם overflow (#891).
-      final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+      final isCompact = AppDensity.of(context).isCompact;
       trigger = Opacity(
         opacity: widget.enabled ? 1.0 : 0.38,
         child: IgnorePointer(

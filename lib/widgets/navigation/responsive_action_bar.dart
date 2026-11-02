@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -361,8 +359,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
   Widget _buildNewMode(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact =
-            context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+        final isCompact = AppDensity.of(context).isCompact;
 
         final standardButtonWidth = BarButton.toolbarWidth(isCompact);
 

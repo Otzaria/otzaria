@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
 import 'package:otzaria/book_common/view/commentators_side_pane.dart';
@@ -883,7 +884,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   }
 
   Widget _buildAppTopBar(BuildContext context) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     return CommentatorsTabTopBar(
       title: 'מפרשים על ${widget.tab.sourceTab.book.title}',
       titleMaxLines: 1,

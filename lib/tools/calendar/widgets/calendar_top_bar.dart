@@ -14,15 +14,14 @@
 // החיצים ותאריך תמיד בשורה עליונה, במיקום קבוע שלא זז עם שינוי אורך התאריך.
 
 import 'dart:math' as math;
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
@@ -499,7 +498,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             controller: _jumpDateController,
             focusNode: _jumpDateFocusNode,
             autofocus: true,
-            slim: context.read<SettingsBloc>().state.compactMenuMode,
+            slim: AppDensity.of(context).isCompact,
             hintText: _buildCurrentDateHint(),
             onChanged: _handleJumpDateChanged,
             onSubmitted: (_) => _submitJumpDateSearch(),
@@ -601,9 +600,9 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     return OverlayPortal(
       controller: _overlayPortalController,
       overlayChildBuilder: _buildDialogOverlay,
-      child: BlocBuilder<SettingsBloc, SettingsState>(
-        builder: (context, settingsState) {
-          final isCompact = settingsState.compactMenuMode;
+      child: Builder(
+        builder: (context) {
+          final isCompact = AppDensity.of(context).isCompact;
 
           // ── כפתורים משותפים ───────────────────────────────────────────────
           final prevBtn = BarButton.icon(

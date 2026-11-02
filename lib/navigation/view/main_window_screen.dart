@@ -102,6 +102,7 @@ import 'package:otzaria/plugins/services/plugin_install_results_log.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_column.dart';
@@ -3829,10 +3830,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
                                     final isLandscape =
                                         orientation == Orientation.landscape;
-                                    final isCompactRail = context
-                                        .select<SettingsBloc, bool>(
-                                          (b) => b.state.compactMenuMode,
-                                        );
+                                    final isCompactRail = AppDensity.of(
+                                      context,
+                                    ).isCompact;
                                     final railWidth = isCompactRail
                                         ? NavRailItem.compactWidth
                                         : NavRailItem.width;
