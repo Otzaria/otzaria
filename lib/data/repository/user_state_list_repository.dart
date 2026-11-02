@@ -73,8 +73,7 @@ class UserStateListRepository<T> {
 
   /// מחיל [apply] על הרשימה הטרייה ושומר את התוצאה אטומית. מחזיר את מה שנשמר.
   ///
-  /// ⚠️ כשכותב אחר שינה את הרשימה בינתיים [apply] רץ שוב על המצב החדש, ולכן
-  /// חייב להיות **טהור**: לחשב מהרשימה שקיבל, בלי await ובלי תופעות לוואי.
+  /// [apply] רץ פעם אחת, באופן סינכרוני, מול הרשימה שבטרנזקציית הכתיבה.
   Future<List<T>> mutate(List<T> Function(List<T> current) apply) async {
     late List<T> next;
     await _store.mutate(boxName, key, origin: _origin, (raw) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
@@ -55,8 +56,7 @@ class UserStateListStore {
   /// קורא, מחיל את [apply] וכותב — אטומי מול כל כותב אחר. מחזיר את הרשימה
   /// שנכתבה.
   ///
-  /// [apply] לוכד אובייקטים שאינם נשלחים ל-isolate, ולכן רץ כאן; הכתיבה
-  /// מותנית בכך שהרשימה לא השתנתה מאז הקריאה, ואחרת [apply] מוחל שוב.
+  /// [apply] רץ פעם אחת ב-isolate הקורא, בזמן שה-worker מחזיק נעילת כתיבה.
   Future<List<dynamic>> mutate(
     String box,
     String key,
@@ -64,14 +64,41 @@ class UserStateListStore {
     Object? origin,
   }) async {
     final result = await _database.runInWriteQueue((db) async {
-      while (true) {
-        final expected = _payloadIn(db, box, key);
-        final next = apply(decodePayload(expected));
-        final written = await _database.runOnWriteConnection(
-          _replaceIfUnchanged(box, key, expected, jsonEncode(next)),
-        );
-        if (written) return next;
+      late List<dynamic> next;
+      String replace(String? payload) {
+        next = apply(decodePayload(payload));
+        return jsonEncode(next);
       }
+
+      if (UserStateDatabase.debugWriteInline) {
+        await _mutateLocked(db, box, key, replace);
+      } else {
+        final requests = ReceivePort();
+        final written = _database.runOnWriteConnection(
+          _mutateWriter(box, key, requests.sendPort),
+        );
+        SendPort? response;
+        try {
+          final (port, payload) =
+              await Future.any([
+                    requests.first,
+                    written.then(
+                      (_) => throw StateError('Missing mutation request'),
+                    ),
+                  ])
+                  as (SendPort, String?);
+          response = port;
+          response.send(replace(payload));
+          await written;
+        } catch (_) {
+          response?.send(null);
+          await written;
+          rethrow;
+        } finally {
+          requests.close();
+        }
+      }
+      return next;
     });
     _notifyPeers(box, key, origin);
     return result;
@@ -107,23 +134,37 @@ class UserStateListStore {
     [box, key, payload, DateTime.now().millisecondsSinceEpoch],
   );
 
-  /// `BEGIN IMMEDIATE` תופס את נעילת הכתיבה כבר בפתיחה, ולכן ההשוואה
-  /// ל-[expected] תקפה עד ה-COMMIT. רץ ב-isolate, ולכן static.
-  static bool Function(Database db) _replaceIfUnchanged(
+  static Future<void> Function(Database db) _mutateWriter(
     String box,
     String key,
-    String? expected,
-    String payload,
-  ) => (db) {
+    SendPort requests,
+  ) =>
+      (db) => _mutateLocked(db, box, key, (payload) async {
+        final responses = ReceivePort();
+        try {
+          requests.send((responses.sendPort, payload));
+          return await responses.first as String?;
+        } finally {
+          responses.close();
+        }
+      });
+
+  static Future<void> _mutateLocked(
+    Database db,
+    String box,
+    String key,
+    FutureOr<String?> Function(String? payload) replace,
+  ) async {
     db.execute('BEGIN IMMEDIATE');
     try {
-      final unchanged = _payloadIn(db, box, key) == expected;
-      if (unchanged) {
+      final payload = await replace(_payloadIn(db, box, key));
+      if (payload == null) {
+        db.execute('ROLLBACK');
+      } else {
         final (sql, args) = _upsert(box, key, payload);
         db.execute(sql, args);
+        db.execute('COMMIT');
       }
-      db.execute('COMMIT');
-      return unchanged;
     } catch (_) {
       try {
         db.execute('ROLLBACK');
@@ -132,7 +173,7 @@ class UserStateListStore {
       }
       rethrow;
     }
-  };
+  }
 
   void _notifyPeers(String box, String key, Object? origin) =>
       _changes.add((box: box, key: key, origin: origin));

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
@@ -20,7 +21,6 @@ class UserStateDatabase {
 
   /// כתיבה ב-isolate הנוכחי: FakeAsync של `testWidgets` אינו מקבל את התשובה
   /// מ-`Isolate.run`, ובדיקות שמריצות את האפליקציה כולה היו נתקעות.
-  @visibleForTesting
   static bool debugWriteInline = false;
 
   Database? _database;
@@ -162,7 +162,7 @@ class UserStateDatabase {
 
   /// מריץ את [write] על חיבור משני ב-isolate. רק מתוך [runInWriteQueue];
   /// [write] נשלח ל-isolate, ולכן חייב להיווצר בפונקציה סטטית.
-  Future<R> runOnWriteConnection<R>(R Function(Database db) write) =>
+  Future<R> runOnWriteConnection<R>(FutureOr<R> Function(Database db) write) =>
       _onWriteConnection(_path!, write, inline: debugWriteInline);
 
   Future<void> _runWriteBatch(
@@ -187,7 +187,7 @@ class UserStateDatabase {
 
   static Future<R> _onWriteConnection<R>(
     String path,
-    R Function(Database db) write, {
+    FutureOr<R> Function(Database db) write, {
     required bool inline,
   }) {
     if (inline) return Future.sync(() => _withWriteConnection(path, write));
@@ -197,10 +197,13 @@ class UserStateDatabase {
     );
   }
 
-  static R _withWriteConnection<R>(String path, R Function(Database db) write) {
+  static Future<R> _withWriteConnection<R>(
+    String path,
+    FutureOr<R> Function(Database db) write,
+  ) async {
     final db = openSecondaryWritableConnection(path, 'UserStateWrite');
     try {
-      return write(db);
+      return await write(db);
     } finally {
       db.close();
     }
