@@ -35,14 +35,9 @@ class SettingsCard extends StatelessWidget {
   bool get _hasTitle =>
       title != null && !(title is String && (title as String).isEmpty);
 
-  /// סגנון כותרת הכרטיס — מקור אמת יחיד, גם לשורות שרוצות להיראות ככותרת.
-  static TextStyle? titleStyleOf(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.bold,
-      color: theme.colorScheme.primary,
-    );
-  }
+  /// סגנון כותרת הכרטיס ([AppSectionLabel]), גם לשורות שרוצות להיראות ככותרת.
+  static TextStyle? titleStyleOf(BuildContext context) =>
+      AppSectionLabel.styleOf(context);
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +60,7 @@ class SettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           title is String
-              ? Text(title as String, style: titleStyle)
+              ? AppSectionLabel(title as String)
               : DefaultTextStyle(
                   style: titleStyle ?? const TextStyle(),
                   child: title as Widget,

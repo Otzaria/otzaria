@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
 
 /// Widget that displays reporting numbers with copy functionality
 class ReportingNumbersWidget extends StatelessWidget {
@@ -35,12 +36,7 @@ class ReportingNumbersWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'נתוני הדיווח:',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const AppSectionLabel('נתוני הדיווח:'),
             const SizedBox(height: 8),
 
             // Wrap מאפשר לנתונים להיות באותה שורה ולעבור לשורה הבאה אם אין מקום
@@ -138,12 +134,7 @@ class ReportingNumbersWidget extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
           children: [
-            Text(
-              'קו אוצריא:',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const AppSectionLabel('קו אוצריא:'),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [

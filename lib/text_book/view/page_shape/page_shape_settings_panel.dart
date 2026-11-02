@@ -17,6 +17,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -532,15 +533,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
                 children: [
                   _buildDisplaySettingsIcon(context),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _displaySettingsTitle,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: AppSectionLabel(_displaySettingsTitle)),
                 ],
               ),
               const SizedBox(height: 12),

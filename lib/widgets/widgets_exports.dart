@@ -39,6 +39,7 @@ export 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 export 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 export 'package:otzaria/widgets/misc/expanding_chevron.dart';
 export 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+export 'package:otzaria/widgets/text/app_section_label.dart';
 export 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 import 'package:flutter/material.dart';

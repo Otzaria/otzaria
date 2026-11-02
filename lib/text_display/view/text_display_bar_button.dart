@@ -309,8 +309,9 @@ class _SectionTitle extends StatelessWidget {
     ),
     child: Text(
       text,
+      // כותרת מקטע בצבע הערכה (DD-14), בגודל של שורות הפאנל.
       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        color: Theme.of(context).colorScheme.primary,
       ),
     ),
   );
