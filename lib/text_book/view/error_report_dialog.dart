@@ -934,20 +934,13 @@ $detailsSection
     DirectErrorReport reportData,
   ) async {
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
       final reportService = DirectErrorReportService();
-      final result = await reportService.submitReport(reportData);
-
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+      final result = await runWithBlockingProgress(
+        context: context,
+        title: ReportMessages.sendingTitle,
+        message: ReportMessages.sending,
+        task: () => reportService.submitReport(reportData),
+      );
 
       if (!context.mounted) {
         return result.isSent || result.isQueued;
@@ -970,10 +963,6 @@ $detailsSection
       }
       return result.isSent || result.isQueued;
     } catch (e) {
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
       debugPrint('Direct report error: $e');
       if (context.mounted) {
         UiSnack.showError(

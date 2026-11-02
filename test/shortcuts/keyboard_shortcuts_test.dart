@@ -50,7 +50,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show ActionButton;
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:provider/provider.dart';
@@ -1494,9 +1494,10 @@ void main() {
       showDialog(
         context: tester.element(find.byType(KeyboardShortcuts)),
         builder: (_) => blocked
-            ? AppCustomContentDialog(
+            ? AppDialogFrame(
                 title: 'התקנה פעילה',
-                canDismiss: false,
+                icon: Icons.extension,
+                closeEnabled: false,
                 actions: [
                   if (onCancel != null)
                     ActionButton.ghost(
@@ -1510,7 +1511,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        find.byType(blocked ? AppCustomContentDialog : AlertDialog),
+        find.byType(blocked ? AppDialogFrame : AlertDialog),
         findsOneWidget,
       );
 
@@ -1549,7 +1550,7 @@ void main() {
         final blocs = await pumpWithDialog(tester, blocked: true);
         if (extraRoute) {
           showDialog<void>(
-            context: tester.element(find.byType(AppCustomContentDialog)),
+            context: tester.element(find.byType(AppDialogFrame)),
             builder: (_) => const AlertDialog(title: Text('שכבה נוספת')),
           );
           await tester.pumpAndSettle();
@@ -1881,7 +1882,7 @@ void main() {
             isTrue,
           );
         }
-        expect(find.byType(AppCustomContentDialog), findsOneWidget);
+        expect(find.byType(AppDialogFrame), findsOneWidget);
         expect(blocs.navigationBloc.events, isEmpty);
       } finally {
         debugDefaultTargetPlatformOverride = null;

@@ -23,9 +23,9 @@
 // [SelectionDialog]                                   → selection_dialog.dart
 //
 // ─── מיכל לדיאלוגים מורכבים ──────────────────────────────────────────────────
-// [AppCustomContentDialog]                            → reusable_items_dialog.dart
-//   שימוש: מסכים מורכבים כדיאלוג (לוח שנה, הערות, היסטוריה).
-//          תומך ב-actions, onConfirm, Escape אוטומטי.
+// [AppDialogFrame(size:)]                             → app_dialog_frame.dart
+//   שימוש: טפסים (medium), רשימות וניהול (large), מסך מלא (full).
+//          תומך ב-actions, onConfirm, isDirty, scrollable.
 //
 export 'confirmation_dialog.dart';
 export 'app_dialogs.dart';
@@ -35,5 +35,4 @@ export 'app_dialog_header.dart';
 export 'details_info_section.dart';
 export 'input_dialog.dart';
 export 'selection_dialog.dart';
-export 'reusable_items_dialog.dart';
 export 'blocking_progress_dialog.dart';

@@ -10,8 +10,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// המהדורות של [book] לרשימת הבחירה. לספר אישי — קובצי הגרסאות של קבוצתו.
 Future<List<BookVersionInfo>> loadBookVersions(Book book) async {
@@ -112,10 +112,11 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
   @override
   Widget build(BuildContext context) {
     final hint = widget.hint;
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
       icon: OtzariaIcons.books_stacked_high_24_regular,
       title: widget.title ?? 'גרסאות — ${widget.book.title}',
-      scrollable: false,
       actions: [
         ActionButton.neutral(
           text: 'סגור',
@@ -123,6 +124,7 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
         ),
       ],
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (hint != null)
@@ -130,7 +132,7 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(hint, style: Theme.of(context).textTheme.bodySmall),
             ),
-          Expanded(
+          Flexible(
             child: FutureBuilder<List<BookVersionInfo>>(
               future: _versionsFuture,
               builder: (context, snapshot) {
@@ -163,27 +165,23 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                     message: 'אין נוסחאות נוספות מלבד הנוסח הפתוח.',
                   );
                 }
-                // הכרטיס מתכווץ לתוכן, ולא נמתח על כל גובה הדיאלוג לשתי שורות.
-                return Align(
-                  alignment: Alignment.topCenter,
-                  child: ListDialogCard(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: selectable.length,
-                      separatorBuilder: (context, _) => Divider(
-                        height: 1,
-                        color: listDialogRowDivider(context).color,
-                      ),
-                      itemBuilder: (context, index) => BookVersionTile(
-                        book: widget.book,
-                        version: selectable[index],
-                        isOnlyVersion:
-                            versions
-                                .where((v) => v.separateBook == null)
-                                .length ==
-                            1,
-                        onSelected: widget.onVersionSelected,
-                      ),
+                return ListDialogCard(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: selectable.length,
+                    separatorBuilder: (context, _) => Divider(
+                      height: 1,
+                      color: listDialogRowDivider(context).color,
+                    ),
+                    itemBuilder: (context, index) => BookVersionTile(
+                      book: widget.book,
+                      version: selectable[index],
+                      isOnlyVersion:
+                          versions
+                              .where((v) => v.separateBook == null)
+                              .length ==
+                          1,
+                      onSelected: widget.onVersionSelected,
                     ),
                   ),
                 );

@@ -12,8 +12,8 @@ import 'package:otzaria/plugins/models/plugin_permission_labels.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// מסך אישור התקנת/עדכון תוסף — מאפשר למשתמש לבחור אילו הרשאות להעניק
 class PluginInstallScreen extends StatefulWidget {
@@ -178,6 +178,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     final isUpdate = widget.isUpdate;
 
     return AppDialogFrame(
+      size: AppDialogSize.medium,
       scrollable: true,
       titleMaxLines: 2,
       icon: isUpdate

@@ -6,7 +6,8 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -99,10 +100,14 @@ class HistoryDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
+      // הגוף והריפוד כמו ב־upstream (הערת בעל הפרויקט 4.11, DD-11).
+      backgroundColor: AppSurfaces.cardDialogBackground(context),
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
       title: 'היסטוריה',
       icon: FluentIcons.history_24_regular,
-      scrollable: false,
       child: HistoryView(),
     );
   }

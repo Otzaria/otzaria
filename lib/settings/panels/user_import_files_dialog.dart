@@ -16,6 +16,7 @@ import 'package:otzaria/user_content_import/services/user_import_library.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// ניהול קובצי הייבוא: צפייה, השהיה, ייצוא ומחיקה. הרשימה מגיעה מה-bloc,
 /// כדי ששינוי כאן ירענן את אותו מקור שמזין את שאר מסך ההגדרות.
@@ -42,10 +43,11 @@ class UserImportFilesDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.large,
+      fitTitle: true,
       title: context.settingsText('קבצים מיובאים'),
       icon: FluentIcons.arrow_import_24_regular,
-      scrollable: false,
       actions: [
         ActionButton.ghost(
           text: context.settingsText('סגור'),
@@ -66,6 +68,7 @@ class UserImportFilesDialog extends StatelessWidget {
             );
           }
           return Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Flexible(

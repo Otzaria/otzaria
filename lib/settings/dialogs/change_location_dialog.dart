@@ -34,6 +34,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/move_directory.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class ChangeLocationResult {
   final String newPath;
@@ -766,7 +767,10 @@ class _ChangeLocationDialogContentState
 
   @override
   Widget build(BuildContext context) {
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.medium,
+      fitTitle: true,
+      scrollable: true,
       title: locationDialogTitle(
         folderName: widget.folderName,
         isSetup: widget.currentPath.isEmpty,
