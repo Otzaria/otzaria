@@ -232,17 +232,36 @@ void main() {
       final repository = await registry.repositoryFor('a');
       expect(registry.isOpen('a'), isTrue);
 
-      registry.closeIdle(now: DateTime.now());
+      await registry.closeIdle(now: DateTime.now());
       expect(registry.isOpen('a'), isTrue);
 
-      registry.closeIdle(now: DateTime.now().add(const Duration(minutes: 6)));
+      final closing = registry.closeIdle(
+        now: DateTime.now().add(const Duration(minutes: 6)),
+      );
       expect(registry.isOpen('a'), isFalse);
+      await closing;
 
       expect(await registry.repositoryFor('a'), same(repository));
       expect(
         await repository!.getBook(SeforimFixtureIds.bereshitId),
         isNotNull,
       );
+    });
+
+    test('close ממתין לסגירת סרק שעוד רצה ומשחרר את הקובץ', () async {
+      final registry = AttachedLibraryRegistry(
+        idleTimeout: const Duration(minutes: 5),
+      )..update([_library('a', pathA)]);
+      addTearDown(registry.closeAll);
+      await registry.repositoryFor('a');
+
+      unawaited(
+        registry.closeIdle(now: DateTime.now().add(const Duration(minutes: 6))),
+      );
+      await registry.close('a');
+
+      // ב-Windows קובץ עם חיבור פתוח אינו נמחק.
+      File(pathA).deleteSync();
     });
 
     test('שינוי נתיב ב-update סוגר את החיבור הישן', () async {

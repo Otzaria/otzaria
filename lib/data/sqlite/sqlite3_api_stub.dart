@@ -22,3 +22,7 @@ extension DatabaseReleaseMemory on Database {
   void releaseMemory() =>
       throw UnsupportedError('SQLite נייטיבי אינו זמין בפלטפורמה זו');
 }
+
+extension DatabaseCloseInIsolate on Database {
+  Future<void> closeInIsolate() async => close();
+}

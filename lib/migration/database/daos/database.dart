@@ -352,12 +352,14 @@ class MyDatabase {
     _database = null;
   }
 
-  /// כמו [close], אבל מיזוג ה-WAL אינו רץ על ה-isolate הקורא.
+  /// כמו [close], אבל מיזוג ה-WAL, ובמסד לקריאה בלבד גם הסגירה עצמה, אינם
+  /// רצים על ה-isolate הקורא.
   Future<void> closeInBackground() async {
     final db = _database;
-    if (db == null || _readOnly) return close();
+    if (db == null) return close();
     DbCapabilities.invalidate(_path);
     _database = null;
+    if (_readOnly) return db.closeInIsolate();
     await closeWithCheckpointInBackground(db, _path);
   }
 

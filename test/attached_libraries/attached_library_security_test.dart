@@ -419,9 +419,12 @@ void main() {
       await idle.repositoryFor(library.slug);
       expect(idle.isOpen(library.slug), isTrue);
 
-      idle.closeIdle(now: DateTime.now().add(const Duration(minutes: 10)));
+      final closing = idle.closeIdle(
+        now: DateTime.now().add(const Duration(minutes: 10)),
+      );
 
       expect(idle.isOpen(library.slug), isFalse);
+      await closing;
       File(path).deleteSync();
     });
   });

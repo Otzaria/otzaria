@@ -69,6 +69,9 @@ class AttachedLibraryRegistry {
   final Map<String, Future<SeforimRepository?>> _opening = {};
   Timer? _idleTimer;
 
+  /// סגירות סרק שעוד רצות ב-isolate; סגירה מפורשת ממתינה להן לפני שחרור הקובץ.
+  final Map<String, Future<void>> _idleClosing = {};
+
   /// כל המסדים הרשומים, לפי [AttachedLibrary.priority].
   List<AttachedLibrary> get libraries => _libraries ??= _load();
 
@@ -278,19 +281,33 @@ class AttachedLibraryRegistry {
   void _scheduleIdleCheck() {
     final timeout = idleTimeout;
     if (timeout == null || _idleTimer != null) return;
-    _idleTimer = Timer.periodic(timeout ~/ 2, (_) => closeIdle());
+    _idleTimer = Timer.periodic(
+      timeout ~/ 2,
+      (_) => unawaited(closeIdle()),
+    );
   }
 
   /// סוגר חיבורים שלא נוגעו בהם [idleTimeout]. המאגר נשאר רשום, והחיבור
-  /// ייפתח מחדש בשאילתה הבאה.
+  /// ייפתח מחדש בשאילתה הבאה. מסתיים כשהחיבורים שנסגרו כאן שחררו את הקבצים.
   @visibleForTesting
-  void closeIdle({DateTime? now}) {
+  Future<void> closeIdle({DateTime? now}) async {
     final timeout = idleTimeout;
     if (timeout == null) return;
+    final closing = <Future<void>>[];
     final cutoff = (now ?? DateTime.now()).subtract(timeout);
-    for (final entry in _open.values) {
+    for (final MapEntry(key: slug, value: entry) in _open.entries) {
       if (entry.lastUsed.isBefore(cutoff) && entry.repository.database.isOpen) {
-        entry.repository.database.close();
+        final done = entry.repository.database.closeInBackground().catchError((
+          Object e,
+        ) {
+          debugPrint('[AttachedLibraryRegistry] idle close: $e');
+        });
+        _idleClosing[slug] = done;
+        closing.add(
+          done.whenComplete(() {
+            if (identical(_idleClosing[slug], done)) _idleClosing.remove(slug);
+          }),
+        );
       }
     }
     if (_lastEngineUse?.isBefore(cutoff) ?? false) {
@@ -302,6 +319,7 @@ class AttachedLibraryRegistry {
       _idleTimer?.cancel();
       _idleTimer = null;
     }
+    await Future.wait(closing);
   }
 
   /// משחרר את הקובץ של [slug] — החיבור נסגר ונשכח. גישה הבאה פותחת מחדש.
@@ -309,6 +327,7 @@ class AttachedLibraryRegistry {
   Future<void> close(String slug) async {
     AttachedFindRefWorker.instance.reset();
     _closeEntry(slug);
+    await _idleClosing[slug];
     if (_engineSyncEnabled) await _enqueueEngine(() => _unconfigure(slug));
   }
 
@@ -318,6 +337,7 @@ class AttachedLibraryRegistry {
     for (final slug in _open.keys.toList()) {
       _closeEntry(slug);
     }
+    await Future.wait(_idleClosing.values.toList());
     if (_engineSyncEnabled) {
       await _enqueueEngine(() async {
         for (final slug in _engineSources.keys.toList()) {
