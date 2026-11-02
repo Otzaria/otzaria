@@ -7,6 +7,7 @@ import 'material_icons_rule.dart';
 import 'primary_color_rule.dart';
 import 'raw_dialog_rule.dart';
 import 'raw_text_field_rule.dart';
+import 'ui_snack_literal_rule.dart';
 
 /// הכללים הפעילים, לפי הסדר בקטלוג.
 const List<UiLintRule> uiLintRules = [
@@ -14,6 +15,7 @@ const List<UiLintRule> uiLintRules = [
   IconButtonTooltipRule(),
   PrimaryColorRule(),
   MaterialIconsRule(),
+  UiSnackLiteralRule(),
   RawTextFieldRule(),
   HardcodedColorRule(),
   LiteralFontSizeRule(),
