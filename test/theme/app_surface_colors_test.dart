@@ -62,10 +62,6 @@ void main() {
           s.panelSectionAccentBorder,
         );
         expect(AppSurfaces.cardRowDivider(context), s.cardRowDivider);
-        expect(
-          AppSurfaces.cardSelectionOverlay(context),
-          s.cardSelectionOverlay,
-        );
         expect(AppSurfaces.paneCard(context), s.paneCard);
         expect(AppSurfaces.paneGutter(context), s.paneGutter);
       }

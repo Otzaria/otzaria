@@ -21,6 +21,7 @@ import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -1287,7 +1288,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       },
       child: Container(
         constraints: const BoxConstraints(minHeight: _rowHeight),
-        color: highlighted ? colorScheme.primary.withValues(alpha: 0.10) : null,
+        decoration: highlighted
+            ? BoxDecoration(color: AppSurfaces.focusedRow(colorScheme))
+            : null,
+        foregroundDecoration: highlighted
+            ? AppSurfaces.focusRingDecoration(colorScheme)
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Row(
           children: [

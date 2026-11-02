@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 AppSurfaceColors _s(BuildContext context) => AppSurfaceColors.of(context);
 
@@ -56,20 +57,36 @@ class AppSurfaces {
   static Color cardRowDivider(BuildContext context) =>
       _s(context).cardRowDivider;
 
-  /// שכבת בחירה לכרטיסי תוכן.
-  static Color cardSelectionOverlay(BuildContext context) =>
-      _s(context).cardSelectionOverlay;
-
   /// רקע כפתור סרגל במצב נבחר (BarButton, BarSplitButton).
   static Color barButtonSelected(ColorScheme cs) =>
       cs.onSurface.withValues(alpha: 0.12);
 
-  /// רקע פריט נבחר ברשימת ניווט (TOC, מפרשים וכד').
-  ///
-  /// 30% primaryContainer — מספק הדגשה עדינה שמסמנת בחירה
-  /// מבלי לכבות את הנוסח על גביה.
-  static Color selectedItem(ColorScheme cs) =>
-      cs.primaryContainer.withValues(alpha: 0.3);
+  // ── מצבי שורה (DD-06): מקור אחד ל"נבחר", "בפוקוס", "בריחוף" ו"בחירה מרובה".
+
+  /// רקע שורה נבחרת: רשימה, עץ, כרטיס, צ'יפ וכרטיסייה ברשימה. "נבחר"
+  /// מסומן גם במשקל הגופן או באייקון, לא רק בצבע.
+  static Color selectedRow(ColorScheme cs) => cs.secondaryContainer;
+
+  /// טקסט ואייקון על [selectedRow].
+  static Color onSelectedRow(ColorScheme cs) => cs.onSecondaryContainer;
+
+  /// מילוי שורה בפוקוס מקלדת (8% primary), יחד עם [focusRingDecoration].
+  static Color focusedRow(ColorScheme cs) => cs.primary.withValues(alpha: 0.08);
+
+  /// טבעת הפוקוס של שורה, לציור מעל התוכן (foregroundDecoration).
+  static BoxDecoration focusRingDecoration(ColorScheme cs) => BoxDecoration(
+    border: Border.all(color: cs.primary, width: AppTokens.focusRingWidth),
+    borderRadius: AppTokens.borderRadiusAll,
+  );
+
+  /// רקע שורה בריחוף: שכבת ה-hover של M3 (8% onSurface).
+  static Color hoverRow(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.08);
+
+  /// כרטיסייה בבחירה מרובה, עם מסגרת [multiSelectedBorder].
+  static Color multiSelected(ColorScheme cs) => cs.primaryContainer;
+
+  /// מסגרת כרטיסייה בבחירה מרובה ([AppTokens.multiSelectedBorderWidth]).
+  static Color multiSelectedBorder(ColorScheme cs) => cs.primary;
 
   /// רקע הפסקה הנבחרת במסך העיון — השורה הפעילה בספר.
   ///

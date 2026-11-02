@@ -155,7 +155,7 @@ class AppCard extends StatelessWidget {
   }
 
   Widget _withSelected(BuildContext context, Widget w) => ColoredBox(
-    color: AppSurfaces.cardSelectionOverlay(context),
+    color: AppSurfaces.selectedRow(Theme.of(context).colorScheme),
     child: w,
   );
 }

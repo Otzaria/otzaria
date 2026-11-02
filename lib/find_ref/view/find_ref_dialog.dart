@@ -1512,7 +1512,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: isSelected
-            ? AppSurfaces.selectedItem(colorScheme)
+            ? AppSurfaces.selectedRow(colorScheme)
             : AppSurfaces.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,

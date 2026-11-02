@@ -17,7 +17,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     required this.panelSectionAccent,
     required this.panelSectionAccentBorder,
     required this.cardRowDivider,
-    required this.cardSelectionOverlay,
     required this.paneCard,
     required this.paneGutter,
   });
@@ -44,7 +43,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       panelSectionAccent: cs.primaryContainer.withValues(alpha: 0.3),
       panelSectionAccentBorder: cs.primary.withValues(alpha: 0.3),
       cardRowDivider: panel,
-      cardSelectionOverlay: cs.secondaryContainer.withValues(alpha: 0.3),
       paneCard: reader,
       paneGutter: Color.alphaBlend(
         (isDark ? cs.onSurface : cs.shadow).withValues(alpha: 0.07),
@@ -88,9 +86,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
   /// מפריד פנימי בין שורות בתוך כרטיס תוכן.
   final Color cardRowDivider;
 
-  /// שכבת בחירה לכרטיסי תוכן.
-  final Color cardSelectionOverlay;
-
   /// רקע כרטיס החלונית בטאב מפוצל.
   final Color paneCard;
 
@@ -108,7 +103,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     Color? panelSectionAccent,
     Color? panelSectionAccentBorder,
     Color? cardRowDivider,
-    Color? cardSelectionOverlay,
     Color? paneCard,
     Color? paneGutter,
   }) => AppSurfaceColors(
@@ -122,7 +116,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     panelSectionAccentBorder:
         panelSectionAccentBorder ?? this.panelSectionAccentBorder,
     cardRowDivider: cardRowDivider ?? this.cardRowDivider,
-    cardSelectionOverlay: cardSelectionOverlay ?? this.cardSelectionOverlay,
     paneCard: paneCard ?? this.paneCard,
     paneGutter: paneGutter ?? this.paneGutter,
   );
@@ -144,7 +137,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
         other.panelSectionAccentBorder,
       ),
       cardRowDivider: l(cardRowDivider, other.cardRowDivider),
-      cardSelectionOverlay: l(cardSelectionOverlay, other.cardSelectionOverlay),
       paneCard: l(paneCard, other.paneCard),
       paneGutter: l(paneGutter, other.paneGutter),
     );
@@ -162,7 +154,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       other.panelSectionAccent == panelSectionAccent &&
       other.panelSectionAccentBorder == panelSectionAccentBorder &&
       other.cardRowDivider == cardRowDivider &&
-      other.cardSelectionOverlay == cardSelectionOverlay &&
       other.paneCard == paneCard &&
       other.paneGutter == paneGutter;
 
@@ -177,7 +168,6 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     panelSectionAccent,
     panelSectionAccentBorder,
     cardRowDivider,
-    cardSelectionOverlay,
     paneCard,
     paneGutter,
   );

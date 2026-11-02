@@ -242,8 +242,9 @@ class NavTreeTile extends StatelessWidget {
 
     final row = InkWell(
       onTap: onTap,
+      hoverColor: AppSurfaces.hoverRow(cs),
       child: Container(
-        color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.4) : null,
+        color: isSelected ? AppSurfaces.selectedRow(cs) : null,
         padding: EdgeInsetsDirectional.only(
           start: 12 + indent,
           end: 12,
@@ -268,7 +269,7 @@ class NavTreeTile extends StatelessWidget {
                       text: title,
                       maxLines: 1,
                       style: AppTextStyles.settingTitle.copyWith(
-                        fontWeight: fontWeight,
+                        fontWeight: isSelected ? FontWeight.w700 : fontWeight,
                         color: cs.onSurface,
                         fontSize: AppTokens.fontMD,
                       ),
@@ -421,10 +422,12 @@ class NavTreeContentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final row = InkWell(
       onTap: onTap,
+      hoverColor: AppSurfaces.hoverRow(cs),
       child: Container(
-        color: isSelected ? AppSurfaces.cardSelectionOverlay(context) : null,
+        color: isSelected ? AppSurfaces.selectedRow(cs) : null,
         padding: const EdgeInsetsDirectional.only(
           start: 12,
           end: 12,

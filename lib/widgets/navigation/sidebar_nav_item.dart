@@ -1,6 +1,7 @@
 // SidebarNavItem — פריט ניווט לסיידבר בסגנון Material 3.
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -71,11 +72,12 @@ class SidebarNavItem extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Material(
-        color: isSelected ? cs.secondaryContainer : Colors.transparent,
+        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
         borderRadius: AppTokens.borderRadiusAll,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppTokens.borderRadiusAll,
+          hoverColor: AppSurfaces.hoverRow(cs),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
@@ -94,7 +96,7 @@ class SidebarNavItem extends StatelessWidget {
                           ? FontWeight.bold
                           : FontWeight.normal,
                       color: isSelected
-                          ? cs.onSecondaryContainer
+                          ? AppSurfaces.onSelectedRow(cs)
                           : cs.onSurfaceVariant,
                     ),
                     child: Text(

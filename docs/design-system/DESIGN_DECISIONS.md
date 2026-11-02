@@ -214,7 +214,7 @@
    - **הוכרע:** C. B + בחירה מרובה (כהמלצה).
    - **תשובות:**
      - q1: ״נבחר״ מסומן גם במשקל גופן או באייקון, לא רק בצבע (נגישות)? → **כן**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — טוקני מצב ב־AppSurfaces: selectedRow/onSelectedRow (secondaryContainer), focusedRow (8% primary) + focusRingDecoration (טבעת primary 2), hoverRow (8% onSurface), multiSelected (primaryContainer) + multiSelectedBorder (primary 1.5); הוסרו selectedItem ו־cardSelectionOverlay. עוברים דרכם: NavTreeTile ו־NavTreeContentRow (נבחר + ריחוף, כותרת נבחרת w700), ItemsListView (פוקוס מקלדת = טבעת + 8%, ריחוף), SidebarNavItem, AppCard.selected, SearchResultCardFrame (תצוגה מקדימה), FilterChipsSelector ו־compactFilterChips (נבחר + w600), שורות הספרייה, איתור מקורות, תפריט ההיקף בחיפוש (פוקוס), ושלוש רצועות הכרטיסיות (בחירה מרובה, ריחוף; באנכית גם הפעילה = selectedRow). נשאר: TabVisualState אחד לכל המציירים (MIG-21), שכבות שקיפות אחרות (togglePill, highlightedLine ועוד, UI-077), hover בפיצ'רים שעדיין ברירת המחדל של InkWell.
 
 ### DD-10 · צפיפות ממשק 🎨🏗
 1. **הבעיה:** ההגדרה "צפיפות ממשק" (`compactMenuMode`) נקראת ישירות 68 פעמים, לעתים עם `context.read` בתוך `build`, ולכן לא מתעדכנת מיד כשהמשתמש משנה אותה. `AppMenuMetrics` מחזיר ערכים זהים בשני המצבים. בפועל ההגדרה מקטינה סרגלים ושדות, לא רק תפריטים.

@@ -14,6 +14,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -508,7 +509,7 @@ class _TabRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       child: Material(
-        color: isCurrent ? cs.secondaryContainer : Colors.transparent,
+        color: isCurrent ? AppSurfaces.selectedRow(cs) : Colors.transparent,
         borderRadius: AppTokens.borderRadiusAll,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
