@@ -147,9 +147,7 @@ class _AppDialogState extends State<AppDialog> {
         backgroundColor: cs.surfaceContainerHigh,
         clipBehavior: widget.headerBand ? Clip.antiAlias : Clip.none,
         titlePadding: widget.headerBand ? EdgeInsets.zero : null,
-        contentPadding: widget.headerBand
-            ? const EdgeInsets.fromLTRB(24, 16, 24, AppTokens.spaceMD)
-            : null,
+        contentPadding: widget.headerBand ? AppTokens.dialogPadding : null,
         title: widget.title is String && widget.headerBand
             ? AppDialogHeader(
                 icon: widget.icon,
