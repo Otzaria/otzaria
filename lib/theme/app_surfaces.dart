@@ -141,6 +141,28 @@ class AppSurfaces {
   /// פס בצד תחילת השורה לפסקה שתוקנה מקומית בסשן תיקון של תוסף.
   static Color correctedParagraphMarker(ColorScheme cs) => cs.tertiary;
 
+  // ── הדגשת חיפוש וסימון בטקסט הספר (DD-17). ב-HTML של השורה הן נכתבות
+  // כסימני CSS ([SearchHighlightCss]). גווני הענבר והצהוב קבועים, לא מהזרע.
+  // הרקעים שקופים 80%: הבחירה מצוירת מתחת לרקע הספאן וצריכה להיראות (#2198).
+
+  /// מילות החיפוש בטקסט הספר — האדום של קטעי תוצאות החיפוש.
+  static Color searchHit(ColorScheme cs) => cs.error;
+
+  /// טקסט התוצאה הנוכחית, על [searchHitCurrentBackground].
+  static Color searchHitCurrent(ColorScheme cs) =>
+      cs.isDark ? const Color(0xFFFFEEDA) : const Color(0xFF281900);
+
+  /// רקע התוצאה הנוכחית.
+  static Color searchHitCurrentBackground(ColorScheme cs) =>
+      cs.isDark ? const Color(0xCC8E6200) : const Color(0xCCFFC157);
+
+  /// רקע הסימון (?mark): השורה המסומנת, או הקטע המסומן בתוכה.
+  static Color permanentMark(ColorScheme cs) =>
+      cs.isDark ? const Color(0xCC4A4300) : const Color(0xCCFBED87);
+
+  /// טקסט הקטע המסומן, על [permanentMark].
+  static Color onPermanentMark(ColorScheme cs) => cs.onSurface;
+
   /// רקע זמני לשורת ספר שהודגשה (מעבר מקישור/חיפוש/תוכן עניינים).
   static Color highlightedLineBackground(ColorScheme cs) =>
       cs.secondaryContainer.withValues(alpha: 0.4);

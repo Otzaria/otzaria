@@ -6,6 +6,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart'
     show HtmlWidget;
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart'
     show kLinkAnchorMarkerScale, kLinkAnchorVariants;
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
@@ -863,7 +865,10 @@ void main() {
         '<sup>12</sup> גוף <sup>13</sup></a>',
         const RenderSettings(searchText: '1', partialWordHighlight: true),
       );
-      expect(html, contains('<span style="color: red">1</span>'));
+      expect(
+        html,
+        contains('<span style="color: ${SearchHighlightCss.hit}">1</span>'),
+      );
       final markers = RaisedMarkers.extract(html);
       expect(markers.map((marker) => marker.text), [
         '${lri}12$pdi',
@@ -874,9 +879,14 @@ void main() {
     });
 
     test('הציור המורם שומר הדגשת חיפוש חלקית בלי לשנות מטריקות', () {
-      final html = TextRendererService.processText(
-        'א<sup>12</sup>ב',
-        const RenderSettings(searchText: '1', partialWordHighlight: true),
+      // כמו ב־SmartTextWidget: סימני הצבע נפתרים לפני חילוץ הסימונים.
+      final cs = ColorScheme.fromSeed(seedColor: Colors.brown);
+      final html = SearchHighlightCss.resolve(
+        TextRendererService.processText(
+          'א<sup>12</sup>ב',
+          const RenderSettings(searchText: '1', partialWordHighlight: true),
+        ),
+        cs,
       );
       final marker = RaisedMarkers.extract(html).single;
       expect(marker.text, '${lri}12$pdi');
@@ -886,7 +896,9 @@ void main() {
       );
       final highlighted = <String>[];
       span.visitChildren((s) {
-        if (s is TextSpan && s.style?.color == const Color(0xFFFF0000)) {
+        if (s is TextSpan &&
+            s.style?.color?.toARGB32() ==
+                AppSurfaces.searchHit(cs).toARGB32()) {
           highlighted.add(s.text ?? '');
         }
         return true;

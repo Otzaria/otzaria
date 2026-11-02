@@ -94,7 +94,7 @@ Future<void> main() async {
           nextLine: sample.next,
           matchPolicy: SearchMatchPolicy.smart,
         );
-        expect(regular, contains('color: red'));
+        expect(regular, contains('color: otzaria-search-hit'));
         expect(smart, regular);
       }
     }

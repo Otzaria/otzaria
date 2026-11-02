@@ -9,6 +9,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/utils/many_listener_value_notifier.dart';
 import 'package:otzaria/search/models/search_match_policy.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
         HighlightPattern,
@@ -1589,6 +1590,15 @@ List<_HighlightMatch> _withoutOverlaps(List<_HighlightMatch> matches) {
   return result;
 }
 
+// צבעי ההדגשה נפתרים לפי ערכת הנושא בזמן הרינדור ([SearchHighlightCss]).
+const _searchHitStyle = 'color: ${SearchHighlightCss.hit}';
+const _searchCurrentStyle =
+    'color: ${SearchHighlightCss.current}; '
+    'background-color: ${SearchHighlightCss.currentBackground}';
+const _markStyle =
+    'background-color: ${SearchHighlightCss.mark}; '
+    'color: ${SearchHighlightCss.onMark}';
+
 String highLight(
   String data,
   String searchQuery, {
@@ -1686,9 +1696,7 @@ String highLight(
 
     final String replacement;
     if (currentIndex == -1) {
-      final style = yellowBackground
-          ? 'background-color: rgba(255, 255, 0, 0.8); color: black'
-          : 'color: red';
+      final style = yellowBackground ? _markStyle : _searchHitStyle;
       // הדגשת קטע מקושר (רקע צהוב) צריכה להיות רציפה כמו מרקר,
       // בניגוד להדגשת חיפוש שמסמנת רק את מילות החיפוש עצמן.
       replacement = yellowBackground
@@ -1699,15 +1707,10 @@ String highLight(
               style,
             );
     } else {
-      // התוצאה הנוכחית בכחול, השאר באדום.
-      final color = i == currentIndex ? 'blue' : 'red';
-      final backgroundColor = i == currentIndex
-          ? 'background-color: rgba(255, 255, 0, 0.8);'
-          : '';
       replacement = _highlightMatchedSearchWords(
         matchedText,
         highlightMatch.ranges,
-        'color: $color; $backgroundColor',
+        i == currentIndex ? _searchCurrentStyle : _searchHitStyle,
       );
     }
 
