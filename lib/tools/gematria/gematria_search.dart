@@ -11,6 +11,7 @@ import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/file/document_format.dart';
+import 'package:otzaria/utils/text/numeral_formats.dart';
 
 /// יעד סריקה יחיד עבור ה-isolate: נתיב DB ומזהי הספרים שבתוכו.
 /// מכיל ערכים ניתנים-להעברה בלבד, כדי שיוכל לחצות את גבול ה-isolate.
@@ -42,37 +43,6 @@ class SearchResult {
 }
 
 class GimatriaSearch {
-  // גימטריה רגילה (ברירת מחדל)
-  static const Map<String, int> _regularValues = {
-    'א': 1,
-    'ב': 2,
-    'ג': 3,
-    'ד': 4,
-    'ה': 5,
-    'ו': 6,
-    'ז': 7,
-    'ח': 8,
-    'ט': 9,
-    'י': 10,
-    'כ': 20,
-    'ך': 20,
-    'ל': 30,
-    'מ': 40,
-    'ם': 40,
-    'נ': 50,
-    'ן': 50,
-    'ס': 60,
-    'ע': 70,
-    'פ': 80,
-    'ף': 80,
-    'צ': 90,
-    'ץ': 90,
-    'ק': 100,
-    'ר': 200,
-    'ש': 300,
-    'ת': 400,
-  };
-
   // גימטריה קטנה
   static const Map<String, int> _smallValues = {
     'א': 1,
@@ -161,7 +131,7 @@ class GimatriaSearch {
     return table;
   }
 
-  static final List<int> _regularTable = _tableOf(_regularValues);
+  static final List<int> _regularTable = _tableOf(hebrewLetterValues);
   static final List<int> _smallTable = _tableOf(_smallValues);
   static final List<int> _finalLettersTable = _tableOf(_finalLettersValues);
 

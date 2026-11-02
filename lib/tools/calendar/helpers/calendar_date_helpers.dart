@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/utils/text/numeral_formats.dart';
 
 export 'package:otzaria/utils/calendar_days.dart';
 
@@ -327,47 +328,12 @@ DateTime? _tryParseHebrewTokens(List<String> tokens, int currentJewishYear) {
 
 /// ממיר אות עברית למספר (לפענוח תאריך עברי שהוקלד)
 int hebrewNumberToInt(String hebrew) {
-  const hebrewValue = {
-    'א': 1,
-    'ב': 2,
-    'ג': 3,
-    'ד': 4,
-    'ה': 5,
-    'ו': 6,
-    'ז': 7,
-    'ח': 8,
-    'ט': 9,
-    'י': 10,
-    'כ': 20,
-    'ך': 20,
-    'ל': 30,
-    'מ': 40,
-    'ם': 40,
-    'נ': 50,
-    'ן': 50,
-    'ס': 60,
-    'ע': 70,
-    'פ': 80,
-    'ף': 80,
-    'צ': 90,
-    'ץ': 90,
-    'ק': 100,
-    'ר': 200,
-    'ש': 300,
-    'ת': 400,
-  };
   final cleanHebrew = hebrew
       .replaceAll('"', '')
       .replaceAll("'", '')
       .replaceAll('״', '')
       .replaceAll('׳', '');
-  if (cleanHebrew == 'טו') return 15;
-  if (cleanHebrew == 'טז') return 16;
-  int sum = 0;
-  for (int i = 0; i < cleanHebrew.length; i++) {
-    sum += hebrewValue[cleanHebrew[i]] ?? 0;
-  }
-  return sum;
+  return gematriaToNumber(cleanHebrew);
 }
 
 /// ממיר שם חודש עברי לספרה

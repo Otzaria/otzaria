@@ -2,6 +2,8 @@
 /// Extracted so it can be unit-tested without any Flutter or file-system setup.
 library;
 
+import 'package:otzaria/utils/text/numeral_formats.dart';
+
 /// Holds matched anchor pairs and interpolates between them.
 class PageMap {
   /// Sorted PDF page numbers (1-based).
@@ -94,37 +96,6 @@ String stripNonRefChars(String s) {
   return kept.toString();
 }
 
-/// ערכי אותיות הגימטריה (כולל אותיות סופיות).
-const _hebrewNumeralValues = <String, int>{
-  'א': 1,
-  'ב': 2,
-  'ג': 3,
-  'ד': 4,
-  'ה': 5,
-  'ו': 6,
-  'ז': 7,
-  'ח': 8,
-  'ט': 9,
-  'י': 10,
-  'כ': 20,
-  'ך': 20,
-  'ל': 30,
-  'מ': 40,
-  'ם': 40,
-  'נ': 50,
-  'ן': 50,
-  'ס': 60,
-  'ע': 70,
-  'פ': 80,
-  'ף': 80,
-  'צ': 90,
-  'ץ': 90,
-  'ק': 100,
-  'ר': 200,
-  'ש': 300,
-  'ת': 400,
-};
-
 /// ערך הגימטריה של [letters], או null אם אינו מספר עברי תקין.
 ///
 /// תקינות = ערכי האותיות אינם עולים, כמו בכתיב גימטריה ("כב"). זה דוחה את רוב
@@ -135,7 +106,7 @@ int? hebrewNumeralValue(String letters) {
   var sum = 0;
   var previous = 400;
   for (final ch in letters.split('')) {
-    final value = _hebrewNumeralValues[ch];
+    final value = hebrewLetterValues[ch];
     if (value == null || value > previous) return null;
     sum += value;
     previous = value;
