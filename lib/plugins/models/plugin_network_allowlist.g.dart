@@ -34,6 +34,7 @@ const List<String> pluginNetworkAllowlist = <String>[
   'https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/wikishiva.zim',
   'https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/otzaria-wiki.zim',
   'https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/otzar-hasfarim.zim',
+  'https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/temple_he_all_2026-10.zim',
   'https://api.emailjs.com/api/v1.0/email/send',
   'https://github.com/yair-yair/mdy-images-updated',
   'https://api.github.com/repos/yair-yair/mdy-images-updated',
