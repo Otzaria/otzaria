@@ -98,6 +98,64 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  for (final key in [
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.space,
+    LogicalKeyboardKey.pageDown,
+  ]) {
+    testWidgets(
+      'החזקת ${key.debugName} אחרי קישור היא נקודת חזרה אחת (issue #3909)',
+      (tester) async {
+        final lines = LineScrollController();
+        addTearDown(lines.dispose);
+        await _pumpMarkedViewer(
+          tester,
+          lines: [for (var i = 0; i < 1000; i++) 'שורה $i'],
+          lineScroll: lines,
+        );
+        final beforeLink = lines.captureAnchor()!.line;
+        // כך מנווט קישור בתוך הספר.
+        final link = lines.scrollToLine(200);
+        await tester.pumpAndSettle();
+        await link;
+        tester
+            .widget<Focus>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is Focus &&
+                    widget.focusNode?.debugLabel == 'PageShapeContentFocus',
+              ),
+            )
+            .focusNode!
+            .requestFocus();
+        await tester.pump();
+
+        // חזרת מקלדת של Windows: כ-30 בשנייה, שני פריימים בין חזרה לחזרה.
+        await tester.sendKeyDownEvent(key);
+        for (var i = 0; i < 60; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await tester.pump(const Duration(milliseconds: 17));
+          await tester.sendKeyRepeatEvent(key);
+        }
+        await tester.sendKeyUpEvent(key);
+        await tester.pumpAndSettle();
+        expect(lines.captureAnchor()!.line, greaterThan(200));
+
+        Future<int> back() async {
+          final navigation = lines.goBack();
+          await tester.pumpAndSettle();
+          await navigation;
+          return lines.captureAnchor()!.line;
+        }
+
+        expect(await back(), 200);
+        expect(await back(), beforeLink);
+        expect(lines.canGoBack.value, isFalse);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets('פתיחה בתוך פסקה ארוכה מציירת את העוגן המדויק מיד', (
     tester,
   ) async {

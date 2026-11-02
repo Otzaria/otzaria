@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reader_back_button.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../test_helpers/reading_toc.dart';
@@ -92,6 +94,73 @@ void main() {
     expect(measured, isNotNull);
     lines.detach(binding);
     expect(lines.captureAnchor(), measured);
+    await tester.pumpWidget(const SizedBox());
+    lines.dispose();
+  });
+
+  testWidgets('החזקת PageDown אחרי קישור היא נקודת חזרה אחת (issue #3909)', (
+    tester,
+  ) async {
+    final lines = LineScrollController();
+    final segments = buildReadingSegments(
+      List.generate(400, (i) => 'שורה $i'),
+      continuous: false,
+    );
+    lines.attach(
+      ReadingViewportBinding(
+        segments: () => segments,
+        viewportExtent: () => 600,
+      ),
+    );
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    // החיבור של התצוגה הרגילה (CombinedView).
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProgressiveScroll(
+          scrollController: lines.itemController,
+          focusNode: focus,
+          onNavigationStart: lines.beginUserNavigation,
+          child: ScrollablePositionedList.builder(
+            itemScrollController: lines.itemController,
+            itemPositionsListener: lines.positionsListener,
+            itemCount: 400,
+            itemBuilder: (_, index) =>
+                SizedBox(height: 80, child: Text('$index')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final beforeLink = lines.captureAnchor()!.line;
+    // כך מנווט קישור בתוך הספר.
+    final link = lines.scrollToLine(200);
+    await tester.pumpAndSettle();
+    await link;
+    focus.requestFocus();
+    await tester.pump();
+
+    // חזרת מקלדת של Windows: כ-30 בשנייה, שני פריימים בין חזרה לחזרה.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 17));
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+    await tester.pumpAndSettle();
+    expect(lines.captureAnchor()!.line, greaterThan(200));
+
+    Future<int> back() async {
+      final navigation = lines.goBack();
+      await tester.pumpAndSettle();
+      await navigation;
+      return lines.captureAnchor()!.line;
+    }
+
+    expect(await back(), 200);
+    expect(await back(), beforeLink);
+    expect(lines.canGoBack.value, isFalse);
     await tester.pumpWidget(const SizedBox());
     lines.dispose();
   });

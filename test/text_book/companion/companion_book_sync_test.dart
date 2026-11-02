@@ -21,6 +21,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/companion/companion_book_sync.dart';
 import 'package:otzaria/text_book/companion/companion_books.dart';
+import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -167,6 +168,41 @@ void main() {
       });
     },
   );
+
+  test('following the primary adds no return points (issue #3909)', () {
+    fakeAsync((async) {
+      final primary = TextBookTab(
+        book: TextBook(title: 'משנה ברורה'),
+        index: 0,
+      );
+      final companion = TextBookTab(
+        book: TextBook(title: 'ביאור הלכה'),
+        index: 0,
+        initialReadingAnchor: const ReadingAnchor(line: 0),
+      );
+      final sync = CompanionBookSync(
+        primary: primary,
+        companion: companion,
+        resolveCompanionLine: (line) async => line,
+      );
+      async.elapse(const Duration(milliseconds: 400));
+      // A link inside the companion pane.
+      companion.lines.scrollToLine(300);
+      for (final line in [10, 20, 30]) {
+        primary.lines.jumpToLine(line);
+        async.elapse(const Duration(milliseconds: 400));
+      }
+      expect(companion.index, 30);
+      companion.lines.goBack();
+      async.flushMicrotasks();
+      expect(companion.lines.captureAnchor()!.line, 0);
+      expect(companion.lines.canGoBack.value, isFalse);
+      sync.dispose();
+      primary.dispose();
+      companion.dispose();
+      async.flushMicrotasks();
+    });
+  });
 
   for (final source in [BookSource.user, BookSource.attached('test')]) {
     test(
