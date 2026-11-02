@@ -2065,10 +2065,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       insetPadding: const EdgeInsets.fromLTRB(12, 40, 12, 12),
       clipBehavior: Clip.antiAlias,
       child: Scaffold(
-        // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
-        backgroundColor: colorScheme.brightness == Brightness.dark
-            ? colorScheme.surface
-            : AppSurfaces.panelBackground(context),
+        backgroundColor: AppSurfaces.panelBackground(context),
         body: Column(
           children: [
             PrintingAppBar(
