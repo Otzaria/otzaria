@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -216,6 +217,20 @@ void main() {
     expect(index.clearCalls, 0);
     expect(index.indexedFilePaths, {'uid:99'});
     expect(engine.deleted, isEmpty);
+  });
+
+  test('ספרי seforim.db וספרים אישיים בקטלוג ממופים ל-DB provider', () async {
+    await writeOfficialSchema(readable);
+    final library = await catalog();
+    final books = library.getAllBooks();
+    for (final title in [SeforimFixtureIds.bereshitTitle, 'ספר אישי קיים']) {
+      final book = books.singleWhere((book) => book.title == title);
+      expect(
+        manager.providerForKeyForTesting(BookCompositeKey.fromBook(book)!),
+        same(manager.databaseProvider),
+        reason: title,
+      );
+    }
   });
 
   test('מנהל מאותחל ממתין לסכמה לפני בחירת ספק חלופי', () async {

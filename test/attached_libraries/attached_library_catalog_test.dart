@@ -10,6 +10,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_probe.dar
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
@@ -174,6 +175,29 @@ void main() {
     expect(second.topics, expected);
     expect(identical(first.categoryPath, second.categoryPath), isTrue);
     expect(identical(first.topics, second.topics), isTrue);
+  });
+
+  test('ספרי המסד המצורף בקטלוג ממופים ל-DB provider', () async {
+    final library = await attach(
+      attachedFixture('ספרייה', SeforimFixtureVariant.full),
+    );
+    provider.clearCache();
+    await provider.initialize();
+    final manager = LibraryProviderManager.instance;
+
+    final catalog = await manager.buildLibraryCatalog({}, libraryPath);
+
+    final books = _booksUnder(
+      _child(catalog, _personalRoot)!,
+    ).where((b) => b.source == library.source).toList();
+    expect(books, isNotEmpty);
+    for (final book in books) {
+      expect(
+        manager.providerForKeyForTesting(BookCompositeKey.fromBook(book)!),
+        same(manager.databaseProvider),
+        reason: book.title,
+      );
+    }
   });
 
   test('מיזוג: ספרי המסד נכנסים לקטגוריות הספרייה לפי שם', () async {
