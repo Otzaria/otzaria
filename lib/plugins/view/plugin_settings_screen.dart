@@ -274,7 +274,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                           final iconColor = isCritical
                               ? colorScheme.error
                               : isSensitive
-                              ? colorScheme.tertiary
+                              ? AppSurfaces.warning(context)
                               : (isGranted
                                     ? colorScheme.primary
                                     : colorScheme.error);

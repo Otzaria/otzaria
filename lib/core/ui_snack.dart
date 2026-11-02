@@ -396,29 +396,31 @@ class _SnackToastState extends State<_SnackToast>
   }
 
   /// צבעים לפי variant — נשענים על צבעי המערכת (ColorScheme)
-  ({Color bg, Color fg, Color action}) _colors(ColorScheme cs) =>
-      switch (widget.variant) {
-        _SnackVariant.error => (
-          bg: cs.errorContainer,
-          fg: cs.onErrorContainer,
-          action: cs.error,
-        ),
-        _SnackVariant.warning => (
-          bg: cs.tertiaryContainer,
-          fg: cs.onSurface, // שחור במצב בהיר, לבן במצב כהה
-          action: cs.tertiary,
-        ),
-        _SnackVariant.standard => (
-          bg: cs.surfaceContainerHighest,
-          fg: cs.onSurface,
-          action: cs.primary,
-        ),
-      };
+  ({Color bg, Color fg, Color action}) _colors(
+    ColorScheme cs,
+    AppSurfaceColors surfaces,
+  ) => switch (widget.variant) {
+    _SnackVariant.error => (
+      bg: cs.errorContainer,
+      fg: cs.onErrorContainer,
+      action: cs.error,
+    ),
+    _SnackVariant.warning => (
+      bg: surfaces.warningContainer,
+      fg: surfaces.onWarningContainer,
+      action: surfaces.warning,
+    ),
+    _SnackVariant.standard => (
+      bg: cs.surfaceContainerHighest,
+      fg: cs.onSurface,
+      action: cs.primary,
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final c = _colors(cs);
+    final c = _colors(cs, AppSurfaceColors.of(context));
 
     // רקע שקוף-למחצה — מספיק אטום לקריאות, מספיק שקוף לאפקט עמוק
     final bgColor = c.bg.withValues(alpha: _ToastTokens.bgAlpha);

@@ -69,6 +69,23 @@ class AppSurfaces {
   static Color spotlightScrim(ColorScheme cs) =>
       cs.scrim.withValues(alpha: 0.62);
 
+  // ── אזהרה (DD-24): גוון קבוע שמותאם לזרע. "הצלחה" אינה תפקיד נפרד:
+  // secondaryContainer / onSecondaryContainer, הגוון הנייטרלי.
+
+  /// אזהרה: אייקון, מסגרת וטקסט מודגש.
+  static Color warning(BuildContext context) => _s(context).warning;
+
+  /// טקסט ואייקון על [warning].
+  static Color onWarning(BuildContext context) => _s(context).onWarning;
+
+  /// רקע באנר, הודעה או תגית של אזהרה.
+  static Color warningContainer(BuildContext context) =>
+      _s(context).warningContainer;
+
+  /// טקסט ואייקון על [warningContainer].
+  static Color onWarningContainer(BuildContext context) =>
+      _s(context).onWarningContainer;
+
   /// רקע כפתור סרגל במצב נבחר (BarButton, BarSplitButton).
   static Color barButtonSelected(ColorScheme cs) =>
       cs.onSurface.withValues(alpha: 0.12);

@@ -4,6 +4,7 @@ import 'package:otzaria/search/view/search_result_card_frame.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -1366,17 +1367,16 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   }
 
   Widget _buildTruncatedBanner(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      color: colorScheme.tertiaryContainer,
+      color: AppSurfaces.warningContainer(context),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Icon(
             FluentIcons.warning_24_regular,
             size: 18,
-            color: colorScheme.onTertiaryContainer,
+            color: AppSurfaces.warning(context),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1385,7 +1385,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
               style: TextStyle(
                 fontSize: 13,
-                color: colorScheme.onTertiaryContainer,
+                color: AppSurfaces.onWarningContainer(context),
               ),
               textAlign: TextAlign.right,
             ),

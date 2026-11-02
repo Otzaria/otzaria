@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -154,7 +155,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
       iconColor: isCritical
           ? colorScheme.error
           : isSensitive
-          ? colorScheme.tertiary
+          ? AppSurfaces.warning(context)
           : (isGranted ? colorScheme.primary : colorScheme.error),
       title: info.label,
       subtitle: isTemporarilyUnavailable
@@ -325,10 +326,10 @@ class _BackgroundActivationBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.tertiaryContainer,
+        color: AppSurfaces.warningContainer(context),
         borderRadius: AppTokens.borderRadiusAll,
         border: Border.all(
-          color: colorScheme.tertiary,
+          color: AppSurfaces.warning(context),
           width: 1.5,
         ),
       ),
@@ -337,7 +338,7 @@ class _BackgroundActivationBanner extends StatelessWidget {
         children: [
           Icon(
             FluentIcons.warning_24_filled,
-            color: colorScheme.tertiary,
+            color: AppSurfaces.warning(context),
             size: 28,
           ),
           const SizedBox(width: 12),
@@ -354,7 +355,7 @@ class _BackgroundActivationBanner extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: colorScheme.onTertiaryContainer,
+                    color: AppSurfaces.onWarningContainer(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -371,7 +372,7 @@ class _BackgroundActivationBanner extends StatelessWidget {
                             'כבויה כברירת מחדל.',
                   style: TextStyle(
                     fontSize: 13,
-                    color: colorScheme.onTertiaryContainer,
+                    color: AppSurfaces.onWarningContainer(context),
                     height: 1.4,
                   ),
                 ),
