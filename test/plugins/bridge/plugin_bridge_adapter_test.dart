@@ -5596,6 +5596,104 @@ Future<void> main() async {
       ).called(1);
     });
 
+    test(
+      'reader.openBook מעביר markText ו-markSection לפותח, כמו קישור otzaria://',
+      () async {
+        final book = TextBook(id: 5, title: 'ויקרא');
+        final adapter = buildAdapter(books: [book]);
+
+        final result = await adapter.execute('reader', 'openBook', {
+          'id': 5,
+          'index': 7,
+          'markText': '  ויקרא אל משה  ',
+          'markSection': true,
+        });
+
+        expect(result, isTrue);
+        verify(
+          mockCoordinator.openBook(
+            book,
+            7,
+            '',
+            ignoreHistory: true,
+            markSection: true,
+            markText: 'ויקרא אל משה',
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'reader.openBook: הדגשה מבטלת את searchQuery, כמו m/mark מול q בקישור',
+      () async {
+        final book = TextBook(id: 5, title: 'ויקרא');
+        final adapter = buildAdapter(books: [book]);
+
+        await adapter.execute('reader', 'openBook', {
+          'id': 5,
+          'index': 7,
+          'searchQuery': 'משה',
+          'markText': 'ויקרא',
+        });
+        await adapter.execute('reader', 'openBook', {
+          'id': 5,
+          'index': 8,
+          'searchQuery': 'משה',
+          'markSection': true,
+        });
+
+        verify(
+          mockCoordinator.openBook(
+            book,
+            7,
+            '',
+            ignoreHistory: true,
+            markText: 'ויקרא',
+          ),
+        ).called(1);
+        verify(
+          mockCoordinator.openBook(
+            book,
+            8,
+            '',
+            ignoreHistory: true,
+            markSection: true,
+          ),
+        ).called(1);
+      },
+    );
+
+    test('reader.openBook: markText ריק או רווחים בלבד — בלי הדגשה', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute('reader', 'openBook', {
+        'id': 5,
+        'index': 3,
+        'markText': '   ',
+      });
+
+      expect(result, isTrue);
+      verify(
+        mockCoordinator.openBook(book, 3, '', ignoreHistory: true),
+      ).called(1);
+    });
+
+    test('reader.openBook: markText או markSection מסוג שגוי נדחים', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      await expectLater(
+        adapter.execute('reader', 'openBook', {'id': 5, 'markText': 42}),
+        throwsA(predicate((e) => '$e'.contains('error.invalid_params'))),
+      );
+      await expectLater(
+        adapter.execute('reader', 'openBook', {'id': 5, 'markSection': 'yes'}),
+        throwsA(predicate((e) => '$e'.contains('error.invalid_params'))),
+      );
+      verifyZeroInteractions(mockCoordinator);
+    });
+
     // --- reader.getCurrentState ---
 
     test('reader.getCurrentState מחזיר id ו-type לכל טאב', () async {
