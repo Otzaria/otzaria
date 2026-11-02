@@ -1,13 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// דיאלוג לקביעת טווח ההדפסה של לוח השנה.
 class CalendarPrintDialog extends StatefulWidget {
@@ -42,14 +39,27 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
       CalendarView.day => ('יום', 'ימים', 62),
     };
 
-    final dialog = AlertDialog(
-      backgroundColor: cs.surfaceContainerHigh,
-      title: const AppDialogTitle(
-        'הגדרות הדפסה',
-        icon: FluentIcons.print_24_regular,
-      ),
-      content: SizedBox(
-        width: math.min(400.0, MediaQuery.sizeOf(context).width - 112),
+    final theme = Theme.of(context);
+    Widget result = AppDialogFrame(
+      size: AppDialogSize.small,
+      title: 'הגדרות הדפסה',
+      icon: FluentIcons.print_24_regular,
+      onConfirm: () => Navigator.of(context).pop(_count),
+      actions: [
+        ActionButton.neutral(
+          text: 'ביטול',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        ActionButton.recommended(
+          text: 'הדפס',
+          onPressed: () => Navigator.of(context).pop(_count),
+        ),
+      ],
+      // סגנון הגוף של AlertDialog.
+      child: DefaultTextStyle.merge(
+        style:
+            theme.dialogTheme.contentTextStyle ??
+            theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,19 +138,8 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
           ],
         ),
       ),
-      actions: [
-        ActionButton.neutral(
-          text: 'ביטול',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        ActionButton.recommended(
-          text: 'הדפס',
-          onPressed: () => Navigator.of(context).pop(_count),
-        ),
-      ],
     );
 
-    Widget result = dialog;
     if (widget.closeShortcut != null) {
       result = CallbackShortcuts(
         bindings: {
@@ -150,10 +149,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
       );
     }
 
-    return DialogKeyboardNavigator(
-      onConfirm: () => Navigator.of(context).pop(_count),
-      child: result,
-    );
+    return result;
   }
 }
 

@@ -817,6 +817,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final result = await showInputDialog(
       context: context,
       title: 'שחזור מיקום הערה',
+      icon: FluentIcons.location_24_regular,
       subtitle: note.lastKnownLineNumber != null
           ? 'המיקום האחרון הידוע: שורה ${note.lastKnownLineNumber}'
           : null,
@@ -870,6 +871,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       final choice = await showSelectionDialog<String>(
         context: context,
         title: 'שינוי שיוך הערה',
+        icon: FluentIcons.pin_24_regular,
         items: [
           SelectionItem(
             label: 'שייך לשורה נבחרת ($selectedLineNumber)',
@@ -890,6 +892,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final result = await showInputDialog(
       context: context,
       title: 'שנה שיוך הערה',
+      icon: FluentIcons.pin_24_regular,
       subtitle: note.lineNumber != null
           ? 'מיקום נוכחי: שורה ${note.lineNumber}'
           : null,
@@ -961,6 +964,7 @@ Future<void> openNoteLink(
         context: context,
         builder: (context) => AppDialog.singleAction(
           title: 'הערה מקושרת',
+          icon: FluentIcons.link_24_regular,
           confirmText: 'סגור',
           customContent: PersonalNoteContentView(note: note!),
         ),

@@ -516,6 +516,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
           title: 'זמן התראה מותאם אישית',
+          icon: FluentIcons.alert_24_regular,
           handleEnterKey: false,
           cancelText: 'ביטול',
           confirmText: 'אישור',
@@ -723,6 +724,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       context: context,
       builder: (dialogCtx) => AppDialog.singleAction(
         title: 'בחירת צבע',
+        icon: FluentIcons.color_24_regular,
         confirmText: 'סגור',
         customContent: _buildColorSwatches(
           onSelected: () => Navigator.of(dialogCtx).pop(),

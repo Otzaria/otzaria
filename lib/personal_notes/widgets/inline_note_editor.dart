@@ -350,7 +350,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ActionButton.ghost(
+            ActionButton.neutral(
               text: 'ביטול',
               onPressed: _isSaving ? null : _handleCancel,
             ),
