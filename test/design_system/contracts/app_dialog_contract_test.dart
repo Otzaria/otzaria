@@ -390,18 +390,63 @@ void main() {
       );
     });
 
-    testWidgets('במסך צר הרוחב מצטמצם לרוחב הפנוי פחות הריפוד', (tester) async {
+    // DD-16: מתחת ל-600 small/medium ברוחב החלון פחות 16, large/full במסך מלא.
+    for (final size in [AppDialogSize.small, AppDialogSize.medium]) {
+      testWidgets('מתחת ל-600: ${size.name} ברוחב החלון פחות 16', (
+        tester,
+      ) async {
+        await showInApp<void>(
+          tester,
+          AppDialogFrame(
+            title: 'מסגרת',
+            icon: FluentIcons.folder_24_regular,
+            size: size,
+            child: const Text('גוף'),
+          ),
+          size: const Size(590, 800),
+        );
+        final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+        final rect = tester.getRect(find.byWidget(surface));
+        expect(rect.width, 590 - 16);
+        expect(rect.height, lessThan(300));
+        expect(surface.shape, AppTokens.roundedShape);
+      });
+    }
+
+    for (final size in [AppDialogSize.large, AppDialogSize.full]) {
+      testWidgets('מתחת ל-600: ${size.name} במסך מלא, בלי פינות, עם X', (
+        tester,
+      ) async {
+        await showInApp<void>(
+          tester,
+          AppDialogFrame(
+            title: 'מסגרת',
+            icon: FluentIcons.folder_24_regular,
+            size: size,
+            child: const Text('גוף'),
+          ),
+          size: const Size(400, 800),
+        );
+        final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+        expect(tester.getSize(find.byWidget(surface)), const Size(400, 800));
+        expect(surface.shape, const RoundedRectangleBorder());
+        expect(find.byTooltip('סגור'), findsOneWidget);
+      });
+    }
+
+    testWidgets('מ-600 ומעלה: small נשאר 400 בפינות 8', (tester) async {
       await showInApp<void>(
         tester,
         const AppDialogFrame(
           title: 'מסגרת',
           icon: FluentIcons.folder_24_regular,
+          size: AppDialogSize.small,
           child: Text('גוף'),
         ),
-        size: const Size(400, 800),
+        size: const Size(600, 800),
       );
       final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
-      expect(tester.getSize(find.byWidget(surface)).width, 400 - 32);
+      expect(tester.getSize(find.byWidget(surface)).width, 400);
     });
 
     testWidgets('שורת הפעולות צמודה לסוף (שמאל ב-RTL), בריפוד dialogPadding', (

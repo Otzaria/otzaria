@@ -5,6 +5,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
@@ -12,6 +13,9 @@ import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
 /// גודל דיאלוג (DD-07). הרוחב קבוע, והגובה לפי התוכן עד [maxHeightFactor]
 /// מגובה החלון. [full] ממלא את החלון פחות הריפוד החיצוני.
+///
+/// בחלון צר ([WindowClass.isCompact], DD-16): [small] ו-[medium] ברוחב החלון
+/// פחות 16, ו-[large] ו-[full] במסך מלא.
 enum AppDialogSize {
   /// אישור, אזהרה, קלט, בחירה, התקדמות.
   small(400),
@@ -32,6 +36,15 @@ enum AppDialogSize {
 
   /// הגובה המרבי של דיאלוג שאינו [full], כחלק מגובה החלון.
   static const double maxHeightFactor = 0.85;
+
+  /// הריפוד סביב הדיאלוג בחלון רחב.
+  static const EdgeInsets inset = EdgeInsets.all(AppTokens.spaceMD);
+
+  /// הריפוד סביב small/medium בחלון צר: 8 מכל צד.
+  static const EdgeInsets compactInset = EdgeInsets.symmetric(
+    horizontal: AppTokens.spaceSM,
+    vertical: AppTokens.spaceLG,
+  );
 }
 
 /// [Dialog] עם [AppDialogHeader] — תג אייקון בתחילת הכותרת, איקס סגירה בסופה
@@ -52,7 +65,6 @@ class AppDialogFrame extends StatelessWidget {
     this.height,
     this.padding = AppTokens.dialogPadding,
     this.scrollable = false,
-    this.insetPadding = const EdgeInsets.all(AppTokens.spaceMD),
     this.backgroundColor,
     this.closeEnabled = true,
     this.showClose = true,
@@ -93,7 +105,6 @@ class AppDialogFrame extends StatelessWidget {
   /// עוטף את [child] בגלילה עם פס גלוי. false כשהתוכן גולל בעצמו.
   final bool scrollable;
 
-  final EdgeInsets insetPadding;
   final Color? backgroundColor;
 
   /// false חוסם את כל דרכי היציאה, לא רק את ה-X — למשל בזמן שליחה.
@@ -119,8 +130,10 @@ class AppDialogFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFull = size == AppDialogSize.full;
-    final fixedHeight = isFull || height != null;
+    final compact = WindowClass.of(context).isCompact;
+    final fullscreen = compact && size.index >= AppDialogSize.large.index;
+    final fills = fullscreen || size == AppDialogSize.full;
+    final fixedHeight = fills || height != null;
     final body = scrollable
         ? PanelScrollableContent(
             thumbVisibility: true,
@@ -162,11 +175,16 @@ class AppDialogFrame extends StatelessWidget {
       ],
     );
 
-    final maxHeight = isFull
+    final maxHeight = fills
         ? double.infinity
         : MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor;
     final dialog = Dialog(
-      insetPadding: insetPadding,
+      insetPadding: fullscreen
+          ? EdgeInsets.zero
+          : compact
+          ? AppDialogSize.compactInset
+          : AppDialogSize.inset,
+      shape: fullscreen ? const RoundedRectangleBorder() : null,
       backgroundColor: backgroundColor,
       clipBehavior: Clip.antiAlias,
       // כמו AlertDialog: קורא מסך מכריז על הכותרת ומצמצם את הפוקוס לדיאלוג.
@@ -177,11 +195,14 @@ class AppDialogFrame extends StatelessWidget {
         explicitChildNodes: true,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: size.width ?? double.infinity,
+            maxWidth: compact ? double.infinity : size.width ?? double.infinity,
             maxHeight: maxHeight,
           ),
           child: fixedHeight
-              ? SizedBox(height: height ?? double.infinity, child: content)
+              ? SizedBox(
+                  height: fills ? double.infinity : height,
+                  child: fullscreen ? SafeArea(child: content) : content,
+                )
               : content,
         ),
       ),
