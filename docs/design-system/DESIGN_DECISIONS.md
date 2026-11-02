@@ -637,7 +637,7 @@
    - **הוכרע:** A. למחוק (כהמלצה).
    - **תשובות:**
      - q1: למחוק את עורך קטעי הטקסט (text_book/editing)? → **כן, למחוק**
-   - **מימוש:** מומש חלקית — עורך קטעי הטקסט נמחק: lib/text_book/editing (14 קבצים) ובדיקתו, אירועי העורך (OpenEditor, SaveEditedSection, CloseEditor ועוד 5) ושדות המצב שלו ב־TextBookLoaded, כל קוד ה־[EDITING DISABLED] שבהערות (קורא הספר, גיבוי user_overrides, הגדרות המערכת והכלים, AppPaths, TextTab), קבוצת PreviewRenderer ב־heading_font_weight_test, רשומות ה־baseline של ui_lint, וההחרגה JX-23. נשאר: מעטפת שמור וזכור (UI-099), צבע caption מת (UI-116) ופרמטרים מתים ברכיבים המשותפים (UI-133).
+   - **מימוש:** מומש חלקית — עורך קטעי הטקסט נמחק: lib/text_book/editing (14 קבצים) ובדיקתו, אירועי העורך (OpenEditor, SaveEditedSection, CloseEditor ועוד 5) ושדות המצב שלו ב־TextBookLoaded, כל קוד ה־[EDITING DISABLED] שבהערות (קורא הספר, גיבוי user_overrides, הגדרות המערכת והכלים, AppPaths, TextTab), קבוצת PreviewRenderer ב־heading_font_weight_test, רשומות ה־baseline של ui_lint, וההחרגה JX-23. MIG-26: ToolEmptyState נמחק (27 קריאות עברו ל־OtzariaEmptyState), הכינוי FilterChipsWidget נמחק, ConfirmationDialog פרטי (רק showConfirmationDialog ציבורי), החרגת UIL-001 ל־list_dialog_frame.dart הוסרה; הפרמטרים בלי קוראים AppDialog.textDirection (וב־show*Dialog) ו־AppDialogFrame.subtitle נמחקו; מעטפת שמור וזכור: ShamorZachorConfig, עטיפות Theme/Directionality, fallback ה־providers, ה־route ‏'/book_detail' ודף "דף לא נמצא" נמחקו. נשאר: ה־Navigator המקונן של שמור וזכור (שינוי התנהגות, שאלה), צבע caption מת (UI-116, ב־MIG-21), CustomSwitch (רכיב פעיל, ממתין ל־switchTheme), שם הקובץ list_dialog_frame.dart.
 
 ### DD-30 · פירוק קבצי ענק — היקף ותזמון 🏗
 1. **הבעיה:**

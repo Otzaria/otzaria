@@ -18,7 +18,7 @@ class BookCardWidget extends StatefulWidget {
   final String bookName;
   final BookDetails bookDetails;
   final VoidCallback? onDelete;
-  final VoidCallback? onTap; // Override default navigation
+  final VoidCallback? onTap;
 
   const BookCardWidget({
     super.key,
@@ -189,14 +189,14 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       actions: {
         ActivateIntent: CallbackAction<ActivateIntent>(
           onInvoke: (_) {
-            _onCardTap(context);
+            widget.onTap?.call();
             return null;
           },
         ),
       },
       child: AppCard(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        onTap: () => _onCardTap(context),
+        onTap: () => widget.onTap?.call(),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(12.0),
@@ -266,20 +266,6 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           ),
         ),
       ),
-    );
-  }
-
-  void _onCardTap(BuildContext context) {
-    if (widget.onTap != null) {
-      widget.onTap!();
-      return;
-    }
-    Navigator.of(context).pushNamed(
-      '/book_detail',
-      arguments: {
-        'topLevelCategoryKey': widget.topLevelCategoryKey,
-        'bookName': widget.bookName,
-      },
     );
   }
 

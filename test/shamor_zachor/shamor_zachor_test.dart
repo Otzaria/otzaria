@@ -6,22 +6,6 @@ void main() {
     test('ShamorZachorWidget should be instantiable', () {
       const widget = ShamorZachorWidget();
       expect(widget, isNotNull);
-      expect(widget.config, equals(ShamorZachorConfig.defaultConfig));
-    });
-
-    test('ShamorZachorConfig should have default values', () {
-      const config = ShamorZachorConfig.defaultConfig;
-      expect(config.assetsBasePath, isNull);
-      expect(config.themeData, isNull);
-      expect(config.textDirection, isNull);
-      expect(config.locale, isNull);
-    });
-
-    test('ShamorZachorConfig should accept custom values', () {
-      const config = ShamorZachorConfig(
-        assetsBasePath: 'custom/path',
-      );
-      expect(config.assetsBasePath, equals('custom/path'));
     });
   });
 }
