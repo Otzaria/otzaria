@@ -35,42 +35,6 @@ abstract class _ST {
 class OtzariaSearchAction {
   OtzariaSearchAction._();
 
-  /// מונה תוצאות: "3/12"
-  static Widget resultCounter({
-    required int current,
-    required int total,
-    BuildContext? context,
-  }) {
-    if (total <= 1) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Text(
-        '$current/$total',
-        style: TextStyle(
-          fontSize: AppTokens.fontMD,
-          fontWeight: FontWeight.w500,
-          color: context != null
-              ? Theme.of(context).colorScheme.onSurfaceVariant
-              : null,
-        ),
-      ),
-    );
-  }
-
-  /// תוצאה קודמת ↑
-  static Widget prevResult({required VoidCallback? onPressed}) => _NavButton(
-    icon: FluentIcons.chevron_up_24_regular,
-    tooltip: 'תוצאה קודמת',
-    onPressed: onPressed,
-  );
-
-  /// תוצאה הבאה ↓
-  static Widget nextResult({required VoidCallback? onPressed}) => _NavButton(
-    icon: FluentIcons.chevron_down_24_regular,
-    tooltip: 'תוצאה הבאה',
-    onPressed: onPressed,
-  );
-
   /// כפתור הגדרות
   static Widget settings({
     required VoidCallback onPressed,
@@ -148,38 +112,6 @@ class OtzariaSearchClearButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 //  כפתורים פנימיים
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _NavButton extends StatelessWidget {
-  final IconData icon;
-
-  /// מפתח הקטלוג של ה-tooltip.
-  final String tooltip;
-  final VoidCallback? onPressed;
-  const _NavButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: IconButton(
-        tooltip: context.settingsText(tooltip),
-        icon: Icon(icon, size: 18),
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        color: onPressed != null
-            ? cs.onSurfaceVariant
-            : cs.onSurface.withValues(alpha: 0.25),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OtzariaSearchDisplayBar

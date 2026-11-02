@@ -1,6 +1,8 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -195,43 +197,39 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                     ),
                   ),
                 const Spacer(),
-                if (hasPages) ...[
-                  IconButton(
-                    icon: const Icon(FluentIcons.chevron_left_24_regular),
-                    iconSize: 18,
-                    tooltip: 'המופע הקודם',
-                    onPressed: cursor.previous == null
+                if (hasPages)
+                  SearchResultNavigator(
+                    axis: Axis.horizontal,
+                    previousTooltip: 'המופע הקודם',
+                    nextTooltip: 'המופע הבא',
+                    onPrevious: cursor.previous == null
                         ? null
                         : () => _goToIndex(cursor.previous!),
-                  ),
-                  PopupMenuButton<int>(
-                    tooltip: 'רשימת עמודי ההתאמה',
-                    onSelected: _goToIndex,
-                    itemBuilder: (context) => [
-                      for (var i = 0; i < pages.length; i++)
-                        PopupMenuItem(
-                          value: i,
-                          height: 32,
-                          child: Text('עמוד ${pages[i]}'),
-                        ),
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Text(
-                        'עמוד $_page · $position/${pages.length}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(FluentIcons.chevron_right_24_regular),
-                    iconSize: 18,
-                    tooltip: 'המופע הבא',
-                    onPressed: cursor.next == null
+                    onNext: cursor.next == null
                         ? null
                         : () => _goToIndex(cursor.next!),
-                  ),
-                ] else
+                    counter: Tooltip(
+                      message: 'רשימת עמודי ההתאמה',
+                      child: AppPopupMenuButton<int>(
+                        onSelected: _goToIndex,
+                        entries: [
+                          for (var i = 0; i < pages.length; i++)
+                            AppMenuEntry(value: i, label: 'עמוד ${pages[i]}'),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            'עמוד $_page · $position/${pages.length}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
                   Text('אין התאמות', style: theme.textTheme.bodySmall),
                 IconButton(
                   icon: const Icon(FluentIcons.dismiss_24_regular),
