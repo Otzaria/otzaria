@@ -9,7 +9,6 @@ import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
@@ -27,19 +26,18 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
-import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/search_dialog_query.dart';
 import 'package:otzaria/search/search_query_builder.dart';
-import 'package:otzaria/search/saved_alternatives_store.dart';
 import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
-import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
@@ -61,7 +59,6 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/search_feedback_service.dart';
@@ -91,58 +88,6 @@ void launchPluginSearch(
     windowKeys: AppWindowKeys.of(context),
   );
 }
-
-/// ה-`request` של `search.requested` — אותו חוזה בשליחת הדיאלוג עם שורת
-/// תוסף מסומנת ובכפתור `resultsAction` שבטאב החיפוש.
-Map<String, dynamic> pluginSearchRequest({
-  required String query,
-  required String negativeQuery,
-  required SearchMode mode,
-  required int distance,
-  required SearchScope proximityScope,
-  required List<String> facets,
-  required SearchConfiguration configuration,
-  required SearchModeScopedParameters normalizedParameters,
-  required SearchModeScopedParameters normalizedNegativeParameters,
-}) => {
-  'query': query,
-  'mode': mode.name,
-  'order': configuration.sortBy.name,
-  'limit': configuration.numResults,
-  'distance': distance,
-  'facets': facets,
-  if (normalizedParameters.searchOptions.isNotEmpty)
-    'wordOptions': normalizedParameters.searchOptions,
-  if (configuration.appliesAnyOrder(
-    customSpacing: normalizedParameters.customSpacing,
-    query: query,
-  ))
-    'anyOrder': true,
-  if (mode == SearchMode.advanced) ...{
-    if (negativeQuery.isNotEmpty) 'negativeQuery': negativeQuery,
-    'proximityScope': proximityScope.name,
-    'wordMatchMode': configuration.wordMatchMode.name,
-    if (configuration.wordMatchMode == WordMatchMode.atLeast)
-      'wordMatchCount': configuration.wordMatchCount,
-    'grouping': configuration.resultGrouping.name,
-    if (normalizedParameters.alternativeWords.isNotEmpty)
-      'alternativeWords': _stringKeyed(normalizedParameters.alternativeWords),
-    if (normalizedParameters.customSpacing.isNotEmpty)
-      'customSpacing': normalizedParameters.customSpacing,
-    if (normalizedNegativeParameters.searchOptions.isNotEmpty)
-      'negativeWordOptions': normalizedNegativeParameters.searchOptions,
-    if (normalizedNegativeParameters.alternativeWords.isNotEmpty)
-      'negativeAlternativeWords': _stringKeyed(
-        normalizedNegativeParameters.alternativeWords,
-      ),
-    if (normalizedNegativeParameters.customSpacing.isNotEmpty)
-      'negativeCustomSpacing': normalizedNegativeParameters.customSpacing,
-  },
-};
-
-Map<String, List<String>> _stringKeyed(Map<int, List<String>> values) => {
-  for (final entry in values.entries) entry.key.toString(): entry.value,
-};
 
 class SearchDialogResult {
   const SearchDialogResult({
@@ -250,6 +195,7 @@ class _SearchDialogState extends State<SearchDialog> {
   late final FocusRepository _focus;
 
   late SearchingTab _searchTab;
+  late final SearchDialogQuery _query;
   FocusRestorer? _focusRestorer;
   bool _indexInProgressWarningDismissed = false;
 
@@ -346,8 +292,7 @@ class _SearchDialogState extends State<SearchDialog> {
       // עריכה: עובדים על עותק — הטאב החי מתעדכן רק באישור החיפוש
       _searchTab = SearchingTab.clone(widget.editTab!);
     } else {
-      final lastTyping =
-          Settings.getValue<String>('key-last-search-typing') ?? '';
+      final lastTyping = SearchDialogQuery.loadLastTyping();
 
       // בלי העדפות תצוגת התוצאות: זה טאב השירות של הדיאלוג, והמיון/האיחוד
       // שלו נראים רק בבקשת החיפוש שנשלחת לתוספים.
@@ -358,6 +303,10 @@ class _SearchDialogState extends State<SearchDialog> {
         withResultPreferences: false,
       );
     }
+    _query = SearchDialogQuery(
+      _searchTab,
+      supportsVocalizedSearch: _supportsVocalizedSearch,
+    );
     if (widget.existingTab != null) _tabsBloc = context.read<TabsBloc?>();
     if (_supportsSemanticMode) {
       _semanticBloc = SemanticSearchBloc(
@@ -427,10 +376,7 @@ class _SearchDialogState extends State<SearchDialog> {
       if (!mounted) return;
       // שמירת ההקלדה הנוכחית (לא בעריכה — כדי לא לדרוס את ההקלדה האחרונה)
       if (widget.editTab != null) return;
-      Settings.setValue<String>(
-        'key-last-search-typing',
-        _searchTab.queryController.text,
-      );
+      SearchDialogQuery.saveLastTyping(_searchTab.queryController.text);
     };
     _searchTab.queryController.addListener(_queryListener);
 
@@ -1038,7 +984,7 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
 
-    final normalizedQueries = _normalizedQueries();
+    final normalizedQueries = _query.normalizedQueries(_library);
     final parsedCategory = normalizedQueries.category;
     if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
       UiSnack.showError(
@@ -1060,7 +1006,7 @@ class _SearchDialogState extends State<SearchDialog> {
       positive: normalizedParameters,
       negative: normalizedNegativeParameters,
       alternatives: effectiveAlternatives,
-    ) = _normalizedParameters(
+    ) = _query.normalizedParameters(
       query: query,
       negativeQuery: negativeQuery,
     );
@@ -1119,7 +1065,10 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
 
-    final facetsToSearch = _facetsToSearch(parsedCategory);
+    final facetsToSearch = SearchDialogQuery.facetsToSearch(
+      parsedCategory,
+      _scopeSelection,
+    );
     final distance = _searchTab.searchBloc.state.distance;
     final configuration = currentState.configuration;
     final proximityScope = configuration.proximityScope;
@@ -1175,7 +1124,7 @@ class _SearchDialogState extends State<SearchDialog> {
       ),
     );
 
-    _copyDialogParametersTo(
+    _query.copyParametersTo(
       newSearchTab,
       query: query,
       negativeQuery: negativeQuery,
@@ -1216,131 +1165,9 @@ class _SearchDialogState extends State<SearchDialog> {
     navigationBloc.add(const NavigateToScreen(Screen.search));
   }
 
-  /// השאילתות אחרי פענוח תחביר הקטגוריה ונרמול הניקוד והתווים, כמו שהן
-  /// נשלחות לחיפוש וללקוח התוסף.
-  ({String query, String negativeQuery, ParsedCategoryQuery category})
-  _normalizedQueries() {
-    final rawQuery = _searchTab.queryController.text.trim();
-    // תחביר קטגוריה: `מונח@קטגוריה` מצמצם את החיפוש לקטגוריה לפי שם.
-    // `@` בתוך `/…/` הוא חלק מהביטוי, לא תחביר צמצום.
-    final category = UserRegexQuery.isValid(rawQuery)
-        ? ParsedCategoryQuery(query: rawQuery)
-        : parseCategoryQuery(
-            rawQuery,
-            context.read<LibraryBloc>().state.library,
-          );
-    var query = category.query;
-    var negativeQuery = _searchTab.negativeQueryController.text.trim();
-
-    final vocalizedSearch =
-        _supportsVocalizedSearch && _searchTab.requestsVocalizedSearch;
-    final isUserRegex = UserRegexQuery.isValid(query);
-    if (!isUserRegex && !vocalizedSearch && utils.hasNikud(query)) {
-      query = utils.removeVolwels(query);
-    }
-    if (!vocalizedSearch && utils.hasNikud(negativeQuery)) {
-      negativeQuery = utils.removeVolwels(negativeQuery);
-    }
-    return (
-      query: isUserRegex ? query : SearchQueryBuilder.sanitizeQuery(query),
-      negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
-      category: category,
-    );
-  }
-
-  /// הפרמטרים של השאילתות אחרי נרמול למצב הנוכחי, וחלופות המילים שבתוקף.
-  ({
-    SearchModeScopedParameters positive,
-    SearchModeScopedParameters negative,
-    Map<int, List<String>> alternatives,
-  })
-  _normalizedParameters({
-    required String query,
-    required String negativeQuery,
-  }) {
-    final mode = _searchTab.searchBloc.state.configuration.searchMode;
-    final effectiveOptions = SearchQueryBuilder.effectiveSearchOptions(
-      query: query,
-      useGlobalOptions: _searchTab.useGlobalSearchOptions.value,
-      globalOptions: _searchTab.globalSearchOptions,
-      perWordOptions: _searchTab.searchOptions,
-    );
-    // כשמתג "חלופות שמורות" דלוק — הרחבת החיפוש בחלופות הגלובליות השמורות
-    final alternatives = _searchTab.useSavedAlternatives
-        ? SavedAlternativesStore.mergeIntoQuery(
-            query,
-            _searchTab.alternativeWords,
-          )
-        : _searchTab.alternativeWords;
-    final effectiveNegativeOptions = SearchQueryBuilder.effectiveSearchOptions(
-      query: negativeQuery,
-      useGlobalOptions: _searchTab.useGlobalNegativeSearchOptions.value,
-      globalOptions: _searchTab.negativeGlobalSearchOptions,
-      perWordOptions: _searchTab.negativeSearchOptions,
-    );
-    return (
-      positive: SearchQueryBuilder.normalizeParametersForMode(
-        mode,
-        customSpacing: _searchTab.spacingValues,
-        alternativeWords: alternatives,
-        searchOptions: effectiveOptions,
-      ),
-      negative: SearchQueryBuilder.normalizeParametersForMode(
-        mode,
-        customSpacing: _searchTab.negativeSpacingValues,
-        alternativeWords: _searchTab.negativeAlternativeWords,
-        searchOptions: effectiveNegativeOptions,
-      ),
-      alternatives: alternatives,
-    );
-  }
-
-  /// ה-facets שנבחרו לחיפוש. תחביר `@קטגוריה`/`@ספר` גובר על הבחירה הידנית.
-  List<String> _facetsToSearch(ParsedCategoryQuery parsedCategory) {
-    final selectedCategories = FacetHelper.categoryFacetsOf(_scopeSelection);
-    final categoriesToSearch = parsedCategory.categoryFound
-        ? parsedCategory.facets!
-        : selectedCategories.isEmpty
-        ? ['/']
-        : selectedCategories;
-    // ממדי הסינון שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) מצטרפים ב-AND —
-    // גם כשהקטגוריה נקבעה בתחביר `@`.
-    return [
-      ...categoriesToSearch,
-      ...(FacetHelper.dimensionFacetsOf(_scopeSelection).toList()..sort()),
-    ];
-  }
-
-  /// מצב הדיאלוג ברגע הלחיצה על כפתור תוסף בשדה החיפוש: אותה שאילתה ואותם
-  /// facets כמו בשליחה, כולל צמצום `@קטגוריה`.
-  Map<String, dynamic> _pluginInvocationContext() {
-    final normalizedQueries = _normalizedQueries();
-    final query = normalizedQueries.query;
-    final negativeQuery = normalizedQueries.negativeQuery;
-    final state = _searchTab.searchBloc.state;
-    final configuration = state.configuration;
-    final parameters = _normalizedParameters(
-      query: query,
-      negativeQuery: negativeQuery,
-    );
-    return {
-      PluginSearchFieldContext.requestKey: pluginSearchRequest(
-        query: query,
-        negativeQuery: negativeQuery,
-        mode: configuration.searchMode,
-        distance: state.distance,
-        proximityScope: configuration.proximityScope,
-        facets: _facetsToSearch(normalizedQueries.category),
-        configuration: configuration,
-        normalizedParameters: parameters.positive,
-        normalizedNegativeParameters: parameters.negative,
-      ),
-      PluginSearchFieldContext.pluginSelectionsKey:
-          _allPluginSearchSelections(),
-    };
-  }
-
   /// בלי הסכמה או בלי נתונים אין חיפוש; הדיאלוג עצמו אינו רושם דבר.
+  Library? get _library => context.read<LibraryBloc>().state.library;
+
   void _performSemanticSearch() {
     final availability = _semanticBloc?.state.availability;
     if (_semanticSubmitted ||
@@ -1351,7 +1178,7 @@ class _SearchDialogState extends State<SearchDialog> {
         )) {
       return;
     }
-    final library = context.read<LibraryBloc>().state.library;
+    final library = _library;
     final parsedCategory = parseCategoryQuery(
       _searchTab.queryController.text,
       library,
@@ -1506,63 +1333,6 @@ class _SearchDialogState extends State<SearchDialog> {
     return true;
   }
 
-  /// מעתיק ל-[target] את השאילתות ואת הגדרות המילים שנערכו בדיאלוג.
-  /// חלופות שמורות שמוזגו ([effectiveAlternatives]) הופכות לחלק מהטאב —
-  /// נשמרות ומשוחזרות איתו.
-  void _copyDialogParametersTo(
-    SearchingTab target, {
-    required String query,
-    required String negativeQuery,
-    required Map<int, List<String>> effectiveAlternatives,
-  }) {
-    target.queryController.text = query;
-    target.negativeQueryController.text = negativeQuery;
-    target.searchOptions
-      ..clear()
-      ..addAll(
-        _searchTab.searchOptions.map(
-          (key, value) => MapEntry(key, Map<String, bool>.from(value)),
-        ),
-      );
-    target.globalSearchOptions
-      ..clear()
-      ..addAll(_searchTab.globalSearchOptions);
-    target.negativeSearchOptions
-      ..clear()
-      ..addAll(
-        _searchTab.negativeSearchOptions.map(
-          (key, value) => MapEntry(key, Map<String, bool>.from(value)),
-        ),
-      );
-    target.negativeGlobalSearchOptions
-      ..clear()
-      ..addAll(_searchTab.negativeGlobalSearchOptions);
-    target.useGlobalSearchOptions.value =
-        _searchTab.useGlobalSearchOptions.value;
-    target.useGlobalNegativeSearchOptions.value =
-        _searchTab.useGlobalNegativeSearchOptions.value;
-    target.alternativeWords
-      ..clear()
-      ..addAll(
-        effectiveAlternatives.map(
-          (key, value) => MapEntry(key, List<String>.from(value)),
-        ),
-      );
-    target.spacingValues
-      ..clear()
-      ..addAll(_searchTab.spacingValues);
-    target.negativeAlternativeWords
-      ..clear()
-      ..addAll(
-        _searchTab.negativeAlternativeWords.map(
-          (key, value) => MapEntry(key, List<String>.from(value)),
-        ),
-      );
-    target.negativeSpacingValues
-      ..clear()
-      ..addAll(_searchTab.negativeSpacingValues);
-  }
-
   /// מחיל את פרמטרי הדיאלוג על טאב התוצאות הנערך ומריץ בו את החיפוש מחדש.
   void _applyEditToTarget({
     required String query,
@@ -1576,7 +1346,7 @@ class _SearchDialogState extends State<SearchDialog> {
     required SearchModeScopedParameters normalizedNegativeParameters,
   }) {
     final target = widget.editTab!;
-    _copyDialogParametersTo(
+    _query.copyParametersTo(
       target,
       query: query,
       negativeQuery: negativeQuery,
@@ -1777,7 +1547,11 @@ class _SearchDialogState extends State<SearchDialog> {
       tab: _searchTab,
       onSubmit: _performSearch,
       trailingAction: _buildHistoryButton(),
-      pluginInvocationContext: _pluginInvocationContext,
+      pluginInvocationContext: () => _query.pluginInvocationContext(
+        library: _library,
+        scopeSelection: _scopeSelection,
+        pluginSelections: _allPluginSearchSelections(),
+      ),
     );
 
     final distanceWidget = FuzzyDistance(

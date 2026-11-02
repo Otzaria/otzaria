@@ -5,6 +5,7 @@ import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/search_dialog_query.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
