@@ -18,9 +18,7 @@ Color? getDayBackgroundColor(
       jc.isYomTov() ||
       jc.isTaanis() ||
       jc.isRoshChodesh()) {
-    return Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: 0.4);
+    return AppSurfaces.calendarSpecialDay(Theme.of(context).colorScheme);
   }
   return null;
 }
@@ -65,13 +63,10 @@ Widget buildDayCell(
           (isSelected
               ? cs.primaryContainer
               : isToday
-              ? cs.primary.withValues(alpha: 0.25)
+              ? AppSurfaces.calendarToday(cs)
               : baseCellColor);
       final tintedBackground = (isHovered || isToday)
-          ? Color.alphaBlend(
-              cs.surfaceTint.withValues(alpha: 0.08),
-              baseBackground,
-            )
+          ? Color.alphaBlend(AppSurfaces.calendarDayTint(cs), baseBackground)
           : baseBackground;
       final elevation = (isHovered || isToday) ? AppTokens.elevation2 : 0.0;
 

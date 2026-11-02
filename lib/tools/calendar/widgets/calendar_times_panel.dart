@@ -792,31 +792,19 @@ class _ZmanCard extends StatelessWidget {
     );
   }
 
-  double _titleFontSizeFor(CalendarTimeEntry entry) {
-    final base = entry.name.length > 28
-        ? 11.0
-        : entry.name.length > 20
-        ? 12.0
-        : entry.name.length > 16
-        ? 13.0
-        : 14.0;
-    return base + 1;
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final existingAlert = _existingAlert;
     final hasAlert = existingAlert != null;
     final bgColor = timeData.isHolidaySpecial
-        ? scheme.secondaryContainer.withValues(alpha: isDark ? 0.82 : 0.55)
+        ? AppSurfaces.calendarSpecialDayCard(scheme)
         : AppSurfaces.card(context);
     final primaryTextColor = timeData.isHolidaySpecial
-        ? scheme.onSecondaryContainer
+        ? AppSurfaces.onCalendarSpecialDayCard(scheme)
         : scheme.onSurface;
     final secondaryTextColor = timeData.isHolidaySpecial
-        ? scheme.onSecondaryContainer.withValues(alpha: isDark ? 0.94 : 0.78)
+        ? AppSurfaces.onCalendarSpecialDayCardVariant(scheme)
         : scheme.onSurfaceVariant;
 
     return Card(
@@ -841,7 +829,6 @@ class _ZmanCard extends StatelessWidget {
                   final nameStyle = Theme.of(context).textTheme.titleMedium
                       ?.copyWith(
                         fontWeight: FontWeight.w600,
-                        fontSize: _titleFontSizeFor(timeData),
                         color: primaryTextColor,
                       );
                   // כרטיס בודד עם תת-כותרת: שורת כותרת + שורת פירוט קטנה.
