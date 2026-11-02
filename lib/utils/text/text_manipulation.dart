@@ -22,9 +22,6 @@ import 'package:otzaria/search/utils/literal_search_pattern.dart'
     show LiteralEdgeCheck, literalEdgeCheck;
 import 'package:otzaria/search/utils/user_regex_query.dart';
 
-/// רגקס להסרת תגי HTML.
-final RegExp _htmlStripper = RegExp(r'<[^>]*>');
-
 /// תגי שבירה — מוצגים כמעבר שורה/גבול בלוק ולכן הופכים לרווח ולא נמחקים,
 /// אחרת מילים משני צדי `<br>` נדבקות (כמו strip_html_for_indexing במנוע).
 /// sup/sub (קבוצה 1) שוברים רק דרך [_breakingTagAt].
@@ -483,14 +480,14 @@ bool punctuationSeparatesWords(int before, int after) =>
 bool _isSpacingMark(int c) =>
     c == 0x05BE || c == 0x05C0 || c == 0x05C3 || c == 0x05C6;
 
-/// התו הגלוי הראשון מ-[from] והלאה, בדילוג על תגים ועל פיסוק שמוסר; 0 בסוף.
-int _nextVisibleUnit(String s, int from) {
+/// התו הגלוי הראשון מ-[from] והאינדקס שלו, בדילוג על תגים ופיסוק; 0 בסוף.
+(int, int) _nextVisibleUnit(String s, int from) {
   for (var i = from; i < s.length; i++) {
     final c = s.codeUnitAt(i);
     if (isRemovablePunctuationUnit(c)) continue;
     if (c == 0x3C) {
       final close = s.indexOf('>', i);
-      if (close < 0) return 0;
+      if (close < 0) return (0, s.length);
       i = close;
       continue;
     }
@@ -498,12 +495,12 @@ int _nextVisibleUnit(String s, int from) {
       final entity = _htmlEntity.matchAsPrefix(s, i);
       if (entity != null) {
         final decoded = decodeHtmlEntities(entity.group(0)!);
-        return decoded.isEmpty ? 0 : decoded.codeUnitAt(0);
+        return (decoded.isEmpty ? 0 : decoded.codeUnitAt(0), i);
       }
     }
-    return c;
+    return (c, i);
   }
-  return 0;
+  return (0, s.length);
 }
 
 /// הסרת סימני פיסוק מטקסט
@@ -543,7 +540,7 @@ String removePunctuation(String text) {
 
     // הגרשיים מוכרעים לפני הסרת הפיסוק — אחרת ב-'רש"י,ובגמ' הפסיק נמחק,
     // ראשי התיבות נדבקים למילה הבאה ונראים כמירכאות ציטוט.
-    String processed = _stripQuotesOutsideTags(line);
+    String processed = stripNonAcronymQuotes(line);
 
     final lastAllowedPunctuationIndex = _trailingAllowedPunctuation(processed);
 
@@ -552,6 +549,8 @@ String removePunctuation(String text) {
     var parenDepth = 0;
     var inTag = false;
     var previous = 0; // התו הגלוי האחרון שנכתב
+    // רצף פיסוק חולק תוצאת מבט קדימה, גם כשלא נוסף רווח.
+    var nextVisible = (0, -1);
     // יחידות קוד ולא processed[i]: אחרת כל תו מקצה מחרוזת חדשה.
     for (var i = 0; i < processed.length; i++) {
       final ch = processed.codeUnitAt(i);
@@ -614,10 +613,10 @@ String removePunctuation(String text) {
       }
 
       if (isRemovablePunctuationUnit(ch)) {
-        if (punctuationSeparatesWords(
-          previous,
-          _nextVisibleUnit(processed, i + 1),
-        )) {
+        if (i >= nextVisible.$2) {
+          nextVisible = _nextVisibleUnit(processed, i + 1);
+        }
+        if (punctuationSeparatesWords(previous, nextVisible.$1)) {
           buffer.writeCharCode(0x20);
           previous = 0x20;
         }
@@ -682,7 +681,8 @@ String removePunctuation(String text) {
 }
 
 final RegExp _quoteContextTokens = RegExp(
-  '${_htmlStripper.pattern}|${_htmlEntity.pattern}|["״]',
+  r"""<(?:[^'">]|"[^"]*"|'[^']*')*>"""
+  '|${_htmlEntity.pattern}|["״]',
 );
 
 /// `[א-תa-zA-Z]` על יחידת קוד: נבדק לכל גרשיים, בלי מחרוזת ו-RegExp לתו.
@@ -724,9 +724,22 @@ const Set<String> _voidHtmlTags = {
   'wbr',
 };
 
-/// מכריע על גרשיים לפי הטקסט הגלוי, ומשאיר את התגים והישויות במקורם.
-String _stripQuotesOutsideTags(String text) {
-  if (!text.contains('"') && !text.contains('״')) return text;
+/// מסיר מירכאות ציטוט לפי הטקסט הגלוי, תוך שימור תגים וישויות.
+String stripNonAcronymQuotes(String text) {
+  final removed = removedQuoteOffsets(text);
+  if (removed.isEmpty) return text;
+  final result = StringBuffer();
+  var lastEnd = 0;
+  for (final offset in removed) {
+    result.write(text.substring(lastEnd, offset));
+    lastEnd = offset + 1;
+  }
+  return (result..write(text.substring(lastEnd))).toString();
+}
+
+/// מיקומי מירכאות שהסתרת הפיסוק משמיטה, לשימור המיפוי אל הטקסט הגולמי.
+Set<int> removedQuoteOffsets(String text) {
+  if (!text.contains('"') && !text.contains('״')) return const {};
 
   final contextBuffer = StringBuffer();
   final quotes = <({int source, int context})>[];
@@ -784,12 +797,11 @@ String _stripQuotesOutsideTags(String text) {
     }
     lastEnd = match.end;
   }
-  if (quotes.isEmpty) return text;
+  if (quotes.isEmpty) return const {};
   contextBuffer.write(removeVolwels(text.substring(lastEnd)));
   final context = contextBuffer.toString();
 
-  final result = StringBuffer();
-  lastEnd = 0;
+  final result = <int>{};
   for (final quote in quotes) {
     var before = quote.context - 1;
     var after = quote.context + 1;
@@ -811,12 +823,10 @@ String _stripQuotesOutsideTags(String text) {
         (after + 1 == context.length ||
             !isAcronymLetterUnit(context.codeUnitAt(after + 1)));
     if (!isAcronym) {
-      result.write(text.substring(lastEnd, quote.source));
-      lastEnd = quote.source + 1;
+      result.add(quote.source);
     }
   }
-  result.write(text.substring(lastEnd));
-  return result.toString();
+  return result;
 }
 
 bool isHeadingLine(String line) {

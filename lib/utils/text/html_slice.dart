@@ -1,6 +1,7 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 
 /// חותך מתוך [html] את החלק שמכוסה ע"י [selectedText], עם התגיות שעוטפות
 /// אותו, ומחזיר null כשאין התאמה חד-משמעית.
@@ -17,7 +18,9 @@ String? sliceHtmlBySelection({
     return null;
   }
 
-  final fragment = html_parser.parseFragment(html);
+  final fragment = html_parser.parseFragment(
+    text_utils.stripNonAcronymQuotes(notes.stripInlineNotes(html)),
+  );
   final slots = <_Slot>[];
   final rawText = StringBuffer();
   _collectSlots(fragment.nodes, slots, rawText);
@@ -25,43 +28,49 @@ String? sliceHtmlBySelection({
     return null;
   }
 
-  final source = _MatchKey.from(rawText.toString());
-  final selection = _MatchKey.from(selectedText);
-  if (selection.key.isEmpty) {
-    return null;
-  }
-
-  // המופעים נאספים לפני החיתוך, כדי לא לשלם על חיתוכים שיושלכו ממילא.
-  final matches = <int>[];
-  var matchStart = source.key.indexOf(selection.key);
-  while (matchStart >= 0) {
-    matches.add(matchStart);
-    if (matches.length > _maxOccurrences) {
-      return null;
-    }
-    matchStart = source.key.indexOf(selection.key, matchStart + 1);
-  }
-  if (matches.isEmpty) {
-    return null;
-  }
-
   String? sliced;
-  for (final start in matches) {
-    final candidate = _buildSlice(
-      fragment: fragment,
-      slots: slots,
-      source: source,
-      selection: selection,
-      matchStart: start,
-      selectedText: selectedText,
-    );
-    if (candidate == null || (sliced != null && sliced != candidate)) {
-      return null;
+  final ranges = <(int, int)>{};
+  final sources = _matchKeys(rawText.toString(), removedQuotes: const {});
+  final selections = _matchKeys(selectedText);
+  for (final source in sources) {
+    for (final selection in selections) {
+      if (selection.key.isEmpty) return null;
+      var start = source.key.indexOf(selection.key);
+      while (start >= 0) {
+        final range = (
+          source.offsets[start],
+          source.offsets[start + selection.key.length - 1],
+        );
+        if (ranges.add(range)) {
+          if (ranges.length > _maxOccurrences) return null;
+          final candidate = _buildSlice(
+            fragment: fragment,
+            slots: slots,
+            source: source,
+            selection: selection,
+            matchStart: start,
+            selectedText: selectedText,
+          );
+          if (candidate == null || (sliced != null && sliced != candidate)) {
+            return null;
+          }
+          sliced = candidate;
+        }
+        start = source.key.indexOf(selection.key, start + 1);
+      }
     }
-    sliced = candidate;
   }
 
   return sliced;
+}
+
+List<_MatchKey> _matchKeys(String text, {Set<int>? removedQuotes}) {
+  final current = _MatchKey.from(text, removedQuotes: removedQuotes);
+  if (!text.codeUnits.any(text_utils.isRemovablePunctuationUnit)) {
+    return [current];
+  }
+  final joined = _MatchKey.from(text, joinAtPunctuation: true);
+  return [current, if (joined.key != current.key) joined];
 }
 
 /// כל מופע נחתך מחדש כדי להשוות בין התוצאות, ולכן שורה ארוכה שבה הבחירה
@@ -150,11 +159,20 @@ class _MatchKey {
   final String key;
   final List<int> offsets;
 
-  factory _MatchKey.from(String text) {
+  factory _MatchKey.from(
+    String text, {
+    bool joinAtPunctuation = false,
+    Set<int>? removedQuotes,
+  }) {
     // ההחלפה מוחלת על שני צדי ההשוואה, כדי שההתאמה תעבוד בלי תלות בהגדרת
     // "החלפת שמות קדושים". היא שומרת על האורך, ולכן המיקומים נשארים תקפים.
     final replaced = text_utils.replaceHolyNames(text);
     final normalized = replaced.length == text.length ? replaced : text;
+    final omittedQuotes =
+        removedQuotes ??
+        (joinAtPunctuation
+            ? const <int>{}
+            : text_utils.removedQuoteOffsets(normalized));
 
     final key = StringBuffer();
     final offsets = <int>[];
@@ -164,8 +182,10 @@ class _MatchKey {
 
     for (var i = 0; i < normalized.length; i++) {
       final codeUnit = normalized.codeUnitAt(i);
+      if (omittedQuotes.contains(i)) continue;
       // פיסוק בין מילים מוצג כרווח כשהפיסוק מוסתר, ולכן גם כאן.
-      if (text_utils.isRemovablePunctuationUnit(codeUnit)) {
+      if (!joinAtPunctuation &&
+          text_utils.isRemovablePunctuationUnit(codeUnit)) {
         punctuationAt ??= i;
         continue;
       }
