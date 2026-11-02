@@ -190,6 +190,33 @@ void AppendOtherThreads(const std::vector<OtherThread>& threads,
   }
 }
 
+// commit = הזיכרון שהמערכת יכולה עוד להקצות (כולל קובץ הדפדוף); כשהוא אוזל
+// גם יצירת thread ממתינה.
+void AppendMemory(std::string* report) {
+  constexpr ULONGLONG kMb = 1024 * 1024;
+  PROCESS_MEMORY_COUNTERS_EX process = {};
+  process.cb = sizeof(process);
+  MEMORYSTATUSEX system = {};
+  system.dwLength = sizeof(system);
+  if (!::GetProcessMemoryInfo(
+          ::GetCurrentProcess(),
+          reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&process),
+          sizeof(process)) ||
+      !::GlobalMemoryStatusEx(&system)) {
+    return;
+  }
+  char line[256];
+  snprintf(line, sizeof(line),
+           "Memory: private %lluMB, working set %lluMB; system available "
+           "%llu/%lluMB (load %lu%%), commit available %llu/%lluMB\n",
+           static_cast<ULONGLONG>(process.PrivateUsage) / kMb,
+           static_cast<ULONGLONG>(process.WorkingSetSize) / kMb,
+           system.ullAvailPhys / kMb, system.ullTotalPhys / kMb,
+           system.dwMemoryLoad, system.ullAvailPageFile / kMb,
+           system.ullTotalPageFile / kMb);
+  *report += line;
+}
+
 void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads) {
   // רק בדוח הראשון: הרשימה ארוכה, ודוחות נוספים היו דוחקים רשומות קודמות.
   const std::vector<OtherThread> threads =
@@ -210,6 +237,7 @@ void ReportHang(const std::vector<ULONG_PTR>& frames, bool with_threads) {
   snprintf(detected, sizeof(detected), "Detected: %llums after launch\n",
            MsSinceLaunch());
   report += detected;
+  AppendMemory(&report);
   startup_watchdog::AppendBuildIdentity(all_frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   AppendOtherThreads(threads, &report);
