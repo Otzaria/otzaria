@@ -452,7 +452,7 @@
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A, MIG-20): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
-| כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | DD-27 A: מנגנון הרחבה אחד, `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (יעד, MIG-22). עץ: חץ לכיוון הקריאה. אקורדיון: חץ למטה. ⚠ כרטיסי התיקיות בספרייה לא משתנים עד הכרעה |
+| כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. ⚠ כרטיסי התיקיות בספרייה לא משתנים עד הכרעה, ולכן גם מנגנון ההרחבה האחד (`ExpandableCard` משמש רק אותם) עוד לא אוחד |
 | שורת הגדרה | `SettingsActionTile.*` בתוך `SettingsCard` | כ־10 דפוסים נבנים היום ידנית (MIG-15) |
 | פריט רשימה | `ListTile` + `listTileTheme` (יעד, MIG-05), או `NavTreeTile` בחלוניות | |
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
@@ -622,7 +622,7 @@
 - **שם נגיש:** לכל רכיב אינטראקטיבי. לכפתור אייקון זה ה־`tooltip`. לרכיב מותאם: `Semantics(label:)`.
 - **מצב:**
   - נבחר: `Semantics(selected:)`. חסר היום בכרטיסיות, בפריטי ניווט ובשורות radio של ההגדרות.
-  - מורחב: `expanded:`, מובנה ב־`ExpandingChevron` (DD-27, יעד).
+  - מורחב: `expanded:`, מובנה ב־`ExpandingChevron` (DD-27).
   - מושבת: `enabled:`.
   - נבחר בקבוצה: `inMutuallyExclusiveGroup` + `checked`.
 - **הודעות:** `UiSnack` מכריז ב־`SemanticsService.announce` (יעד, MIG-11).
