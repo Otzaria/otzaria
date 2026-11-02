@@ -193,6 +193,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     final confirmed = await showConfirmationDialog(
       context: context,
       title: context.settingsText('הסרת תיקייה'),
+      icon: FluentIcons.delete_24_regular,
       content: context.settingsText(
         'האם להסיר את התיקייה "{name}" מהספרייה?\n'
         'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
@@ -216,6 +217,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       final confirmed = await showConfirmationDialog(
         context: context,
         title: context.settingsText('שמירת עותק עצמאי בתוכנה'),
+        icon: FluentIcons.database_24_regular,
         content: context.settingsText(
           'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
           'אם הקבצים המקוריים יוזזו או יימחקו.\n'

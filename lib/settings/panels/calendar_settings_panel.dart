@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -678,36 +677,12 @@ class _IcsSubscriptionDialogState extends State<_IcsSubscriptionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return AlertDialog(
-      backgroundColor: cs.surfaceContainerHigh,
-      title: AppDialogTitle(
-        context.settingsText('הוספת יומן מקישור'),
-        icon: FluentIcons.link_24_regular,
-      ),
-      content: SizedBox(
-        width: math.min(400.0, MediaQuery.sizeOf(context).width - 112),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RtlTextField(
-              controller: _nameController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: context.settingsText('שם היומן'),
-              ),
-            ),
-            const SizedBox(height: AppTokens.spaceMD),
-            RtlTextField(
-              controller: _urlController,
-              decoration: InputDecoration(
-                labelText: context.settingsText('קישור (URL)'),
-              ),
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
-        ),
-      ),
+    return AppDialogFrame(
+      size: AppDialogSize.small,
+      title: context.settingsText('הוספת יומן מקישור'),
+      icon: FluentIcons.link_24_regular,
+      onConfirm: _urlValid ? _submit : null,
+      handleEnterKey: _urlValid,
       actions: [
         ActionButton.neutral(
           text: context.settingsText('ביטול'),
@@ -718,6 +693,26 @@ class _IcsSubscriptionDialogState extends State<_IcsSubscriptionDialog> {
           onPressed: _urlValid ? _submit : null,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RtlTextField(
+            controller: _nameController,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: context.settingsText('שם היומן'),
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          RtlTextField(
+            controller: _urlController,
+            decoration: InputDecoration(
+              labelText: context.settingsText('קישור (URL)'),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
     );
   }
 }

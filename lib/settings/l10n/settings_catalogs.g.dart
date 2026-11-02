@@ -564,6 +564,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'העבר לשולחן עבודה': 'Move to workspace',
     'העבר תוכן תיקייה': 'Move the Folder\'s Contents',
     'העברה של ספרייה גדולה עשויה לקחת מספר דקות.': 'Moving a large library can take a few minutes.',
+    'העברת הספרייה': 'Moving the library',
     'העברת הספרייה אל {target}': 'Move the library to {target}',
     'העברת תוכן התיקייה': 'Move the Folder\'s Contents',
     'העדכון הושלם': 'Update complete',

@@ -12,6 +12,8 @@
 //   שימוש: בחירה בין כמה פעולות שוות ("טקסט / Word / ביטול").
 // [runWithBlockingProgress]                           → blocking_progress_dialog.dart
 //   שימוש: פעולה חוסמת ארוכה, בדיאלוג שאי אפשר לסגור.
+// [showBlockingProgress]                              → blocking_progress_dialog.dart
+//   שימוש: אותו דיאלוג לזרימה עם כמה נקודות יציאה; מחזיר פונקציית סגירה.
 //
 // [ConfirmationDialog] / [showConfirmationDialog]     → confirmation_dialog.dart
 //   wrapper דק מעל AppDialog — תומך ב-[isDangerous].

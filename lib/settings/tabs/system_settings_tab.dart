@@ -979,6 +979,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('ייבוא ממכשיר אחר?'),
+      icon: FluentIcons.arrow_import_24_regular,
       content: context.settingsText(
         'הסימניות, ההערות, ההיסטוריה ושולחנות העבודה שבקובץ יתווספו לנתונים '
         'הקיימים. שום דבר לא יימחק, ההגדרות והכרטיסיות הפתוחות לא ישתנו, '
@@ -1087,6 +1088,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     await showSingleActionDialog(
       context: context,
       title: context.settingsText('הייבוא הושלם'),
+      icon: FluentIcons.arrow_clockwise_24_regular,
       content: content,
       confirmText: context.settingsText('טען מחדש'),
     );
@@ -1205,6 +1207,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       final activate = await showTwoActionsDialog(
         context: context,
         title: context.settingsText('הפעלת מצב סייפר'),
+        icon: FluentIcons.shield_lock_24_regular,
         content: context.settingsText(
           'האם להפעיל כעת את מצב הסייפר?\n'
           'ניתן להפעיל ולבטל אותו מאוחר יותר דרך ההגדרות.',

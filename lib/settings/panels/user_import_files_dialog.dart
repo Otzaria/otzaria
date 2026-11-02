@@ -49,7 +49,7 @@ class UserImportFilesDialog extends StatelessWidget {
       title: context.settingsText('קבצים מיובאים'),
       icon: FluentIcons.arrow_import_24_regular,
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: context.settingsText('סגור'),
           onPressed: () => Navigator.of(context).pop(),
         ),

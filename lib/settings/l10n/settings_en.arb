@@ -245,6 +245,7 @@
   "לא נתמך — הכרטיס מפורמט ב-FAT32 (מגבלת 4GB לקובץ)": "Not supported — the card is formatted FAT32 (4GB per file limit)",
   "בשימוש": "In Use",
   "העבר לכאן": "Move Here",
+  "העברת הספרייה": "Moving the library",
   "מעביר את הספרייה למיקום החדש…\nהתוכנה לא תהיה פעילה עד לסיום הפעולה.": "Moving the library to its new location…\nOtzaria will be inactive until the operation completes.",
   "הספרייה הועברה": "Library Moved",
   "הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, והספרים הפתוחים ייטענו מהמיקום החדש.": "The library was moved successfully to the new location. Otzaria will reload now, and any open seforim will load from the new location.",
