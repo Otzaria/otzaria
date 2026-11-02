@@ -992,6 +992,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   state,
                   widget.tab,
                   openSearchFromToolbar: _openSearchFromToolbar,
+                  onPrint: () => handlePrintPress(state),
                   openNotesForCurrentView: () =>
                       _openPersonalNotesForCurrentView(state),
                   selectedTextForNote: _selectedTextForSearch,
@@ -1541,9 +1542,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         (
           70,
           ActionButtonData(
-            widget: IconButton(
-              icon: const Icon(OtzariaIcons.book_information_24_regular),
+            widget: BarButton.icon(
+              icon: OtzariaIcons.book_information_24_regular,
               tooltip: 'אודות הספר',
+              compact: AppDensity.of(context).isCompact,
               onPressed: () => _handleBookSourcePress(context, state),
             ),
             icon: OtzariaIcons.book_information_24_regular,
@@ -1972,16 +1974,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }) {
     final shortcut =
         ShortcutValidator.getShortcutValue(ShortcutValidator.printKey) ?? '';
-    return IconButton(
+    return BarButton.icon(
       key: key,
-      icon: const Icon(FluentIcons.print_24_regular),
+      icon: FluentIcons.print_24_regular,
       tooltip: 'הדפסה (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
-      onPressed: () {
-        context.read<TourCubit>().recordInteraction(
-          TourInteraction(type: TourInteractionType.printUsed),
-        );
-        showBookPrintingScreen(context, state, startLine: widget.tab.index);
-      },
+      compact: AppDensity.of(context).isCompact,
+      onPressed: () => handlePrintPress(state),
     );
   }
 
@@ -2512,6 +2510,7 @@ bool _handleGlobalKeyEvent(
   TextBookLoaded state,
   TextBookTab tab, {
   required VoidCallback openSearchFromToolbar,
+  required VoidCallback onPrint,
   required VoidCallback openNotesForCurrentView,
   String? selectedTextForNote,
   int? selectedLineForNote,
@@ -2563,10 +2562,8 @@ bool _handleGlobalKeyEvent(
 
   // הדפסה
   if (ShortcutHelper.matchesShortcut(event, printShortcut)) {
-    context.read<TourCubit>().recordInteraction(
-      TourInteraction(type: TourInteractionType.printUsed),
-    );
-    showBookPrintingScreen(context, state, startLine: tab.index);
+    // דרך מדיניות ההדפסה של צורת הדף, כמו "הדפסה" בתפריט.
+    onPrint();
     return true;
   }
 
