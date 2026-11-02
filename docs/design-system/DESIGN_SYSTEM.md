@@ -450,7 +450,7 @@
 | כרטיס מידע | `AppCard` | `Card(` גולמי אסור (היום 8 מופעים). מסגרת, בלי צל (DD-12) |
 | קבוצת שורות בכרטיס | `AppCard.section` | `selected` ב־section שבור ויוסר. מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A, MIG-20): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
-| היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11) | יעד — טרם מומש (MIG-20) |
+| היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | DD-27 A: מנגנון הרחבה אחד, `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (יעד, MIG-22). עץ: חץ לכיוון הקריאה. אקורדיון: חץ למטה. ⚠ כרטיסי התיקיות בספרייה לא משתנים עד הכרעה |
 | שורת הגדרה | `SettingsActionTile.*` בתוך `SettingsCard` | כ־10 דפוסים נבנים היום ידנית (MIG-15) |

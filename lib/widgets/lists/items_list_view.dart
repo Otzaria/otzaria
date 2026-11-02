@@ -18,17 +18,12 @@ import 'package:positioned_sliver_list/positioned_list.dart';
 class _ListRow {
   final String? headerTitle;
   final MapEntry<int, dynamic>? entry;
-  final bool isFirstInGroup;
   final bool isLastInGroup;
 
-  const _ListRow.header(this.headerTitle)
-    : entry = null,
-      isFirstInGroup = false,
-      isLastInGroup = false;
+  const _ListRow.header(this.headerTitle) : entry = null, isLastInGroup = false;
 
   const _ListRow.item(
     MapEntry<int, dynamic> this.entry, {
-    required this.isFirstInGroup,
     required this.isLastInGroup,
   }) : headerTitle = null;
 
@@ -364,11 +359,7 @@ class _ItemsListViewState extends State<ItemsListView> {
       }
       for (var i = 0; i < group.length; i++) {
         rows.add(
-          _ListRow.item(
-            group[i],
-            isFirstInGroup: i == 0,
-            isLastInGroup: i == group.length - 1,
-          ),
+          _ListRow.item(group[i], isLastInGroup: i == group.length - 1),
         );
       }
     }
@@ -395,13 +386,12 @@ class _ItemsListViewState extends State<ItemsListView> {
     );
   }
 
-  /// שורת פריט בסגנון [AppCard.section]: רקע כרטיס, פינות מעוגלות בקצות
-  /// הקבוצה ורווח [AppCard.sectionSpacing] בין שורות — נבנית שורה-שורה כדי
-  /// שהרשימה תישאר וירטואלית.
-  Widget _buildCardRow(BuildContext context, _ListRow row) {
+  /// שורת פריט ברשימה פשוטה, בלי כרטיס (DD-11): הרקע של המשטח שמתחת, וקו
+  /// [AppSurfaces.subtleDivider] בין שורות של אותה קבוצה.
+  Widget _buildListRow(BuildContext context, _ListRow row) {
     final entry = row.entry!;
-    Widget content = Material(
-      color: AppSurfaces.card(context),
+    final content = Material(
+      type: MaterialType.transparency,
       child: _buildItemRow(
         context,
         entry.value,
@@ -409,23 +399,17 @@ class _ItemsListViewState extends State<ItemsListView> {
         isKeyboardFocused: entry.key == _focusedOriginalIndex,
       ),
     );
-
-    const radius = Radius.circular(AppTokens.radius);
-    content = ClipRRect(
-      borderRadius: BorderRadius.vertical(
-        top: row.isFirstInGroup ? radius : Radius.zero,
-        bottom: row.isLastInGroup ? radius : Radius.zero,
-      ),
-      child: content,
+    if (row.isLastInGroup) return content;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        content,
+        Divider(
+          height: 1,
+          color: AppSurfaces.subtleDivider(Theme.of(context).colorScheme),
+        ),
+      ],
     );
-
-    if (!row.isLastInGroup) {
-      content = Padding(
-        padding: const EdgeInsets.only(bottom: AppCard.sectionSpacing),
-        child: content,
-      );
-    }
-    return content;
   }
 
   Widget _buildRowsList(BuildContext context, List<_ListRow> rows) {
@@ -441,7 +425,7 @@ class _ItemsListViewState extends State<ItemsListView> {
           final row = rows[index];
           return row.isHeader
               ? _buildHeaderRow(context, row.headerTitle)
-              : _buildCardRow(context, row);
+              : _buildListRow(context, row);
         },
       ),
     );

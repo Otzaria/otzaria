@@ -1203,7 +1203,7 @@ class _PersonalNotesManagerScreenState
 
     return AppCard(
       onTap: isMissing ? () => _repositionMissing(note) : null,
-      padding: const EdgeInsets.all(12),
+      padding: AppTokens.cardPadding,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
