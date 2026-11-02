@@ -5,7 +5,7 @@ import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// דיאלוג אישור — thin wrapper מעל [AppDialog].
 /// [isDangerous] מפנה ל-[AppDialog.warning] (ביטול primary, אישור error).
-class ConfirmationDialog extends StatelessWidget {
+class _ConfirmationDialog extends StatelessWidget {
   final String title;
   final String content;
 
@@ -17,8 +17,7 @@ class ConfirmationDialog extends StatelessWidget {
   /// תג האייקון: מה מאשרים. null = אייקון המשפחה.
   final IconData? icon;
 
-  const ConfirmationDialog({
-    super.key,
+  const _ConfirmationDialog({
     required this.title,
     required this.content,
     this.cancelText,
@@ -60,7 +59,7 @@ Future<bool?> showConfirmationDialog({
   // הדיאלוג נבנה ב-Overlay ולכן אינו יורש את הכיווניות של המסך שפתח אותו.
   builder: (_) => Directionality(
     textDirection: Directionality.of(context),
-    child: ConfirmationDialog(
+    child: _ConfirmationDialog(
       title: title,
       content: content,
       cancelText: cancelText,

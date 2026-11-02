@@ -144,9 +144,6 @@ Widget compactFilterChips({
   );
 }
 
-/// שם ישן — הבורר כבר אינו מחזיק עותק בחירה פנימי.
-typedef FilterChipsWidget<T> = FilterChipsSelector<T>;
-
 /// עוטף צ׳יפ מותאם (`chipBuilder`) בהתנהגות של צ׳יפ אמיתי: מיקוד מקלדת,
 /// הפעלה ב-Enter/רווח, וחשיפת מצב "נבחר" לקורא מסך.
 class _SelectableChip extends StatelessWidget {

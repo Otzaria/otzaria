@@ -9,7 +9,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 
 /// דיאלוג בחירה עם חיפוש
 class SelectionDialog<T> extends StatefulWidget {
@@ -97,9 +97,9 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
           const SizedBox(height: AppTokens.spaceSM),
           Expanded(
             child: filteredItems.isEmpty
-                ? ToolEmptyState(
+                ? OtzariaEmptyState(
                     icon: OtzariaIcons.search_24_regular,
-                    message: context.settingsText('לא נמצאו תוצאות'),
+                    title: context.settingsText('לא נמצאו תוצאות'),
                   )
                 : ListView.builder(
                     itemCount: filteredItems.length,

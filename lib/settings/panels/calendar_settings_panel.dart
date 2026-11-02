@@ -17,7 +17,6 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -850,16 +849,16 @@ class _CalendarMultiSelectionDialogState<T>
           const SizedBox(height: AppTokens.spaceSM),
           Expanded(
             child: widget.items.isEmpty
-                ? ToolEmptyState(
+                ? OtzariaEmptyState(
                     icon: OtzariaIcons.calendar_24_regular,
-                    message:
+                    title:
                         widget.emptyMessage ??
                         context.settingsText('לא נמצאו פריטים'),
                   )
                 : filteredItems.isEmpty
-                ? ToolEmptyState(
+                ? OtzariaEmptyState(
                     icon: OtzariaIcons.search_not_found_24_regular,
-                    message: context.settingsText('לא נמצאו תוצאות'),
+                    title: context.settingsText('לא נמצאו תוצאות'),
                   )
                 : AppCard(
                     child: ListView.separated(

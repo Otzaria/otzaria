@@ -10,8 +10,8 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
@@ -296,16 +296,16 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.alef_near_alef_stam_24_filled,
-        message: 'הזן מילה לחיפוש במילון',
+        title: 'הזן מילה לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 

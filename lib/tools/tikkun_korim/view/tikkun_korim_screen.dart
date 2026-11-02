@@ -26,7 +26,7 @@ import 'package:otzaria/tools/tikkun_korim/view/widgets/tikkun_bookmarks_panel.d
 import 'package:otzaria/tools/tikkun_korim/view/widgets/tikkun_settings_panel.dart';
 import 'package:otzaria/utils/text/numeral_formats.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -60,9 +60,9 @@ class TikkunKorimScreen extends StatelessWidget {
     final engine = this.engine;
     final data = this.data;
     if (engine == null || data == null) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.book_open_24_regular,
-        message: ToolsMessages.tikkunNoData,
+        title: ToolsMessages.tikkunNoData,
       );
     }
     return BlocProvider(
@@ -875,9 +875,9 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     final lines = state.currentLines;
     if (state.error != null || lines.isEmpty) _pageKey = null;
     if (state.error != null) {
-      return ToolEmptyState(
+      return OtzariaEmptyState(
         icon: FluentIcons.error_circle_24_regular,
-        message: state.error!,
+        title: state.error!,
       );
     }
     if (state.isLoading && state.pages.isEmpty) {
@@ -886,9 +886,9 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     if (lines.isEmpty) {
       // ה-BLoC מנסח הודעה מדויקת (למשל "אין הפטרה במנהג זה"); בלעדיה נופלים
       // להודעה הגנרית.
-      return ToolEmptyState(
+      return OtzariaEmptyState(
         icon: FluentIcons.book_open_24_regular,
-        message: state.headerSubtitle ?? ToolsMessages.tikkunNoData,
+        title: state.headerSubtitle ?? ToolsMessages.tikkunNoData,
       );
     }
     final pageKey = ValueKey(

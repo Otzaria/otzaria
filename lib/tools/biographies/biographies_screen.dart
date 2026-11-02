@@ -17,7 +17,6 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -213,9 +212,9 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     }
 
     if (_allBiographies.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.person_24_regular,
-        message: 'נתוני הביוגרפיות אינם זמינים',
+        title: 'נתוני הביוגרפיות אינם זמינים',
       );
     }
 
@@ -274,9 +273,9 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         ? null
         : _bundle?.eras.where((e) => e.key == _era).firstOrNull?.label;
     if (query.isEmpty && eraLabel == null) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.person_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
     final both = query.isNotEmpty && eraLabel != null;

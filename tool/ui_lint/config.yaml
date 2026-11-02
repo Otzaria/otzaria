@@ -13,8 +13,6 @@ rules:
     exclude:
       - path: lib/widgets/dialogs/**
         reason: הרכיבים המשותפים שבונים את הדיאלוגים
-      - path: lib/settings/dialogs/list_dialog_frame.dart
-        reason: המסגרת המשותפת של דיאלוגי הרשימות
 
   UIL-006:
     exclude:

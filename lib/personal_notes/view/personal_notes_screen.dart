@@ -33,7 +33,6 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -1040,9 +1039,9 @@ class _PersonalNotesManagerScreenState
     });
 
     if (displayNotes.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.note_24_regular,
-        message: 'אין הערות להצגה',
+        title: 'אין הערות להצגה',
       );
     }
 

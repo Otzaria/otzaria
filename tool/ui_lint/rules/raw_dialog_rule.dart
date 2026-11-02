@@ -17,8 +17,7 @@ class RawDialogRule extends UiLintRule {
   String get title => 'AlertDialog/Dialog/SimpleDialog גולמי';
 
   @override
-  String get hint =>
-      'AppDialog / AppDialogFrame / AppCustomContentDialog (DESIGN_SYSTEM.md §3.1)';
+  String get hint => 'AppDialog / AppDialogFrame (DESIGN_SYSTEM.md §3.1)';
 
   @override
   void check(UiLintFile file) {

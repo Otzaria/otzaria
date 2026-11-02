@@ -11,7 +11,7 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
@@ -185,16 +185,16 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.text_quote_24_regular,
-        message: 'הזן ראשי תיבות לחיפוש במילון',
+        title: 'הזן ראשי תיבות לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 
