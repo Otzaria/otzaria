@@ -123,12 +123,10 @@ class _ExpandableCardState extends State<ExpandableCard>
 
     if (!widget.wrapInCard) return content;
 
-    final resolvedRadius = AppTokens.borderRadiusAll;
-
     Widget card = Material(
       color: cardColor,
       surfaceTintColor: Colors.transparent,
-      borderRadius: resolvedRadius,
+      shape: AppCard.shape(Theme.of(context).colorScheme),
       clipBehavior: Clip.antiAlias,
       child: content,
     );

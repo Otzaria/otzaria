@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 /// טאב סטנדרטי לפנלים הימניים (ללא אייקון filled).
 /// כאשר [label] הוא null — מוצג אייקון בלבד (מצב compact).
@@ -67,13 +68,7 @@ class _PanelOpenHandleState extends State<PanelOpenHandle> {
           decoration: ShapeDecoration(
             color: AppSurfaces.panelOpenHandle(cs, isHovering: _isHovering),
             shape: const _PanelOpenHandleBorder(),
-            shadows: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: _isHovering ? 8 : 4,
-                offset: const Offset(2, 0),
-              ),
-            ],
+            shadows: AppShadows.floating(cs),
           ),
           child: Center(
             child: AnimatedOpacity(

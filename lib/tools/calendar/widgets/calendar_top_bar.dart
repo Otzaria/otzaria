@@ -33,6 +33,7 @@ import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 // הרוחב שמתחתיו עוברים לשורה שנייה
 const double _kTopBarNarrowBreakpoint = 540.0;
@@ -408,8 +409,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
               focusNode: _dialogFocusNode,
               onKeyEvent: _handleDialogKeyEvent,
               child: Material(
-                elevation: 8,
-                shadowColor: cs.shadow,
+                elevation: AppTokens.elevation2,
+                shadowColor: AppShadows.color(cs),
                 borderRadius: AppTokens.borderRadiusAll,
                 color: cs.surfaceContainerHigh,
                 child: Padding(

@@ -487,7 +487,6 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
     final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
       // צבע הכרטיס מערכת הנושא (במקום לבן קשיח) כדי שיתאים לרקע הפופאפ
       color: colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(

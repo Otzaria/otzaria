@@ -110,7 +110,7 @@ class AppTopBar extends StatefulWidget {
   State<AppTopBar> createState() => _AppTopBarState();
 }
 
-/// מרחב לצל התחתון, גדול מטווח הצל של `elevation: 2`.
+/// מרחב לצל התחתון, גדול מטווח הצל של הסרגל.
 const double _kShadowReach = 12.0;
 
 /// חותך את הצל שמעל הסרגל ומשאיר את הצל שמתחתיו ולצדדיו.
@@ -278,7 +278,7 @@ class _AppTopBarState extends State<AppTopBar>
         child: VerticalDivider(
           width: 1.0,
           thickness: 1.0,
-          color: cs.outlineVariant.withValues(alpha: 0.5),
+          color: AppSurfaces.subtleDivider(cs),
         ),
       ),
     );
@@ -295,7 +295,7 @@ class _AppTopBarState extends State<AppTopBar>
     final cs = Theme.of(context).colorScheme;
     final barColor =
         widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
-    final shadowColor = cs.shadow.withValues(alpha: 0.14);
+    final shadowColor = AppShadows.color(cs);
     final barH = density.topBarHeight;
     final hPad = AppTopBar.horizontalPadding(isCompact);
     final vPad = isCompact ? 4.0 : 8.0;
@@ -368,7 +368,7 @@ class _AppTopBarState extends State<AppTopBar>
       clipper: const _ShadowBelowOnlyClipper(),
       child: Material(
         color: barColor,
-        elevation: 2.0,
+        elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
         child: SizedBox(
@@ -401,8 +401,8 @@ class _AppTopBarState extends State<AppTopBar>
                 child: Material(
                   key: _secondaryRowKey,
                   color: barColor,
-                  elevation: 1.0,
-                  shadowColor: cs.shadow.withValues(alpha: 0.08),
+                  elevation: AppTokens.elevation1,
+                  shadowColor: shadowColor,
                   surfaceTintColor: Colors.transparent,
                   child: widget.secondaryRow!,
                 ),

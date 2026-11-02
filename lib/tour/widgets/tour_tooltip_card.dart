@@ -9,6 +9,7 @@ import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/widgets/tour_progress_dots.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 class TourTooltipCard extends StatelessWidget {
   /// הטקסט העברי, שהוא גם מפתח התרגום.
@@ -54,7 +55,8 @@ class TourTooltipCard extends StatelessWidget {
       textDirection: SettingsTextScope.languageOf(context).textDirection,
       child: Material(
         color: colorScheme.secondaryContainer,
-        elevation: 18,
+        elevation: AppTokens.elevation2,
+        shadowColor: AppShadows.color(colorScheme),
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,
           side: BorderSide(

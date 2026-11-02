@@ -234,13 +234,7 @@ class _ItemsListViewState extends State<ItemsListView> {
         border: Border.all(
           color: cs.outlineVariant.withValues(alpha: 0.55),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: 0.16),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: AppShadows.floating(cs),
       ),
       child: subtitleWidget,
     );

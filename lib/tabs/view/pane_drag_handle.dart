@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// מסמן לסרגל העליון של חלונית בטאב מפוצל שהיא ניתנת לגרירה החוצה.
 ///
@@ -105,8 +107,9 @@ class _PaneDragFeedback extends StatelessWidget {
         translation: const Offset(-0.5, -0.5),
         child: Material(
           color: theme.colorScheme.surfaceContainerHigh,
-          elevation: 8,
-          borderRadius: BorderRadius.circular(8),
+          elevation: AppTokens.elevation2,
+          shadowColor: AppShadows.color(theme.colorScheme),
+          borderRadius: AppTokens.borderRadiusAll,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Text(

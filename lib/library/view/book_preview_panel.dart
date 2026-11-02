@@ -38,6 +38,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/theme/app_shadows.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -995,7 +996,8 @@ class _PreviewToolbar extends StatelessWidget {
     return Material(
       color: cs.surfaceContainerHigh,
       shape: AppTokens.roundedShape,
-      elevation: 2,
+      elevation: AppTokens.elevation1,
+      shadowColor: AppShadows.color(cs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

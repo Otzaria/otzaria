@@ -1092,6 +1092,7 @@ class _PluginsToolbar extends StatelessWidget {
       color: cs.surfaceContainerHigh,
       shape: AppTokens.roundedShape,
       elevation: AppTokens.elevation1,
+      shadowColor: AppShadows.color(cs),
       clipBehavior: Clip.antiAlias,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1347,13 +1348,7 @@ class _ToolDragFeedback extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
-          boxShadow: [
-            BoxShadow(
-              color: cs.shadow.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppShadows.floating(cs),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

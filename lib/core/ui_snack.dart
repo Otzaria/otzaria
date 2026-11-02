@@ -418,7 +418,6 @@ class _SnackToastState extends State<_SnackToast>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final c = _colors(cs);
 
     // רקע שקוף-למחצה — מספיק אטום לקריאות, מספיק שקוף לאפקט עמוק
@@ -470,17 +469,7 @@ class _SnackToastState extends State<_SnackToast>
                           decoration: BoxDecoration(
                             color: bgColor,
                             borderRadius: AppTokens.borderRadiusAll,
-                            //  ללא border — רק צל עדין לעומק
-                            boxShadow: [
-                              BoxShadow(
-                                color: cs.shadow.withValues(
-                                  alpha: isDark ? 0.35 : 0.12,
-                                ),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                                spreadRadius: -2,
-                              ),
-                            ],
+                            boxShadow: AppShadows.floating(cs),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: _ToastTokens.padH,

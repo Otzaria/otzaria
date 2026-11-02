@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// בודק את התנהגות `showAnchoredAppSearchMenu` — תפריט עם שדה חיפוש מוצמד.
@@ -416,7 +417,9 @@ void main() {
     tester,
   ) async {
     Rect menuRect() => tester.getRect(
-      find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+      find.byWidgetPredicate(
+        (w) => w is Material && w.elevation == AppTokens.elevation2,
+      ),
     );
 
     // ללא צ'יפים — הרוחב נגזר מהפריטים הקצרים בלבד.
@@ -483,7 +486,9 @@ void main() {
 
     // pumpAnchorWithMenu ממקם את האנקור ב-SizedBox ברוחב 240 (ר' הגדרתו למעלה).
     final menuRect = tester.getRect(
-      find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+      find.byWidgetPredicate(
+        (w) => w is Material && w.elevation == AppTokens.elevation2,
+      ),
     );
     expect(
       menuRect.width,
@@ -531,7 +536,9 @@ void main() {
     final screenWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     final menuRect = tester.getRect(
-      find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+      find.byWidgetPredicate(
+        (w) => w is Material && w.elevation == AppTokens.elevation2,
+      ),
     );
 
     expect(

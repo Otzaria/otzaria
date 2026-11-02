@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// כרטיס תוכן מרכזי עם צבע ופינות מעוגלות אחידים.
+/// כרטיס תוכן מרכזי עם צבע ופינות מעוגלות אחידים, ומסגרת `outlineVariant`
+/// בלי צל (DD-12).
 ///
 /// שני קונסטרקטורים:
 /// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap] וב-[selected].
@@ -35,6 +36,12 @@ class AppCard extends StatelessWidget {
 
   /// הרווח הקבוע בין שורות במקטע כרטיס.
   static const double sectionSpacing = 1.5;
+
+  /// צורת הכרטיס: פינות 8 ומסגרת `outlineVariant`.
+  static ShapeBorder shape(ColorScheme cs) => RoundedRectangleBorder(
+    borderRadius: AppTokens.borderRadiusAll,
+    side: BorderSide(color: cs.outlineVariant),
+  );
 
   final Widget? child;
   final List<Widget>? children;
@@ -75,7 +82,7 @@ class AppCard extends StatelessWidget {
   }
 
   Widget _buildSingle(BuildContext context) {
-    final resolvedRadius = AppTokens.borderRadiusAll;
+    final cardShape = shape(Theme.of(context).colorScheme);
     Widget content = child!;
 
     if (padding != null) {
@@ -101,7 +108,7 @@ class AppCard extends StatelessWidget {
       return Material(
         color: AppSurfaces.card(context),
         surfaceTintColor: Colors.transparent,
-        borderRadius: resolvedRadius,
+        shape: cardShape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -119,7 +126,7 @@ class AppCard extends StatelessWidget {
 
     return Material(
       color: AppSurfaces.card(context),
-      borderRadius: resolvedRadius,
+      shape: cardShape,
       clipBehavior: Clip.antiAlias,
       child: content,
     );
@@ -148,9 +155,13 @@ class AppCard extends StatelessWidget {
 
     if (selected) content = _withSelected(context, content);
 
-    return ClipRRect(
-      borderRadius: resolvedRadius,
-      child: content,
+    // המסגרת מעל השורות, כדי שרקע השורות לא יכסה אותה.
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: ShapeDecoration(
+        shape: shape(Theme.of(context).colorScheme),
+      ),
+      child: ClipRRect(borderRadius: resolvedRadius, child: content),
     );
   }
 

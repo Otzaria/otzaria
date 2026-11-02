@@ -57,10 +57,7 @@ class DetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final divider = Divider(
-      height: 1,
-      color: cs.outlineVariant.withValues(alpha: 0.5),
-    );
+    final divider = Divider(height: 1, color: AppSurfaces.subtleDivider(cs));
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(

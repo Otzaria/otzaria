@@ -95,6 +95,5 @@ class ListDialogCard extends StatelessWidget {
 }
 
 /// קו מפריד בין שורות בכרטיס רשימה.
-BorderSide listDialogRowDivider(BuildContext context) => BorderSide(
-  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
-);
+BorderSide listDialogRowDivider(BuildContext context) =>
+    BorderSide(color: AppSurfaces.subtleDivider(Theme.of(context).colorScheme));

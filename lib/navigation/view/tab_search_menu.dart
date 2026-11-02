@@ -19,6 +19,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 const double _kMenuWidth = 320;
 const double _kMenuMaxHeight = 420;
@@ -272,7 +273,8 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
     final cs = Theme.of(context).colorScheme;
 
     return Material(
-      elevation: 8,
+      elevation: AppTokens.elevation2,
+      shadowColor: AppShadows.color(cs),
       borderRadius: AppTokens.borderRadiusAll,
       color: Theme.of(context).popupMenuTheme.color ?? cs.surface,
       clipBehavior: Clip.antiAlias,

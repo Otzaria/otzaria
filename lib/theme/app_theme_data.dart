@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuMetrics;
 
-import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
@@ -145,7 +146,14 @@ class AppThemeData {
       fontFamilyFallback: uiFontFamilyFallback,
       colorScheme: cs,
       textTheme: textTheme,
-      cardTheme: const CardThemeData(shape: AppTokens.roundedShape),
+      // כרטיס: מסגרת ולא צל (DD-12).
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTokens.borderRadiusAll,
+          side: BorderSide(color: cs.outlineVariant),
+        ),
+      ),
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(cs.primary),
       ),
@@ -181,7 +189,7 @@ class AppThemeData {
     );
     return theme.copyWith(
       dialogTheme: DialogThemeData(
-        barrierColor: AppColors.dialogBarrier,
+        barrierColor: AppSurfaces.scrim(cs),
         backgroundColor: cs.surfaceContainerHigh,
         shape: AppTokens.roundedShape,
         // כותרת דיאלוג היא titleLarge, כמו ב-AppDialogHeader (M3: headlineSmall).
@@ -217,7 +225,7 @@ class AppThemeData {
     return PopupMenuThemeData(
       color: backgroundColor,
       surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black.withValues(alpha: 0.22),
+      shadowColor: AppShadows.color(cs),
       elevation: AppTokens.elevation2,
       shape: AppTokens.roundedShape,
       menuPadding: metrics.menuPadding,
@@ -237,32 +245,25 @@ class AppThemeData {
         color: cs.surfaceContainerHigh,
         borderRadius: AppTokens.borderRadiusAll,
         border: Border.all(color: cs.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: 0.22,
-            ), // כמו בשאר התפריטים בקובץ
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppShadows.floating(cs),
       ),
       textStyle: TextStyle(color: cs.onSurface),
     );
   }
 
-  static MenuStyle _menuStyle(Color backgroundColor, AppMenuMetrics metrics) =>
-      MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(backgroundColor),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shadowColor: WidgetStatePropertyAll(
-          Colors.black.withValues(alpha: 0.22),
-        ),
-        elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
-        shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
-        padding: WidgetStatePropertyAll(metrics.menuPadding),
-        visualDensity: metrics.visualDensity,
-      );
+  static MenuStyle _menuStyle(
+    ColorScheme cs,
+    Color backgroundColor,
+    AppMenuMetrics metrics,
+  ) => MenuStyle(
+    backgroundColor: WidgetStatePropertyAll(backgroundColor),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    shadowColor: WidgetStatePropertyAll(AppShadows.color(cs)),
+    elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
+    shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
+    padding: WidgetStatePropertyAll(metrics.menuPadding),
+    visualDensity: metrics.visualDensity,
+  );
 
   static MenuThemeData _menuTheme(
     ColorScheme cs, {
@@ -270,7 +271,7 @@ class AppThemeData {
     required AppMenuMetrics metrics,
   }) {
     return MenuThemeData(
-      style: _menuStyle(backgroundColor, metrics),
+      style: _menuStyle(cs, backgroundColor, metrics),
     );
   }
 
@@ -290,7 +291,7 @@ class AppThemeData {
         border: OutlineInputBorder(borderRadius: AppTokens.borderRadiusAll),
         isDense: true,
       ),
-      menuStyle: _menuStyle(_menuBackground(cs), metrics),
+      menuStyle: _menuStyle(cs, _menuBackground(cs), metrics),
     );
   }
 

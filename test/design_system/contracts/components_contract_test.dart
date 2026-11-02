@@ -22,7 +22,7 @@ BoxDecoration _decorationIn(WidgetTester tester, Finder of) =>
 void main() {
   group('AppCard', () {
     for (final brightness in Brightness.values) {
-      testWidgets('ב-$brightness: משטח AppSurfaces.card בפינות 8', (
+      testWidgets('ב-$brightness: משטח AppSurfaces.card בפינות 8 ובמסגרת', (
         tester,
       ) async {
         await pumpInApp(
@@ -37,7 +37,13 @@ void main() {
           material.color,
           brightness == Brightness.dark ? cs.surfaceContainer : cs.surface,
         );
-        expect(material.borderRadius, AppTokens.borderRadiusAll);
+        expect(
+          material.shape,
+          RoundedRectangleBorder(
+            borderRadius: AppTokens.borderRadiusAll,
+            side: BorderSide(color: cs.outlineVariant),
+          ),
+        );
         expect(material.clipBehavior, Clip.antiAlias);
         expect(material.elevation, 0);
       });

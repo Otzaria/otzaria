@@ -12,13 +12,11 @@ const double kMainPanelMinWidth = 500.0;
 /// סך הרוחב המינימלי להצגת פאנל צד ותוכן ראשי זה לצד זה
 const double kSideBySideMinWidth = kSidePanelWidth + kMainPanelMinWidth;
 
-/// פאנל צף בסגנון M3 — elevation + shadow + clip.
+/// פאנל צף: רמת הגבהה 3 ([AppTokens.elevation2]) עם הצל של [AppShadows]
+/// ומסגרת `outlineVariant` (DD-12).
 class FloatingPanel extends StatelessWidget {
   /// התוכן בתוך הפאנל
   final Widget child;
-
-  /// גובה ה-elevation (M3 tonal + shadow) — ברירת מחדל: 2
-  final double elevation;
 
   /// ריפוד פנימי אופציונלי
   final EdgeInsetsGeometry? padding;
@@ -26,20 +24,16 @@ class FloatingPanel extends StatelessWidget {
   /// דריסת צבע הפאנל (אופציונלי)
   final Color? color;
 
-  /// דריסת צבע הצל (אופציונלי) — ברירת מחדל: shadow עם 10% אופקסיטי
-  final Color? shadowColor;
-
   const FloatingPanel({
     super.key,
     required this.child,
-    this.elevation = 2,
     this.padding,
     this.color,
-    this.shadowColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final panelColor = color ?? AppSurfaces.panelBackground(context);
 
     final content = padding != null
@@ -48,12 +42,13 @@ class FloatingPanel extends StatelessWidget {
 
     return Material(
       color: panelColor,
-      elevation: elevation,
-      shadowColor:
-          shadowColor ??
-          Theme.of(context).colorScheme.shadow.withValues(alpha: 0.10),
+      elevation: AppTokens.elevation2,
+      shadowColor: AppShadows.color(cs),
       surfaceTintColor: Colors.transparent,
-      borderRadius: AppTokens.borderRadiusAll,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppTokens.borderRadiusAll,
+        side: BorderSide(color: cs.outlineVariant),
+      ),
       clipBehavior: Clip.antiAlias,
       child: content,
     );

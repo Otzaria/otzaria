@@ -3421,13 +3421,9 @@ class _CommentaryCardState extends State<_CommentaryCard> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             borderRadius: AppTokens.borderRadiusAll,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: ClipRRect(
             borderRadius: AppTokens.borderRadiusAll,

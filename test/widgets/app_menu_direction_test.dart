@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// בודק שהתפריטים המעוגנים משמרים את ה-Directionality של הפותח.
@@ -101,7 +102,9 @@ void main() {
     }
 
     Rect menuRect(WidgetTester tester) => tester.getRect(
-      find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+      find.byWidgetPredicate(
+        (w) => w is Material && w.elevation == AppTokens.elevation2,
+      ),
     );
 
     testWidgets('פותח LTR — תוכן התפריט LTR ומיושר לקצה השמאלי של העוגן', (

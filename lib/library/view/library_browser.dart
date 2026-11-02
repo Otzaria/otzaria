@@ -1148,15 +1148,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: AppTokens.borderRadiusAll,
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.shadow.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
             ),
             child: const Center(child: _LoadingDotsText()),
           ),

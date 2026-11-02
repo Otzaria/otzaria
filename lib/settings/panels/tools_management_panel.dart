@@ -1458,13 +1458,7 @@ class _SettingsDragFeedback extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
-          boxShadow: [
-            BoxShadow(
-              color: cs.shadow.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppShadows.floating(cs),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
