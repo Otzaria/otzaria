@@ -611,7 +611,7 @@
    - **הוכרע:** A. למחוק (כהמלצה).
    - **תשובות:**
      - q1: למחוק את עורך קטעי הטקסט (text_book/editing)? → **כן, למחוק**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש חלקית — עורך קטעי הטקסט נמחק: lib/text_book/editing (14 קבצים) ובדיקתו, אירועי העורך (OpenEditor, SaveEditedSection, CloseEditor ועוד 5) ושדות המצב שלו ב־TextBookLoaded, כל קוד ה־[EDITING DISABLED] שבהערות (קורא הספר, גיבוי user_overrides, הגדרות המערכת והכלים, AppPaths, TextTab), קבוצת PreviewRenderer ב־heading_font_weight_test, רשומות ה־baseline של ui_lint, וההחרגה JX-23. נשאר: מעטפת שמור וזכור (UI-099), צבע caption מת (UI-116) ופרמטרים מתים ברכיבים המשותפים (UI-133).
 
 ### DD-30 · פירוק קבצי ענק — היקף ותזמון 🏗
 1. **הבעיה:**
