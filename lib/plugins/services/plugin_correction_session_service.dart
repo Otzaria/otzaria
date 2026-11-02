@@ -1071,9 +1071,6 @@ class PluginCorrectionSessionService extends ChangeNotifier {
         : PluginCorrectionDraftStatus.saving;
   }
 
-  /// הלשונית של סשן בבעלות [owner], בלי המתנה לשמירה.
-  String tabIdForSession(String owner, String id) => _owned(owner, id).tabId;
-
   String? sessionIdForTab(String owner, String tabId) {
     final session = _sessionForTab(tabId);
     return session?.owner == owner ? session?.id : null;

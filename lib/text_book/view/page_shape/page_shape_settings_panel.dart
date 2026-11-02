@@ -830,15 +830,12 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     required String? value,
     required ValueChanged<String?> onChanged,
     String? visibilityKey,
-    bool allowRemainingCommentatorsSelection = false,
   }) {
     final isVisible = visibilityKey != null
         ? (_columnVisibility[visibilityKey] ?? true)
         : true;
 
-    final menuData = _buildCommentatorMenuData(
-      allowRemaining: allowRemainingCommentatorsSelection,
-    );
+    final menuData = _buildCommentatorMenuData();
 
     return Row(
       children: [
@@ -895,9 +892,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     List<String> filterLabels,
     List<bool Function(AppMenuEntry<String>)?> filterPredicates,
   })
-  _buildCommentatorMenuData({
-    required bool allowRemaining,
-  }) {
+  _buildCommentatorMenuData() {
     if (_isLoadingGroups) {
       return (
         entries: const [],
@@ -906,21 +901,12 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       );
     }
 
-    final entries = <AppMenuEntry<String>>[];
-    if (allowRemaining) {
-      entries.add(
-        const AppMenuEntry(
-          value: pageShapeRemainingCommentatorsValue,
-          label: pageShapeRemainingCommentatorsLabel,
-        ),
-      );
-    }
-    entries.add(
+    final entries = <AppMenuEntry<String>>[
       const AppMenuEntry(
         value: _noneCommentatorValue,
         label: 'ללא מפרש',
       ),
-    );
+    ];
 
     final eraOf = <String, String>{};
     final nonEmptyGroups = _groups
@@ -933,7 +919,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       }
     }
 
-    // הפריטים המיוחדים (ללא/שאר/מרובים) אינם משויכים לדור — יופיעו רק תחת "הכל".
+    // "ללא מפרש" אינו משויך לדור — יופיע רק תחת "הכל".
     final filterLabels = <String>['הכל', ...nonEmptyGroups.map((g) => g.title)];
     final filterPredicates = <bool Function(AppMenuEntry<String>)?>[
       null,

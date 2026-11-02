@@ -84,19 +84,6 @@ class InfoValueFormat {
         : rendered;
   }
 
-  /// תקציר תיקייה אישית לשורה בפופאפ: כמות הקבצים, נפחם, ומצבים שהמשתמש
-  /// חייב לראות כדי להבין מדוע ספרים אינם מופיעים (תיקייה חסרה או מוסתרת).
-  static String folderSummary(Map<dynamic, dynamic> folder) {
-    if (folder['exists'] == false) return 'התיקייה לא נמצאה';
-    final parts = <String>[
-      '${count(folder['fileCount'])} קבצים',
-      bytes(folder['sizeBytes']),
-      if (folder['hidden'] == true) 'מוסתרת',
-      if (folder['scanTruncated'] == true) 'סריקה חלקית',
-    ];
-    return parts.join(' · ');
-  }
-
   /// פירוט הסיומות של תיקייה — `txt 8 · pdf 4`. ריק כשאין קבצים.
   static String folderTypes(Map<dynamic, dynamic> folder) {
     final byType = folder['filesByType'];

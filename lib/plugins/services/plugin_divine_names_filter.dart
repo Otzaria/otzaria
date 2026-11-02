@@ -216,17 +216,6 @@ String filterPluginDivineNamesLine(
   return withoutDivineNameJoiners(result);
 }
 
-/// שורות רצופות מ-[firstLineIndex] — ראו [filterPluginDivineNamesLine].
-List<String> filterPluginDivineNamesLines(
-  List<String> lines,
-  int firstLineIndex,
-  DivineNameSpans spans,
-  PluginDivineNamesDisplay names,
-) => [
-  for (var i = 0; i < lines.length; i++)
-    filterPluginDivineNamesLine(lines[i], firstLineIndex + i, spans, names),
-];
-
 /// טקסט נגזר בלי זהות שורה (תקציר חיפוש, כותרת, תווית עוגן): אין לו מופעי
 /// מסד, ולכן רק שם הוי"ה מוחלף — כמו בתוצאות החיפוש של התוכנה.
 String filterPluginDivineNamesText(

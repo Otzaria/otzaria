@@ -81,18 +81,6 @@ class BookProtectionRepository {
     return BookProtection.none;
   }
 
-  /// ההגבלה המחמירה מבין [titles] (למשל מפרשים שנכללים בהדפסה).
-  Future<BookProtection> strictestForTitles(
-    Iterable<String> titles, {
-    BookSource source = BookSource.official,
-  }) async {
-    var result = BookProtection.none;
-    for (final title in titles.toSet()) {
-      result = result.strictest(await forTitle(title, source: source));
-    }
-    return BookProtection(level: result.level);
-  }
-
   /// ההגבלה המחמירה מבין ספרי היעד של [links].
   Future<BookProtection> strictestForLinks(Iterable<Link> links) async {
     var result = BookProtection.none;
