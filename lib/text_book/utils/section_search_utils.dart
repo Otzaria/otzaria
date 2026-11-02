@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
-import 'package:otzaria/search/models/search_match_policy.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
@@ -360,18 +361,51 @@ double matchFractionFromLineLength({int? matchOffset, int? lineLength}) {
 /// האם תוצאת החיפוש [query] נחתה בגוף הערת שוליים של [rawLine] בלבד —
 /// המונח נמצא בהערה אך לא בטקסט הראשי. משמש לפתיחת חלונית ההערות בפתיחת
 /// תוצאה, כשהספר לבדו אינו מציג את ההתאמה (גוף ההערה מוסר מהטקסט הראשי).
+/// שאילתה שרצה במנוע נבדקת בפרמטרי ההדגשה של הספר, כמו [matchFractionInLine].
 /// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
 bool queryMatchesInlineNoteOnly(
   String rawLine,
   String query, {
   bool wholeWord = true,
   List<BookNote> dbNotes = const [],
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+  int searchDistance = 0,
+  SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
   @visibleForTesting RegExp? pattern,
 }) {
   if (!rawLine.contains('footnote') && dbNotes.isEmpty) return false;
-  final regExp =
-      pattern ?? buildLiteralPattern(query, wholeWord: wholeWord)?.regExp;
-  if (regExp == null) return false;
+  final literal =
+      pattern != null ||
+      InBookSearchRouting.canRunAsSimpleSearch(
+        searchMode: isFuzzy ? SearchMode.fuzzy : SearchMode.exact,
+        distance: searchDistance,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        matchPolicy: matchPolicy,
+      );
+  final regExp = literal
+      ? pattern ?? buildLiteralPattern(query, wholeWord: wholeWord)?.regExp
+      : null;
+  if (literal && regExp == null) return false;
+  bool matches(String clean) =>
+      regExp?.hasMatch(clean) ??
+      utils
+          .computeHighlightRanges(
+            clean,
+            query,
+            searchOptions: searchOptions,
+            alternativeWords: alternativeWords,
+            spacingValues: spacingValues,
+            isFuzzy: isFuzzy,
+            searchDistance: searchDistance,
+            matchPolicy: matchPolicy,
+            isSearchResultLine: true,
+          )
+          .isNotEmpty;
 
   final noteBody = [
     ...notes.notesForLines([rawLine], const [0]),
@@ -380,12 +414,12 @@ bool queryMatchesInlineNoteOnly(
   final cleanNote = utils
       .removeVolwels(utils.stripHtmlForSearch(noteBody))
       .replaceAll(_whitespaceRun, ' ');
-  if (!regExp.hasMatch(cleanNote)) return false;
+  if (!matches(cleanNote)) return false;
 
   final cleanMain = utils
       .removeVolwels(utils.stripHtmlForSearch(notes.stripInlineNotes(rawLine)))
       .replaceAll(_whitespaceRun, ' ');
-  return !regExp.hasMatch(cleanMain);
+  return !matches(cleanMain);
 }
 
 class _SearchWorkerHost {

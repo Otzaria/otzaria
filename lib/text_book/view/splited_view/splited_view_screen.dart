@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/plugins/view/plugin_text_reader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -58,8 +59,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _paneOpen = false;
   // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
   bool _didAutoOpenCommentary = false;
-  // פתיחה אוטומטית של חלונית ההערות כשתוצאת החיפוש נחתה בהערה — פעם אחת.
+  // פתיחה אוטומטית של חלונית ההערות כשתוצאת החיפוש נחתה בהערה — פעם אחת,
+  // ושוב רק כשהבחירה עוברת לשורה אחרת.
   bool _didOpenNotesForSearch = false;
+  int? _lastSelectedLine;
   // מונח החיפוש להדגשה בטאב המפרשים (התוצאה שנחתה בהערה).
   late final ValueNotifier<String> _searchHighlightNotifier;
   int? _currentTabIndex;
@@ -324,22 +327,34 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   /// כשתוצאת החיפוש נחתה בגוף הערת שוליים (המונח אינו נראה בטקסט הראשי),
   /// פותח את חלונית ההערות על טאב המפרשים ומוודא שמפרש "הערות" פעיל — גם אם
   /// הגדרת הפתיחה האוטומטית כבויה, כי בלעדיה אין דרך לראות את ההתאמה.
-  /// פעם אחת בלבד, ורק במצב "מפרשים בצד".
+  /// פעם אחת, ושוב בכל מעבר לשורה אחרת, ורק במצב "מפרשים בצד".
   void _maybeOpenNotesForSearchMatch() {
-    if (!mounted || _didOpenNotesForSearch || !widget.showSplitView) return;
+    if (!mounted || !widget.showSplitView) return;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
+    // עדכון מצב באותה בחירה, או בחירה שהתאפסה בגלילה, אינו פותח שוב חלונית
+    // שהמשתמש סגר; מעבר לתוצאה (שורה) אחרת — כן.
+    final selected = state.selectedIndex;
+    final movedToLine = selected != null && selected != _lastSelectedLine;
+    _lastSelectedLine = selected;
+    if (_didOpenNotesForSearch && !movedToLine) return;
     // ערך אמין: state.searchText מתעדכן בחיפוש בתוך הספר (UpdateSearchText),
     // בעוד widget.tab.searchText הוא הערך ההתחלתי בלבד.
     final query = state.searchText;
     if (query.trim().isEmpty) return;
-    final idx = state.selectedIndex ?? widget.tab.index;
+    final idx = selected ?? widget.tab.index;
     if (idx < 0 || idx >= state.content.length) return;
     if (!queryMatchesInlineNoteOnly(
       state.content[idx],
       query,
       wholeWord: state.searchWholeWord,
       dbNotes: state.bookNotes.notesAt(idx),
+      searchOptions: state.searchOptions,
+      alternativeWords: state.alternativeWords,
+      spacingValues: state.spacingValues,
+      isFuzzy: state.searchMode == SearchMode.fuzzy,
+      searchDistance: state.searchDistance,
+      matchPolicy: state.matchPolicy,
     )) {
       return;
     }
