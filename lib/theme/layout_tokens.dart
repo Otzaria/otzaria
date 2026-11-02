@@ -42,4 +42,13 @@ class LayoutConstraints {
   /// רוחב מקסימלי לתוכן בתוך מסכי לוח (הגדרות, ספריה, כלים)
   /// מאפשר מרכוז תוכן על מסכים רחבים מאוד
   static const double panelContentMaxWidth = 860.0;
+
+  /// רוחב ברירת המחדל של חלונית צד (DD-28).
+  static const double sidePaneWidth = 340.0;
+
+  /// רוחב מינימלי של התוכן הראשי לצד חלונית צד.
+  static const double mainContentMinWidth = 500.0;
+
+  /// הרוחב המינימלי להצגת חלונית צד ותוכן ראשי זה לצד זה.
+  static const double sideBySideMinWidth = sidePaneWidth + mainContentMinWidth;
 }

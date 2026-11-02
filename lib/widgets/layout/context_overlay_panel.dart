@@ -9,7 +9,7 @@
 // • פתיחה וסגירה באנימציית slide מהצד
 // • scrim לחיץ לסגירה
 // • גובה מלא של אזור התוכן
-// • צבע רקע לפי AppTopBar (surfaceContainerHigh)
+// • רקע חלונית (navPanelBackground), כמו AppTopBar
 // • תמיכה בימין/שמאל
 //
 // **שימוש:**
@@ -56,7 +56,7 @@ class ContextOverlayPanel extends StatefulWidget {
   /// יישור הפאנל (ברירת מחדל: start - ימין בעברית)
   final AlignmentDirectional alignment;
 
-  /// צבע רקע (ברירת מחדל: surfaceContainerHigh)
+  /// צבע רקע (ברירת מחדל: AppSurfaces.navPanelBackground)
   final Color? backgroundColor;
 
   /// ריפוד פנימי אחיד לתוכן הפאנל
@@ -366,7 +366,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   Widget _buildPanel(BuildContext context, BoxConstraints constraints) {
     final cs = Theme.of(context).colorScheme;
     final effectiveBackgroundColor =
-        widget.backgroundColor ?? cs.surfaceContainerHigh;
+        widget.backgroundColor ?? AppSurfaces.navPanelBackground(context);
     final isLeft = _isLeft(context);
     final showHandle = widget.isOpen;
     final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
