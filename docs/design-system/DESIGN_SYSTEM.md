@@ -54,7 +54,7 @@
 ### 1.2 הכרעות סגנון שאושרו (גרסה 1.0)
 
 ההעדפות שהסבבים הקודמים (#3322, #3539, #3794) הנהיגו הן עכשיו תקן **[מחייב]**:
-- רצועת כותרת (`headerBand`) ותג אייקון **בכל** דיאלוג, כולל `small` (DD-07 B).
+- רצועת כותרת (`headerBand`) ותג אייקון **בכל** דיאלוג, כולל `small` (DD-07 B). ב־`small` אין X (השלמה 2.11).
 - כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A).
 - כותרות מקטע בצבע `primary`, דרך `AppSectionLabel` (DD-14 A).
 - מסגרת `outlineVariant` ולא צל לכרטיסים (DD-12 A).
@@ -105,7 +105,7 @@
 
 | טוקן (תפקיד) | מקור בקוד | ערך בהיר | ערך כהה | סטטוס | שימוש |
 |---|---|---|---|---|---|
-| רקע קריאה | `AppSurfaces.readerBackground` | `cs.surface` | נייטרלי, לא נגזר מהזרע. היום `AppColors.darkScaffold` `#242424`. הערך הסופי (`#242424` או `surfaceContainerLowest` נייטרלי) נקבע ב־commit עם תמונות | קיים. הכהה: יעד — טרם מומש (DD-05 C, MIG-07) | מסכי ספר ו־PDF |
+| רקע קריאה | `AppSurfaces.readerBackground` | `cs.surface` | נייטרלי, לא נגזר מהזרע: `AppColors.darkScaffold` `#242424`, לכל ערכת צבע (DD-05, השלמה 2.11) | קיים (DD-05 C) | מסכי ספר ו־PDF |
 | רקע לוח (מסכי עבודה) | `AppSurfaces.panelBackground` | `surface` + `surfaceContainerHighest` בשקיפות 47.5% | **`surfaceContainerLow`** (היום `Colors.black`) | בהיר קיים. כהה: יעד — טרם מומש (DD-05 C, MIG-07) | הגדרות, ספרייה וכלים, ואזור התוצאות בכרטיסיית החיפוש (DD-18, UI-143) |
 | ~~רקע לוח "מוצק"~~ | ~~`AppSurfaces.solidPanelBackground`~~ | — | — | **הוסר** (UI-128, MIG-03); הקוראים עברו ל־`panelBackground` | — |
 | סרגל עליון | `AppSurfaces.topBarBackground` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים, ללא שינוי | `AppTopBar` |
@@ -121,7 +121,7 @@
 | מסגרת והפרדה | `cs.outlineVariant` | M3 | M3 | קיים | מסגרת כרטיס (DD-12) |
 | פעולה ראשית / משנית | `cs.primary` / `cs.secondaryContainer` | M3 | M3 | קיים, דרך `ActionButton` | — |
 | שגיאה | `cs.error` / `cs.errorContainer` | M3 | M3 | קיים | — |
-| אזהרה | `AppSurfaces.warning`, `onWarning`, `warningContainer`, `onWarningContainer` | גוון קבוע אחד שעובר `harmonize` מול הזרע. הגוון נקבע ב־commit עם תמונות | כנ"ל | יעד — טרם מומש (DD-24 A, MIG-12) | באנרים, תגיות `warning` |
+| אזהרה | `AppSurfaces.warning`, `onWarning`, `warningContainer`, `onWarningContainer` | הגוון הקבוע `AppColors.warningHue` (`#FB8C00`) עובר `harmonize` מול `primary` של הערכה, ולכן משתנה מעט מערכה לערכה (DD-24, השלמה 2.11: מותאם לערכה ולא כתום קבוע) | כנ"ל | יעד — טרם מומש (DD-24 A, MIG-12) | באנרים, תגיות `warning` |
 | הצלחה | `cs.secondaryContainer` / `onSecondaryContainer` | הגוון הנייטרלי הקיים (חום בערכת ברירת המחדל), **לא ירוק** | M3 | קיים (DD-24, DD-13) | הודעת הצלחה, סמל ה־וי, תגית `success` |
 | Hover / Pressed / Focus של כפתורים | `_hoverButtonStyle` (שקיפות 8%/12% על primary) | | | קיים בערכת הנושא | — |
 | שורה נבחרת | `selectedRow` = `secondaryContainer` | | | יעד — טרם מומש (DD-06 C, MIG-07). היום ≥8 הגדרות (UI-018); עד אז `AppSurfaces.selectedItem` | רשימות, עצים, כרטיסיות |
@@ -138,7 +138,7 @@
 
 #### 2.1.2 צבעי ניווט, קריאה וסימון
 - **ניווט [מחייב] · קיים:** הסרגל העליון וחלונית הניווט חולקים צבע אחד (`topBarBackground`), כדי שייראו כרצועה רציפה.
-- **כרטיסיות [מחייב] · יעד — טרם מומש (DD-06, MIG-21):** שלוש רצועות הכרטיסיות משתמשות באותם `selectedRow`, `hoverRow` ו־`multiSelected` (היום שונים, UI-014). "נבחר" מסומן גם במשקל הגופן או באייקון, לא רק בצבע.
+- **כרטיסיות [מחייב] · יעד — טרם מומש (DD-06, MIG-21):** שלוש רצועות הכרטיסיות משתמשות באותם `hoverRow` ו־`multiSelected` (היום שונים, UI-014). הכרטיסייה הפעילה, ברצועה האופקית וברצועה האנכית, בצבע הסרגל (`topBarBackground`) ובמשקל w600 (השלמה 2.11). ברצועה האופקית הצורה מחברת אותה לפס, וברצועה האנכית היא בולטת על רקע הלוח. בחיפוש הכרטיסיות הכרטיסייה הנוכחית ב־`selectedRow`. "נבחר" מסומן גם במשקל הגופן או באייקון, לא רק בצבע.
 - **סימון טקסט בקורא:** צבעי הדגשה שהמשתמש בוחר (מרקר, צבעי אירועים) הם **תוכן**. שומרים אותם כנתון (אינדקס או ARGB) ומתאימים אותם לבהירות בזמן ציור, כפי ש־`CalendarEventColors` כבר עושה.
 
 #### 2.1.3 חריגים מותרים לצבע מקומי [מחייב] (DD-24)
@@ -362,11 +362,13 @@
 
 **[מחייב]** רצועת כותרת (`AppDialogHeader`) ותג אייקון **בכל** דיאלוג, כולל `small` (DD-07 B). האייקון מתאר את הפעולה. אם אין לה אייקון שאומר משהו, משתמשים באייקון של משפחת הדיאלוג. `AppDialogFrame(size:)` מחליף את `AppCustomContentDialog` ואת `ListDialogFrame`. אייקוני המשפחות: `AppDialogIcons` (מידע, אישור, אזהרה, קלט, בחירה, התקדמות).
 
+**[מחייב]** ב־`small` אין X (DD-07, השלמה 2.11): סוגרים ב״ביטול״ (או בכפתור הסגירה של הדיאלוג), ב־Escape או בלחיצה בחוץ. `AppDialogFrame` קובע את זה לפי הגודל. מ־`medium` ומעלה ה־X נשאר.
+
 | משפחה | רכיב | מתי | כותרת | תג אייקון | X | גודל / גובה | גלילה | פעולות |
 |---|---|---|---|---|---|---|---|---|
 | **אישור פשוט** | `showTwoActionsDialog` | שאלת כן/לא שאינה הרסנית | רצועה | כן | לא | `small` (400), לפי התוכן | לא | ביטול (`neutral`) + אישור (ראשי) |
 | **אזהרה** | `showWarningDialog` | פעולה הרסנית או בלתי הפיכה | רצועה, טון שגיאה | כן, אזהרה בטון שגיאה | לא | `small` | לא | ביטול (מוקד) + אישור (`warning`) |
-| **מידע** | `showSingleActionDialog` | הודעה שדורשת קריאה, כשאין די ב־`UiSnack` | רצועה | כן | לא | `small`/`medium` | אם התוכן ארוך | סגור (ראשי) |
+| **מידע** | `showSingleActionDialog` | הודעה שדורשת קריאה, כשאין די ב־`UiSnack` | רצועה | כן | לא ב־`small`, כן ב־`medium` | `small`/`medium` | אם התוכן ארוך | סגור (ראשי) |
 | **קלט** | `showInputDialog` | שדה טקסט אחד | רצועה | כן | לא | `small` | לא | ביטול + אישור. Enter בשדה = אישור |
 | **בחירה** | `showSelectionDialog` | בחירת פריט אחד מרשימה | רצועה | כן | לא | `small` × עד 60% גובה | רשימה | ביטול. Enter על פריט = בחירה |
 | **בחירה בין N אפשרויות** | `showChoiceDialog` (יעד, MIG-10) | 3+ פעולות שוות, למשל "טקסט / Word / ביטול" | רצועה | כן | לא | `small` | לא | N ראשיות/ניטרליות + ביטול |
@@ -388,7 +390,7 @@
 | **פוקוס פותח** | השדה הראשון. בדיאלוג אזהרה: כפתור הביטול. |
 | **פוקוס בסגירה** | חוזר לרכיב שפתח את הדיאלוג (`showDialogUntilTornDown` / `registerDialogFocusRestorer`). |
 | **Semantics** | ל־route יש `label` עם כותרת הדיאלוג. `AppDialogFrame` מספק את זה היום, ו־`Dialog` גולמי לא. |
-| **מובייל (<600, DD-16)** | `small`/`medium` ברוחב מלא פחות 16, ו־`large`/`full` במסך מלא עם X. הרצועה נשארת, וה־X הוא שטח מגע של 48. |
+| **מובייל (<600, DD-16)** | `small`/`medium` ברוחב מלא פחות 16, ו־`large`/`full` במסך מלא עם X. הרצועה נשארת. ב־`small` אין X, ומ־`medium` ומעלה ה־X הוא שטח מגע של 48. |
 | **פתיחה** | תמיד דרך `showDialogUntilTornDown` (או העזרים שעוטפים אותו, כמו `showTwoActionsDialog`), כדי לשמור על הכיווניות של הפותח ועל ניקוי מסודר בסגירה. בהגדרות: `settingsDialogBuilder`. |
 
 **[אסור]** בקוד חדש:
@@ -430,7 +432,7 @@
 | שדה טקסט | `RtlTextField` + `InputDecoration` מערכת הנושא | `TextField` גולמי אסור (נאכף בבדיקה) |
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
 | חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16) |
-| בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11). |
+| בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11; אושר בהשלמה 2.11: תווית מעל השדה). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה). |
 | 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsActionTile.segmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (יעד, DD-13, MIG-08) | היום `FilterChipsSelector` / `compactFilterChips` בצבעי `secondary` |
 | Checkbox | `Checkbox` של Material + `checkboxTheme` (יעד, MIG-08) | השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |

@@ -158,7 +158,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 |---|---|---|
 | שימוש ב־Theme | רכיב ללא override מקבל את צבעי ה־component theme. שינוי זרע משנה את הרכיב בלי שינוי קוד | `pumpWidget` עם שני `ColorScheme`. בדיקה ש־`Material.color`/`TextStyle.color` נגזרים מהתפקיד |
 | בהיר/כהה | ניגודיות ≥4.5 לכל זוג טקסט/רקע של הרכיב, בשני מצבי הבהירות ובכל הזרעים | הרחבה של `test/theme/app_theme_data_test.dart:101-136` |
-| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. רצועת כותרת ותג אייקון בכל גודל (DD-07). מתחת ל־600: `large` במסך מלא (DD-16). ה־X מוצג. כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
+| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. רצועת כותרת ותג אייקון בכל גודל (DD-07). מתחת ל־600: `large` במסך מלא (DD-16). ה־X מוצג מ־`medium` ומעלה, ולא ב־`small` (DD-07, השלמה 2.11). כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
 | גלילה | תוכן ארוך גולל, ושורת הפעולות נשארת קבועה | |
 | מקלדת | Escape סוגר. Escape עם dirty שואל. Enter ב־`SelectionDialog` על פריט בוחר אותו (רגרסיה לבאג UI-024). Enter על "ביטול" מבטל. Tab מקיף את שורת הפעולות (DD-08) | `sendKeyEvent` |
 | שינוי גודל חלון | רכיב בחלונית ברוחב 300 בתוך חלון ברוחב 1400 מחליט לפי 300 | `SizedBox(width:300)` בתוך view רחב |
