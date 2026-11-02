@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
@@ -65,7 +68,13 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
 
   // הכפתור יושב בתוך השדה, ובדסקטופ השדה מזיז את הסמן כבר ב-tap down (לפני
   // onPressed). הסשן צריך את הבחירה שהייתה ברגע הלחיצה.
-  TextEditingValue? _valueAtPointerDown;
+  ({
+    PointerEvent pointer,
+    TextEditingController controller,
+    PluginSearchFieldAction action,
+    TextEditingValue value,
+  })?
+  _pointerSelection;
 
   @override
   void initState() {
@@ -245,7 +254,39 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       PluginSearchFieldActionState.idle => Icon(icon, size: widget.iconSize),
     };
     return Listener(
-      onPointerDown: (_) => _valueAtPointerDown = widget.controller.value,
+      onPointerDown: (event) {
+        if (event.buttons == kPrimaryButton &&
+            _pointerSelection?.pointer.down != true) {
+          _pointerSelection = (
+            pointer: event,
+            controller: widget.controller,
+            action: action,
+            value: widget.controller.value,
+          );
+        }
+      },
+      onPointerCancel: (event) {
+        if (_pointerSelection?.pointer.pointer == event.pointer) {
+          _pointerSelection = null;
+        }
+      },
+      onPointerUp: (event) {
+        final pending = _pointerSelection;
+        if (pending == null || pending.pointer.pointer != event.pointer) return;
+        final released = (
+          pointer: event,
+          controller: pending.controller,
+          action: pending.action,
+          value: pending.value,
+        );
+        _pointerSelection = released;
+        // onPressed רץ בסיום הפצת ה-pointer up, לפני המיקרוטאסק.
+        scheduleMicrotask(() {
+          if (identical(_pointerSelection?.pointer, event)) {
+            _pointerSelection = null;
+          }
+        });
+      },
       child: _iconButton(
         context,
         key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
@@ -253,11 +294,15 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
         tooltip: session?.tooltip ?? action.title,
         selected: session != null,
         onPressed: () {
-          final atDown = _valueAtPointerDown;
-          _valueAtPointerDown = null;
-          if (atDown != null && atDown.text == widget.controller.text) {
-            widget.controller.selection = atDown.selection;
+          final gesture = _pointerSelection;
+          if (gesture != null &&
+              gesture.pointer is PointerUpEvent &&
+              identical(gesture.controller, widget.controller) &&
+              identical(gesture.action, action) &&
+              gesture.value.text == widget.controller.text) {
+            widget.controller.selection = gesture.value.selection;
           }
+          _pointerSelection = null;
           _sessions.press(
             binding: this,
             viewId: View.of(context).viewId,
