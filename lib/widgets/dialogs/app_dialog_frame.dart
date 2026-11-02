@@ -60,6 +60,7 @@ class AppDialogFrame extends StatelessWidget {
     this.size = AppDialogSize.medium,
     this.subtitle,
     this.subtitleMaxLines,
+    this.leading,
     this.trailing,
     this.tone = AppDialogHeaderTone.primary,
     this.fitTitle = false,
@@ -88,6 +89,9 @@ class AppDialogFrame extends StatelessWidget {
 
   /// null = בלי הגבלה. שם ספר ארוך בשורת המשנה מוגבל לשורה אחת.
   final int? subtitleMaxLines;
+
+  /// פקדים בתחילת הרצועה, לפני התג — למשל ניווט בתצוגה מקדימה.
+  final Widget? leading;
 
   /// ווידג'ט בין הכותרת לאיקס, למשל מונה.
   final Widget? trailing;
@@ -158,6 +162,7 @@ class AppDialogFrame extends StatelessWidget {
           title: title,
           subtitle: subtitle,
           subtitleMaxLines: subtitleMaxLines,
+          leading: leading,
           trailing: trailing,
           tone: tone,
           compact: true,

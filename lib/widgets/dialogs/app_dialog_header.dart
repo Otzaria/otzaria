@@ -19,6 +19,7 @@ class AppDialogHeader extends StatelessWidget {
     this.icon,
     required this.title,
     this.subtitle,
+    this.leading,
     this.trailing,
     this.tone = AppDialogHeaderTone.primary,
     this.onClose,
@@ -36,6 +37,10 @@ class AppDialogHeader extends StatelessWidget {
 
   /// שורה קטנה מתחת לשם: תיאור המקרה, שם הספר וכד'.
   final String? subtitle;
+
+  /// פקדים בתחילת הרצועה, לפני התג. בחלון צר הם יורדים לשורה משלהם מתחת
+  /// לכותרת, כדי לא לדחוק אותה.
+  final Widget? leading;
 
   /// ווידג'ט בין הטקסט לכפתור הסגירה, למשל מונה.
   final Widget? trailing;
@@ -70,7 +75,9 @@ class AppDialogHeader extends StatelessWidget {
     // ברוחב טלפון ה-trailing (מונה, שם צבע) היה מצמצם את הכותרת לרוחב של אות
     // אחת; שם הוא יורד לשורה משלו מתחת לכותרת. נמדד לפי המסך ולא לפי
     // LayoutBuilder, כי AlertDialog מודד רוחב פנימי.
-    final stackTrailing = trailing != null && WindowClass.of(context).isCompact;
+    final compactWindow = WindowClass.of(context).isCompact;
+    final stackTrailing = trailing != null && compactWindow;
+    final stackLeading = leading != null && compactWindow;
     return Container(
       // קו עדין בתחתית הרצועה: מפריד בינה לבין גוף הדיאלוג.
       decoration: BoxDecoration(
@@ -83,68 +90,90 @@ class AppDialogHeader extends StatelessWidget {
         AppTokens.spaceSM,
         vertical,
       ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            AppDialogIconBadge(icon: icon!, tone: tone),
-            const SizedBox(width: AppTokens.spaceMD),
-          ] else
-            const SizedBox(width: AppTokens.spaceSM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (fitTitle)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        style: theme.textTheme.titleLarge,
+      child: _withStackedLeading(
+        stackLeading,
+        Row(
+          children: [
+            if (leading != null && !stackLeading) ...[
+              leading!,
+              const SizedBox(width: AppTokens.spaceMD),
+            ],
+            if (icon != null) ...[
+              AppDialogIconBadge(icon: icon!, tone: tone),
+              const SizedBox(width: AppTokens.spaceMD),
+            ] else
+              const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (fitTitle)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                      ),
+                    )
+                  else
+                    Text(title, style: theme.textTheme.titleLarge),
+                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: subtitleMaxLines,
+                      overflow: subtitleMaxLines == null
+                          ? null
+                          : TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
-                  )
-                else
-                  Text(title, style: theme.textTheme.titleLarge),
-                if (subtitle != null && subtitle!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    maxLines: subtitleMaxLines,
-                    overflow: subtitleMaxLines == null
-                        ? null
-                        : TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
+                  ],
+                  if (stackTrailing) ...[
+                    const SizedBox(height: AppTokens.spaceXS),
+                    trailing!,
+                  ],
                 ],
-                if (stackTrailing) ...[
-                  const SizedBox(height: AppTokens.spaceXS),
-                  trailing!,
-                ],
-              ],
+              ),
             ),
-          ),
-          if (trailing != null && !stackTrailing) ...[
-            const SizedBox(width: AppTokens.spaceSM),
-            trailing!,
+            if (trailing != null && !stackTrailing) ...[
+              const SizedBox(width: AppTokens.spaceSM),
+              trailing!,
+            ],
+            if (showClose)
+              IconButton(
+                icon: const Icon(FluentIcons.dismiss_24_regular),
+                tooltip: closeTooltip ?? context.settingsText('סגור'),
+                onPressed: closeEnabled
+                    ? (onClose ?? () => Navigator.of(context).maybePop())
+                    : null,
+              )
+            else
+              const SizedBox(width: AppTokens.spaceSM),
           ],
-          if (showClose)
-            IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular),
-              tooltip: closeTooltip ?? context.settingsText('סגור'),
-              onPressed: closeEnabled
-                  ? (onClose ?? () => Navigator.of(context).maybePop())
-                  : null,
-            )
-          else
-            const SizedBox(width: AppTokens.spaceSM),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _withStackedLeading(bool stack, Widget row) {
+    if (!stack) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(top: AppTokens.spaceSM),
+          child: leading!,
+        ),
+      ],
     );
   }
 }

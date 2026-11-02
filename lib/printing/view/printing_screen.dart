@@ -42,6 +42,7 @@ import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
@@ -2093,18 +2094,29 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final isCustomPdfMode = widget.createPdfOverride != null;
     final isPrebuiltMode = widget.prebuiltBlocks != null;
 
-    final dialog = Dialog(
-      insetPadding: const EdgeInsets.fromLTRB(12, 40, 12, 12),
-      clipBehavior: Clip.antiAlias,
-      child: Scaffold(
-        backgroundColor: AppSurfaces.panelBackground(context),
-        body: Column(
+    // הקוראים פותחים עם barrierDismissible: false — לחיצה בחוץ לא סוגרת, ESC כן.
+    // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent יגיע למסגרת.
+    return ValueListenableBuilder(
+      valueListenable: _preview,
+      builder: (context, preview, body) {
+        final sheetCount = _navigableSheetCount(preview);
+        return AppDialogFrame(
+          icon: FluentIcons.print_24_regular,
+          title: 'הדפסה — ${widget.book?.title ?? widget.bookId}',
+          fitTitle: true,
+          leading: sheetCount == null ? null : _buildTopBarNav(sheetCount),
+          size: AppDialogSize.full,
+          padding: EdgeInsets.zero,
+          backgroundColor: AppSurfaces.panelBackground(context),
+          closeEnabled: !_isPrinting,
+          child: body!,
+        );
+      },
+      child: Focus(
+        autofocus: true,
+        skipTraversal: true,
+        child: Column(
           children: [
-            PrintingAppBar(
-              title: 'הדפסה — ${widget.book?.title ?? widget.bookId}',
-              leading: _buildTopBarNav(),
-              closeEnabled: !_isPrinting,
-            ),
             Expanded(
               child: FutureBuilder(
                 future: _dataFuture,
@@ -2150,20 +2162,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
             ),
           ],
         ),
-      ),
-    );
-    // הקוראים פותחים עם barrierDismissible: false — לחיצה בחוץ לא סוגרת, ESC כן.
-    // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent הגלובלי יגיע לכאן.
-    return PopScope(
-      canPop: !_isPrinting,
-      child: Actions(
-        actions: {
-          DismissIntent: CallbackAction<DismissIntent>(
-            onInvoke: (_) =>
-                _isPrinting ? null : Navigator.of(context).maybePop(),
-          ),
-        },
-        child: Focus(autofocus: true, skipTraversal: true, child: dialog),
       ),
     );
   }
@@ -2793,84 +2791,77 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// פקדי ניווט בסרגל העליון: כפתור "ניווט" (מחליף תצוגה מוקטנת) ובורר "עמוד".
   /// reactive ל-[_preview] — מוצג רק כשיש יותר מגיליון אחד והטעינה הסתיימה.
-  Widget _buildTopBarNav() {
-    return ValueListenableBuilder<
-      ({
-        List<Uint8List> pages,
-        bool busy,
-        bool failed,
-        bool truncated,
-      })
-    >(
-      valueListenable: _preview,
-      builder: (context, state, _) {
-        final cells = switch (_pagesPerSheet) {
-          2 => 2,
-          4 => 4,
-          _ => 1,
-        };
-        final pageCount = state.pages.length;
-        final sheetCount = cells <= 1
-            ? pageCount
-            : (pageCount + cells - 1) ~/ cells;
-        final hasNav = !state.busy && sheetCount > 1;
-        if (!hasNav) return const SizedBox.shrink();
-        final currentSheet = _currentPreviewItem.clamp(
-          0,
-          sheetCount > 0 ? sheetCount - 1 : 0,
-        );
-        final colorScheme = Theme.of(context).colorScheme;
+  /// מספר הגיליונות בתצוגה המקדימה, או null כשאין בין מה לנווט.
+  int? _navigableSheetCount(
+    ({List<Uint8List> pages, bool busy, bool failed, bool truncated}) state,
+  ) {
+    final cells = switch (_pagesPerSheet) {
+      2 => 2,
+      4 => 4,
+      _ => 1,
+    };
+    final pageCount = state.pages.length;
+    final sheetCount = cells <= 1
+        ? pageCount
+        : (pageCount + cells - 1) ~/ cells;
+    return !state.busy && sheetCount > 1 ? sheetCount : null;
+  }
 
-        void toggleThumbnails() =>
-            setState(() => _showThumbnails = !_showThumbnails);
+  Widget _buildTopBarNav(int sheetCount) {
+    final currentSheet = _currentPreviewItem.clamp(
+      0,
+      sheetCount > 0 ? sheetCount - 1 : 0,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _showThumbnails
-                ? ActionButton.recommended(
-                    text: 'ניווט',
-                    icon: FluentIcons.navigation_24_regular,
-                    onPressed: toggleThumbnails,
-                  )
-                : ActionButton.neutral(
-                    text: 'ניווט',
-                    icon: FluentIcons.navigation_24_regular,
-                    onPressed: toggleThumbnails,
-                  ),
-            const SizedBox(width: 12),
-            Text(
-              'עמוד',
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: AppTokens.fontMD,
+    void toggleThumbnails() =>
+        setState(() => _showThumbnails = !_showThumbnails);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _showThumbnails
+            ? ActionButton.recommended(
+                text: 'ניווט',
+                icon: FluentIcons.navigation_24_regular,
+                onPressed: toggleThumbnails,
+              )
+            : ActionButton.neutral(
+                text: 'ניווט',
+                icon: FluentIcons.navigation_24_regular,
+                onPressed: toggleThumbnails,
               ),
+        const SizedBox(width: 12),
+        Text(
+          'עמוד',
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: AppTokens.fontMD,
+          ),
+        ),
+        const SizedBox(width: AppTokens.spaceSM),
+        SizedBox(
+          width: 96,
+          child: AppDropdownField<int>(
+            value: currentSheet + 1,
+            enableSearch: true,
+            entries: List.generate(
+              sheetCount,
+              (i) => AppMenuEntry(value: i + 1, label: '${i + 1}'),
             ),
-            const SizedBox(width: AppTokens.spaceSM),
-            SizedBox(
-              width: 96,
-              child: AppDropdownField<int>(
-                value: currentSheet + 1,
-                enableSearch: true,
-                entries: List.generate(
-                  sheetCount,
-                  (i) => AppMenuEntry(value: i + 1, label: '${i + 1}'),
-                ),
-                onSelected: (value) {
-                  if (value == null || !_itemScrollController.isAttached) {
-                    return;
-                  }
-                  _itemScrollController.scrollTo(
-                    index: value - 1,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+            onSelected: (value) {
+              if (value == null || !_itemScrollController.isAttached) {
+                return;
+              }
+              _itemScrollController.scrollTo(
+                index: value - 1,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
