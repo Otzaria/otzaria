@@ -50,36 +50,13 @@ class DeclarativeActionCompiler {
       );
     }
     final type = _requiredString(json['type'], 'action.type');
-    final definition = DeclarativeCommandRegistry.require(type);
-    if (definition.phase != DeclarativeCommandPhase.action ||
-        definition.requiredPermission == null) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_phase',
-        'Command "$type" is not an action',
-      );
-    }
-    final permission = definition.requiredPermission!;
-    if (!declaredPermissions.contains(permission)) {
-      throw DeclarativeProgramException(
-        'declarative.permission_not_declared',
-        'Action "$type" requires permission "$permission"',
-      );
-    }
-    final args = _requiredMap(json['args'], 'action.args');
-    assertOnlyKeys(
-      args,
-      {...definition.requiredArgs, ...definition.optionalArgs},
-      'action.args',
+    final definition = requireActionDefinition(
+      type,
+      declaredPermissions: declaredPermissions,
     );
-    final missing = definition.requiredArgs
-        .where((field) => !args.containsKey(field))
-        .toList();
-    if (missing.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_args',
-        'Action "$type" is missing: ${missing.join(', ')}',
-      );
-    }
+    final permission = definition.requiredPermission!;
+    final args = _requiredMap(json['args'], 'action.args');
+    assertActionArgs(definition, args);
     switch (type) {
       case 'reader.openBook':
       case 'reader.openBookInSidePane':
@@ -201,6 +178,52 @@ class DeclarativeActionCompiler {
       throw const DeclarativeProgramException(
         'declarative.invalid_args',
         'reader.openBook.matchedTerms must be a list of short strings',
+      );
+    }
+  }
+
+  /// פקודה שמותר להפעיל כפעולה: בשלב action, עם הרשאה שהתוסף הצהיר עליה.
+  /// בלי [declaredPermissions] ההצהרה אינה נבדקת.
+  static DeclarativeCommandDefinition requireActionDefinition(
+    String type, {
+    Set<String>? declaredPermissions,
+  }) {
+    final definition = DeclarativeCommandRegistry.require(type);
+    final permission = definition.requiredPermission;
+    if (definition.phase != DeclarativeCommandPhase.action ||
+        permission == null) {
+      throw DeclarativeProgramException(
+        'declarative.invalid_phase',
+        'Command "$type" is not an action',
+      );
+    }
+    if (declaredPermissions != null &&
+        !declaredPermissions.contains(permission)) {
+      throw DeclarativeProgramException(
+        'declarative.permission_not_declared',
+        'Action "$type" requires permission "$permission"',
+      );
+    }
+    return definition;
+  }
+
+  /// [args] של הפעולה: בלי שדות זרים, ועם כל שדות החובה של [definition].
+  static void assertActionArgs(
+    DeclarativeCommandDefinition definition,
+    Map<String, dynamic> args,
+  ) {
+    assertOnlyKeys(
+      args,
+      {...definition.requiredArgs, ...definition.optionalArgs},
+      'action.args',
+    );
+    final missing = definition.requiredArgs
+        .where((field) => !args.containsKey(field))
+        .toList();
+    if (missing.isNotEmpty) {
+      throw DeclarativeProgramException(
+        'declarative.invalid_args',
+        'Action "${definition.type}" is missing: ${missing.join(', ')}',
       );
     }
   }

@@ -1,4 +1,3 @@
-import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
 import 'package:otzaria/plugins/declarative/compiler/declarative_action_compiler.dart';
 import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
@@ -50,37 +49,12 @@ class DeclarativeSelectionAction {
         'action.type must be a non-empty string',
       );
     }
-    final definition = DeclarativeCommandRegistry.require(type);
-    if (definition.phase != DeclarativeCommandPhase.action ||
-        definition.requiredPermission == null) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_phase',
-        'Command "$type" is not an action',
-      );
-    }
-    if (declaredPermissions != null &&
-        !declaredPermissions.contains(definition.requiredPermission)) {
-      throw DeclarativeProgramException(
-        'declarative.permission_not_declared',
-        'Action "$type" requires permission '
-            '"${definition.requiredPermission}"',
-      );
-    }
-    final args = _requiredMap(json['args'], 'action.args');
-    assertOnlyKeys(
-      args,
-      {...definition.requiredArgs, ...definition.optionalArgs},
-      'action.args',
+    final definition = DeclarativeActionCompiler.requireActionDefinition(
+      type,
+      declaredPermissions: declaredPermissions,
     );
-    final missing = definition.requiredArgs
-        .where((field) => !args.containsKey(field))
-        .toList();
-    if (missing.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_args',
-        'Action "$type" is missing: ${missing.join(', ')}',
-      );
-    }
+    final args = _requiredMap(json['args'], 'action.args');
+    DeclarativeActionCompiler.assertActionArgs(definition, args);
     final budget = _Budget();
     _validateExpression(args, budget, source: source, depth: 0);
     if (declaredPermissions != null &&
