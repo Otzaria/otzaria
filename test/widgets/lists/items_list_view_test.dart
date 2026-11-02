@@ -56,15 +56,9 @@ void main() {
     );
   }
 
-  /// שורת "תחילת קבוצה" — ClipRRect עם פינות עליונות מעוגלות שעוטף Material
-  /// של שורת כרטיס. שקול לספירת כרטיסי קבוצה במבנה הווירטואלי.
-  Finder groupStarts() => find.byWidgetPredicate(
-    (w) =>
-        w is ClipRRect &&
-        w.borderRadius is BorderRadius &&
-        (w.borderRadius as BorderRadius).topLeft != Radius.zero &&
-        w.child is Material,
-  );
+  /// הקווים בין השורות. ברשימה הפשוטה (DD-11) יש קו בין שורות של אותה קבוצה
+  /// ואין קו בין קבוצות, ולכן מספר הקווים = מספר הפריטים פחות מספר הקבוצות.
+  Finder rowDividers() => find.byType(Divider);
 
   group('ItemsListView', () {
     testWidgets('מציג את כל הפריטים כשאין additionalFilter', (tester) async {
@@ -240,7 +234,7 @@ void main() {
         );
       }
 
-      testWidgets('groupKeyBuilder מקבץ פריטים בכרטיסים נפרדים לפי מפתח', (
+      testWidgets('groupKeyBuilder מקבץ פריטים בקבוצות נפרדות לפי מפתח', (
         tester,
       ) async {
         await tester.binding.setSurfaceSize(const Size(800, 600));
@@ -254,8 +248,8 @@ void main() {
         );
         await tester.pump();
 
-        // גמרא + הלכה = 2 קבוצות → 2 תחילות-כרטיס
-        expect(groupStarts(), findsNWidgets(2));
+        // גמרא (2) + הלכה (1) = 2 קבוצות → קו אחד, בתוך קבוצת גמרא
+        expect(rowDividers(), findsOneWidget);
         expect(find.text('שבת עד:'), findsOneWidget);
         expect(find.text('ברכות ב.'), findsOneWidget);
         expect(find.text('הלכות שבת'), findsOneWidget);
@@ -293,16 +287,16 @@ void main() {
         );
         await tester.pump();
 
-        expect(groupStarts(), findsNWidgets(2));
+        expect(rowDividers(), findsOneWidget);
         expect(find.text('גמרא'), findsNothing);
         expect(find.text('הלכה'), findsNothing);
       });
 
-      testWidgets('פריטים עם אותו groupKey מקובצים לכרטיס אחד', (tester) async {
+      testWidgets('פריטים עם אותו groupKey מקובצים לקבוצה אחת', (tester) async {
         await tester.binding.setSurfaceSize(const Size(800, 600));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
-        // 3 פריטים לאותה קבוצה → כרטיס אחד
+        // 3 פריטים לאותה קבוצה → קבוצה אחת, קו בין כל שתי שורות
         const allGemara = [
           _Item('שבת עד:', workspaceName: 'גמרא'),
           _Item('ברכות ב.', workspaceName: 'גמרא'),
@@ -317,7 +311,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(groupStarts(), findsOneWidget);
+        expect(rowDividers(), findsNWidgets(2));
       });
     });
 

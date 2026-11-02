@@ -194,6 +194,21 @@ class _BookmarkViewState extends State<BookmarkView> {
     bloc.renameGroup(group.id, result);
   }
 
+  /// מחיקת סימניה מרוכזת. פעולה בלתי הפיכה ולכן מאושרת בדיאלוג אזהרה.
+  Future<void> _deleteGroup(BuildContext context, BookmarkGroup group) async {
+    final bloc = context.read<BookmarkBloc>();
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'למחוק את הסימניה המרוכזת?',
+      content: 'הסימניה המרוכזת "${group.name}" תימחק.',
+      subtitle: 'לא ניתן לשחזר סימניה שנמחקה.',
+      confirmText: 'מחק',
+    );
+    if (confirmed != true) return;
+    bloc.removeGroup(group.id);
+    UiSnack.show(NotesMessages.groupBookmarkDeleted);
+  }
+
   Widget _buildGroupsSection(BuildContext context, List<BookmarkGroup> groups) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -213,11 +228,7 @@ class _BookmarkViewState extends State<BookmarkView> {
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 180),
           child: Material(
-            color: AppSurfaces.card(context),
-            shape: RoundedRectangleBorder(
-              borderRadius: AppTokens.borderRadiusAll,
-            ),
-            clipBehavior: Clip.antiAlias,
+            type: MaterialType.transparency,
             child: ListView.separated(
               shrinkWrap: true,
               padding: EdgeInsets.zero,
@@ -278,12 +289,7 @@ class _BookmarkViewState extends State<BookmarkView> {
                             color: cs.onSurfaceVariant,
                           ),
                           tooltip: 'מחיקה',
-                          onPressed: () {
-                            context.read<BookmarkBloc>().removeGroup(
-                              group.id,
-                            );
-                            UiSnack.show(NotesMessages.groupBookmarkDeleted);
-                          },
+                          onPressed: () => _deleteGroup(context, group),
                         ),
                       ],
                     ),
