@@ -20,6 +20,7 @@ import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import '../providers/shamor_zachor_data_provider.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// פותח דיאלוג לבחירת ספרים מעץ הספרייה והוספתם למעקב בשמור וזכור.
 ///
@@ -245,15 +246,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           return const LoadingIndicator();
         }
 
-        // Material and not a decorated box, so the tiles' ink is painted
-        // above the card colour.
-        return Material(
-          color: AppSurfaces.card(context),
-          shape: RoundedRectangleBorder(
-            borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
-          ),
-          clipBehavior: Clip.antiAlias,
+        return AppCard(
           child: _hasActiveSearch
               ? _buildSearchResults(library, colorScheme)
               : _buildTree(library, colorScheme),

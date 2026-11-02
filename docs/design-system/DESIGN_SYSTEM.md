@@ -410,11 +410,11 @@
 | משני / ניטרלי, **וביטול בדיאלוג** | `ActionButton.neutral` (tonal) | DD-09 A. קיים (18 מופעים) |
 | פעולה משנית שקטה שאינה ביטול ("דלג", "איפוס" בתוך פאנל) | `ActionButton.ghost` | ביטול ב־ghost (9 מופעים) עובר ל־`neutral` (MIG-17, MIG-19) |
 | מסוכן (אישור מחיקה) | `ActionButton.warning` | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. |
-| אייקון בלבד, כללי | `AppIconButton` (יעד, MIG-13): עטיפה דקה על `IconButton` שמחייבת `tooltip`, גודל מ־`AppTokens.icon*` | עד אז: `IconButton` עם `tooltip`. היום כ־180 `IconButton` גולמיים, ובכ־43 מהם אין tooltip (UI-004, UI-030) |
+| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)` (MIG-13): עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary` | הוסבו השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות. בפיצ'רים נשארו כ־190 `IconButton` גולמיים (UI-004, UI-030) |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צפיפות מ־`AppDensity`. צורה 8, בלי גלולה (DD-04, MIG-13) |
 | פעולה מפוצלת | `BarSplitButton` | קיים. צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
-| פעולת רשימה / שורה | `AppIconButton` בגודל `iconSM` (יעד). בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה |
+| פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**
@@ -451,8 +451,8 @@
 
 | תפקיד | רכיב | הערות |
 |---|---|---|
-| כרטיס מידע | `AppCard` | `Card(` גולמי אסור (היום 8 מופעים). מסגרת, בלי צל (DD-12) |
-| קבוצת שורות בכרטיס | `AppCard.section` | `selected` ב־section שבור ויוסר. מפריד = רווח שקוף |
+| כרטיס מידע | `AppCard(tone: normal\|primary\|error)` | `Card(` גולמי אסור (נשארו 3: אודות, פופאפ ההודעות, לוח השנה). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on. כרטיס הרשימה בדיאלוג הוא `AppCard` |
+| קבוצת שורות בכרטיס | `AppCard.section(children:)` | בלי `selected`/`padding`/`margin`. מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A, MIG-20): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |

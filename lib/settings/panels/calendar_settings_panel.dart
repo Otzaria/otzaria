@@ -861,7 +861,7 @@ class _CalendarMultiSelectionDialogState<T>
                     icon: OtzariaIcons.search_not_found_24_regular,
                     message: context.settingsText('לא נמצאו תוצאות'),
                   )
-                : ListDialogCard(
+                : AppCard(
                     child: ListView.separated(
                       itemCount: filteredItems.length,
                       separatorBuilder: (context, _) => Divider(

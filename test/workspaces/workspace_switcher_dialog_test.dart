@@ -12,6 +12,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
@@ -214,7 +215,7 @@ void main() {
           find.descendant(
             of: find.ancestor(
               of: find.text('שולחן ב'),
-              matching: find.byType(Card),
+              matching: find.byType(AppCard),
             ),
             matching: find.byIcon(FluentIcons.edit_24_regular),
           ),
@@ -319,7 +320,7 @@ void main() {
               find.descendant(
                 of: find.ancestor(
                   of: find.text(workspaceName),
-                  matching: find.byType(Card),
+                  matching: find.byType(AppCard),
                 ),
                 matching: find.byType(Tooltip),
               ),

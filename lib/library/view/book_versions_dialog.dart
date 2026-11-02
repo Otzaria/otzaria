@@ -12,6 +12,7 @@ import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// המהדורות של [book] לרשימת הבחירה. לספר אישי — קובצי הגרסאות של קבוצתו.
 Future<List<BookVersionInfo>> loadBookVersions(Book book) async {
@@ -165,7 +166,7 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                     message: 'אין נוסחאות נוספות מלבד הנוסח הפתוח.',
                   );
                 }
-                return ListDialogCard(
+                return AppCard(
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: selectable.length,

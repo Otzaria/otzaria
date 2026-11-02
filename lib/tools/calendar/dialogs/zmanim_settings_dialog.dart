@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:flutter/material.dart';
@@ -12,6 +11,7 @@ import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// תוכן דיאלוג "זמנים נוספים" — טבלה קומפקטית מקובצת לפי קטגוריות של כל
 /// הזמנים הזמינים. כל שורה מציגה את שם הזמן ואת זמנו ביום הנוכחי;
@@ -85,7 +85,7 @@ class ZmanimSettingsContent extends StatelessWidget {
             children: [
               const _SourceCredit(),
               Expanded(
-                child: ListDialogCard(
+                child: AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

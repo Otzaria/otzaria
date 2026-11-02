@@ -18,6 +18,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// עמודת כרטיסיות קבועה מעל התוכן; ריחוף אינו משנה את המקום השמור לצדה.
 class ReadingTabsSidePanel extends StatefulWidget {
@@ -276,9 +277,8 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
           _buildCollapseButton(context, collapsed: collapsed),
           const TabSearchButton(),
           if (PluginNewTabPageRegistry.instance.hasActiveRegistration)
-            IconButton(
-              iconSize: 18,
-              visualDensity: VisualDensity.compact,
+            AppIconButton(
+              size: AppIconButtonSize.small,
               tooltip: context.settingsText('כרטיסייה חדשה'),
               icon: const Icon(FluentIcons.add_24_regular),
               onPressed: () => PluginNewTabPageRegistry.instance.open(
@@ -313,9 +313,8 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
   }
 
   Widget _buildCollapseButton(BuildContext context, {required bool collapsed}) {
-    return IconButton(
-      iconSize: 18,
-      visualDensity: VisualDensity.compact,
+    return AppIconButton(
+      size: AppIconButtonSize.small,
       tooltip: collapsed
           ? context.settingsText('הרחב את עמודת הכרטיסיות')
           : context.settingsText('כווץ את עמודת הכרטיסיות'),

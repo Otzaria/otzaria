@@ -148,7 +148,7 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
                       title: context.settingsText('אין בחירות הסתרה'),
                     ),
                   )
-                : ListDialogCard(
+                : AppCard(
                     child: ListView.builder(
                       shrinkWrap: true,
                       // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך

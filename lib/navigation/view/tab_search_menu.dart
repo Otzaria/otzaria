@@ -16,6 +16,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
@@ -27,19 +28,19 @@ const double _kRowHeight = 32;
 
 /// כפתור "חיפוש כרטיסיות" — חץ מטה בקצה רצועת הכרטיסיות, בנוסח דפדפן.
 class TabSearchButton extends StatelessWidget {
-  final double iconSize;
-  final ButtonStyle? style;
+  const TabSearchButton({super.key, this.tapTargetSize});
 
-  const TabSearchButton({super.key, this.iconSize = 18, this.style});
+  /// ראו [AppIconButton.tapTargetSize].
+  final MaterialTapTargetSize? tapTargetSize;
 
   @override
   Widget build(BuildContext context) {
     return Builder(
-      builder: (anchorContext) => IconButton(
-        icon: Icon(FluentIcons.chevron_down_24_regular, size: iconSize),
+      builder: (anchorContext) => AppIconButton(
+        icon: const Icon(FluentIcons.chevron_down_24_regular),
+        size: AppIconButtonSize.small,
+        tapTargetSize: tapTargetSize,
         tooltip: context.settingsText('חיפוש כרטיסיות'),
-        style: style,
-        visualDensity: style == null ? VisualDensity.compact : null,
         onPressed: () =>
             showTabSearchMenu(context, anchorContext: anchorContext),
       ),

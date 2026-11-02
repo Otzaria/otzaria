@@ -167,7 +167,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
                     icon: OtzariaIcons.search_in_library_24_regular,
                     title: context.settingsText('לא נמצאו ספרים'),
                   )
-                : ListDialogCard(
+                : AppCard(
                     child: Scrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,

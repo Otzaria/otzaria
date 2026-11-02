@@ -1366,7 +1366,7 @@ class _PickActionDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
-      child: ListDialogCard(
+      child: AppCard(
         child: ListView.separated(
           shrinkWrap: true,
           itemCount: actionKeys.length,
