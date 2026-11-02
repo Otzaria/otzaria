@@ -1192,13 +1192,9 @@ void _workerMain(_Bootstrap bootstrap) {
           for (final title in titles)
             switch (await repo.getBookGenerationInfoByTitle(title)) {
               null => CommentaryEra.other.order,
-              final info =>
-                CommentaryEra.values
-                    .firstWhere(
-                      (e) => e.hebrewName == info.generationName,
-                      orElse: () => CommentaryEra.other,
-                    )
-                    .order,
+              final info => CommentaryEra.fromHebrewName(
+                info.generationName,
+              ).order,
             },
         ];
       default:

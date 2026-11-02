@@ -34,6 +34,14 @@ enum CommentaryEra {
 
   const CommentaryEra(this.order, this.hebrewName);
 
+  /// הדור ששמו בעברית [name]; 'מפרשים נוספים' וכל שם לא מוכר -> [other].
+  static CommentaryEra fromHebrewName(String name) {
+    for (final era in values) {
+      if (era.hebrewName == name) return era;
+    }
+    return other;
+  }
+
   /// התווית בפאנל הקישורים, שבו היעדים אינם בהכרח מפרשים (דף גמרא, פסוק,
   /// סימן בשו"ע) ולכן "שאר מפרשים" שגוי שם.
   String get linkPanelName =>
@@ -211,18 +219,10 @@ class CommentaryService {
       if (repo == null) return CommentaryEra.other;
       final generationInfo = await repo.getBookGenerationInfoByTitle(bookTitle);
       if (generationInfo == null) return CommentaryEra.other;
-      return _mapGenerationNameToEra(generationInfo.generationName);
+      return CommentaryEra.fromHebrewName(generationInfo.generationName);
     } catch (e) {
       return CommentaryEra.other;
     }
-  }
-
-  /// ממפה שם דור מה-DB ל-CommentaryEra
-  static CommentaryEra _mapGenerationNameToEra(String generationName) {
-    for (final era in CommentaryEra.values) {
-      if (era.hebrewName == generationName) return era;
-    }
-    return CommentaryEra.other;
   }
 
   /// מחזיר את הדור של ספר מהמטמון בלבד (סינכרוני)
@@ -262,7 +262,7 @@ class CommentaryService {
     if (!utils.isEraTableLoaded) return;
 
     for (final entry in byEra.entries) {
-      final era = _eraFromCategory(entry.key);
+      final era = CommentaryEra.fromHebrewName(entry.key);
       for (final title in entry.value) {
         _eraCache[_eraKey(title, source)] = era;
       }
@@ -280,15 +280,6 @@ class CommentaryService {
     for (final entry in titlesBySource.entries) {
       await preloadEras(entry.value, source: entry.key);
     }
-  }
-
-  /// ממפה שם קטגוריית דור (כפי שמחזירה [utils.splitByEra]) ל-CommentaryEra
-  static CommentaryEra _eraFromCategory(String category) {
-    for (final era in CommentaryEra.values) {
-      if (era.hebrewName == category) return era;
-    }
-    // 'מפרשים נוספים' וכל קטגוריה לא מוכרת -> שאר מפרשים
-    return CommentaryEra.other;
   }
 
   /// ממיין קבוצות מפרשים לפי דורות מתוך המטמון בלבד (סינכרוני)
