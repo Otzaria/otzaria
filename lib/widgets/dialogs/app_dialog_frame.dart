@@ -12,7 +12,8 @@ import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
 /// גודל דיאלוג (DD-07). הרוחב קבוע, והגובה לפי התוכן עד [maxHeightFactor]
-/// מגובה החלון. [full] ממלא את החלון פחות הריפוד החיצוני.
+/// מגובה החלון, או קבוע ([AppDialogFrame.height]) עד גובה החלון. [full] ממלא
+/// את החלון פחות הריפוד החיצוני.
 ///
 /// בחלון צר ([WindowClass.isCompact], DD-16): [small] ו-[medium] ברוחב החלון
 /// פחות 16, ו-[large] ו-[full] במסך מלא.
@@ -34,7 +35,7 @@ enum AppDialogSize {
   /// null = כל הרוחב הפנוי.
   final double? width;
 
-  /// הגובה המרבי של דיאלוג שאינו [full], כחלק מגובה החלון.
+  /// הגובה המרבי של דיאלוג לפי תוכן, כחלק מגובה החלון.
   static const double maxHeightFactor = 0.85;
 
   /// הריפוד סביב הדיאלוג בחלון רחב.
@@ -58,6 +59,7 @@ class AppDialogFrame extends StatelessWidget {
     required this.child,
     this.size = AppDialogSize.medium,
     this.subtitle,
+    this.subtitleMaxLines,
     this.trailing,
     this.tone = AppDialogHeaderTone.primary,
     this.fitTitle = false,
@@ -73,6 +75,7 @@ class AppDialogFrame extends StatelessWidget {
     this.onConfirm,
     this.handleEnterKey = true,
     this.dismissResult,
+    this.surfaceKey,
   });
 
   final String title;
@@ -82,6 +85,9 @@ class AppDialogFrame extends StatelessWidget {
   final Widget child;
   final AppDialogSize size;
   final String? subtitle;
+
+  /// null = בלי הגבלה. שם ספר ארוך בשורת המשנה מוגבל לשורה אחת.
+  final int? subtitleMaxLines;
 
   /// ווידג'ט בין הכותרת לאיקס, למשל מונה.
   final Widget? trailing;
@@ -93,7 +99,8 @@ class AppDialogFrame extends StatelessWidget {
   /// כפתורי פעולה בשורה בתחתית, צמודים לסוף השורה.
   final List<Widget>? actions;
 
-  /// null = גובה לפי התוכן. עם ערך — הגוף ממלא את הגובה שנשאר.
+  /// null = גובה לפי התוכן. עם ערך — גובה קבוע, עד גובה החלון, והגוף ממלא
+  /// את מה שנשאר מתחת לרצועה.
   final double? height;
 
   final EdgeInsetsGeometry padding;
@@ -125,6 +132,9 @@ class AppDialogFrame extends StatelessWidget {
   /// הערך שמוחזר ב-Escape.
   final Object? dismissResult;
 
+  /// מפתח למשטח הדיאלוג עצמו, בלי השוליים סביבו — למשל לסימון בסיור.
+  final Key? surfaceKey;
+
   @override
   Widget build(BuildContext context) {
     final compact = WindowClass.of(context).isCompact;
@@ -147,6 +157,7 @@ class AppDialogFrame extends StatelessWidget {
           icon: icon,
           title: title,
           subtitle: subtitle,
+          subtitleMaxLines: subtitleMaxLines,
           trailing: trailing,
           tone: tone,
           compact: true,
@@ -171,7 +182,7 @@ class AppDialogFrame extends StatelessWidget {
       ],
     );
 
-    final maxHeight = fills
+    final maxHeight = fills || height != null
         ? double.infinity
         : MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor;
     final dialog = Dialog(
@@ -190,6 +201,7 @@ class AppDialogFrame extends StatelessWidget {
         label: title,
         explicitChildNodes: true,
         child: ConstrainedBox(
+          key: surfaceKey,
           constraints: BoxConstraints(
             maxWidth: compact ? double.infinity : size.width ?? double.infinity,
             maxHeight: maxHeight,

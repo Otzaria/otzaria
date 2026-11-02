@@ -8,9 +8,6 @@
       "lib/app_report/view/crash_prompt_dialog.dart": [
         {"scope":"_CrashPromptDialogState.build","fp":"26be3ad9","n":1}
       ],
-      "lib/find_ref/view/find_ref_dialog.dart": [
-        {"scope":"_FindRefDialogState.build","fp":"26be3ad9","n":1}
-      ],
       "lib/personal_notes/view/personal_notes_screen.dart": [
         {"scope":"_PersonalNotesManagerScreenState._importNotes","fp":"27aa4a2d","n":1}
       ],
@@ -22,9 +19,6 @@
       ],
       "lib/printing/view/printing_screen.dart": [
         {"scope":"_PrintingScreenState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/search/view/search_dialog.dart": [
-        {"scope":"_SearchDialogState.build","fp":"26be3ad9","n":1}
       ],
       "lib/settings/dialogs/change_location_dialog.dart": [
         {"scope":"_showBlockingProgress","fp":"27aa4a2d","n":1}
@@ -130,7 +124,6 @@
       ],
       "lib/find_ref/view/find_ref_dialog.dart": [
         {"scope":"_FindRefDialogState._buildFooter","fp":"a7c1dfe6","n":1},
-        {"scope":"_FindRefDialogState._buildHeader","fp":"a7c1dfe6","n":1},
         {"scope":"_FindRefDialogState._buildIdleState","fp":"a8c1e179","n":1},
         {"scope":"_FindRefDialogState._buildIdleState","fp":"acc1e7c5","n":1},
         {"scope":"_FindRefDialogState._buildPersonalBooksToggle","fp":"a8c1e179","n":1},

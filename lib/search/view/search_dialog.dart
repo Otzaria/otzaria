@@ -6,7 +6,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -1411,30 +1411,11 @@ class _SearchDialogState extends State<SearchDialog> {
 
   // ── שכבת התצוגה ─────────────────────────────────────────────────────
 
-  Widget _buildHeader() {
-    final title = widget.editTab != null
-        ? context.settingsText('עריכת חיפוש')
-        : widget.bookTitle != null
-        ? context.settingsText(
-            'חיפוש ב{book}',
-            args: {'book': widget.bookTitle},
-          )
-        : context.settingsText('חיפוש בספרייה');
-    return AppDialogHeader(
-      icon: FluentIcons.search_24_regular,
-      title: title,
-      // בחיפוש בתוך ספר אין תפריט היקף, ולכן אין להבטיח אותו בכותרת.
-      subtitle: context.settingsText(
-        widget.bookTitle == null
-            ? 'בחר שאילתה, סוג חיפוש והיקף'
-            : 'בחר שאילתה וסוג חיפוש',
-      ),
-      subtitleMaxLines: 1,
-      compact: true,
-      fitTitle: true,
-      closeTooltip: context.settingsText('סגור'),
-    );
-  }
+  String _title() => widget.editTab != null
+      ? context.settingsText('עריכת חיפוש')
+      : widget.bookTitle != null
+      ? context.settingsText('חיפוש ב{book}', args: {'book': widget.bookTitle})
+      : context.settingsText('חיפוש בספרייה');
 
   /// בורר מצב החיפוש — מקטעים ברוחב מלא; ההסבר של כל מצב ב-tooltip.
   Widget _buildModeSelector(
@@ -1913,23 +1894,32 @@ class _SearchDialogState extends State<SearchDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenHeight = MediaQuery.sizeOf(context).height;
     final isCompact = WindowClass.of(context).isCompact;
-    final dialogWidth = isCompact
-        ? screenSize.width - 24
-        : (screenSize.width * 0.7).clamp(640.0, 900.0);
     // גובה קבוע: פתיחת "אפשרויות נוספות" או מעבר מצב לא מקפיצים את החלון.
-    final dialogHeight = screenSize.height < 560
-        ? screenSize.height - 24
-        : (screenSize.height * 0.84).clamp(500.0, 720.0);
+    final dialogHeight = screenHeight < 560
+        ? screenHeight - 24
+        : (screenHeight * 0.84).clamp(500.0, 720.0);
     final horizontalPadding = isCompact ? 16.0 : 24.0;
 
     return BlocProvider.value(
       value: _searchTab.searchBloc,
-      child: Dialog(
-        insetPadding: const EdgeInsets.all(12),
+      child: AppDialogFrame(
+        surfaceKey: TourTargetKeys.of(context).searchDialog,
+        icon: FluentIcons.search_24_regular,
+        title: _title(),
+        // בחיפוש בתוך ספר אין תפריט היקף, ולכן אין להבטיח אותו בכותרת.
+        subtitle: context.settingsText(
+          widget.bookTitle == null
+              ? 'בחר שאילתה, סוג חיפוש והיקף'
+              : 'בחר שאילתה וסוג חיפוש',
+        ),
+        subtitleMaxLines: 1,
+        fitTitle: true,
+        size: AppDialogSize.large,
+        height: dialogHeight,
+        padding: EdgeInsets.zero,
         backgroundColor: AppSurfaces.panelBackground(context),
-        clipBehavior: Clip.antiAlias,
         child: FocusScope(
           onKeyEvent: (node, event) {
             // תפיסת Enter ברמת הדיאלוג - FocusScope תופס אירועים מכל הילדים
@@ -1958,14 +1948,10 @@ class _SearchDialogState extends State<SearchDialog> {
             }
             return KeyEventResult.ignored;
           },
-          child: SizedBox(
-            key: TourTargetKeys.of(context).searchDialog,
-            width: dialogWidth,
-            height: dialogHeight,
+          child: SizedBox.expand(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeader(),
                 Expanded(
                   child: _IndexMissingGate(
                     missingBuilder: _buildIndexMissingState,
