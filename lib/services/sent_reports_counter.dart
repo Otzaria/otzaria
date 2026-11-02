@@ -53,7 +53,7 @@ class SentReportsCounter {
 
   Future<void> reset() => _update((_) => 0);
 
-  /// read-modify-write בטרנזקציה אחת, כדי ששני חלונות לא יאבדו ספירה.
+  /// read-modify-write אטומי, כדי ששני חלונות לא יאבדו ספירה.
   Future<void> _update(int Function(int current) apply) async {
     final memory = _memory;
     if (memory != null) {

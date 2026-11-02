@@ -77,6 +77,67 @@ void main() {
     },
   );
 
+  test(
+    'mutate, write ו-clear מול מסד נעול אינם חוסמים את ה-isolate (#3900)',
+    () async {
+      final lists = UserStateListStore(database: db);
+      addTearDown(lists.dispose);
+      final locker = sqlite3.open(path);
+      locker.execute('BEGIN IMMEDIATE');
+
+      final writes = [
+        lists.write('history', 'items', ['a']),
+        lists.mutate('history', 'items', (current) => [...current, 'b']),
+        lists.mutate('history', 'items', (current) => [...current, 'c']),
+        lists.clear('bookmarks', 'items'),
+      ];
+      final tick = Stopwatch()..start();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      tick.stop();
+
+      locker.execute('COMMIT');
+      locker.close();
+      await Future.wait(writes);
+
+      expect(tick.elapsedMilliseconds, lessThan(500));
+      expect(await lists.read('history', 'items'), ['a', 'b', 'c']);
+    },
+  );
+
+  test('קריאה מיד אחרי כתיבות רשימה שלא הומתנו רואה את כולן', () async {
+    final lists = UserStateListStore(database: db);
+    addTearDown(lists.dispose);
+    unawaited(lists.write('history', 'items', ['a']));
+    unawaited(lists.mutate('history', 'items', (current) => [...current, 'b']));
+    expect(await lists.read('history', 'items'), ['a', 'b']);
+
+    unawaited(lists.clear('history', 'items'));
+    expect(await lists.read('history', 'items'), isEmpty);
+  });
+
+  test('mutate מחיל מחדש כשכותב אחר שינה את הרשימה מאז הקריאה', () async {
+    final lists = UserStateListStore(database: db);
+    addTearDown(lists.dispose);
+    await lists.write('history', 'items', ['a']);
+
+    final other = sqlite3.open(path);
+    addTearDown(other.close);
+    var calls = 0;
+    final result = await lists.mutate('history', 'items', (current) {
+      if (calls++ == 0) {
+        other.execute(
+          "UPDATE lists SET payload_json = '[\"a\",\"x\"]' "
+          "WHERE box = 'history' AND key = 'items'",
+        );
+      }
+      return [...current, 'b'];
+    });
+
+    expect(calls, 2);
+    expect(result, ['a', 'x', 'b']);
+    expect(await lists.read('history', 'items'), ['a', 'x', 'b']);
+  });
+
   test('קריאה מיד אחרי שמירה שלא הומתנה רואה את הערך החדש', () async {
     final pending = [
       store.save(1, tabsJson: '["old"]', currentIndex: 0),

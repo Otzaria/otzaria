@@ -12,8 +12,8 @@ typedef UserStateListChange = ({String box, String key, Object? origin});
 /// רשימות מצב המשתמש (היסטוריה, סימניות, שולחנות) — רשימה שלמה לכל מפתח.
 ///
 /// הפריטים אין להם מזהה יציב, ולכן היחידה היא הרשימה, ו-[mutate] מבטיח
-/// read-modify-write אטומי בטרנזקציה `BEGIN IMMEDIATE`: הכתיבה מחושבת מהמסד
-/// ולא מהעותק שבזיכרון של חלון, ואף עדכון אינו נדרס.
+/// read-modify-write אטומי: הכתיבה מחושבת מהמסד ולא מהעותק שבזיכרון של
+/// חלון, ואף עדכון אינו נדרס. הכתיבות רצות ב-isolate, בתור של המסד.
 class UserStateListStore {
   UserStateListStore({UserStateDatabase? database})
     : _database = database ?? UserStateDatabase.instance;
@@ -48,39 +48,43 @@ class UserStateListStore {
     List<dynamic> value, {
     Object? origin,
   }) async {
-    final db = await _database.database;
-    _withImmediateTransaction(db, () => _writeIn(db, box, key, value));
+    await _database.enqueueWrite([_upsert(box, key, jsonEncode(value))]);
     _notifyPeers(box, key, origin);
   }
 
-  /// קורא, מחיל את [apply] וכותב — הכול בטרנזקציה אחת. מחזיר את הרשימה
+  /// קורא, מחיל את [apply] וכותב — אטומי מול כל כותב אחר. מחזיר את הרשימה
   /// שנכתבה.
+  ///
+  /// [apply] לוכד אובייקטים שאינם נשלחים ל-isolate, ולכן רץ כאן; הכתיבה
+  /// מותנית בכך שהרשימה לא השתנתה מאז הקריאה, ואחרת [apply] מוחל שוב.
   Future<List<dynamic>> mutate(
     String box,
     String key,
     List<dynamic> Function(List<dynamic> current) apply, {
     Object? origin,
   }) async {
-    final db = await _database.database;
-    late List<dynamic> result;
-    _withImmediateTransaction(db, () {
-      result = apply(_readIn(db, box, key));
-      _writeIn(db, box, key, result);
+    final result = await _database.runInWriteQueue((db) async {
+      while (true) {
+        final expected = _payloadIn(db, box, key);
+        final next = apply(decodePayload(expected));
+        final written = await _database.runOnWriteConnection(
+          _replaceIfUnchanged(box, key, expected, jsonEncode(next)),
+        );
+        if (written) return next;
+      }
     });
     _notifyPeers(box, key, origin);
     return result;
   }
 
   Future<void> clear(String box, String key, {Object? origin}) async {
-    final db = await _database.database;
-    db.execute('DELETE FROM lists WHERE box = ? AND key = ?', [box, key]);
+    await _database.enqueueWrite([
+      ('DELETE FROM lists WHERE box = ? AND key = ?', [box, key]),
+    ]);
     _notifyPeers(box, key, origin);
   }
 
-  List<dynamic> _readIn(Database db, String box, String key) =>
-      decodePayload(_payloadIn(db, box, key));
-
-  String? _payloadIn(Database db, String box, String key) {
+  static String? _payloadIn(Database db, String box, String key) {
     final rows = db.select(
       'SELECT payload_json FROM lists WHERE box = ? AND key = ?',
       [box, key],
@@ -88,28 +92,38 @@ class UserStateListStore {
     return rows.isEmpty ? null : rows.first['payload_json'] as String;
   }
 
-  void _writeIn(Database db, String box, String key, List<dynamic> value) {
-    db.execute(
-      '''
-      INSERT INTO lists (box, key, payload_json, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(box, key) DO UPDATE SET
-        payload_json = excluded.payload_json,
-        updated_at = excluded.updated_at
-      ''',
-      [box, key, jsonEncode(value), DateTime.now().millisecondsSinceEpoch],
-    );
-  }
+  static (String, List<Object?>) _upsert(
+    String box,
+    String key,
+    String payload,
+  ) => (
+    '''
+    INSERT INTO lists (box, key, payload_json, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(box, key) DO UPDATE SET
+      payload_json = excluded.payload_json,
+      updated_at = excluded.updated_at
+    ''',
+    [box, key, payload, DateTime.now().millisecondsSinceEpoch],
+  );
 
-  /// `BEGIN IMMEDIATE` תופס את נעילת הכתיבה כבר בפתיחה, ולכן הקריאה שבתוך
-  /// הטרנזקציה רואה את המצב שאף חלון אחר לא ישנה עד ה-COMMIT.
-  /// ⚠️ בלי ניסיון חוזר: כל החלונות חולקים thread אחד, ולכן נעילה של
-  /// חלון אחר בתהליך אינה יכולה להשתחרר בזמן שאנחנו ממתינים לה.
-  void _withImmediateTransaction(Database db, void Function() body) {
+  /// `BEGIN IMMEDIATE` תופס את נעילת הכתיבה כבר בפתיחה, ולכן ההשוואה
+  /// ל-[expected] תקפה עד ה-COMMIT. רץ ב-isolate, ולכן static.
+  static bool Function(Database db) _replaceIfUnchanged(
+    String box,
+    String key,
+    String? expected,
+    String payload,
+  ) => (db) {
     db.execute('BEGIN IMMEDIATE');
     try {
-      body();
+      final unchanged = _payloadIn(db, box, key) == expected;
+      if (unchanged) {
+        final (sql, args) = _upsert(box, key, payload);
+        db.execute(sql, args);
+      }
       db.execute('COMMIT');
+      return unchanged;
     } catch (_) {
       try {
         db.execute('ROLLBACK');
@@ -118,7 +132,7 @@ class UserStateListStore {
       }
       rethrow;
     }
-  }
+  };
 
   void _notifyPeers(String box, String key, Object? origin) =>
       _changes.add((box: box, key: key, origin: origin));

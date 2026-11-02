@@ -140,6 +140,31 @@ class UserStateDatabase {
     }
   }
 
+  /// מריץ את [body] בתור הכתיבות: אחרי מה שקדם, ו-[database] ממתין לו.
+  /// [body] מקבל את החיבור הראשי, לקריאה בלבד.
+  Future<R> runInWriteQueue<R>(Future<R> Function(Database db) body) {
+    _openWriteBatch = null;
+    final result = _runAfter(_writeTail, body);
+    final tail = _writeTail = _settled(result);
+    tail.then((_) {
+      if (identical(_writeTail, tail)) _writeTail = null;
+    });
+    return result;
+  }
+
+  Future<R> _runAfter<R>(
+    Future<void>? previous,
+    Future<R> Function(Database db) body,
+  ) async {
+    if (previous != null) await _settled(previous);
+    return body(await _connection());
+  }
+
+  /// מריץ את [write] על חיבור משני ב-isolate. רק מתוך [runInWriteQueue];
+  /// [write] נשלח ל-isolate, ולכן חייב להיווצר בפונקציה סטטית.
+  Future<R> runOnWriteConnection<R>(R Function(Database db) write) =>
+      _onWriteConnection(_path!, write, inline: debugWriteInline);
+
   Future<void> _runWriteBatch(
     Future<void>? previous,
     List<(String, List<Object?>)> batch,
@@ -147,30 +172,41 @@ class UserStateDatabase {
     if (previous != null) await _settled(previous);
     _openWriteBatch = null;
     await _connection();
-    if (debugWriteInline) return _runWrites(_path!, batch);
-    await _writeInIsolate(_path!, batch);
+    await runOnWriteConnection(_batchWriter(batch));
   }
 
   // static: closure בתוך מתודת מופע הייתה לוכדת את this ונכשלת בשליחה.
-  static Future<void> _writeInIsolate(
-    String path,
+  static void Function(Database db) _batchWriter(
     List<(String, List<Object?>)> batch,
-  ) => Isolate.run(() => _runWrites(path, batch), debugName: 'UserStateWrite');
-
-  static void _runWrites(String path, List<(String, List<Object?>)> batch) {
-    final db = openSecondaryWritableConnection(path, 'UserStateWrite');
-    try {
-      withTransaction(db, () {
+  ) =>
+      (db) => withTransaction(db, () {
         for (final (sql, args) in batch) {
           db.execute(sql, args);
         }
       });
+
+  static Future<R> _onWriteConnection<R>(
+    String path,
+    R Function(Database db) write, {
+    required bool inline,
+  }) {
+    if (inline) return Future.sync(() => _withWriteConnection(path, write));
+    return Isolate.run(
+      () => _withWriteConnection(path, write),
+      debugName: 'UserStateWrite',
+    );
+  }
+
+  static R _withWriteConnection<R>(String path, R Function(Database db) write) {
+    final db = openSecondaryWritableConnection(path, 'UserStateWrite');
+    try {
+      return write(db);
     } finally {
       db.close();
     }
   }
 
-  static Future<void> _settled(Future<void> future) =>
+  static Future<void> _settled(Future<Object?> future) =>
       future.then((_) {}, onError: (_) {});
 
   /// סוגר את החיבור; הפתיחה הבאה דרך [database] תפתח מחדש.
