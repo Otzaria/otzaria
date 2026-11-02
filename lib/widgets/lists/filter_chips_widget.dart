@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 /// A simple, reusable widget for displaying a list of selectable chips.
@@ -88,10 +89,12 @@ class FilterChipsSelector<T> extends StatelessWidget {
             ),
             selected: isSelected,
             onSelected: (_) => _toggleSelection(item),
-            selectedColor: Theme.of(context).colorScheme.secondary,
+            selectedColor: AppSurfaces.selectedRow(
+              Theme.of(context).colorScheme,
+            ),
             labelStyle: TextStyle(
               color: isSelected
-                  ? Theme.of(context).colorScheme.onSecondary
+                  ? AppSurfaces.onSelectedRow(Theme.of(context).colorScheme)
                   : null,
             ),
           );
@@ -124,11 +127,14 @@ Widget compactFilterChips({
       chipBuilder: (context, item, isSelected) => Chip(
         label: Text(labelBuilder(item)),
         backgroundColor: isSelected
-            ? Theme.of(context).colorScheme.secondary
+            ? AppSurfaces.selectedRow(Theme.of(context).colorScheme)
             : null,
         labelStyle: TextStyle(
-          color: isSelected ? Theme.of(context).colorScheme.onSecondary : null,
+          color: isSelected
+              ? AppSurfaces.onSelectedRow(Theme.of(context).colorScheme)
+              : null,
           fontSize: 10,
+          fontWeight: isSelected ? FontWeight.w600 : null,
         ),
         labelPadding: EdgeInsets.zero,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

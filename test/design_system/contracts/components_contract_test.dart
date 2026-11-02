@@ -59,7 +59,7 @@ void main() {
       );
     });
 
-    testWidgets('נבחר: שכבת cardSelectionOverlay', (tester) async {
+    testWidgets('נבחר: רקע selectedRow', (tester) async {
       await pumpInApp(
         tester,
         const AppCard(selected: true, child: Text('כרטיס')),
@@ -71,7 +71,10 @@ void main() {
           matching: find.byType(ColoredBox),
         ),
       );
-      expect(overlay.color, AppSurfaces.cardSelectionOverlay(context));
+      expect(
+        overlay.color,
+        AppSurfaces.selectedRow(Theme.of(context).colorScheme),
+      );
     });
 
     testWidgets('section: רווח 1.5 בין שורות ופינות 8 חיצוניות', (

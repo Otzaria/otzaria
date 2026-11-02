@@ -2182,7 +2182,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     final row = DecoratedBox(
       decoration: BoxDecoration(
-        color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.3) : null,
+        color: isSelected ? AppSurfaces.selectedRow(cs) : null,
       ),
       child: InkWell(
         focusNode: focusNode,

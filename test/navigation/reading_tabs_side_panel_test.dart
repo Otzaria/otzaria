@@ -29,6 +29,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import '../helpers/memory_settings_cache.dart';
@@ -883,7 +884,9 @@ void main() {
     );
     expect(
       (background.decoration as BoxDecoration).color,
-      Theme.of(tester.element(row('ספר ב'))).colorScheme.secondaryContainer,
+      AppSurfaces.multiSelected(
+        Theme.of(tester.element(row('ספר ב'))).colorScheme,
+      ),
     );
 
     // שינוי שם והצמדה משנים את הכרטיסיה במקום ומסתמכים על forceUpdate.

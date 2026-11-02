@@ -45,6 +45,13 @@ class AppTokens {
   static const double fontXL = 18;
   static const double font2XL = 22;
 
+  // ── State Borders (DD-06) ————————————————————
+  /// טבעת הפוקוס של שורה.
+  static const double focusRingWidth = 2;
+
+  /// מסגרת כרטיסייה בבחירה מרובה.
+  static const double multiSelectedBorderWidth = 1.5;
+
   // ── Elevation ——————————————————————————————
   static const double elevation1 = 1;
   static const double elevation2 = 3;

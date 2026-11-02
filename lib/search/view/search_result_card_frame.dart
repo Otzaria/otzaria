@@ -27,10 +27,7 @@ class SearchResultCardFrame extends StatelessWidget {
       padding: EdgeInsets.only(bottom: gap),
       child: Material(
         color: isPreviewed
-            ? Color.alphaBlend(
-                cs.primaryContainer.withValues(alpha: 0.35),
-                AppSurfaces.card(context),
-              )
+            ? AppSurfaces.selectedRow(cs)
             : AppSurfaces.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,

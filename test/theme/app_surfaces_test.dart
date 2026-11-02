@@ -5,44 +5,23 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 
 void main() {
-  group('AppSurfaces.selectedItem', () {
-    late ColorScheme lightScheme;
-    late ColorScheme darkScheme;
-
-    setUpAll(() {
-      lightScheme = ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.light,
-      );
-      darkScheme = ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.dark,
-      );
-    });
-
-    test('מחזיר primaryContainer בשקיפות 30%', () {
-      final result = AppSurfaces.selectedItem(lightScheme);
-      final expected = lightScheme.primaryContainer.withValues(alpha: 0.3);
-      expect(result, expected);
-    });
-
-    test('עובד גם עם ערכת צבעים כהה', () {
-      final result = AppSurfaces.selectedItem(darkScheme);
-      final expected = darkScheme.primaryContainer.withValues(alpha: 0.3);
-      expect(result, expected);
-    });
-
-    test('צבע שונה מ-primaryContainer המלא', () {
-      final selected = AppSurfaces.selectedItem(lightScheme);
-      final full = lightScheme.primaryContainer;
-      // alpha 30% שונה מ-alpha 100%
-      expect(selected.a, isNot(equals(full.a)));
-    });
-
-    test('alpha קרוב ל-0.3 (סובלנות לעיגול float)', () {
-      final selected = AppSurfaces.selectedItem(lightScheme);
-      expect(selected.a, closeTo(0.3, 0.01));
-    });
+  group('AppSurfaces — מצבי שורה (DD-06)', () {
+    for (final brightness in Brightness.values) {
+      test('ב-$brightness: נבחר מלא, פוקוס וריחוף ב-8%', () {
+        final cs = ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: brightness,
+        );
+        expect(AppSurfaces.selectedRow(cs), cs.secondaryContainer);
+        expect(AppSurfaces.selectedRow(cs).a, 1.0);
+        expect(AppSurfaces.focusedRow(cs).a, closeTo(0.08, 0.01));
+        expect(AppSurfaces.hoverRow(cs).a, closeTo(0.08, 0.01));
+        expect(
+          AppSurfaces.multiSelected(cs),
+          isNot(AppSurfaces.selectedRow(cs)),
+        );
+      });
+    }
   });
 
   group('AppSurfaces.paragraphSelectionBackground', () {

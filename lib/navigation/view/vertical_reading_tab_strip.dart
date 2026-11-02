@@ -11,6 +11,8 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 
@@ -202,11 +204,11 @@ class _VerticalTabRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final background = isInSelection
-        ? cs.secondaryContainer
+        ? AppSurfaces.multiSelected(cs)
         : isSelected
-        ? cs.surfaceContainerHighest
+        ? AppSurfaces.selectedRow(cs)
         : isHovered
-        ? cs.surfaceContainerHigh
+        ? AppSurfaces.hoverRow(cs)
         : Colors.transparent;
 
     final leading = buildTabTypeIcon(context, tab);
@@ -218,7 +220,13 @@ class _VerticalTabRow extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppTokens.borderRadiusAll,
+          border: isInSelection
+              ? Border.all(
+                  color: AppSurfaces.multiSelectedBorder(cs),
+                  width: AppTokens.multiSelectedBorderWidth,
+                )
+              : null,
         ),
         child: Padding(
           padding: EdgeInsetsDirectional.only(

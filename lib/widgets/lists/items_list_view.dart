@@ -264,6 +264,7 @@ class _ItemsListViewState extends State<ItemsListView> {
 
     Widget content = InkWell(
       onTap: () => widget.onItemTap(context, item, originalIndex),
+      hoverColor: AppSurfaces.hoverRow(cs),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceMD,
@@ -310,8 +311,9 @@ class _ItemsListViewState extends State<ItemsListView> {
     );
 
     if (isKeyboardFocused) {
-      content = ColoredBox(
-        color: Theme.of(context).colorScheme.secondaryContainer,
+      content = Container(
+        color: AppSurfaces.focusedRow(cs),
+        foregroundDecoration: AppSurfaces.focusRingDecoration(cs),
         child: content,
       );
     }

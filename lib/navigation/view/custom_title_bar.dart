@@ -846,7 +846,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     if (state.selectedTabs.contains(tab)) {
-      return _TabBackgroundPainter(colorScheme.secondaryContainer);
+      return _TabBackgroundPainter(
+        AppSurfaces.multiSelected(colorScheme),
+        borderColor: AppSurfaces.multiSelectedBorder(colorScheme),
+      );
     }
     return isSelected
         ? _TabBackgroundPainter(AppSurfaces.topBarBackground(context))
@@ -873,7 +876,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }) {
     if (!isHovered || isSelected) return null;
     return _TabBackgroundPainter(
-      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+      AppSurfaces.hoverRow(Theme.of(context).colorScheme),
     );
   }
 
@@ -1359,7 +1362,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 class _TabBackgroundPainter extends CustomPainter {
   final Color color;
 
-  _TabBackgroundPainter(this.color);
+  /// מסגרת סביב גוף הכרטיסיה (בלי הכנפיים התחתונות), לבחירה מרובה.
+  final Color? borderColor;
+
+  _TabBackgroundPainter(this.color, {this.borderColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1411,11 +1417,35 @@ class _TabBackgroundPainter extends CustomPainter {
 
     path.close();
     canvas.drawPath(path, paint);
+
+    final border = borderColor;
+    if (border == null) return;
+    const inset = AppTokens.multiSelectedBorderWidth / 2;
+    final outline = Path()
+      ..moveTo(inset, size.height)
+      ..lineTo(inset, topInset + topRadius)
+      ..arcToPoint(
+        Offset(topRadius, topInset + inset),
+        radius: const Radius.circular(topRadius - inset),
+      )
+      ..lineTo(size.width - topRadius, topInset + inset)
+      ..arcToPoint(
+        Offset(size.width - inset, topInset + topRadius),
+        radius: const Radius.circular(topRadius - inset),
+      )
+      ..lineTo(size.width - inset, size.height);
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = AppTokens.multiSelectedBorderWidth,
+    );
   }
 
   @override
   bool shouldRepaint(covariant _TabBackgroundPainter oldDelegate) =>
-      oldDelegate.color != color;
+      oldDelegate.color != color || oldDelegate.borderColor != borderColor;
 }
 
 class _CaptionActionButton extends StatefulWidget {

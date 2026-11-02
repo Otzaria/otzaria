@@ -204,21 +204,22 @@ void main() {
       expect(AppSurfaces.topBarBackground(context), cs.surfaceContainerHigh);
     });
 
-    testWidgets('שכבות שקופות: בחירה, כפתור סרגל ופריט נבחר', (tester) async {
+    testWidgets('מצבי שורה (DD-06) וכפתור סרגל נבחר', (tester) async {
       await pumpBoth(tester);
       for (final context in contexts.values) {
         final cs = Theme.of(context).colorScheme;
-        expect(
-          AppSurfaces.cardSelectionOverlay(context),
-          cs.secondaryContainer.withValues(alpha: 0.3),
-        );
+        expect(AppSurfaces.selectedRow(cs), cs.secondaryContainer);
+        expect(AppSurfaces.onSelectedRow(cs), cs.onSecondaryContainer);
+        expect(AppSurfaces.focusedRow(cs), cs.primary.withValues(alpha: 0.08));
+        final ring = AppSurfaces.focusRingDecoration(cs);
+        expect(ring.border, Border.all(color: cs.primary, width: 2));
+        expect(ring.borderRadius, AppTokens.borderRadiusAll);
+        expect(AppSurfaces.hoverRow(cs), cs.onSurface.withValues(alpha: 0.08));
+        expect(AppSurfaces.multiSelected(cs), cs.primaryContainer);
+        expect(AppSurfaces.multiSelectedBorder(cs), cs.primary);
         expect(
           AppSurfaces.barButtonSelected(cs),
           cs.onSurface.withValues(alpha: 0.12),
-        );
-        expect(
-          AppSurfaces.selectedItem(cs),
-          cs.primaryContainer.withValues(alpha: 0.3),
         );
       }
     });
