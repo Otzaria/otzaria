@@ -1,9 +1,11 @@
+import 'package:otzaria/text_book/view/reader_export_actions.dart';
+import 'package:otzaria/text_book/view/reader_print_actions.dart';
+import 'package:otzaria/text_book/view/reader_shamor_zachor_actions.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'dart:io';
 
-import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
@@ -12,11 +14,9 @@ import 'package:otzaria/plugins/utils/reader_plugin_toolbar_actions.dart';
 
 import 'dart:math';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:collection/collection.dart' show IterableExtension;
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
@@ -48,29 +48,19 @@ import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
-import 'package:otzaria/text_book/utils/text_book_export_utils.dart';
-import 'package:otzaria/text_book/view/text_book_export_dialog.dart';
-import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reader_back_button.dart';
-import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
-import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/printing/print_content_models.dart';
-import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:otzaria/printing/page_shape_print_policy.dart';
-import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
@@ -78,9 +68,7 @@ import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
 import 'package:otzaria/text_book/view/widgets/nav_panel_tour_target.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
-import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
-import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
@@ -89,7 +77,6 @@ import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
-import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
@@ -105,7 +92,6 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
-import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -116,8 +102,6 @@ import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart'
     show splitContentLines;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
@@ -130,40 +114,6 @@ const String _viewModeBelow = 'below';
 const String _viewModePage = 'page';
 // פעולה (לא מצב תצוגה): פתיחת כרטיסיית מפרשים נפרדת
 const String _actionOpenCommentatorsTab = 'open_commentators_tab';
-
-class _WordExportRequest {
-  final String title;
-  final TextBookExportRequest text;
-  final String? fontFamily;
-  final double fontSize;
-
-  const _WordExportRequest({
-    required this.title,
-    required this.text,
-    required this.fontFamily,
-    required this.fontSize,
-  });
-}
-
-Uint8List _createTextBookWordExport(_WordExportRequest request) {
-  final blocks = textBookExportLines(request.text, stripHtml: false)
-      .map((line) => PrintBlock(kind: PrintBlockKind.text, text: line))
-      .toList(growable: false);
-
-  return WordExportService.createWordDocument(
-    title: request.title,
-    blocks: blocks,
-    format: PdfPageFormat.a4,
-    isLandscape: false,
-    pageMargin: 20,
-    fontFamily: request.fontFamily,
-    fontSize: request.fontSize,
-  );
-}
-
-/// פרופיל ערוץ הייצוא של גוף הספר — משותף להדפסה ולייצוא.
-TextDisplayProfile _exportProfile(TextBookLoaded state) =>
-    state.displayProfile(target: TextTarget.body, channel: TextChannel.export);
 
 class TextBookViewerBloc extends StatefulWidget {
   final void Function(OpenedTab) openBookCallback;
@@ -182,9 +132,17 @@ class TextBookViewerBloc extends StatefulWidget {
 }
 
 class _TextBookViewerBlocState extends State<TextBookViewerBloc>
-    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+    with
+        TickerProviderStateMixin,
+        AutomaticKeepAliveClientMixin,
+        ReaderShamorZachorActions<TextBookViewerBloc>,
+        ReaderPrintActions<TextBookViewerBloc>,
+        ReaderExportActions<TextBookViewerBloc> {
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  TextBookTab get readerTab => widget.tab;
   final FocusNode textSearchFocusNode = FocusNode();
   final FocusNode navigationSearchFocusNode = FocusNode();
   final FocusNode altTitlesSearchFocusNode = FocusNode();
@@ -268,162 +226,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   String? _cachedTocBookTitle;
   List<TocEntry>? _cachedToc;
 
-  /// Check if book is already being tracked in Shamor Zachor
-  /// שמור וזכור נשען על מזהי seforim.db בלבד; ספר ממקור אחר מחזיק מזהה
-  /// ממרחב אחר שעלול להתנגש עם ספר רשמי אקראי, ולכן אינו נתמך.
-  bool _isOfficialSeforimBook(Book book) =>
-      book.id != null &&
-      book.isOfficialLibraryBook &&
-      !DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
-        book.externalLibraryId,
-      );
-
-  bool _isBookTrackedInShamorZachor(Book book) {
-    if (!_isOfficialSeforimBook(book)) return false;
-    try {
-      final dataProvider = context.read<ShamorZachorDataProvider>();
-      if (!dataProvider.hasData) return false;
-      return dataProvider.getBookById(book.id!) != null;
-    } catch (e) {
-      debugPrint('Error checking if book is tracked: $e');
-      return false;
-    }
-  }
-
-  /// סימון V בשמור וזכור
-  Future<void> _markShamorZachorProgress(String bookTitle) async {
-    try {
-      final dataProvider = context.read<ShamorZachorDataProvider>();
-      final progressProvider = context.read<ShamorZachorProgressProvider>();
-      await dataProvider.ensureLoaded();
-      if (!mounted) return;
-      final state = context.read<TextBookBloc>().state;
-      if (state is! TextBookLoaded) return;
-
-      if (!dataProvider.hasData) {
-        UiSnack.showError(TextBookMessages.shamorZachorDataNotLoaded);
-        return;
-      }
-
-      // בדיקה אם יש ID לספר - אם לא, נחפש לפי כותרת
-      int? bookId = state.book.id;
-      if (bookId == null) {
-        final resolvedBook = await BookDatabaseResolver.resolveBook(
-          title: bookTitle,
-          categoryId: state.book.categoryId,
-          fileType: state.book.fileType,
-          filePath: state.book.filePath,
-          preferSource: BookDatabaseResolver.likelySource(
-            source: state.book.source,
-            categoryPath: state.book.categoryPath,
-          ),
-        );
-        bookId = resolvedBook?.book.id;
-      }
-
-      if (bookId == null) {
-        UiSnack.showError(TextBookMessages.bookNotFoundInDatabase);
-        return;
-      }
-
-      // חיפוש הספר לפי ID ב-shamor zachor
-      final result = dataProvider.getBookById(bookId);
-
-      if (result == null) {
-        UiSnack.showError(TextBookMessages.bookNotFoundInShamorZachor);
-        return;
-      }
-
-      final (bookDetails, _, _) = result;
-
-      // שורת מקור (לא segmentIndex של מצב רצף).
-      final currentIndex = widget.tab.index;
-
-      // טווחי BookSection הם שורות מקור; כותרות יכולות לחזור בין פרקים.
-      BookSection? findCurrentSection(List<BookSection> sections) {
-        for (final section in sections) {
-          if (currentIndex < section.startPage ||
-              currentIndex > section.endPage) {
-            continue;
-          }
-          if (section.isLeaf) return section;
-          final child = findCurrentSection(section.children);
-          if (child != null) return child;
-        }
-        return null;
-      }
-
-      final section = findCurrentSection(bookDetails.sections ?? const []);
-      final targetItem = section == null
-          ? null
-          : bookDetails.learnableItems.firstWhereOrNull(
-              (item) => item.sectionId == section.id,
-            );
-      if (targetItem == null) {
-        final currentRef = await refFromIndex(
-          currentIndex,
-          state.book.tableOfContents,
-        );
-        throw Exception('$currentRef לא נמצא בשמור וזכור');
-      }
-      final displayName = targetItem.hierarchyPath.join(', ');
-
-      // בדיקת מצב העמודות עבור הפרק הספציפי - משתמשים ב-ID!
-      final itemProgress = progressProvider.getProgressForItemById(
-        bookId,
-        targetItem.absoluteIndex,
-      );
-
-      // מציאת העמודה הראשונה שלא מסומנת
-      String? columnToMark;
-      const columns = ['learn', 'review1', 'review2', 'review3'];
-
-      for (final column in columns) {
-        if (!itemProgress.getProperty(column)) {
-          columnToMark = column;
-          break;
-        }
-      }
-
-      if (columnToMark == null) {
-        UiSnack.show(TextBookMessages.noFreeSlotInChapter(displayName));
-        return;
-      }
-
-      // סימון הפרק הספציפי - משתמשים ב-ID!
-      await progressProvider.updateProgressById(
-        bookId,
-        targetItem.absoluteIndex,
-        columnToMark,
-        true,
-        bookDetails,
-      );
-
-      final columnName = _getColumnDisplayName(columnToMark);
-      UiSnack.show(TextBookMessages.chapterMarked(displayName, columnName));
-    } catch (e) {
-      debugPrint('Error in _markShamorZachorProgress: $e');
-      UiSnack.showError(TextBookMessages.markingError(e));
-    }
-  }
-
-  /// קבלת שם העמודה להצגה
-  String _getColumnDisplayName(String column) {
-    switch (column) {
-      case 'learn':
-        return 'נלמד';
-      case 'review1':
-        return 'חזרה ראשונה';
-      case 'review2':
-        return 'חזרה שנייה';
-      case 'review3':
-        return 'חזרה שלישית';
-      default:
-        return column;
-    }
-  }
-
-  Future<Uint8List?> _capturePageShapeViewPng() async {
+  @override
+  Future<Uint8List?> capturePageShapeViewPng() async {
     final boundaryContext = _pageShapePrintBoundaryKey.currentContext;
     if (boundaryContext == null) return null;
 
@@ -448,181 +252,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       TourInteraction(type: TourInteractionType.bookSourceViewed),
     );
     showBookDetailsDialog(context, state.book);
-  }
-
-  Future<void> _handlePrintPress(TextBookLoaded state) async {
-    context.read<TourCubit>().recordInteraction(
-      TourInteraction(type: TourInteractionType.printUsed),
-    );
-    var commentators = state.activeCommentators;
-    var protection = state.protection;
-    var useScreenshot = state.showPageShapeView;
-    if (state.showPageShapeView) {
-      final policy = await resolvePageShapePrintPolicy(
-        mainProtection: state.protection,
-        layout: widget.tab.pageShapePluginController.layout,
-        availableCommentators: state.availableCommentators,
-        links: state.links,
-      );
-      commentators = policy.commentators;
-      protection = policy.protection;
-      useScreenshot = policy.useScreenshot;
-    }
-    if (!mounted) return;
-    if (useScreenshot) {
-      final png = await _capturePageShapeViewPng();
-      if (!mounted) return;
-      if (png == null || png.isEmpty) {
-        UiSnack.showError(TextBookMessages.cannotCapturePageShapeForPrint);
-        return;
-      }
-      if (!mounted) return;
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => PrintingScreen(
-          // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
-          data: Future.value(''),
-          bookId: state.book.title,
-          protection: protection,
-          displayProfile: _exportProfile(state),
-          createPdfOverride: (PdfPageFormat format) async {
-            final doc = pw.Document(compress: false);
-            final img = pw.MemoryImage(png);
-            doc.addPage(
-              pw.Page(
-                pageFormat: format,
-                margin: pw.EdgeInsets.zero,
-                build: (context) =>
-                    pw.Center(child: pw.Image(img, fit: pw.BoxFit.contain)),
-              ),
-            );
-            return doc.save();
-          },
-        ),
-      );
-      return;
-    }
-
-    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
-    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
-    final contentData = context.read<TextBookBloc>().repository.getBookContent(
-      state.book,
-    );
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PrintingScreen(
-        data: contentData,
-        bookId: state.book.title,
-        book: state.book,
-        protection: state.protection,
-        links: state.links,
-        activeCommentators: commentators,
-        initialIncludeCommentaries: state.showPageShapeView,
-        startLine: widget.tab.index,
-        displayProfile: _exportProfile(state),
-        commentaryDisplayProfile: state.displayProfile(
-          target: TextTarget.commentary,
-          channel: TextChannel.export,
-        ),
-        tableOfContents: state.tableOfContents,
-      ),
-    );
-  }
-
-  Future<void> _exportWholeBook(TextBookLoaded state) async {
-    if (!state.protection.allowsEditableExport) {
-      UiSnack.showError(TextBookMessages.editableExportRestricted);
-      return;
-    }
-    if (!await verifySaferModePassword(context)) return;
-    if (!mounted) return;
-
-    try {
-      // לא state.divineNames: הטעינה ברקע עשויה שלא להסתיים עד הייצוא.
-      final book = state.book;
-      final divineNames = await DivineNamesRepository.instance.spansFor(
-        book.title,
-        categoryId: book.categoryId,
-        source: book.source,
-        fileType: book.fileType,
-        versionTitle: book.versionTitle,
-      );
-      if (!mounted) return;
-      final choice = await showTextBookExportDialog(
-        context,
-        profile: _exportProfile(state),
-        hasDivineNames: !divineNames.isEmpty,
-      );
-      if (choice == null) return;
-      if (!mounted) return;
-
-      final selectedFormat = choice.format;
-      final extension = selectedFormat.extension;
-      final settingsState = context.read<SettingsBloc>().state;
-      final profile = _exportProfile(
-        state,
-      ).copyWith(holyName: choice.holyName, divineNames: choice.divineNames);
-      final fullContent = await context
-          .read<TextBookBloc>()
-          .repository
-          .getBookContent(state.book);
-
-      final bookNotes = await BookNotesRepository.instance.notesFor(
-        book.title,
-        categoryId: book.categoryId,
-        source: book.source,
-        fileType: book.fileType,
-        versionTitle: book.versionTitle,
-      );
-      final exportRequest = TextBookExportRequest(
-        rawContent: fullContent,
-        profile: profile,
-        divineNames: divineNames,
-        bookNotes: bookNotes,
-      );
-      final Uint8List bytes;
-      final String successMessage;
-      if (selectedFormat == TextBookExportFormat.word) {
-        bytes = await compute(
-          _createTextBookWordExport,
-          _WordExportRequest(
-            title: state.book.title,
-            text: exportRequest,
-            fontFamily: settingsState.fontFamily,
-            fontSize: state.fontSize,
-          ),
-        );
-        successMessage = TextBookMessages.wordFileSaved;
-      } else {
-        final text = await compute(createTextBookTextExport, exportRequest);
-        bytes = Uint8List.fromList(utf8.encode(text));
-        successMessage = TextBookMessages.textFileSaved;
-      }
-
-      if (!mounted) return;
-      final path = await saveFileWithExtension(
-        context: context,
-        dialogTitle: 'ייצוא הספר',
-        fileName:
-            '${sanitizeTextBookExportFileName(state.book.title)}.$extension',
-        extension: extension,
-        bytes: bytes,
-      );
-      if (path == null) return;
-      if (!mounted) return;
-      UiSnack.showSuccess(successMessage);
-    } on FileSystemException catch (e) {
-      if (isLockedTextBookExportFileException(e)) {
-        UiSnack.showError(TextBookMessages.exportFileLocked);
-        return;
-      }
-      UiSnack.showError(TextBookMessages.exportFailed(e.message));
-    } catch (e) {
-      UiSnack.showError(TextBookMessages.exportFailed(e));
-    }
   }
 
   @override
@@ -1818,17 +1447,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         30,
         ActionButtonData(
           widget: _buildShamorZachorButton(context, state),
-          icon: _isBookTrackedInShamorZachor(state.book)
+          icon: isBookTrackedInShamorZachor(state.book)
               ? FluentIcons.checkmark_circle_24_regular
               : FluentIcons.add_circle_24_regular,
-          tooltip: _isBookTrackedInShamorZachor(state.book)
+          tooltip: isBookTrackedInShamorZachor(state.book)
               ? 'סמן קטע פתוח כנלמד בשמור וזכור'
               : 'הוסף למעקב לימוד בשמור וזכור',
           onPressed: () {
-            if (_isBookTrackedInShamorZachor(state.book)) {
-              _markShamorZachorProgress(state.book.title);
+            if (isBookTrackedInShamorZachor(state.book)) {
+              markShamorZachorProgress(state.book.title);
             } else {
-              _addBookToShamorZachorTracking(state.book);
+              addBookToShamorZachorTracking(state.book);
             }
           },
         ),
@@ -1885,7 +1514,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             widget: const SizedBox.shrink(),
             icon: OtzariaIcons.book_download_24_regular,
             tooltip: 'ייצוא הספר',
-            onPressed: () => _exportWholeBook(state),
+            onPressed: () => exportWholeBook(state),
           ),
         ),
 
@@ -1903,7 +1532,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ),
             icon: FluentIcons.print_24_regular,
             tooltip: 'הדפסה',
-            onPressed: () => _handlePrintPress(state),
+            onPressed: () => handlePrintPress(state),
           ),
         ),
 
@@ -1945,14 +1574,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 widget: const SizedBox.shrink(),
                 icon: FluentIcons.print_24_regular,
                 tooltip: 'הדפסה',
-                onPressed: () => _handlePrintPress(state),
+                onPressed: () => handlePrintPress(state),
               ),
               if (state.protection.allowsEditableExport)
                 ActionButtonData(
                   widget: const SizedBox.shrink(),
                   icon: OtzariaIcons.document_download_24_regular,
                   tooltip: 'ייצוא הספר',
-                  onPressed: () => _exportWholeBook(state),
+                  onPressed: () => exportWholeBook(state),
                 ),
               ActionButtonData(
                 widget: const SizedBox.shrink(),
@@ -2351,37 +1980,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         context.read<TourCubit>().recordInteraction(
           TourInteraction(type: TourInteractionType.printUsed),
         );
-        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
-        // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
-        final contentData = context
-            .read<TextBookBloc>()
-            .repository
-            .getBookContent(state.book);
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => PrintingScreen(
-            data: contentData,
-            bookId: state.book.title,
-            book: state.book,
-            protection: state.protection,
-            links: state.links,
-            activeCommentators: state.activeCommentators,
-            startLine: widget.tab.index,
-            displayProfile: _exportProfile(state),
-            commentaryDisplayProfile: state.displayProfile(
-              target: TextTarget.commentary,
-              channel: TextChannel.export,
-            ),
-            tableOfContents: state.tableOfContents,
-          ),
-        );
+        showBookPrintingScreen(context, state, startLine: widget.tab.index);
       },
     );
   }
 
   Widget _buildShamorZachorButton(BuildContext context, TextBookLoaded state) {
-    final isTracked = _isBookTrackedInShamorZachor(state.book);
+    final isTracked = isBookTrackedInShamorZachor(state.book);
     final isCompact = AppDensity.of(context).isCompact;
     return BarButton.icon(
       tooltip: isTracked
@@ -2393,110 +1998,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       compact: isCompact,
       onPressed: () {
         if (isTracked) {
-          _markShamorZachorProgress(state.book.title);
+          markShamorZachorProgress(state.book.title);
         } else {
-          _addBookToShamorZachorTracking(state.book);
+          addBookToShamorZachorTracking(state.book);
         }
       },
     );
-  }
-
-  /// Add book to Shamor Zachor tracking
-  Future<void> _addBookToShamorZachorTracking(Book book) async {
-    if (!_isOfficialSeforimBook(book)) {
-      UiSnack.showError(TextBookMessages.onlyOfficialBooksSupportedInTracking);
-      return;
-    }
-    try {
-      final dataProvider = context.read<ShamorZachorDataProvider>();
-
-      final bookTitle = book.title;
-
-      // 1. Get book path from library or database
-      String? bookPath = book.filePath;
-
-      if (bookPath == null) {
-        final location = await BookLocator.locateBook(
-          bookTitle,
-          categoryId: book.categoryId,
-        );
-        bookPath = location?.filePath;
-      }
-
-      // If not found in file system, try to get category from database
-      if (bookPath == null) {
-        String categoryPath = '';
-        // Try to use the category path from the book object first
-        if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-          categoryPath = book.categoryPath!.replaceAll(', ', '/');
-        } else {
-          final dbProvider = SqliteDataProvider.instance;
-          if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
-            try {
-              final resolvedBook = await BookDatabaseResolver.resolveBook(
-                title: bookTitle,
-                categoryId: book.categoryId,
-                fileType: book.fileType,
-                filePath: book.filePath,
-                preferSource: BookDatabaseResolver.likelySource(
-                  source: book.source,
-                  categoryPath: book.categoryPath,
-                ),
-              );
-              if (resolvedBook != null) {
-                categoryPath = await BookDatabaseResolver.buildCategoryPath(
-                  resolvedBook.repository,
-                  resolvedBook.book.categoryId,
-                );
-                categoryPath = categoryPath.replaceAll(', ', '/');
-              }
-            } catch (e) {
-              debugPrint('Error getting category from DB: $e');
-            }
-          }
-        }
-
-        if (categoryPath.isNotEmpty) {
-          final libraryPath =
-              Settings.getValue<String>(SettingsRepository.keyLibraryPath) ??
-              '.';
-          bookPath =
-              '$libraryPath${Platform.pathSeparator}אוצריא${Platform.pathSeparator}$categoryPath${Platform.pathSeparator}$bookTitle.txt';
-          debugPrint('Book path from DB: $bookPath');
-        }
-      }
-
-      if (bookPath == null) {
-        UiSnack.showError(TextBookMessages.bookPathNotFound);
-        return;
-      }
-
-      debugPrint('Adding book to tracking - Path: $bookPath');
-
-      // 2. Use the actual book title as-is (don't modify it)
-      // The title should match exactly what's in the DB
-      String cleanBookName = bookTitle;
-
-      // 3. Show loading indicator
-      UiSnack.show(TextBookMessages.addingBookToTracking);
-
-      // 4. Add book via provider (only needs book name)
-      await dataProvider.addCustomBook(
-        bookName: cleanBookName,
-        bookId: book.id,
-        categoryId: book.categoryId,
-      );
-
-      // 5. Success message
-      UiSnack.show(TextBookMessages.bookAddedToTracking(cleanBookName));
-
-      // 6. Update UI to reflect the change
-      setState(() {});
-    } catch (e, stackTrace) {
-      debugPrint('Error adding book to Shamor Zachor: $e');
-      debugPrint('Stack trace: $stackTrace');
-      UiSnack.showError(TextBookMessages.addBookToTrackingError(e));
-    }
   }
 
   /// לחצן המהדורה המקבילה: הפעולה הראשית היא המהדורה הראשונה (המובנית
@@ -3059,30 +2566,7 @@ bool _handleGlobalKeyEvent(
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.printUsed),
     );
-    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
-    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
-    final contentData = context.read<TextBookBloc>().repository.getBookContent(
-      state.book,
-    );
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PrintingScreen(
-        data: contentData,
-        bookId: state.book.title,
-        book: state.book,
-        protection: state.protection,
-        links: state.links,
-        activeCommentators: state.activeCommentators,
-        startLine: tab.index,
-        displayProfile: _exportProfile(state),
-        commentaryDisplayProfile: state.displayProfile(
-          target: TextTarget.commentary,
-          channel: TextChannel.export,
-        ),
-        tableOfContents: state.tableOfContents,
-      ),
-    );
+    showBookPrintingScreen(context, state, startLine: tab.index);
     return true;
   }
 
