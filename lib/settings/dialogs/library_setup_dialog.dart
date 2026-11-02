@@ -28,6 +28,7 @@ import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/move_directory.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 /// דיאלוג מאוחד להגדרת/עדכון מיקום הספרייה. יוצר [EmptyLibraryBloc] משלו
 /// ומחזיר `true` אם הספרייה הוגדרה/עודכנה/הועברה בהצלחה.
@@ -608,7 +609,10 @@ class _LibrarySetupDialogContentState
         final report = _report;
         if (report != null) {
           void close() => Navigator.of(context).pop(true);
-          return AppCustomContentDialog(
+          return AppDialogFrame(
+            size: AppDialogSize.medium,
+            fitTitle: true,
+            scrollable: true,
             icon: FluentIcons.checkmark_circle_24_regular,
             title: context.settingsText('הספרייה הותקנה'),
             onConfirm: close,
@@ -624,8 +628,11 @@ class _LibrarySetupDialogContentState
         }
         final working = state.isLoading;
         final canConfirm = !working && _canConfirm(state);
-        return AppCustomContentDialog(
-          canDismiss: !working,
+        return AppDialogFrame(
+          size: AppDialogSize.medium,
+          fitTitle: true,
+          scrollable: true,
+          closeEnabled: !working,
           icon: _hasLibrary
               ? FluentIcons.arrow_sync_24_regular
               : FluentIcons.library_24_regular,

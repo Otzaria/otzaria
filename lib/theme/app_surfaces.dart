@@ -31,6 +31,17 @@ class AppSurfaces {
   static Color panelBackground(BuildContext context) =>
       _s(context).panelBackground;
 
+  /// גוף של דיאלוג שבנוי מכרטיסים (היסטוריה וסימניות): בבהיר
+  /// [panelBackground], ובכהה `surface`, כך ש־[card] בהיר ממנו בשתי הערכות,
+  /// כמו כרטיסי מסך ההגדרות על רקע הלוח. חריג מתועד לגוון הדיאלוג של DD-07
+  /// (הערת בעל הפרויקט 4.11, DD-11).
+  static Color cardDialogBackground(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.dark
+        ? theme.colorScheme.surface
+        : panelBackground(context);
+  }
+
   /// רקע סרגל עליון (AppTopBar).
   static Color topBarBackground(BuildContext context) =>
       _s(context).topBarBackground;

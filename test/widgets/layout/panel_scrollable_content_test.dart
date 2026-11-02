@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 
 Widget _wrap(Widget child, {Size size = const Size(400, 300)}) => MaterialApp(
@@ -66,12 +66,14 @@ void main() {
     });
   });
 
-  group('AppCustomContentDialog', () {
+  group('AppDialogFrame', () {
     testWidgets('אזור התוכן מציג פס גלילה נעוץ', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          const AppCustomContentDialog(
+          const AppDialogFrame(
             title: 'כותרת',
+            icon: Icons.list,
+            scrollable: true,
             child: SizedBox(height: 2000),
           ),
           size: const Size(400, 400),
@@ -86,9 +88,9 @@ void main() {
     testWidgets('scrollable=false אינו עוטף בגלילה', (tester) async {
       await tester.pumpWidget(
         _wrap(
-          const AppCustomContentDialog(
+          const AppDialogFrame(
             title: 'כותרת',
-            scrollable: false,
+            icon: Icons.list,
             child: SizedBox(height: 50),
           ),
           size: const Size(400, 400),

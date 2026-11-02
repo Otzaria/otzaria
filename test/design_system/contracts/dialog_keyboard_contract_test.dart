@@ -353,11 +353,12 @@ void main() {
       expect(outcome.value, isTrue);
     });
 
-    testWidgets('AppCustomContentDialog: Escape שואל', (tester) async {
+    testWidgets('AppDialogFrame: Escape שואל', (tester) async {
       final outcome = await showInApp<void>(
         tester,
-        AppCustomContentDialog(
+        AppDialogFrame(
           title: 'טופס',
+          icon: Icons.edit,
           isDirty: dirty,
           child: const Focus(autofocus: true, child: Text('גוף')),
         ),
@@ -385,13 +386,17 @@ void main() {
     });
   });
 
-  group('AppCustomContentDialog — מקלדת', () {
+  group('AppDialogFrame — מקלדת', () {
     const focusedBody = Focus(autofocus: true, child: Text('גוף'));
 
     testWidgets('בלי onConfirm Enter לא סוגר ו-Escape סוגר', (tester) async {
       final outcome = await showInApp<void>(
         tester,
-        const AppCustomContentDialog(title: 'רשימה', child: focusedBody),
+        const AppDialogFrame(
+          title: 'רשימה',
+          icon: Icons.list,
+          child: focusedBody,
+        ),
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
@@ -408,8 +413,9 @@ void main() {
         var confirms = 0;
         await showInApp<void>(
           tester,
-          AppCustomContentDialog(
+          AppDialogFrame(
             title: 'רשימה',
+            icon: Icons.list,
             onConfirm: () => confirms++,
             handleEnterKey: handleEnterKey,
             child: focusedBody,
@@ -426,8 +432,9 @@ void main() {
       var confirms = 0;
       await showInApp<void>(
         tester,
-        AppCustomContentDialog(
+        AppDialogFrame(
           title: 'רשימה',
+          icon: Icons.list,
           onConfirm: () => confirms++,
           handleEnterKey: true,
           child: const Text('גוף'),
@@ -437,12 +444,13 @@ void main() {
       expect(confirms, 0);
     });
 
-    testWidgets('canDismiss=false: Escape לא סוגר', (tester) async {
+    testWidgets('closeEnabled=false: Escape לא סוגר', (tester) async {
       final outcome = await showInApp<void>(
         tester,
-        const AppCustomContentDialog(
+        const AppDialogFrame(
           title: 'רשימה',
-          canDismiss: false,
+          icon: Icons.list,
+          closeEnabled: false,
           child: focusedBody,
         ),
       );

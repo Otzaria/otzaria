@@ -20,6 +20,7 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  קבועים ופונקציות עזר
@@ -1005,7 +1006,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     final isEditMode = widget.existingEvent != null;
     final isRecurring = _selectedRecurrenceType != RecurrenceType.none;
 
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.medium,
+      fitTitle: true,
+      scrollable: true,
       title: isEditMode ? 'ערוך אירוע' : 'צור אירוע חדש',
       icon: isEditMode
           ? FluentIcons.calendar_edit_24_regular
