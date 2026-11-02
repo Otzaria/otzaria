@@ -1268,6 +1268,60 @@ void main() {
       }
     });
 
+    group('GC של blobs יתומים', () {
+      late BackupStore store;
+      late String keptRef;
+      late String orphanRef;
+
+      File blobFile(String ref) {
+        final hex = ref.substring(BackupStore.hashPrefix.length);
+        return File(p.join(store.objectsPath, hex.substring(0, 2), hex));
+      }
+
+      setUp(() async {
+        store = BackupStore.forBackupDir(backupDir);
+        keptRef = await store.putBytes([1, 2, 3]);
+        orphanRef = await store.putBytes([4, 5, 6]);
+        final old = DateTime.now().subtract(const Duration(days: 60));
+        blobFile(keptRef).setLastModifiedSync(old);
+        blobFile(orphanRef).setLastModifiedSync(old);
+
+        final timestamp = agedTimestamp(1);
+        await writeBackupFile(
+          timestamp: timestamp,
+          data: {
+            ...manifestWithBookmarks(timestamp, const []),
+            'userBooks': keptRef,
+          },
+        );
+      });
+
+      test('מוחק blob ישן שאינו מופנה ומשאיר את המופנה', () async {
+        final spy = _ManifestFileSpy();
+        final result = await IOOverrides.runWithIOOverrides(
+          BackupMaintenance.runMaintenance,
+          spy,
+        );
+
+        expect(spy.mainIsolateManifests, isEmpty);
+        expect(result.freedBytes, greaterThan(0));
+        expect(await store.exists(keptRef), isTrue);
+        expect(await store.exists(orphanRef), isFalse);
+      });
+
+      test('מניפסט לא קריא מדלג על ה-GC כולו', () async {
+        await File(
+          p.join(backupDir, BackupMaintenance.archiveFileName),
+        ).writeAsString('{corrupt');
+
+        final result = await BackupMaintenance.runMaintenance();
+
+        expect(result.freedBytes, 0);
+        expect(await store.exists(keptRef), isTrue);
+        expect(await store.exists(orphanRef), isTrue);
+      });
+    });
+
     test('תמונת המצב במסך מציגה את מספר הגיבויים והארכיון', () async {
       await writeBackupFile(
         timestamp: '2026-01-01T00-00-00.000',
@@ -1298,4 +1352,15 @@ void main() {
       );
     });
   });
+}
+
+/// IOOverrides חלים רק על ה-zone הנוכחי, ולכן רושמים רק קבצים שנפתחו ב-UI isolate.
+final class _ManifestFileSpy extends IOOverrides {
+  final mainIsolateManifests = <String>[];
+
+  @override
+  File createFile(String path) {
+    if (path.endsWith('.json')) mainIsolateManifests.add(path);
+    return super.createFile(path);
+  }
 }
