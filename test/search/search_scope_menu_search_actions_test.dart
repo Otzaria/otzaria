@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -159,12 +157,26 @@ Future<void> main() async {
         await pumpMenu(tester, {'/'});
         await typeQuery(tester, 'בראשית');
 
-        // ב-Windows ובמגע "רק" מוצג תמיד; בשאר — מוסתר עד ריחוף.
-        final alwaysShown =
-            Platform.isWindows || Platform.isAndroid || Platform.isIOS;
-        expect(find.text('רק'), alwaysShown ? findsOneWidget : findsNothing);
+        // "רק" לפי המצביע בפועל, לא לפי מערכת ההפעלה (MIG-16, DD-31): בלי
+        // עכבר מחובר (מגע) הוא מוצג תמיד.
+        expect(find.text('רק'), findsOneWidget);
 
-        await hoverOver(tester, 'בראשית');
+        // עם עכבר: מוצג רק בשורה שמתחת למצביע.
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.addPointer(location: tester.getCenter(rowOf('בראשית')));
+        addTearDown(mouse.removePointer);
+        await tester.pump();
+        await mouse.moveBy(const Offset(1, 0));
+        await tester.pump();
+        expect(find.text('רק'), findsOneWidget);
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+        expect(find.text('רק'), findsNothing);
+
+        await mouse.moveTo(tester.getCenter(rowOf('בראשית')));
+        await tester.pump();
         expect(find.text('רק'), findsOneWidget);
 
         await tester.tap(find.text('רק'));
