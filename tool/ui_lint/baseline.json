@@ -26,9 +26,6 @@
         {"scope":"_SaferModePasswordDialogState.build","fp":"5ba189c4","n":1},
         {"scope":"_SaferModeSetPasswordDialogState.build","fp":"5ba189c4","n":2}
       ],
-      "lib/text_book/view/commentary_list_base.dart": [
-        {"scope":"CommentaryListBaseState._buildClosePaneButton","fp":"5ba189c4","n":1}
-      ],
       "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
         {"scope":"_ZmanInfoButton.build","fp":"5ba189c4","n":1}
       ],

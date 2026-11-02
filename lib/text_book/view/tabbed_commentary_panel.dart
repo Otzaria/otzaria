@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -179,7 +180,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                               minWidth: 36,
                               minHeight: 40,
                             ),
-                            tooltip: 'פתח כרטסיית מפרשים',
+                            tooltip: CommentaryPanelToolbar.openInNewTabTooltip,
                             icon: const Icon(FluentIcons.open_24_regular),
                             onPressed: widget.tab == null
                                 ? null
