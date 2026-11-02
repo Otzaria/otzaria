@@ -383,7 +383,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     emit(hasUnindexedBooks ? IndexingInitial() : const IndexingComplete());
   }
 
-  /// Handles the CancelIndexing event
   void _onCancelIndexing(
     CancelIndexing event,
     Emitter<IndexingState> emit,
@@ -437,7 +436,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     );
   }
 
-  /// Handles the EraseIndex event
   Future<void> _onEraseIndex(
     ClearIndex event,
     Emitter<IndexingState> emit,
@@ -447,7 +445,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     emit(IndexingInitial());
   }
 
-  /// Handles the UpdateIndexingProgress event
   void _onUpdateProgress(
     UpdateIndexingProgress event,
     Emitter<IndexingState> emit,
