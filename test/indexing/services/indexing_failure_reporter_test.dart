@@ -52,6 +52,18 @@ void main() {
     expect(report, contains('Warnings: 1'));
   });
 
+  test('הדוח כולל את שיא הזיכרון', () {
+    final report = IndexingFailureReporter.formatReport(
+      result,
+      memory: {'totalRamMb': 8000, 'processPeakCommitMb': 3100},
+    );
+
+    expect(
+      report,
+      contains('Memory: totalRamMb=8000 processPeakCommitMb=3100'),
+    );
+  });
+
   test('הדוח אינו משמיט אף ספר, נתיב, סוג כשל או stack trace', () {
     final report = IndexingFailureReporter.formatReport(result);
 

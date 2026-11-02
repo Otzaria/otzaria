@@ -10,6 +10,7 @@ import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/app_report/services/input_focus_diagnostics.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
+import 'package:otzaria/core/diagnostics/memory_info.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
@@ -162,7 +163,9 @@ class AppReportCollector {
 
   /// מערכת ההפעלה, ארכיטקטורה, שפה ומסכים — בלי להריץ תהליכים חיצוניים.
   @visibleForTesting
-  static Map<String, dynamic> systemInfo() {
+  static Map<String, dynamic> systemInfo({
+    Map<String, int> Function() memory = memoryInfo,
+  }) {
     final info = <String, dynamic>{
       'platform': Platform.operatingSystem,
       'osVersion': osVersion(),
@@ -170,6 +173,7 @@ class AppReportCollector {
       'processAbi': Abi.current().toString(),
       'processors': Platform.numberOfProcessors,
       'dartVersion': Platform.version.split(' ').first,
+      'memory': memory(),
     };
     try {
       final dispatcher = PlatformDispatcher.instance;
