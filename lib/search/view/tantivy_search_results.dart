@@ -472,21 +472,6 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     final rawQuery = appliedQuery.trim().isNotEmpty
         ? appliedQuery
         : widget.tab.queryController.text;
-    final configuration = widget.tab.searchBloc.state.configuration;
-
-    // אין זיהוי "שאילתת רגקס": המנוע מנקה מטא-תווים ב-sanitize_query, ולכן
-    // שאילתה בלי אפשרויות מיוחדות תמיד ליטרלית וניתנת לחיפוש פשוט בספר.
-    final inBookParameters = InBookSearchRouting.resolveForReadingTab(
-      searchMode: configuration.searchMode,
-      distance: configuration.distance,
-      searchOptions: effectiveOptions,
-      alternativeWords: widget.tab.alternativeWords,
-      spacingValues: widget.tab.spacingValues,
-      matchPolicy: configuration.matchPolicyWithSpacing(
-        widget.tab.spacingValues,
-        query: rawQuery,
-      ),
-    );
     await openSearchResultInReader(
       context,
       resolvedBook: resolvedBook,
@@ -499,9 +484,31 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       searchOptions: effectiveOptions,
       alternativeWords: widget.tab.alternativeWords,
       spacingValues: widget.tab.spacingValues,
-      inBook: inBookParameters,
+      inBook: _inBookParameters(rawQuery, effectiveOptions),
       inBackground: inBackground,
       continuesToNextLine: continuesToNextLine,
+    );
+  }
+
+  /// פרמטרי החיפוש בספר לתוצאה של [query] — אותם בפתיחה בעיון ובתצוגה
+  /// המקדימה, כדי ששתיהן יזהו את אותן התאמות (issue #1147).
+  InBookSearchParameters _inBookParameters(
+    String query,
+    Map<String, Map<String, bool>> searchOptions,
+  ) {
+    final configuration = widget.tab.searchBloc.state.configuration;
+    // אין זיהוי "שאילתת רגקס": המנוע מנקה מטא-תווים ב-sanitize_query, ולכן
+    // שאילתה בלי אפשרויות מיוחדות תמיד ליטרלית וניתנת לחיפוש פשוט בספר.
+    return InBookSearchRouting.resolveForReadingTab(
+      searchMode: configuration.searchMode,
+      distance: configuration.distance,
+      searchOptions: searchOptions,
+      alternativeWords: widget.tab.alternativeWords,
+      spacingValues: widget.tab.spacingValues,
+      matchPolicy: configuration.matchPolicyWithSpacing(
+        widget.tab.spacingValues,
+        query: query,
+      ),
     );
   }
 
@@ -534,23 +541,13 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         return ValueListenableBuilder<SearchPreviewTarget?>(
           valueListenable: widget.tab.previewTarget,
           builder: (context, target, _) {
-            // אותם פרמטרים שפתיחה בחלון מלא מעבירה, כדי שההדגשה בשתי
-            // התצוגות תזהה את אותן התאמות (issue #1147).
-            final configuration = widget.tab.searchBloc.state.configuration;
             final previewQuery = widget.tab.searchBloc.state.searchQuery;
             final previewOptions = widget.tab.effectiveSearchOptions(
               query: previewQuery,
             );
-            final previewParameters = InBookSearchRouting.resolveForReadingTab(
-              searchMode: configuration.searchMode,
-              distance: configuration.distance,
-              searchOptions: previewOptions,
-              alternativeWords: widget.tab.alternativeWords,
-              spacingValues: widget.tab.spacingValues,
-              matchPolicy: configuration.matchPolicyWithSpacing(
-                widget.tab.spacingValues,
-                query: previewQuery,
-              ),
+            final previewParameters = _inBookParameters(
+              previewQuery,
+              previewOptions,
             );
             final available = constraints.maxWidth;
             final minWidth = available < 280 ? available : 280.0;
