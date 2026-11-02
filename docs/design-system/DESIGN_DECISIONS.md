@@ -256,7 +256,7 @@
    - **הוכרע:** A. מסגרת, לא צל (כהמלצה).
    - **תשובות:**
      - q1: עוצמת ה־scrim מאחורי דיאלוגים וחלוניות → **אחידה ועדינה (כמו היום בדיאלוגים)**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש חלקית — AppShadows (צבע צל אחד, shadow@0.22, וצל צף ל-BoxDecoration); הגבהה 0/1/3 בלבד (elevation1=1 סרגל וחלונית מוצמדת, elevation2=3 תפריט, tooltip, חלונית צפה וגרירה) בכ־20 מקומות; AppCard, ExpandableCard ו-cardTheme במסגרת outlineVariant בלי צל; FloatingPanel ברמה 3 עם מסגרת; scrim אחד AppSurfaces.scrim (0x22, כמו הדיאלוגים) לדיאלוג, AdaptiveSidePane ו-ContextOverlayPanel, וסיור ההיכרות ב-spotlightScrim נפרד בלי שינוי; AppSurfaces.subtleDivider במקום 4 עותקים. נשאר: AppCard.sectionDivider/cardRowDivider ו-NavTreeGroupCard (עם CardRow של DD-11, MIG-20); צל כפתורי הדפדוף ב-PDF (MIG-23), כפתור התצוגה בלוח השנה (MIG-22), אנימציות הדגשה וסיום; tooltip עשיר כרכיב (UI-126); שאר ערכות הרכיבים של MIG-08 (switch, slider, checkbox, progress, segmented, scrollbar, listTile) ו-chipTheme (DD-13).
 
 ---
 

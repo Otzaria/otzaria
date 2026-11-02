@@ -218,10 +218,8 @@ class _BookmarkViewState extends State<BookmarkView> {
               shrinkWrap: true,
               padding: EdgeInsets.zero,
               itemCount: groups.length,
-              separatorBuilder: (_, _) => Divider(
-                height: 1,
-                color: cs.outlineVariant.withValues(alpha: 0.5),
-              ),
+              separatorBuilder: (_, _) =>
+                  Divider(height: 1, color: AppSurfaces.subtleDivider(cs)),
               itemBuilder: (context, i) {
                 final group = groups[i];
                 final count = group.items.length;

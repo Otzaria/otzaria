@@ -864,7 +864,8 @@ class _AnchoredSearchMenuContentState<T>
           child: FadeTransition(
             opacity: widget.animation,
             child: Material(
-              elevation: 8,
+              elevation: AppTokens.elevation2,
+              shadowColor: AppShadows.color(cs),
               borderRadius: AppTokens.borderRadiusAll,
               color: menuColor,
               clipBehavior: Clip.antiAlias,

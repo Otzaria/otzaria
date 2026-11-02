@@ -88,8 +88,15 @@ void main() {
         final cs = theme.colorScheme;
         expect(theme.dialogTheme.backgroundColor, cs.surfaceContainerHigh);
         expect(theme.dialogTheme.shape, AppTokens.roundedShape);
-        expect(theme.dialogTheme.barrierColor, AppColors.dialogBarrier);
-        expect(theme.cardTheme.shape, AppTokens.roundedShape);
+        expect(theme.dialogTheme.barrierColor, AppSurfaces.scrim(cs));
+        expect(
+          theme.cardTheme.shape,
+          RoundedRectangleBorder(
+            borderRadius: AppTokens.borderRadiusAll,
+            side: BorderSide(color: cs.outlineVariant),
+          ),
+        );
+        expect(theme.cardTheme.elevation, 0);
         expect(
           theme.inputDecorationTheme.border,
           const OutlineInputBorder(borderRadius: AppTokens.borderRadiusAll),

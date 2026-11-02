@@ -399,9 +399,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
                   AppTokens.animPanelOpacity,
                 ),
                 opacity: widget.isOpen ? 1.0 : 0.0,
-                child: ColoredBox(
-                  color: cs.scrim.withValues(alpha: 0.30),
-                ),
+                child: ColoredBox(color: AppSurfaces.scrim(cs)),
               ),
             ),
           ),
@@ -422,7 +420,6 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
                     : (isLeft ? const Offset(-1, 0) : const Offset(1, 0)),
                 child: FloatingPanel(
                   key: _panelKey,
-                  elevation: 8,
                   color: effectiveBackgroundColor,
                   child: SizedBox(
                     width: effectiveWidth,

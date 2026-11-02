@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/bloc/plugin_updates_cubit.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/services/plugin_update_check_service.dart';
 import 'package:otzaria/plugins/utils/plugin_version_utils.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 /// האם להציג צ'יפ עדכון: קיים עדכון שגרסתו גבוהה ממש מהמותקנת.
 /// ההשוואה כאן (ולא בזמן הבדיקה) מעלימה את הצ'יפ מעצמו אחרי עדכון מוצלח,
@@ -58,7 +59,8 @@ class _PluginUpdateChipState extends State<PluginUpdateChip> {
       listener: (_, _) => setState(() => _updating = false),
       child: Material(
         color: cs.primaryContainer,
-        elevation: 3,
+        elevation: AppTokens.elevation2,
+        shadowColor: AppShadows.color(cs),
         borderRadius: AppTokens.borderRadiusAll,
         child: Row(
           mainAxisSize: MainAxisSize.min,

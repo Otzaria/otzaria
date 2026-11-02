@@ -552,7 +552,8 @@ void main() {
       expect(find.text('לוח שנה'), findsOneWidget);
     });
 
-    // אותו כרטיס כמו בקוביות הספרייה — צבע הכרטיס שבערכת הנושא, בלי מסגרת.
+    // אותו כרטיס כמו בקוביות הספרייה — צבע הכרטיס שבערכת הנושא, ומסגרת
+    // outlineVariant בלי צל (DD-12).
     testWidgets('הקובייה על צבע הכרטיס של הספרייה', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
       expect(find.byType(AppCard), findsOneWidget);
@@ -565,7 +566,7 @@ void main() {
         ),
       );
       expect(material.color, AppSurfaces.card(context));
-      expect(material.shape, isNull);
+      expect(material.shape, AppCard.shape(Theme.of(context).colorScheme));
     });
 
     // סדר גודל של סמל תוכנה: בקובייה רגילה האייקון מגיע לגודלו המרבי.

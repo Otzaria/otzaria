@@ -215,9 +215,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     bool attached = false,
   }) {
     final paneColor = _effectivePaneColor(context);
-    final shadowColor = Theme.of(
-      context,
-    ).colorScheme.shadow.withValues(alpha: 0.22);
+    final shadowColor = AppShadows.color(Theme.of(context).colorScheme);
 
     // ממקם את פסי הגלילה בקצה החיצוני של הפאנל (הצמוד לדופן החלון) ולא בקצה
     // הפנימי, שם יושבת ידית הגרירה (ResizableDragHandle) וחוסמת את הלחיצה על
@@ -240,7 +238,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       // מצויר בנפרד כטלאי (_buildTopCornerFillet) באזור התוכן.
       return Material(
         color: paneColor,
-        elevation: 1,
+        elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
         child: scrollbarWrapped,
@@ -248,17 +246,12 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     }
 
     if (widget.wrapPaneInFloatingPanel) {
-      return FloatingPanel(
-        color: paneColor,
-        elevation: 8,
-        shadowColor: shadowColor,
-        child: scrollbarWrapped,
-      );
+      return FloatingPanel(color: paneColor, child: scrollbarWrapped);
     }
 
     return Material(
       color: paneColor,
-      elevation: 4,
+      elevation: AppTokens.elevation2,
       shadowColor: shadowColor,
       surfaceTintColor: Colors.transparent,
       borderRadius: AppTokens.borderRadiusAll,
@@ -545,7 +538,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           opacity: widget.isOpen ? 1.0 : 0.0,
           child: ColoredBox(
-            color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.30),
+            color: AppSurfaces.scrim(Theme.of(context).colorScheme),
           ),
         ),
       ),

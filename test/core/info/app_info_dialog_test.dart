@@ -247,7 +247,10 @@ void main() {
             expect(between, findsOneWidget);
             final divider = tester.widget<Divider>(between);
             expect(divider.height, 1);
-            expect(divider.color, AppSurfaces.cardRowDivider(context));
+            expect(
+              divider.color,
+              AppSurfaces.subtleDivider(Theme.of(context).colorScheme),
+            );
           }
           expect(tester.takeException(), isNull);
         });

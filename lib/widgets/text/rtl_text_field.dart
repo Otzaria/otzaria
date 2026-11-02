@@ -825,7 +825,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
       ),
       items: menuItems,
       requestFocus: requestFocus,
-      elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
       color: Theme.of(context).colorScheme.surface,
     ).then((value) async {

@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/overlay_scroll_anchor.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 /// חלונית צפה עם תצוגה מקדימה של מפרש, שנפתחת בריחוף או בלחיצה על עוגן-מילה,
 /// או לצד פריט בתפריט הקשר ([showBesideMenuItem]).
@@ -220,7 +221,6 @@ class _PanelStyle {
     : maxWidth = 420,
       maxHeight = null,
       minWidth = 0,
-      elevation = 8,
       anchorGap = 10,
       padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       _inMenu = false;
@@ -228,7 +228,6 @@ class _PanelStyle {
   const _PanelStyle.besideMenuItem({required this.minWidth})
     : maxWidth = 380,
       maxHeight = 360,
-      elevation = 6,
       anchorGap = 0,
       padding = const EdgeInsets.all(12),
       _inMenu = true;
@@ -238,7 +237,6 @@ class _PanelStyle {
   /// `null` — גובה חופשי; אחרת התוכן גולל בתוכו את גופו, והכותרת נשארת.
   final double? maxHeight;
   final double minWidth;
-  final double elevation;
   final double anchorGap;
   final EdgeInsets padding;
   final bool _inMenu;
@@ -612,7 +610,8 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
                       onPointerDown: (_) => _pin(),
                       child: Material(
                         key: _panelKey,
-                        elevation: style.elevation,
+                        elevation: AppTokens.elevation2,
+                        shadowColor: AppShadows.color(colorScheme),
                         color: style.color(colorScheme),
                         shape: style.shape(colorScheme),
                         clipBehavior: Clip.antiAlias,

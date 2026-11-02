@@ -25,6 +25,7 @@ import 'package:otzaria/search/view/plugin_search_results_actions.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_results_layout.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 class TantivyFullTextSearch extends StatefulWidget {
   final SearchingTab tab;
@@ -472,13 +473,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               border: Border.all(
                 color: cs.outlineVariant.withValues(alpha: 0.55),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: cs.shadow.withValues(alpha: 0.16),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: AppShadows.floating(cs),
             ),
             child: Icon(
               FluentIcons.info_24_regular,

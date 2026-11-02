@@ -89,7 +89,7 @@ void main() {
       expect(outcome.value, isNull);
     });
 
-    testWidgets('רקע הכיסוי של הדיאלוג הוא AppColors.dialogBarrier', (
+    testWidgets('רקע הכיסוי של הדיאלוג הוא AppSurfaces.scrim', (
       tester,
     ) async {
       await showInApp<bool>(
@@ -99,7 +99,8 @@ void main() {
       final barrier = tester.widget<ModalBarrier>(
         find.byType(ModalBarrier).last,
       );
-      expect(barrier.color, AppColors.dialogBarrier);
+      final cs = Theme.of(tester.element(find.byType(AlertDialog))).colorScheme;
+      expect(barrier.color, AppSurfaces.scrim(cs));
     });
   });
 

@@ -722,7 +722,7 @@ class _MemorialCardsGrid extends StatelessWidget {
   }
 }
 
-/// כרטיס משטח אחיד — רקע surfaceContainerHigh, פינות מעוגלות, ללא מסגרת.
+/// כרטיס משטח אחיד — רקע surfaceContainerHigh, ומסגרת וצורה מערכת הנושא.
 class _SurfaceCard extends StatelessWidget {
   final Widget child;
   const _SurfaceCard({required this.child});
@@ -730,7 +730,6 @@ class _SurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: child,
     );

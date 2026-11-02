@@ -57,6 +57,18 @@ class AppSurfaces {
   static Color cardRowDivider(BuildContext context) =>
       _s(context).cardRowDivider;
 
+  /// קו מפריד בין שורות ברשימה (DD-12). בתוך `AppCard.section` המפריד הוא
+  /// רווח שקוף, לא קו.
+  static Color subtleDivider(ColorScheme cs) =>
+      cs.outlineVariant.withValues(alpha: 0.5);
+
+  /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12): אחת, עדינה.
+  static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
+
+  /// ההחשכה של סיור ההיכרות. כהה מ-[scrim], כי היא שמבליטה את האזור המואר.
+  static Color spotlightScrim(ColorScheme cs) =>
+      cs.scrim.withValues(alpha: 0.62);
+
   /// רקע כפתור סרגל במצב נבחר (BarButton, BarSplitButton).
   static Color barButtonSelected(ColorScheme cs) =>
       cs.onSurface.withValues(alpha: 0.12);

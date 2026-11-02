@@ -17,6 +17,7 @@ import 'package:otzaria/tour/widgets/live_tip_card.dart';
 import 'package:otzaria/tour/widgets/spotlight_overlay.dart';
 import 'package:otzaria/tour/widgets/tour_tooltip_card.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 
 const Duration tourCardSwitchDuration = Duration(milliseconds: 260);
 const int _targetMonitorMaxFramesAfterMove = 45;
@@ -238,9 +239,9 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
                   if (step.isDialog)
                     IgnorePointer(
                       child: Container(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.scrim.withValues(alpha: 0.62),
+                        color: AppSurfaces.spotlightScrim(
+                          Theme.of(context).colorScheme,
+                        ),
                       ),
                     )
                   else

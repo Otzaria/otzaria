@@ -24,7 +24,6 @@ class PdfZoomBar extends StatelessWidget {
     final divider = Theme.of(context).colorScheme.outlineVariant;
 
     return FloatingPanel(
-      elevation: AppTokens.elevation2,
       color: AppSurfaces.card(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

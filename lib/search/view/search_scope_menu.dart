@@ -26,6 +26,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 /// כפתור-שדה אחד המרכז את כל סינון היקף החיפוש: הקלדה מסננת בזמן אמת, ותפריט
 /// עם ניווט drill-down פנימי (עץ הקטגוריות/ספרים, ספרי יסוד, תקופה, מחבר).
@@ -496,7 +497,8 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         groupId: _tapGroup,
         onTapOutside: (_) => _close(),
         child: Material(
-          elevation: 8,
+          elevation: AppTokens.elevation2,
+          shadowColor: AppShadows.color(colorScheme),
           color: colorScheme.surfaceContainerHigh,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(

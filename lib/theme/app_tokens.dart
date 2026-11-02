@@ -52,8 +52,12 @@ class AppTokens {
   /// מסגרת כרטיסייה בבחירה מרובה.
   static const double multiSelectedBorderWidth = 1.5;
 
-  // ── Elevation ——————————————————————————————
+  // ── Elevation (DD-12): 0 / 1 / 3 בלבד, הצל מ-AppShadows ——————————
+  // כרטיס ומשטח רגיל: 0, עם מסגרת outlineVariant.
+  /// סרגל עליון וחלונית מוצמדת.
   static const double elevation1 = 1;
+
+  /// תפריט, tooltip, חלונית צפה ומשוב גרירה.
   static const double elevation2 = 3;
 
   // ── Animation Durations ————————————————————
