@@ -14,6 +14,9 @@ class LiteralRadiusRule extends UiLintRule {
   String get id => 'UIL-019';
 
   @override
+  int get stage => 3;
+
+  @override
   String get title => 'BorderRadius.circular/Radius.circular ליטרלי';
 
   @override

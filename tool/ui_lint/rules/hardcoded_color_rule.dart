@@ -15,6 +15,9 @@ class HardcodedColorRule extends UiLintRule {
   String get id => 'UIL-015';
 
   @override
+  int get stage => 3;
+
+  @override
   String get title => 'צבע קשיח';
 
   @override

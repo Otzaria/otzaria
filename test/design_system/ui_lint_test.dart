@@ -26,12 +26,57 @@ List<int> _markedLines(String source) => [
 ];
 
 void main() {
-  test('לכל כלל יש מזהה ייחודי בקטלוג', () {
+  test('לכל כלל יש מזהה ייחודי בקטלוג ושלב', () {
     final ids = uiLintRules.map((r) => r.id).toList();
     expect(ids.toSet(), hasLength(ids.length));
-    for (final id in ids) {
-      expect(id, matches(RegExp(r'^UIL-\d{3}$')));
+    for (final rule in uiLintRules) {
+      expect(rule.id, matches(RegExp(r'^UIL-\d{3}$')));
+      expect(rule.stage, inInclusiveRange(1, 4), reason: rule.id);
     }
+  });
+
+  group('lib מול ה-baseline (חוסם)', () {
+    late final UiLintResult result;
+    late final BaselineComparison comparison;
+
+    setUpAll(() {
+      result = runUiLint('.', config: _config);
+      comparison = UiLintBaseline.load('.').compare(result.findings);
+    });
+
+    test('הסורק מוצא את החוב הקיים', () {
+      expect(result.findings, isNotEmpty);
+    });
+
+    test('אין חריגות חדשות בכללים החוסמים', () {
+      final fresh = [
+        for (final finding in comparison.newFindings)
+          if (_ruleOf(finding).isBlocking) finding,
+      ];
+      expect(
+        fresh,
+        isEmpty,
+        reason:
+            'חריגה חדשה מהתקן (docs/design-system/CI_ENFORCEMENT.md). '
+            'לתקן לפי ההצעה, או להוסיף מעליה '
+            '"// ui-lint: allow UIL-xxx — נימוק":\n'
+            '${fresh.map(_describe).join('\n')}',
+      );
+    });
+
+    test('אין baseline מת', () {
+      expect(
+        comparison.dead.keys,
+        isEmpty,
+        reason:
+            'חריגות שתוקנו עדיין רשומות ב-baseline. '
+            'הרץ: dart tool/ui_lint_cli.dart --update-baseline',
+      );
+    });
+
+    test('אין הערות allow פגומות או מיותרות', () {
+      expect(result.problems.map((p) => '$p'), isEmpty);
+    });
   });
 
   for (final rule in uiLintRules) {
@@ -210,6 +255,19 @@ const top = TextStyle(fontSize: 11);
       );
     });
 
+    test('שינוי בתוכן של דיאלוג גולמי לא הופך אותו לחריגה חדשה', () {
+      List<UiLintFinding> dialogs(String body) => lintSource(
+        "import 'package:flutter/material.dart';\n"
+        'Widget build() => Dialog(child: $body);\n',
+        _featurePath,
+        config: _config,
+      ).findings;
+      final before = UiLintBaseline.fromFindings(dialogs("Text('א')"));
+      final edited = before.compare(dialogs("Column(children: [Text('ב')])"));
+      expect(edited.newFindings, isEmpty);
+      expect(edited.dead, isEmpty);
+    });
+
     test('הסריאליזציה הפיכה', () {
       final parsed = UiLintBaseline.parse(baseline.toJsonString());
       expect(parsed.counts, baseline.counts);
@@ -226,4 +284,13 @@ const top = TextStyle(fontSize: 11);
       );
     });
   });
+}
+
+UiLintRule _ruleOf(UiLintFinding finding) =>
+    uiLintRules.firstWhere((r) => r.id == finding.rule);
+
+String _describe(UiLintFinding finding) {
+  final rule = _ruleOf(finding);
+  return '${finding.path}:${finding.line}: ${finding.snippet} — '
+      '${rule.id} ${rule.title}. במקום: ${rule.hint}';
 }

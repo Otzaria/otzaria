@@ -592,7 +592,7 @@
    - **תשובות:**
      - q1: תווית ui-baseline נדרשת להגדלת ה־baseline? → **כן**
      - q2: תווית goldens-approved נדרשת לשינוי תמונות ייחוס? → **כן**
-   - **מימוש:** מומש חלקית, מצב דוח בלבד: מנוע tool/ui_lint מבוסס analyzer עם 7 כללים (UIL-001, ‏003, ‏004, ‏005, ‏015, ‏017, ‏019), החרגות ב־config.yaml והערות allow, baseline ראשון (228 מופעים), CLI ‏md/github/json, שלב דוח לא חוסם ב־job ‏analyze ובדיקות לכללים עצמם. נשאר: שאר הכללים, העברת בדיקות הסריקה הקיימות, הבדיקה החוסמת (שלב 2), ui_baseline_guard.yml והתוויות ui-baseline ו־goldens-approved.
+   - **מימוש:** מומש חלקית: מנוע tool/ui_lint מבוסס analyzer עם 7 כללים (UIL-001, ‏003, ‏004, ‏005, ‏015, ‏017, ‏019), החרגות ב־config.yaml והערות allow, CLI ‏md/github/json ושלב דוח ב־job ‏analyze. חוסם (MIG-27): test/design_system/ui_lint_test.dart מכשיל חריגה חדשה בכללי שלב 1–2 (blockingStage), baseline מת והערת allow פגומה; ui_baseline_guard.yml (תווית ui-baseline) ו־goldens_guard.yml (תווית goldens-approved). ל־UIL-001/003 הטביעה היא שם הבנאי, כדי ששינוי בתוכן דיאלוג לא ייחשב חריגה חדשה; baseline נבנה מחדש (219 → 214: ‏5 מופעי UIL-004 שתוקנו ב־UI-019). נשאר: העברת בדיקות הסריקה הישנות למנוע, שאר הכללים, כללי הטוקנים חוסמים (MIG-28), יצירת התוויות ב־GitHub.
 
 ---
 

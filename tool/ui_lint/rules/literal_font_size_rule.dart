@@ -12,6 +12,9 @@ class LiteralFontSizeRule extends UiLintRule {
   String get id => 'UIL-017';
 
   @override
+  int get stage => 3;
+
+  @override
   String get title => 'fontSize ליטרלי';
 
   @override

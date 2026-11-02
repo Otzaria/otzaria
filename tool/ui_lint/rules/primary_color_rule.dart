@@ -12,6 +12,9 @@ class PrimaryColorRule extends UiLintRule {
   String get id => 'UIL-004';
 
   @override
+  int get stage => 1;
+
+  @override
   String get title => 'Theme.primaryColor';
 
   @override

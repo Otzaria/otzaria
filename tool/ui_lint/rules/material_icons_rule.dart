@@ -13,6 +13,9 @@ class MaterialIconsRule extends UiLintRule {
   String get id => 'UIL-005';
 
   @override
+  int get stage => 1;
+
+  @override
   String get title => 'אייקון Material/Cupertino';
 
   @override

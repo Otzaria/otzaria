@@ -18,6 +18,10 @@ export 'rules/rules.dart' show uiLintRules;
 const configRelativePath = 'tool/ui_lint/config.yaml';
 const baselineRelativePath = 'tool/ui_lint/baseline.json';
 
+/// כללים עד השלב הזה חוסמים חריגות חדשות ב-`test/design_system/ui_lint_test.dart`
+/// (CI_ENFORCEMENT.md §6, רמה 2). כללי הטוקנים (שלב 3) נשארים בדוח עד MIG-28.
+const blockingStage = 2;
+
 /// כלל אחד של התקן.
 abstract class UiLintRule {
   const UiLintRule();
@@ -30,6 +34,11 @@ abstract class UiLintRule {
 
   /// במה להשתמש במקום, והסעיף בתקן.
   String get hint;
+
+  /// השלב בקטלוג (CI_ENFORCEMENT.md §3.3). עד [blockingStage] הכלל חוסם.
+  int get stage;
+
+  bool get isBlocking => stage <= blockingStage;
 
   void check(UiLintFile file);
 }
@@ -51,7 +60,10 @@ class UiLintFile {
   final String _source;
   final List<UiLintFinding> _findings;
 
-  void report(UiLintRule rule, AstNode node) {
+  /// [identity] מחליף את קוד הצומת בטביעה של ה-baseline. כלל שמדווח על
+  /// בנאי עם תוכן גדול (דיאלוג שלם) מעביר את שם הבנאי, כדי ששינוי בתוכן לא
+  /// יהפוך חריגה ישנה לחדשה.
+  void report(UiLintRule rule, AstNode node, {String? identity}) {
     final location = lineInfo.getLocation(node.offset);
     _findings.add(
       UiLintFinding(
@@ -61,7 +73,7 @@ class UiLintFile {
         column: location.columnNumber,
         snippet: _snippet(_source.substring(node.offset, node.end)),
         scope: scopeOf(node),
-        fingerprint: _fingerprint(node.toSource()),
+        fingerprint: _fingerprint(identity ?? node.toSource()),
       ),
     );
   }

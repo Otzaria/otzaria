@@ -11,6 +11,9 @@ class RawDialogRule extends UiLintRule {
   String get id => 'UIL-001';
 
   @override
+  int get stage => 1;
+
+  @override
   String get title => 'AlertDialog/Dialog/SimpleDialog גולמי';
 
   @override
@@ -20,7 +23,9 @@ class RawDialogRule extends UiLintRule {
   @override
   void check(UiLintFile file) {
     for (final call in ctorCallsNamed(file.unit, _types)) {
-      if (call.importPrefix == null) file.report(this, call.node);
+      if (call.importPrefix == null) {
+        file.report(this, call.node, identity: call.head);
+      }
     }
   }
 }

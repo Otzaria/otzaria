@@ -37,6 +37,9 @@ class CtorCall {
 
   Iterable<Expression> get positional =>
       arguments.arguments.whereType<Expression>();
+
+  /// `prefix.Type.named`, בלי הארגומנטים.
+  String get head => [?importPrefix, typeName, ?constructor].join('.');
 }
 
 bool _isTypeName(String name) {
