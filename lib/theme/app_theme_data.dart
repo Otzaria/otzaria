@@ -80,6 +80,22 @@ class AppThemeData {
     ],
   };
 
+  /// גופן הממשק הוא ברירת המחדל של הפלטפורמה (ThemeData בלי fontFamily),
+  /// ואחריו רשימת fallback אחת. אין גופן ממשק כלול באפליקציה.
+  static const List<String> uiFontFamilyFallback = [
+    'Segoe UI',
+    'SF Pro Text',
+    '.AppleSystemUIFont',
+    'Noto Sans Hebrew',
+    'Arial',
+  ];
+
+  /// המשפחה ש־ThemeData בוחר כשאין fontFamily (Segoe UI ב־Windows), לסגנונות
+  /// שנבנים מחוץ ל־textTheme.
+  static String? get uiFontFamily => Typography.material2021(
+    platform: defaultTargetPlatform,
+  ).black.bodyMedium?.fontFamily;
+
   // ── Light Theme ──────────────────────────────────────────────────────────
   /// [variant] — הערכה של הזרע שממנו נבנתה [cs] ([AppThemeVariant.ofSeed]).
   static ThemeData light(
@@ -94,7 +110,7 @@ class AppThemeData {
     return ThemeData(
       useMaterial3: true,
       visualDensity: VisualDensity.adaptivePlatformDensity,
-      fontFamily: 'Roboto',
+      fontFamilyFallback: uiFontFamilyFallback,
       colorScheme: cs,
       textTheme: const TextTheme(
         bodyMedium: TextStyle(fontSize: 18.0),
@@ -165,7 +181,8 @@ class AppThemeData {
       shape: AppTokens.roundedShape,
       menuPadding: metrics.menuPadding,
       textStyle: TextStyle(
-        fontFamily: 'Roboto',
+        fontFamily: uiFontFamily,
+        fontFamilyFallback: uiFontFamilyFallback,
         color: cs.onSurface,
         fontSize: metrics.fontSize,
         fontWeight: metrics.itemFontWeight,
@@ -222,7 +239,8 @@ class AppThemeData {
   ) {
     return DropdownMenuThemeData(
       textStyle: TextStyle(
-        fontFamily: 'Roboto',
+        fontFamily: uiFontFamily,
+        fontFamilyFallback: uiFontFamilyFallback,
         fontSize: metrics.fontSize,
         fontWeight: FontWeight.w400,
         color: cs.onSurface,
@@ -247,7 +265,8 @@ class AppThemeData {
         visualDensity: metrics.visualDensity,
         textStyle: WidgetStatePropertyAll(
           TextStyle(
-            fontFamily: 'Roboto',
+            fontFamily: uiFontFamily,
+            fontFamilyFallback: uiFontFamilyFallback,
             fontSize: metrics.fontSize,
             fontWeight: metrics.itemFontWeight,
             color: cs.onSurface,

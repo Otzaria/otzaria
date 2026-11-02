@@ -34,12 +34,24 @@ void main() {
       });
     }
 
-    test("ב-ThemeData: רק ל-bodyMedium יש גודל, ומשפחת הגופן 'Roboto'", () {
-      final text = appTheme(Brightness.light).textTheme;
+    test('ב-ThemeData: רק ל-bodyMedium יש גודל, וגופן הממשק של הפלטפורמה', () {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final theme = appTheme(Brightness.light);
+      final text = theme.textTheme;
       expect(text.bodyMedium?.fontSize, 18);
       expect(text.titleLarge?.fontSize, isNull);
-      expect(text.bodyMedium?.fontFamily, 'Roboto');
-      expect(text.titleLarge?.fontFamily, 'Roboto');
+      expect(AppThemeData.uiFontFamily, 'Segoe UI');
+      for (final style in [
+        text.bodyMedium,
+        text.titleLarge,
+        theme.popupMenuTheme.textStyle,
+        theme.dropdownMenuTheme.textStyle,
+        theme.menuButtonTheme.style?.textStyle?.resolve({}),
+      ]) {
+        expect(style?.fontFamily, 'Segoe UI');
+        expect(style?.fontFamilyFallback, AppThemeData.uiFontFamilyFallback);
+      }
     });
 
     test('סולם הגופן ב-AppTokens', () {

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'menu_metrics.dart';
@@ -17,6 +18,12 @@ final _independentParagraphLabel = RegExp(
   r'[\p{C}\p{Zl}\p{Zp}\u{10000}-\u{10ffff}]',
   unicode: true,
 );
+
+// גופן ברירת המחדל של הפלטפורמה, כמו ב־ThemeData בלי fontFamily (Segoe UI
+// ב־Windows). המדידה והציור חייבים להשתמש באותה משפחה.
+String? get _platformFontFamily => Typography.material2021(
+  platform: defaultTargetPlatform,
+).black.bodyMedium?.fontFamily;
 
 Widget buildAppMenuRowContent(
   BuildContext context,
@@ -57,7 +64,7 @@ Widget buildAppMenuRowContent(
     hasExtraSlot: hasExtraSlot,
   );
   final labelTextStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: _platformFontFamily,
     fontSize: metrics.fontSize,
     fontWeight: isSelected ? _kSelectedItemFontWeight : metrics.itemFontWeight,
     color: foregroundColor,
@@ -183,7 +190,7 @@ double calculateAppMenuPreferredWidth<T>(
   // נמדד במשקל של פריט נבחר (מודגש) — כל פריט עשוי להיות זה שנבחר,
   // והגופן המודגש רחב יותר מהרגיל.
   final textStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: _platformFontFamily,
     fontSize: metrics.fontSize,
     fontWeight: _kSelectedItemFontWeight,
   );
@@ -263,7 +270,7 @@ ButtonStyle buildAppSubmenuItemStyle(
     alignment: Alignment.centerRight,
     textStyle: WidgetStatePropertyAll(
       TextStyle(
-        fontFamily: 'Roboto',
+        fontFamily: _platformFontFamily,
         fontSize: metrics.fontSize,
         fontWeight: metrics.itemFontWeight,
       ),
