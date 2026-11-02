@@ -551,8 +551,7 @@ Future<void> _moveTabsToWorkspace(
   final tabsState = tabsBloc.state;
   final workspaceState = workspaceBloc.state;
 
-  // ⚠️ `firstWhereOrNull`: השולחן יכול להימחק בחלון אחר בין בניית התפריט
-  // לבחירה, ו-`firstWhere` זרק `StateError` באמצע הפעולה.
+  // שולחן היעד יכול להימחק בחלון אחר בין בניית התפריט לבחירה.
   final targetWorkspace = workspaceState.workspaces.firstWhereOrNull(
     (w) => w.id == targetWorkspaceId,
   );
@@ -564,9 +563,16 @@ Future<void> _moveTabsToWorkspace(
   tabsBloc.add(tabs.length == 1 ? RemoveTab(tabs.single) : RemoveTabs(tabs));
 
   final currentTabs = tabsState.tabs.where((t) => !tabs.contains(t)).toList();
+  final removedBefore = tabsState.tabs
+      .take(tabsState.currentTabIndex)
+      .where(tabs.contains)
+      .length;
   final newActiveIndex = currentTabs.isEmpty
       ? 0
-      : tabsState.currentTabIndex.clamp(0, currentTabs.length - 1);
+      : (tabsState.currentTabIndex - removedBefore).clamp(
+          0,
+          currentTabs.length - 1,
+        );
 
   // הסרת הטאבים מזיזה את האינדקס, ולכן צד החלונית הפעילה תקף רק אם הטאב
   // הפעיל אחרי ההסרה הוא אותו טאב עצמו. אחרת הוא מתייחס לטאב אחר.

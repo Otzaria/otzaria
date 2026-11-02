@@ -110,6 +110,55 @@ void main() {
       },
     );
 
+    for (final scenario in [
+      (selected: [0, 1, 2], active: 2, clicked: 2, next: 'ספר ד'),
+      (selected: [0, 1, 2], active: 3, clicked: 2, next: 'ספר ד'),
+      (selected: [0, 2], active: 2, clicked: 2, next: 'ספר ד'),
+      (selected: [0, 1], active: 3, clicked: 2, next: 'ספר ד'),
+      (selected: [3, 4], active: 4, clicked: 4, next: 'ספר ג'),
+    ]) {
+      testWidgets(
+        '$strip: הפעילה השמורה תואמת לרצועה לאחר העברת '
+        '${scenario.selected}, פעילה ${scenario.active}, תפריט ${scenario.clicked}',
+        (tester) async {
+          final tabs = [
+            'א',
+            'ב',
+            'ג',
+            'ד',
+            'ה',
+          ].map((letter) => _StubTab('ספר $letter')).toList();
+          final env = await _pumpStrip(tester, onSide: onSide, tabs: tabs);
+          env.tabsBloc.add(SetCurrentTab(scenario.selected.first));
+          await tester.pumpAndSettle();
+          for (final index in scenario.selected.skip(1)) {
+            await _ctrlClick(tester, tabs[index].title);
+          }
+          env.tabsBloc.add(SetCurrentTab(scenario.active));
+          await tester.pumpAndSettle();
+          expect(env.tabsBloc.state.selectedTabs, [
+            for (final index in scenario.selected) tabs[index],
+          ]);
+
+          final movingGroup = scenario.selected.contains(scenario.clicked);
+          await env.moveToTarget(
+            tester,
+            rightClickOn: tabs[scenario.clicked].title,
+            snack: movingGroup
+                ? '${scenario.selected.length} כרטיסיות הועברו לשולחן העבודה "יעד"'
+                : 'הכרטיסיה הועברה לשולחן העבודה "יעד"',
+          );
+
+          expect(env.tabsBloc.state.currentTab!.title, scenario.next);
+          final saved = env.workspaces.workspaces.firstWhere(
+            (workspace) => workspace.id == env.source.id,
+          );
+          expect(saved.activeTabIndex, env.tabsBloc.state.currentTabIndex);
+          expect(saved.tabs[saved.activeTabIndex].title, scenario.next);
+        },
+      );
+    }
+
     testWidgets(
       '$strip: מידע שלא נשמר בכרטיסיה נבחרת אחרת — ביטול עוצר את כל ההעברה '
       '(issue #3868)',
@@ -221,13 +270,13 @@ Future<_Env> _pumpStrip(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
+  final initialTabs =
+      tabs ?? [_StubTab('ספר א'), _StubTab('ספר ב'), _StubTab('ספר ג')];
   final tabsBloc = TabsBloc(
-    repository: _MemoryTabsRepository(
-      tabs ?? [_StubTab('ספר א'), _StubTab('ספר ב'), _StubTab('ספר ג')],
-    ),
+    repository: _MemoryTabsRepository(initialTabs),
     disposeDelay: Duration.zero,
   )..add(LoadTabs());
-  await tabsBloc.stream.firstWhere((s) => s.tabs.length == 3);
+  await tabsBloc.stream.firstWhere((s) => s.tabs.length == initialTabs.length);
 
   final source = Workspace(name: 'מקור', tabs: const []);
   final target = Workspace(name: 'יעד', tabs: [_StubTab('ספר ביעד')]);
