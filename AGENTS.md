@@ -301,6 +301,7 @@ Read the relevant section of `docs/agent_ui_reference.md` before changing UI; do
 - Messages use centralized `UiSnack` catalogs; text inputs use `RtlTextField`; dialogs, action buttons and settings cards use the shared components.
 - Use theme colors and shared interaction styling. Do not add color overrides in feature files.
 - New settings, navigation and tour strings use `context.settingsText` and `settings_en.arb`; regenerate the catalog and run `flutter test test/settings/l10n/`.
+- `test/design_system/ui_lint_test.dart` fails on a new violation of the blocking `tool/ui_lint` rules and on a stale baseline entry. Run `dart tool/ui_lint_cli.dart` for the report and `--update-baseline` after fixing debt; mark a justified exception with `// ui-lint: allow UIL-xxx — reason`. Baseline growth needs the `ui-baseline` label, a changed golden PNG the `goldens-approved` label (`docs/design-system/CI_ENFORCEMENT.md`).
 - Navigation panels use `NavSidePanel` and its shared search/tree components. Middle-click autoscroll is global; use `AutoScrollBarrier` only where middle-click has another action.
 
 ## Code Guidelines

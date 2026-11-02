@@ -11,6 +11,9 @@ class IconButtonTooltipRule extends UiLintRule {
   String get id => 'UIL-003';
 
   @override
+  int get stage => 1;
+
+  @override
   String get title => 'IconButton בלי tooltip';
 
   @override
@@ -22,7 +25,7 @@ class IconButtonTooltipRule extends UiLintRule {
       if (call.importPrefix == null &&
           _constructors.contains(call.constructor) &&
           call.named('tooltip') == null) {
-        file.report(this, call.node);
+        file.report(this, call.node, identity: call.head);
       }
     }
   }

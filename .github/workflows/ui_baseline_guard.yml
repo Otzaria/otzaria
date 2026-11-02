@@ -1,0 +1,72 @@
+name: UI Baseline Guard
+
+# tool/ui_lint/baseline.json הוא החוב הקיים מול תקן הממשק
+# (docs/design-system/CI_ENFORCEMENT.md §3.4, DD-23). הוא יכול רק לקטון:
+# `dart tool/ui_lint_cli.dart --update-baseline` מוחק רשומות שתוקנו. PR שמוסיף
+# מופע לכלל באותו קובץ ובאותו scope צריך את התווית ui-baseline, שמתחזק מוסיף.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-baseline-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: ui_lint baseline growth
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check baseline growth
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASELINE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ui-baseline') }}
+        run: |
+          set -euo pipefail
+          path=tool/ui_lint/baseline.json
+          git show "$BASE_SHA:$path" > /tmp/base.json 2>/dev/null || echo '{"version":1,"rules":{}}' > /tmp/base.json
+          python3 - /tmp/base.json "$path" > /tmp/growth.txt <<'PY'
+          import json, sys
+
+          # Per rule, file and scope: a fingerprint change (an edited
+          # expression, or a new engine version) is not growth.
+          def counts(path):
+              data = json.load(open(path, encoding="utf-8"))
+              totals = {}
+              for rule, files in data["rules"].items():
+                  for file, entries in files.items():
+                      for entry in entries:
+                          key = (rule, file, entry["scope"])
+                          totals[key] = totals.get(key, 0) + entry["n"]
+              return totals
+
+          base, head = counts(sys.argv[1]), counts(sys.argv[2])
+          for key, n in sorted(head.items()):
+              added = n - base.get(key, 0)
+              if added > 0:
+                  print(f"+{added} {key[0]} {key[1]} ({key[2]})")
+          PY
+          if [ ! -s /tmp/growth.txt ]; then
+            echo "The ui_lint baseline did not grow."
+            exit 0
+          fi
+          echo "Baseline additions:"
+          cat /tmp/growth.txt
+          if [ "$BASELINE_LABEL" = "true" ]; then
+            echo "Baseline growth approved with the 'ui-baseline' label."
+            exit 0
+          fi
+          echo "::error file=$path::This pull request adds entries to the ui_lint baseline. Fix the new violations, or mark a justified one with '// ui-lint: allow UIL-xxx — reason'. If the debt is intended, ask a maintainer to add the 'ui-baseline' label."
+          exit 1
