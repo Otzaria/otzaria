@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
 import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 class BiographyCard extends StatefulWidget {
   final Biography biography;
@@ -410,29 +411,11 @@ class _BiographyCardState extends State<BiographyCard> {
           ]),
         ),
       if (_bio.remember != null)
-        Container(
-          margin: const EdgeInsets.only(top: AppTokens.spaceMD),
-          padding: const EdgeInsets.all(AppTokens.spaceMD),
-          decoration: BoxDecoration(
-            color: cs.secondaryContainer.withValues(alpha: 0.5),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                OtzariaIcons.text_citation_24_regular,
-                size: 20,
-                color: cs.onSecondaryContainer,
-              ),
-              const SizedBox(width: AppTokens.spaceSM),
-              Expanded(
-                child: Text(
-                  _bio.remember!,
-                  style: bodyStyle.copyWith(color: cs.onSecondaryContainer),
-                ),
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.only(top: AppTokens.spaceMD),
+          child: AppInfoBanner(
+            icon: OtzariaIcons.text_citation_24_regular,
+            message: _bio.remember!,
           ),
         ),
     ];

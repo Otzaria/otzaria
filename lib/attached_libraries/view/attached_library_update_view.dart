@@ -6,6 +6,7 @@ import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 /// The update-source chip: none, signed with its domain, or changed.
 class AttachedUpdateSourceChip extends StatelessWidget {
@@ -68,10 +69,7 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
     final List<Widget> children = switch (status) {
       AttachedUpdateIdle() => [checkButton],
       AttachedUpdateChecking() => [
-        const SizedBox.square(
-          dimension: 14,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        const LoadingIndicator.inline(),
         Text(context.settingsText('בודק עדכונים…'), style: style),
       ],
       AttachedUpdateUpToDate() => [

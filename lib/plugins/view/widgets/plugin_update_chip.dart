@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/services/plugin_update_check_service.dart';
 import 'package:otzaria/plugins/utils/plugin_version_utils.dart';
 import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 /// האם להציג צ'יפ עדכון: קיים עדכון שגרסתו גבוהה ממש מהמותקנת.
 /// ההשוואה כאן (ולא בזמן הבדיקה) מעלימה את הצ'יפ מעצמו אחרי עדכון מוצלח,
@@ -84,14 +85,7 @@ class _PluginUpdateChipState extends State<PluginUpdateChip> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_updating)
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: cs.onPrimaryContainer,
-                        ),
-                      )
+                      LoadingIndicator.inline(color: cs.onPrimaryContainer)
                     else
                       Icon(
                         FluentIcons.arrow_sync_24_regular,

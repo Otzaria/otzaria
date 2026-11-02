@@ -86,6 +86,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -2403,74 +2404,21 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   /// בניית skeleton loading לפרשנות - מספר פרשנויות עם כותרת ושלוש שורות
   Widget _buildSkeletonLoading() {
-    final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: 4, // מציג 4 שלדים של פרשנויות
-      itemBuilder: (context, index) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // כותרת הפרשן
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: _SkeletonLine(width: 0.3, height: 20, color: baseColor),
-              ),
-            ),
+            SkeletonLines(widths: [0.3], lineHeight: 20, spacing: 12),
             // שלוש שורות תוכן
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.95, height: 16, color: baseColor),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.92, height: 16, color: baseColor),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.88, height: 16, color: baseColor),
-              ),
-            ),
+            SkeletonLines(widths: [0.95, 0.92, 0.88]),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Widget של שורה סטטית לשלד טעינה
-class _SkeletonLine extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-
-  const _SkeletonLine({
-    required this.width,
-    required this.color,
-    this.height = 16,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: MediaQuery.of(context).size.width * width,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppTokens.borderRadiusAll,
       ),
     );
   }
