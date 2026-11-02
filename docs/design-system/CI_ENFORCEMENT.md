@@ -92,7 +92,7 @@ test/design_system/
 | UIL-016 | אין `.withValues(alpha:)`/`.withAlpha(`/`.withOpacity(` על צבע ממשק מחוץ ל־`lib/theme/` | MethodInvocation | `CustomPainter`, ייצוא. `BoxShadow(color:)` מוחרג **רק עד MIG-08**; אחר כך צל רק דרך `AppShadows` (UIL-030) | ~110 | 3 |
 | UIL-017 | **אין `fontSize:` בקוד פיצ'ר (DD-02):** לא ליטרל, ולא `AppTokens.font*` או חשבון עליו (`fontSM - 1`). התחליף: `textTheme.<slot>` | named arg ב־`TextStyle`/`copyWith` | `lib/theme/**`; ‏`pw.TextStyle`; קבצי תוכן הספר (רשימה ב־config, נגזרת מ־UI_AUDIT `justified_exceptions` JX-01, JX-19), שבהם הגודל מחושב מהגדרות הקריאה | ~150 ליטרלים + ~106 `AppTokens.font*` | 3 |
 | UIL-018 | אין `fontFamily:` ליטרלי (כולל `'Roboto'`) מחוץ ל־`lib/theme/`. רשימת ה־fallback של DD-01 חיה רק ב־`AppThemeData` | named arg + string | `AppFonts`, הגדרות קריאה, JSON מונוספייס (JX-21) | ~8 | 2 |
-| UIL-019 | **רדיוס רק מהטוקן היחיד (DD-04):** אין `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי, ואין `StadiumBorder`. מותר `AppTokens.radius`/`borderRadiusAll`/`roundedShape` | ctor + ליטרל | `CustomPainter`, ‏`pw.*`; `CircleBorder`/`BoxShape.circle` לרכיב עגול מטבעו (נקודת סטטוס, אווטאר) | ~15 + 2 `StadiumBorder` | 3 |
+| UIL-019 | **רדיוס רק מהטוקן היחיד (DD-04):** אין `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי, ואין `StadiumBorder`. מותר `AppTokens.radius`/`borderRadiusAll`/`roundedShape` | ctor + ליטרל | `CustomPainter`, ‏`pw.*`; `CircleBorder`/`BoxShape.circle` לרכיב עגול מטבעו (נקודת סטטוס, אווטאר) ולכפתור אייקון בלבד (DD-04) | ~15 + 2 `StadiumBorder` | 3 |
 | UIL-020 | ריווח ב־`EdgeInsets*`/`SizedBox(width/height)` מהסולם בלבד: 2/4/8/12/16/24/32 (DD-03, אחרי MIG-04). ההודעה מציעה את הערך הבא כלפי מעלה (6→8, 10→12, 14→16) | ctor + ליטרל | 0, ‏`double.infinity`, ביטוי מחושב, `CustomPainter` | ~540 (מתוכם ~150 מחוץ לסולם) | 3 (בהתחלה: off-scale בלבד) |
 | UIL-021 | אין `EdgeInsets.only(left/right)`/`fromLTRB`/`Alignment.centerLeft/Right`/`Positioned(left/right)` | ctor + named arg | גאומטריית ציור, עם allow; ערכים סימטריים (JX-20) | ~110 | 3 |
 | UIL-022 | אין השוואת רוחב לליטרל ≥100 (`width < 520`). בדיאלוג: `LayoutBreakpoints.compact` (DD-15) | BinaryExpression על `.width`/`maxWidth` | קבוע `static const` עם שם בתוך הרכיב | 32 | 3 |
@@ -157,7 +157,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 |---|---|---|
 | שימוש ב־Theme | רכיב ללא override מקבל את צבעי ה־component theme. שינוי זרע משנה את הרכיב בלי שינוי קוד | `pumpWidget` עם שני `ColorScheme`. בדיקה ש־`Material.color`/`TextStyle.color` נגזרים מהתפקיד |
 | בהיר/כהה | ניגודיות ≥4.5 לכל זוג טקסט/רקע של הרכיב, בשני מצבי הבהירות ובכל הזרעים | הרחבה של `test/theme/app_theme_data_test.dart:101-136` |
-| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. רצועת כותרת בכל גודל, תג מ־`medium` (DD-07). מתחת ל־600: `large` במסך מלא (DD-16). ה־X מוצג. כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
+| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. רצועת כותרת ותג אייקון בכל גודל (DD-07). מתחת ל־600: `large` במסך מלא (DD-16). ה־X מוצג. כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
 | גלילה | תוכן ארוך גולל, ושורת הפעולות נשארת קבועה | |
 | מקלדת | Escape סוגר. Escape עם dirty שואל. Enter ב־`SelectionDialog` על פריט בוחר אותו (רגרסיה לבאג UI-024). Enter על "ביטול" מבטל. Tab מקיף את שורת הפעולות (DD-08) | `sendKeyEvent` |
 | שינוי גודל חלון | רכיב בחלונית ברוחב 300 בתוך חלון ברוחב 1400 מחליט לפי 300 | `SizedBox(width:300)` בתוך view רחב |
