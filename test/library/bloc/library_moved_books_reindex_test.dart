@@ -350,6 +350,28 @@ Future<void> main() async {
 
       expect(await refreshBetween(build(), build()), isNull);
     });
+
+    test(
+      'ספר שעבר בין קטגוריות באותו שם תחת הורים שונים מאונדקס, ושכניו לא',
+      () async {
+        Book Function(Category) at(int id) =>
+            (category) =>
+                TextBook(id: id, title: 'ספר $id', category: category);
+        final before = _libraryOf({
+          ['הלכה', 'מפרשים']: [at(1)],
+          ['תנ"ך', 'מפרשים']: [at(2), at(3)],
+        });
+        final after = _libraryOf({
+          ['הלכה', 'מפרשים']: [at(1), at(2)],
+          ['תנ"ך', 'מפרשים']: [at(3)],
+        });
+
+        final changed = await refreshBetween(before, after);
+
+        expect(changed?.map((b) => b.title), ['ספר 2']);
+        expect(changed!.single.category!.path, '/הלכה/מפרשים');
+      },
+    );
   });
 }
 

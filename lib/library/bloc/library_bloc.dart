@@ -282,9 +282,15 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     ];
   }
 
-  /// נתיב הקטגוריה שהאינדוקס צורב ב-facet של הספר.
-  static String _indexedCategoryPath(Book book) =>
-      book.category?.path ?? book.categoryPath ?? '';
+  /// נתיב הקטגוריה שהאינדוקס צורב ב-facet של הספר. `Category.path` נבנה בהליכה
+  /// על העץ וספרי קטגוריה חולקים אותו, ולכן הוא מחושב פעם אחת לכל קטגוריה.
+  static String Function(Book) _indexedCategoryPaths() {
+    final pathByCategory = <Category, String>{};
+    return (book) => switch (book.category) {
+      final category? => pathByCategory[category] ??= category.path,
+      null => book.categoryPath ?? '',
+    };
+  }
 
   Future<void> _runRefresh(
     RefreshLibrary event,
@@ -305,9 +311,10 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
       // צלם את מפתחות הספרים ונתיביהם לפני הרענון לזיהוי ספרים חדשים ומוזזים
       final previousLibrary = await _repository.librarySnapshotForRefresh();
+      final pathBefore = _indexedCategoryPaths();
       final pathsBeforeRefresh = <String, String>{
         for (final b in previousLibrary?.getIndexableBooks() ?? const <Book>[])
-          BookIdentity.keyOf(b): _indexedCategoryPath(b),
+          BookIdentity.keyOf(b): pathBefore(b),
       };
 
       final libraryPath = Settings.getValue<String>(
@@ -337,6 +344,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       }
 
       final indexableBooks = fullLibrary.getIndexableBooks();
+      final pathAfter = _indexedCategoryPaths();
       final newBooksToIndex = <Book>[];
       final movedBookKeys = <String>{};
       for (final b in indexableBooks) {
@@ -344,7 +352,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         final before = pathsBeforeRefresh[key];
         if (before == null) {
           newBooksToIndex.add(b);
-        } else if (before != _indexedCategoryPath(b)) {
+        } else if (before != pathAfter(b)) {
           // הנתיב נצרב ב-facet באינדקס: ספר שעבר קטגוריה (למשל במיזוג ספרים
           // אישיים לעץ) לא יימצא בסינון לפי קטגוריה עד שיאונדקס מחדש.
           movedBookKeys.add(key);
