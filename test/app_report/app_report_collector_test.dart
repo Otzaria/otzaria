@@ -182,6 +182,13 @@ void main() {
     expect(AppReportCollector.systemInfo()['osVersion'], displayOsVersion());
   });
 
+  test('systemInfo כולל את נתוני הזיכרון', () {
+    final info = AppReportCollector.systemInfo(
+      memory: () => {'totalRamMb': 8000, 'processPeakCommitMb': 3100},
+    );
+    expect(info['memory'], {'totalRamMb': 8000, 'processPeakCommitMb': 3100});
+  });
+
   test('אבחון: אוסף שנבנה כמו בתוכנה כולל את התוספים המותקנים', () async {
     await Settings.init(cacheProvider: MemorySettingsCache());
     // ספרייה חסרה בתיקייה הזמנית: מקטע הספרייה אינו נוגע בספרייה האמיתית.

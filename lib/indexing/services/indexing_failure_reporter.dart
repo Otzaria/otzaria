@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/diagnostics/memory_info.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
@@ -51,6 +52,7 @@ class IndexingFailureReporter {
     DateTime? timestamp,
     String? version,
     Duration? elapsed,
+    Map<String, int>? memory,
   }) {
     final title = result.failures.isEmpty
         ? 'Indexing run'
@@ -68,6 +70,8 @@ class IndexingFailureReporter {
       ..writeln('Failures: ${result.failures.length}')
       ..writeln('Retryable: ${result.retryableFailures.length}')
       ..writeln('Warnings: ${result.warningCount}');
+    final memoryLine = formatMemoryLine(memory ?? memoryInfo());
+    if (memoryLine.isNotEmpty) buffer.writeln('Memory: $memoryLine');
 
     for (var i = 0; i < result.failures.length; i++) {
       final failure = result.failures[i];
