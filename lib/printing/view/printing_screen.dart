@@ -59,6 +59,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 enum _AnchorKind { header, altHeader, line }
 
@@ -2064,19 +2065,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                     );
                   }
 
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: colorScheme.primary),
-                        const SizedBox(height: 16),
-                        Text(
-                          'טוען נתונים...',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  );
+                  return const LoadingIndicator(message: 'טוען נתונים...');
                 },
               ),
             ),

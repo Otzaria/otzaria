@@ -55,6 +55,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/utils/ui/editable_focus.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
@@ -1172,13 +1173,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             icon: libraryUpdateButtonIcon(state.status),
             // ספינר מסתובב בזמן עדכון — אינדיקציית פעילות רציפה (ticker עצמאי),
             // כי בשלב ה-apply הארוך אין שינויי state שיבנו מחדש את הכפתור.
-            iconWidget: isBusy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  )
-                : null,
+            iconWidget: isBusy ? const LoadingIndicator.inline() : null,
             selected: isBusy,
             onPressed: () {
               final b = ctx.read<LibraryUpdateBloc>();

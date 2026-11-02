@@ -22,6 +22,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -389,7 +390,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         ),
                       ),
                       if (bookCompletionDate != null)
-                        _buildCompletionFooter(cs, bookCompletionDate),
+                        _buildCompletionFooter(bookCompletionDate),
                     ],
                   ),
                 ),
@@ -402,31 +403,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   /// שורת סיום בתחתית הטבלה: מתי הושלם הלימוד.
-  Widget _buildCompletionFooter(ColorScheme cs, DateTime completedAt) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceSM,
-      ),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Icon(FluentIcons.checkmark_24_regular, size: 18, color: cs.primary),
-          const SizedBox(width: AppTokens.spaceSM),
-          Flexible(
-            child: Text(
-              'הושלם ${HebrewUtils.fullDate(completedAt)}',
-              softWrap: true,
-              style: TextStyle(
-                fontSize: AppTokens.fontMD,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
+  Widget _buildCompletionFooter(DateTime completedAt) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceSM),
+      child: AppInfoBanner(
+        tone: AppInfoBannerTone.success,
+        icon: FluentIcons.checkmark_24_regular,
+        message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
       ),
     );
   }

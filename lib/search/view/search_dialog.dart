@@ -21,7 +21,7 @@ import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
-import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -413,114 +413,87 @@ class _SearchDialogState extends State<SearchDialog> {
     final total = indexingState.totalBooks ?? 0;
     // אינדקס בסכמה ישנה אינו נפתח, ואינדוקס רגיל נדחה עליו עד שיאופס.
     final rebuildRequired = TantivyDataProvider.instance.requiresManualReindex;
-    return CenteredScrollableState(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.search_24_regular,
-              size: 56,
-              color: cs.onSurfaceVariant,
+    return OtzariaEmptyState.large(
+      icon: FluentIcons.search_24_regular,
+      title: isBuilding
+          ? context.settingsText('אינדקס החיפוש בבנייה')
+          : rebuildRequired
+          ? context.settingsText('אינדקס החיפוש דורש בנייה מחדש')
+          : context.settingsText('אינדקס החיפוש לא קיים'),
+      message: isBuilding
+          ? context.settingsText(
+              'החיפוש יתאפשר כשבניית האינדקס תסתיים. ניתן להמשיך לעיין בספרים בינתיים.',
+            )
+          : rebuildRequired
+          ? context.settingsText(
+              'האינדקס הקיים נבנה בגרסה קודמת של מנוע החיפוש, ויש לבנות אותו מחדש כדי לחפש. הבנייה רצה ברקע, וניתן להמשיך לעיין בספרים בינתיים.',
+            )
+          : context.settingsText(
+              'כדי לחפש בתוכן הספרים יש לבנות תחילה את אינדקס החיפוש. הבנייה רצה ברקע, וניתן להמשיך לעיין בספרים בינתיים.',
             ),
-            const SizedBox(height: 16),
-            Text(
-              isBuilding
-                  ? context.settingsText('אינדקס החיפוש בבנייה')
-                  : rebuildRequired
-                  ? context.settingsText('אינדקס החיפוש דורש בנייה מחדש')
-                  : context.settingsText('אינדקס החיפוש לא קיים'),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isBuilding
-                  ? context.settingsText(
-                      'החיפוש יתאפשר כשבניית האינדקס תסתיים. ניתן להמשיך לעיין בספרים בינתיים.',
-                    )
-                  : rebuildRequired
-                  ? context.settingsText(
-                      'האינדקס הקיים נבנה בגרסה קודמת של מנוע החיפוש, ויש לבנות אותו מחדש כדי לחפש. הבנייה רצה ברקע, וניתן להמשיך לעיין בספרים בינתיים.',
-                    )
-                  : context.settingsText(
-                      'כדי לחפש בתוכן הספרים יש לבנות תחילה את אינדקס החיפוש. הבנייה רצה ברקע, וניתן להמשיך לעיין בספרים בינתיים.',
-                    ),
-              style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            if (isBuilding) ...[
-              LinearProgressIndicator(
-                value: total > 0 ? processed / total : null,
-              ),
-              if (total > 0) ...[
-                const SizedBox(height: 8),
-                Text(
-                  context.settingsText(
-                    '{processed} מתוך {total} ספרים',
-                    args: {'processed': processed, 'total': total},
-                  ),
-                  style: TextStyle(color: cs.onSurfaceVariant),
+      body: isBuilding
+          ? Column(
+              children: [
+                LinearProgressIndicator(
+                  value: total > 0 ? processed / total : null,
                 ),
+                if (total > 0) ...[
+                  const SizedBox(height: AppTokens.spaceSM),
+                  Text(
+                    context.settingsText(
+                      '{processed} מתוך {total} ספרים',
+                      args: {'processed': processed, 'total': total},
+                    ),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ],
-              const SizedBox(height: 24),
-            ] else ...[
-              // אינדוקס בזמן העדכון היה קורא ממסד שהעדכון סוגר ומחליף.
-              ValueListenableBuilder<bool>(
-                valueListenable:
-                    TantivyDataProvider.instance.isIndexingDeferred,
-                builder: (context, deferred, _) => deferred
-                    ? Text(
-                        context.settingsText(
-                          'האינדקס ייבנה אוטומטית בסיום עדכון הספרייה.',
-                        ),
-                        style: TextStyle(color: cs.onSurfaceVariant),
-                        textAlign: TextAlign.center,
-                      )
-                    : SizedBox(
-                        width: double.infinity,
-                        child: ActionButton.recommended(
-                          text: rebuildRequired
-                              ? context.settingsText('אפס ובנה מחדש')
-                              : context.settingsText('בנה אינדקס'),
-                          icon: FluentIcons.play_24_regular,
-                          onPressed: () async {
-                            final indexingBloc = context.read<IndexingBloc>();
-                            // העץ המלא: העץ של LibraryBloc מסונן מהסתרות.
-                            final library =
-                                await DataRepository.instance.library;
-                            indexingBloc.add(
-                              rebuildRequired
-                                  ? ResetAndIndex(library)
-                                  : StartIndexing(library),
-                            );
-                          },
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: ActionButton.neutral(
-                text: context.settingsText('הגדרות ספרייה'),
-                icon: FluentIcons.settings_24_regular,
-                onPressed: () {
-                  final mainScreen = AppWindowKeys.of(
-                    context,
-                  ).mainWindowScreen.currentState;
-                  Navigator.of(context).pop();
-                  mainScreen?.handleInternalDeepLink(
-                    'otzaria://open/settings/library',
-                  );
-                },
-              ),
-            ),
-          ],
+            )
+          : null,
+      actions: [
+        if (!isBuilding)
+          // אינדוקס בזמן העדכון היה קורא ממסד שהעדכון סוגר ומחליף.
+          ValueListenableBuilder<bool>(
+            valueListenable: TantivyDataProvider.instance.isIndexingDeferred,
+            builder: (context, deferred, _) => deferred
+                ? Text(
+                    context.settingsText(
+                      'האינדקס ייבנה אוטומטית בסיום עדכון הספרייה.',
+                    ),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                    textAlign: TextAlign.center,
+                  )
+                : ActionButton.recommended(
+                    text: rebuildRequired
+                        ? context.settingsText('אפס ובנה מחדש')
+                        : context.settingsText('בנה אינדקס'),
+                    icon: FluentIcons.play_24_regular,
+                    onPressed: () async {
+                      final indexingBloc = context.read<IndexingBloc>();
+                      // העץ המלא: העץ של LibraryBloc מסונן מהסתרות.
+                      final library = await DataRepository.instance.library;
+                      indexingBloc.add(
+                        rebuildRequired
+                            ? ResetAndIndex(library)
+                            : StartIndexing(library),
+                      );
+                    },
+                  ),
+          ),
+        ActionButton.neutral(
+          text: context.settingsText('הגדרות ספרייה'),
+          icon: FluentIcons.settings_24_regular,
+          onPressed: () {
+            final mainScreen = AppWindowKeys.of(
+              context,
+            ).mainWindowScreen.currentState;
+            Navigator.of(context).pop();
+            mainScreen?.handleInternalDeepLink(
+              'otzaria://open/settings/library',
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 

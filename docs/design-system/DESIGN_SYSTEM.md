@@ -471,14 +471,14 @@
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator` (יעד: `message`, MIG-12) | היום יש 72 `CircularProgressIndicator` גולמיים |
-| טעינה, inline | `LoadingIndicator.inline` (יעד, MIG-12; ‏16px, ‏stroke 2) | 13 עותקים מקומיים |
-| טעינה, שלד (skeleton) | `SkeletonLines` (יעד, MIG-12; רוחב לפי `LayoutBuilder`) | 2 עותקים שמחושבים לפי רוחב החלון |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | עוד כ־70 `CircularProgressIndicator` גולמיים |
+| טעינה, inline | `LoadingIndicator.inline` (‏16px, ‏stroke 2) | עוד כ־10 עותקים מקומיים |
+| טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו, `FractionallySizedBox`) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | `ToolEmptyState` הוא כינוי ישן, להחליף |
-| ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (יעד, DD-31d, MIG-12) | |
+| ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | |
 | שגיאה | `OtzariaErrorState(actions: [נסה שוב])` | לא `Text` אדום |
 | הצלחה / הודעה קצרה | `UiSnack.show(<Module>Messages.x)` (למשל `SettingsMessages`) | מחרוזות מקטלוג בלבד (נאכף) |
-| באנר בתוך המסך | `AppInfoBanner(tone: info/warning/error/success)` (יעד, DD-24, MIG-12). `warning` מטוקני האזהרה, `success` בגוון הנייטרלי הקיים. `info` על רקע נייטרלי `surfaceContainerHighest`, אייקון `primary` וטקסט רגיל (השלמה 2.11). בלי מסגרת, כותרת `titleSmall`, הודעה `bodyMedium` (MIG-12, אושר בהשלמה 2.11) | היום יש 6+ באנרים מקומיים (וגם UI-141) |
+| באנר בתוך המסך | `AppInfoBanner(tone: info/warning/error/success, title:)` (DD-24, MIG-12). `warning` מטוקני האזהרה, `success` בגוון הנייטרלי הקיים. `info` על רקע נייטרלי `surfaceContainerHighest`, אייקון `primary` וטקסט רגיל (השלמה 2.11). בלי מסגרת, כותרת `titleSmall`, הודעה `bodyMedium` (אושר בהשלמה 2.11) | נשארו הבאנרים ברוחב מלא בתוצאות החיפוש |
 | תוכן לא זמין | `OtzariaEmptyState` עם הסבר | |
 | פעולה מתמשכת | `ActionButton(isLoading:)`, או `runWithBlockingProgress` (יעד) | |
 | אישור מחיקה | `showWarningDialog` | כולל מחיקת קבוצת סימניות או היסטוריה (DD-31c, MIG-20). 3 סגנונות שונים היום |

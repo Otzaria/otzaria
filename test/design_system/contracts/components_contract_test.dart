@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -565,6 +566,174 @@ void main() {
         const Size(20, 20),
       );
     });
+
+    testWidgets('message: ספינר ממורכז והודעה ב-bodyMedium onSurfaceVariant', (
+      tester,
+    ) async {
+      await pumpInApp(
+        tester,
+        const LoadingIndicator(message: 'טוען מפרשים...'),
+      );
+      final cs = schemeAt(tester, find.byType(LoadingIndicator));
+      final text = tester.widget<Text>(find.text('טוען מפרשים...'));
+      expect(text.style?.fontSize, 14);
+      expect(text.style?.color, cs.onSurfaceVariant);
+      expect(
+        tester.getCenter(find.byType(CircularProgressIndicator)).dx,
+        moreOrLessEquals(
+          tester.getCenter(find.text('טוען מפרשים...')).dx,
+          epsilon: 0.5,
+        ),
+      );
+    });
+
+    testWidgets('inline: 16 על 16, עובי 2, בצבע שהועבר', (tester) async {
+      await pumpInApp(
+        tester,
+        const Center(child: LoadingIndicator.inline(color: Colors.red)),
+      );
+      expect(
+        tester.getSize(find.byType(CircularProgressIndicator)),
+        const Size(16, 16),
+      );
+      final indicator = tester.widget<CircularProgressIndicator>(
+        find.byType(CircularProgressIndicator),
+      );
+      expect(indicator.strokeWidth, 2);
+      expect(
+        (indicator.valueColor! as AlwaysStoppedAnimation<Color>).value,
+        Colors.red,
+      );
+    });
+  });
+
+  group('SkeletonLines', () {
+    testWidgets('רוחב לפי המקום שקיבלו ולא לפי החלון, מיושר לתחילת השורה', (
+      tester,
+    ) async {
+      await pumpInApp(
+        tester,
+        const Align(
+          alignment: Alignment.topRight,
+          child: SizedBox(
+            width: 300,
+            child: SkeletonLines(widths: [1, 0.5], lineHeight: 10, spacing: 4),
+          ),
+        ),
+      );
+      final lines = find.descendant(
+        of: find.byType(SkeletonLines),
+        matching: find.byType(Container),
+      );
+      expect(tester.getSize(lines.at(0)), const Size(300, 10));
+      expect(tester.getSize(lines.at(1)), const Size(150, 10));
+      // RTL: תחילת השורה בימין.
+      expect(
+        tester.getTopRight(lines.at(1)).dx,
+        tester.getTopRight(lines.at(0)).dx,
+      );
+      expect(
+        tester.getTopLeft(lines.at(1)).dy -
+            tester.getBottomLeft(lines.at(0)).dy,
+        4,
+      );
+    });
+  });
+
+  group('AppInfoBanner', () {
+    for (final brightness in Brightness.values) {
+      testWidgets('ב-$brightness: צבעי הטונים; success חום ולא ירוק', (
+        tester,
+      ) async {
+        await pumpInApp(
+          tester,
+          Column(
+            children: [
+              for (final tone in AppInfoBannerTone.values)
+                AppInfoBanner(tone: tone, message: tone.name),
+            ],
+          ),
+          brightness: brightness,
+        );
+        final context = tester.element(find.byType(Column).first);
+        final cs = Theme.of(context).colorScheme;
+        final expected = {
+          AppInfoBannerTone.info: (
+            cs.primaryContainer.withValues(alpha: 0.4),
+            cs.primary,
+          ),
+          AppInfoBannerTone.warning: (
+            AppSurfaces.warningContainer(context),
+            AppSurfaces.onWarningContainer(context),
+          ),
+          AppInfoBannerTone.error: (cs.errorContainer, cs.onErrorContainer),
+          AppInfoBannerTone.success: (
+            cs.secondaryContainer,
+            cs.onSecondaryContainer,
+          ),
+        };
+        for (final MapEntry(key: tone, value: (bg, fg)) in expected.entries) {
+          final banner = find.widgetWithText(AppInfoBanner, tone.name);
+          final decoration = _decorationIn(tester, banner);
+          expect(decoration.color, bg, reason: tone.name);
+          expect(decoration.borderRadius, AppTokens.borderRadiusAll);
+          expect(
+            tester.widget<Text>(find.text(tone.name)).style?.color,
+            fg,
+            reason: tone.name,
+          );
+        }
+      });
+    }
+
+    testWidgets('כותרת titleSmall מעל ההודעה, אייקון 18', (tester) async {
+      await pumpInApp(
+        tester,
+        const AppInfoBanner(
+          tone: AppInfoBannerTone.warning,
+          title: 'כותרת',
+          message: 'הודעה',
+        ),
+      );
+      expect(tester.widget<Text>(find.text('כותרת')).style?.fontSize, 14);
+      expect(
+        tester.getBottomLeft(find.text('כותרת')).dy,
+        lessThan(tester.getTopLeft(find.text('הודעה')).dy),
+      );
+      expect(tester.widget<Icon>(find.byType(Icon)).size, 18);
+    });
+  });
+
+  group('OtzariaEmptyState.large', () {
+    testWidgets(
+      'אייקון 64, headlineSmall, bodyLarge, פעולות ברוחב מלא עד 420',
+      (
+        tester,
+      ) async {
+        await pumpInApp(
+          tester,
+          OtzariaEmptyState.large(
+            icon: FluentIcons.library_24_regular,
+            title: 'לא נמצאה ספריית ספרים',
+            message: 'הסבר',
+            actions: [
+              ActionButton.recommended(text: 'בחר', onPressed: () {}),
+              ActionButton.neutral(text: 'הגדרות', onPressed: () {}),
+            ],
+          ),
+        );
+        expect(tester.widget<Icon>(find.byType(Icon).first).size, 64);
+        final title = tester.widget<Text>(find.text('לא נמצאה ספריית ספרים'));
+        expect(title.style?.fontSize, 22);
+        expect(title.style?.fontWeight, FontWeight.w600);
+        expect(tester.widget<Text>(find.text('הסבר')).style?.fontSize, 16);
+        final first = tester.getRect(find.byType(ActionButton).first);
+        final second = tester.getRect(find.byType(ActionButton).last);
+        expect(first.width, 420);
+        expect(second.width, 420);
+        expect(second.top - first.bottom, AppTokens.spaceSM);
+      },
+    );
   });
 
   group('SquareIconButton', () {

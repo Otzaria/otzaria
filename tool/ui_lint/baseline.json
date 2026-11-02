@@ -86,11 +86,6 @@
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState.build","fp":"a6c1de53","n":1}
       ],
-      "lib/empty_library/empty_library_screen.dart": [
-        {"scope":"_LibrarySetupViewState.build","fp":"3bc984a7","n":1},
-        {"scope":"_LibrarySetupViewState.build","fp":"a9c1e30c","n":1},
-        {"scope":"_LibrarySetupViewState.build","fp":"abc1e632","n":1}
-      ],
       "lib/find_ref/view/find_ref_dialog.dart": [
         {"scope":"_FindRefDialogState._buildFooter","fp":"a7c1dfe6","n":1},
         {"scope":"_FindRefDialogState._buildIdleState","fp":"a8c1e179","n":1},
@@ -129,14 +124,6 @@
         {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"a9c1e30c","n":1},
         {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"aac1e49f","n":1}
       ],
-      "lib/plugins/view/plugin_install_screen.dart": [
-        {"scope":"_BackgroundActivationBanner.build","fp":"a8c1e179","n":1},
-        {"scope":"_BackgroundActivationBanner.build","fp":"abc1e632","n":1},
-        {"scope":"_HeadlessBanner.build","fp":"a8c1e179","n":1},
-        {"scope":"_HeadlessBanner.build","fp":"abc1e632","n":1},
-        {"scope":"_KeepAliveBanner.build","fp":"a8c1e179","n":1},
-        {"scope":"_KeepAliveBanner.build","fp":"abc1e632","n":1}
-      ],
       "lib/plugins/view/plugin_settings_screen.dart": [
         {"scope":"PluginDevBadge.build","fp":"2903b69b","n":1}
       ],
@@ -168,8 +155,6 @@
       ],
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildHistoryDropdown","fp":"a9c1e30c","n":1},
-        {"scope":"_SearchDialogState._buildIndexMissingState","fp":"3bc984a7","n":1},
-        {"scope":"_SearchDialogState._buildIndexMissingState","fp":"abc1e632","n":1},
         {"scope":"_SearchDialogState._sectionLabel","fp":"a8c1e179","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
