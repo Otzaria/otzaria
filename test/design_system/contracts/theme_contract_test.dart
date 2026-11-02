@@ -212,12 +212,14 @@ void main() {
   });
 
   group('AppMenuMetrics', () {
-    test('compactMenus לא משנה אף מידה', () {
+    test('compactMenus מצופף רק את גובה הפריט והריפוד שלו', () {
       final regular = AppMenuMetrics.create(compactMenus: false);
       final compact = AppMenuMetrics.create(compactMenus: true);
+      expect(regular.itemHeight, 36);
+      expect(regular.itemPadding, const EdgeInsets.symmetric(horizontal: 12));
+      expect(compact.itemHeight, 28);
+      expect(compact.itemPadding, const EdgeInsets.symmetric(horizontal: 8));
       for (final m in [regular, compact]) {
-        expect(m.itemHeight, 36);
-        expect(m.itemPadding, const EdgeInsets.symmetric(horizontal: 12));
         expect(m.menuPadding, const EdgeInsets.symmetric(vertical: 8));
         expect(m.visualDensity, VisualDensity.standard);
         expect(m.dividerHeight, 8);
@@ -241,10 +243,11 @@ void main() {
       final regular = AppThemeData.light(cs, compactMenuMode: false);
       expect(compact.extension<AppMenuMetrics>()?.compactMenus, isTrue);
       expect(regular.extension<AppMenuMetrics>()?.compactMenus, isFalse);
-      expect(compact.extension<AppMenuMetrics>()?.itemHeight, 36);
+      expect(compact.extension<AppMenuMetrics>()?.itemHeight, 28);
+      expect(regular.extension<AppMenuMetrics>()?.itemHeight, 36);
       expect(
         compact.menuButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 36),
+        const Size(0, 28),
       );
       expect(compact.popupMenuTheme.textStyle?.fontSize, 14);
     });
