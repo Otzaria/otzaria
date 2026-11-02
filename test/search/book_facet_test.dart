@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:otzaria/data/book_identity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -157,6 +159,88 @@ void main() {
       );
 
       expect(facetPath, '/תנ"ך/תורה/id:1');
+    });
+  });
+
+  group('BookFacet.resolveFacetCategoryPath — נתיב שכבר מנורמל', () {
+    // הפיצול ב-RegExp, שהמסלול המהיר חייב להחזיר בדיוק את תוצאתו.
+    String splitReference(String value) {
+      final parts = value
+          .trim()
+          .split(RegExp(r'\s*(?:/|,)\s*'))
+          .where((part) => part.isNotEmpty)
+          .toList();
+      return parts.isEmpty ? '' : '/${parts.join('/')}';
+    }
+
+    List<String> mismatches(Iterable<String> inputs) => [
+      for (final input in inputs)
+        if (BookFacet.resolveFacetCategoryPath(categoryPath: input) !=
+            splitReference(input))
+          input.codeUnits.join(','),
+    ];
+
+    test('זהה לפיצול בקצוות: פסיקים, רווחים ליד לוכסן, לוכסן כפול או בסוף', () {
+      const inputs = [
+        '/תנ"ך/תורה',
+        '/תלמוד בבלי/סדר מועד',
+        '/א ב ג/ד',
+        '',
+        ' ',
+        '/',
+        '//',
+        '/א/',
+        '//א',
+        '/א//ב',
+        '/א /ב',
+        '/א/ ב',
+        ' /א',
+        '/א ',
+        '/א,ב',
+        '/א, ב',
+        '/א,',
+        'א/ב',
+        'א',
+        '/א\u00a0/ב',
+        '/\u00a0א',
+        '/א\u0085',
+        '/א\ufeff',
+        '/א\u2003/ב',
+        '\t/א',
+        '/א\n/ב',
+      ];
+      expect(mismatches(inputs), isEmpty);
+    });
+
+    test('זהה לפיצול על מחרוזות אקראיות', () {
+      // כל תו יחידת UTF-16 אחת, ולכן הגרלת אינדקס מגרילה תו.
+      const alphabet = '/, \t\u00a0\u0085\u180e\u2028\ufeffאב"';
+      final random = Random(19);
+      final inputs = List.generate(
+        20000,
+        (_) => List.generate(
+          random.nextInt(8),
+          (_) => alphabet[random.nextInt(alphabet.length)],
+        ).join(),
+      );
+      expect(mismatches(inputs), isEmpty);
+    });
+
+    test('זהה לפיצול לכל תו ש-trim() או \\s בולעים, בקצה ולצד לוכסן', () {
+      final whitespace = RegExp(r'^\s$');
+      final spaces = [
+        for (var c = 0; c <= 0xFFFF; c++)
+          if (String.fromCharCode(c).trim().isEmpty ||
+              whitespace.hasMatch(String.fromCharCode(c)))
+            String.fromCharCode(c),
+      ];
+      expect(spaces, contains('　'));
+      expect(
+        mismatches([
+          for (final s in spaces) ...['/א$s', '/א$s/ב', '/א/$sב', '$s/א'],
+        ]),
+        isEmpty,
+      );
     });
   });
 

@@ -279,7 +279,9 @@ class BookFacet {
   static final RegExp _pathSeparatorPattern = RegExp(r'\s*(?:/|,)\s*');
 
   static String _normalizeCategoryPath(String? value) {
-    final raw = (value ?? '').trim();
+    if (value == null) return '';
+    if (_isNormalizedCategoryPath(value)) return value;
+    final raw = value.trim();
     if (raw.isEmpty) return '';
 
     final parts = raw
@@ -290,6 +292,37 @@ class BookFacet {
 
     return '/${parts.join('/')}';
   }
+
+  /// נתיב בצורת `/א/ב` כמו `Category.path`, שהפיצול ב-RegExp היה מחזיר כמות
+  /// שהוא: בלי פסיק, בלי `//` או `/` בסוף, ובלי רווח צמוד ל-`/` או בקצוות.
+  static bool _isNormalizedCategoryPath(String path) {
+    final last = path.length - 1;
+    if (last < 1 ||
+        path.codeUnitAt(0) != 0x2F ||
+        _isSpaceLike(path.codeUnitAt(last))) {
+      return false;
+    }
+    for (var i = 0; i <= last; i++) {
+      final c = path.codeUnitAt(i);
+      if (c == 0x2C) return false;
+      if (c != 0x2F) continue;
+      if (i == last) return false;
+      final next = path.codeUnitAt(i + 1);
+      if (next == 0x2F || _isSpaceLike(next)) return false;
+      if (i > 0 && _isSpaceLike(path.codeUnitAt(i - 1))) return false;
+    }
+    return true;
+  }
+
+  /// כל תו ש-`\s` או trim() עשויים לבלוע, ועוד תווי בקרה — ספק הולך למסלול המלא.
+  static bool _isSpaceLike(int c) =>
+      c <= 0x20 ||
+      c == 0x85 ||
+      c == 0xA0 ||
+      c == 0x1680 ||
+      c == 0x180E ||
+      (c >= 0x2000 && c <= 0x3000) ||
+      c == 0xFEFF;
 
   static String _normalizeText(String? value) => value?.trim() ?? '';
 }
