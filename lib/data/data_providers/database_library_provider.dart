@@ -4534,17 +4534,20 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
     final categoryPath = path.join(', ');
 
-    // Use metadata for topics (no junction table data available)
-    String topics = '';
-    if (categoryPath.isNotEmpty) {
-      topics = categoryPath
-          .split(',')
-          .map((p) => p.trim())
-          .where((p) => p.isNotEmpty)
-          .join(', ');
-    }
+    // הנושאים הם הנתיב מפוצל בפסיקים ומקוצץ; כשאין בשמות פסיק או רווח בקצוות
+    // הם זהים לנתיב עצמו, וחוסכים פיצול יקר בכל בניית קטלוג.
+    final topics = path.every(_isPlainTopic)
+        ? categoryPath
+        : categoryPath
+              .split(',')
+              .map((p) => p.trim())
+              .where((p) => p.isNotEmpty)
+              .join(', ');
     return (categoryPath: categoryPath, topics: topics);
   }
+
+  static bool _isPlainTopic(String title) =>
+      title.isNotEmpty && !title.contains(',') && title.trim() == title;
 
   /// [resolveMovedFileBookPath] לכל שורה, ב-isolate: בדיקת קובץ סינכרונית לכל
   /// ספר אישי חסמה את ה-UI בבניית העץ (#3380). בכשל — השורות כמות שהן.
