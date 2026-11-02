@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 
@@ -530,6 +531,7 @@ Map<String, dynamic> _typography() =>
     buildThemePayloadFromScheme(
           AppThemeData.createColorScheme(Colors.blue, Brightness.light),
           isDark: false,
+          density: AppDensity.regular,
         )['typography']
         as Map<String, dynamic>;
 

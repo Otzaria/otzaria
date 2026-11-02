@@ -3412,7 +3412,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   previous.lineHeight != current.lineHeight ||
                   previous.commentatorsFontFamily !=
                       current.commentatorsFontFamily ||
-                  previous.commentatorsFontSize != current.commentatorsFontSize;
+                  previous.commentatorsFontSize !=
+                      current.commentatorsFontSize ||
+                  previous.compactMenuMode != current.compactMenuMode;
               if (isThemeChange) {
                 // ה-MaterialApp מתעדכן רק ב-frame הבא, כך ש-Theme.of(context)
                 // כאן עדיין מחזיר את הצבעים הישנים. לכן בונים את ה-payload
@@ -3432,6 +3434,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 final themePayload = buildThemePayloadFromScheme(
                   colorScheme,
                   isDark: isDark,
+                  density: AppDensity(isCompact: current.compactMenuMode),
                 );
                 PluginRuntimeDispatcher.instance.dispatchEvent(
                   'theme.changed',

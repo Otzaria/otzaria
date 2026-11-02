@@ -78,9 +78,22 @@ applyTheme(theme);
     commentatorsFontFamily: "NotoRashiHebrew",  // גופן מפרשים
     commentatorsFontSize:   22,                 // גודל גופן מפרשים (px)
     uiFontFamily:           "Rubik",            // גופן הממשק — כפתורים, תפריטים, שדות
-  }
+    uiFont:                 "'Segoe UI', …, system-ui, sans-serif", // גופן הממשק של אוצריא עצמה (0.9.99)
+  },
+  // מ-0.9.99. אופציונליים — מארח ישן אינו שולח אותם:
+  surfaces: {
+    reader: "#...", // רקע מסך העיון (ספר, PDF, חיפוש)
+    panel:  "#...", // רקע מסכי לוח וכלים — רקע טבעי לטאב תוסף
+    card:   "#...", // רקע כרטיס תוכן
+    topBar: "#...", // רקע הסרגל העליון ופס הכותרת של התוסף
+  },
+  radius:  8,                                                  // px
+  spacing: { "2xs": 2, xs: 4, sm: 8, smd: 12, md: 16, lg: 24, xl: 32 }, // px
+  density: { compact: false, topBarHeight: 56, fieldHeight: 48 },      // "צפיפות ממשק"
 }
 ```
+
+> **משטחים במקום ניחוש:** במצב כהה רקע הלוח של אוצריא אינו `surface` ואינו אף תפקיד אחר של `colorScheme`. תוסף שרוצה להיראות כמו מסך כלים מקורי משתמש ב-`surfaces.panel` לרקע הטאב, ב-`surfaces.topBar` לפס הכותרת וב-`surfaces.card` לכרטיסים. `uiFont` הוא גופן הממשק של אוצריא עצמה (גופן המערכת); `uiFontFamily` נשאר Rubik, כך שתוסף קיים לא משתנה. `theme.changed` נשלח גם כשהמשתמש משנה את "צפיפות ממשק".
 
 > **שים לב:** `fontSize` שונה ממשתמש למשתמש (טווח רגיל: 16–36). עצב את הפריסה כך שתעבוד בכל גודל.
 
@@ -133,6 +146,12 @@ applyTheme(theme);
 
   /* --- Shape — רדיוס אחיד לכל רכיב, כמו AppTokens.radius --- */
   --radius: 8px;
+
+  /* --- משטחים וצפיפות (theme.surfaces / theme.density, מ-0.9.99) --- */
+  --surface-panel:   var(--color-surface);
+  --surface-card:    var(--color-surface);
+  --surface-top-bar: var(--color-surface-container-high);
+  --top-bar-height:  56px;
 }
 ```
 
@@ -177,6 +196,19 @@ function applyTheme(theme) {
     root.style.setProperty('--font-main', `'${t.fontFamily}', 'David', serif`);
     root.style.setProperty('--font-size-base', `${t.fontSize}px`);
     root.style.setProperty('--line-height', String(t.lineHeight));
+  }
+
+  // מ-0.9.99. במארח ישן חסרים — ערכי :root נשמרים.
+  if (theme.surfaces) {
+    root.style.setProperty('--surface-panel',   theme.surfaces.panel);
+    root.style.setProperty('--surface-card',    theme.surfaces.card);
+    root.style.setProperty('--surface-top-bar', theme.surfaces.topBar);
+  }
+  if (theme.radius != null) {
+    root.style.setProperty('--radius', `${theme.radius}px`);
+  }
+  if (theme.density) {
+    root.style.setProperty('--top-bar-height', `${theme.density.topBarHeight}px`);
   }
 }
 

@@ -536,7 +536,7 @@
 5. **לאשר:** את מבנה ה־payload.
 6. **סטטוס: אושר** (1.11.2026, בעל הפרויקט).
    - **הוכרע:** A. להרחיב את ה־payload (כהמלצה).
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — buildThemePayloadFromScheme מוסיף, בלי לשנות שדה קיים: surfaces (reader, panel, card, topBar מתוך AppSurfaceColors), radius (AppTokens.radius), spacing (סולם AppTokens.space*), density (compact, topBarHeight, fieldHeight מתוך AppDensity) ו־typography.uiFont (גופן הממשק של המארח כ־CSS: משפחת הפלטפורמה + uiFontFamilyFallback). uiFontFamily נשאר 'Rubik' לתאימות. theme.changed נשלח גם בשינוי צפיפות. otzaria_plugin.d.ts, ‏API_REFERENCE ו־DESIGN_GUIDE מעודכנים, השדות מסומנים 'מ־0.9.99' ואופציונליים (השער: minAppVersion 0.9.99 או ברירת מחדל ב־CSS). נשאר: אין.
 
 ---
 
@@ -558,7 +558,7 @@
 5. **לאשר:** את ההמלצה.
 6. **סטטוס: אושר** (1.11.2026, בעל הפרויקט).
    - **הוכרע:** A. ThemeExtension למשטחים ולצפיפות בלבד (כהמלצה).
-   - **מימוש:** מומש חלקית (MIG-06): ThemeExtension בשם AppSurfaceColors עם 12 משטחים מחושבים מראש נבנה ב־AppThemeData; AppSurfaces.x(context) עטיפה דקה שקוראת אותו עד ש־MIG-07 תעביר את הקוראים; אזור הקורא מתועד כ־ReaderSurfaceScope ב־lib/theme. ערכים זהים לפיקסל. נשאר: payload התוספים (DD-25), SizedBox.fromSize ורקע ההדפסה לפי בהירות (UI-127), פונקציות ה־ColorScheme ב־AppSurfaces (MIG-07).
+   - **מימוש:** מומש חלקית (MIG-06): ThemeExtension בשם AppSurfaceColors עם 12 משטחים מחושבים מראש נבנה ב־AppThemeData; AppSurfaces.x(context) עטיפה דקה שקוראת אותו עד ש־MIG-07 תעביר את הקוראים; אזור הקורא מתועד כ־ReaderSurfaceScope ב־lib/theme. ערכים זהים לפיקסל. המשטחים והצפיפות עוברים לתוספים ב־payload (DD-25). נשאר: SizedBox.fromSize ורקע ההדפסה לפי בהירות (UI-127), פונקציות ה־ColorScheme ב־AppSurfaces (MIG-07).
 
 ### DD-22 · פלטפורמת ייחוס ל־golden tests 🏗⚙
 1. **הבעיה:** אין golden tests. הרינדור שונה בין Linux, שעליו ה־CI רץ, לבין Windows, שעליו מפתחים. גופן הממשק לא כלול באפליקציה.
