@@ -27,6 +27,7 @@ import 'package:otzaria/tools/tikkun_korim/view/widgets/tikkun_settings_panel.da
 import 'package:otzaria/utils/text/numeral_formats.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -593,9 +594,10 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
 
     final pageNav = state.columnCount > 1
         ? [
-            IconButton(
+            BarButton.icon(
+              compact: isCompact,
               tooltip: 'עמוד קודם',
-              icon: const Icon(FluentIcons.chevron_left_24_regular),
+              icon: FluentIcons.chevron_left_24_regular,
               onPressed: state.nav.currentColumnIndex > 0
                   ? () => bloc.add(const TikkunPrevColumn())
                   : null,
@@ -604,9 +606,10 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
               width: _kSelectorWidth,
               child: _PageIndicator(state: state),
             ),
-            IconButton(
+            BarButton.icon(
+              compact: isCompact,
               tooltip: 'עמוד הבא',
-              icon: const Icon(FluentIcons.chevron_right_24_regular),
+              icon: FluentIcons.chevron_right_24_regular,
               onPressed: state.nav.currentColumnIndex < state.columnCount - 1
                   ? () => bloc.add(const TikkunNextColumn())
                   : null,
@@ -618,7 +621,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     // הסרגל מקבל את רוחבם כדי שהבוררים לא יגלשו מתחתיהם.
     double trailingWidthFor(int buttons, {required bool withPageNav}) {
       final count = buttons + (withPageNav ? 2 : 0);
-      return count * kMinInteractiveDimension +
+      return count * BarButton.toolbarWidth(isCompact) +
           (withPageNav ? _kSelectorWidth : 0) +
           AppTopBar.itemSpacing(isCompact) * count;
     }
@@ -658,30 +661,33 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
           for (final item in pageNav) AppTopBarItem(widget: item),
         if (columns.canSwap)
           AppTopBarItem(
-            widget: IconButton(
+            widget: BarButton.icon(
+              compact: isCompact,
               tooltip: state.peekSecondColumn
                   ? 'חזור לטור הראשי'
                   : 'הצג טור שני',
-              isSelected: state.peekSecondColumn,
-              icon: const Icon(FluentIcons.arrow_swap_24_regular),
+              selected: state.peekSecondColumn,
+              icon: FluentIcons.arrow_swap_24_regular,
               onPressed: () => bloc.add(const TikkunPeekToggled()),
             ),
           ),
         AppTopBarItem(
           dividerBefore: true,
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'הדפסה',
-            icon: const Icon(FluentIcons.print_24_regular),
+            icon: FluentIcons.print_24_regular,
             onPressed: state.pages.isEmpty
                 ? null
                 : () => _print(context, state),
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'סימניות',
-            isSelected: _bookmarksOpen,
-            icon: const Icon(FluentIcons.bookmark_24_regular),
+            selected: _bookmarksOpen,
+            icon: FluentIcons.bookmark_24_regular,
             onPressed: () => setState(() {
               _bookmarksOpen = !_bookmarksOpen;
               _settingsOpen = false;
@@ -689,10 +695,11 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'הגדרות',
-            isSelected: _settingsOpen,
-            icon: const Icon(FluentIcons.settings_24_regular),
+            selected: _settingsOpen,
+            icon: FluentIcons.settings_24_regular,
             onPressed: () => setState(() {
               _settingsOpen = !_settingsOpen;
               _bookmarksOpen = false;
