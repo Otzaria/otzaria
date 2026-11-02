@@ -17,7 +17,7 @@ class WindowTabsSession {
   WindowTabsSession({int? Function()? slot})
     : _slot = slot ?? (() => UserStateSlot.main);
 
-  /// הסשן של החלון שה-isolate הזה מציג; היום כל חלון הוא isolate משלו.
+  /// הסשן של החלון הראשי; לכל חלון Dart נוסף סשן משלו.
   static final WindowTabsSession current = WindowTabsSession();
 
   final int? Function() _slot;

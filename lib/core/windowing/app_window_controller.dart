@@ -6,15 +6,11 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:window_manager/window_manager.dart'
     show ResizeEdge, TitleBarStyle;
 
-/// פעולות ושאילתות על חלון **אחד**.
+/// פעולות ושאילתות על חלון **אחד**: כל קורא מקבל את החלון שלו, ואין דרך
+/// לפנות בטעות לחלון אחר.
 ///
-/// היום הכול עובר דרך ה-singleton הגלובלי `windowManager`, שמתאר תמיד את
-/// החלון היחיד של התהליך. הממשק הזה הוא ההפרדה בין "החלון" לבין "החלון
-/// היחיד": כל קורא מקבל את החלון שלו, ואין דרך לפנות בטעות לחלון אחר.
-///
-/// המשטח נגזר ממה שהאפליקציה קוראת בפועל — 23 מתודות ב-44 אתרי קריאה,
-/// בשבעה קבצים — ולא ממשטח ה-API של `window_manager`. שיטות שאיש אינו
-/// קורא, כמו `restore()` ו-`activate()`, אינן כאן בכוונה.
+/// המשטח נגזר ממה שהאפליקציה קוראת בפועל ולא מה-API של `window_manager`.
+/// שיטות שאיש אינו קורא, כמו `restore()` ו-`activate()`, אינן כאן בכוונה.
 abstract interface class AppWindowController {
   AppWindowId get id;
 

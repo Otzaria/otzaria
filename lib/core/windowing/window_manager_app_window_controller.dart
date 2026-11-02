@@ -6,12 +6,10 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// המימוש היחיד היום: מאציל ל-singleton הגלובלי `windowManager`.
+/// המימוש של החלון הראשי: מאציל ל-singleton הגלובלי `windowManager`.
 ///
-/// `windowManager` מתאר תמיד את החלון היחיד של התהליך, ולכן כל המופעים
-/// של המחלקה הזו מפנים בפועל לאותו חלון — ה-[id] הוא תיוג, לא ניתוב.
-/// כשתהיה תשתית ריבוי חלונות, המימוש הזה יישאר עבור החלון הראשי ויתווסף
-/// לצדו מימוש שמנתב לפי [id].
+/// `windowManager` מתאר תמיד את החלון הראשי, ולכן ה-[id] הוא תיוג ולא
+/// ניתוב. חלון Dart נוסף מקבל `HostWindowAppWindowController`.
 final class WindowManagerAppWindowController
     implements AppWindowController, AppWindowGeometry {
   const WindowManagerAppWindowController({this.id = AppWindowId.primary});
