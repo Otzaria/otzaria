@@ -10,8 +10,7 @@ import 'package:otzaria/utils/file/hive_utils.dart';
 /// ## שני נתיבים, ורק אחד מהם כותב
 ///
 /// [load] סובלני לרשומה פגומה (היא מדולגת). [mutate] הוא נתיב הכתיבה, והוא
-/// מחיל את השינוי על הרשימה **הטרייה** מהמסד בתוך טרנזקציה — לא על עותק
-/// שבזיכרון.
+/// מחיל את השינוי על הרשימה **הטרייה** מהמסד — לא על עותק שבזיכרון.
 class UserStateListRepository<T> {
   UserStateListRepository({
     required this.boxName,
@@ -72,11 +71,9 @@ class UserStateListRepository<T> {
     ).items,
   );
 
-  /// מחיל [apply] על הרשימה הטרייה ושומר את התוצאה, בטרנזקציה אחת.
-  /// מחזיר את מה שנשמר.
+  /// מחיל [apply] על הרשימה הטרייה ושומר את התוצאה אטומית. מחזיר את מה שנשמר.
   ///
-  /// ⚠️ [apply] רץ בתוך הטרנזקציה, ולכן חייב להיות **טהור** ומהיר: לחשב
-  /// מהרשימה שקיבל, בלי await ובלי תופעות לוואי.
+  /// [apply] רץ פעם אחת, באופן סינכרוני, מול הרשימה שבטרנזקציית הכתיבה.
   Future<List<T>> mutate(List<T> Function(List<T> current) apply) async {
     late List<T> next;
     await _store.mutate(boxName, key, origin: _origin, (raw) {
