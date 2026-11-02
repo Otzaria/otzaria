@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
 /// מסנן ערכים ש-[field] שלהם מכיל את [query] וממיין: מדויק < מתחיל ב- < מילה שלמה < מכיל.
@@ -123,8 +124,6 @@ class AramaicDictionaryScreen extends StatefulWidget {
 
 class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
     with ToolQueryConsumer {
-  static const double _countMinWidth = 560;
-
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late final DictionaryLookupRepository _dictionaryRepository =
@@ -268,6 +267,12 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
               child: Column(
                 children: [
                   _buildDirectionToggle(),
+                  if (_query.isNotEmpty && _filteredResults.isNotEmpty)
+                    ToolResultsHeader(
+                      label: _filteredResults.length == 1
+                          ? 'ערך אחד'
+                          : '${_filteredResults.length} ערכים',
+                    ),
                   Expanded(child: _buildResultsList()),
                 ],
               ),
@@ -279,40 +284,19 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   }
 
   Widget _buildDirectionToggle() {
-    final cs = Theme.of(context).colorScheme;
-    final count = _filteredResults.length;
-    final width = MediaQuery.sizeOf(context).width;
-
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMD,
         vertical: AppTokens.spaceSM,
       ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            AppSegmentedControl<bool>(
-              options: const [
-                SegmentOption(value: false, label: 'ארמית לעברית'),
-                SegmentOption(value: true, label: 'עברית לארמית'),
-              ],
-              currentValue: _isHebrewToAramaic,
-              onChanged: _setDirection,
-            ),
-            if (_query.isNotEmpty && count > 0 && width >= _countMinWidth)
-              PositionedDirectional(
-                end: 0,
-                child: Text(
-                  count == 1 ? 'ערך אחד' : '$count ערכים',
-                  style: TextStyle(
-                    fontSize: AppTokens.fontMD,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
+      child: Center(
+        child: AppSegmentedControl<bool>(
+          options: const [
+            SegmentOption(value: false, label: 'ארמית לעברית'),
+            SegmentOption(value: true, label: 'עברית לארמית'),
           ],
+          currentValue: _isHebrewToAramaic,
+          onChanged: _setDirection,
         ),
       ),
     );

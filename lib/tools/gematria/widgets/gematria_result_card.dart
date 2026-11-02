@@ -44,9 +44,6 @@ class GematriaResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return ToolResultCardShell(
-      outlined: true,
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      bottomGap: AppTokens.spaceSM + AppTokens.spaceXS,
       child: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, state) {
           String holy(String text) => state.replaceHolyNames
