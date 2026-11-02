@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -167,10 +168,10 @@ Future<void> main() async {
             }
 
             final foreground = highlight == 'current'
-                ? const Color(0xFF0000FF)
+                ? AppSurfaces.searchHitCurrent(scheme)
                 : linked
-                ? const Color(0xFF000000)
-                : const Color(0xFFFF0000);
+                ? AppSurfaces.onPermanentMark(scheme)
+                : AppSurfaces.searchHit(scheme);
             final matchedSpans = <TextSpan>[];
             void visit(InlineSpan span) {
               if (span is TextSpan) {

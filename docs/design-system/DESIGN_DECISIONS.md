@@ -505,7 +505,7 @@
    - **תשובות:**
      - q1: ההדגשה בקטעי תוצאות החיפוש נשארת אדומה (error)? → **כן, אדום** ⚠ ההמלצה: לא, צבע ההדגשה החדש
    - **ליישום:** קטעי תוצאות החיפוש נשארים בצבע `error` (סטייה מההמלצה). שאר ההדגשות עוברות לטוקני התפקיד, כולל ההתאמה למצב כהה.
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — טוקני תפקיד ב־AppSurfaces: searchHit (= cs.error), searchHitCurrent + searchHitCurrentBackground (ענבר), permanentMark + onPermanentMark (צהוב), בגוונים של אפשרות A כפי שהוצגה בהכרעה, ובכהה גוונים משלו. highLight כותב סימני CSS (otzaria-search-hit/-current/-current-bg, otzaria-mark/-on-mark, SearchHighlightCss), ושלושת מסלולי הרינדור (Text.rich, HtmlWidget, קריאה רציפה) מחליפים אותם בצבעי ערכת הנושא. הרקעים שקופים 80% כדי שהבחירה תיראה (#2198). AppColors.permanentHighlight הוסר. קטעי תוצאות החיפוש נשארו ב־cs.error. נשאר: הדגשת החיפוש בתוך עמוד PDF (ברירת המחדל של pdfrx) לא נבדקה ולא שונתה.
 
 ### DD-20 · היקף מצב השפה האנגלית 🏗🎨
 1. **הבעיה:**

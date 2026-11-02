@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
@@ -264,7 +265,12 @@ class _ContinuousReadingParagraphState
     // קוראת את הטקסט מעץ הרינדור.
     return RaisedMarkerOverlay.wrap(
       context: context,
-      markers: RaisedMarkers.extract(markerSources.join()),
+      markers: RaisedMarkers.extract(
+        SearchHighlightCss.resolve(
+          markerSources.join(),
+          Theme.of(context).colorScheme,
+        ),
+      ),
       baseStyle: widget.baseStyle,
       linkColor: widget.linkStyle?.color,
       activeBackground: widget.anchorActiveBackground,
@@ -283,12 +289,18 @@ class _ContinuousReadingParagraphState
     ContinuousReadingParagraphLine line,
     Map<(String, TextStyle), _BuiltLine> builtLines,
   ) {
-    final htmlText = line.htmlText;
+    var htmlText = line.htmlText;
     if (htmlText == null) {
       return (
         spans: [TextSpan(text: line.text, style: line.style)],
         length: line.text.length,
         recognizers: const [],
+      );
+    }
+    if (SearchHighlightCss.hasTokens(htmlText)) {
+      htmlText = SearchHighlightCss.resolve(
+        htmlText,
+        Theme.of(context).colorScheme,
       );
     }
     final key = (htmlText, line.style);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
@@ -122,7 +123,10 @@ Future<void> main() async {
           return true;
         });
       }
-      expect(matchColor, const Color(0xFFFF0000));
+      final scheme = Theme.of(
+        tester.element(find.byType(SmartTextWidget).first),
+      ).colorScheme;
+      expect(matchColor, AppSurfaces.searchHit(scheme));
     }, skip: !engineReady);
 
     testWidgets('טקסט ריק לא תופס גובה', (tester) async {

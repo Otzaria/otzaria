@@ -14,7 +14,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_layout.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
-import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
@@ -65,7 +64,9 @@ Color? readerLineBackgroundColor(
   ThemeData theme,
 ) => switch (background) {
   ReaderLineBackground.none => null,
-  ReaderLineBackground.permanent => AppColors.permanentHighlight,
+  ReaderLineBackground.permanent => AppSurfaces.permanentMark(
+    theme.colorScheme,
+  ),
   ReaderLineBackground.highlighted => AppSurfaces.highlightedLineBackground(
     theme.colorScheme,
   ),
