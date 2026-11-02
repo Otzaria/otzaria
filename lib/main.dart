@@ -122,7 +122,7 @@ import 'package:otzaria/core/sentry_event_filter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 // Updated automatically by version update scripts - do not edit manually
-const int _latestReleasedBuildNumber = 99802;
+const int _latestReleasedBuildNumber = 99803;
 
 /// החלון הראשי. מקור אמת אחד לכל מי שצריך אותו כאן: ה-listener,
 /// [WindowPersistence] ו-[AppWindowScope] מקבלים את אותו מופע.
