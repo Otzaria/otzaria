@@ -108,6 +108,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
+  int _searchResultRequestId = 0;
   DateTime? _lastVisibleIndicesDispatchAt;
   bool _listeningToReadingPosition = false;
   int? _loadedLinksStart;
@@ -698,6 +699,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     var searchOrigin = InBookSearchOrigin.inBook;
     InBookSearchTemplate? searchTemplate;
     Set<int>? searchResultLines;
+    ({int line, int requestId})? searchResultNavigation;
     bool showLeftPane;
     List<String> commentators;
     late final List<int> visibleIndices;
@@ -762,6 +764,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       commentators = initial.commentators;
       final startIndex = event.startIndex ?? initial.index;
       visibleIndices = [startIndex < 0 ? 0 : startIndex];
+      if (searchText.trim().isNotEmpty) {
+        searchResultNavigation = (
+          line: visibleIndices.first,
+          requestId: ++_searchResultRequestId,
+        );
+      }
       initialShowPageShapeView = initial.showPageShapeView;
       pinpointHighlightIndex = initial.pinpointHighlightIndex;
       pinpointHighlightText = initial.pinpointHighlightText;
@@ -1054,6 +1062,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           ),
         ),
         searchResultLines: searchResultLines,
+        searchResultNavigation: searchResultNavigation,
         readerIdentity: _readerIdentity,
         currentTitle: currentTitle,
         visibleLinks: emptyVisibleLinks,
@@ -1502,6 +1511,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           selectedIndex: index,
           clearSelectedIndex:
               index == null && currentState.selectedIndex != null,
+          clearSearchResultNavigation:
+              index == null && currentState.selectedIndex != null,
           selectedIndices: newIndices,
           clearSelectedIndices: newIndices.isEmpty,
           visibleLinks: visibleLinks,
@@ -1857,6 +1868,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     );
     emit(
       currentState.copyWith(
+        searchResultNavigation: event is SelectSearchResult
+            ? (line: event.index!, requestId: ++_searchResultRequestId)
+            : null,
+        clearSearchResultNavigation: event is! SelectSearchResult,
         selectedIndex: newPrimary,
         clearSelectedIndex: newPrimary == null,
         selectedIndices: newIndices,
@@ -1986,6 +2001,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           clearPinpointHighlight: requestChanged,
           // שורות התוצאה תקפות לצירוף השאילתה והתצורה, גם לפני פתיחת החלונית.
           clearSearchResultLines: requestChanged,
+          clearSearchResultNavigation:
+              requestChanged ||
+              (event.searchWholeWord != null &&
+                  event.searchWholeWord != currentState.searchWholeWord),
           // ניקוי הטקסט והעוגן יחד מונע השארת רקע קבוע במקום ההדגשה.
           clearHighlightText: requestChanged,
           clearPermanentHighlight: requestChanged,

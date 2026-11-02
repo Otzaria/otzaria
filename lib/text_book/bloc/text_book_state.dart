@@ -259,6 +259,9 @@ class TextBookLoaded extends TextBookState {
   /// העוגן הראשי של הבחירה — מניע גלילה, highlight, ניווט TOC ודיווח טעות.
   final int? selectedIndex;
 
+  /// יעד בקשת החיפוש האחרונה; המזהה מבדיל גם בין לחיצות על אותה תוצאה.
+  final ({int line, int requestId})? searchResultNavigation;
+
   /// כל הקטעים שנבחרו להצגת מפרשים (Ctrl+לחיצה). [selectedIndex] תמיד נכלל בו
   /// כשאינו null. ריק = אין בחירה.
   final Set<int> selectedIndices;
@@ -360,6 +363,7 @@ class TextBookLoaded extends TextBookState {
     this.loadedLineFlags,
     required this.visibleIndices,
     this.selectedIndex,
+    this.searchResultNavigation,
     this.selectedIndices = const {},
     required this.pinLeftPane,
     required this.searchText,
@@ -579,6 +583,8 @@ class TextBookLoaded extends TextBookState {
     bool? continuousReadingMode,
     List<bool>? loadedLineFlags,
     int? selectedIndex,
+    ({int line, int requestId})? searchResultNavigation,
+    bool clearSearchResultNavigation = false,
     bool clearSelectedIndex = false,
     Set<int>? selectedIndices,
     bool clearSelectedIndices = false,
@@ -727,6 +733,9 @@ class TextBookLoaded extends TextBookState {
       selectedIndex: clearSelectedIndex
           ? null
           : (selectedIndex ?? this.selectedIndex),
+      searchResultNavigation: clearSearchResultNavigation
+          ? null
+          : searchResultNavigation ?? this.searchResultNavigation,
       selectedIndices: clearSelectedIndices
           ? const {}
           : (selectedIndices ?? this.selectedIndices),
@@ -832,6 +841,7 @@ class TextBookLoaded extends TextBookState {
     continuousReadingMode,
     visibleIndices,
     selectedIndex,
+    searchResultNavigation,
     _SetProp(selectedIndices),
     pinLeftPane,
     searchText,

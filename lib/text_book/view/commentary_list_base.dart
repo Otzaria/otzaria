@@ -35,6 +35,8 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
@@ -1624,6 +1626,18 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         : widget.highlightQueryListenable?.value ?? '';
   }
 
+  /// מצב הספר כשהמונח הפעיל הוא מונח החיפוש בספר — הערות הספר מודגשות בו
+  /// כמו טקסט הספר. null כשהמונח בא משדה החיפוש של המפרשים.
+  TextBookLoaded? _bookSearchState(BuildContext context) {
+    final state = context.read<TextBookBloc>().state;
+    final query = _activeSearchQuery;
+    return state is TextBookLoaded &&
+            query.isNotEmpty &&
+            query == state.searchText
+        ? state
+        : null;
+  }
+
   void _scheduleSearchCompute() {
     final blocState = context.read<TextBookBloc>().state;
     _searchBloc.add(
@@ -1951,15 +1965,23 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                       noteBodyWithAnchors(state, line, note, body),
                 );
                 if (relevantNotes.isNotEmpty) {
-                  notesWidget = _NotesCommentaryWidget(
-                    notes: relevantNotes,
-                    fontSize: widget.fontSize,
-                    displayProfile: state.commentaryDisplayProfile,
-                    openBookCallback: widget.openBookCallback,
-                    state: state,
-                    reportLineIndex:
-                        state.selectedIndex ?? currentIndexes.first,
-                    selectionSyncController: widget.selectionSyncController,
+                  notesWidget = ListenableBuilder(
+                    listenable: Listenable.merge([
+                      _searchQueryNotifier,
+                      widget.highlightQueryListenable,
+                    ]),
+                    builder: (context, _) => _NotesCommentaryWidget(
+                      notes: relevantNotes,
+                      searchQuery: _activeSearchQuery,
+                      searchedBook: _bookSearchState(context),
+                      fontSize: widget.fontSize,
+                      displayProfile: state.commentaryDisplayProfile,
+                      openBookCallback: widget.openBookCallback,
+                      state: state,
+                      reportLineIndex:
+                          state.selectedIndex ?? currentIndexes.first,
+                      selectionSyncController: widget.selectionSyncController,
+                    ),
                   );
                 } else if (selectedCommentators.isEmpty) {
                   notesWidget = const OtzariaEmptyState(
@@ -2896,6 +2918,13 @@ String noteBodyWithAnchors(
 /// (<i class="footnote">) של השורות הנבחרות כאילו היו רשימת מפרשים.
 class _NotesCommentaryWidget extends StatefulWidget {
   final List<String> notes;
+
+  /// מונח החיפוש של הרשימה — גם תוצאת חיפוש בספר שנחתה בהערה.
+  final String searchQuery;
+
+  /// הספר שבו נחפש [searchQuery], כשזה מונח החיפוש בספר: ההערות מודגשות
+  /// בפרמטרים שלו (מקורב, אפשרויות, מרווח) כמו טקסט הספר.
+  final TextBookLoaded? searchedBook;
   final double fontSize;
 
   /// אותו פרופיל כמו טקסט המפרשים — ההערות מוצגות כמפרש.
@@ -2911,6 +2940,8 @@ class _NotesCommentaryWidget extends StatefulWidget {
 
   const _NotesCommentaryWidget({
     required this.notes,
+    required this.searchQuery,
+    required this.searchedBook,
     required this.fontSize,
     required this.displayProfile,
     required this.openBookCallback,
@@ -3004,10 +3035,41 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
     );
   }
 
+  /// מונח החיפוש בספר מודגש כמו בטקסט הספר; מונח משדה המפרשים — כמו במפרשים.
+  RenderSettings _renderSettings(SettingsState settingsState) {
+    final book = widget.searchedBook;
+    return RenderSettings.fromProfile(
+      widget.displayProfile,
+      searchText: widget.searchQuery,
+      currentSearchIndex: -1,
+      searchOptions: book?.searchOptions ?? const {},
+      alternativeWords: book?.alternativeWords ?? const {},
+      spacingValues: book?.spacingValues ?? const {},
+      isFuzzySearch: book?.searchMode == SearchMode.fuzzy,
+      searchMode: book?.searchMode ?? SearchMode.exact,
+      searchDistance: book?.searchDistance ?? 0,
+      matchPolicy: book?.matchPolicy ?? SearchMatchPolicy.standard,
+      isSearchResultLine:
+          book?.lineParticipatesInSearchHighlight(widget.reportLineIndex) ??
+          false,
+      fontSize: widget.fontSize * 0.85,
+      fontFamily: settingsState.commentatorsFontFamily,
+      fontWeight: settingsState.commentatorsFontBold ? FontWeight.bold : null,
+      lineHeight: settingsState.lineHeight,
+      partialWordHighlight:
+          book == null ||
+          literalPartialWordMatch(
+            widget.searchQuery,
+            wholeWord: book.searchWholeWord,
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
+        final renderSettings = _renderSettings(settingsState);
         // SelectionArea משלו: הרשימה הזו מוחזרת *מחוץ* ל-SelectionArea של
         // רשימת המפרשים (שנבנה רק סביב ה-ListView), ולכן בלעדיו לא ניתן
         // לבחור טקסט בהערות כלל.
@@ -3110,17 +3172,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                           ),
                           child: SmartTextWidget(
                             text: note,
-                            settings: RenderSettings.fromProfile(
-                              widget.displayProfile,
-                              searchText: '',
-                              currentSearchIndex: -1,
-                              fontSize: widget.fontSize * 0.85,
-                              fontFamily: settingsState.commentatorsFontFamily,
-                              fontWeight: settingsState.commentatorsFontBold
-                                  ? FontWeight.bold
-                                  : null,
-                              lineHeight: settingsState.lineHeight,
-                            ),
+                            settings: renderSettings,
                             onOpenBook: (tab) {
                               if (tab is TextBookTab) {
                                 widget.openBookCallback(tab);

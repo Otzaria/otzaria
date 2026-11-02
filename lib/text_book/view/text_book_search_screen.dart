@@ -767,7 +767,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _selectedResultOffset = result.matchOffset;
 
     final bloc = context.read<TextBookBloc>();
-    bloc.add(UpdateSelectedIndex(result.index));
+    bloc.add(SelectSearchResult(result.index));
     bloc.add(HighlightLine(result.index));
 
     final loadedState = bloc.state;
