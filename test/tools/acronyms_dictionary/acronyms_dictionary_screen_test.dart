@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -176,5 +177,68 @@ void main() {
     await tester.enterText(find.byType(TextField), '');
     await tester.pumpAndSettle();
     expect(find.byType(AcronymResultCard), findsNothing);
+  });
+
+  Future<void> pumpScreen(
+    WidgetTester tester,
+    DictionaryLookupRepository repository,
+  ) async {
+    final settings = _SettingsBloc();
+    addTearDown(settings.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<SettingsBloc>.value(
+          value: settings,
+          child: Scaffold(
+            body: AcronymsDictionaryScreen(repository: repository),
+          ),
+        ),
+      ),
+    );
+  }
+
+  testWidgets('כשל בטעינה מציג שגיאה עם ניסיון חוזר, והניסיון טוען', (
+    tester,
+  ) async {
+    var calls = 0;
+    final repository = DictionaryLookupRepository(
+      loadAcronyms: () async {
+        if (calls++ == 0) throw StateError('missing');
+        return const {
+          'רמב"ם': ['רבי משה בן מימון'],
+        };
+      },
+    );
+    await pumpScreen(tester, repository);
+    await tester.pumpAndSettle();
+
+    expect(find.text('טעינת המילון נכשלה'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.tap(find.text('נסה שוב'));
+    await tester.pumpAndSettle();
+    expect(find.text('טעינת המילון נכשלה'), findsNothing);
+
+    await tester.enterText(find.byType(TextField), 'רמב');
+    await tester.pumpAndSettle();
+    expect(find.byType(AcronymResultCard), findsOneWidget);
+  });
+
+  testWidgets('מה שהוקלד בזמן הטעינה מחפש במילון אחרי שנטען', (tester) async {
+    final load = Completer<Map<String, List<String>>>();
+    await pumpScreen(
+      tester,
+      DictionaryLookupRepository(loadAcronyms: () => load.future),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'רמב');
+    await tester.pump();
+    load.complete(const {
+      'רמב"ם': ['רבי משה בן מימון'],
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AcronymResultCard), findsOneWidget);
   });
 }
