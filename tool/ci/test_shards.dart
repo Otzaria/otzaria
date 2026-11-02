@@ -31,9 +31,14 @@ List<String> _testFiles() =>
         .listSync(recursive: true)
         .whereType<File>()
         .map((f) => f.path.replaceAll(r'\', '/'))
-        .where((p) => p.endsWith('_test.dart'))
+        .where(isShardedTestFile)
         .toList()
       ..sort();
+
+/// קובץ בדיקה שנכנס ל-shards של Linux. ה-goldens רצים ב-job נפרד על
+/// Windows, פלטפורמת הייחוס שלהם.
+bool isShardedTestFile(String path) =>
+    path.endsWith('_test.dart') && !path.startsWith('test/goldens/');
 
 Map<String, double> _readTimings() {
   final file = File(_timingsPath);

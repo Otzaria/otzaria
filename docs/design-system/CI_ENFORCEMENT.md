@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **שום חלק כאן עוד לא מומש** (MIG-01, MIG-27, MIG-28, MIG-29).
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע במצב דוח (MIG-01) ותשתית ה־golden (MIG-29) מומשו; האכיפה החוסמת (MIG-27) וכללי הטוקנים (MIG-28) טרם.
 
 ## 1. המצב היום
 
@@ -169,24 +169,23 @@ const _hebcalBlue = Color(0xFF1565C0);
 | טקסט מוגדל | `TextScaler.linear(1.3)` בלי overflow | |
 | נגישות | `meetsGuideline(textContrastGuideline)`, ‏`androidTapTargetGuideline`, ‏`labeledTapTargetGuideline` | `flutter_test` accessibility guidelines |
 
-## 5. Golden tests [מחייב · DD-22 A] · יעד — טרם מומש (MIG-29)
+## 5. Golden tests [מחייב · DD-22 A] · מומש (MIG-29)
 1. **מיקום:** `test/goldens/<component>/<component>_golden_test.dart`, והתמונות ב־`test/goldens/<component>/goldens/`. ‏`failures/` נוסף ל־`.gitignore`.
 2. **הרצה:** job חדש ב־CI, `goldens_windows` (‏windows-2025, אותה גרסת Flutter), שמריץ `flutter test test/goldens/` ומעלה את `failures/` כ־artifact. Windows היא פלטפורמת הייחוס (DD-22).
    - `test/goldens/` מוחרג מ־shards של Linux ב־`tool/ci/test_shards.dart::_testFiles()`, עם בדיקה לכך.
    - בתוך הבדיקות: `skip: !Platform.isWindows`, לפי התקדים של `otzaria_icons`.
 3. **קונפיגורציה:** `test/goldens/flutter_test_config.dart` טוען גופנים ומתקין comparator, **ואז קורא ל־`root.testExecutable`**. אחרת אתחול המנוע ותיקיית הנתונים הזמנית הולכים לאיבוד, כי Flutter משתמש רק בקובץ הקונפיגורציה הקרוב ביותר.
 4. **גופנים:** `test/support/golden_fonts.dart` טוען:
-   - **גופן בדיקה לממשק:** Rubik, שנרשם בשם המשפחה שמנוע הבדיקות מבקש כברירת מחדל ('Roboto' ב־Typography של Flutter), לפי התקדים של 4 בדיקות קיימות. לפי DD-01 הממשק משתמש בגופני המערכת ואין גופן ממשק כלול, ו־Segoe UI לא נכנס למאגר (רישיון). לכן ה־golden לא משחזר את Segoe UI, אלא בודק פריסה, ריווח, צבע וצורה. השם 'Roboto' כאן הוא בבדיקות בלבד, ואינו סותר את UIL-018.
-   - `packages/otzaria_icons/OtzariaIcons`.
-   - `packages/fluentui_system_icons/FluentSystemIcons-Regular/-Filled`.
-   - `FluentSystemIcons-Light`.
+   - **גופן בדיקה לממשק:** Rubik, שנרשם בשם המשפחה שה־textTheme מבקש בפלטפורמת ה־golden. ה־goldens רצים ב־`TargetPlatform.windows` (`goldenPlatform`, דרך `TargetPlatformVariant` ב־`goldenTest`), ולכן השם הוא 'Segoe UI' (`goldenUiFontFamily`), שהוא גם ראש רשימת ה־fallback. כך גם `visualDensity` והתפריטים הצפופים מחושבים כמו באפליקציה ב־Windows. לפי DD-01 הממשק משתמש בגופני המערכת ואין גופן ממשק כלול, ו־Segoe UI לא נכנס למאגר (רישיון). לכן ה־golden לא משחזר את Segoe UI, אלא בודק פריסה, ריווח, צבע וצורה. השם כאן הוא בבדיקות בלבד, ואינו סותר את UIL-018.
+   - **מגבלה:** טקסט שאין לו `fontFamily` בכלל (`TextSpan`/`RichText` שלא יורשים סגנון, `TextPainter` בציור) מצויר ב־flutter_tester בגופן הבדיקה המובנה (ריבועים), ואי אפשר לכנות אותו מ־Dart: `FontLoader` בשם 'Roboto', 'Segoe UI', 'Arial', 'FlutterTest', 'Ahem' או '' לא משנה אותו. ב־golden הוא נראה כריבועים, בצורה דטרמיניסטית. טקסט כזה ברכיב משותף הוא סימן שהוא לא יורש את ה־Theme.
+   - `MaterialIcons`, `packages/otzaria_icons/OtzariaIcons`, `packages/fluentui_system_icons/FluentSystemIcons-Regular/-Filled` ו־`FluentSystemIcons-Light`, מתוך `FontManifest.json` של ה־bundle.
 5. **דטרמיניזם:**
    - `physicalSize` קבוע ו־`devicePixelRatio = 1`.
    - `EditableText.debugDeterministicCursor = true`.
    - `pumpAndSettle`.
    - זרע קבוע דרך `AppThemeData.createColorScheme`.
    - `debugDisableShadows = false` כשהצל הוא חלק מהבדיקה.
-6. **Comparator:** תת־מחלקה של `LocalFileComparator`, שמקבלת הבדל של עד 0.05%. התמונות בגודל רכיב ולא מסך מלא, כדי שהאחוז יהיה משמעותי.
+6. **Comparator:** `TolerantGoldenFileComparator` (`test/goldens/golden_harness.dart`), תת־מחלקה של `LocalFileComparator` שמקבלת הבדל של עד 0.05% מהפיקסלים. תמונה בגודל אחר נכשלת תמיד. התמונות בגודל רכיב ולא מסך מלא, כדי שהאחוז יהיה משמעותי: `pumpGolden` עוטף את הרכיב ב־`RepaintBoundary`, ו־`expectGolden` מצלם אותו. שינוי ריפוד של פיקסל אחד ב־`ActionButton` הוא 0.51% ונכשל.
 7. **מטריצה:** pairwise, לא מכפלה מלאה. לכל רכיב:
    - בסיס: `light-rtl-wide-1.0`;
    - `dark-rtl-wide-1.0`;
@@ -196,7 +195,7 @@ const _hebcalBlue = Color(0xFF1565C0);
    - `light-ltr-wide-1.0`, רק לכרום שתומך במצב אנגלית.
 
    מכפלה מלאה רק לרכיבים המרכזיים: משפחת `AppDialog`, שורת `ActionButton`, `SettingsCard`/`SettingsActionTile`, `NavTreeTile`.
-8. **רכיבים בגל הראשון:**
+8. **רכיבים בגל הראשון** (קיימים: `ActionButton` כל הווריאנטים בבהיר ובכהה, `AppDialog.twoActions` בבהיר ובכהה, `AppDialog.warning`; השאר יתווספו לפני השינוי החזותי של כל רכיב):
    - דיאלוגים: single, two, warning, frame medium/large;
    - כפתורים: כל וריאנטי `ActionButton`, `BarButton`, `SquareIconButton`;
    - טפסים: `RtlTextField` עם תווית/שגיאה, `AppDropdownField`, `AppSegmentedControl`, `SettingsActionTile.*`;
@@ -204,10 +203,10 @@ const _hebcalBlue = Color(0xFF1565C0);
    - רשימות: `NavTreeTile`, `ItemsListView`;
    - מצבים: `LoadingIndicator`, `OtzariaEmptyState`, `OtzariaErrorState`;
    - ניווט: `AppTopBar`, `NavRailItem`, רצועת כרטיסיות.
-9. **עדכון:** `flutter test --update-goldens test/goldens/<component>` על Windows בלבד, עם הגרסה המוצמדת. בנוסף, workflow ‏`workflow_dispatch` בשם "Regenerate goldens" מעלה את התמונות החדשות כ־artifact, כך שגם תורם בלי Windows יכול לעדכן. עדכון גרסת Flutter מחדש את כל התמונות באותו PR.
+9. **עדכון:** `flutter test --update-goldens test/goldens/<component>` על Windows בלבד, עם הגרסה המוצמדת. בנוסף, workflow ‏`workflow_dispatch` בשם "Regenerate goldens" (`regenerate_goldens.yml`) מעלה את התמונות החדשות כ־artifact, כך שגם תורם בלי Windows יכול לעדכן. עדכון גרסת Flutter מחדש את כל התמונות באותו PR.
 10. **שינוי מכוון מול רגרסיה:**
     - **רגרסיה:** בדיקת golden נכשלת ב־PR שלא שינה אף PNG.
-    - **שינוי מכוון:** ה־PR משנה PNG. ‏workflow בסגנון lockfile guard מחייב את התווית **`goldens-approved`** (DD-23), והסוקר בודק את תצוגת ה־diff של GitHub.
+    - **שינוי מכוון:** ה־PR משנה PNG. ‏`goldens_guard.yml`, בסגנון lockfile guard, מחייב את התווית **`goldens-approved`** (DD-23), והסוקר בודק את תצוגת ה־diff של GitHub.
     - **אסור** לעדכן golden ב־PR שאינו שינוי ממשק.
 
 ## 6. הכנסה בהדרגה
