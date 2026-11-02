@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import 'navigation_key_tracker.dart';
+
 /// PageDown/PageUp: מסך אחד, 80% מהחלון כמו `ScrollAction` של Flutter.
 void animatePageScroll(ScrollPosition position, {required bool forward}) {
   final delta = position.viewportDimension * 0.8 * (forward ? 1 : -1);
@@ -61,6 +63,7 @@ class ProgressiveScroll extends StatefulWidget {
 
 class _ProgressiveScrollState extends State<ProgressiveScroll>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final NavigationKeyTracker _navigationKeys;
   int _scrollDirection = 0;
   double _timePressedInSeconds = 0;
   late final Ticker _ticker;
@@ -87,6 +90,9 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
   @override
   void initState() {
     super.initState();
+    _navigationKeys = NavigationKeyTracker(
+      hasNavigationFocus: () => _focusNode.hasFocus && !_isEditingText,
+    );
     _ticker = createTicker(_onTick);
     WidgetsBinding.instance.addObserver(this);
     _requestFocus();
@@ -107,6 +113,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
         widget.maxSpeed == 0 ||
         widget.accelerationFactor == 0) {
       _stopScrolling();
+      _navigationKeys.clear();
     }
     if (oldWidget.focusNode != widget.focusNode) {
       if (widget.focusNode != null) {
@@ -135,6 +142,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
     WidgetsBinding.instance.removeObserver(this);
     _stopScrolling();
     _ticker.dispose();
+    _navigationKeys.clear();
     _ownFocusNode?.dispose();
     super.dispose();
   }
@@ -235,6 +243,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    _navigationKeys.release(event);
     final result =
         widget.onKeyEvent?.call(node, event) ?? KeyEventResult.ignored;
     if (result != KeyEventResult.ignored) {
@@ -317,7 +326,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
       final position = _position;
       if (position == null) return KeyEventResult.ignored;
       _stopScrolling();
-      if (event is KeyDownEvent) widget.onNavigationStart?.call();
+      if (!_navigationKeys.isRepeat(event)) widget.onNavigationStart?.call();
       widget.scrollController.listController?.cancelPositioning();
       animatePageScroll(position, forward: forward);
     }

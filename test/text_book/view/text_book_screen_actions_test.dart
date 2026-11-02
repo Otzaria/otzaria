@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
@@ -1890,11 +1891,13 @@ void main() {
       expect(tab.index, 39);
     });
 
-    for (final showSplitView in [false, true]) {
-      testWidgets(
-        'החזקת ← אחרי קישור היא נקודת חזרה אחת '
-        '(${showSplitView ? 'מפרשים בצד' : 'מפרשים מתחת'}, issue #3909)',
-        (tester) async {
+    for (final startsOutsideReader in [false, true]) {
+      for (final showSplitView in [false, true]) {
+        testWidgets('החזקת ← אחרי קישור היא נקודת חזרה אחת '
+            '(${showSplitView ? 'מפרשים בצד' : 'מפרשים מתחת'}, '
+            '${startsOutsideReader ? 'התחילה מחוץ לקורא, ' : ''}issue #3909)', (
+          tester,
+        ) async {
           final (tab, _) = await pumpLongBook(
             tester,
             showSplitView: showSplitView,
@@ -1907,11 +1910,26 @@ void main() {
           final link = tab.lines.scrollToLine(100);
           await tester.pumpAndSettle();
           await link;
+          if (startsOutsideReader) {
+            unawaited(
+              showDialog<void>(
+                context: tester.element(find.byType(TextBookViewerBloc).first),
+                builder: (_) =>
+                    const AlertDialog(content: TextField(autofocus: true)),
+              ),
+            );
+            await tester.pumpAndSettle();
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+            Navigator.of(tester.element(find.byType(TextField))).pop();
+            await tester.pumpAndSettle();
+          }
           await tester.tap(find.byType(ScrollablePositionedList).first);
           await tester.pump(kDoubleTapTimeout);
 
           // חזרת מקלדת של Windows: כ-30 בשנייה, שני פריימים בין חזרה לחזרה.
-          await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+          if (!startsOutsideReader) {
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+          }
           for (var i = 0; i < 20; i++) {
             await tester.pump(const Duration(milliseconds: 16));
             await tester.pump(const Duration(milliseconds: 17));
@@ -1919,7 +1937,7 @@ void main() {
           }
           await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
           await tester.pumpAndSettle();
-          expect(tab.index, 121);
+          expect(tab.index, startsOutsideReader ? 120 : 121);
 
           Future<int> back() async {
             final navigation = tab.lines.goBack();
@@ -1931,8 +1949,8 @@ void main() {
           expect(await back(), 100);
           expect(await back(), 0);
           expect(tab.lines.canGoBack.value, isFalse);
-        },
-      );
+        });
+      }
     }
 
     for (final continuous in [false, true]) {

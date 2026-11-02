@@ -68,6 +68,7 @@ import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -516,6 +517,7 @@ extension on AppWindowKeys {
 }
 
 class _SimpleTextViewerState extends State<SimpleTextViewer> {
+  late final NavigationKeyTracker _navigationKeys;
   // דגל סטטי: מונע מהטקסט הראשי לדרוס העתקה שכבר בוצעה ע"י מפרש
   static bool _commentaryCopyHandled = false;
   // דגל סטטי: מונע מהטקסט הראשי לפתוח הערה כפולה אחרי שמפרש טיפל בקיצור
@@ -1104,6 +1106,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     _configureScrollControllers();
     _selectionFocusNode = FocusNode(debugLabel: 'SelectionAreaFocus');
     _resolvedKeyboardFocusNode;
+    _navigationKeys = NavigationKeyTracker(
+      hasNavigationFocus: () =>
+          _resolvedKeyboardFocusNode.hasFocus && !_isTextInputFocused(),
+    );
     final dynamicTab = widget.tab;
     if (dynamicTab is TextBookTab) {
       dynamicTab.dynamicCopyRequestNotifier.addListener(_onDynamicCopyRequest);
@@ -1296,6 +1302,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       if (_lastActiveCommentary == this) _lastActiveCommentary = null;
       _notesChangesSubscription?.cancel();
     }
+    _navigationKeys.clear();
     _selectionFocusNode.dispose();
     _keyboardFocusNode?.dispose();
     _siblingController?.dispose();
@@ -1324,6 +1331,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final oldTab = oldWidget.tab;
     final newTab = widget.tab;
     if (!identical(oldTab, newTab)) {
+      _navigationKeys.clear();
       if (oldTab is TextBookTab) {
         oldTab.dynamicCopyRequestNotifier.removeListener(_onDynamicCopyRequest);
       }
@@ -1343,6 +1351,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       }
     }
     if (widget.isMainText && !identical(oldWidget.lines, widget.lines)) {
+      _navigationKeys.clear();
       final oldLines = oldWidget.lines ?? _ownedLines;
       final binding = _viewportBinding;
       if (binding != null) oldLines?.detach(binding);
@@ -1773,10 +1782,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   bool _handleNavigationLogicalKey(
-    LogicalKeyboardKey logicalKey, {
+    KeyEvent event, {
     required bool isAltPressed,
     bool isShiftPressed = false,
-    bool isRepeat = false,
     required String source,
   }) {
     if (!widget.isMainText) {
@@ -1788,6 +1796,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return false;
     }
 
+    final logicalKey = event.logicalKey;
     final liveVisibleIndices = _visibleSourceLines();
     final currentIndex = resolvePageShapeNavigationBaseIndex(
       selectedIndex: state.selectedIndex,
@@ -1806,7 +1815,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           nextIndex,
           duration: const Duration(milliseconds: 200),
           alignment: 0.5,
-          rememberPosition: !isRepeat,
+          rememberPosition: !_navigationKeys.isRepeat(event),
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-arrow-down');
@@ -1824,7 +1833,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           prevIndex,
           duration: const Duration(milliseconds: 200),
           alignment: 0.5,
-          rememberPosition: !isRepeat,
+          rememberPosition: !_navigationKeys.isRepeat(event),
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-arrow-up');
@@ -1832,13 +1841,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (logicalKey == LogicalKeyboardKey.pageDown) {
-      if (!_scrollPage(forward: true, isRepeat: isRepeat)) return false;
+      if (!_scrollPage(event, forward: true)) return false;
       _requestKeyboardFocusAfterFrame('navigation-page-down');
       return true;
     }
 
     if (logicalKey == LogicalKeyboardKey.pageUp) {
-      if (!_scrollPage(forward: false, isRepeat: isRepeat)) return false;
+      if (!_scrollPage(event, forward: false)) return false;
       _requestKeyboardFocusAfterFrame('navigation-page-up');
       return true;
     }
@@ -1887,7 +1896,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           targetIndex,
           duration: const Duration(milliseconds: 300),
           alignment: 0.0,
-          rememberPosition: !isRepeat,
+          rememberPosition: !_navigationKeys.isRepeat(event),
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-space');
@@ -1897,7 +1906,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return false;
   }
 
-  bool _scrollPage({required bool forward, required bool isRepeat}) {
+  bool _scrollPage(KeyEvent event, {required bool forward}) {
     final scroll = _scrollController.scrollController;
     if (scroll == null ||
         !scroll.hasClients ||
@@ -1905,7 +1914,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return false;
     }
     // החזקת המקש היא נקודת חזרה אחת, כמו החזקת חץ ב-ProgressiveScroll.
-    if (!isRepeat) _lines?.beginUserNavigation();
+    if (!_navigationKeys.isRepeat(event)) _lines?.beginUserNavigation();
     animatePageScroll(scroll.position, forward: forward);
     return true;
   }
@@ -2870,6 +2879,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                               }
                             },
                             onKeyEvent: (_, event) {
+                              _navigationKeys.release(event);
                               if (!shouldHandlePageShapeNavigationKeyEvent(
                                 event,
                                 isShiftPressed:
@@ -2880,13 +2890,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
                               final handled = widget.isMainText
                                   ? _handleNavigationLogicalKey(
-                                      event.logicalKey,
+                                      event,
                                       isAltPressed:
                                           ShortcutHelper.isAltModifierPressed,
                                       isShiftPressed: HardwareKeyboard
                                           .instance
                                           .isShiftPressed,
-                                      isRepeat: event is KeyRepeatEvent,
                                       source: 'content-focus',
                                     )
                                   : _scrollCommentaryByKey(event.logicalKey);

@@ -46,6 +46,9 @@ class _RecordingPosition extends ChangeNotifier implements ScrollPosition {
   double get maxScrollExtent => 1000000;
 
   @override
+  double get viewportDimension => 600;
+
+  @override
   bool get hasContentDimensions => true;
 
   @override
@@ -83,6 +86,7 @@ void main() {
     FocusOnKeyEventCallback? onKeyEvent,
     FocusOnKeyEventCallback? onOuterKeyEvent,
     VoidCallback? onNavigationStart,
+    Widget child = const SizedBox.expand(),
   }) async {
     offsetController = _RecordingItemScrollController();
     focusNode = FocusNode();
@@ -97,7 +101,7 @@ void main() {
             scrollController: offsetController,
             focusNode: focusNode,
             onNavigationStart: onNavigationStart,
-            child: const SizedBox.expand(),
+            child: child,
           ),
         ),
       ),
@@ -170,6 +174,91 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
     expect(offsetController.offsets.length, 11);
     expect(offsetController.offsets.last, 100);
+  });
+
+  testWidgets('PageDown מתחיל רצף חדש אחרי עריכה בתוך אותו קורא', (
+    tester,
+  ) async {
+    final fieldFocus = FocusNode();
+    addTearDown(fieldFocus.dispose);
+    var navigations = 0;
+    await pumpProgressiveScroll(
+      tester,
+      onNavigationStart: () => navigations++,
+      child: Material(child: TextField(focusNode: fieldFocus)),
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 1);
+    fieldFocus.requestFocus();
+    await tester.pump();
+    expect(focusNode.hasFocus, isTrue);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 1);
+    focusNode.requestFocus();
+    await tester.pump();
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+  });
+
+  testWidgets('PageDown מתחיל רצף חדש אחרי השהיית האפליקציה', (tester) async {
+    var navigations = 0;
+    await pumpProgressiveScroll(tester, onNavigationStart: () => navigations++);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+  });
+
+  testWidgets('PageUp ו־PageDown זוכרים פעם למקש עד שחרורו', (tester) async {
+    var navigations = 0;
+    await pumpProgressiveScroll(tester, onNavigationStart: () => navigations++);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageUp);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageUp);
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageUp);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 3);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
+  });
+
+  testWidgets('החלפת בקר מתחילה רצף PageDown חדש גם ללא KeyDown', (
+    tester,
+  ) async {
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    var navigations = 0;
+    Widget app(ItemScrollController controller) => MaterialApp(
+      home: ProgressiveScroll(
+        focusNode: focus,
+        scrollController: controller,
+        onNavigationStart: () => navigations++,
+        child: const SizedBox.expand(),
+      ),
+    );
+    await tester.pumpWidget(app(_RecordingItemScrollController()));
+    focus.requestFocus();
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 1);
+    await tester.pumpWidget(app(_RecordingItemScrollController()));
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.pageDown);
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
   });
 
   testWidgets('ניווט נרשם פעם להחזקה גם בהאצה והחלפת כיוון', (tester) async {

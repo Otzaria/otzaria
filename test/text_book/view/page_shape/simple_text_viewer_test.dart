@@ -98,14 +98,16 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  for (final key in [
-    LogicalKeyboardKey.arrowDown,
-    LogicalKeyboardKey.space,
-    LogicalKeyboardKey.pageDown,
-  ]) {
-    testWidgets(
-      'החזקת ${key.debugName} אחרי קישור היא נקודת חזרה אחת (issue #3909)',
-      (tester) async {
+  for (final startsOutsideReader in [false, true]) {
+    for (final key in [
+      LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.space,
+      LogicalKeyboardKey.pageDown,
+    ]) {
+      testWidgets('החזקת ${key.debugName} אחרי קישור היא נקודת חזרה אחת '
+          '${startsOutsideReader ? '(התחילה מחוץ לקורא)' : ''} (issue #3909)', (
+        tester,
+      ) async {
         final lines = LineScrollController();
         addTearDown(lines.dispose);
         await _pumpMarkedViewer(
@@ -118,6 +120,19 @@ void main() {
         final link = lines.scrollToLine(200);
         await tester.pumpAndSettle();
         await link;
+        if (startsOutsideReader) {
+          unawaited(
+            showDialog<void>(
+              context: tester.element(find.byType(Scaffold).first),
+              builder: (_) =>
+                  const AlertDialog(content: TextField(autofocus: true)),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.sendKeyDownEvent(key);
+          Navigator.of(tester.element(find.byType(TextField))).pop();
+          await tester.pumpAndSettle();
+        }
         tester
             .widget<Focus>(
               find.byWidgetPredicate(
@@ -131,7 +146,7 @@ void main() {
         await tester.pump();
 
         // חזרת מקלדת של Windows: כ-30 בשנייה, שני פריימים בין חזרה לחזרה.
-        await tester.sendKeyDownEvent(key);
+        if (!startsOutsideReader) await tester.sendKeyDownEvent(key);
         for (var i = 0; i < 60; i++) {
           await tester.pump(const Duration(milliseconds: 16));
           await tester.pump(const Duration(milliseconds: 17));
@@ -152,8 +167,8 @@ void main() {
         expect(await back(), beforeLink);
         expect(lines.canGoBack.value, isFalse);
         await tester.pumpWidget(const SizedBox());
-      },
-    );
+      });
+    }
   }
 
   testWidgets('פתיחה בתוך פסקה ארוכה מציירת את העוגן המדויק מיד', (
