@@ -354,6 +354,42 @@ void main() {
     expect(starts.length, 2);
   });
 
+  for (final onThumb in [false, true]) {
+    testWidgets(
+      'גלילה בשתי אצבעות בלוח מגע ${onThumb ? 'על האגודל' : 'על המסילה'} '
+      'אינה מזיזה את הספר כגרירת פס (issue #2680)',
+      (tester) async {
+        var navigations = 0;
+        final fixture = await _pumpList(
+          tester,
+          heights: List.filled(2000, 100),
+          onNavigationStart: () => navigations++,
+        );
+        fixture.pixels.jumpTo(5000);
+        await tester.pump();
+        final at = onThumb
+            ? tester.getRect(_thumb).center
+            : tester.getRect(_track).center;
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(at);
+        for (var i = 1; i <= 3; i++) {
+          await gesture.panZoomUpdate(at, pan: Offset(0, 10.0 * i));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.panZoomEnd();
+        await tester.pumpAndSettle();
+        expect(
+          (fixture.pixels.offset - 5000).abs(),
+          lessThanOrEqualTo(30),
+          reason: 'תנועה של 30px בלוח המגע הזיזה את הספר כמו גרירת האגודל',
+        );
+        expect(navigations, 0);
+      },
+    );
+  }
+
   testWidgets('גרירת פס מבטלת יעד של אנימציה קודמת', (tester) async {
     final fixture = await _pumpList(tester);
     final animation = fixture.item.scrollTo(
