@@ -63,6 +63,10 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
   PluginLibraryBooksRegistry get _libraryBooks =>
       widget.libraryBooks ?? PluginLibraryBooksRegistry.instance;
 
+  // הכפתור יושב בתוך השדה, ובדסקטופ השדה מזיז את הסמן כבר ב-tap down (לפני
+  // onPressed). הסשן צריך את הבחירה שהייתה ברגע הלחיצה.
+  TextEditingValue? _valueAtPointerDown;
+
   @override
   void initState() {
     super.initState();
@@ -240,18 +244,28 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       ),
       PluginSearchFieldActionState.idle => Icon(icon, size: widget.iconSize),
     };
-    return _iconButton(
-      context,
-      key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
-      glyph: glyph,
-      tooltip: session?.tooltip ?? action.title,
-      selected: session != null,
-      onPressed: () => _sessions.press(
-        binding: this,
-        viewId: View.of(context).viewId,
-        windowKeys: AppWindowKeys.of(context),
-        pluginId: pluginId,
-        actionId: action.id,
+    return Listener(
+      onPointerDown: (_) => _valueAtPointerDown = widget.controller.value,
+      child: _iconButton(
+        context,
+        key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
+        glyph: glyph,
+        tooltip: session?.tooltip ?? action.title,
+        selected: session != null,
+        onPressed: () {
+          final atDown = _valueAtPointerDown;
+          _valueAtPointerDown = null;
+          if (atDown != null && atDown.text == widget.controller.text) {
+            widget.controller.selection = atDown.selection;
+          }
+          _sessions.press(
+            binding: this,
+            viewId: View.of(context).viewId,
+            windowKeys: AppWindowKeys.of(context),
+            pluginId: pluginId,
+            actionId: action.id,
+          );
+        },
       ),
     );
   }
