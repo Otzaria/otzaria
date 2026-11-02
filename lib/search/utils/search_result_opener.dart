@@ -16,6 +16,22 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 
+/// ספר העיון של תוצאת חיפוש: [resolvedBook] כשפוענח, ואחרת לפי הכותרת והנתיב.
+Book searchResultBook(
+  Book? resolvedBook,
+  String title,
+  String filePath, {
+  required bool isPdf,
+}) => isPdf
+    ? (resolvedBook is PdfBook
+          ? resolvedBook
+          : PdfBook(title: title, path: filePath))
+    : switch (resolvedBook) {
+        final TextBook book => book,
+        final ConvertibleDocumentBook book => book.toTextBook(),
+        _ => TextBook(title: title),
+      };
+
 /// פותח תוצאת חיפוש שכבר אומתה מול האינדקס בכרטיסיית עיון.
 ///
 /// [resolvedBook] הוא הספר שפוענח מהמפתח; מחזיר את הכרטיסייה שנשלחה לפתיחה.
@@ -73,22 +89,13 @@ Future<OpenedTab?> openSearchResultInReader(
     ),
   );
 
-  if (isPdf) {
-    final pdfTab = buildPdfTab(
-      resolvedBook is PdfBook
-          ? resolvedBook
-          : PdfBook(title: title, path: filePath),
-      segment + 1,
-    );
+  final book = searchResultBook(resolvedBook, title, filePath, isPdf: isPdf);
+  if (book is PdfBook) {
+    final pdfTab = buildPdfTab(book, segment + 1);
     open(pdfTab);
     return pdfTab;
   }
-
-  final textBook = switch (resolvedBook) {
-    final TextBook book => book,
-    final ConvertibleDocumentBook book => book.toTextBook(),
-    _ => TextBook(title: title),
-  };
+  final textBook = book as TextBook;
 
   TextBookTab buildTextTab() => TextBookTab(
     book: textBook,
