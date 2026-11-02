@@ -27,7 +27,6 @@ import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -813,102 +812,21 @@ class _CalendarTopBarState extends State<CalendarTopBar>
   // ── View switcher ─────────────────────────────────────────────────────────
 
   Widget _buildViewSwitcher(CalendarState state) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ViewBtn(
+    return AppSegmentedControl<CalendarView>(
+      currentValue: state.calendarView,
+      options: const [
+        SegmentOption(
+          value: CalendarView.week,
           label: 'שבוע',
-          regularIcon: FluentIcons.calendar_week_start_24_regular,
-          filledIcon: FluentIcons.calendar_week_start_24_filled,
-          selected: state.calendarView == CalendarView.week,
-          onPressed: _withClose(() => widget.onViewChanged(CalendarView.week)),
+          icon: FluentIcons.calendar_week_start_24_regular,
         ),
-        _ViewBtn(
+        SegmentOption(
+          value: CalendarView.month,
           label: 'חודש',
-          regularIcon: FluentIcons.calendar_month_24_regular,
-          filledIcon: FluentIcons.calendar_month_24_filled,
-          selected: state.calendarView == CalendarView.month,
-          onPressed: _withClose(() => widget.onViewChanged(CalendarView.month)),
+          icon: FluentIcons.calendar_month_24_regular,
         ),
       ],
-    );
-  }
-}
-
-// ── _ViewBtn ──────────────────────────────────────────────────────────────────
-
-class _ViewBtn extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onPressed;
-  final IconData regularIcon;
-  final IconData filledIcon;
-
-  const _ViewBtn({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-    required this.regularIcon,
-    required this.filledIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bg = selected
-        ? Color.alphaBlend(
-            cs.secondaryContainer.withValues(alpha: 0.82),
-            cs.surfaceContainerHigh,
-          )
-        : Colors.transparent;
-    final fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-    final borderColor = selected
-        ? cs.outlineVariant.withValues(alpha: 0.38)
-        : Colors.transparent;
-    final shadowColor = selected
-        ? cs.shadow.withValues(alpha: 0.08)
-        : Colors.transparent;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: AppTokens.borderRadiusAll,
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: shadowColor,
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RtlIcon(
-                selected ? filledIcon : regularIcon,
-                size: 16,
-                color: fg,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onChanged: (view) => _withClose(() => widget.onViewChanged(view))(),
     );
   }
 }

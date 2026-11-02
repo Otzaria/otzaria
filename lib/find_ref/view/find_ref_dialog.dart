@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
@@ -50,7 +51,6 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
 import 'package:otzaria/theme/app_motion.dart';
@@ -874,9 +874,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             onApplied: _dispatchSearch,
           ),
           SizedBox(height: isShort ? 8 : 10),
-          // Wrap ולא Row: ה-Switch אינו מתכווץ (Transform.scale משפיע על
-          // הציור בלבד), ולכן בגופן מוגדל השורה הייתה גולשת. כאן הספירה
-          // יורדת לשורה שנייה במקום.
+          // Wrap ולא Row: בגופן מוגדל הספירה יורדת לשורה שנייה.
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -1027,61 +1025,26 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   /// מתג גלולה קומפקטי, באותה שפה כמו מתגי דיאלוג החיפוש.
   Widget _buildPersonalBooksToggle() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: _includePersonalBooks
+    return AppTogglePill(
+      label: context.settingsText('כלול ספרים אישיים'),
+      tooltip: _includePersonalBooks
           ? context.settingsText('האיתור כולל גם ספרים שהוספת בעצמך')
           : context.settingsText('הפעל כדי לאתר גם בספרים שהוספת בעצמך'),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppSurfaces.togglePill(
-            colorScheme,
-            active: _includePersonalBooks,
-          ),
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                context.settingsText('כלול ספרים אישיים'),
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: _includePersonalBooks
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Transform.scale(
-              scale: 0.75,
-              child: CustomSwitch(
-                value: _includePersonalBooks,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onChanged: (v) {
-                  // איפוס הסימון: סט התוצאות משתנה, ואינדקס ישן היה מפיל
-                  // את פתיחת התוצאה ב-Enter.
-                  setState(() => _includePersonalBooks = v);
-                  _selectedIndex.value = 0;
-                  FindRefPersonalBooksSetting.save(v);
-                  final text = context
-                      .read<FocusRepository>()
-                      .findRefSearchController
-                      .text;
-                  if (text.length >= 2) {
-                    _dispatchSearch(text, includePersonalBooks: v);
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+      value: _includePersonalBooks,
+      onChanged: (v) {
+        // איפוס הסימון: סט התוצאות משתנה, ואינדקס ישן היה מפיל את פתיחת
+        // התוצאה ב-Enter.
+        setState(() => _includePersonalBooks = v);
+        _selectedIndex.value = 0;
+        FindRefPersonalBooksSetting.save(v);
+        final text = context
+            .read<FocusRepository>()
+            .findRefSearchController
+            .text;
+        if (text.length >= 2) {
+          _dispatchSearch(text, includePersonalBooks: v);
+        }
+      },
     );
   }
 
