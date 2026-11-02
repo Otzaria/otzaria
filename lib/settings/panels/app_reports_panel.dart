@@ -71,7 +71,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
             ),
           ],
         ),
-        SettingsActionTile.segmentedTile<AppCrashReportMode>(
+        SettingsSegmentedTile<AppCrashReportMode>(
           icon: FluentIcons.warning_24_regular,
           title: context.settingsText('דיווח אחרי קריסה או תקיעה'),
           subtitle: context.settingsText(

@@ -437,10 +437,10 @@
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
 | חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16) |
 | בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11; אושר בהשלמה 2.11: תווית מעל השדה). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה). |
-| 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsActionTile.segmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
+| 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsSegmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת |
 | Checkbox | `Checkbox` של Material + `checkboxTheme` (יעד, MIG-08) | השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
-| Switch | `SettingsActionTile.switchTile`. מחוץ להגדרות: `Switch` + `switchTheme` (יעד, MIG-08) | `CustomSwitch` יוסר כשיתווסף `switchTheme` (MIG-26) |
+| Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` + `switchTheme` (יעד, MIG-08) | `CustomSwitch` יוסר כשיתווסף `switchTheme` (MIG-26) |
 | Slider | `SettingsSliderTile` | `SliderTheme` מקומי אסור |
 | תאריך | `showDatePicker` + `datePickerTheme` | קיים (#3794) |
 | שגיאת אימות | `InputDecoration.errorText` | לא טקסט אדום שנבנה ידנית מתחת לשדה |
@@ -457,7 +457,7 @@
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון, כמו היום (השלמה 2.11). מנגנון ההרחבה האחד עוד לא אוחד: `ExpandableCard` משמש רק אותם |
-| שורת הגדרה | `SettingsActionTile.*` בתוך `SettingsCard` | כ־10 דפוסים נבנים היום ידנית (MIG-15) |
+| שורת הגדרה | `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsPathTile`, `SettingsSliderTile`, ו־`SettingsActionTile` (.text/.path/radioOption) לשאר, בתוך `SettingsCard` (MIG-15) | בין כרטיסים בלשונית: `kSettingsCardSpacing` (16, ועם ריפוד הכותרת 40). כרטיס שלפעמים לא מוצג: `SettingsCard(spacedAbove: true)`. עדיין נבנים ידנית: ההדפסה, חלונית צורת הדף, ShortcutDropDownTile, ColorPickerTile ועוד (UI-006) |
 | פריט רשימה | `ListTile` + `listTileTheme` (יעד, MIG-05), או `NavTreeTile` בחלוניות | |
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
 | תגית / מונה | `MetaChip(tone: neutral\|primary\|error\|warning\|success, size: regular\|small, tooltip:)` (DD-13 A). תווית `labelMedium` 12 (`small`: `labelSmall` 11), צורה 8. `success` בגוון החום הנייטרלי (`secondaryContainer`), לא ירוק. `neutral` ב־`surfaceContainerHighest` (השלמה 2.11) | לא נבנה צ'יפ מקומי. נשארו: `SearchResultSourceTag`, `PluginDevBadge`, `PluginUpdateChip`, תג הגימטריה |

@@ -374,7 +374,7 @@ class TextSettingsTab extends StatelessWidget {
         ),
 
         _TextWidthSlider(state: state, applyWhileDragging: isDialog),
-        SettingsActionTile.segmentedTile<bool>(
+        SettingsSegmentedTile<bool>(
           icon: FluentIcons.text_align_justify_24_regular,
           title: context.settingsText('מצב קריאה בתנ"ך ובתלמוד'),
           subtitle: context.settingsText(
@@ -408,7 +408,7 @@ class TextSettingsTab extends StatelessWidget {
       cardId: 'text.copy',
       title: context.settingsText('העתקת כותרות ופרקים'),
       children: [
-        SettingsActionTile.segmentedTile<String>(
+        SettingsSegmentedTile<String>(
           icon: FluentIcons.copy_24_regular,
           title: context.settingsText('העתקת הכותרת'),
           options: [
@@ -436,7 +436,7 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         if (state.copyWithHeaders != 'none')
-          SettingsActionTile.dropdownTile<String>(
+          SettingsDropdownTile<String>(
             icon: FluentIcons.text_align_left_24_regular,
             title: context.settingsText('עיצוב כותרות'),
             value: state.copyHeaderFormat,
@@ -499,7 +499,7 @@ class TextSettingsTab extends StatelessWidget {
       cardId: 'text.per_book',
       title: context.settingsText('הגדרות לפי ספר'),
       children: [
-        SettingsActionTile.switchTile(
+        SettingsSwitchTile(
           icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
           title: context.settingsText('שמירת התאמות לכל ספר בנפרד'),
           subtitle: context.settingsText(

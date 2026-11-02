@@ -21,20 +21,18 @@ void main() {
             textDirection: TextDirection.rtl,
             child: Scaffold(
               body: StatefulBuilder(
-                builder: (context, setState) =>
-                    SettingsActionTile.segmentedTile<String>(
-                      rtlIcon: FluentIcons.panel_left_24_regular,
-                      title: 'הצגת חלונית ניווט בכותרות ופרקים',
-                      subtitle: 'בדיקת יציבות פריסה',
-                      options: const [
-                        SegmentOption(value: 'pinned', label: 'הצמדה'),
-                        SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
-                        SegmentOption(value: 'closed', label: 'סגור תמיד'),
-                      ],
-                      currentValue: currentValue,
-                      onChanged: (value) =>
-                          setState(() => currentValue = value),
-                    ),
+                builder: (context, setState) => SettingsSegmentedTile<String>(
+                  rtlIcon: FluentIcons.panel_left_24_regular,
+                  title: 'הצגת חלונית ניווט בכותרות ופרקים',
+                  subtitle: 'בדיקת יציבות פריסה',
+                  options: const [
+                    SegmentOption(value: 'pinned', label: 'הצמדה'),
+                    SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
+                    SegmentOption(value: 'closed', label: 'סגור תמיד'),
+                  ],
+                  currentValue: currentValue,
+                  onChanged: (value) => setState(() => currentValue = value),
+                ),
               ),
             ),
           ),
@@ -63,20 +61,18 @@ void main() {
             textDirection: TextDirection.rtl,
             child: Scaffold(
               body: StatefulBuilder(
-                builder: (context, setState) =>
-                    SettingsActionTile.segmentedTile<String>(
-                      rtlIcon: FluentIcons.panel_left_24_regular,
-                      title: 'כותרת',
-                      subtitle: 'תיאור',
-                      options: const [
-                        SegmentOption(value: 'pinned', label: 'הצמדה'),
-                        SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
-                        SegmentOption(value: 'closed', label: 'סגור תמיד'),
-                      ],
-                      currentValue: currentValue,
-                      onChanged: (value) =>
-                          setState(() => currentValue = value),
-                    ),
+                builder: (context, setState) => SettingsSegmentedTile<String>(
+                  rtlIcon: FluentIcons.panel_left_24_regular,
+                  title: 'כותרת',
+                  subtitle: 'תיאור',
+                  options: const [
+                    SegmentOption(value: 'pinned', label: 'הצמדה'),
+                    SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
+                    SegmentOption(value: 'closed', label: 'סגור תמיד'),
+                  ],
+                  currentValue: currentValue,
+                  onChanged: (value) => setState(() => currentValue = value),
+                ),
               ),
             ),
           ),
@@ -142,7 +138,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: SettingsActionTile.segmentedTile<String>(
+              body: SettingsSegmentedTile<String>(
                 rtlIcon: FluentIcons.panel_left_24_regular,
                 title: 'Taamim',
                 options: [
@@ -184,7 +180,7 @@ void main() {
           home: Directionality(
             textDirection: TextDirection.rtl,
             child: Scaffold(
-              body: SettingsActionTile.segmentedTile<String>(
+              body: SettingsSegmentedTile<String>(
                 rtlIcon: FluentIcons.panel_left_24_regular,
                 title: 'הצגת חלונית ניווט',
                 options: [
@@ -230,7 +226,7 @@ void main() {
         home: Scaffold(
           body: Column(
             children: [
-              SettingsActionTile.segmentedTile<String>(
+              SettingsSegmentedTile<String>(
                 rtlIcon: FluentIcons.panel_left_24_regular,
                 title: 'Taamim',
                 options: [

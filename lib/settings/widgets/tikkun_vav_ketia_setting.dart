@@ -20,67 +20,66 @@ class TikkunVavKetiaSetting extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) =>
-      SettingsActionTile.dropdownTile<TikkunVavKetia>(
-        icon: OtzariaIcons.alef_1_24_filled,
-        stacked: stacked,
-        title: context.settingsText('וי״ו קטיעא'),
-        subtitle: context.settingsText('בתיבת שלום; בגופני סת״ם, אשורית וכתר'),
-        value: value,
-        onSelected: (form) => onChanged(form ?? TikkunVavKetia.auto),
-        entries: [
-          AppMenuEntry(
-            value: TikkunVavKetia.auto,
-            label: context.settingsText('לפי המסורת'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.regular,
-            label: context.settingsText('רגילה — ללא שינוי'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.small,
-            label: context.settingsText('זעירא — כל האות קטנה'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.yod,
-            label: context.settingsText('כעין יו״ד'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.short,
-            label: context.settingsText('ראש רגיל ורגל מקוצרת'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.split,
-            label: context.settingsText('הפסק ישר באמצע'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.splitDiagonal,
-            label: context.settingsText('הפסק אלכסוני'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.splitHigh,
-            label: context.settingsText('הפסק גבוה'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.shortTail,
-            label: context.settingsText('רגל קצרה והמשך נפרד'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.smallTail,
-            label: context.settingsText('זעירא והמשך נפרד'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.bridge,
-            label: context.settingsText('קטיעה עם חיבור דק'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.bridgeDiagonal,
-            label: context.settingsText('קטיעה אלכסונית עם חיבור דק'),
-          ),
-          AppMenuEntry(
-            value: TikkunVavKetia.insetDiagonal,
-            label: context.settingsText('חריץ אלכסוני פנימי'),
-          ),
-        ],
-      );
+  Widget build(BuildContext context) => SettingsDropdownTile<TikkunVavKetia>(
+    icon: OtzariaIcons.alef_1_24_filled,
+    stacked: stacked,
+    title: context.settingsText('וי״ו קטיעא'),
+    subtitle: context.settingsText('בתיבת שלום; בגופני סת״ם, אשורית וכתר'),
+    value: value,
+    onSelected: (form) => onChanged(form ?? TikkunVavKetia.auto),
+    entries: [
+      AppMenuEntry(
+        value: TikkunVavKetia.auto,
+        label: context.settingsText('לפי המסורת'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.regular,
+        label: context.settingsText('רגילה — ללא שינוי'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.small,
+        label: context.settingsText('זעירא — כל האות קטנה'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.yod,
+        label: context.settingsText('כעין יו״ד'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.short,
+        label: context.settingsText('ראש רגיל ורגל מקוצרת'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.split,
+        label: context.settingsText('הפסק ישר באמצע'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.splitDiagonal,
+        label: context.settingsText('הפסק אלכסוני'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.splitHigh,
+        label: context.settingsText('הפסק גבוה'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.shortTail,
+        label: context.settingsText('רגל קצרה והמשך נפרד'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.smallTail,
+        label: context.settingsText('זעירא והמשך נפרד'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.bridge,
+        label: context.settingsText('קטיעה עם חיבור דק'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.bridgeDiagonal,
+        label: context.settingsText('קטיעה אלכסונית עם חיבור דק'),
+      ),
+      AppMenuEntry(
+        value: TikkunVavKetia.insetDiagonal,
+        label: context.settingsText('חריץ אלכסוני פנימי'),
+      ),
+    ],
+  );
 }

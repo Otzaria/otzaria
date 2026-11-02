@@ -69,7 +69,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
             ),
           ],
         ),
-        SettingsActionTile.switchTile(
+        SettingsSwitchTile(
           icon: FluentIcons.cloud_arrow_up_24_regular,
           title: context.settingsText('שמירת דיווחים אוטומטית כשאין חיבור'),
           subtitle: queueWhenOffline

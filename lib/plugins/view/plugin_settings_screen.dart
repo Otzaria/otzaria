@@ -278,7 +278,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                               : (isGranted
                                     ? colorScheme.primary
                                     : colorScheme.error);
-                          return SettingsActionTile.switchTile(
+                          return SettingsSwitchTile(
                             icon: iconData,
                             iconColor: iconColor,
                             title: p == pluginNewTabPagePermission

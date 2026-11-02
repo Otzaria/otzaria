@@ -186,7 +186,7 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.language',
                   title: context.settingsText('שפת ההגדרות'),
                   children: [
-                    SettingsActionTile.dropdownTile<String>(
+                    SettingsDropdownTile<String>(
                       icon: OtzariaIcons.alef_latin_a_24_filled,
                       title: context.settingsText('שפת ההגדרות'),
                       subtitle: context.settingsText(
@@ -226,7 +226,7 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.theme',
                   title: context.settingsText('ערכת נושא'),
                   children: [
-                    SettingsActionTile.segmentedTile<_ThemeMode>(
+                    SettingsSegmentedTile<_ThemeMode>(
                       icon: FluentIcons.weather_sunny_24_regular,
                       title: context.settingsText('מצב ערכת נושא'),
                       options: [
@@ -307,7 +307,7 @@ class DesignSettingsTab extends StatelessWidget {
                     cardId: 'design.display',
                     title: context.settingsText('תצוגה'),
                     children: [
-                      SettingsActionTile.segmentedTile<bool>(
+                      SettingsSegmentedTile<bool>(
                         icon: FluentIcons.column_triple_24_regular,
                         title: context.settingsText('צפיפות ממשק'),
                         options: [
@@ -333,7 +333,7 @@ class DesignSettingsTab extends StatelessWidget {
                           );
                         },
                       ),
-                      SettingsActionTile.segmentedTile<String>(
+                      SettingsSegmentedTile<String>(
                         rtlIcon: FluentIcons.panel_left_24_regular,
                         title: context.settingsText('מיקום הכרטיסיות'),
                         options: [
@@ -368,7 +368,7 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.pdf',
                   title: context.settingsText('תצוגת PDF'),
                   children: [
-                    SettingsActionTile.switchTile(
+                    SettingsSwitchTile(
                       icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
                       title: context.settingsText('תצוגת ספר בPDF'),
                       subtitle: context.settingsText(
@@ -387,7 +387,7 @@ class DesignSettingsTab extends StatelessWidget {
                         );
                       },
                     ),
-                    SettingsActionTile.segmentedTile<String>(
+                    SettingsSegmentedTile<String>(
                       icon: FluentIcons.book_number_24_regular,
                       title: context.settingsText('פורמט פתיחת תלמוד בבלי'),
                       options: [
@@ -429,7 +429,7 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.layout',
                   title: context.settingsText('חלוניות עזר'),
                   children: [
-                    SettingsActionTile.segmentedTile<_SidebarMode>(
+                    SettingsSegmentedTile<_SidebarMode>(
                       title: context.settingsText('חלונית ניווט בין כותרות'),
                       rtlIcon: FluentIcons.panel_left_24_regular,
                       options: [
@@ -485,7 +485,7 @@ class DesignSettingsTab extends StatelessWidget {
                         }
                       },
                     ),
-                    SettingsActionTile.switchTile(
+                    SettingsSwitchTile(
                       rtlIcon: FluentIcons.panel_right_24_regular,
                       title: context.settingsText(
                         'פתיחת פאנל המפרשים בפתיחת ספר',
@@ -503,7 +503,7 @@ class DesignSettingsTab extends StatelessWidget {
                         );
                       },
                     ),
-                    SettingsActionTile.switchTile(
+                    SettingsSwitchTile(
                       title: context.settingsText(
                         'פתיחת הערות אישיות במצב סגור',
                       ),
@@ -523,7 +523,7 @@ class DesignSettingsTab extends StatelessWidget {
                       builder: (context, setState) {
                         final splitedView =
                             Settings.getValue<bool>('key-splited-view') ?? true;
-                        return SettingsActionTile.switchTile(
+                        return SettingsSwitchTile(
                           title: context.settingsText(
                             'הצגת המפרשים בחלונית בצד',
                           ),

@@ -53,6 +53,7 @@ class _SemanticDataCard extends StatelessWidget {
         final bloc = context.read<SemanticSearchBloc>();
         return SettingsCard(
           cardId: 'system.semanticData',
+          spacedAbove: true,
           title: context.settingsText('נתוני {name}', args: _nameArgs(context)),
           subtitle: context.settingsText(
             'הנתונים ש{name} משתמש בהם, כ-1.8GB בכונן. אחרי ההורדה הם מתעדכנים ברקע עם עדכוני הספרייה.',
@@ -67,7 +68,7 @@ class _SemanticDataCard extends StatelessWidget {
               actions: _statusActions(context, bloc, availability),
             ),
             if (bloc.repository.availableQuantizations.length > 1)
-              SettingsActionTile.segmentedTile<SemanticQuantization>(
+              SettingsSegmentedTile<SemanticQuantization>(
                 key: const ValueKey('semantic-data-quantization'),
                 icon: FluentIcons.brain_circuit_24_regular,
                 title: context.settingsText('רכיב החיפוש'),

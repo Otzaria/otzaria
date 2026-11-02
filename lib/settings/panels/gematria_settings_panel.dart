@@ -137,7 +137,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
           cardId: 'tools.gematria',
           title: context.settingsText('חיפוש גימטריה'),
           children: [
-            SettingsActionTile.dropdownTile<int>(
+            SettingsDropdownTile<int>(
               icon: FluentIcons.number_row_24_regular,
               title: context.settingsText('מספר תוצאות'),
               subtitle: context.settingsText('כמות התוצאות המקסימלית להצגה'),
@@ -152,7 +152,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 }
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: FluentIcons.filter_24_regular,
               title: context.settingsText('סינון תוצאות כפולות'),
               subtitle: filterDuplicates
@@ -167,7 +167,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: FluentIcons.text_word_count_24_regular,
               title: context.settingsText('חיפוש פסוק שלם בלבד'),
               subtitle: wholeVerseOnly
@@ -182,7 +182,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               rtlIcon: OtzariaIcons.book_24_regular,
               title: context.settingsText('חיפוש בתורה בלבד'),
               subtitle: torahOnly
@@ -200,7 +200,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
         SettingsCard(
           title: context.settingsText('שיטת חישוב גימטריה'),
           children: [
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: OtzariaIcons.text_font_size_hebrew_24_filled,
               title: context.settingsText('גימטריה קטנה'),
               subtitle: context.settingsText('כל אות מחושבת לפי ספרה אחת'),
@@ -222,7 +222,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: OtzariaIcons.beit_behind_alef_24_filled,
               title: context.settingsText('אותיות סופיות שונות'),
               subtitle: context.settingsText('מנצפ"ך בערכים שונים'),
@@ -241,7 +241,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: OtzariaIcons.text_font_number_hebrew_24_filled,
               title: context.settingsText('עם הכולל'),
               subtitle: context.settingsText('הוספת מספר האותיות לסכום'),

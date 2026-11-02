@@ -1179,7 +1179,7 @@ void main() {
 
   testWidgets(
     'a plugin row uses the default (non-suppressed) ListTile hover, like '
-    'SettingsActionTile.switchTile',
+    'SettingsSwitchTile',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1201,7 +1201,7 @@ void main() {
         ),
       );
       // אין דיכוי ידני של ה-hover — הצבע מגיע מהתמה כברירת מחדל, בדיוק כמו
-      // ב-SettingsActionTile.switchTile (ראו onTap שם, שגם הוא מפעיל את ה-hover).
+      // ב-SettingsSwitchTile (ראו onTap שם, שגם הוא מפעיל את ה-hover).
       expect(tile.hoverColor, isNull);
       expect(tile.onTap, isNotNull);
     },

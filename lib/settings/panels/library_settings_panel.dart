@@ -123,7 +123,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
               cardId: 'library.display',
               title: context.settingsText('תצוגת ספרייה'),
               children: [
-                SettingsActionTile.segmentedTile<String>(
+                SettingsSegmentedTile<String>(
                   title: context.settingsText('סוג תצוגה'),
                   options: [
                     SegmentOption(
@@ -150,7 +150,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
                     );
                   },
                 ),
-                SettingsActionTile.switchTile(
+                SettingsSwitchTile(
                   icon: FluentIcons.eye_24_regular,
                   title: context.settingsText('הצג תצוגה מקדימה'),
                   subtitle: context.settingsText(
@@ -228,7 +228,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   /// מתג הצגת ספרי היברובוקס שכבר ירדו למחשב (issue #1143) — מיועד למי
   /// שהגדיר את התיקייה עבור תוסף ואינו רוצה אותם באיתור הספר.
   Widget _buildLocalHebrewBooksTile(BuildContext context, SettingsState state) {
-    return SettingsActionTile.switchTile(
+    return SettingsSwitchTile(
       icon: FluentIcons.document_folder_24_regular,
       title: context.settingsText('הצג ספרי היברובוקס שברשותך'),
       subtitle: context.settingsText(
@@ -244,7 +244,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   }
 
   Widget _buildSourceModeTile(BuildContext context, SettingsState state) {
-    return SettingsActionTile.dropdownTile<String>(
+    return SettingsDropdownTile<String>(
       icon: FluentIcons.globe_24_regular,
       title: context.settingsText('מקורות אחרים לספרים'),
       value: _externalSourceMode(state),

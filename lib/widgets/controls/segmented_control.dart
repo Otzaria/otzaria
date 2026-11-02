@@ -21,7 +21,7 @@ class SegmentOption<T> {
   final Key? labelKey;
 
   /// תת-כותרת המשויכת לאפשרות זו — נלקחת אוטומטית ע"י
-  /// [SettingsActionTile.segmentedTile] כשלא סופק subtitle מפורש.
+  /// [SettingsSegmentedTile] כשלא סופק subtitle מפורש.
   final String? subtitle;
 
   const SegmentOption({

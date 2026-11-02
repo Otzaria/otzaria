@@ -168,7 +168,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               title: context.settingsText('לוח שנה'),
               children: [
                 // סוג לוח
-                SettingsActionTile.segmentedTile<CalendarType>(
+                SettingsSegmentedTile<CalendarType>(
                   title: context.settingsText('סוג לוח שנה'),
                   options: [
                     SegmentOption(
@@ -201,7 +201,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     context.read<CalendarCubit>().changeCalendarType(value);
                   },
                 ),
-                SettingsActionTile.dropdownTile<CalendarDayTransition>(
+                SettingsDropdownTile<CalendarDayTransition>(
                   icon: OtzariaIcons.sunset_24_regular,
                   title: context.settingsText('מעבר יום'),
                   value: state.dayTransition,
@@ -243,7 +243,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     }
                   },
                 ),
-                SettingsActionTile.switchTile(
+                SettingsSwitchTile(
                   icon: FluentIcons.clock_24_regular,
                   title: context.settingsText('שעון 12 שעות'),
                   subtitle: context.settingsText('הצגת הזמנים בפורמט AM/PM'),
@@ -253,7 +253,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   },
                 ),
                 // עיר
-                SettingsActionTile.dropdownTile<String>(
+                SettingsDropdownTile<String>(
                   icon: FluentIcons.location_24_regular,
                   title: context.settingsText('עיר נבחרת'),
                   subtitle: context.settingsText(
@@ -282,7 +282,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               cardId: CalendarSettingsTab.eventsCardId,
               title: context.settingsText('אירועים ותזכורות'),
               children: [
-                SettingsActionTile.segmentedTile<CalendarNotificationMode>(
+                SettingsSegmentedTile<CalendarNotificationMode>(
                   title: context.settingsText('התראות'),
                   options: [
                     SegmentOption(
@@ -344,7 +344,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 ),
 
                 // ── לוח שנה גוגל ──
-                SettingsActionTile.switchTile(
+                SettingsSwitchTile(
                   icon: FluentIcons.calendar_sync_24_regular,
                   title: context.settingsText('לוח שנה של Google'),
                   subtitle: isOfflineMode
