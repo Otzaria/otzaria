@@ -27,8 +27,8 @@ export 'package:otzaria/tabs/models/tool_tab.dart'
 
 /// פותח כלי ככרטיסיה במסך העיון.
 ///
-/// כלי שכבר פתוח ממוקד (dedupeKey) ומקבל את [query]; מופע נוסף נפתח דרך
-/// [openNewToolTabInstance].
+/// כלי שכבר פתוח ממוקד (dedupeKey) ומקבל את [query]; מופע נוסף של תוסף נפתח
+/// דרך [openPluginToolInstanceById].
 void openToolTab(
   BuildContext context,
   ToolCatalogEntry entry, {
@@ -147,10 +147,6 @@ Set<String> _reservedInstanceIds(TabsBloc bloc, String pluginId) =>
 Set<String> _toolInstanceIds(Iterable<OpenedTab> tabs) => {
   for (final tab in tabs.expand(leafPanes).whereType<ToolTab>()) tab.instanceId,
 };
-
-/// פותח מופע נוסף של הכלי ומחזיר את מזהה המופע שנפתח.
-String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) =>
-    _dispatchInstanceTab(context, newToolTabInstance(entry));
 
 String _dispatchInstanceTab(
   BuildContext context,
