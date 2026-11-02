@@ -10,7 +10,6 @@ import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/models/search_preview_target.dart';
@@ -347,19 +346,9 @@ class _SemanticSearchResultsScreenState
       UiSnack.showError(LibraryMessages.searchResultIndexOutOfDate);
       return;
     }
-    final resolved = resolution.book;
-    final Book book = isPdf
-        ? (resolved is PdfBook
-              ? resolved
-              : PdfBook(title: title, path: filePath))
-        : switch (resolved) {
-            final TextBook value => value,
-            final ConvertibleDocumentBook value => value.toTextBook(),
-            _ => TextBook(title: title),
-          };
     _previewItem = item;
     widget.tab.previewTarget.value = SearchPreviewTarget(
-      book: book,
+      book: searchResultBook(resolution.book, title, filePath, isPdf: isPdf),
       title: title,
       reference: reference,
       segment: segment,

@@ -428,18 +428,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       UiSnack.showError(LibraryMessages.searchResultIndexOutOfDate);
       return;
     }
-    final resolvedBook = resolution.book;
-    final Book book = isPdf
-        ? (resolvedBook is PdfBook
-              ? resolvedBook
-              : PdfBook(title: title, path: filePath))
-        : switch (resolvedBook) {
-            final TextBook value => value,
-            final ConvertibleDocumentBook value => value.toTextBook(),
-            _ => TextBook(title: title),
-          };
     widget.tab.previewTarget.value = SearchPreviewTarget(
-      book: book,
+      book: searchResultBook(resolution.book, title, filePath, isPdf: isPdf),
       title: title,
       reference: reference,
       segment: segment,
