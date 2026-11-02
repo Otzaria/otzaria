@@ -5,6 +5,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1729,7 +1730,10 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildHistoryButton() {
     final colorScheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final historyMenuWidth = screenWidth < 420 ? screenWidth - 48 : 360.0;
+    const menuWidth = 360.0, fullWidthBelow = 420.0, margin = 24.0;
+    final historyMenuWidth = screenWidth < fullWidthBelow
+        ? screenWidth - 2 * margin
+        : menuWidth;
     return MenuAnchor(
       controller: _historyMenuController,
       alignmentOffset: const Offset(0, 4),
@@ -2136,7 +2140,7 @@ class _SearchDialogState extends State<SearchDialog> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final isCompact = screenSize.width < 600;
+    final isCompact = WindowClass.of(context).isCompact;
     final dialogWidth = isCompact
         ? screenSize.width - 24
         : (screenSize.width * 0.7).clamp(640.0, 900.0);

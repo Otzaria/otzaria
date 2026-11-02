@@ -4,12 +4,10 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// גוון תג האייקון בכותרת. [error] שמור למצבי תקלה וסיכון.
 enum AppDialogHeaderTone { primary, error }
-
-/// מתחת לרוחב מסך כזה ה-trailing יורד לשורה משלו.
-const double _kStackTrailingBelow = 520;
 
 /// כותרת דיאלוג בצורה אחידה: אייקון מסומל, שם, שורת משנה אופציונלית וכפתור
 /// סגירה. משמשת את דיאלוגי הדיווח, ההקרסה והרשימות, כדי שכולם ייראו כחלק
@@ -67,9 +65,7 @@ class AppDialogHeader extends StatelessWidget {
     // ברוחב טלפון ה-trailing (מונה, שם צבע) היה מצמצם את הכותרת לרוחב של אות
     // אחת; שם הוא יורד לשורה משלו מתחת לכותרת. נמדד לפי המסך ולא לפי
     // LayoutBuilder, כי AlertDialog מודד רוחב פנימי.
-    final stackTrailing =
-        trailing != null &&
-        MediaQuery.sizeOf(context).width < _kStackTrailingBelow;
+    final stackTrailing = trailing != null && WindowClass.of(context).isCompact;
     return Container(
       // קו עדין בתחתית הרצועה: מפריד בינה לבין גוף הדיאלוג.
       decoration: BoxDecoration(

@@ -165,7 +165,9 @@ class PrintingScreen extends StatefulWidget {
 class _PrintingScreenState extends State<PrintingScreen> {
   /// מתחת לרוחב הזה פאנל ההגדרות עובר מתחת לתצוגה המקדימה.
   bool _isNarrowLayout(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < 760;
+      MediaQuery.sizeOf(context).width < _narrowLayoutBelow;
+
+  static const double _narrowLayoutBelow = 760;
 
   double fontSize = 15.0;
   String fontName =

@@ -56,6 +56,7 @@ class MeasurementConverterScreen extends StatefulWidget {
 class _MeasurementConverterScreenState
     extends State<MeasurementConverterScreen> {
   static const _categories = ['אורך', 'שטח', 'נפח', 'משקל', 'זמן'];
+  static const double _wideMinWidth = 700;
 
   String _selectedCategory = 'אורך';
   String? _selectedFromUnit;
@@ -465,7 +466,7 @@ class _MeasurementConverterScreenState
           children: [
             LayoutBuilder(
               builder: (context, barConstraints) {
-                final isWideBar = barConstraints.maxWidth >= 700;
+                final isWideBar = barConstraints.maxWidth >= _wideMinWidth;
                 final sidebarOpen = isWideBar
                     ? _sidebarVisible
                     : _narrowShowCategories;
@@ -537,7 +538,7 @@ class _MeasurementConverterScreenState
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 700;
+                  final isWide = constraints.maxWidth >= _wideMinWidth;
                   return _buildAdaptiveContent(isWide: isWide);
                 },
               ),
@@ -804,7 +805,8 @@ class _MeasurementConverterScreenState
         return _sectionCard(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              if (constraints.maxWidth >= 520) {
+              const rowMinWidth = 520.0;
+              if (constraints.maxWidth >= rowMinWidth) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -968,7 +970,8 @@ class _MeasurementConverterScreenState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= 560) {
+        const rowMinWidth = 560.0;
+        if (constraints.maxWidth >= rowMinWidth) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

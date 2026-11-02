@@ -182,7 +182,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                       alignment: AlignmentDirectional.centerStart,
                       child:
                           _selectedBooks.isEmpty ||
-                              MediaQuery.sizeOf(context).width < 520
+                              WindowClass.of(context).isCompact
                           ? null
                           : Padding(
                               padding: const EdgeInsetsDirectional.only(

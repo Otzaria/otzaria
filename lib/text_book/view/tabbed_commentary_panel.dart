@@ -158,8 +158,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
             // שורת הכרטיסיות עם כפתור סגירה
             LayoutBuilder(
               builder: (context, constraints) {
-                // מתחת לסף זה - הצג אייקונים בלבד (ללא טקסט)
-                final isCompact = constraints.maxWidth < 270;
+                const iconsOnlyBelow = 270.0;
+                final isCompact = constraints.maxWidth < iconsOnlyBelow;
                 final firstTabIconData = widget.showSplitView
                     ? OtzariaIcons.book_24_regular
                     : OtzariaIcons.apps_list_24_regular;

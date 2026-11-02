@@ -115,7 +115,8 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 800;
+        const narrowBelow = 800.0;
+        final isNarrow = constraints.maxWidth < narrowBelow;
         if (isNarrow &&
             !_appliedNarrowLeftPaneDefault &&
             widget.tab.isLeftPaneOpen.value) {

@@ -13,6 +13,7 @@ import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
@@ -116,7 +117,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
 
   Widget _buildHeader(ColorScheme cs) {
     // ברוחב טלפון התאריך והכפתור לא נכנסים בשורה אחת: הכפתור יורד מתחת.
-    final narrow = MediaQuery.sizeOf(context).width < 520;
+    final narrow = WindowClass.of(context).isCompact;
     final copyButton = TextButton.icon(
       onPressed: _copyJson,
       icon: const Icon(FluentIcons.copy_24_regular, size: 18),

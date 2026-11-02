@@ -59,7 +59,7 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     // במסך צר (mobile) 95% — מונע קריסת שורות. ב-desktop 50%.
-    final isNarrow = size.width < LayoutBreakpoints.compact;
+    final isNarrow = WindowClass.of(context).isCompact;
     final width = isNarrow ? size.width * 0.95 : size.width * 0.5;
 
     final dialog = DialogKeyboardNavigator(

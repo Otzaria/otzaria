@@ -100,7 +100,8 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 620;
+          const compactBelow = 620.0;
+          final isCompact = constraints.maxWidth < compactBelow;
           final field = SizedBox(
             width: isCompact ? double.infinity : 220,
             child: AppDropdownField<String>(

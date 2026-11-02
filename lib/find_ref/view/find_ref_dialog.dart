@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -1833,8 +1834,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
   Widget _buildFooter(bool isShort) {
     final colorScheme = Theme.of(context).colorScheme;
     // הרמז נכנס רק כשיש לו רוחב אמיתי, ובחלון נמוך הוא מפנה מקום לתוצאות.
+    const keyboardHintMinWidth = 560.0;
     final showKeyboardHint =
-        !isShort && MediaQuery.sizeOf(context).width >= 560;
+        !isShort && MediaQuery.sizeOf(context).width >= keyboardHintMinWidth;
     return Padding(
       padding: isShort
           ? const EdgeInsetsDirectional.fromSTEB(16, 4, 12, 6)
@@ -1884,7 +1886,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       (screenSize.height * 0.84).clamp(480.0, 700.0),
     );
 
-    final isCompact = screenSize.width < 600;
+    final isCompact = WindowClass.of(context).isCompact;
     final isShort = dialogHeight < 470;
     // מסך לרוחב בטלפון עם מקלדת פתוחה משאיר פחות מ-300: שם התחתית נסגרת
     // לטובת שדה ההקלדה (הסגירה זמינה ב-X שבכותרת ובלחיצה מחוץ לדיאלוג).

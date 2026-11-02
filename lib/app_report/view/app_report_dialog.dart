@@ -99,7 +99,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final isNarrow = size.width < 600;
+    final isNarrow = WindowClass.of(context).isCompact;
     final maxWidth = isNarrow ? size.width * 0.95 : 640.0;
 
     return BlocProvider.value(

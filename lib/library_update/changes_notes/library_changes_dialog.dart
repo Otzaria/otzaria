@@ -162,6 +162,8 @@ class LibraryChangesDialog extends StatefulWidget {
 }
 
 class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
+  static const double _fullWidthBelow = 720;
+
   final _search = TextEditingController();
   // בדסקטופ הרשימה אינה יורשת את PrimaryScrollController — בלי בקר משותף
   // אי אפשר לגרור את פס הגלילה.
@@ -215,7 +217,7 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
       headerBand: true,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
-        width: size.width < 720 ? size.width * 0.9 : 640,
+        width: size.width < _fullWidthBelow ? size.width * 0.9 : 640,
         height: size.height * 0.6,
         child: Column(
           children: [

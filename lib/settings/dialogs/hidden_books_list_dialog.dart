@@ -5,6 +5,7 @@ import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// חלון הספרים והקטגוריות המוסתרים, עם ביטול הסתרה (issue #1448).
@@ -104,7 +105,7 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
             ),
           ),
           // ברוחב טלפון הכפתור עם הטקסט היה מצמצם את שם הספר לכמה אותיות.
-          trailing: MediaQuery.sizeOf(context).width < 520
+          trailing: WindowClass.of(context).isCompact
               ? IconButton(
                   tooltip: context.settingsText('בטל הסתרה'),
                   icon: const Icon(FluentIcons.eye_24_regular),

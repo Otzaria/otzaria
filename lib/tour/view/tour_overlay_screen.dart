@@ -459,7 +459,10 @@ class _LiveTipOverlay extends StatelessWidget {
                 size,
                 Directionality.of(context),
               );
-          final cardWidth = size.width < 392 ? size.width - 32 : 360.0;
+          const maxCardWidth = 360.0, margin = 16.0;
+          final cardWidth = size.width < maxCardWidth + 2 * margin
+              ? size.width - 2 * margin
+              : maxCardWidth;
 
           return Stack(
             children: [

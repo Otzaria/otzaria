@@ -1157,6 +1157,8 @@ const double _comfortableReportDialogHeight = 660;
 /// טופס בלי עורך תיקון קצר; הגובה קבוע כדי שלא ישתנה בזמן הקלדה.
 const double _freeTextReportDialogHeight = 560;
 
+const double _minReportDialogWidth = 400;
+
 class _TabbedReportDialogState extends State<TabbedReportDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -1230,9 +1232,9 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
     // minWidth/minHeight נסגרים ל-max, אחרת במסך קטן הקונסטריינטים
     // אינם נורמליים → BoxConstraints assertion crash.
     final screenWidth = mediaQuery.size.width;
-    final isNarrow = screenWidth < 600;
+    final isNarrow = WindowClass.of(context).isCompact;
     final maxWidth = isNarrow ? screenWidth : screenWidth * 0.6;
-    final minWidth = maxWidth < 400 ? maxWidth : 400.0;
+    final minWidth = math.min(maxWidth, _minReportDialogWidth);
     final maxHeight = widget.correctionTemplate == null && !isNarrow
         ? math.min(availableHeight, _freeTextReportDialogHeight)
         // במסך נמוך 70% חותך את הטופס; Dialog עצמו מצמצם לגובה הפנוי.
