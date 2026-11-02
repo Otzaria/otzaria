@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:otzaria/search/view/search_result_card_frame.dart';
+import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -42,6 +42,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/result_card_frame.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SearchResult, TextStatus;
 
@@ -1114,7 +1115,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                         segment: result.segment.toInt(),
                         isPdf: result.isPdf,
                       );
-                  return SearchResultCardFrame(
+                  return ResultCardFrame(
                     key: _resultCardKeys.putIfAbsent(index, GlobalKey.new),
                     isPreviewed: isPreviewed,
                     child: child!,
@@ -1155,7 +1156,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                         : null,
                     borderRadius: AppTokens.borderRadiusAll,
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: AppTokens.cardPadding,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

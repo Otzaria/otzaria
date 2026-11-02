@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:otzaria/search/view/search_result_card_frame.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -31,6 +30,7 @@ import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/widgets/layout/result_card_frame.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// מדור תוצאות ממקור חיצוני של תוסף (למשל היברובוקס) בטאב החיפוש המובנה.
@@ -793,11 +793,7 @@ class _ExternalSearchResultsSectionState
               segment: _previewSegment(result),
               isPdf: true,
             );
-        return SearchResultCardFrame(
-          isPreviewed: isPreviewed,
-          gap: AppTokens.spaceSM,
-          child: child!,
-        );
+        return ResultCardFrame(isPreviewed: isPreviewed, child: child!);
       },
       child: InkWell(
         onTap: enabled
@@ -808,7 +804,7 @@ class _ExternalSearchResultsSectionState
             : null,
         borderRadius: AppTokens.borderRadiusAll,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: AppTokens.cardPadding,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

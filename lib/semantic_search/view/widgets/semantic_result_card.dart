@@ -2,13 +2,14 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/view/search_result_card_frame.dart';
+import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/layout/result_card_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SemanticResultSource;
@@ -65,7 +66,7 @@ class SemanticResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SearchResultCardFrame(
+    return ResultCardFrame(
       isPreviewed: isPreviewed,
       child: SearchResultOpenInNewTabRegion(
         onOpenInBackground: onOpenInBackground,
@@ -80,7 +81,7 @@ class SemanticResultCard extends StatelessWidget {
             onDoubleTap: onDoubleTap,
             borderRadius: AppTokens.borderRadiusAll,
             child: Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceMD),
+              padding: AppTokens.cardPadding,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

@@ -7,7 +7,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
 
 /// מבקש חיפוש של [text] בכיוון הנתון.
 typedef AramaicSearchRequest =
@@ -82,110 +82,89 @@ class AramaicResultCard extends StatelessWidget {
       color: cs.onPrimaryContainer,
     );
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
-      child: Material(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        child: _HoverBuilder(
-          builder: (context, hovering) => AppSelectionArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTokens.spaceSM,
-                AppTokens.spaceSM,
-                AppTokens.spaceSM,
-                AppTokens.spaceMD,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    return _HoverBuilder(
+      builder: (context, hovering) => ToolResultCardShell(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppTokens.spaceMD - 4,
                     children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsetsDirectional.only(
-                            start: AppTokens.spaceSM,
-                          ),
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: AppTokens.spaceMD - 4,
-                            children: [
-                              Text.rich(
-                                TextSpan(
-                                  children: _highlighted(
-                                    aramaic,
-                                    queryIsAramaic ? query : '',
-                                    highlight,
-                                  ),
-                                ),
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (vocalized != null)
-                                Text(
-                                  vocalized,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: cs.onSurfaceVariant,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                            ],
+                      Text.rich(
+                        TextSpan(
+                          children: _highlighted(
+                            aramaic,
+                            queryIsAramaic ? query : '',
+                            highlight,
                           ),
                         ),
-                      ),
-                      if (!queryIsAramaic && onSearch != null)
-                        _ActionButton(
-                          visible: hovering,
-                          icon: OtzariaIcons.search_24_regular,
-                          tooltip: 'חפש "$aramaic" בארמית',
-                          onPressed: () =>
-                              onSearch!(aramaic, hebrewToAramaic: false),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                      if (queryIsAramaic)
-                        _ActionButton(
-                          visible: hovering,
-                          icon: FluentIcons.copy_add_24_regular,
-                          tooltip: _copyWithResultTooltip,
-                          onPressed: () => _copy(_entryAsText(meanings)),
-                        ),
-                      _ActionButton(
-                        visible: hovering,
-                        icon: FluentIcons.copy_24_regular,
-                        tooltip: 'העתק את הערך',
-                        onPressed: () => _copy(aramaic),
                       ),
+                      if (vocalized != null)
+                        Text(
+                          vocalized,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
                     ],
                   ),
-                  Divider(
-                    height: AppTokens.spaceMD,
-                    color: cs.outlineVariant,
+                ),
+                if (!queryIsAramaic && onSearch != null)
+                  _ActionButton(
+                    visible: hovering,
+                    icon: OtzariaIcons.search_24_regular,
+                    tooltip: 'חפש "$aramaic" בארמית',
+                    onPressed: () => onSearch!(aramaic, hebrewToAramaic: false),
                   ),
-                  for (var i = 0; i < meanings.length; i++)
-                    _MeaningRow(
-                      showActions: hovering,
-                      meaning: meanings[i],
-                      number: meanings.length > 1 ? i + 1 : null,
-                      headwordPlain: headwordPlain,
-                      query: queryIsAramaic ? '' : query,
-                      highlight: highlight,
-                      onCopy: () => _copy(meanings[i].text),
-                      onCopyWithEntry: queryIsAramaic
-                          ? null
-                          : () => _copy('$aramaic\n${meanings[i].text}'),
-                      onSearch: queryIsAramaic && onSearch != null
-                          ? () {
-                              final term = searchTermOf(meanings[i].hebrewText);
-                              if (term.isNotEmpty) {
-                                onSearch!(term, hebrewToAramaic: true);
-                              }
-                            }
-                          : null,
-                    ),
-                ],
-              ),
+                if (queryIsAramaic)
+                  _ActionButton(
+                    visible: hovering,
+                    icon: FluentIcons.copy_add_24_regular,
+                    tooltip: _copyWithResultTooltip,
+                    onPressed: () => _copy(_entryAsText(meanings)),
+                  ),
+                _ActionButton(
+                  visible: hovering,
+                  icon: FluentIcons.copy_24_regular,
+                  tooltip: 'העתק את הערך',
+                  onPressed: () => _copy(aramaic),
+                ),
+              ],
             ),
-          ),
+            Divider(
+              height: AppTokens.spaceMD,
+              color: cs.outlineVariant,
+            ),
+            for (var i = 0; i < meanings.length; i++)
+              _MeaningRow(
+                showActions: hovering,
+                meaning: meanings[i],
+                number: meanings.length > 1 ? i + 1 : null,
+                headwordPlain: headwordPlain,
+                query: queryIsAramaic ? '' : query,
+                highlight: highlight,
+                onCopy: () => _copy(meanings[i].text),
+                onCopyWithEntry: queryIsAramaic
+                    ? null
+                    : () => _copy('$aramaic\n${meanings[i].text}'),
+                onSearch: queryIsAramaic && onSearch != null
+                    ? () {
+                        final term = searchTermOf(meanings[i].hebrewText);
+                        if (term.isNotEmpty) {
+                          onSearch!(term, hebrewToAramaic: true);
+                        }
+                      }
+                    : null,
+              ),
+          ],
         ),
       ),
     );
@@ -245,7 +224,6 @@ class _MeaningRow extends StatelessWidget {
               height: 24,
               alignment: Alignment.center,
               margin: const EdgeInsetsDirectional.only(
-                start: AppTokens.spaceSM,
                 end: AppTokens.spaceSM + 2,
                 top: 6,
               ),
@@ -260,9 +238,7 @@ class _MeaningRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            )
-          else
-            const SizedBox(width: AppTokens.spaceSM),
+            ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),

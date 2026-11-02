@@ -43,8 +43,6 @@ class _BiographyCardState extends State<BiographyCard> {
   /// Summary lines shown before expanding.
   static const int _collapsedLines = 3;
 
-  static const EdgeInsets _padding = EdgeInsets.all(AppTokens.spaceMD);
-
   /// Width of the label column of the expanded details.
   static const double _labelWidth = 112;
 
@@ -121,7 +119,8 @@ class _BiographyCardState extends State<BiographyCard> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textWidth = constraints.maxWidth - _padding.horizontal;
+        final textWidth =
+            constraints.maxWidth - AppTokens.cardPadding.horizontal;
         final summary = _bio.summary;
         final clamped =
             summary != null &&
@@ -145,9 +144,6 @@ class _BiographyCardState extends State<BiographyCard> {
     );
     return ToolResultCardShell(
       onTap: hasBody ? _toggle : null,
-      outlined: true,
-      padding: _padding,
-      bottomGap: AppTokens.spaceSM + AppTokens.spaceXS,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

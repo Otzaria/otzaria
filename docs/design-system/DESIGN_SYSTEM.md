@@ -449,7 +449,7 @@
 |---|---|---|
 | כרטיס מידע | `AppCard` | `Card(` גולמי אסור (היום 8 מופעים). מסגרת, בלי צל (DD-12) |
 | קבוצת שורות בכרטיס | `AppCard.section` | `selected` ב־section שבור ויוסר. מפריד = רווח שקוף |
-| כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (יעד, DD-11 A, MIG-20): כותרת, תת־שורה, קטע עם הדגשה ופעולות. ריפוד 12, מרווח 8 בין תוצאות | עד אז: `SearchResultCardFrame` בחיפוש, `ToolResultCardShell` בכלים. היום 7 מימושים |
+| כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A, MIG-20): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11) | יעד — טרם מומש (MIG-20) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | DD-27 A: מנגנון הרחבה אחד, `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (יעד, MIG-22). עץ: חץ לכיוון הקריאה. אקורדיון: חץ למטה. ⚠ כרטיסי התיקיות בספרייה לא משתנים עד הכרעה |
@@ -494,7 +494,7 @@
 | חלונית משנית או צפה | `AdaptiveSidePane` / `ContextOverlayPanel` | DD-28 A: רוחב 340 מטוקן אחד, הגבהה לפי DD-12, רקע לפי DD-18 (יעד, MIG-14) |
 | Split pane | `SplitPaneView` (tabs) | |
 | מסך הגדרות | `SettingsTabScrollView` + `SettingsCard` | |
-| מסך תוצאות | `SearchResultCardFrame`/`ToolResultsHeader` (יעד: `ResultCardFrame`) | אזור התוצאות על `panelBackground`, ועץ הסינון על `navPanelBackground` (DD-18, UI-143) |
+| מסך תוצאות | `ResultCardFrame`; מעל תוצאות כלי: `ToolResultsHeader(label, leading, child)` | אזור התוצאות על `panelBackground`, ועץ הסינון על `navPanelBackground` (DD-18, UI-143) |
 | מסך קריאה | `TextBookScreen` / `PdfBookScreen` על `readerBackground` | אזור "קריאה": בלי כרטיסים סביב טקסט הספר, צבע רק לתוכן |
 
 **[מחייב]** מעדיפים קומפוזיציה: מעטפת מסך מקבלת `child` ולא עשרות דגלים. מסך שלא מתאים לאף דפוס בונה פריסה משלו, אבל רק מרכיבים מהקטלוג.
