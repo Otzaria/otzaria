@@ -13,7 +13,7 @@ import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 
 /// מסנן ערכים ש-[field] שלהם מכיל את [query] וממיין: מדויק < מתחיל ב- < מילה שלמה < מכיל.
 /// בכל רמת התאמה "פשיטא" קודם, ובשוויון נשמר סדר הקלט (המיון של Dart אינו יציב).
@@ -132,6 +132,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   List<Map<String, String>> _dictionaryData = [];
   List<Map<String, String>> _filteredResults = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
   bool _isHebrewToAramaic = false;
   String _query = '';
 
@@ -165,6 +166,12 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   }
 
   Future<void> _loadDictionary() async {
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       await _dictionaryRepository.ensureAramaicLoaded();
       final entries = _dictionaryRepository.getAllAramaicEntries();
@@ -188,11 +195,14 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
         }).toList();
         _isLoading = false;
       });
+      // השדה גלוי גם בטעינה, ומה שהוקלד בה מחפש עכשיו במילון הטעון.
+      _performSearch(_searchController.text);
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
+        _loadFailed = true;
       });
       UiSnack.showError(ToolsMessages.dictionaryLoadError(e));
     }
@@ -235,50 +245,38 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      loading: _isLoading,
+      loadError: _loadFailed ? 'טעינת המילון נכשלה' : null,
+      onRetry: _loadDictionary,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          icon: OtzariaIcons.search_in_text_24_regular,
+          hintText: _isHebrewToAramaic
+              ? 'חפש מילה בעברית...'
+              : 'חפש מילה בארמית...',
+          autofocus: true,
+          onChanged: _performSearch,
+          onClear: () => setState(() {
+            _query = '';
+            _filteredResults = [];
+          }),
+        ),
+      ),
+      body: Column(
         children: [
-          AppTopBar(
-            center: OtzariaSearchField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              icon: OtzariaIcons.search_in_text_24_regular,
-              hintText: _isHebrewToAramaic
-                  ? 'חפש מילה בעברית...'
-                  : 'חפש מילה בארמית...',
-              autofocus: true,
-              onChanged: _performSearch,
-              onClear: () => setState(() {
-                _query = '';
-                _filteredResults = [];
-              }),
+          _buildDirectionToggle(),
+          if (_query.isNotEmpty && _filteredResults.isNotEmpty)
+            ToolResultsHeader(
+              label: _filteredResults.length == 1
+                  ? 'ערך אחד'
+                  : '${_filteredResults.length} ערכים',
             ),
-          ),
-          Expanded(
-            child: ToolPanelWrapper(
-              child: Column(
-                children: [
-                  _buildDirectionToggle(),
-                  if (_query.isNotEmpty && _filteredResults.isNotEmpty)
-                    ToolResultsHeader(
-                      label: _filteredResults.length == 1
-                          ? 'ערך אחד'
-                          : '${_filteredResults.length} ערכים',
-                    ),
-                  Expanded(child: _buildResultsList()),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: _buildResultsList()),
         ],
       ),
     );

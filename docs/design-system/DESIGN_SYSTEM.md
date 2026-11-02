@@ -490,7 +490,7 @@
 | דפוס | רכיב | הערות |
 |---|---|---|
 | מעטפת מסך לוח (הגדרות, ספרייה, כלים) | `AppTopBar` + רקע `panelBackground` + `LayoutConstraints.panelContentMaxWidth` | אזור "כלים ועבודה" (DD-18) |
-| מעטפת כלי | `ToolScaffold` (יעד, MIG-22): שדה חיפוש, כותרת תוצאות, מצבי טעינה/ריק/שגיאה | 5 מסכי כלים בונים את אותו מבנה ידנית |
+| מעטפת כלי | `ToolScaffold` (`lib/widgets/layout`): סרגל עם שדה החיפוש, מסננים, גוף ושורת תחתית; הסרגל נשאר בטעינה ובשגיאת טעינה (`loading`, `loadError` + `onRetry`); קיצור "חפש בחלון" | מבנה ידני, או ספינר במקום המסך כולו בזמן טעינה |
 | אזור תוכן | `PanelScrollableContent` / `CenteredScrollableState` | |
 | כותרת מסך | `AppTopBar(center:)` עם `AppTopBar.titleStyle(context)` / `subtitleStyle(context)` | `titleStyle` קשיח יעבור ל־`textTheme.titleLarge` (MIG-05) |
 | סרגל פעולות | `ResponsiveActionBar` + `ActionButtonData` | פריטים דרך `BarButton` בלבד |
@@ -686,7 +686,7 @@
 | גדלי אייקון | `AppTokens.icon*` (DD-03) | יעד (MIG-04) | טוקני גופן כגודל אייקון, מספרים |
 | אנימציות | `AppTokens.anim*`, `curve*`, `AppMotion` (DD-21) | חלקי (MIG-04) | ~90 משכים קשיחים |
 | הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | יעד (MIG-10) | 8 מסגרות, רוחבים קשיחים |
-| פריסות מסך | `lib/widgets/layout/`, `navigation/` (`ToolScaffold` יעד) | חלקי (MIG-22) | מעטפות מקומיות |
+| פריסות מסך | `lib/widgets/layout/`, `navigation/`, `ToolScaffold` | חלקי (MIG-22) | מעטפות מקומיות |
 | רכיבי ניווט | `NavSidePanel`, `NavRailItem`, `NavTreeTile`; רוחב חלונית מטוקן אחד (DD-28) | קיים; הטוקן יעד (MIG-14) | `kSidePanelWidth` כפול |
 | רספונסיביות | `LayoutBreakpoints` + `WindowClass` (DD-15) | יעד (MIG-21) | 32 ספים קשיחים |
 | צפיפות | `AppDensity` (DD-10) | יעד (MIG-06) | 68 קריאות ל־`compactMenuMode` |

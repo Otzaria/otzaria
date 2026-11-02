@@ -14,6 +14,7 @@ import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -366,54 +367,41 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      // חלונית ההגדרות מכסה את כל רוחב הגוף; רק התוצאות ממורכזות.
+      centerContent: false,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          hintText: 'חפש גימטריה...',
+          autofocus: true,
+          onSubmitted: (_) => _performSearch(),
+          onClear: _clearResults,
+          leading: IconButton(
+            icon: const Icon(OtzariaIcons.search_in_numbered_list_24_regular),
+            onPressed: _performSearch,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        trailingItems: [
+          AppTopBarItem(
+            widget: BarButton.icon(
+              compact: AppDensity.of(context).isCompact,
+              tooltip: 'הגדרות גימטריה',
+              icon: FluentIcons.settings_24_regular,
+              selected: _showingSettings,
+              onPressed: _toggleSettings,
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
         children: [
-          Builder(
-            builder: (context) => AppTopBar(
-              center: OtzariaSearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                hintText: 'חפש גימטריה...',
-                autofocus: true,
-                onSubmitted: (_) => _performSearch(),
-                onClear: _clearResults,
-                leading: IconButton(
-                  icon: const Icon(
-                    OtzariaIcons.search_in_numbered_list_24_regular,
-                  ),
-                  onPressed: _performSearch,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              trailingItems: [
-                AppTopBarItem(
-                  widget: BarButton.icon(
-                    compact: AppDensity.of(context).isCompact,
-                    tooltip: 'הגדרות גימטריה',
-                    icon: FluentIcons.settings_24_regular,
-                    selected: _showingSettings,
-                    onPressed: _toggleSettings,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(child: _buildResultsContent()),
-                Positioned.fill(
-                  child: _buildSettingsOverlay(),
-                ),
-              ],
-            ),
-          ),
+          Positioned.fill(child: _buildResultsContent()),
+          Positioned.fill(child: _buildSettingsOverlay()),
         ],
       ),
     );
