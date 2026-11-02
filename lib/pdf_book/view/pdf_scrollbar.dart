@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/feedback/scrollbar_target_label.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -430,6 +431,7 @@ class _PdfScrollbarState extends State<PdfScrollbar> {
                           right: 0,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
+                            supportedDevices: kScrollbarDragDevices,
                             onVerticalDragStart: startThumbDrag,
                             onVerticalDragUpdate: updateThumbDrag,
                             onVerticalDragEnd: (_) => endThumbDrag(),
@@ -618,6 +620,7 @@ class _PdfHorizontalScrollbarState extends State<PdfHorizontalScrollbar> {
                       bottom: 0,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
+                        supportedDevices: kScrollbarDragDevices,
                         onHorizontalDragStart: startDrag,
                         onHorizontalDragUpdate: updateDrag,
                         onHorizontalDragEnd: (_) => endDrag(),

@@ -369,6 +369,34 @@ void main() {
       );
     });
 
+    for (final isPreviewMode in [true, false]) {
+      testWidgets(
+        'גלילה בשתי אצבעות כשהסמן על המסילה אינה מקפיצה את הספר '
+        '(issue #2680, preview=$isPreviewMode)',
+        (tester) async {
+          final tab = await pumpPreview(tester, isPreviewMode: isPreviewMode);
+          final position = tab.lines.itemController.scrollController!.position;
+          final at = tester.getRect(trackFinder()).center;
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.trackpad,
+          );
+          await gesture.panZoomStart(at);
+          for (var i = 1; i <= 3; i++) {
+            await gesture.panZoomUpdate(at, pan: Offset(0, -10.0 * i));
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          await gesture.panZoomEnd();
+          await tester.pumpAndSettle();
+
+          expect(
+            position.pixels,
+            lessThanOrEqualTo(30),
+            reason: 'תנועה של 30px בלוח המגע קפצה למקום הסמן על המסילה',
+          );
+        },
+      );
+    }
+
     testWidgets('אזור הקריאה הרגיל ממשיך להשתמש באותו מחוון', (tester) async {
       await pumpPreview(tester, isPreviewMode: false);
 

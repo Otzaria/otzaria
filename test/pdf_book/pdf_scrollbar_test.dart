@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
@@ -403,6 +404,48 @@ void main() {
       await tester.tapAt(origin + const Offset(180, 6));
       expect(starts, 2);
     });
+
+    for (final vertical in [true, false]) {
+      testWidgets(
+        'גלילה בשתי אצבעות בלוח מגע על האגודל ${vertical ? 'האנכי' : 'האופקי'} '
+        'אינה מנווטת במסמך (issue #2680)',
+        (tester) async {
+          var starts = 0;
+          final controller = _InteractiveController();
+          await tester.pumpWidget(
+            vertical
+                ? _buildVerticalScrollbarHarness(
+                    controller,
+                    onNavigationStarted: () => starts++,
+                  )
+                : _buildHorizontalScrollbarHarness(
+                    controller,
+                    onNavigationStarted: () => starts++,
+                  ),
+          );
+          final at = tester.getCenter(
+            _thumbFinder(vertical ? Colors.green : Colors.orange),
+          );
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.trackpad,
+          );
+          await gesture.panZoomStart(at);
+          for (var i = 1; i <= 3; i++) {
+            final step = 10.0 * i;
+            await gesture.panZoomUpdate(
+              at,
+              pan: vertical ? Offset(0, step) : Offset(step, 0),
+            );
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          await gesture.panZoomEnd();
+          await tester.pumpAndSettle();
+
+          expect(controller.goToDurations, isEmpty);
+          expect(starts, 0);
+        },
+      );
+    }
 
     testWidgets('drag אנכי משתמש ב-Duration.zero בזמן גרירה', (tester) async {
       final controller = _InteractiveController();
