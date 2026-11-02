@@ -316,7 +316,7 @@ void main() {
     }
 
     /// [oracle] = הדירוג של main על כל ההתאמות הגולמיות (`_dedupeRefs`,
-    /// `_suppressDeeperVariants`, `_rankResults`), בלי הבחירה ב-worker. תקרת
+    /// `suppressDeeperVariants`, `_rankResults`), בלי הבחירה ב-worker. תקרת
     /// הגיוון נגזרת גם היא מהדירוג של main: לכל ספר לבדו, הראשונות שלו.
     /// אחרת — מסלול הייצור: [selectGlobalAltTocMatches] כמו ב-worker.
     Future<List<String>> run(

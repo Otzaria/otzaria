@@ -58,10 +58,8 @@ typedef TocBatchResult = ({
 /// `book` ואת טעינת ה-TOC בפתיחת ספר — שאילתות ארוכות שאין להריץ על ה-isolate
 /// של ה-UI. כולן חולקות את חיבור ה-RO היחיד (32MB cache + 64MB mmap).
 ///
-/// **תחום:** רק שאילתות `seforim.db` עוברות ל-isolate. ספרי המשתמש
-/// (`user_books.db`, מסלול אופציונלי "כלול ספרים אישיים") נשארים על ה-main
-/// isolate — הם מסלול opt-in על DB קטן, ופתיחת חיבור RW שני אליו מ-isolate
-/// נושאת סיכון נעילה שאינו מוצדק כאן.
+/// **תחום:** רק שאילתות `seforim.db`. הספרים האישיים (`user_books.db`) והמסדים
+/// המצורפים נשאלים ב-`AttachedFindRefWorker`.
 class FindRefDbIsolate {
   FindRefDbIsolate._();
 
@@ -922,8 +920,7 @@ void _workerMain(_Bootstrap bootstrap) {
       repository = repo;
       return repo;
     } catch (e) {
-      // כשל פתיחה (DB חסר/נעול רגעית) — מחזירים null; הקריאה תחזיר רשימה ריקה,
-      // בדיוק כפי שמסלול ה-main isolate היה מתנהג מול repository == null.
+      // כשל פתיחה (DB חסר/נעול רגעית) — null; כל פקודה מחזירה ברירת מחדל או זורקת.
       debugPrint('[FindRef isolate] DB open failed for $dbPath: $e');
       return null;
     }

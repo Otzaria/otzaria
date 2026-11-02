@@ -1,8 +1,6 @@
 import 'package:otzaria/models/book_source.dart';
 
 /// Result of a reference search from the database.
-/// This class mirrors the structure of ReferenceSearchResult from search_engine
-/// but is populated from the database instead of Tantivy.
 class DbReferenceResult {
   /// The title of the book
   final String title;

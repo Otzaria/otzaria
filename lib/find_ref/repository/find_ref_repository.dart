@@ -219,8 +219,7 @@ class FindRefRepository {
     return value;
   }
 
-  /// שמור לצורך תאימות לאחור עם call-sites קיימים.
-  /// אינו בשימוש בפועל בקוד ה-repository.
+  /// הספרייה שלפיה מסוננים הספרים המוסתרים; `null` — [DataRepository.instance].
   final DataRepository? dataRepository;
 
   final Future<void> Function()? warmUpReferenceBooksCache;
@@ -268,7 +267,7 @@ class FindRefRepository {
   final Future<void> Function()? prewarmAltTocFlatEntries;
 
   /// מזהי הספרים בעלי מבנה AltToc — מאפשר לדלג על שאילתת AltToc פר-ספר
-  /// עבור ~95% מהספרים. כשהוא `null` — אין דילוג (התנהגות קודמת).
+  /// עבור ~95% מהספרים. כשהוא `null` — אין דילוג.
   final Future<List<int>?> Function()? getAltStructureBookIds;
 
   /// Injection for testing: returns the category path string for a given bookId.
@@ -1963,7 +1962,7 @@ class FindRefRepository {
   /// prefix של הערך הנוכחי. הרציונל: השאילתה כבר תאמה ערך רחב (כמו
   /// "אור זרוע פסקי בבא קמא"), ולכן ערכי-ילדים שמרחיבים אותו
   /// ("... סימן ת", "... סימן ב", ...) אינם מוסיפים מידע לחיפוש — הם רק
-  /// ממלאים את 15 התוצאות הזמינות בפירוט פנימי שאותו המשתמש לא ביקש.
+  /// ממלאים את מכסת התוצאות בפירוט פנימי שאותו המשתמש לא ביקש.
   ///
   /// הסינון הזה הכרחי במיוחד עבור ה-fallback הגלובלי של AltToc: בניגוד לחיפוש
   /// הפר-ספר ([_searchAltTocFlat] ב-seforim_repository) שמחיל "anti-flood"
@@ -2792,10 +2791,6 @@ class FindRefRepository {
     return section;
   }
 
-  /// מיפוי bookId → השורה המדויקת שאליה מצביעה ההפניה, דרך אינדקס `line_ref`.
-  ///
-  /// שאילתה מאוגדת אחת לכל מפתח קנוני — לא פנייה לכל ספר מועמד. ריק כשאין
-  /// הזרקה (בדיקות) או כשהמסד נבנה לפני האינדקס, ואז נשאר מסלול ה-TOC.
   /// מזהה שאילתת דיבור-המתחיל: סמן ד"ה אחרי שם הספר, ואחריו לפחות מילה אחת.
   /// מחזיר את ראש השאילתה (שם הספר וציון פנימי) ואת טקסט הדיבור.
   @visibleForTesting
@@ -2878,6 +2873,10 @@ class FindRefRepository {
     return resolved;
   }
 
+  /// מיפוי bookId → השורות המדויקות שאליהן מצביעה ההפניה, דרך אינדקס `line_ref`.
+  ///
+  /// שאילתה מאוגדת אחת לכל מפתח קנוני — לא פנייה לכל ספר מועמד. ריק כשאין
+  /// הזרקה (בדיקות) או כשהמסד נבנה לפני האינדקס, ואז נשאר מסלול ה-TOC.
   Future<Map<int, List<_ExactLine>>> _resolveExactLines(
     List<ReferenceBookHit> bookHits,
     Map<ReferenceBookHit, List<String>> remainingByHit, {

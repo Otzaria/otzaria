@@ -209,7 +209,7 @@ void main() {
         // "טור חושן" הוא תחילית של ראש-התיבות "טור חושן משפט", אבל "משפט" אינה
         // מילה בכותרת "טור" — כלומר ההמשך הוא כותרת פנימית. אם הספר היה מוחזר
         // כתוצאת-ספר, ה-reference הקצר ("טור") היה גם *חוסם* את התוצאה הפנימית
-        // ב-_suppressDeeperVariants.
+        // ב-suppressDeeperVariants.
         seedLibrary(const [_tur]);
         final seen = <List<String>?>[];
         final results = await buildFindRefRepo(
