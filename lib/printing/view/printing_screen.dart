@@ -2179,17 +2179,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
           label: 'גודל דף',
           child: AppDropdownField<PdfPageFormat>(
             value: format,
-            entries:
-                const {
-                  'A4': PdfPageFormat.a4,
-                  'Letter': PdfPageFormat.letter,
-                  'A5': PdfPageFormat.a5,
-                }.entries.map((entry) {
-                  return AppMenuEntry(
-                    value: entry.value,
-                    label: entry.key,
-                  );
-                }).toList(),
+            entries: formats.entries
+                .map(
+                  (entry) => AppMenuEntry(value: entry.key, label: entry.value),
+                )
+                .toList(),
             onSelected: (PdfPageFormat? value) {
               if (value == null) {
                 return;
@@ -2927,6 +2921,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return allFonts;
   }
 
+  /// גדלי הדף, אותם בהדפסת PDF מוכן ובהדפסת טקסט.
   final Map<PdfPageFormat, String> formats = {
     PdfPageFormat.a4: 'A4',
     PdfPageFormat.letter: 'Letter',
