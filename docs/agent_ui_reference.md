@@ -72,7 +72,7 @@ Three shared widgets take an `icon:` / `searchIcon:` parameter for exactly this 
 
 **Sizes:** every icon is drawn on a 24px grid, and the `_24_` in the name is the grid, not a size limit — pass `size:` freely. But the `book_open_*` family is drawn at different weights for different display sizes; `otzaria_icon_2_page_24_regular/filled` is the general-purpose "open book" and the only one of them with a `filled` twin, so it is what a nav rail or any regular/filled pair needs.
 
-**`OtzariaIcons` NEVER goes through `RtlIcon`.** Every icon in the set is drawn right-to-left already — `RtlIcon` would flip an icon that already faces the correct way. `test/widgets/rtl_icon_registered_usage_test.dart` fails the build on any `RtlIcon(OtzariaIcons....)`.
+**`OtzariaIcons` NEVER goes through `RtlIcon`.** Every icon in the set is drawn right-to-left already — `RtlIcon` would flip an icon that already faces the correct way. `ui_lint` rule UIL-006 (`test/design_system/ui_lint_test.dart`) fails the build on any `RtlIcon(OtzariaIcons....)` and on `RtlIcon` with an unregistered literal icon.
 
 **When to use `RtlIcon` vs `Icon`:**
 
@@ -115,7 +115,7 @@ Prefer drawing it in `otzaria_icons` — that is exactly what the package is for
 - Any icon font other than `otzaria_icons` and `fluentui_system_icons`
 - `RtlIcon` with an `OtzariaIcons` icon — it is already RTL
 - `mirrorIcon` parameter on any widget — **FORBIDDEN**, removed in commit 3b4d357
-- Manual `Transform.scale(scaleX: -1, ...)` or `Transform.flip(flipX: true, ...)` around icons — register in `rtl_icon.dart` instead. **On an `OtzariaIcons` icon this silently points it the wrong way**, and neither the analyzer nor `rtl_icon_registered_usage_test.dart` catches it — when replacing a Fluent icon, check the call site for a hand-rolled flip first
+- Manual `Transform.scale(scaleX: -1, ...)` or `Transform.flip(flipX: true, ...)` around icons — register in `rtl_icon.dart` instead. **On an `OtzariaIcons` icon this silently points it the wrong way.** UIL-006 catches `Transform.flip` and `Transform.scale(scaleX: -n)` whose direct child is an `Icon`/`RtlIcon`, but not a flip further up the tree — when replacing a Fluent icon, check the call site for a hand-rolled flip first
 - Comments explaining why `RtlIcon` or `Icon(...)` was chosen — the decision rule is documented here; do NOT repeat it inline in code
 - Editing `lib/plugins/utils/fluent_icon_resolver.dart` to point at `otzaria_icons` — it is the generated Fluent-name contract for plugins
 

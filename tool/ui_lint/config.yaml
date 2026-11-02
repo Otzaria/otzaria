@@ -16,6 +16,11 @@ rules:
       - path: lib/settings/dialogs/list_dialog_frame.dart
         reason: המסגרת המשותפת של דיאלוגי הרשימות
 
+  UIL-006:
+    exclude:
+      - path: lib/widgets/misc/rtl_icon.dart
+        reason: הרכיב עצמו מחזיק את הרשימה ומהפך בה
+
   UIL-011:
     exclude:
       - path: lib/widgets/text/rtl_text_field.dart

@@ -46,12 +46,16 @@ abstract class UiLintRule {
 /// קובץ אחד בזמן הבדיקה: ה-AST שלו וערוץ הדיווח.
 class UiLintFile {
   UiLintFile._(
+    this.root,
     this.path,
     this.unit,
     this.lineInfo,
     this._source,
     this._findings,
   );
+
+  /// שורש המאגר, לכלל שצריך לקרוא קובץ נוסף (רשימה רשומה).
+  final String root;
 
   /// נתיב יחסי לשורש המאגר, עם `/`.
   final String path;
@@ -250,6 +254,7 @@ UiLintResult lintSource(
   String path, {
   required UiLintConfig config,
   List<UiLintRule> rules = uiLintRules,
+  String root = '.',
 }) {
   final findings = <UiLintFinding>[];
   final problems = <UiLintProblem>[];
@@ -270,6 +275,7 @@ UiLintResult lintSource(
     );
   }
   final file = UiLintFile._(
+    root,
     path,
     parsed.unit,
     parsed.lineInfo,
@@ -335,6 +341,7 @@ UiLintResult runUiLint(
       relative,
       config: effectiveConfig,
       rules: rules,
+      root: root,
     );
     findings.addAll(result.findings);
     allows.addAll(result.allows);

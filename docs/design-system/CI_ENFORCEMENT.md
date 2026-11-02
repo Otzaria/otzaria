@@ -79,7 +79,7 @@ test/design_system/
 | UIL-003 | לכל `IconButton` יש `tooltip:` | ctor + named arg | `IconButton.styleFrom` (לא בנאי) | ~40 | 1 |
 | UIL-004 | אין `Theme.of(…).primaryColor` / `theme.primaryColor` | PropertyAccess | — | 5 | 1 |
 | UIL-005 | אין `Icons.`/`CupertinoIcons.` | identifier prefix | — | 0 | 1 |
-| UIL-006 | אין `RtlIcon(OtzariaIcons…)` ואין `Transform.flip` שעוטף `Icon` | ctor + ילד | `rtl_icon.dart` | 0 | 1 (מחליף את הבדיקה הקיימת) |
+| UIL-006 | `RtlIcon` רק לאייקון כיווני שרשום ב־`rtl_icon.dart` (אף פעם לא `OtzariaIcons`), ואין `Transform.flip`/`Transform.scale(scaleX: -n)` שעוטף `Icon` | ctor + ילד + הרשימה ב־`rtl_icon.dart` | `rtl_icon.dart` | 0 | 1 (מחליף את הבדיקה הקיימת) |
 | UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | `hoverColor: Colors.transparent` ב־`ListTile` עם actions (לפי התיעוד) | ~7 | 1 |
 | UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | ~0 | 1 |
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי | — | ~0 | 1 (מחליף בדיקה קיימת ומרחיב אותה) |
@@ -236,7 +236,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | ~~`test/widgets/text/bare_text_field_scan_test.dart`~~ | אין `TextField(` גולמי | **הועברה ל־UIL-011**, שתופס גם `TextFormField`/`EditableText` |
 | ~~`test/core/messages/uisnack_literal_scan_test.dart`~~ | אין ליטרל בארגומנט הראשון של `UiSnack` | **הועברה ל־UIL-009**, שתופס גם ארגומנט בשם |
 | `test/widgets/text/default_context_menu_scan_test.dart` | `SelectionArea` עם `contextMenuBuilder` | חלון של 15 שורות |
-| `test/widgets/rtl_icon_registered_usage_test.dart` | `RtlIcon` רק לאייקונים רשומים | לא בודקת משתנים |
+| ~~`test/widgets/rtl_icon_registered_usage_test.dart`~~ | `RtlIcon` רק לאייקונים רשומים | **הועברה ל־UIL-006**, שתופס גם `Transform.flip`/`Transform.scale(scaleX: -n)` סביב אייקון. משתנים עדיין לא נבדקים |
 | `test/plugins/utils/plugin_icon_resolver_usage_test.dart` | resolver יחיד | כוללת בדיקה שהסורק אכן מוצא משהו (non-vacuity) |
 | `test/settings/no_scrollable_markdown_test.dart` | `MarkdownBody` | |
 | `test/settings/l10n/settings_dialog_scope_test.dart` | `settingsDialogBuilder` | חלון של 8 שורות |
