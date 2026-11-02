@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class ZmanAlertDialogResult {
   final int minutesBefore;
@@ -50,79 +50,88 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      title: AppDialogTitle(
-        widget.zmanName,
-        icon: FluentIcons.alert_24_regular,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'כמה זמן לפני זמן ${widget.zmanName} ברצונך לקבל התראה?',
-          ),
-          const SizedBox(height: AppTokens.spaceSM),
-          Text(
-            'הזמן: ${widget.timeLabel}',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: AppTokens.spaceMD),
-          Row(
-            children: [
-              Expanded(
-                child: SpinBox(
-                  min: 0,
-                  max: 23,
-                  value: hours.toDouble(),
-                  decimals: 0,
-                  step: 1,
-                  decoration: const InputDecoration(labelText: 'שעות'),
-                  onChanged: (v) => setState(() => hours = v.toInt()),
-                ),
-              ),
-              const SizedBox(width: AppTokens.spaceMD),
-              Expanded(
-                child: SpinBox(
-                  min: 0,
-                  max: 59,
-                  value: minutes.toDouble(),
-                  decimals: 0,
-                  step: 1,
-                  decoration: const InputDecoration(labelText: 'דקות'),
-                  onChanged: (v) => setState(() => minutes = v.toInt()),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        if (widget.isEnabled)
-          ActionButton.neutral(
-            errorText: true,
-            text: 'בטל התראה',
-            onPressed: () => Navigator.of(context).pop(
-              const ZmanAlertDialogResult(minutesBefore: 0, cancelAlert: true),
+    final theme = Theme.of(context);
+    return AppDialogFrame(
+      size: AppDialogSize.small,
+      title: widget.zmanName,
+      icon: FluentIcons.alert_24_regular,
+      actions: _actions(context),
+      // סגנון הגוף של AlertDialog.
+      child: DefaultTextStyle.merge(
+        style:
+            theme.dialogTheme.contentTextStyle ??
+            theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-          ),
-        ActionButton.neutral(
-          text: 'ביטול',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        ActionButton.recommended(
-          text: widget.isEnabled ? 'עדכן' : 'הפעל',
-          onPressed: () => Navigator.of(context).pop(
-            ZmanAlertDialogResult(
-              minutesBefore: totalMinutes,
-              cancelAlert: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'כמה זמן לפני זמן ${widget.zmanName} ברצונך לקבל התראה?',
             ),
-          ),
+            const SizedBox(height: AppTokens.spaceSM),
+            Text(
+              'הזמן: ${widget.timeLabel}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppTokens.spaceMD),
+            Row(
+              children: [
+                Expanded(
+                  child: SpinBox(
+                    min: 0,
+                    max: 23,
+                    value: hours.toDouble(),
+                    decimals: 0,
+                    step: 1,
+                    decoration: const InputDecoration(labelText: 'שעות'),
+                    onChanged: (v) => setState(() => hours = v.toInt()),
+                  ),
+                ),
+                const SizedBox(width: AppTokens.spaceMD),
+                Expanded(
+                  child: SpinBox(
+                    min: 0,
+                    max: 59,
+                    value: minutes.toDouble(),
+                    decimals: 0,
+                    step: 1,
+                    decoration: const InputDecoration(labelText: 'דקות'),
+                    onChanged: (v) => setState(() => minutes = v.toInt()),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
+
+  List<Widget> _actions(BuildContext context) => [
+    if (widget.isEnabled)
+      ActionButton.neutral(
+        errorText: true,
+        text: 'בטל התראה',
+        onPressed: () => Navigator.of(context).pop(
+          const ZmanAlertDialogResult(minutesBefore: 0, cancelAlert: true),
+        ),
+      ),
+    ActionButton.neutral(
+      text: 'ביטול',
+      onPressed: () => Navigator.of(context).pop(),
+    ),
+    ActionButton.recommended(
+      text: widget.isEnabled ? 'עדכן' : 'הפעל',
+      onPressed: () => Navigator.of(context).pop(
+        ZmanAlertDialogResult(
+          minutesBefore: totalMinutes,
+          cancelAlert: false,
+        ),
+      ),
+    ),
+  ];
 }
 
 /// עוזר להצגת הדיאלוג

@@ -8,23 +8,11 @@
       "lib/app_report/view/crash_prompt_dialog.dart": [
         {"scope":"_CrashPromptDialogState.build","fp":"26be3ad9","n":1}
       ],
-      "lib/personal_notes/view/personal_notes_screen.dart": [
-        {"scope":"_PersonalNotesManagerScreenState._importNotes","fp":"27aa4a2d","n":1}
-      ],
-      "lib/personal_notes/widgets/note_draft_decision_dialog.dart": [
-        {"scope":"showNoteDraftDecisionDialog","fp":"27aa4a2d","n":1}
-      ],
       "lib/personal_notes/widgets/personal_note_editor_dialog.dart": [
         {"scope":"_PersonalNoteEditorDialogState.build","fp":"26be3ad9","n":1}
       ],
       "lib/text_book/view/error_report_dialog.dart": [
         {"scope":"_TabbedReportDialogState.build","fp":"26be3ad9","n":1}
-      ],
-      "lib/tools/calendar/dialogs/calendar_print_dialog.dart": [
-        {"scope":"_CalendarPrintDialogState.build","fp":"27aa4a2d","n":1}
-      ],
-      "lib/tools/calendar/dialogs/calendar_zman_alert_dialog.dart": [
-        {"scope":"_ZmanAlertDialogState.build","fp":"27aa4a2d","n":1}
       ],
       "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
         {"scope":"_AddBooksToTrackingDialogState.build","fp":"26be3ad9","n":1}

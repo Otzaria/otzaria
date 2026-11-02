@@ -46,6 +46,7 @@ import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -629,13 +630,12 @@ class _PersonalNotesManagerScreenState
 
     final strategy = await showDialog<NotesImportConflictStrategy>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const AppDialogTitle(
-          'ייבוא הערות - טיפול בהתנגשויות',
-          icon: FluentIcons.warning_24_regular,
-          tone: AppDialogHeaderTone.error,
-        ),
-        content: const Text('כיצד לטפל בהערות קיימות עם אותו מזהה?'),
+      builder: (context) => AppDialogFrame(
+        // ארבע פעולות לא נכנסות בשורה אחת ברוחב small.
+        size: AppDialogSize.medium,
+        title: 'ייבוא הערות - טיפול בהתנגשויות',
+        icon: FluentIcons.warning_24_regular,
+        tone: AppDialogHeaderTone.error,
         actions: [
           ActionButton.neutral(
             text: 'מזג',
@@ -660,6 +660,14 @@ class _PersonalNotesManagerScreenState
             ).pop(NotesImportConflictStrategy.overwrite),
           ),
         ],
+        child: Text(
+          'כיצד לטפל בהערות קיימות עם אותו מזהה?',
+          style:
+              Theme.of(context).dialogTheme.contentTextStyle ??
+              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
       ),
     );
     if (!mounted) return;
@@ -1380,6 +1388,7 @@ class _PersonalNotesManagerScreenState
     final result = await showInputDialog(
       context: context,
       title: 'מיקום מחדש של הערה',
+      icon: FluentIcons.location_24_regular,
       subtitle: note.lastKnownLineNumber != null
           ? 'שורה קודמת: ${note.lastKnownLineNumber}'
           : null,
