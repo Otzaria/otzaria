@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
@@ -29,11 +30,12 @@ void main() {
       () => PluginSearchFieldActionsRegistry.instance.removeAll('voice'),
     );
 
-    Future<void> pumpField(
+    Future<TextEditingController> pumpField(
       WidgetTester tester, {
       PluginSearchField? field,
+      String text = '',
     }) async {
-      final controller = TextEditingController();
+      final controller = TextEditingController(text: text);
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -42,10 +44,12 @@ void main() {
               controller: controller,
               hintText: 'חיפוש',
               pluginActionsField: field,
+              autofocus: true,
             ),
           ),
         ),
       );
+      return controller;
     }
 
     testWidgets('מציג כפתור תוסף רק בשדה שהוצהר', (tester) async {
@@ -67,6 +71,51 @@ void main() {
       await pumpField(tester);
       expect(find.byKey(_buttonKey), findsNothing);
     });
+
+    testWidgets(
+      'הכתבה אחרי לחיצת עכבר מחליפה את הטקסט המסומן (issue #3878)',
+      (tester) async {
+        PluginSearchFieldActionsRegistry.instance.registerPayload('voice', {
+          'id': 'dictate',
+          'title': 'חיפוש בדיבור',
+          'icon': 'mic_24_regular',
+        });
+        final sessions = PluginSearchFieldSessionService.instance;
+        for (final field in [
+          PluginSearchField.library,
+          PluginSearchField.inBook,
+        ]) {
+          await tester.pumpWidget(const SizedBox.shrink());
+          final controller = await pumpField(
+            tester,
+            field: field,
+            text: 'ברכות דף ב',
+          );
+          await tester.pump();
+          controller.selection = const TextSelection(
+            baseOffset: 0,
+            extentOffset: 10,
+          );
+
+          // לחיצת עכבר אמיתית ארוכה מ-kPressTimeout, ואז השדה כבר מגיב ל-tap down.
+          final gesture = await tester.startGesture(
+            tester.getCenter(find.byKey(_buttonKey)),
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump(kPressTimeout * 2);
+          await gesture.up();
+          await tester.pump();
+
+          final binding =
+              tester.state(find.byType(PluginSearchFieldActions))
+                  as PluginSearchFieldBinding;
+          final session = sessions.sessionFor(binding, 'voice', 'dictate')!;
+          sessions.setFieldText('voice', session.id, 'שבת דף ג');
+          expect(controller.text, 'שבת דף ג', reason: field.name);
+        }
+      },
+      variant: TargetPlatformVariant.all(),
+    );
   });
 
   group('PluginSearchFieldActions', () {

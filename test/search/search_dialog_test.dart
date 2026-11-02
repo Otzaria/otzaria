@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
@@ -499,6 +501,48 @@ Future<void> main() async {
         'test.plugin/include-external': true,
       });
     });
+
+    testWidgets(
+      'הכתבה אחרי לחיצת עכבר מחליפה את הטקסט המסומן (issue #3878)',
+      (tester) async {
+        final actions = PluginSearchFieldActionsRegistry.instance;
+        addTearDown(() => actions.removeAll('voice'));
+        actions.registerPayload('voice', {
+          'id': 'dictate',
+          'title': 'חיפוש בדיבור',
+          'icon': 'mic_24_regular',
+          'fields': ['fullText'],
+        });
+        await pumpDialog(tester, const ValueKey('first'));
+        final field = find.byType(EditableText).first;
+        await tester.enterText(field, 'שלום עולם');
+        await tester.pump();
+        final controller = tester.widget<EditableText>(field).controller;
+        controller.selection = const TextSelection(
+          baseOffset: 0,
+          extentOffset: 9,
+        );
+
+        // לחיצת עכבר אמיתית ארוכה מ-kPressTimeout, ואז השדה כבר מגיב ל-tap down.
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byTooltip('חיפוש בדיבור')),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump(kPressTimeout * 2);
+        await gesture.up();
+        await tester.pump();
+
+        final sessions = PluginSearchFieldSessionService.instance;
+        final binding =
+            tester.state(find.byType(PluginSearchFieldActions))
+                as PluginSearchFieldBinding;
+        final session = sessions.sessionFor(binding, 'voice', 'dictate')!;
+        sessions.setFieldText('voice', session.id, 'אהבת חסד');
+        expect(controller.text, 'אהבת חסד');
+      },
+      variant: TargetPlatformVariant.desktop(),
+      skip: !engineReady,
+    );
 
     testWidgets('הקשר לכפתור תוסף מפענח את צמצום @קטגוריה כמו השליחה', (
       tester,
