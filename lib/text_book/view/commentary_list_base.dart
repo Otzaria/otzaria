@@ -1,3 +1,4 @@
+import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/book_identity.dart';
@@ -12,8 +13,6 @@ import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_theme_data.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -55,7 +54,6 @@ import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
-import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -85,7 +83,6 @@ import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
@@ -166,7 +163,6 @@ class CommentaryListBase extends StatefulWidget {
   final double fontSize;
   final List<int>? indexes;
   final bool showSearch;
-  final VoidCallback? onClosePane;
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
   final List<String>? selectedCommentatorsOverride;
@@ -238,7 +234,6 @@ class CommentaryListBase extends StatefulWidget {
     required this.fontSize,
     this.indexes,
     required this.showSearch,
-    this.onClosePane,
     this.shrinkWrap = true,
     this.itemPositionsListener,
     this.selectedCommentatorsOverride,
@@ -815,86 +810,15 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     setState(() => _showSearchField = false);
   }
 
-  Widget _buildClosePaneButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-        borderRadius: AppTokens.borderRadiusAll,
-        boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
-      ),
-      child: IconButton(
-        iconSize: 18,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-        icon: const Icon(FluentIcons.dismiss_24_regular),
-        onPressed: widget.onClosePane,
-      ),
-    );
-  }
-
   Widget _buildButtonsRow(List<String> selectedCommentators) {
-    const double gap = 16;
-    // גובה 36 כשדה החיפוש המצומצם, כדי שפתיחת החיפוש לא תזיז את הרשימה.
-    return IconButtonTheme(
-      data: IconButtonThemeData(
-        style: (Theme.of(context).iconButtonTheme.style ?? const ButtonStyle())
-            .copyWith(
-              visualDensity:
-                  Theme.of(context).extension<AppMenuMetrics>()?.compactMenus ==
-                      true
-                  ? const VisualDensity(vertical: -1)
-                  : null,
-            ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 1. בחירת מפרשים
-          CommentatorsFilterButton(
-            isActive: false,
-            onPressed: _openCommentatorsFilter,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            iconSize: 20,
-          ),
-          // 2. הרחב/כווץ הכל — רק כשיש מפרשים נבחרים (לוגיקה מקורית)
-          if (selectedCommentators.isNotEmpty) ...[
-            const SizedBox(width: gap),
-            IconButton(
-              icon: Icon(
-                _allExpanded
-                    ? FluentIcons.arrow_collapse_all_24_regular
-                    : FluentIcons.arrow_expand_all_24_regular,
-              ),
-              tooltip: _allExpanded
-                  ? 'כווץ את כל המפרשים'
-                  : 'הרחב את כל המפרשים',
-              onPressed: toggleAllExpanded,
-            ),
-          ],
-          // 3. פתיחה בכרטיסייה חדשה
-          if (widget.onOpenInNewTab != null) ...[
-            const SizedBox(width: gap),
-            IconButton(
-              icon: const Icon(FluentIcons.open_24_regular),
-              tooltip: 'פתח כרטסיית מפרשים',
-              onPressed: widget.onOpenInNewTab,
-            ),
-          ],
-          const SizedBox(width: gap),
-          // 4. הפעלת שדה החיפוש
-          IconButton(
-            icon: const Icon(FluentIcons.search_24_regular),
-            tooltip: 'חיפוש',
-            onPressed: _openInlineSearch,
-          ),
-          // לחצן סגירת הפאנל — נשאר רק אם הקולבק קיים
-          if (widget.onClosePane != null) ...[
-            const SizedBox(width: gap),
-            _buildClosePaneButton(),
-          ],
-        ],
-      ),
+    return CommentaryPanelToolbar(
+      onOpenFilter: _openCommentatorsFilter,
+      allExpanded: _allExpanded,
+      onToggleAllExpanded: selectedCommentators.isNotEmpty
+          ? toggleAllExpanded
+          : null,
+      onOpenInNewTab: widget.onOpenInNewTab,
+      onOpenSearch: _openInlineSearch,
     );
   }
 
@@ -1038,10 +962,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             },
           ),
         ),
-        if (widget.onClosePane != null) ...[
-          const SizedBox(width: 8),
-          _buildClosePaneButton(),
-        ],
       ],
     );
   }

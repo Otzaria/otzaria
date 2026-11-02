@@ -319,7 +319,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byTooltip('פתח כרטסיית מפרשים'));
+    await tester.tap(find.byTooltip('פתח כרטיסיית מפרשים'));
     await tester.pump();
 
     expect(tabsBloc.recordedEvents, hasLength(1));
