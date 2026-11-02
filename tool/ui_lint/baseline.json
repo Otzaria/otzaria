@@ -36,10 +36,6 @@
       "lib/settings/panels/calendar_settings_panel.dart": [
         {"scope":"_IcsSubscriptionDialogState.build","fp":"bac7523a","n":1}
       ],
-      "lib/text_book/editing/widgets/text_section_editor_dialog.dart": [
-        {"scope":"_LinkInsertDialogState.build","fp":"293d6bf6","n":1},
-        {"scope":"_SearchDialogState.build","fp":"037ad386","n":1}
-      ],
       "lib/text_book/view/error_report_dialog.dart": [
         {"scope":"_TabbedReportDialogState.build","fp":"941a8a65","n":1}
       ],
@@ -78,9 +74,6 @@
       ],
       "lib/settings/view/settings_screen.dart": [
         {"scope":"_MySettingsScreenState._buildContent","fp":"b4d7a7c0","n":1}
-      ],
-      "lib/text_book/editing/widgets/text_section_editor_dialog.dart": [
-        {"scope":"_TextSectionEditorDialogState.build","fp":"9b18a108","n":1}
       ],
       "lib/text_book/view/commentary_list_base.dart": [
         {"scope":"CommentaryListBaseState._buildClosePaneButton","fp":"e013a9c9","n":1}
@@ -310,14 +303,6 @@
       ],
       "lib/tabs/view/pane_drag_handle.dart": [
         {"scope":"_PaneDragFeedback.build","fp":"a9c1e30c","n":1}
-      ],
-      "lib/text_book/editing/widgets/markdown_toolbar.dart": [
-        {"scope":"MarkdownToolbar.build","fp":"a7c1dfe6","n":1},
-        {"scope":"_ToolbarButton.build","fp":"a9c1e30c","n":1}
-      ],
-      "lib/text_book/editing/widgets/text_section_editor_dialog.dart": [
-        {"scope":"_SearchDialogState.build","fp":"a7c1dfe6","n":1},
-        {"scope":"_TextSectionEditorDialogState.build","fp":"abc1e632","n":3}
       ],
       "lib/text_book/view/page_shape/page_shape_screen.dart": [
         {"scope":"_CommentaryPaneState.build","fp":"a9c1e30c","n":1},

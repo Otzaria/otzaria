@@ -104,7 +104,6 @@ class BackupService {
     required bool includeNotes,
     required bool includeWorkspaces,
     required bool includeShamorZachor,
-    // [EDITING DISABLED] required bool includeUserOverrides,
     required bool includePlugins,
     bool isAutoBackup = false,
   }) async {
@@ -133,7 +132,6 @@ class BackupService {
           'notes': includeNotes,
           'workspaces': includeWorkspaces,
           'shamorZachor': includeShamorZachor,
-          // [EDITING DISABLED] 'userOverrides': includeUserOverrides,
           'plugins': includePlugins,
         },
       };
@@ -172,11 +170,6 @@ class BackupService {
       if (includeNotes) {
         backupData['notes'] = await _backupNotes();
       }
-
-      // [EDITING DISABLED]
-      // if (includeUserOverrides) {
-      //   backupData['user_overrides'] = await _backupUserOverrides();
-      // }
 
       // Backup plugins
       if (includePlugins) {
@@ -474,28 +467,6 @@ class BackupService {
 
     return result;
   }
-
-  // [EDITING DISABLED]
-  // /// Backup user overrides
-  // static Future<Map<String, dynamic>> _backupUserOverrides() async {
-  //   final overridesDir = Directory(await AppPaths.getUserOverridesRootPath());
-  //   if (!await overridesDir.exists()) return {};
-  //   final overridesData = <String, dynamic>{};
-  //   await for (final entity in overridesDir.list(recursive: true)) {
-  //     if (entity is File &&
-  //         (entity.path.endsWith('.md') ||
-  //             entity.path.endsWith('.tmp') ||
-  //             entity.path.endsWith('.recovery'))) {
-  //       final relativePath = p.relative(entity.path, from: overridesDir.path);
-  //       try {
-  //         overridesData[relativePath] = await entity.readAsString();
-  //       } catch (e) {
-  //         _logger.warning('Failed to backup override file $relativePath: $e');
-  //       }
-  //     }
-  //   }
-  //   return overridesData;
-  // }
 
   //גיבוי תוספים: גיבוי קבצים, תיקיית נתונים, הרשאות ונתוני DB
   // תוספי פיתוח (`development`) מדולגים, כיון שאינם קיימים במחשב היעד.
@@ -993,15 +964,6 @@ class BackupService {
         counts: counts,
       );
     }
-
-    // [EDITING DISABLED]
-    // final includeOverrides =
-    //     includes['userOverrides'] as bool? ?? includes['notes'] == true;
-    // if (includeOverrides && backupData.containsKey('user_overrides')) {
-    //   await _restoreUserOverrides(
-    //     backupData['user_overrides'] as Map<String, dynamic>,
-    //   );
-    // }
 
     // Restore workspaces
     if (includes['workspaces'] == true &&
@@ -1735,8 +1697,6 @@ class BackupService {
         Settings.getValue<bool>('key-backup-workspaces') ?? true;
     final includeShamorZachor =
         Settings.getValue<bool>('key-backup-shamor-zachor') ?? true;
-    // [EDITING DISABLED]
-    // final includeUserOverrides = Settings.getValue<bool>('key-backup-user-overrides') ?? true;
     final includePlugins =
         Settings.getValue<bool>('key-backup-plugins') ?? true;
 
@@ -1767,7 +1727,6 @@ class BackupService {
       includeNotes: includeNotes,
       includeWorkspaces: includeWorkspaces,
       includeShamorZachor: includeShamorZachor,
-      // [EDITING DISABLED] includeUserOverrides: includeUserOverrides,
       includePlugins: includePlugins,
       isAutoBackup: true,
     );

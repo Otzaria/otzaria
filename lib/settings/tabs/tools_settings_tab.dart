@@ -31,7 +31,6 @@ class ToolsSettingsTab extends StatelessWidget {
             GematriaSettingsTab(),
             SizedBox(height: 16),
             TikkunKorimSettingsTab(),
-            // [EDITING DISABLED] EditorSettingsTab(),
             SizedBox(height: 16),
           ],
         ),

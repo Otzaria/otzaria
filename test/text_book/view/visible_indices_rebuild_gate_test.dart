@@ -165,8 +165,6 @@ void main() {
 
       expect(state.showLeftPane, isTrue);
       expect(state.linksLoading, isTrue);
-      expect(state.hasDraft, isTrue);
-      expect(state.isEditorOpen, isTrue);
       expect(state.pinLeftPane, isTrue);
       expect(state.removePunctuation, isTrue);
       expect(state.isTanach, isTrue);
@@ -501,11 +499,6 @@ TextBookLoaded _loaded() => TextBookLoaded(
   linksLoading: true,
   pinpointHighlightIndex: 1,
   pinpointHighlightText: 'מודגש',
-  isEditorOpen: true,
-  editorIndex: 1,
-  editorSectionId: 'section',
-  editorText: 'עריכה',
-  hasDraft: true,
   hasLinksFile: true,
   highlightText: 'הדגשה',
   permanentHighlightLine: 2,

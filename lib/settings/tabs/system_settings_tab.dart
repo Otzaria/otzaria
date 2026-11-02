@@ -255,15 +255,6 @@ class SystemSettingsTab extends StatefulWidget {
       cardId: 'system.advanced',
       keywords: ['גיבוי', 'שמור וזכור', 'מעקב לימוד'],
     ),
-    // [EDITING DISABLED]
-    // SettingsSearchEntry(
-    //   id: 'system.advanced.backup.user_overrides',
-    //   title: 'גיבוי הגדרות מתקדמות',
-    //   subtitle: 'הגדרות נוספות שדרסת',
-    //   tab: SettingsTab.system,
-    //   cardId: 'system.advanced',
-    //   keywords: ['גיבוי', 'הגדרות מתקדמות', 'overrides'],
-    // ),
     SettingsSearchEntry(
       id: 'system.advanced.backup.create',
       title: 'צור גיבוי עכשיו',
@@ -352,7 +343,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   static const _keyBackupNotes = 'key-backup-notes';
   static const _keyBackupWorkspaces = 'key-backup-workspaces';
   static const _keyBackupShamorZachor = 'key-backup-shamor-zachor';
-  // [EDITING DISABLED] static const _keyBackupUserOverrides = 'key-backup-user-overrides';
   static const _keyBackupPlugins = 'key-backup-plugins';
   static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
 
@@ -824,7 +814,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         includeNotes: _shouldInclude(_keyBackupNotes),
         includeWorkspaces: _shouldInclude(_keyBackupWorkspaces),
         includeShamorZachor: _shouldInclude(_keyBackupShamorZachor),
-        // [EDITING DISABLED] includeUserOverrides: _shouldInclude(_keyBackupUserOverrides),
         includePlugins: _shouldInclude(_keyBackupPlugins),
       );
       if (!mounted) return;
@@ -1443,14 +1432,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 settingKey: _keyBackupShamorZachor,
                 onChanged: () => setState(() {}),
               ),
-              // [EDITING DISABLED]
-              // _BackupOptionTile(
-              //   icon: FluentIcons.document_edit_24_regular,
-              //   title: 'הגדרות מתקדמות',
-              //   subtitle: 'הגדרות נוספות שדרסת',
-              //   settingKey: _keyBackupUserOverrides,
-              //   onChanged: () => setState(() {}),
-              // ),
               _BackupOptionTile(
                 icon: FluentIcons.puzzle_piece_24_regular,
                 title: context.settingsText('תוספים'),

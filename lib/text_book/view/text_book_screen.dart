@@ -63,7 +63,6 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
-// [EDITING DISABLED] import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/models/books.dart';
@@ -83,10 +82,8 @@ import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
-// [EDITING DISABLED] import 'package:otzaria/text_book/editing/widgets/text_section_editor_dialog.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
-// [EDITING DISABLED] import 'package:otzaria/text_book/editing/helpers/editor_settings_helper.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -1199,13 +1196,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           // ה-listener ממשיך לרוץ על כל מצב; רק הבנייה מדלגת.
           buildWhen: shouldRebuildReader,
           listener: (context, state) {
-            // [EDITING DISABLED]
-            // if (state is TextBookLoaded &&
-            //     state.isEditorOpen &&
-            //     state.editorIndex != null) {
-            //   _openEditorDialog(context, state);
-            // }
-
             if (state is TextBookLoaded) {
               // איתור ה-PDF המלווה נדחה עד שהתוכן נטען, כדי שלא יחנוק את
               // שאילתת התוכן בעלייה (ראו _resolveCompanionPdf).
@@ -1867,16 +1857,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ),
         ),
 
-      // [EDITING DISABLED]
-      // // 5) ערוך את הספר - לא בתצוגה משולבת
-      // if (!widget.isInCombinedView)
-      //   ActionButtonData(
-      //     widget: _buildFullFileEditorButton(context, state),
-      //     icon: FluentIcons.document_edit_24_regular,
-      //     tooltip: 'ערוך את הספר',
-      //     onPressed: () => _handleFullFileEditorPress(context, state),
-      //   ),
-
       // העתק קישור ישיר לספר זה (קישור למקטע/הדגשה זמין בתפריט הלחיצה הימנית)
       (
         45,
@@ -1958,13 +1938,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   tooltip: 'אפס הגדרות ספר זה',
                   onPressed: () => _resetPerBookSettings(),
                 ),
-              // [EDITING DISABLED]
-              // ActionButtonData(
-              //   widget: const SizedBox.shrink(),
-              //   icon: FluentIcons.document_edit_24_regular,
-              //   tooltip: 'ערוך את הספר',
-              //   onPressed: () => _handleFullFileEditorPress(context, state),
-              // ),
               ActionButtonData(
                 widget: const SizedBox.shrink(),
                 icon: FluentIcons.print_24_regular,
@@ -3030,9 +3003,6 @@ bool _handleGlobalKeyEvent(
   int? selectedColumnForNote,
 }) {
   // קריאת קיצורים מההגדרות
-  // [EDITING DISABLED]
-  // final editSectionShortcut =
-  //     Settings.getValue<String>('key-shortcut-edit-section') ?? 'ctrl+e';
   final searchInBookShortcut =
       ShortcutValidator.getShortcutValue(
         ShortcutValidator.currentWindowSearchKey,
@@ -3069,19 +3039,6 @@ bool _handleGlobalKeyEvent(
         ShortcutValidator.copyTextMarkLinkKey,
       ) ??
       '';
-
-  // [EDITING DISABLED]
-  // // עריכת קטע
-  // if (ShortcutHelper.matchesShortcut(event, editSectionShortcut)) {
-  //   if (!state.isEditorOpen) {
-  //     if (HardwareKeyboard.instance.isShiftPressed) {
-  //       _handleFullFileEditorPress(context, state);
-  //     } else {
-  //       _handleTextEditorPress(context, state);
-  //     }
-  //     return true;
-  //   }
-  // }
 
   // חיפוש בספר
   if (ShortcutHelper.matchesShortcut(event, searchInBookShortcut)) {
@@ -3596,57 +3553,6 @@ Future<void> _addNoteFromKeyboard(
 
   openNotesForCurrentView();
 }
-
-// [EDITING DISABLED]
-// void _openEditorDialog(BuildContext context, TextBookLoaded state) async {
-//   if (state.editorIndex == null || state.editorSectionId == null) return;
-//
-//   final settings = EditorSettingsHelper.getSettings();
-//
-//   // Reload the content from file system to ensure fresh data
-//   String freshContent = '';
-//   try {
-//     // Try to reload content from file system
-//     final dataProvider = FileSystemData.instance;
-//     freshContent = await dataProvider.getBookText(
-//       state.book.title,
-//       categoryId: state.book.categoryId,
-//       fileType: state.book.fileType,
-//     );
-//   } catch (e) {
-//     debugPrint('Failed to load fresh content: $e');
-//     // Fall back to cached content
-//     freshContent = state.editorText ?? '';
-//   }
-//
-//   if (!context.mounted) return;
-//
-//   await showDialog(
-//     context: context,
-//     barrierDismissible: false,
-//     builder: (dialogContext) => BlocProvider.value(
-//       value: context.read<TextBookBloc>(),
-//       child: TextSectionEditorDialog(
-//         bookId: state.book.title,
-//         category: state.book.categoryPath,
-//         categoryId: state.book.categoryId,
-//         fileType: state.book.fileType,
-//         sectionIndex: state.editorIndex!,
-//         sectionId: state.editorSectionId!,
-//         initialContent:
-//             freshContent.isNotEmpty ? freshContent : state.editorText ?? '',
-//         hasLinksFile: state.hasLinksFile,
-//         hasDraft: state.hasDraft,
-//         settings: settings,
-//       ),
-//     ),
-//   );
-//
-//   if (!context.mounted) return;
-//
-//   // Close editor when dialog is dismissed
-//   context.read<TextBookBloc>().add(const CloseEditor());
-// }
 
 void _togglePdfView(
   BuildContext context,

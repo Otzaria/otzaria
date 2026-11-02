@@ -4,7 +4,6 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/text_book/editing/services/preview_renderer.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
@@ -296,52 +295,6 @@ void main() {
         return true;
       });
       expect(foundBold, isTrue);
-    });
-  });
-
-  group('PreviewRenderer — תצוגה מקדימה בעורך', () {
-    Widget buildPreview(String markdown, String font) {
-      return _wrap(
-        PreviewRenderer().renderPreview(
-          markdown: markdown,
-          textStyle: TextStyle(fontSize: 18, fontFamily: font),
-          fontFamily: font,
-        ),
-      );
-    }
-
-    testWidgets('כל רמות הכותרת בפרנק-רוהל אינן מודגשות — תואם לספר', (
-      tester,
-    ) async {
-      for (final tag in AppFonts.headingTags) {
-        await tester.pumpWidget(
-          buildPreview('<$tag>דף ה.</$tag>', 'FrankRuhlCLM'),
-        );
-        await tester.pumpAndSettle();
-        expect(
-          _findHeading(tester, 'דף ה.').text.style?.fontWeight,
-          FontWeight.w400,
-          reason: tag,
-        );
-      }
-    });
-
-    testWidgets('כותרת בגופן ללא face נפרד נשארת מודגשת', (tester) async {
-      await tester.pumpWidget(buildPreview('<h1>דף ה.</h1>', 'TaameyDavidCLM'));
-      await tester.pumpAndSettle();
-      expect(
-        _findHeading(tester, 'דף ה.').text.style?.fontWeight,
-        FontWeight.bold,
-      );
-    });
-
-    testWidgets('גודל הכותרת נשמר גם כשההדגשה יורדת', (tester) async {
-      await tester.pumpWidget(buildPreview('<h1>דף ה.</h1>', 'FrankRuhlCLM'));
-      await tester.pumpAndSettle();
-      expect(
-        _findHeading(tester, 'דף ה.').text.style?.fontSize,
-        greaterThan(18),
-      );
     });
   });
 
