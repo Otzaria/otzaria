@@ -187,7 +187,7 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
                   ],
                 ),
               ),
-              ActionButton.ghost(
+              ActionButton.neutral(
                 text: context.settingsText('סגור'),
                 onPressed: () => Navigator.of(context).pop(),
               ),

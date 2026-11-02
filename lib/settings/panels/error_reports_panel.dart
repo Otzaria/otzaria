@@ -253,6 +253,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('לסמן כנשלח?'),
+      icon: FluentIcons.mail_checkmark_24_regular,
       content: context.settingsText(
         'הדיווח יעבור להיסטוריית הדיווחים שנשלחו ויוסר מהתור, ללא שליחה לשרת. '
         'השתמשו בכך אם כבר שלחתם את הדיווח בדרך אחרת.',

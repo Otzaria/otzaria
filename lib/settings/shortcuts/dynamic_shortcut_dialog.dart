@@ -60,7 +60,7 @@ class _DynamicShortcutDialog extends StatelessWidget {
       icon: FluentIcons.flash_24_regular,
       size: AppDialogSize.large,
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: t('ביטול'),
           onPressed: () => Navigator.of(context).pop(false),
         ),

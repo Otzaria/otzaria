@@ -371,7 +371,7 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                 ),
               ),
               const Spacer(),
-              ActionButton.ghost(
+              ActionButton.neutral(
                 text: context.settingsText('ביטול'),
                 onPressed: () => Navigator.of(context).pop(),
               ),

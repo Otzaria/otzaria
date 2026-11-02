@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -21,6 +22,31 @@ Future<T> runWithBlockingProgress<T>({
   VoidCallback? onCancel,
   String? cancelText,
 }) async {
+  final close = showBlockingProgress(
+    context: context,
+    title: title,
+    message: message,
+    icon: icon,
+    onCancel: onCancel,
+    cancelText: cancelText,
+  );
+  try {
+    return await task();
+  } finally {
+    close();
+  }
+}
+
+/// הדיאלוג של [runWithBlockingProgress], לזרימה שיש בה כמה נקודות יציאה.
+/// מחזיר פונקציה שסוגרת אותו; קריאה נוספת לא עושה דבר.
+VoidCallback showBlockingProgress({
+  required BuildContext context,
+  required String title,
+  String? message,
+  IconData icon = AppDialogIcons.progress,
+  VoidCallback? onCancel,
+  String? cancelText,
+}) {
   final navigator = Navigator.of(context, rootNavigator: true);
   final direction = Directionality.of(context);
   final route = DialogRoute<void>(
@@ -29,7 +55,7 @@ Future<T> runWithBlockingProgress<T>({
     barrierColor:
         DialogTheme.of(context).barrierColor ??
         Theme.of(context).dialogTheme.barrierColor ??
-        Colors.black54,
+        AppSurfaces.scrim(Theme.of(context).colorScheme),
     themes: InheritedTheme.capture(from: context, to: navigator.context),
     traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
     builder: (_) => Directionality(
@@ -44,11 +70,9 @@ Future<T> runWithBlockingProgress<T>({
     ),
   );
   navigator.push(route);
-  try {
-    return await task();
-  } finally {
+  return () {
     if (route.isActive) route.navigator?.removeRoute(route);
-  }
+  };
 }
 
 class _BlockingProgressDialog extends StatelessWidget {

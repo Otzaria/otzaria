@@ -138,6 +138,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('ייבוא תיקייה'),
+      icon: FluentIcons.arrow_import_24_regular,
       content: context.settingsText(
         'נמצאו {count} קבצי ספרים ({size}). להעתיק אותם לספרייה?',
         args: {

@@ -17,16 +17,6 @@
       "lib/personal_notes/widgets/personal_note_editor_dialog.dart": [
         {"scope":"_PersonalNoteEditorDialogState.build","fp":"26be3ad9","n":1}
       ],
-      "lib/settings/dialogs/change_location_dialog.dart": [
-        {"scope":"_showBlockingProgress","fp":"27aa4a2d","n":1}
-      ],
-      "lib/settings/dialogs/safer_mode_password_dialog.dart": [
-        {"scope":"_SaferModePasswordDialogState.build","fp":"27aa4a2d","n":1},
-        {"scope":"_SaferModeSetPasswordDialogState.build","fp":"27aa4a2d","n":1}
-      ],
-      "lib/settings/panels/calendar_settings_panel.dart": [
-        {"scope":"_IcsSubscriptionDialogState.build","fp":"27aa4a2d","n":1}
-      ],
       "lib/text_book/view/error_report_dialog.dart": [
         {"scope":"_TabbedReportDialogState.build","fp":"26be3ad9","n":1}
       ],

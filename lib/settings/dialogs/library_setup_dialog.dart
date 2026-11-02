@@ -650,7 +650,7 @@ class _LibrarySetupDialogContentState
           actions: working
               ? [
                   if (state is EmptyLibraryExtracting && state.cancellable)
-                    ActionButton.ghost(
+                    ActionButton.neutral(
                       text: context.settingsText('ביטול'),
                       onPressed: () => context.read<EmptyLibraryBloc>().add(
                         CancelLibraryImportRequested(),
@@ -658,7 +658,7 @@ class _LibrarySetupDialogContentState
                     ),
                 ]
               : [
-                  ActionButton.ghost(
+                  ActionButton.neutral(
                     text: context.settingsText('ביטול'),
                     onPressed: () => Navigator.of(context).pop(false),
                   ),

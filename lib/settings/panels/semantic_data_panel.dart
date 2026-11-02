@@ -210,7 +210,7 @@ class _SemanticDataCard extends StatelessWidget {
         ),
       ],
       SemanticAvailabilityPhase.downloading => [
-        ActionButton.ghost(
+        ActionButton.neutral(
           key: const ValueKey('semantic-data-cancel'),
           text: context.settingsText('ביטול'),
           onPressed: () => bloc.add(const SemanticDownloadCancelRequested()),

@@ -14,6 +14,9 @@ class ConfirmationDialog extends StatelessWidget {
   final String? confirmText;
   final bool isDangerous;
 
+  /// תג האייקון: מה מאשרים. null = אייקון המשפחה.
+  final IconData? icon;
+
   const ConfirmationDialog({
     super.key,
     required this.title,
@@ -21,6 +24,7 @@ class ConfirmationDialog extends StatelessWidget {
     this.cancelText,
     this.confirmText,
     this.isDangerous = false,
+    this.icon,
   });
 
   @override
@@ -30,12 +34,14 @@ class ConfirmationDialog extends StatelessWidget {
           content: content,
           cancelText: cancelText,
           confirmText: confirmText ?? context.settingsText('אישור'),
+          icon: icon,
         )
       : AppDialog.twoActions(
           title: title,
           content: content,
           cancelText: cancelText,
           confirmText: confirmText,
+          icon: icon,
         );
 }
 
@@ -47,6 +53,7 @@ Future<bool?> showConfirmationDialog({
   String? confirmText,
   bool isDangerous = false,
   bool barrierDismissible = true,
+  IconData? icon,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -59,6 +66,7 @@ Future<bool?> showConfirmationDialog({
       cancelText: cancelText,
       confirmText: confirmText,
       isDangerous: isDangerous,
+      icon: icon,
     ),
   ),
 );
