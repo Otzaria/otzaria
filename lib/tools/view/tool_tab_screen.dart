@@ -22,7 +22,7 @@ import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_page_factory.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/misc/exit_fullscreen_button.dart';
 
 /// האם למקד את צומת התוכן של טאב כלי.
@@ -303,10 +303,10 @@ class ToolTabScreenState extends State<ToolTabScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Expanded(
-          child: ToolEmptyState(
+          child: OtzariaEmptyState(
             icon: FluentIcons.plug_disconnected_24_regular,
-            message: message,
-            subtitle: subtitle,
+            title: message,
+            message: subtitle,
           ),
         ),
         Padding(

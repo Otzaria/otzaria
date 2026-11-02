@@ -74,7 +74,7 @@ test/design_system/
 
 | ID | כלל | זיהוי | החרגות מובנות (config) | baseline משוער | שלב |
 |---|---|---|---|---|---|
-| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog` מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**`, ‏`lib/settings/dialogs/list_dialog_frame.dart` (עד MIG-26) | ~27 | 1 |
+| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog` מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**` | ~27 | 1 |
 | UIL-002 | אין `TextButton`/`FilledButton`/`OutlinedButton`/`ElevatedButton` מחוץ ל־`lib/widgets/controls/` | ctor (כולל `.icon`/`.tonal`) | `lib/widgets/controls/**`, ‏`lib/widgets/misc/app_dropdown_field.dart` | ~26 | 1 |
 | UIL-003 | לכל `IconButton` יש `tooltip:` | ctor + named arg | `IconButton.styleFrom` (לא בנאי) | ~40 | 1 |
 | UIL-004 | אין `Theme.of(…).primaryColor` / `theme.primaryColor` | PropertyAccess | — | 5 | 1 |

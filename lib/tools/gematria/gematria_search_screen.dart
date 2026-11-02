@@ -17,7 +17,6 @@ import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -461,16 +460,16 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
     }
 
     if (_searchResults.isEmpty && _hasSearched) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_in_numbered_list_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 
     if (_searchResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.calculator_24_regular,
-        message: 'הזן ערך לחיפוש גימטריה',
+        title: 'הזן ערך לחיפוש גימטריה',
       );
     }
 

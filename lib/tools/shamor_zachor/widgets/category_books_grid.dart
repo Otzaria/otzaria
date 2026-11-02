@@ -10,7 +10,7 @@ import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../models/book_model.dart';
 import 'book_card_widget.dart'; // Using the rich card
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 
 class CategoryBooksGrid extends StatefulWidget {
   final String? categoryName;
@@ -61,9 +61,9 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     if (widget.category == null &&
         widget.searchResults == null &&
         widget.categoryName != 'custom_books_virtual') {
-      return ToolEmptyState(
+      return OtzariaEmptyState(
         icon: FluentIcons.library_24_regular,
-        message: 'בחר קטגוריה כדי לצפות בספרים',
+        title: 'בחר קטגוריה כדי לצפות בספרים',
       );
     }
 
@@ -249,22 +249,22 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   Widget _buildEmptyState() {
     switch (widget.selectedFilter) {
       case 'in_progress':
-        return const ToolEmptyState(
+        return const OtzariaEmptyState(
           icon: FluentIcons.hourglass_24_regular,
-          message: 'אין ספרים בתהליך',
-          subtitle:
+          title: 'אין ספרים בתהליך',
+          message:
               'ניתן להוסיף ספרים למעקב באמצעות לחצן ההוספה (+) שליד הסינון, '
               'והם יופיעו כאן.',
         );
       case 'completed':
-        return const ToolEmptyState(
+        return const OtzariaEmptyState(
           icon: FluentIcons.checkmark_circle_24_regular,
-          message: 'אין ספרים שהושלמו',
+          title: 'אין ספרים שהושלמו',
         );
       default:
-        return const ToolEmptyState(
+        return const OtzariaEmptyState(
           icon: OtzariaIcons.book_24_regular,
-          message: 'אין ספרים להצגה',
+          title: 'אין ספרים להצגה',
         );
     }
   }

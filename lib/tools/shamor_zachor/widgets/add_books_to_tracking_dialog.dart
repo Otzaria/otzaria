@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -426,9 +426,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     )..sort((a, b) => a.title.compareTo(b.title));
 
     if (matches.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_in_library_24_regular,
-        message: 'לא נמצאו ספרים תואמים',
+        title: 'לא נמצאו ספרים תואמים',
       );
     }
 

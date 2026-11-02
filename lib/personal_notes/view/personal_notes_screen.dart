@@ -36,7 +36,6 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -1174,9 +1173,9 @@ class _PersonalNotesManagerScreenState
       ..sort((a, b) => _sortOrder.compare(a.note, b.note));
 
     if (displayNotes.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.note_24_regular,
-        message: 'אין הערות להצגה',
+        title: 'אין הערות להצגה',
       );
     }
 

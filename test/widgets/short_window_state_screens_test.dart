@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/library/view/library_empty_state_widget.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 // מסכי מצב (ריק/שגיאה/הגדרה) נחתכים בחלון נמוך — טלפון לרוחב, מסך מפוצל,
@@ -151,12 +150,12 @@ void main() {
     });
   });
 
-  group('ToolEmptyState', () {
+  group('OtzariaEmptyState (כלים)', () {
     const sizes = [Size(640, 200), Size(800, 180)];
-    ToolEmptyState build() => const ToolEmptyState(
+    OtzariaEmptyState build() => const OtzariaEmptyState(
       icon: OtzariaIcons.search_24_regular,
-      message: 'לא נמצאו תוצאות עבור החיפוש שהוזן',
-      subtitle: 'ניתן לנסות ניסוח אחר או להרחיב את טווח החיפוש',
+      title: 'לא נמצאו תוצאות עבור החיפוש שהוזן',
+      message: 'ניתן לנסות ניסוח אחר או להרחיב את טווח החיפוש',
     );
 
     _reachableIn(
@@ -165,15 +164,15 @@ void main() {
       build,
       () => find.text('ניתן לנסות ניסוח אחר או להרחיב את טווח החיפוש'),
     );
-    _notScrollableWhenRoomy('ToolEmptyState', build);
+    _notScrollableWhenRoomy('OtzariaEmptyState (כלים)', build);
 
     testWidgets('בלי תת-כותרת ההודעה עדיין נגישה בחלון נמוך', (tester) async {
       final overflows = await _pumpAt(
         tester,
         const Size(640, 180),
-        const ToolEmptyState(
+        const OtzariaEmptyState(
           icon: OtzariaIcons.search_24_regular,
-          message: 'לא נמצאו תוצאות עבור החיפוש שהוזן',
+          title: 'לא נמצאו תוצאות עבור החיפוש שהוזן',
         ),
       );
       expect(overflows, isEmpty);

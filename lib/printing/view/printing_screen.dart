@@ -2253,7 +2253,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
           ),
           if (_includeCommentaries &&
               widget.availableCommentators?.isNotEmpty == true)
-            FilterChipsWidget<String>(
+            FilterChipsSelector<String>(
               items: widget.availableCommentators!,
               selectedItems: _selectedCommentators,
               labelBuilder: (name) => name,

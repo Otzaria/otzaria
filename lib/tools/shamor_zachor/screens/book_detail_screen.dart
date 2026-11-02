@@ -21,7 +21,7 @@ import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 
@@ -221,10 +221,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             _logger.warning(
               'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}',
             );
-            return ToolEmptyState(
+            return OtzariaEmptyState(
               icon: OtzariaIcons.book_24_regular,
-              message: 'פרטי הספר "${widget.bookName}" לא נמצאו',
-              subtitle: 'קטגוריה: ${widget.topLevelCategoryKey}',
+              title: 'פרטי הספר "${widget.bookName}" לא נמצאו',
+              message: 'קטגוריה: ${widget.topLevelCategoryKey}',
             );
           }
 
@@ -255,9 +255,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     final learnableItems = bookDetails.learnableItems;
 
     if (learnableItems.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.book_24_regular,
-        message: 'אין פריטים ללימוד בספר זה',
+        title: 'אין פריטים ללימוד בספר זה',
       );
     }
 

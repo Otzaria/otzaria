@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
@@ -142,9 +142,9 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                 }
                 final versions = snapshot.data ?? const [];
                 if (versions.isEmpty) {
-                  return const ToolEmptyState(
+                  return const OtzariaEmptyState(
                     icon: OtzariaIcons.books_stacked_high_24_regular,
-                    message: 'לא נמצא מידע על גרסאות לספר זה.',
+                    title: 'לא נמצא מידע על גרסאות לספר זה.',
                   );
                 }
                 final book = widget.book;
@@ -161,9 +161,9 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                         book is TextBook ? book.versionTitle : null,
                       );
                 if (selectable.isEmpty) {
-                  return const ToolEmptyState(
+                  return const OtzariaEmptyState(
                     icon: OtzariaIcons.books_stacked_high_24_regular,
-                    message: 'אין נוסחאות נוספות מלבד הנוסח הפתוח.',
+                    title: 'אין נוסחאות נוספות מלבד הנוסח הפתוח.',
                   );
                 }
                 return AppCard(

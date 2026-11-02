@@ -474,7 +474,7 @@
 | טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | עוד כ־70 `CircularProgressIndicator` גולמיים |
 | טעינה, inline | `LoadingIndicator.inline` (‏16px, ‏stroke 2) | עוד כ־10 עותקים מקומיים |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו, `FractionallySizedBox`) | |
-| ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | `ToolEmptyState` הוא כינוי ישן, להחליף |
+| ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
 | ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | |
 | שגיאה | `OtzariaErrorState(actions: [נסה שוב])` | לא `Text` אדום |
 | הצלחה / הודעה קצרה | `UiSnack.show(<Module>Messages.x)` (למשל `SettingsMessages`) | מחרוזות מקטלוג בלבד (נאכף) |
