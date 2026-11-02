@@ -1976,6 +1976,131 @@ void main() {
     );
 
     test(
+      'buildLibraryCatalog: הנושאים הם נתיב הקטגוריה, ושם עם פסיק או רווח בקצה מנורמל',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_db_category_topics',
+        );
+        final dbPath = path.join(
+          tempDir.path,
+          DatabaseConstants.databaseFileName,
+        );
+        final database = MyDatabase.withPath(dbPath);
+        final repository = SeforimRepository(database);
+        final provider = DatabaseLibraryProvider.instance;
+        final previousLibraryPath = Settings.getValue<String>(
+          SettingsRepository.keyLibraryPath,
+        );
+        final previousFolderName = Settings.getValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+        );
+        final previousEffectiveDbPath = Settings.getValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+        );
+
+        try {
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          await repository.ensureInitialized();
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            tempDir.path,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            '',
+          );
+
+          final sourceId = await repository.insertSource('local-test', -10);
+          Future<int> category(String title, {int? parentId}) =>
+              repository.insertCategory(
+                migration_models.Category(
+                  title: title,
+                  parentId: parentId,
+                  level: parentId == null ? 0 : 1,
+                ),
+              );
+          final torahId = await category(
+            'תורה',
+            parentId: await category('תנ"ך'),
+          );
+          final responsaId = await category('שו"ת,חלק ב');
+          final poskimId = await category(
+            'פוסקים ',
+            parentId: await category('הלכה'),
+          );
+          final musarId = await category(
+            '\u00a0ספרי מוסר',
+            parentId: await category('מוסר'),
+          );
+          final titleByCategory = {
+            torahId: 'בראשית',
+            responsaId: 'ספר תשובות',
+            poskimId: 'ספר פסקים',
+            musarId: 'מסילת ישרים',
+          };
+          var bookId = 0;
+          for (final MapEntry(key: categoryId, value: title)
+              in titleByCategory.entries) {
+            bookId++;
+            await repository.insertBook(
+              migration_models.Book(
+                id: bookId,
+                categoryId: categoryId,
+                sourceId: sourceId,
+                title: title,
+                filePath: path.join(tempDir.path, 'book_$bookId.txt'),
+                fileType: 'txt',
+              ),
+            );
+          }
+
+          await provider.initialize();
+          final library = await provider.buildLibraryCatalog({}, tempDir.path);
+          final books = {
+            for (final book in library.getAllBooks())
+              if (book.source.isOfficial) book.title: book,
+          };
+
+          const expected = {
+            'בראשית': (path: 'תנ"ך, תורה', topics: 'תנ"ך, תורה'),
+            'ספר תשובות': (path: 'שו"ת,חלק ב', topics: 'שו"ת, חלק ב'),
+            'ספר פסקים': (path: 'הלכה, פוסקים ', topics: 'הלכה, פוסקים'),
+            'מסילת ישרים': (
+              path: 'מוסר, \u00a0ספרי מוסר',
+              topics: 'מוסר, ספרי מוסר',
+            ),
+          };
+          for (final MapEntry(key: title, value: want) in expected.entries) {
+            expect(books[title]?.categoryPath, want.path, reason: title);
+            expect(books[title]?.topics, want.topics, reason: title);
+          }
+        } finally {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            previousLibraryPath ?? '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            previousFolderName ?? '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            previousEffectiveDbPath ?? '',
+          );
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          database.close();
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
+
+    test(
       'getLinkContent של קישור מוטמע בטקסט ("<כותרת>.txt" בלי תיקייה) מוצא את '
       'הספר הרשמי (issue #1997)',
       () async {
