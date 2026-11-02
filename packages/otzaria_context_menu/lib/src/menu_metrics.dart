@@ -27,12 +27,13 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     required this.itemFontWeight,
   });
 
+  /// במצב קומפקטי: הפרש ה-dense של M3 (גובה פחות 8, ריפוד 8 במקום 12).
   factory AppMenuMetrics.create({required bool compactMenus}) {
     return AppMenuMetrics(
       compactMenus: compactMenus,
-      itemHeight: 36,
-      itemPadding: const EdgeInsets.symmetric(
-        horizontal: 12,
+      itemHeight: compactMenus ? 28 : 36,
+      itemPadding: EdgeInsets.symmetric(
+        horizontal: compactMenus ? 8 : 12,
         vertical: 0,
       ),
       menuPadding: const EdgeInsets.symmetric(vertical: 8),
