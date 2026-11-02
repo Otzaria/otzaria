@@ -103,6 +103,66 @@ void main() {
     },
   );
 
+  testWidgets(
+    'בתפריט ה-"..." קישור בלי תג בגודל של שאר השורות, ואייקוני התת-תפריט מוגדלים (issue #3707)',
+    (tester) async {
+      ActionButtonData action(
+        IconData icon,
+        String tooltip, {
+        List<ActionButtonData>? submenuItems,
+      }) => ActionButtonData(
+        actionId: ToolbarActionId.plugin,
+        widget: const SizedBox.shrink(),
+        icon: icon,
+        tooltip: tooltip,
+        onPressed: submenuItems == null ? () {} : null,
+        submenuItems: submenuItems,
+      );
+
+      // כמו "הדפס" ו"העתק קישור ישיר" בסרגל של ספר PDF.
+      await tester.pumpWidget(
+        withSettings(
+          MaterialApp(
+            home: Scaffold(
+              appBar: AppBar(
+                actions: [
+                  ResponsiveActionBar(
+                    actions: const [],
+                    alwaysInMenu: [
+                      action(FluentIcons.print_24_regular, 'הדפס'),
+                      action(
+                        OtzariaIcons.link_24_regular,
+                        'העתק קישור ישיר',
+                        submenuItems: [
+                          action(OtzariaIcons.link_book_24_regular, 'לספר'),
+                          action(
+                            OtzariaIcons.link_document_24_regular,
+                            'לעמוד',
+                          ),
+                        ],
+                      ),
+                    ],
+                    maxVisibleButtons: 0,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('העתק קישור ישיר'));
+      await tester.pumpAndSettle();
+
+      Size sizeOf(IconData icon) => tester.getSize(find.byIcon(icon));
+      expect(sizeOf(FluentIcons.print_24_regular), const Size(18, 18));
+      expect(sizeOf(OtzariaIcons.link_24_regular), const Size(18, 18));
+      expect(sizeOf(OtzariaIcons.link_book_24_regular), const Size(24, 24));
+      expect(sizeOf(OtzariaIcons.link_document_24_regular), const Size(24, 24));
+    },
+  );
+
   group('menuHeaderActions — שורת ניווט בראש תפריט ה-"..."', () {
     const overflowIcon = FluentIcons.more_vertical_24_regular;
 
