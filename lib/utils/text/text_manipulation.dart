@@ -450,8 +450,64 @@ int? _trailingAllowedPunctuation(String s) {
   return c == 0x2E || c == 0x3A ? i : null;
 }
 
+/// `!:;.,?-—–` — הפיסוק ש-[removePunctuation] מסיר, בלי הגרשיים.
+bool isRemovablePunctuationUnit(int c) =>
+    c == 0x21 ||
+    c == 0x3A ||
+    c == 0x3B ||
+    c == 0x2E ||
+    c == 0x2C ||
+    c == 0x3F ||
+    c == 0x2D ||
+    c == 0x2014 ||
+    c == 0x2013;
+
+bool _isWordLetterUnit(int c) =>
+    (c >= 0x05D0 && c <= 0x05F2) ||
+    (c >= 0x30 && c <= 0x39) ||
+    (c >= 0x61 && c <= 0x7A) ||
+    (c >= 0x41 && c <= 0x5A);
+
+/// האם פיסוק שהוסר בין [before] ל-[after] (התווים הגלויים שמשני צדיו) מפריד
+/// בין מילים — אז הוא מוצג כרווח, אחרת "אסירי-חשק" נדבק ל"אסיריחשק".
+/// המיפוי של בחירה למקור (html_slice, עיגון הערות) חייב להכריע באותו כלל.
+bool punctuationSeparatesWords(int before, int after) =>
+    (_isWordLetterUnit(after) || after == 0x28 || after == 0x5B) &&
+    (_isWordLetterUnit(before) ||
+        (before >= 0x0591 && before <= 0x05C7 && !_isSpacingMark(before)) ||
+        before == 0x27 ||
+        before == 0x05F3 ||
+        before == 0x29 ||
+        before == 0x5D);
+
+bool _isSpacingMark(int c) =>
+    c == 0x05BE || c == 0x05C0 || c == 0x05C3 || c == 0x05C6;
+
+/// התו הגלוי הראשון מ-[from] והלאה, בדילוג על תגים ועל פיסוק שמוסר; 0 בסוף.
+int _nextVisibleUnit(String s, int from) {
+  for (var i = from; i < s.length; i++) {
+    final c = s.codeUnitAt(i);
+    if (isRemovablePunctuationUnit(c)) continue;
+    if (c == 0x3C) {
+      final close = s.indexOf('>', i);
+      if (close < 0) return 0;
+      i = close;
+      continue;
+    }
+    if (c == 0x26) {
+      final entity = _htmlEntity.matchAsPrefix(s, i);
+      if (entity != null) {
+        final decoded = decodeHtmlEntities(entity.group(0)!);
+        return decoded.isEmpty ? 0 : decoded.codeUnitAt(0);
+      }
+    }
+    return c;
+  }
+  return 0;
+}
+
 /// הסרת סימני פיסוק מטקסט
-/// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע
+/// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע; פיסוק שבין שתי מילים הופך לרווח
 /// מסיר " ״ אלא כשזה ראשי תיבות (אות אחת אחרי הגרשיים עד גבול מילה)
 /// מסיר מעבר שורה אם אין . או : בסוף השורה המקורית
 String removePunctuation(String text) {
@@ -495,6 +551,7 @@ String removePunctuation(String text) {
     final buffer = StringBuffer();
     var parenDepth = 0;
     var inTag = false;
+    var previous = 0; // התו הגלוי האחרון שנכתב
     // יחידות קוד ולא processed[i]: אחרת כל תו מקצה מחרוזת חדשה.
     for (var i = 0; i < processed.length; i++) {
       final ch = processed.codeUnitAt(i);
@@ -517,6 +574,10 @@ String removePunctuation(String text) {
       if (ch == 0x26) {
         final entity = _htmlEntity.matchAsPrefix(processed, i);
         if (entity != null) {
+          final decoded = decodeHtmlEntities(entity.group(0)!);
+          if (decoded.isNotEmpty) {
+            previous = decoded.codeUnitAt(decoded.length - 1);
+          }
           buffer.write(entity.group(0));
           i = entity.end - 1;
           continue;
@@ -527,6 +588,7 @@ String removePunctuation(String text) {
         // (
         parenDepth++;
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
@@ -536,35 +598,34 @@ String removePunctuation(String text) {
           parenDepth--;
         }
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
       final isAllowedAtEnd = ch == 0x2E || ch == 0x3A; // . :
-      final isPunctuation =
-          isAllowedAtEnd ||
-          ch == 0x21 || // !
-          ch == 0x3B || // ;
-          ch == 0x2C || // ,
-          ch == 0x3F || // ?
-          ch == 0x2D || // -
-          ch == 0x2014 || // —
-          ch == 0x2013; // –
 
-      if (parenDepth > 0 && isAllowedAtEnd) {
+      if ((parenDepth > 0 && isAllowedAtEnd) ||
+          (isAllowedAtEnd &&
+              lastAllowedPunctuationIndex != null &&
+              i >= lastAllowedPunctuationIndex)) {
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
-      if (isPunctuation) {
-        if (lastAllowedPunctuationIndex != null &&
-            i >= lastAllowedPunctuationIndex &&
-            isAllowedAtEnd) {
-          buffer.writeCharCode(ch);
+      if (isRemovablePunctuationUnit(ch)) {
+        if (punctuationSeparatesWords(
+          previous,
+          _nextVisibleUnit(processed, i + 1),
+        )) {
+          buffer.writeCharCode(0x20);
+          previous = 0x20;
         }
         continue;
       }
 
       buffer.writeCharCode(ch);
+      previous = ch;
     }
     processed = buffer.toString();
 

@@ -9,7 +9,7 @@ void main() {
   group('גרשיים בהסרת פיסוק', () {
     const cases = <String, String>{
       '<b>ברמב</b>"<b>ן</b>': '<b>ברמב</b>"<b>ן</b>',
-      'רש"י,ובגמ\'': 'רש"יובגמ\'',
+      'רש"י,ובגמ\'': 'רש"י ובגמ\'',
       'ב"<b>כ</b><i>י</i> יותן': 'ב<b>כ</b><i>י</i> יותן',
       'ב"<b>כִּ</b><i>י</i> יותן': 'ב<b>כִּ</b><i>י</i> יותן',
       'א</p>"<p>ב': 'א</p><p>ב',
@@ -21,7 +21,7 @@ void main() {
       'א"<BR />ב': 'א ב',
       'א"ב<br>ג': 'א"ב ג',
       'א<small>ַ</small>"<b>בּ</b>': 'א<small>ַ</small>"<b>בּ</b>',
-      'א!<b>ַ</b>"<i>ּ</i>,ב': 'א<b>ַ</b>"<i>ּ</i>ב',
+      'א!<b>ַ</b>"<i>ּ</i>,ב': 'א<b>ַ</b>"<i>ּ</i> ב',
       'א"ב־ג': 'א"ב־ג',
       'א־"ב': 'א־ב',
       'א"ב׀ג': 'א"ב׀ג',
@@ -63,7 +63,7 @@ void main() {
       test('פיסוק $punctuation צמוד לגרשיים ואחרי ראשי התיבות', () {
         expect(removePunctuation('א$punctuation"ב'), 'א"ב');
         expect(removePunctuation('א"$punctuationב'), 'א"ב');
-        expect(removePunctuation('א"ב$punctuationגד'), 'א"בגד');
+        expect(removePunctuation('א"ב$punctuationגד'), 'א"ב גד');
       });
     }
 

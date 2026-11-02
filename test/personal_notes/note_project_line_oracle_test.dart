@@ -1,4 +1,5 @@
-// אורקל: projectLine זהה למימוש הקודם (RegExp ו-trim לכל תו).
+// אורקל: projectLine עם joinAtPunctuation זהה למימוש הקודם (RegExp ו-trim לכל
+// תו), ובלעדיו נבדל ממנו רק ברווחים שבמקום פיסוק בין מילים.
 
 import 'dart:math';
 
@@ -122,12 +123,26 @@ void _expectSame(String line) {
         line,
         keepPunctuation: keep,
         omitInjectedAnchorMarkers: omit,
+        joinAtPunctuation: true,
       );
       expect(got.normalized, want.normalized, reason: line);
       expect(got.rawIndex, want.rawIndex, reason: line);
+
+      final separated = projectLine(
+        line,
+        keepPunctuation: keep,
+        omitInjectedAnchorMarkers: omit,
+      );
+      expect(_withoutSpaces(separated), _withoutSpaces(want), reason: line);
     }
   }
 }
+
+/// התווים שאינם רווח, כל אחד עם מקומו בשורה הגולמית.
+List<(String, int)> _withoutSpaces(LineProjection p) => [
+  for (var i = 0; i < p.normalized.length; i++)
+    if (p.normalized[i] != ' ') (p.normalized[i], p.rawIndex[i]),
+];
 
 void main() {
   group('projectLine (perf)', () {

@@ -159,9 +159,23 @@ class _MatchKey {
     final key = StringBuffer();
     final offsets = <int>[];
     int? pendingSpaceAt;
+    int? punctuationAt;
+    var previous = 0;
 
     for (var i = 0; i < normalized.length; i++) {
       final codeUnit = normalized.codeUnitAt(i);
+      // פיסוק בין מילים מוצג כרווח כשהפיסוק מוסתר, ולכן גם כאן.
+      if (text_utils.isRemovablePunctuationUnit(codeUnit)) {
+        punctuationAt ??= i;
+        continue;
+      }
+      if (punctuationAt != null &&
+          text_utils.punctuationSeparatesWords(previous, codeUnit)) {
+        pendingSpaceAt ??= punctuationAt;
+      }
+      punctuationAt = null;
+      previous = codeUnit;
+
       if (_isIgnored(codeUnit)) continue;
 
       if (_isSpacing(codeUnit)) {

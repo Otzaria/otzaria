@@ -59,11 +59,15 @@ bool _isBreakTag(String s, int start, int end) {
 }
 
 /// מקרין שורה גולמית (HTML+ניקוד) למחרוזת מנורמלת עם מפת אינדקסים חזרה.
+///
+/// פיסוק בין שתי מילים נספר כרווח, כמו בתצוגה שמסתירה פיסוק. [joinAtPunctuation]
+/// מדביק אותן, כפי שהתצוגה עשתה כשנשמרו הערות ישנות.
 LineProjection projectLine(
   String rawLine, {
   bool keepPunctuation = false,
   bool omitInjectedAnchorMarkers = false,
   bool plainText = false,
+  bool joinAtPunctuation = false,
 }) {
   final buffer = StringBuffer();
   final rawIndex = <int>[];
@@ -71,6 +75,8 @@ LineProjection projectLine(
   int tagStart = 0;
   bool pendingWhitespace = false;
   int pendingWhitespaceRawStart = 0;
+  int? punctuationRawStart;
+  var previous = 0;
 
   void markWhitespace(int rawStart) {
     if (!pendingWhitespace) {
@@ -88,6 +94,18 @@ LineProjection projectLine(
   }
 
   void appendCode(int code, int rawOffset) {
+    if (!keepPunctuation && !joinAtPunctuation) {
+      if (text_utils.isRemovablePunctuationUnit(code)) {
+        punctuationRawStart ??= rawOffset;
+        return;
+      }
+      if (punctuationRawStart != null &&
+          text_utils.punctuationSeparatesWords(previous, code)) {
+        markWhitespace(punctuationRawStart!);
+      }
+      punctuationRawStart = null;
+      previous = code;
+    }
     if (_isDiacritic(code) || (!keepPunctuation && _isPunctuation(code))) {
       return;
     }
@@ -154,10 +172,19 @@ LineProjection projectLine(
 }
 
 /// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד ופיסוק, כיווץ רווחים וקיצוץ.
-String normalizeAnchorText(String text) {
-  final withoutNikud = _withoutPunctuation(removeHebrewDiacritics(text));
-  return withoutNikud.replaceAll(RegExp(r'\s+'), ' ').trim();
-}
+String normalizeAnchorText(String text) => projectLine(
+  removeHebrewDiacritics(text),
+  plainText: true,
+).normalized.trim();
+
+/// האם [normalizedText] (מ-[normalizeAnchorText]) נמצא ב-[rawLine], גם כפי
+/// שנשמר כשהסתרת הפיסוק עוד הדביקה מילים.
+bool lineContainsAnchorText(String rawLine, String normalizedText) =>
+    projectLine(rawLine).normalized.contains(normalizedText) ||
+    projectLine(
+      rawLine,
+      joinAtPunctuation: true,
+    ).normalized.contains(normalizedText);
 
 /// טווח עוגן בשורה הגולמית (offset של תווים).
 class NoteAnchorRange {
@@ -294,18 +321,29 @@ NoteAnchorRange? locateAnchor({
   final needle = normalizeAnchorText(anchorText);
   if (needle.isEmpty) return null;
 
-  final p = projectLine(
+  var joinAtPunctuation = false;
+  var p = projectLine(
     rawLine,
     omitInjectedAnchorMarkers: hintSourceLine != null,
   );
-  final occurrences = _allOccurrences(p.normalized, needle);
-  if (occurrences.isEmpty) return null;
+  var occurrences = _allOccurrences(p.normalized, needle);
+  if (occurrences.isEmpty) {
+    // הערה שנבחרה כשהסתרת הפיסוק עוד הדביקה מילים ("אסיריחשק").
+    joinAtPunctuation = true;
+    p = projectLine(
+      rawLine,
+      omitInjectedAnchorMarkers: hintSourceLine != null,
+      joinAtPunctuation: true,
+    );
+    occurrences = _allOccurrences(p.normalized, needle);
+    if (occurrences.isEmpty) return null;
+  }
 
   int? normalizedHint;
   if (hintStart != null) {
     final source = hintSourceLine == null || hintSourceLine == rawLine
         ? p
-        : projectLine(hintSourceLine);
+        : projectLine(hintSourceLine, joinAtPunctuation: joinAtPunctuation);
     final offset = p.normalized.indexOf(source.normalized);
     if (source.normalized.isNotEmpty && offset >= 0) {
       normalizedHint = offset + _rawToNormalizedIndex(source, hintStart);
