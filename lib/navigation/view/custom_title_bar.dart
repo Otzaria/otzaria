@@ -105,6 +105,9 @@ const double _kTabSelectedMinWidth = 60.0;
 /// לכותרת, לאייקונים או ל-X — ולכן התוכן שלה אינו נבנה כלל.
 const double _kTabContentMinWidth = 12.0;
 
+/// מתחת לרוחב הזה כרטיסייה לא מציגה אייקון סוג (PDF, כלי) ופסים מפרידים.
+const double _kTabIconMinWidth = 100.0;
+
 /// גובה גוף הכרטיסיה, בלי המפריד שלצדה.
 const double _kTabBodyHeight = 32.0;
 
@@ -999,7 +1002,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         // כל חלונית מפוצלת מציגה את תחילת שמה בחלק שווה מרוחב הטאב.
         // פסים מפרידים מוצגים רק כשיש להם מקום.
         final panes = leafPanes(tab);
-        final showDividers = tabWidth >= 100 * (panes.length - 1);
+        final showDividers = tabWidth >= _kTabIconMinWidth * (panes.length - 1);
         return Row(
           children: [
             for (var i = 0; i < panes.length; i++) ...[
@@ -1062,7 +1065,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final showPin =
           tab.isPinned && (contentWidth - closeBudget) >= _kTabPinExtent;
       // אייקון ליד שם הטאב — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
-      final showPdfIcon = tab is PdfBookTab && tabWidth >= 100;
+      final showPdfIcon = tab is PdfBookTab && tabWidth >= _kTabIconMinWidth;
       // כרטיסיית חיפוש מזוהה באייקון בכל רוחב שבו הוא נכנס; שאר האייקונים
       // רק ברוחב מלא. התקציב שומר מקום ל-X גם כשהוא מוסתר, כדי שהאייקון לא
       // יופיע ויעלם עם הריחוף.
@@ -1078,14 +1081,15 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   : 0) >=
           _kTabLeadingIconExtent;
       final contentIconData =
-          (tabWidth >= 100 || tab is SearchingTab) && leadingIconFits
+          (tabWidth >= _kTabIconMinWidth || tab is SearchingTab) &&
+              leadingIconFits
           ? tabContentIconData(tab)
           : null;
       // אייקון החיפוש מחליף את המילה "חיפוש:" רק כשהוא מוצג.
       final shownTitle = contentIconData == null
           ? displayTitle
           : tabTitleBesideContentIcon(tab, displayTitle);
-      final toolIcon = tab is ToolTab && tabWidth >= 100
+      final toolIcon = tab is ToolTab && tabWidth >= _kTabIconMinWidth
           ? buildToolTabLeadingIcon(
               tab.toolId,
               color: colorScheme.onSurface,

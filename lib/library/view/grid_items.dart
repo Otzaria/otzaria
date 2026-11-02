@@ -928,6 +928,11 @@ const double kNarrowGridCardMinHeight = 112;
 /// השוליים של רשת הספרייה — משמשים גם בחישוב רוחב התא בפועל.
 const double _kGridPadding = 30;
 
+/// ספי הרוחב של יחס הגובה-רוחב של כרטיסי הרשת.
+const double _kGridWideMinWidth = 1400;
+const double _kGridMediumMinWidth = 1100;
+const double _kGridNarrowBelow = 800;
+
 /// השוליים העליונים מעט קטנים יותר, כדי שהשורה הראשונה לא תיראה נמוכה מדי
 /// מתחת לסרגל.
 const double _kGridTopPadding = 24;
@@ -1112,11 +1117,11 @@ class MyGridView extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1.0);
         final width = constraints.maxWidth;
-        final baseRatio = width >= 1400
+        final baseRatio = width >= _kGridWideMinWidth
             ? 2.1
-            : width >= 1100
+            : width >= _kGridMediumMinWidth
             ? 1.95
-            : width >= 800
+            : width >= _kGridNarrowBelow
             ? 1.8
             : 1.65;
         final textAdjustment = textScale <= 1.0
@@ -1131,7 +1136,7 @@ class MyGridView extends StatelessWidget {
             (gridWidth - kLibraryGridSpacing * (crossAxisCount - 1)) /
             crossAxisCount;
         final double childAspectRatio;
-        if (width < 800) {
+        if (width < _kGridNarrowBelow) {
           final halfHeight = cellWidth / (2 * baseRatio * textAdjustment);
           final minHeight = kNarrowGridCardMinHeight * textScale;
           childAspectRatio = cellWidth / max(minHeight, halfHeight);

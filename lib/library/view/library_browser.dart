@@ -238,7 +238,7 @@ List<FlatLibraryRow> buildFlatLibraryRows({
 
 /// רוחב המסך המזערי שבו יש מקום לחלונית התצוגה המקדימה לצד רשת הספרים.
 /// אותו סף שבו הספרייה מצמצמת את כפתורי הניווט שלה.
-const double kLibraryPreviewMinScreenWidth = 600.0;
+const double kLibraryPreviewMinScreenWidth = LayoutBreakpoints.compact;
 
 /// האם חלונית התצוגה המקדימה פעילה. מתחת ל-[kLibraryPreviewMinScreenWidth]
 /// היא הייתה נפרשת כשכבה שמכסה את הספרייה וחוסמת אותה, ולכן שם היא כבויה
@@ -781,11 +781,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final isCompact = AppDensity.of(context).isCompact;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    final maxButtons = screenWidth < 400
+    const twoButtonsBelow = 400.0, fourButtonsBelow = 800.0;
+    final maxButtons = screenWidth < twoButtonsBelow
         ? 2
-        : screenWidth < 600
+        : screenWidth < LayoutBreakpoints.compact
         ? 3
-        : screenWidth < 800
+        : screenWidth < fourButtonsBelow
         ? 4
         : 5;
 

@@ -178,8 +178,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
-                final iconOnlyDelete = width < 560;
-                final splitDate = width < 360;
+                const iconOnlyDeleteBelow = 560.0, splitDateBelow = 360.0;
+                final iconOnlyDelete = width < iconOnlyDeleteBelow;
+                final splitDate = width < splitDateBelow;
                 final eventColor = CalendarEventColors.colorForIndex(
                   event.displayColorIndex,
                   Theme.of(context).brightness,

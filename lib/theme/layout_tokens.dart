@@ -1,7 +1,32 @@
+import 'package:flutter/widgets.dart';
+
 class LayoutBreakpoints {
   static const double compact = 600; // mobile
   static const double medium = 840; // tablet
   static const double expanded = 1200; // desktop
+}
+
+/// סוג החלון לפי רוחבו, להחלטות ברמת החלון בלבד: דיאלוג צר מול רחב, ניווט,
+/// מספר עמודות במסך. רכיב שיכול לשבת בחלונית צרה מחליט לפי `LayoutBuilder`
+/// וקבוע עם שם, לא לפי החלון.
+enum WindowClass {
+  compact,
+  medium,
+  expanded,
+  large;
+
+  static WindowClass fromWidth(double width) {
+    if (width < LayoutBreakpoints.compact) return compact;
+    if (width < LayoutBreakpoints.medium) return medium;
+    if (width < LayoutBreakpoints.expanded) return expanded;
+    return large;
+  }
+
+  static WindowClass of(BuildContext context) =>
+      fromWidth(MediaQuery.sizeOf(context).width);
+
+  /// מתחת ל-[LayoutBreakpoints.compact]: טלפון או חלון צר במחשב.
+  bool get isCompact => this == compact;
 }
 
 class LayoutPadding {

@@ -10,6 +10,7 @@ import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_import_library.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
@@ -141,7 +142,7 @@ class _ImportFileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabledColor = Theme.of(context).disabledColor;
     final cs = Theme.of(context).colorScheme;
-    final narrow = MediaQuery.sizeOf(context).width < 520;
+    final narrow = WindowClass.of(context).isCompact;
     return ListTile(
       contentPadding: const EdgeInsetsDirectional.only(
         start: AppTokens.spaceMD,

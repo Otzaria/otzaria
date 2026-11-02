@@ -123,6 +123,8 @@ class AramaicDictionaryScreen extends StatefulWidget {
 
 class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
     with ToolQueryConsumer {
+  static const double _countMinWidth = 560;
+
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late final DictionaryLookupRepository _dictionaryRepository =
@@ -299,7 +301,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
               currentValue: _isHebrewToAramaic,
               onChanged: _setDirection,
             ),
-            if (_query.isNotEmpty && count > 0 && width >= 560)
+            if (_query.isNotEmpty && count > 0 && width >= _countMinWidth)
               PositionedDirectional(
                 end: 0,
                 child: Text(

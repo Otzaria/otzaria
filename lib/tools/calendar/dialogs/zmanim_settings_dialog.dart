@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -350,7 +351,7 @@ class _ZmanInfoButton extends StatelessWidget {
 /// עוזר להצגת הדיאלוג. ה-context חייב לכלול CalendarCubit ב-tree.
 /// עמודת השעה; ברוחב טלפון היא צרה, כדי ששם הזמן לא יישבר לשורה למילה.
 double _timeColumnWidth(BuildContext context) =>
-    MediaQuery.sizeOf(context).width < 520 ? 64 : 96;
+    WindowClass.of(context).isCompact ? 64 : 96;
 
 Future<void> showZmanimSettingsDialog(BuildContext context) {
   final cubit = context.read<CalendarCubit>();

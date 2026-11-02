@@ -320,7 +320,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
             _buildScopeToggle(),
           ],
         );
-        if (constraints.maxWidth < 720) {
+        const stackBelow = 720.0;
+        if (constraints.maxWidth < stackBelow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

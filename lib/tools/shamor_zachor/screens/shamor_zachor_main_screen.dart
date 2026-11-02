@@ -455,7 +455,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                   body: Builder(
                     builder: (context) {
                       final screenWidth = MediaQuery.sizeOf(context).width;
-                      final useSecondaryRow = screenWidth < 900;
+                      const secondaryRowBelow = 900.0;
+                      final useSecondaryRow = screenWidth < secondaryRowBelow;
                       final filterControl = ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 460),
                         child: _buildFilterControls(),

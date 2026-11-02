@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// כותרת בראש דיאלוג מידע: שם הפריט בגדול, ומתחתיו שורת משנה עמומה.
 class DetailsHeading extends StatelessWidget {
@@ -193,7 +194,7 @@ class DetailsInfoSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
       // ברוחב טלפון שתי עמודות היו שוברות את הערך באמצע מילה.
-      child: block || MediaQuery.sizeOf(context).width < 520
+      child: block || WindowClass.of(context).isCompact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

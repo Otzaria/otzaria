@@ -491,7 +491,8 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     final filteredTimesList = _buildCalendarTimeEntries(widget.state);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isSingleColumn = constraints.maxWidth < 290;
+        const singleColumnBelow = 290.0;
+        final isSingleColumn = constraints.maxWidth < singleColumnBelow;
         final columnCount = isSingleColumn ? 1 : 2;
         final spacing = 8.0;
         final arrangedTimesList = _arrangeEntriesForGrid(

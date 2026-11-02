@@ -565,7 +565,8 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                   // הסף 400 הוא הרוחב המינימלי לפריסה השורתית בלי שהשם
                   // יתקפל לתו-לשורה: 50 (לוגו) + 16 + ~150 (טלפון מלא) +
                   // 8 + 24 (חץ) = ~250 קבועים, פלוס ~150 מינימום ל-שם.
-                  final isNarrow = constraints.maxWidth < 400;
+                  const rowMinWidth = 400.0;
+                  final isNarrow = constraints.maxWidth < rowMinWidth;
                   if (isNarrow) {
                     return Row(
                       children: [
