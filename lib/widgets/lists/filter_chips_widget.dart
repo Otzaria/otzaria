@@ -171,7 +171,7 @@ class _SelectableChip extends StatelessWidget {
         selected: isSelected,
         child: InkWell(
           onTap: onTap,
-          customBorder: const StadiumBorder(),
+          customBorder: AppTokens.roundedShape,
           child: child,
         ),
       ),

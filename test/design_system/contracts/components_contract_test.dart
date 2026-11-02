@@ -252,7 +252,7 @@ void main() {
       },
     );
 
-    testWidgets('icon עם label: גלולה (Stadium, רדיוס 100), גובה 40, טקסט 14', (
+    testWidgets('icon עם label: פינות 8, גובה 40, טקסט 14', (
       tester,
     ) async {
       await pumpInApp(
@@ -270,14 +270,14 @@ void main() {
         tester,
         find.byWidgetPredicate((w) => w is FilledButton),
       );
-      expect(material.shape, const StadiumBorder());
+      expect(material.shape, AppTokens.roundedShape);
       final decoration =
           tester
                   .widget<AnimatedContainer>(find.byType(AnimatedContainer))
                   .decoration!
               as BoxDecoration;
       expect(decoration.shape, BoxShape.rectangle);
-      expect(decoration.borderRadius, BorderRadius.circular(100));
+      expect(decoration.borderRadius, AppTokens.borderRadiusAll);
       expect(
         tester.getSize(find.byWidgetPredicate((w) => w is FilledButton)).height,
         40,

@@ -157,7 +157,7 @@ Widget _libraryInfoButton(
     height: 28,
     decoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppTokens.borderRadiusAll,
     ),
     child: IconButton(
       onPressed: onPressed,

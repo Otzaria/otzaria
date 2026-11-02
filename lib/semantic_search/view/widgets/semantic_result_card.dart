@@ -218,7 +218,7 @@ class SemanticSourceLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Text(
         context.settingsText(semanticSourceLabel(source)),

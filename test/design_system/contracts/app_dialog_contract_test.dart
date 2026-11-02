@@ -149,7 +149,7 @@ void main() {
       expect(dialog.contentPadding, const EdgeInsets.fromLTRB(24, 16, 24, 16));
     });
 
-    testWidgets('תג האייקון: עיגול 40 ב-primaryContainer, אייקון 22', (
+    testWidgets('תג האייקון: ריבוע מעוגל 40 ב-primaryContainer, אייקון 22', (
       tester,
     ) async {
       await showInApp<bool>(
@@ -175,7 +175,8 @@ void main() {
             .first,
       );
       final decoration = badge.decoration! as BoxDecoration;
-      expect(decoration.shape, BoxShape.circle);
+      expect(decoration.shape, BoxShape.rectangle);
+      expect(decoration.borderRadius, AppTokens.borderRadiusAll);
       expect(decoration.color, cs.primaryContainer);
       final icon = tester.widget<Icon>(
         find.descendant(

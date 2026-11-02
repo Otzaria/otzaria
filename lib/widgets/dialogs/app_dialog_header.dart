@@ -175,7 +175,7 @@ class AppDialogIconBadge extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         color: isError ? cs.errorContainer : cs.primaryContainer,
-        shape: BoxShape.circle,
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Icon(
         icon,
