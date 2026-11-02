@@ -22,9 +22,6 @@ import 'package:otzaria/search/utils/literal_search_pattern.dart'
     show LiteralEdgeCheck, literalEdgeCheck;
 import 'package:otzaria/search/utils/user_regex_query.dart';
 
-/// רגקס להסרת תגי HTML.
-final RegExp _htmlStripper = RegExp(r'<[^>]*>');
-
 /// תגי שבירה — מוצגים כמעבר שורה/גבול בלוק ולכן הופכים לרווח ולא נמחקים,
 /// אחרת מילים משני צדי `<br>` נדבקות (כמו strip_html_for_indexing במנוע).
 /// sup/sub (קבוצה 1) שוברים רק דרך [_breakingTagAt].
@@ -450,8 +447,64 @@ int? _trailingAllowedPunctuation(String s) {
   return c == 0x2E || c == 0x3A ? i : null;
 }
 
+/// `!:;.,?-—–` — הפיסוק ש-[removePunctuation] מסיר, בלי הגרשיים.
+bool isRemovablePunctuationUnit(int c) =>
+    c == 0x21 ||
+    c == 0x3A ||
+    c == 0x3B ||
+    c == 0x2E ||
+    c == 0x2C ||
+    c == 0x3F ||
+    c == 0x2D ||
+    c == 0x2014 ||
+    c == 0x2013;
+
+bool _isWordLetterUnit(int c) =>
+    (c >= 0x05D0 && c <= 0x05F2) ||
+    (c >= 0x30 && c <= 0x39) ||
+    (c >= 0x61 && c <= 0x7A) ||
+    (c >= 0x41 && c <= 0x5A);
+
+/// האם פיסוק שהוסר בין [before] ל-[after] (התווים הגלויים שמשני צדיו) מפריד
+/// בין מילים — אז הוא מוצג כרווח, אחרת "אסירי-חשק" נדבק ל"אסיריחשק".
+/// המיפוי של בחירה למקור (html_slice, עיגון הערות) חייב להכריע באותו כלל.
+bool punctuationSeparatesWords(int before, int after) =>
+    (_isWordLetterUnit(after) || after == 0x28 || after == 0x5B) &&
+    (_isWordLetterUnit(before) ||
+        (before >= 0x0591 && before <= 0x05C7 && !_isSpacingMark(before)) ||
+        before == 0x27 ||
+        before == 0x05F3 ||
+        before == 0x29 ||
+        before == 0x5D);
+
+bool _isSpacingMark(int c) =>
+    c == 0x05BE || c == 0x05C0 || c == 0x05C3 || c == 0x05C6;
+
+/// התו הגלוי הראשון מ-[from] והאינדקס שלו, בדילוג על תגים ופיסוק; 0 בסוף.
+(int, int) _nextVisibleUnit(String s, int from) {
+  for (var i = from; i < s.length; i++) {
+    final c = s.codeUnitAt(i);
+    if (isRemovablePunctuationUnit(c)) continue;
+    if (c == 0x3C) {
+      final close = s.indexOf('>', i);
+      if (close < 0) return (0, s.length);
+      i = close;
+      continue;
+    }
+    if (c == 0x26) {
+      final entity = _htmlEntity.matchAsPrefix(s, i);
+      if (entity != null) {
+        final decoded = decodeHtmlEntities(entity.group(0)!);
+        return (decoded.isEmpty ? 0 : decoded.codeUnitAt(0), i);
+      }
+    }
+    return (c, i);
+  }
+  return (0, s.length);
+}
+
 /// הסרת סימני פיסוק מטקסט
-/// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע
+/// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע; פיסוק שבין שתי מילים הופך לרווח
 /// מסיר " ״ אלא כשזה ראשי תיבות (אות אחת אחרי הגרשיים עד גבול מילה)
 /// מסיר מעבר שורה אם אין . או : בסוף השורה המקורית
 String removePunctuation(String text) {
@@ -487,7 +540,7 @@ String removePunctuation(String text) {
 
     // הגרשיים מוכרעים לפני הסרת הפיסוק — אחרת ב-'רש"י,ובגמ' הפסיק נמחק,
     // ראשי התיבות נדבקים למילה הבאה ונראים כמירכאות ציטוט.
-    String processed = _stripQuotesOutsideTags(line);
+    String processed = stripNonAcronymQuotes(line);
 
     final lastAllowedPunctuationIndex = _trailingAllowedPunctuation(processed);
 
@@ -495,6 +548,9 @@ String removePunctuation(String text) {
     final buffer = StringBuffer();
     var parenDepth = 0;
     var inTag = false;
+    var previous = 0; // התו הגלוי האחרון שנכתב
+    // רצף פיסוק חולק תוצאת מבט קדימה, גם כשלא נוסף רווח.
+    var nextVisible = (0, -1);
     // יחידות קוד ולא processed[i]: אחרת כל תו מקצה מחרוזת חדשה.
     for (var i = 0; i < processed.length; i++) {
       final ch = processed.codeUnitAt(i);
@@ -517,6 +573,10 @@ String removePunctuation(String text) {
       if (ch == 0x26) {
         final entity = _htmlEntity.matchAsPrefix(processed, i);
         if (entity != null) {
+          final decoded = decodeHtmlEntities(entity.group(0)!);
+          if (decoded.isNotEmpty) {
+            previous = decoded.codeUnitAt(decoded.length - 1);
+          }
           buffer.write(entity.group(0));
           i = entity.end - 1;
           continue;
@@ -527,6 +587,7 @@ String removePunctuation(String text) {
         // (
         parenDepth++;
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
@@ -536,35 +597,34 @@ String removePunctuation(String text) {
           parenDepth--;
         }
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
       final isAllowedAtEnd = ch == 0x2E || ch == 0x3A; // . :
-      final isPunctuation =
-          isAllowedAtEnd ||
-          ch == 0x21 || // !
-          ch == 0x3B || // ;
-          ch == 0x2C || // ,
-          ch == 0x3F || // ?
-          ch == 0x2D || // -
-          ch == 0x2014 || // —
-          ch == 0x2013; // –
 
-      if (parenDepth > 0 && isAllowedAtEnd) {
+      if ((parenDepth > 0 && isAllowedAtEnd) ||
+          (isAllowedAtEnd &&
+              lastAllowedPunctuationIndex != null &&
+              i >= lastAllowedPunctuationIndex)) {
         buffer.writeCharCode(ch);
+        previous = ch;
         continue;
       }
 
-      if (isPunctuation) {
-        if (lastAllowedPunctuationIndex != null &&
-            i >= lastAllowedPunctuationIndex &&
-            isAllowedAtEnd) {
-          buffer.writeCharCode(ch);
+      if (isRemovablePunctuationUnit(ch)) {
+        if (i >= nextVisible.$2) {
+          nextVisible = _nextVisibleUnit(processed, i + 1);
+        }
+        if (punctuationSeparatesWords(previous, nextVisible.$1)) {
+          buffer.writeCharCode(0x20);
+          previous = 0x20;
         }
         continue;
       }
 
       buffer.writeCharCode(ch);
+      previous = ch;
     }
     processed = buffer.toString();
 
@@ -621,7 +681,8 @@ String removePunctuation(String text) {
 }
 
 final RegExp _quoteContextTokens = RegExp(
-  '${_htmlStripper.pattern}|${_htmlEntity.pattern}|["״]',
+  r"""<(?:[^'">]|"[^"]*"|'[^']*')*>"""
+  '|${_htmlEntity.pattern}|["״]',
 );
 
 /// `[א-תa-zA-Z]` על יחידת קוד: נבדק לכל גרשיים, בלי מחרוזת ו-RegExp לתו.
@@ -663,9 +724,22 @@ const Set<String> _voidHtmlTags = {
   'wbr',
 };
 
-/// מכריע על גרשיים לפי הטקסט הגלוי, ומשאיר את התגים והישויות במקורם.
-String _stripQuotesOutsideTags(String text) {
-  if (!text.contains('"') && !text.contains('״')) return text;
+/// מסיר מירכאות ציטוט לפי הטקסט הגלוי, תוך שימור תגים וישויות.
+String stripNonAcronymQuotes(String text) {
+  final removed = removedQuoteOffsets(text);
+  if (removed.isEmpty) return text;
+  final result = StringBuffer();
+  var lastEnd = 0;
+  for (final offset in removed) {
+    result.write(text.substring(lastEnd, offset));
+    lastEnd = offset + 1;
+  }
+  return (result..write(text.substring(lastEnd))).toString();
+}
+
+/// מיקומי מירכאות שהסתרת הפיסוק משמיטה, לשימור המיפוי אל הטקסט הגולמי.
+Set<int> removedQuoteOffsets(String text) {
+  if (!text.contains('"') && !text.contains('״')) return const {};
 
   final contextBuffer = StringBuffer();
   final quotes = <({int source, int context})>[];
@@ -723,12 +797,11 @@ String _stripQuotesOutsideTags(String text) {
     }
     lastEnd = match.end;
   }
-  if (quotes.isEmpty) return text;
+  if (quotes.isEmpty) return const {};
   contextBuffer.write(removeVolwels(text.substring(lastEnd)));
   final context = contextBuffer.toString();
 
-  final result = StringBuffer();
-  lastEnd = 0;
+  final result = <int>{};
   for (final quote in quotes) {
     var before = quote.context - 1;
     var after = quote.context + 1;
@@ -750,12 +823,10 @@ String _stripQuotesOutsideTags(String text) {
         (after + 1 == context.length ||
             !isAcronymLetterUnit(context.codeUnitAt(after + 1)));
     if (!isAcronym) {
-      result.write(text.substring(lastEnd, quote.source));
-      lastEnd = quote.source + 1;
+      result.add(quote.source);
     }
   }
-  result.write(text.substring(lastEnd));
-  return result.toString();
+  return result;
 }
 
 bool isHeadingLine(String line) {

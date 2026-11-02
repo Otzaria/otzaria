@@ -536,11 +536,11 @@ Future<void> main() async {
     });
 
     test('issue #1528: שומר ראשי תיבות שפיסוק צמוד אליהם', () {
-      // הפיסוק נמחק ומצמיד את ראשי התיבות למילה הבאה — ההכרעה על הגרשיים
-      // חייבת להיעשות על השורה המקורית.
-      expect(removePunctuation('רש"י,ובגמ\' איתא'), equals('רש"יובגמ\' איתא'));
-      expect(removePunctuation('ע"ש.וכן כתב'), equals('ע"שוכן כתב'));
-      expect(removePunctuation('ז"ל-והנה'), equals('ז"לוהנה'));
+      // בלי הפיסוק הגרשיים נראים כמירכאות — ההכרעה עליהם חייבת להיעשות על
+      // השורה המקורית.
+      expect(removePunctuation('רש"י,ובגמ\' איתא'), equals('רש"י ובגמ\' איתא'));
+      expect(removePunctuation('ע"ש.וכן כתב'), equals('ע"ש וכן כתב'));
+      expect(removePunctuation('ז"ל-והנה'), equals('ז"ל והנה'));
       // פיסוק בתוך ראשי התיבות (שגיאת הקלדה במקור) לא מבטל אותם.
       expect(removePunctuation('לכן א,"א להיות'), equals('לכן א"א להיות'));
       expect(removePunctuation('יש ג״.כ גליא'), equals('יש ג״כ גליא'));
@@ -549,7 +549,7 @@ Future<void> main() async {
     test('issue #1528: שומר גרשיים בין שני תגי הדגשה (הערות על חברותא)', () {
       expect(
         removePunctuation('אולם <b>ברמב</b>"<b>ן</b> [סהמ"צ ל"ת ל-ה]'),
-        equals('אולם <b>ברמב</b>"<b>ן</b> [סהמ"צ ל"ת לה]'),
+        equals('אולם <b>ברמב</b>"<b>ן</b> [סהמ"צ ל"ת ל ה]'),
       );
       expect(
         removePunctuation('וראה <b>בחידושי הגרי</b>"<b>ז</b> למנחות'),

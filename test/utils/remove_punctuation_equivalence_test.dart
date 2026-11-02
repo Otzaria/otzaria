@@ -18,8 +18,26 @@ bool _oracleIsHeadingLine(String line) {
       RegExp(r'^#{1,6}\s').hasMatch(trimmedLine);
 }
 
-/// עותק של המימוש הקודם, שעבר תו-תו כמחרוזות. הקלטים בלי גרשיים:
-/// הם מוכרעים לפני הלולאה ב-_stripQuotesOutsideTags ונבדקים ב-remove_punctuation_quotes_test.
+final RegExp _oracleWordEnd = RegExp(
+  "[א-ײ0-9a-zA-Z'׳)\\]\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]",
+);
+final RegExp _oracleWordStart = RegExp(r'[א-ײ0-9a-zA-Z(\[]');
+
+/// התו הגלוי שאחרי רצף פיסוק ותגים, אחרי פענוח ישות.
+final RegExp _oracleAfterPunctuation = RegExp(
+  r'(?:[!:;.,?\-—–]|<[^>]*>)*(&(?:#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|.)?',
+);
+
+String _oracleNextVisible(String line, int from) {
+  final next = _oracleAfterPunctuation.matchAsPrefix(line, from)?.group(1);
+  if (next == null) return '';
+  final decoded = next.length > 1 ? decodeHtmlEntities(next) : next;
+  return decoded.isEmpty ? '' : decoded[0];
+}
+
+/// עותק של המימוש הקודם, שעבר תו-תו כמחרוזות, ועליו פיסוק שבין מילים הופך
+/// לרווח. הקלטים בלי גרשיים: הם מוכרעים לפני הלולאה ב-_stripQuotesOutsideTags
+/// ונבדקים ב-remove_punctuation_quotes_test.
 String _oracleRemovePunctuation(String text) {
   if (text.isEmpty) return text;
 
@@ -57,6 +75,7 @@ String _oracleRemovePunctuation(String text) {
     final buffer = StringBuffer();
     var parenDepth = 0;
     var inTag = false;
+    var previous = '';
     for (var i = 0; i < processed.length; i++) {
       final ch = processed[i];
 
@@ -73,6 +92,8 @@ String _oracleRemovePunctuation(String text) {
       if (ch == '&') {
         final entity = _oracleHtmlEntity.matchAsPrefix(processed, i);
         if (entity != null) {
+          final decoded = decodeHtmlEntities(entity.group(0)!);
+          if (decoded.isNotEmpty) previous = decoded[decoded.length - 1];
           buffer.write(entity.group(0));
           i = entity.end - 1;
           continue;
@@ -81,11 +102,13 @@ String _oracleRemovePunctuation(String text) {
       if (ch == '(') {
         parenDepth++;
         buffer.write(ch);
+        previous = ch;
         continue;
       }
       if (ch == ')') {
         if (parenDepth > 0) parenDepth--;
         buffer.write(ch);
+        previous = ch;
         continue;
       }
 
@@ -102,6 +125,7 @@ String _oracleRemovePunctuation(String text) {
 
       if (parenDepth > 0 && (ch == ':' || ch == '.')) {
         buffer.write(ch);
+        previous = ch;
         continue;
       }
       if (isPunctuation) {
@@ -109,10 +133,16 @@ String _oracleRemovePunctuation(String text) {
             i >= lastAllowedPunctuationIndex &&
             (ch == '.' || ch == ':')) {
           buffer.write(ch);
+          previous = ch;
+        } else if (_oracleWordEnd.hasMatch(previous) &&
+            _oracleWordStart.hasMatch(_oracleNextVisible(processed, i + 1))) {
+          buffer.write(' ');
+          previous = ' ';
         }
         continue;
       }
       buffer.write(ch);
+      previous = ch;
     }
     processedLines.add(buffer.toString());
   }
@@ -195,7 +225,7 @@ String _plainLine(Random random) {
 }
 
 void main() {
-  group('removePunctuation זהה למימוש הקודם', () {
+  group('removePunctuation זהה למימוש המחרוזות', () {
     const edgeCases = [
       '',
       ' ',

@@ -29,21 +29,21 @@ class LineProjection {
 bool _isDiacritic(int code) =>
     code >= 0x0591 && code <= 0x05C7 && code != 0x05BE;
 
-// פיסוק שעשוי להיות מוסתר בתצוגה (כמו _isIgnored ב-html_slice): הבחירה מגיעה
-// בלעדיו, ולכן מתעלמים ממנו בשני צידי ההשוואה.
 final _punctuation = RegExp('[!"\',\\-.:;?\u05F3\u05F4\u2013\u2014]');
+String _withoutPunctuation(String? s) =>
+    s == null ? '' : s.replaceAll(_punctuation, '');
+
 final _htmlEntity = RegExp(
   r'&(?:#[0-9]+|#x[0-9a-f]+|[a-z]+);',
   caseSensitive: false,
 );
+// פיסוק שעשוי להיות מוסתר בתצוגה (כמו _isIgnored ב-html_slice): הבחירה מגיעה
+// בלעדיו, ולכן מתעלמים ממנו בשני צידי ההשוואה.
 bool _isPunctuation(int code) => switch (code) {
   0x21 || 0x22 || 0x27 || 0x2C || 0x2D || 0x2E || 0x3A || 0x3B || 0x3F => true,
   0x05F3 || 0x05F4 || 0x2013 || 0x2014 => true,
   _ => false,
 };
-
-String _withoutPunctuation(String? s) =>
-    s == null ? '' : s.replaceAll(_punctuation, '');
 
 // בודק אם המקטע rawLine[start..end] (מ-'<' עד '>') הוא תגית <br>.
 bool _isBreakTag(String s, int start, int end) {
@@ -59,18 +59,27 @@ bool _isBreakTag(String s, int start, int end) {
 }
 
 /// מקרין שורה גולמית (HTML+ניקוד) למחרוזת מנורמלת עם מפת אינדקסים חזרה.
+///
+/// פיסוק בין שתי מילים נספר כרווח, כמו בתצוגה שמסתירה פיסוק. [joinAtPunctuation]
+/// מדביק אותן, כפי שהתצוגה עשתה כשנשמרו הערות ישנות.
 LineProjection projectLine(
   String rawLine, {
   bool keepPunctuation = false,
   bool omitInjectedAnchorMarkers = false,
   bool plainText = false,
+  bool joinAtPunctuation = false,
 }) {
   final buffer = StringBuffer();
   final rawIndex = <int>[];
+  final removedQuotes = keepPunctuation || joinAtPunctuation
+      ? const <int>{}
+      : text_utils.removedQuoteOffsets(rawLine);
   bool inTag = false;
   int tagStart = 0;
   bool pendingWhitespace = false;
   int pendingWhitespaceRawStart = 0;
+  int? punctuationRawStart;
+  var previous = 0;
 
   void markWhitespace(int rawStart) {
     if (!pendingWhitespace) {
@@ -88,6 +97,18 @@ LineProjection projectLine(
   }
 
   void appendCode(int code, int rawOffset) {
+    if (!keepPunctuation && !joinAtPunctuation) {
+      if (text_utils.isRemovablePunctuationUnit(code)) {
+        punctuationRawStart ??= rawOffset;
+        return;
+      }
+      if (punctuationRawStart != null &&
+          text_utils.punctuationSeparatesWords(previous, code)) {
+        markWhitespace(punctuationRawStart!);
+      }
+      punctuationRawStart = null;
+      previous = code;
+    }
     if (_isDiacritic(code) || (!keepPunctuation && _isPunctuation(code))) {
       return;
     }
@@ -106,6 +127,7 @@ LineProjection projectLine(
 
   for (int i = 0; i < rawLine.length; i++) {
     final code = rawLine.codeUnitAt(i);
+    if (removedQuotes.contains(i)) continue;
 
     if (!plainText && omitInjectedAnchorMarkers && !inTag && code == 0x3C) {
       final isAnchor = rawLine.startsWith('<a class="link-anchor ', i);
@@ -154,10 +176,19 @@ LineProjection projectLine(
 }
 
 /// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד ופיסוק, כיווץ רווחים וקיצוץ.
-String normalizeAnchorText(String text) {
-  final withoutNikud = _withoutPunctuation(removeHebrewDiacritics(text));
-  return withoutNikud.replaceAll(RegExp(r'\s+'), ' ').trim();
-}
+String normalizeAnchorText(String text) => projectLine(
+  removeHebrewDiacritics(text),
+  plainText: true,
+).normalized.trim();
+
+/// האם [normalizedText] (מ-[normalizeAnchorText]) נמצא ב-[rawLine], גם כפי
+/// שנשמר כשהסתרת הפיסוק עוד הדביקה מילים.
+bool lineContainsAnchorText(String rawLine, String normalizedText) =>
+    projectLine(rawLine).normalized.contains(normalizedText) ||
+    projectLine(
+      rawLine,
+      joinAtPunctuation: true,
+    ).normalized.contains(normalizedText);
 
 /// טווח עוגן בשורה הגולמית (offset של תווים).
 class NoteAnchorRange {
@@ -294,39 +325,63 @@ NoteAnchorRange? locateAnchor({
   final needle = normalizeAnchorText(anchorText);
   if (needle.isEmpty) return null;
 
-  final p = projectLine(
-    rawLine,
-    omitInjectedAnchorMarkers: hintSourceLine != null,
-  );
-  final occurrences = _allOccurrences(p.normalized, needle);
-  if (occurrences.isEmpty) return null;
+  NoteAnchorRange? best;
+  var bestScore = -1;
+  var bestDistance = double.infinity;
+  for (final joinAtPunctuation in [false, true]) {
+    final p = projectLine(
+      rawLine,
+      omitInjectedAnchorMarkers: hintSourceLine != null,
+      joinAtPunctuation: joinAtPunctuation,
+    );
+    final occurrences = _allOccurrences(p.normalized, needle);
+    if (occurrences.isEmpty) continue;
 
-  int? normalizedHint;
-  if (hintStart != null) {
-    final source = hintSourceLine == null || hintSourceLine == rawLine
-        ? p
-        : projectLine(hintSourceLine);
-    final offset = p.normalized.indexOf(source.normalized);
-    if (source.normalized.isNotEmpty && offset >= 0) {
-      normalizedHint = offset + _rawToNormalizedIndex(source, hintStart);
+    int? rawHint;
+    if (hintStart != null) {
+      if (hintSourceLine == null || hintSourceLine == rawLine) {
+        rawHint = hintStart;
+      } else {
+        final source = projectLine(
+          hintSourceLine,
+          joinAtPunctuation: joinAtPunctuation,
+        );
+        final offset = p.normalized.indexOf(source.normalized);
+        if (source.normalized.isNotEmpty && offset >= 0) {
+          rawHint =
+              p.rawIndex[offset + _rawToNormalizedIndex(source, hintStart)];
+        }
+      }
+    }
+    final before = _withoutPunctuation(prefix);
+    final after = _withoutPunctuation(suffix);
+    for (final start in occurrences) {
+      final end = start + needle.length;
+      final rawStart = p.rawIndex[start];
+      final rawEnd = _rawEnd(p, rawLine, end);
+      if (rawStart < 0 || rawEnd > rawLine.length || rawStart >= rawEnd) {
+        continue;
+      }
+      final score =
+          _contextScore(
+            p.normalized.substring(0, start),
+            before,
+            matchTail: true,
+          ) +
+          _contextScore(p.normalized.substring(end), after, matchTail: false);
+      final distance = rawHint == null ? 0 : (rawStart - rawHint).abs();
+      if (score > bestScore ||
+          (score == bestScore && distance < bestDistance) ||
+          (score == bestScore &&
+              distance == bestDistance &&
+              (best == null || rawStart < best.start))) {
+        best = NoteAnchorRange(rawStart, rawEnd);
+        bestScore = score;
+        bestDistance = distance.toDouble();
+      }
     }
   }
-  final matchStart = _pickBestOccurrence(
-    p.normalized,
-    occurrences,
-    needle.length,
-    _withoutPunctuation(prefix),
-    _withoutPunctuation(suffix),
-    normalizedHint,
-  );
-  final matchEnd = matchStart + needle.length;
-
-  final rawStart = p.rawIndex[matchStart];
-  final rawEnd = _rawEnd(p, rawLine, matchEnd);
-  if (rawStart < 0 || rawEnd > rawLine.length || rawStart >= rawEnd) {
-    return null;
-  }
-  return NoteAnchorRange(rawStart, rawEnd);
+  return best;
 }
 
 /// מחשב עוגן (טווח + הקשר) עבור טקסט שנבחר, לשמירה בעת יצירת ההערה.

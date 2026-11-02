@@ -309,8 +309,7 @@ class PersonalNotesService {
   bool _noteMatchesLine(PersonalNote note, String lineContent) {
     if (_hasAnchor(note)) {
       final anchor = normalizeAnchorText(note.anchorText!);
-      return anchor.isNotEmpty &&
-          projectLine(lineContent).normalized.contains(anchor);
+      return anchor.isNotEmpty && lineContainsAnchorText(lineContent, anchor);
     }
     return _displayTitleExistsInLine(note.displayTitle, lineContent);
   }
@@ -323,10 +322,7 @@ class PersonalNotesService {
 
     final normalizedTitle = normalizeAnchorText(displayTitle);
     if (normalizedTitle.isEmpty) return false;
-    final normalizedLine = projectLine(lineContent).normalized;
-
-    // Check if the title exists in the line
-    return normalizedLine.contains(normalizedTitle);
+    return lineContainsAnchorText(lineContent, normalizedTitle);
   }
 
   _LineMatch? _searchNearby(
