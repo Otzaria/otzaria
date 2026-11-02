@@ -205,8 +205,9 @@ class _VerticalTabRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final background = isInSelection
         ? AppSurfaces.multiSelected(cs)
+        // הפעילה בצבע הסרגל, כמו ברצועה האופקית (DD-06).
         : isSelected
-        ? AppSurfaces.selectedRow(cs)
+        ? AppSurfaces.topBarBackground(context)
         : isHovered
         ? AppSurfaces.hoverRow(cs)
         : Colors.transparent;

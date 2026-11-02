@@ -874,16 +874,29 @@ void main() {
       findsOneWidget,
       reason: 'הכרטיסיה הפעילה מציגה X',
     );
+    Color? rowColor(String title) =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: row(title),
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color;
+    expect(
+      rowColor('ספר ב'),
+      AppSurfaces.topBarBackground(tester.element(row('ספר ב'))),
+      reason: 'הפעילה בצבע הסרגל, כמו ברצועה האופקית (DD-06)',
+    );
 
     tabsBloc.emitState(tabsBloc.state.copyWith(selectedTabs: [second]));
     await tester.pumpAndSettle();
-    final background = tester.widget<DecoratedBox>(
-      find
-          .descendant(of: row('ספר ב'), matching: find.byType(DecoratedBox))
-          .first,
-    );
     expect(
-      (background.decoration as BoxDecoration).color,
+      rowColor('ספר ב'),
       AppSurfaces.multiSelected(
         Theme.of(tester.element(row('ספר ב'))).colorScheme,
       ),
