@@ -693,10 +693,7 @@ void main() {
         final context = tester.element(find.byType(Column).first);
         final cs = Theme.of(context).colorScheme;
         final expected = {
-          AppInfoBannerTone.info: (
-            cs.primaryContainer.withValues(alpha: 0.4),
-            cs.primary,
-          ),
+          AppInfoBannerTone.info: (cs.surfaceContainerHighest, cs.onSurface),
           AppInfoBannerTone.warning: (
             AppSurfaces.warningContainer(context),
             AppSurfaces.onWarningContainer(context),

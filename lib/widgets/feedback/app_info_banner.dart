@@ -4,7 +4,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 
 /// הטון של [AppInfoBanner] (DD-24).
 enum AppInfoBannerTone {
-  /// מידע והמלצה.
+  /// מידע והמלצה. על רקע נייטרלי, והאייקון בצבע הערכה: בערכות שבהן
+  /// primaryContainer קרוב לגוון האזהרה, מידע ואזהרה נבדלים.
   info,
 
   /// דורש תשומת לב, מטוקני האזהרה.
@@ -44,8 +45,8 @@ class AppInfoBanner extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return switch (tone) {
       AppInfoBannerTone.info => (
-        background: cs.primaryContainer.withValues(alpha: 0.4),
-        foreground: cs.primary,
+        background: cs.surfaceContainerHighest,
+        foreground: cs.onSurface,
         icon: cs.primary,
       ),
       AppInfoBannerTone.warning => (
