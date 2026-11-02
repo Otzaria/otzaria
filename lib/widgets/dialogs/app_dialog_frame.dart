@@ -17,7 +17,7 @@ import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 /// בחלון צר ([WindowClass.isCompact], DD-16): [small] ו-[medium] ברוחב החלון
 /// פחות 16, ו-[large] ו-[full] במסך מלא.
 enum AppDialogSize {
-  /// אישור, אזהרה, קלט, בחירה, התקדמות.
+  /// אישור, אזהרה, קלט, בחירה, התקדמות. בלי X: סוגרים בביטול או ב-Escape.
   small(400),
 
   /// טופס של כמה שדות, הגדרה ממוקדת.
@@ -48,7 +48,8 @@ enum AppDialogSize {
 }
 
 /// [Dialog] עם [AppDialogHeader] — תג אייקון בתחילת הכותרת, איקס סגירה בסופה
-/// וקו חוצץ מתחתיה — ואחריה [child] ושורת [actions] אופציונלית.
+/// (מ-[AppDialogSize.medium]) וקו חוצץ מתחתיה — ואחריה [child] ושורת [actions]
+/// אופציונלית.
 class AppDialogFrame extends StatelessWidget {
   const AppDialogFrame({
     super.key,
@@ -66,7 +67,7 @@ class AppDialogFrame extends StatelessWidget {
     this.scrollable = false,
     this.backgroundColor,
     this.closeEnabled = true,
-    this.showClose = true,
+    this.showClose,
     this.onClose,
     this.isDirty,
     this.onConfirm,
@@ -105,8 +106,9 @@ class AppDialogFrame extends StatelessWidget {
   /// false חוסם את כל דרכי היציאה, לא רק את ה-X — למשל בזמן שליחה.
   final bool closeEnabled;
 
-  /// false = בלי X בכותרת.
-  final bool showClose;
+  /// X בכותרת. null = לפי הגודל: בלי X ב-[AppDialogSize.small], שנסגר בכפתור
+  /// ביטול או סגירה, ב-Escape או בלחיצה בחוץ (DD-07).
+  final bool? showClose;
 
   /// ברירת מחדל: [Navigator.maybePop], כמו Escape.
   final VoidCallback? onClose;
@@ -150,7 +152,7 @@ class AppDialogFrame extends StatelessWidget {
           compact: true,
           fitTitle: fitTitle,
           closeEnabled: closeEnabled,
-          showClose: showClose,
+          showClose: showClose ?? size != AppDialogSize.small,
           onClose: onClose,
         ),
         if (fixedHeight) Expanded(child: body) else Flexible(child: body),

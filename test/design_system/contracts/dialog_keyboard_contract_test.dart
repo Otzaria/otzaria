@@ -291,13 +291,18 @@ void main() {
     setUp(() => dirty = ValueNotifier(true));
     tearDown(() => dirty.dispose());
 
-    Future<DialogOutcome<bool>> open(WidgetTester tester) => openDialog<bool>(
+    // ל-X צריך medium: ב-small אין X (DD-07).
+    Future<DialogOutcome<bool>> open(
+      WidgetTester tester, {
+      AppDialogSize size = AppDialogSize.small,
+    }) => openDialog<bool>(
       tester,
       (context) => showTwoActionsDialog(
         context: context,
         title: 'עריכה',
         content: 'תוכן',
         isDirty: dirty,
+        size: size,
       ),
     );
 
@@ -317,7 +322,10 @@ void main() {
 
     for (final MapEntry(key: name, value: exit) in exits.entries) {
       testWidgets('$name שואל, "המשך לערוך" משאיר פתוח', (tester) async {
-        final outcome = await open(tester);
+        final outcome = await open(
+          tester,
+          size: name == 'X' ? AppDialogSize.medium : AppDialogSize.small,
+        );
         await exit(tester);
         await tester.pumpAndSettle();
         await answer(tester, 'המשך לערוך');
@@ -326,7 +334,10 @@ void main() {
       });
 
       testWidgets('$name שואל, "סגור בלי לשמור" סוגר', (tester) async {
-        final outcome = await open(tester);
+        final outcome = await open(
+          tester,
+          size: name == 'X' ? AppDialogSize.medium : AppDialogSize.small,
+        );
         await exit(tester);
         await tester.pumpAndSettle();
         await answer(tester, 'סגור בלי לשמור');
