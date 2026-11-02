@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
@@ -7,16 +8,18 @@ import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 class ConfirmationDialog extends StatelessWidget {
   final String title;
   final String content;
-  final String cancelText;
-  final String confirmText;
+
+  /// null = תווית ברירת המחדל בשפת הממשק.
+  final String? cancelText;
+  final String? confirmText;
   final bool isDangerous;
 
   const ConfirmationDialog({
     super.key,
     required this.title,
     required this.content,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'אישור',
+    this.cancelText,
+    this.confirmText,
     this.isDangerous = false,
   });
 
@@ -26,7 +29,7 @@ class ConfirmationDialog extends StatelessWidget {
           title: title,
           content: content,
           cancelText: cancelText,
-          confirmText: confirmText,
+          confirmText: confirmText ?? context.settingsText('אישור'),
         )
       : AppDialog.twoActions(
           title: title,
@@ -40,8 +43,8 @@ Future<bool?> showConfirmationDialog({
   required BuildContext context,
   required String title,
   required String content,
-  String cancelText = 'ביטול',
-  String confirmText = 'אישור',
+  String? cancelText,
+  String? confirmText,
   bool isDangerous = false,
   bool barrierDismissible = true,
 }) => showDialogUntilTornDown<bool>(

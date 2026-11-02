@@ -4139,7 +4139,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             deferChildBuildOnOpen: true,
                             preserveChildStateOnClose: true,
                             width: 400,
-                            title: 'הגדרות תצוגת הספרים',
+                            title: context.settingsText(
+                              'הגדרות תצוגת הספרים',
+                            ),
                             child: const Expanded(
                               child: ReadingSettingsPanel(),
                             ),

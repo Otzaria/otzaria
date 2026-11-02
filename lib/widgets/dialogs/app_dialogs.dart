@@ -4,6 +4,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
@@ -35,8 +36,10 @@ class AppDialog extends StatefulWidget {
   final String title;
   final String? content;
   final Widget? customContent;
-  final String confirmText;
-  final String cancelText;
+
+  /// null = תווית ברירת המחדל בשפת הממשק.
+  final String? confirmText;
+  final String? cancelText;
   final String? subtitle;
   final TextDirection? textDirection;
   final bool handleEnterKey;
@@ -62,7 +65,7 @@ class AppDialog extends StatefulWidget {
     required this.title,
     this.content,
     this.customContent,
-    this.confirmText = 'אישור',
+    this.confirmText,
     this.textDirection,
     this.onConfirm,
     this.icon,
@@ -73,7 +76,7 @@ class AppDialog extends StatefulWidget {
          'content או customContent חייבים להיות מוגדרים',
        ),
        _variant = _DialogVariant.singleAction,
-       cancelText = '',
+       cancelText = null,
        subtitle = null,
        handleEnterKey = true,
        isDirty = null;
@@ -83,8 +86,8 @@ class AppDialog extends StatefulWidget {
     required this.title,
     this.content,
     this.customContent,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'אישור',
+    this.cancelText,
+    this.confirmText,
     this.textDirection,
     this.handleEnterKey = true,
     this.isDirty,
@@ -104,8 +107,8 @@ class AppDialog extends StatefulWidget {
     required this.title,
     required this.content,
     this.customContent,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'המשך',
+    this.cancelText,
+    this.confirmText,
     this.subtitle,
     this.textDirection,
     this.icon,
@@ -185,33 +188,41 @@ class _AppDialogState extends State<AppDialog> {
     return SingleChildScrollView(child: text);
   }
 
+  String get _confirmLabel =>
+      widget.confirmText ??
+      context.settingsText(
+        widget._variant == _DialogVariant.warning ? 'המשך' : 'אישור',
+      );
+
+  String get _cancelLabel => widget.cancelText ?? context.settingsText('ביטול');
+
   List<Widget> _buildActions() => switch (widget._variant) {
     _DialogVariant.singleAction => [
       ActionButton.recommended(
         autofocus: widget.customContent == null,
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: _handleConfirm,
       ),
     ],
     _DialogVariant.twoActions => [
       ActionButton.neutral(
-        text: widget.cancelText,
+        text: _cancelLabel,
         onPressed: _cancel,
       ),
       ActionButton.recommended(
         autofocus: true,
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: () => Navigator.of(context).pop(true),
       ),
     ],
     _DialogVariant.warning => [
       ActionButton.recommended(
         autofocus: true,
-        text: widget.cancelText,
+        text: _cancelLabel,
         onPressed: _cancel,
       ),
       ActionButton.warning(
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: () => Navigator.of(context).pop(true),
       ),
     ],
@@ -233,7 +244,7 @@ Future<bool?> showSingleActionDialog({
   required String title,
   String? content,
   Widget? customContent,
-  String confirmText = 'אישור',
+  String? confirmText,
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool Function()? onConfirm,
@@ -262,8 +273,8 @@ Future<bool?> showTwoActionsDialog({
   required String title,
   String? content,
   Widget? customContent,
-  String cancelText = 'ביטול',
-  String confirmText = 'אישור',
+  String? cancelText,
+  String? confirmText,
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool handleEnterKey = true,
@@ -295,8 +306,8 @@ Future<bool?> showWarningDialog({
   required String title,
   required String content,
   String? subtitle,
-  String cancelText = 'ביטול',
-  String confirmText = 'איפוס',
+  String? cancelText,
+  String? confirmText,
   TextDirection? textDirection,
   bool barrierDismissible = true,
   IconData? icon,
@@ -310,7 +321,7 @@ Future<bool?> showWarningDialog({
       content: content,
       subtitle: subtitle,
       cancelText: cancelText,
-      confirmText: confirmText,
+      confirmText: confirmText ?? context.settingsText('איפוס'),
       textDirection: textDirection,
       icon: icon,
     ),
@@ -342,7 +353,7 @@ Future<T?> showChoiceDialog<T>({
   String? content,
   Widget? customContent,
   required List<AppDialogChoice<T>> choices,
-  String cancelText = 'ביטול',
+  String? cancelText,
   IconData? icon,
   TextDirection? textDirection,
   bool barrierDismissible = true,
@@ -363,7 +374,7 @@ Future<T?> showChoiceDialog<T>({
             size: AppDialogSize.small,
             actions: [
               ActionButton.neutral(
-                text: cancelText,
+                text: cancelText ?? context.settingsText('ביטול'),
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
               for (final choice in choices)
