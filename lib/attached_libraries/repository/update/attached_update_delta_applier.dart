@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_artifact_builder.dart';
@@ -53,55 +52,38 @@ class AttachedUpdateDeltaApplier {
         'delta artifact must be zstd-patch',
       );
     }
-    await _deleteIfExists(outputPath);
-    try {
-      if (!await File(basePath).exists()) {
-        throw const AttachedUpdateArtifactMismatch(
-          'the installed database to patch is missing',
-        );
-      }
-      final flag = ZstdCancelFlag();
-      final unsubscribe = cancel?.onCancel(flag.cancel);
-      if (cancel?.isCancelled ?? false) flag.cancel();
-      try {
-        await decodePatch(
-          combinedPath,
-          basePath,
-          outputPath,
-          artifact.size,
-          flag,
-        );
-      } on ZstdOutputLimitExceeded {
-        throw AttachedUpdateArtifactMismatch(
-          'patched output exceeds ${artifact.size}',
-        );
-      } on ZstdDecodeCancelled {
-        throw const AttachedUpdateCancelled();
-      } finally {
-        unsubscribe?.call();
-        flag.dispose();
-      }
-      final size = await File(outputPath).length();
-      if (size != artifact.size) {
-        throw AttachedUpdateArtifactMismatch(
-          'size $size, expected ${artifact.size}',
-        );
-      }
-      final digest = await Isolate.run(
-        () => AttachedUpdateArtifactBuilder.sha256OfFile(outputPath),
-      );
-      if (digest != artifact.sha256) {
-        throw const AttachedUpdateArtifactMismatch('sha256 differs');
-      }
-    } catch (_) {
-      await _deleteIfExists(outputPath);
-      rethrow;
-    }
-    await _deleteIfExists(combinedPath);
-  }
-
-  static Future<void> _deleteIfExists(String path) async {
-    final file = File(path);
-    if (await file.exists()) await file.delete();
+    await AttachedUpdateArtifactBuilder.produceVerified(
+      artifact,
+      combinedPath,
+      outputPath,
+      () async {
+        if (!await File(basePath).exists()) {
+          throw const AttachedUpdateArtifactMismatch(
+            'the installed database to patch is missing',
+          );
+        }
+        final flag = ZstdCancelFlag();
+        final unsubscribe = cancel?.onCancel(flag.cancel);
+        if (cancel?.isCancelled ?? false) flag.cancel();
+        try {
+          await decodePatch(
+            combinedPath,
+            basePath,
+            outputPath,
+            artifact.size,
+            flag,
+          );
+        } on ZstdOutputLimitExceeded {
+          throw AttachedUpdateArtifactMismatch(
+            'patched output exceeds ${artifact.size}',
+          );
+        } on ZstdDecodeCancelled {
+          throw const AttachedUpdateCancelled();
+        } finally {
+          unsubscribe?.call();
+          flag.dispose();
+        }
+      },
+    );
   }
 }

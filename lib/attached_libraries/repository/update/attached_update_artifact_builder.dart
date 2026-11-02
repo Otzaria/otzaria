@@ -42,26 +42,37 @@ class AttachedUpdateArtifactBuilder {
     AttachedUpdateArtifact artifact,
     String combinedPath,
     String outputPath,
+  ) => produceVerified(artifact, combinedPath, outputPath, () async {
+    switch (artifact.compression) {
+      case AttachedUpdateCompression.zstd:
+        try {
+          await decompress(combinedPath, outputPath, artifact.size);
+        } on ZstdOutputLimitExceeded {
+          throw AttachedUpdateArtifactMismatch(
+            'decompressed output exceeds ${artifact.size}',
+          );
+        }
+      case AttachedUpdateCompression.none:
+        // החלקים כבר אומתו; אי-התאמה כאן היא מניפסט סותר ולא תקלת הורדה.
+        await File(combinedPath).rename(outputPath);
+      case AttachedUpdateCompression.zstdPatch:
+        throw const AttachedUpdateArtifactMismatch(
+          'a zstd-patch artifact needs AttachedUpdateDeltaApplier',
+        );
+    }
+  });
+
+  /// מריץ את [produce], שכותב את [outputPath], ובודק את הפלט מול הגודל
+  /// וה-sha256 של [artifact]. בהצלחה [combinedPath] נמחק; בכשל — הפלט.
+  static Future<void> produceVerified(
+    AttachedUpdateArtifact artifact,
+    String combinedPath,
+    String outputPath,
+    Future<void> Function() produce,
   ) async {
     await _deleteIfExists(outputPath);
     try {
-      switch (artifact.compression) {
-        case AttachedUpdateCompression.zstd:
-          try {
-            await decompress(combinedPath, outputPath, artifact.size);
-          } on ZstdOutputLimitExceeded {
-            throw AttachedUpdateArtifactMismatch(
-              'decompressed output exceeds ${artifact.size}',
-            );
-          }
-        case AttachedUpdateCompression.none:
-          // החלקים כבר אומתו; אי-התאמה כאן היא מניפסט סותר ולא תקלת הורדה.
-          await File(combinedPath).rename(outputPath);
-        case AttachedUpdateCompression.zstdPatch:
-          throw const AttachedUpdateArtifactMismatch(
-            'a zstd-patch artifact needs AttachedUpdateDeltaApplier',
-          );
-      }
+      await produce();
       final size = await File(outputPath).length();
       if (size != artifact.size) {
         throw AttachedUpdateArtifactMismatch(
