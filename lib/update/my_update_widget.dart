@@ -26,6 +26,7 @@ import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/app_scope/process_duties.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'app_release_version.dart';
+import 'latest_release_redirect.dart';
 import 'differential/differential_update_service.dart';
 import 'differential/swap_plan.dart' show kSwapBackupDirName;
 import 'differential/swap_recovery.dart';
@@ -853,7 +854,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = appReleaseVersion(packageInfo);
-      final latestVersion = await _getLatestVersion();
+      final latestVersion = await _getLatestVersion(currentVersion);
 
       if (!mounted) return;
       // הבדיקה עברה — ניתוק עתידי יקבל שוב מכסת ניסיונות מלאה.
@@ -932,8 +933,30 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     });
   }
 
-  Future<String?> _getLatestVersion() async {
+  Future<String?> _getLatestVersion(String currentVersion) async {
     releaseCacheForTesting.clear();
+    // ההפניה לא נספרת במכסת ה-API; גוף ה-release נחוץ רק כשיש גרסה חדשה.
+    final client = http.Client();
+    try {
+      final tag = await fetchLatestStableTagViaRedirect(
+        owner: _githubOwner,
+        repository: _githubRepository,
+        client: client,
+        timeout: _kGithubTimeout,
+      );
+      final tagVersion = tag == null ? null : _normalizeVersion(tag);
+      if (tagVersion != null &&
+          !isNewerReleaseVersion(
+            latestVersion: tagVersion,
+            currentVersion: currentVersion,
+          )) {
+        return tagVersion;
+      }
+    } catch (e) {
+      debugPrint('[Update] redirect check failed, using API: $e');
+    } finally {
+      client.close();
+    }
     final release = await fetchLatestAppRelease();
     if (release == null) return null;
     final version = _normalizeVersion(release['tag_name'] as String);
