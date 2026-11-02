@@ -2,11 +2,31 @@ import 'package:flutter/material.dart';
 
 class AppTokens {
   // ── Spacing ————————————————————————————————
+  // ערך שמחוץ לסולם עולה לערך הבא: 6→8, 10→12, 14→16.
+  static const double space2XS = 2;
   static const double spaceXS = 4;
   static const double spaceSM = 8;
+  static const double spaceSMD = 12;
   static const double spaceMD = 16;
   static const double spaceLG = 24;
   static const double spaceXL = 32;
+
+  // ── Semantic Spacing ———————————————————————
+  static const EdgeInsets cardPadding = EdgeInsets.all(spaceSMD);
+  static const double listItemGap = spaceSM;
+
+  /// ריפוד התוכן של דיאלוג עם פס כותרת.
+  static const EdgeInsets dialogPadding = EdgeInsets.symmetric(
+    horizontal: spaceLG,
+    vertical: spaceMD,
+  );
+
+  // ── Icon Sizes ———————————————————————————————
+  static const double iconXS = 14;
+  static const double iconSM = 16;
+  static const double iconMD = 20;
+  static const double iconLG = 24;
+  static const double iconXL = 48;
 
   // ── Border Radius — מקור אמת יחיד: כל הפינות 8 ——————————————
   static const double radius = 8;
