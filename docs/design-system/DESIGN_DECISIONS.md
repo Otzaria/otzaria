@@ -592,7 +592,7 @@
    - **תשובות:**
      - q1: תווית ui-baseline נדרשת להגדלת ה־baseline? → **כן**
      - q2: תווית goldens-approved נדרשת לשינוי תמונות ייחוס? → **כן**
-   - **מימוש:** מומש חלקית: מנוע tool/ui_lint מבוסס analyzer עם 7 כללים (UIL-001, ‏003, ‏004, ‏005, ‏015, ‏017, ‏019), החרגות ב־config.yaml והערות allow, CLI ‏md/github/json ושלב דוח ב־job ‏analyze. חוסם (MIG-27): test/design_system/ui_lint_test.dart מכשיל חריגה חדשה בכללי שלב 1–2 (blockingStage), baseline מת והערת allow פגומה; ui_baseline_guard.yml (תווית ui-baseline) ו־goldens_guard.yml (תווית goldens-approved). ל־UIL-001/003 הטביעה היא שם הבנאי, כדי ששינוי בתוכן דיאלוג לא ייחשב חריגה חדשה; baseline נבנה מחדש (219 → 214: ‏5 מופעי UIL-004 שתוקנו ב־UI-019). נשאר: העברת בדיקות הסריקה הישנות למנוע, שאר הכללים, כללי הטוקנים חוסמים (MIG-28), יצירת התוויות ב־GitHub.
+   - **מימוש:** מומש חלקית: מנוע tool/ui_lint מבוסס analyzer עם 10 כללים (UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏015, ‏017, ‏019), החרגות ב־config.yaml והערות allow, CLI ‏md/github/json ושלב דוח ב־job ‏analyze. חוסם (MIG-27): test/design_system/ui_lint_test.dart מכשיל חריגה חדשה בכללי שלב 1–2 (blockingStage), baseline מת והערת allow פגומה; ui_baseline_guard.yml (תווית ui-baseline) ו־goldens_guard.yml (תווית goldens-approved). ל־UIL-001/003 הטביעה היא שם הבנאי; baseline נבנה מחדש (219 → 214: ‏5 מופעי UIL-004 שתוקנו ב־UI-019). הועברו למנוע: bare_text_field_scan (UIL-011), uisnack_literal_scan (UIL-009), rtl_icon_registered_usage (UIL-006). נשאר: default_context_menu_scan ו־no_scrollable_markdown (אין להם מזהה בקטלוג), pdf_hardcoded_colors (יוחלף ב־UIL-015 כשיהיה חוסם, MIG-28), שאר הכללים, יצירת התוויות ב־GitHub.
 
 ---
 
