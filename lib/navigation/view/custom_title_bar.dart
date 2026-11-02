@@ -315,7 +315,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                 if (isFullscreen)
                                   _CaptionActionButton(
                                     brightness: Theme.of(context).brightness,
-                                    tooltip: 'מזער',
+                                    tooltip: context.settingsText('מזער'),
                                     icon: FluentIcons.subtract_24_regular,
                                     onPressed: () async {
                                       // נלקח לפני ה-await: אחריו ה-context
@@ -332,7 +332,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                 if (isFullscreen)
                                   _CaptionActionButton(
                                     brightness: Theme.of(context).brightness,
-                                    tooltip: 'סגור',
+                                    tooltip: context.settingsText('סגור'),
                                     icon: FluentIcons.dismiss_24_regular,
                                     // סגירה מנומסת — עוברת דרך ה-handshake
                                     // של onWindowClose ולא הורגת מיד.
@@ -396,23 +396,41 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                 IconButton(
                   key: TourTargetKeys.of(context).titleBarHistoryButton,
                   icon: const Icon(FluentIcons.history_24_regular, size: 18),
-                  tooltip:
-                      'הצג היסטוריה (${ShortcutHelper.formatShortcutForDisplay(historyShortcut)})',
+                  tooltip: context.settingsText(
+                    'הצג היסטוריה ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        historyShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showHistoryDialog(context),
                   style: _kIconButtonStyle,
                 ),
                 IconButton(
                   key: TourTargetKeys.of(context).titleBarBookmarkButton,
                   icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
-                  tooltip:
-                      'הצג סימניות (${ShortcutHelper.formatShortcutForDisplay(bookmarksShortcut)})',
+                  tooltip: context.settingsText(
+                    'הצג סימניות ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        bookmarksShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showBookmarksDialog(context),
                   style: _kIconButtonStyle,
                 ),
                 IconButton(
                   icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
-                  tooltip:
-                      'החלף שולחן עבודה (${ShortcutHelper.formatShortcutForDisplay(workspaceShortcut)})',
+                  tooltip: context.settingsText(
+                    'החלף שולחן עבודה ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        workspaceShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showSaveWorkspaceDialog(context),
                   style: _kIconButtonStyle,
                 ),
@@ -714,7 +732,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                 : FluentIcons.settings_24_regular,
             size: 18,
           ),
-          tooltip: 'הגדרות תצוגת הספרים',
+          tooltip: context.settingsText('הגדרות תצוגת הספרים'),
           onPressed:
               widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
           style: _kIconButtonStyle,
@@ -769,7 +787,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     }
     return _CaptionActionButton(
       brightness: Theme.of(context).brightness,
-      tooltip: isFullscreen ? 'צא ממסך מלא' : 'מסך מלא',
+      tooltip: context.settingsText(isFullscreen ? 'צא ממסך מלא' : 'מסך מלא'),
       icon: isFullscreen
           ? FluentIcons.full_screen_minimize_24_regular
           : FluentIcons.full_screen_maximize_24_regular,
@@ -788,7 +806,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       child: Padding(
         padding: const EdgeInsetsDirectional.only(start: 4.0),
         child: Tooltip(
-          message: 'בטל הצמדה',
+          message: context.settingsText('בטל הצמדה'),
           child: const Icon(FluentIcons.pin_24_filled, size: 14),
         ),
       ),
@@ -992,7 +1010,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     // X של חצי לשונית — סוגר רק את החלונית שלו, בסגנון ה-X של לשונית רגילה.
     Widget paneCloseButton(OpenedTab pane, double extent) => _tabCloseButton(
-      tooltip: 'סגור חלונית',
+      tooltip: context.settingsText('סגור חלונית'),
       width: extent,
       onPressed: () => closePane(pane, context),
     );

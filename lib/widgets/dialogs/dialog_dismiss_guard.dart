@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
 /// שומר אחד לכל דרכי היציאה מדיאלוג שעוברות ב-[Navigator.maybePop]: X,
@@ -60,8 +61,8 @@ class DialogDismissGuard extends StatelessWidget {
 /// שאלת הסגירה של טופס עם שינויים שלא נשמרו. true = לסגור בלי לשמור.
 Future<bool?> confirmDiscardChanges(BuildContext context) => showWarningDialog(
   context: context,
-  title: 'לסגור בלי לשמור?',
-  content: 'השינויים שלא נשמרו יאבדו.',
-  cancelText: 'המשך לערוך',
-  confirmText: 'סגור בלי לשמור',
+  title: context.settingsText('לסגור בלי לשמור?'),
+  content: context.settingsText('השינויים שלא נשמרו יאבדו.'),
+  cancelText: context.settingsText('המשך לערוך'),
+  confirmText: context.settingsText('סגור בלי לשמור'),
 );

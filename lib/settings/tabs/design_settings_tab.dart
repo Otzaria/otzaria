@@ -30,7 +30,7 @@ class DesignSettingsTab extends StatelessWidget {
     SettingsSearchEntry(
       id: 'design.language.settings_language',
       title: 'שפת ההגדרות',
-      subtitle: 'שפת התצוגה של מסך ההגדרות וטופסי הדיווח',
+      subtitle: 'שורת הכותרת, סרגל הניווט, ההגדרות, הדיאלוגים וטופסי הדיווח',
       tab: SettingsTab.design,
       cardId: 'design.language',
       keywords: ['שפה', 'אנגלית', 'עברית', 'language', 'english', 'hebrew'],
@@ -190,7 +190,8 @@ class DesignSettingsTab extends StatelessWidget {
                       icon: OtzariaIcons.alef_latin_a_24_filled,
                       title: context.settingsText('שפת ההגדרות'),
                       subtitle: context.settingsText(
-                        'שפת התצוגה של מסך ההגדרות וטופסי הדיווח; תוכן הספרים והדיווחים אינו מתורגם',
+                        'שורת הכותרת, סרגל הניווט, ההגדרות, הדיאלוגים וטופסי הדיווח; '
+                        'תוכן הספרים והדיווחים אינו מתורגם',
                       ),
                       value: state.settingsLanguageCode,
                       entries: [

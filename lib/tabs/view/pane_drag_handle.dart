@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// מסמן לסרגל העליון של חלונית בטאב מפוצל שהיא ניתנת לגרירה החוצה.
 ///
@@ -50,7 +51,9 @@ class PaneDragHandleButton extends StatelessWidget {
         platform == TargetPlatform.macOS;
 
     final handle = Tooltip(
-      message: 'גרור אל שורת הכרטיסיות כדי להחזיר לכרטיסייה נפרדת',
+      message: context.settingsText(
+        'גרור אל שורת הכרטיסיות כדי להחזיר לכרטיסייה נפרדת',
+      ),
       child: MouseRegion(
         cursor: SystemMouseCursors.grab,
         child: Padding(

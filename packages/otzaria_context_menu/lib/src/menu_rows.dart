@@ -314,7 +314,7 @@ ButtonStyle buildAppSubmenuItemStyle(
         borderRadius: presentation.borderRadius,
       ),
     ),
-    alignment: Alignment.centerRight,
+    alignment: AlignmentDirectional.centerStart,
     textStyle: WidgetStatePropertyAll(
       TextStyle(
         fontFamily: _platformFontFamily,

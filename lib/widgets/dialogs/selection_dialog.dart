@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
@@ -15,7 +16,9 @@ class SelectionDialog<T> extends StatefulWidget {
   final String title;
   final List<SelectionItem<T>> items;
   final T? initialValue;
-  final String searchHint;
+
+  /// null = "חיפוש..." בשפת הממשק.
+  final String? searchHint;
 
   /// תג האייקון: מה בוחרים. null = אייקון משפחת הבחירה.
   final IconData? icon;
@@ -28,7 +31,7 @@ class SelectionDialog<T> extends StatefulWidget {
     required this.title,
     required this.items,
     this.initialValue,
-    this.searchHint = 'חיפוש...',
+    this.searchHint,
     this.icon,
   });
 
@@ -79,7 +82,7 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
       handleEnterKey: false,
       actions: [
         ActionButton.neutral(
-          text: 'ביטול',
+          text: context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
@@ -88,15 +91,15 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
           OtzariaSearchField(
             controller: _searchController,
             focusNode: _searchFocusNode,
-            hintText: widget.searchHint,
+            hintText: widget.searchHint ?? context.settingsText('חיפוש...'),
             autofocus: true,
           ),
           const SizedBox(height: AppTokens.spaceSM),
           Expanded(
             child: filteredItems.isEmpty
-                ? const ToolEmptyState(
+                ? ToolEmptyState(
                     icon: OtzariaIcons.search_24_regular,
-                    message: 'לא נמצאו תוצאות',
+                    message: context.settingsText('לא נמצאו תוצאות'),
                   )
                 : ListView.builder(
                     itemCount: filteredItems.length,
@@ -131,7 +134,7 @@ Future<T?> showSelectionDialog<T>({
   required String title,
   required List<SelectionItem<T>> items,
   T? initialValue,
-  String searchHint = 'חיפוש...',
+  String? searchHint,
   bool barrierDismissible = true,
   IconData? icon,
 }) {

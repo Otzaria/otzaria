@@ -2,6 +2,7 @@
 // דיאלוג התקדמות חוסם לפעולה ארוכה (DD-07, משפחת "תהליך").
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -18,7 +19,7 @@ Future<T> runWithBlockingProgress<T>({
   String? message,
   IconData icon = AppDialogIcons.progress,
   VoidCallback? onCancel,
-  String cancelText = 'ביטול',
+  String? cancelText,
 }) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   final direction = Directionality.of(context);
@@ -63,7 +64,9 @@ class _BlockingProgressDialog extends StatelessWidget {
   final String? message;
   final IconData icon;
   final VoidCallback? onCancel;
-  final String cancelText;
+
+  /// null = "ביטול" בשפת הממשק.
+  final String? cancelText;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +79,10 @@ class _BlockingProgressDialog extends StatelessWidget {
       showClose: false,
       actions: [
         if (onCancel != null)
-          ActionButton.neutral(text: cancelText, onPressed: onCancel),
+          ActionButton.neutral(
+            text: cancelText ?? context.settingsText('ביטול'),
+            onPressed: onCancel,
+          ),
       ],
       child: Row(
         mainAxisAlignment: text == null

@@ -7,6 +7,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 export 'pane_drop_geometry.dart'
     show
@@ -461,7 +462,9 @@ class _PaneDividerState extends State<_PaneDivider> {
             value: _percent(widget.ratio),
             increasedValue: _percent(widget.increasedRatio),
             decreasedValue: _percent(widget.decreasedRatio),
-            label: 'מפריד בין חלוניות — גרירה או חצים לצדדים, Home לאיפוס',
+            label: context.settingsText(
+              'מפריד בין חלוניות — גרירה או חצים לצדדים, Home לאיפוס',
+            ),
             onIncrease: () => widget.onNudge(false),
             onDecrease: () => widget.onNudge(true),
             child: SizedBox(

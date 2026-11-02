@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -15,8 +16,10 @@ class InputDialog extends StatefulWidget {
   final String? hintText;
   final String initialValue;
   final TextInputType? keyboardType;
-  final String cancelText;
-  final String confirmText;
+
+  /// null = תווית ברירת המחדל בשפת הממשק.
+  final String? cancelText;
+  final String? confirmText;
   final bool obscureText;
 
   /// תג האייקון: מה מזינים. null = אייקון משפחת הקלט.
@@ -30,8 +33,8 @@ class InputDialog extends StatefulWidget {
     this.hintText,
     this.initialValue = '',
     this.keyboardType,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'שמור',
+    this.cancelText,
+    this.confirmText,
     this.obscureText = false,
     this.icon,
   });
@@ -76,11 +79,11 @@ class _InputDialogState extends State<InputDialog>
       onConfirm: _submit,
       actions: [
         ActionButton.neutral(
-          text: widget.cancelText,
+          text: widget.cancelText ?? context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(),
         ),
         ActionButton.recommended(
-          text: widget.confirmText,
+          text: widget.confirmText ?? context.settingsText('שמור'),
           onPressed: _submit,
         ),
       ],
@@ -122,8 +125,8 @@ Future<String?> showInputDialog({
   String? hintText,
   String initialValue = '',
   TextInputType? keyboardType,
-  String cancelText = 'ביטול',
-  String confirmText = 'שמור',
+  String? cancelText,
+  String? confirmText,
   IconData? icon,
 }) {
   return showDialogUntilTornDown<String>(

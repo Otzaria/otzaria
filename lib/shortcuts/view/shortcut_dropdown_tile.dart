@@ -164,7 +164,10 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
               titleSection,
               const SizedBox(width: 16),
               Flexible(
-                child: Align(alignment: Alignment.centerLeft, child: field),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: field,
+                ),
               ),
             ],
           );

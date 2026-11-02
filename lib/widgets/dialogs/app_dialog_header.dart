@@ -3,6 +3,7 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 
@@ -23,7 +24,7 @@ class AppDialogHeader extends StatelessWidget {
     this.onClose,
     this.closeEnabled = true,
     this.showClose = true,
-    this.closeTooltip = 'סגור',
+    this.closeTooltip,
     this.compact = false,
     this.titleMaxLines,
     this.subtitleMaxLines,
@@ -50,8 +51,8 @@ class AppDialogHeader extends StatelessWidget {
   /// false = בלי כפתור סגירה, למשל בדיאלוג התקדמות שאי אפשר לסגור.
   final bool showClose;
 
-  /// טקסט הרמז של כפתור הסגירה; מסכים מתורגמים מעבירים את התרגום.
-  final String closeTooltip;
+  /// טקסט הרמז של כפתור הסגירה; null = "סגור" בשפת הממשק.
+  final String? closeTooltip;
 
   /// ריפוד אנכי קטן יותר, לכותרות שאינן מחזיקות תיאור ארוך.
   final bool compact;
@@ -149,7 +150,7 @@ class AppDialogHeader extends StatelessWidget {
           if (showClose)
             IconButton(
               icon: const Icon(FluentIcons.dismiss_24_regular),
-              tooltip: closeTooltip,
+              tooltip: closeTooltip ?? context.settingsText('סגור'),
               onPressed: closeEnabled
                   ? (onClose ?? () => Navigator.of(context).maybePop())
                   : null,

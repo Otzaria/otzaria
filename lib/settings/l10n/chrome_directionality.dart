@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/settings/l10n/settings_text_scope.dart';
 
-/// מחיל על כרום התוכנה — פס הכותרת, סרגל הניווט ורצועת הכרטיסיות — את כיוון
-/// הכתיבה של שפת הממשק, כך שבשפה LTR הם עוברים לצד שמאל.
+/// מחיל על כרום הממשק — שורת הכותרת עם הכרטיסיות, סרגל הניווט וחלונית הכלים —
+/// את כיוון הכתיבה של שפת הממשק, כך שבשפה LTR הם עוברים לצד שמאל.
 class ChromeDirectionality extends StatelessWidget {
   const ChromeDirectionality({super.key, required this.child});
 

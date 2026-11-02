@@ -82,9 +82,9 @@ class App extends StatelessWidget {
                 ? ThemeMode.system
                 : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
             builder: (context, child) {
-              // שפת ההגדרות זמינה לכל האפליקציה כדי שגם סרגל הניווט ופס
-              // הכותרת יתורגמו. הכיווניות נשארת RTL — רק מסך ההגדרות עובר
-              // ל-LTR מקומית.
+              // שפת הממשק זמינה לכל האפליקציה, גם לדיאלוגים שמעל ה-Navigator.
+              // הכיווניות נשארת RTL; כרום הממשק (DESIGN_SYSTEM.md, DD-20) עובר
+              // ל-LTR ב-ChromeDirectionality ובמסך ההגדרות.
               Widget content =
                   BlocSelector<SettingsBloc, SettingsState, String>(
                     selector: (state) => state.settingsLanguageCode,

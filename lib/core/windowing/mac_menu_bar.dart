@@ -13,6 +13,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/shortcuts/key_map.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
@@ -34,14 +35,28 @@ class MacMenuBar extends StatelessWidget {
     if (!_isSupported) return child;
     // הקיצורים נקראים מההגדרות ולא מקובעים: מקש שמוצהר בתפריט נתפס בידי
     // macOS לפני Flutter, וקיצור מיושן כאן היה חוטף את החדש.
-    return BlocSelector<SettingsBloc, SettingsState, Map<String, String>>(
-      selector: (state) => state.shortcuts,
-      builder: (context, shortcuts) =>
-          PlatformMenuBar(menus: _menus(shortcuts), child: child),
+    // התפריט יושב מעל SettingsTextScope של האפליקציה, ולכן השפה נקראת מההגדרות.
+    return BlocSelector<
+      SettingsBloc,
+      SettingsState,
+      (Map<String, String>, String)
+    >(
+      selector: (state) => (state.shortcuts, state.settingsLanguageCode),
+      builder: (context, selected) => PlatformMenuBar(
+        menus: _menus(
+          selected.$1,
+          resolveSettingsLanguage(selected.$2),
+        ),
+        child: child,
+      ),
     );
   }
 
-  List<PlatformMenuItem> _menus(Map<String, String> shortcuts) {
+  List<PlatformMenuItem> _menus(
+    Map<String, String> shortcuts,
+    SettingsLanguage language,
+  ) {
+    String t(String hebrew) => resolveSettingsText(hebrew, language: language);
     MenuSerializableShortcut? accel(String key) =>
         _toActivator(shortcuts[key] ?? ShortcutValidator.defaultShortcuts[key]);
 
@@ -56,7 +71,7 @@ class MacMenuBar extends StatelessWidget {
           PlatformMenuItemGroup(
             members: <PlatformMenuItem>[
               PlatformMenuItem(
-                label: 'הגדרות…',
+                label: t('הגדרות…'),
                 shortcut: accel('key-shortcut-open-settings'),
                 onSelected: _openSettings,
               ),
@@ -92,48 +107,52 @@ class MacMenuBar extends StatelessWidget {
         ],
       ),
       PlatformMenu(
-        label: 'מעבר',
+        label: t('מעבר'),
         menus: <PlatformMenuItem>[
           PlatformMenuItem(
-            label: 'ספרייה',
+            label: resolveSettingsText(
+              'ספרייה',
+              language: language,
+              context: 'titleBar',
+            ),
             shortcut: accel('key-shortcut-open-library-browser'),
             onSelected: _openLibrary,
           ),
           PlatformMenuItem(
-            label: 'עיון',
+            label: t('עיון'),
             shortcut: accel('key-shortcut-open-reading-screen'),
             onSelected: () => _navigate(Screen.reading),
           ),
           PlatformMenuItem(
-            label: 'חיפוש',
+            label: t('חיפוש'),
             shortcut: accel('key-shortcut-open-new-search'),
             onSelected: () => _navigate(Screen.search),
           ),
           PlatformMenuItem(
-            label: 'כלים',
+            label: t('כלים'),
             shortcut: accel('key-shortcut-open-more'),
             onSelected: _openTools,
           ),
         ],
       ),
       PlatformMenu(
-        label: 'סימניות',
+        label: t('סימניות'),
         menus: <PlatformMenuItem>[
           PlatformMenuItem(
-            label: 'סימניות',
+            label: t('סימניות'),
             shortcut: accel('key-shortcut-open-bookmarks'),
             onSelected: () => _showDialog(const BookmarksDialog()),
           ),
           PlatformMenuItem(
-            label: 'היסטוריה',
+            label: t('היסטוריה'),
             shortcut: accel('key-shortcut-open-history'),
             onSelected: () => _showDialog(const HistoryDialog()),
           ),
         ],
       ),
-      const PlatformMenu(
-        label: 'חלון',
-        menus: <PlatformMenuItem>[
+      PlatformMenu(
+        label: t('חלון'),
+        menus: const <PlatformMenuItem>[
           PlatformProvidedMenuItem(
             type: PlatformProvidedMenuItemType.minimizeWindow,
           ),

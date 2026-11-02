@@ -21,7 +21,7 @@ import 'package:path_provider/path_provider.dart';
 /// The action row under a saved or sent report.
 Widget buildReportActions({required List<Widget> children}) {
   return Padding(
-    padding: const EdgeInsets.only(right: 56, left: 16, bottom: 12),
+    padding: const EdgeInsetsDirectional.only(start: 56, end: 16, bottom: 12),
     child: Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Wrap(
