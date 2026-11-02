@@ -5,6 +5,7 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
 
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
@@ -142,7 +143,11 @@ class AppThemeData {
         backgroundColor: menuBackground,
         metrics: menuMetrics,
       ),
-      extensions: [menuMetrics, AppThemeVariantTheme(variant)],
+      extensions: [
+        menuMetrics,
+        AppThemeVariantTheme(variant),
+        AppSurfaceColors.fromScheme(cs),
+      ],
     ).copyWith(
       dialogTheme: DialogThemeData(
         barrierColor: AppColors.dialogBarrier,
