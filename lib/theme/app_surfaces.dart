@@ -223,6 +223,33 @@ class AppSurfaces {
       ? cs.primaryContainer.withValues(alpha: 0.6)
       : cs.surfaceContainerHighest.withValues(alpha: 0.5);
 
+  // ── לוח השנה: יום מיוחד (שבת, חג, תענית, ראש חודש), היום, וריחוף על תא.
+
+  /// רקע תא של יום מיוחד ברשת הימים.
+  static Color calendarSpecialDay(ColorScheme cs) =>
+      cs.secondaryContainer.withValues(alpha: 0.4);
+
+  /// רקע כרטיס זמן של יום מיוחד (הדלקת נרות, מוצאי שבת וחג). אטום מהתא
+  /// ברשת, כי עליו טקסט רב.
+  static Color calendarSpecialDayCard(ColorScheme cs) =>
+      cs.secondaryContainer.withValues(alpha: cs.isDark ? 0.82 : 0.55);
+
+  /// טקסט ראשי על [calendarSpecialDayCard].
+  static Color onCalendarSpecialDayCard(ColorScheme cs) =>
+      cs.onSecondaryContainer;
+
+  /// טקסט משני על [calendarSpecialDayCard].
+  static Color onCalendarSpecialDayCardVariant(ColorScheme cs) =>
+      cs.onSecondaryContainer.withValues(alpha: cs.isDark ? 0.94 : 0.78);
+
+  /// רקע תא היום ברשת הימים.
+  static Color calendarToday(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.25);
+
+  /// גוון שנמזג מעל רקע תא בריחוף ובתא היום.
+  static Color calendarDayTint(ColorScheme cs) =>
+      cs.surfaceTint.withValues(alpha: 0.08);
+
   /// הדגשת קישור בתוך עמוד PDF בריחוף — 20% primary, קריא מעל עמוד סרוק.
   static Color pdfLinkHover(ColorScheme cs) =>
       cs.primary.withValues(alpha: 0.2);

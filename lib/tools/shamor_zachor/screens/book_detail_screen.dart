@@ -544,15 +544,14 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
   /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי.
   Widget _buildColumnCompletionDate(ThemeData theme, DateTime completedAt) {
-    final style = TextStyle(
-      fontSize: AppTokens.fontSM - 1,
+    final style = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Tooltip(
       message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
       child: Padding(
         // Keeps neighbouring dates apart when narrow cells shrink them.
-        padding: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
         child: LayoutBuilder(
           builder: (context, constraints) => FittedBox(
             fit: BoxFit.scaleDown,
