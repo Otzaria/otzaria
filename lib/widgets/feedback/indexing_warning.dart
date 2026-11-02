@@ -7,6 +7,7 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// מצב אזהרת האינדקס המוצג למשתמש.
 enum IndexingWarningMode {
@@ -100,7 +101,7 @@ class IndexingWarning extends StatelessWidget {
             ),
           ),
           if (onDismiss != null && mode == IndexingWarningMode.inProgress)
-            IconButton(
+            AppIconButton(
               tooltip: context.settingsText('סגור'),
               icon: const Icon(FluentIcons.dismiss_24_regular),
               onPressed: onDismiss,

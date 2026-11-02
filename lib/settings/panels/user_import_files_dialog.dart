@@ -72,7 +72,7 @@ class UserImportFilesDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Flexible(
-                child: ListDialogCard(
+                child: AppCard(
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: state.importFiles.length,

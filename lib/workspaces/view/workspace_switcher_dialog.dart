@@ -104,7 +104,8 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   Widget _buildNewWorkspaceTile(BuildContext context) {
     return BlocBuilder<TabsBloc, TabsState>(
       builder: (context, tabsState) {
-        return Card(
+        return AppCard(
+          margin: const EdgeInsets.all(4),
           child: InkWell(
             onTap: () {
               final workspaceBloc = context.read<WorkspaceBloc>();
@@ -158,7 +159,8 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     List<OpenedTab> tabs,
     bool isActive,
   ) {
-    return Card(
+    return AppCard(
+      margin: const EdgeInsets.all(4),
       child: Stack(
         children: [
           InkWell(

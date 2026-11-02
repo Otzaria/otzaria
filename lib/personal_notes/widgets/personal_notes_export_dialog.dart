@@ -182,7 +182,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
               const SizedBox(height: AppTokens.spaceSM),
               SizedBox(
                 height: 240,
-                child: ListDialogCard(
+                child: AppCard(
                   child: ListView.builder(
                     itemCount: filteredNotes.length,
                     itemBuilder: (context, index) {

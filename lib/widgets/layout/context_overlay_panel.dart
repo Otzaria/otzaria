@@ -40,6 +40,7 @@ import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/escape_layers.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class ContextOverlayPanel extends StatefulWidget {
   /// האם הפאנל פתוח
@@ -295,10 +296,10 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
           ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
+            child: AppIconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              size: AppIconButtonSize.medium,
               tooltip: context.settingsText('סגור'),
-              visualDensity: VisualDensity.compact,
               onPressed: widget.onClose,
             ),
           ),

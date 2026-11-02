@@ -7,6 +7,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// טאב סטנדרטי לפנלים הימניים (ללא אייקון filled).
 /// כש-[showLabel] כבוי מוצג אייקון בלבד (מצב compact), ו-[label] עובר ל-tooltip.
@@ -195,11 +196,9 @@ class PanelTabHeader extends StatelessWidget {
             ),
           ),
           ...extraActions,
-          IconButton(
+          AppIconButton(
             tooltip: context.settingsText('סגור חלונית'),
-            iconSize: 18,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            size: AppIconButtonSize.small,
             icon: const Icon(FluentIcons.dismiss_24_regular),
             onPressed: onClose,
           ),

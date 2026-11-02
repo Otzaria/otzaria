@@ -22,6 +22,41 @@ BoxDecoration _decorationIn(WidgetTester tester, Finder of) =>
 
 void main() {
   group('AppCard', () {
+    for (final (tone, bg, on) in [
+      (AppCardTone.primary, 'primaryContainer', 'onPrimaryContainer'),
+      (AppCardTone.error, 'errorContainer', 'onErrorContainer'),
+    ]) {
+      testWidgets('tone ${tone.name}: רקע $bg, טקסט $on, מסגרת נשארת', (
+        tester,
+      ) async {
+        await pumpInApp(
+          tester,
+          AppCard(tone: tone, child: const Text('כרטיס')),
+        );
+        final cs = schemeAt(tester, find.byType(AppCard));
+        final material = firstMaterialIn(tester, find.byType(AppCard));
+        expect(
+          material.color,
+          tone == AppCardTone.primary ? cs.primaryContainer : cs.errorContainer,
+        );
+        expect(material.shape, AppCard.shape(cs));
+        final text = tester.widget<RichText>(
+          find
+              .descendant(
+                of: find.text('כרטיס'),
+                matching: find.byType(RichText),
+              )
+              .first,
+        );
+        expect(
+          text.text.style?.color,
+          tone == AppCardTone.primary
+              ? cs.onPrimaryContainer
+              : cs.onErrorContainer,
+        );
+      });
+    }
+
     for (final brightness in Brightness.values) {
       testWidgets('ב-$brightness: משטח AppSurfaces.card בפינות 8 ובמסגרת', (
         tester,
@@ -781,6 +816,95 @@ void main() {
     });
   });
 
+  group('AppIconButton', () {
+    for (final size in AppIconButtonSize.values) {
+      testWidgets('${size.name}: אייקון ${size.iconSize}, ריבוע +16, עיגול', (
+        tester,
+      ) async {
+        await pumpInApp(
+          tester,
+          Center(
+            child: AppIconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              tooltip: 'סגור',
+              size: size,
+              onPressed: () {},
+            ),
+          ),
+        );
+        final side = size.iconSize + 16;
+        expect(_iconButtonBox(tester), Size(side, side));
+        expect(tester.getSize(find.byType(Icon)).width, size.iconSize);
+        expect(
+          firstMaterialIn(tester, find.byType(IconButton)).shape,
+          const CircleBorder(),
+        );
+        expect(find.byTooltip('סגור'), findsOneWidget);
+      });
+    }
+
+    testWidgets('צפיפות קומפקטית: ריבוע +12', (tester) async {
+      await pumpInApp(
+        tester,
+        Theme(
+          data: appTheme(
+            Brightness.light,
+          ).copyWith(extensions: const [AppDensity.compact]),
+          child: Center(
+            child: AppIconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              tooltip: 'סגור',
+              size: AppIconButtonSize.small,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      expect(_iconButtonBox(tester), const Size(28, 28));
+    });
+
+    testWidgets('נבחר: primary; מושבת כשאין onPressed', (tester) async {
+      await pumpInApp(
+        tester,
+        const Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIconButton(
+                icon: Icon(FluentIcons.pin_24_regular),
+                tooltip: 'נעץ',
+                isSelected: true,
+                onPressed: _noop,
+              ),
+              AppIconButton(
+                icon: Icon(FluentIcons.delete_24_regular),
+                tooltip: 'מחק',
+                onPressed: null,
+              ),
+            ],
+          ),
+        ),
+      );
+      final cs = schemeAt(tester, find.byType(Row));
+      final pin = tester.widget<RichText>(
+        find
+            .descendant(
+              of: find.byTooltip('נעץ'),
+              matching: find.byType(RichText),
+            )
+            .first,
+      );
+      expect(pin.text.style?.color, cs.primary);
+      final delete = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('מחק'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(delete.onPressed, isNull);
+    });
+  });
+
   group('SettingsCard', () {
     testWidgets('כותרת titleMedium מודגשת ב-primary מעל AppCard.section', (
       tester,
@@ -824,3 +948,12 @@ void main() {
     });
   });
 }
+
+void _noop() {}
+
+/// הריבוע הנראה של כפתור האייקון, בלי אזור המגע של 48 במובייל.
+Size _iconButtonBox(WidgetTester tester) => tester.getSize(
+  find
+      .descendant(of: find.byType(IconButton), matching: find.byType(Material))
+      .first,
+);

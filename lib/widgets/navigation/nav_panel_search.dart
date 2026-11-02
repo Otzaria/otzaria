@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// הגדרת שדה החיפוש של לשונית אחת בחלונית הניווט.
 class NavPanelSearchDelegate {
@@ -387,11 +388,11 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
               ),
             ),
           ),
-          IconButton(
+          AppIconButton(
             tooltip: 'סגור חיפוש',
             onPressed: _close,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
+            size: AppIconButtonSize.small,
+            icon: const Icon(FluentIcons.dismiss_24_regular),
           ),
         ],
       ),

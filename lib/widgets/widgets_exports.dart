@@ -7,6 +7,9 @@
 // SecondaryIconButton, PrimaryIconButton):
 //   → lib/widgets/controls/action_buttons.dart
 //
+// כפתור אייקון בלבד (AppIconButton, tooltip חובה):
+//   → lib/widgets/controls/app_icon_button.dart
+//
 // כפתורי סרגל (BarButton.icon / .text):
 //   → lib/widgets/controls/bar_button.dart
 //
@@ -27,6 +30,7 @@
 
 export 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 export 'package:otzaria/widgets/controls/action_buttons.dart';
+export 'package:otzaria/widgets/controls/app_icon_button.dart';
 export 'package:otzaria/widgets/controls/bar_button.dart';
 export 'package:otzaria/widgets/controls/bar_split_button.dart';
 export 'package:otzaria/widgets/controls/contained_tooltip.dart';

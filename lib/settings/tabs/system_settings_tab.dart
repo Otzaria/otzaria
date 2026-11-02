@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -1619,7 +1618,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             height: 400,
             // Markdown הגלילתי אומד את היקף התוכן מהפריטים הבנויים בלבד
             // והאגודל "רוקד" בגלילה; היקף מדויק דרך SingleChildScrollView.
-            child: ListDialogCard(
+            child: AppCard(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: MarkdownBody(

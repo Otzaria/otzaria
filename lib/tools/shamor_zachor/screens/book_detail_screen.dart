@@ -23,6 +23,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -367,13 +368,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               const SizedBox(height: AppTokens.spaceMD),
               // ── טבלת הסימונים: כותרות העמודות נשארות גלויות בגלילה ───────
               Expanded(
-                child: Material(
-                  color: AppSurfaces.card(context),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppTokens.borderRadiusAll,
-                    side: BorderSide(color: cs.outlineVariant),
-                  ),
-                  clipBehavior: Clip.antiAlias,
+                child: AppCard(
                   child: Column(
                     children: [
                       _buildHeader(context, bookDetails, progressProvider),

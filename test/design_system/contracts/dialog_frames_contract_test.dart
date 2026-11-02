@@ -83,21 +83,5 @@ void main() {
       expect(row.right, surface.right - 24);
       expect(surface.bottom - row.bottom, 16);
     });
-
-    testWidgets('ListDialogCard: משטח כרטיס, פינות 8 ומסגרת outlineVariant', (
-      tester,
-    ) async {
-      await pumpInApp(tester, const ListDialogCard(child: Text('שורה')));
-      final context = tester.element(find.byType(ListDialogCard));
-      final material = firstMaterialIn(tester, find.byType(ListDialogCard));
-      expect(material.color, AppSurfaces.card(context));
-      expect(
-        material.shape,
-        RoundedRectangleBorder(
-          borderRadius: AppTokens.borderRadiusAll,
-          side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-      );
-    });
   });
 }

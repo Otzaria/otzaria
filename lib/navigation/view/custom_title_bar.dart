@@ -50,6 +50,7 @@ import 'package:otzaria/plugins/services/plugin_new_tab_page_registry.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class CustomTitleBar extends StatefulWidget {
   final VoidCallback? onReadingSettingsPressed;
@@ -125,14 +126,6 @@ const double _kTabFlareRadius = 15.0;
 
 /// רוחבי הטאבים בשורה: הנבחר עשוי להיות רחב מהשאר (ראה [_kTabSelectedMinWidth]).
 typedef _TabWidths = ({double selected, double unselected});
-
-/// סגנון משותף לכפתורי האייקון בשורת הכותרת
-final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
-  minimumSize: const Size(32, 32),
-  padding: EdgeInsets.zero,
-  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  shape: RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
-);
 
 class _CustomTitleBarState extends State<CustomTitleBar> {
   // האם העכבר נמצא כרגע מעל שורת הטאבים. בעת סגירת טאב כשהעכבר בפנים מקפיאים
@@ -393,9 +386,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
+                AppIconButton(
                   key: TourTargetKeys.of(context).titleBarHistoryButton,
-                  icon: const Icon(FluentIcons.history_24_regular, size: 18),
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.history_24_regular),
                   tooltip: context.settingsText(
                     'הצג היסטוריה ({shortcut})',
                     args: {
@@ -405,11 +400,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     },
                   ),
                   onPressed: () => _showHistoryDialog(context),
-                  style: _kIconButtonStyle,
                 ),
-                IconButton(
+                AppIconButton(
                   key: TourTargetKeys.of(context).titleBarBookmarkButton,
-                  icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.bookmark_24_regular),
                   tooltip: context.settingsText(
                     'הצג סימניות ({shortcut})',
                     args: {
@@ -419,10 +415,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     },
                   ),
                   onPressed: () => _showBookmarksDialog(context),
-                  style: _kIconButtonStyle,
                 ),
-                IconButton(
-                  icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.add_square_24_regular),
                   tooltip: context.settingsText(
                     'החלף שולחן עבודה ({shortcut})',
                     args: {
@@ -432,7 +429,6 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     },
                   ),
                   onPressed: () => _showSaveWorkspaceDialog(context),
-                  style: _kIconButtonStyle,
                 ),
               ],
             ),
@@ -453,7 +449,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         return Row(
           children: [
             // במצב "בצד" כפתור חיפוש הכרטיסיות יושב בראש העמודה עצמה.
-            if (stacked) TabSearchButton(style: _kIconButtonStyle),
+            if (stacked)
+              const TabSearchButton(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             const Expanded(child: AppDragToMoveArea(child: SizedBox.expand())),
             _buildReadingSettingsButton(context),
           ],
@@ -542,7 +541,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
         return Row(
           children: [
-            TabSearchButton(style: _kIconButtonStyle),
+            const TabSearchButton(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             Expanded(child: _buildScrollableTabsArea(state)),
             const SizedBox(width: 8),
             _buildReadingSettingsButton(context),
@@ -709,14 +710,15 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildOpenLibraryButton(BuildContext context) {
-    return IconButton(
-      icon: const Icon(FluentIcons.add_24_regular, size: 18),
+    return AppIconButton(
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: const Icon(FluentIcons.add_24_regular),
       tooltip: context.settingsText('כרטיסייה חדשה'),
       onPressed: () => PluginNewTabPageRegistry.instance.open(
         windowKeys: AppWindowKeys.of(context),
         viewId: View.of(context).viewId,
       ),
-      style: _kIconButtonStyle,
     );
   }
 
@@ -724,18 +726,18 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     return AppDragToMoveArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: IconButton(
+        child: AppIconButton(
           key: TourTargetKeys.of(context).readingSettingsButton,
+          size: AppIconButtonSize.small,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           icon: Icon(
             widget.isReadingSettingsPanelOpen
                 ? FluentIcons.settings_24_filled
                 : FluentIcons.settings_24_regular,
-            size: 18,
           ),
           tooltip: context.settingsText('הגדרות תצוגת הספרים'),
           onPressed:
               widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
-          style: _kIconButtonStyle,
         ),
       ),
     );

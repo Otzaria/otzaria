@@ -251,7 +251,7 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                         ? context.settingsText('לא נמצאו קטגוריות')
                         : context.settingsText('לא נמצאו ספרים'),
                   )
-                : ListDialogCard(
+                : AppCard(
                     child: Scrollbar(
                       controller: _scroll,
                       thumbVisibility: true,

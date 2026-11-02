@@ -54,7 +54,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
             const SizedBox(height: 12),
             const _SectionLabel('שמות הקודש בקובץ הזה'),
             const SizedBox(height: 6),
-            ListDialogCard(
+            AppCard(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

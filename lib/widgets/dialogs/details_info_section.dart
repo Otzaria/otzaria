@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// כותרת בראש דיאלוג מידע: שם הפריט בגדול, ומתחתיו שורת משנה עמומה.
 class DetailsHeading extends StatelessWidget {
@@ -58,13 +59,7 @@ class DetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final divider = Divider(height: 1, color: AppSurfaces.subtleDivider(cs));
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: cs.outlineVariant),
-      ),
+    return AppCard(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMD,
         vertical: 2,

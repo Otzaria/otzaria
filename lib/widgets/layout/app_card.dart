@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
+/// גוון הרקע של [AppCard]. הטקסט והאייקונים בתוכו מקבלים את צבע ה־on התואם.
+enum AppCardTone {
+  /// רקע הכרטיס של האזור ([AppSurfaces.card]).
+  normal,
+
+  /// הדגשה: `primaryContainer`.
+  primary,
+
+  /// שגיאה: `errorContainer`.
+  error,
+}
+
 /// כרטיס תוכן מרכזי עם צבע ופינות מעוגלות אחידים, ומסגרת `outlineVariant`
 /// בלי צל (DD-12).
 ///
 /// שני קונסטרקטורים:
-/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap] וב-[selected].
+/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap], ב-[selected] וב-[tone].
 /// - [AppCard.section] — מקטע עם מספר שורות; מוסיף אוטומטית רווח 1.5px בין שורות.
 class AppCard extends StatelessWidget {
   /// כרטיס עם ילד יחיד.
@@ -19,20 +31,20 @@ class AppCard extends StatelessWidget {
     this.margin,
     this.padding,
     this.selected = false,
+    this.tone = AppCardTone.normal,
   }) : children = null;
 
   /// כרטיס מקטע עם מספר שורות — רווח 1.5px בין שורות.
-  const AppCard.section({
-    super.key,
-    required this.children,
-    this.margin,
-    this.padding,
-    this.selected = false,
-  }) : child = null,
-       onTap = null,
-       focusNode = null,
-       onFocusChange = null,
-       requestFocusOnTap = false;
+  const AppCard.section({super.key, required this.children})
+    : child = null,
+      onTap = null,
+      focusNode = null,
+      onFocusChange = null,
+      requestFocusOnTap = false,
+      margin = null,
+      padding = null,
+      selected = false,
+      tone = AppCardTone.normal;
 
   /// הרווח הקבוע בין שורות במקטע כרטיס.
   static const double sectionSpacing = 1.5;
@@ -56,6 +68,8 @@ class AppCard extends StatelessWidget {
 
   /// מוסיף overlay של secondaryContainer מעל הכרטיס
   final bool selected;
+
+  final AppCardTone tone;
 
   /// Divider חיצוני בצבע עקבי עם המפריד הפנימי של [AppCard.section].
   ///
@@ -82,8 +96,23 @@ class AppCard extends StatelessWidget {
   }
 
   Widget _buildSingle(BuildContext context) {
-    final cardShape = shape(Theme.of(context).colorScheme);
+    final cs = Theme.of(context).colorScheme;
+    final cardShape = shape(cs);
+    final (Color color, Color? onColor) = switch (tone) {
+      AppCardTone.normal => (AppSurfaces.card(context), null),
+      AppCardTone.primary => (cs.primaryContainer, cs.onPrimaryContainer),
+      AppCardTone.error => (cs.errorContainer, cs.onErrorContainer),
+    };
     Widget content = child!;
+    if (onColor != null) {
+      content = IconTheme.merge(
+        data: IconThemeData(color: onColor),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(color: onColor),
+          child: content,
+        ),
+      );
+    }
 
     if (padding != null) {
       content = Padding(padding: padding!, child: content);
@@ -106,7 +135,7 @@ class AppCard extends StatelessWidget {
         );
       }
       return Material(
-        color: AppSurfaces.card(context),
+        color: color,
         surfaceTintColor: Colors.transparent,
         shape: cardShape,
         clipBehavior: Clip.antiAlias,
@@ -125,7 +154,7 @@ class AppCard extends StatelessWidget {
     }
 
     return Material(
-      color: AppSurfaces.card(context),
+      color: color,
       shape: cardShape,
       clipBehavior: Clip.antiAlias,
       child: content,
@@ -137,7 +166,6 @@ class AppCard extends StatelessWidget {
     final cardColor = AppSurfaces.card(context);
 
     Widget wrapChild(Widget w) {
-      if (padding != null) w = Padding(padding: padding!, child: w);
       // Material per-row so ListTile ink/hover paint correctly,
       // and the transparent SizedBox gap shows the background behind the card.
       return Material(color: cardColor, child: w);
@@ -152,8 +180,6 @@ class AppCard extends StatelessWidget {
         ],
       ],
     );
-
-    if (selected) content = _withSelected(context, content);
 
     // המסגרת מעל השורות, כדי שרקע השורות לא יכסה אותה.
     return DecoratedBox(

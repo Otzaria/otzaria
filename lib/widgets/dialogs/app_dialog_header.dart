@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// גוון תג האייקון בכותרת. [error] שמור למצבי תקלה וסיכון.
 enum AppDialogHeaderTone { primary, error }
@@ -147,7 +148,7 @@ class AppDialogHeader extends StatelessWidget {
               trailing!,
             ],
             if (showClose)
-              IconButton(
+              AppIconButton(
                 icon: const Icon(FluentIcons.dismiss_24_regular),
                 tooltip: closeTooltip ?? context.settingsText('סגור'),
                 onPressed: closeEnabled

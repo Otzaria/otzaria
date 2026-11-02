@@ -4,7 +4,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart' show normalizeBookTitle;
-import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -240,7 +239,7 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
                       title: context.settingsText('לא נמצאו ספרים'),
                     )
                   : ContentDirectionality(
-                      child: ListDialogCard(
+                      child: AppCard(
                         child: Scrollbar(
                           controller: _scroll,
                           // גבהי שורות משתנים דורשים SuperListView בקפיצת גלילה;
