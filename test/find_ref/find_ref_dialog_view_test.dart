@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,6 +27,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:provider/provider.dart';
@@ -212,13 +215,14 @@ Future<void> _pumpDialog(
   FindRefRepository? repository,
   FindRefDialogHost? host,
   NavigatorObserver? observer,
+  String query = '',
 }) async {
   if (screenSize != null) {
     tester.view.physicalSize = screenSize;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
   }
-  FocusRepository().findRefSearchController.clear();
+  FocusRepository().findRefSearchController.text = query;
   final bloc = FindRefBloc(
     findRefRepository: repository ?? _FakeRepository(results, error: error),
   );
@@ -327,6 +331,49 @@ void main() {
     expect(tester.widget<TextField>(field).decoration!.suffixIcon, isNull);
     expect(tester.getSize(field), initialSize);
   });
+
+  testWidgets(
+    'הכתבה מכפתור תוסף מחליפה את האיתור הקודם המסומן, כמו הקלדה (issue #3878)',
+    (tester) async {
+      final registry = PluginSearchFieldActionsRegistry.instance;
+      addTearDown(() => registry.removeAll('voice'));
+      registry.registerPayload('voice', {
+        'id': 'dictate',
+        'title': 'חיפוש בדיבור',
+        'icon': 'mic_24_regular',
+        'fields': ['findRef'],
+      });
+      await _pumpDialog(tester, query: 'בראשית פרק א');
+      final controller = FocusRepository().findRefSearchController;
+      expect(
+        controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 12),
+      );
+
+      // לחיצת עכבר אמיתית ארוכה מ-kPressTimeout, ואז השדה כבר מגיב ל-tap down.
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byTooltip('חיפוש בדיבור')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(kPressTimeout * 2);
+      await gesture.up();
+      await tester.pump();
+      expect(
+        controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 12),
+      );
+
+      final sessions = PluginSearchFieldSessionService.instance;
+      final binding =
+          tester.state(find.byType(PluginSearchFieldActions))
+              as PluginSearchFieldBinding;
+      final session = sessions.sessionFor(binding, 'voice', 'dictate')!;
+      sessions.setFieldText('voice', session.id, 'שמות פרק ב');
+      await tester.pump(_pastDebounce);
+      expect(controller.text, 'שמות פרק ב');
+    },
+    variant: TargetPlatformVariant.all(),
+  );
 
   testWidgets('מצב הפתיחה מציג כותרת, הסבר ודוגמאות', (tester) async {
     await _pumpDialog(tester);
