@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -3203,6 +3204,60 @@ void main() {
       expect(tanachCategory.books.map((b) => b.title), ['פירוש אישי']);
     });
 
+    // חיפוש יעד מיזוג לכל תיקייה חייב להיות במפה: סריקת האחיות ריבועית באלפי תיקיות.
+    test('אלפי תיקיות אחיות נבנות בלי סריקה חוזרת של האחיות', () {
+      final provider = DatabaseLibraryProvider.instance;
+      provider.clearCache();
+      const folderCount = 400;
+      final siblings = _CountingCategoryList();
+      final parentCategory = library_models.Category(
+        title: 'שורש',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: siblings,
+        books: [],
+        parent: library_models.Library(categories: []),
+      );
+
+      provider.populateUserBooksCategoryForTesting(
+        targetCategory: parentCategory,
+        dbCategory: const migration_models.Category(
+          id: 20,
+          parentId: null,
+          title: 'שורש',
+          level: 0,
+          orderIndex: 1,
+        ),
+        booksByCategory: const {},
+        categoriesByParent: {
+          20: [
+            for (var i = 0; i < folderCount; i++)
+              migration_models.Category(
+                id: 1000 + i,
+                parentId: 20,
+                title: 'תיקייה $i',
+                level: 1,
+                orderIndex: i,
+              ),
+            // שם זהה בלי גרשיים מתמזג לתיקייה הקיימת.
+            const migration_models.Category(
+              id: 5000,
+              parentId: 20,
+              title: 'תיקי"יה 0',
+              level: 1,
+              orderIndex: folderCount,
+            ),
+          ],
+        },
+        authorsByBookId: const {},
+        metadata: const {},
+      );
+
+      expect(siblings, hasLength(folderCount));
+      expect(siblings.reads, lessThan(folderCount * 4));
+    });
+
     test(
       'mergeLinksForTesting ממזג קישורים בלי כפילויות ושומר קישורים קודמים',
       () {
@@ -3320,4 +3375,29 @@ class _MemoryCacheProvider extends CacheProvider {
   Future<void> setString(String key, String? value) async {
     _values[key] = value;
   }
+}
+
+/// סופרת קריאות איברים, כדי לזהות סריקה חוזרת של הרשימה.
+class _CountingCategoryList extends ListBase<library_models.Category> {
+  final _items = <library_models.Category>[];
+  int reads = 0;
+
+  @override
+  int get length => _items.length;
+
+  @override
+  set length(int value) => _items.length = value;
+
+  @override
+  library_models.Category operator [](int index) {
+    reads++;
+    return _items[index];
+  }
+
+  @override
+  void operator []=(int index, library_models.Category value) =>
+      _items[index] = value;
+
+  @override
+  void add(library_models.Category element) => _items.add(element);
 }

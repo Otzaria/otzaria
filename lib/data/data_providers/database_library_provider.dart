@@ -280,6 +280,30 @@ Future<_UserBooksCatalogRows> _readUserBooksCatalogInIsolate(
   }
 }, debugName: 'readUserBooksCatalog');
 
+/// יעדי המיזוג ברשימת קטגוריות אחיות, בהשוואה שמתעלמת מגרשיים וגרש: שם תיקייה
+/// ב-Windows לא יכול להכיל `"`, ולכן "תנך" חייב להתאים ל"תנ״ך".
+class _MergeTargets {
+  _MergeTargets(this._categories) {
+    _categories.forEach(_index);
+  }
+
+  final List<Category> _categories;
+  final Map<String, Category> _byKey = {};
+
+  void _index(Category category) => _byKey.putIfAbsent(
+    DatabaseLibraryProvider._mergeTitleKey(category.title),
+    () => category,
+  );
+
+  Category? find(String title) =>
+      _byKey[DatabaseLibraryProvider._mergeTitleKey(title)];
+
+  void add(Category category) {
+    _categories.add(category);
+    _index(category);
+  }
+}
+
 /// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
 class _PendingAttachedCatalog {
   _PendingAttachedCatalog(this.future) {
@@ -3923,13 +3947,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         final grandchildren = [
           ...?categoriesByParent[pickedFolder.id],
         ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+        final rootTargets = _MergeTargets(library.subCategories);
         for (final grandchild in grandchildren) {
-          final existing = _findMergeTarget(
-            library.subCategories,
-            grandchild.title,
-          );
+          final existing = rootTargets.find(grandchild.title);
           if (existing == null) {
-            library.subCategories.add(
+            rootTargets.add(
               _buildUserBooksCatalogCategoryRecursive(
                 grandchild,
                 booksByCategory,
@@ -4116,15 +4138,16 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final merge =
         build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
+    final rootTargets = merge ? _MergeTargets(library.subCategories) : null;
     for (final root in roots) {
-      if (!merge) {
+      if (rootTargets == null) {
         final parent = ensureLibraryRoot();
         parent.subCategories.add(_buildAttachedCategory(root, parent, build));
         continue;
       }
-      final existing = _findMergeTarget(library.subCategories, root.title);
+      final existing = rootTargets.find(root.title);
       if (existing == null) {
-        library.subCategories.add(_buildAttachedCategory(root, library, build));
+        rootTargets.add(_buildAttachedCategory(root, library, build));
       } else {
         _appendAttachedContent(existing, root, build);
       }
@@ -4172,12 +4195,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     );
     final children = [...?build.categoriesByParent[dbCategory.id]]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final targets = _MergeTargets(category.subCategories);
     for (final child in children) {
-      final existing = _findMergeTarget(category.subCategories, child.title);
+      final existing = targets.find(child.title);
       if (existing == null) {
-        category.subCategories.add(
-          _buildAttachedCategory(child, category, build),
-        );
+        targets.add(_buildAttachedCategory(child, category, build));
       } else {
         _appendAttachedContent(existing, child, build);
       }
@@ -4271,15 +4293,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     return created;
   }
 
-  /// קטגוריית היעד למיזוג תיקייה אישית, בהשוואה שמתעלמת מגרשיים וגרש:
-  /// שם תיקייה ב-Windows לא יכול להכיל `"`, ולכן "תנך" חייב להתאים ל"תנ״ך".
-  Category? _findMergeTarget(List<Category> candidates, String folderTitle) {
-    final key = _mergeTitleKey(folderTitle);
-    return candidates.where((c) => _mergeTitleKey(c.title) == key).firstOrNull;
-  }
+  static final _mergeTitleQuotes = RegExp('''['"״׳’”“`]''');
 
   static String _mergeTitleKey(String title) =>
-      title.replaceAll(RegExp('''['"״׳’”“`]'''), '').trim();
+      title.replaceAll(_mergeTitleQuotes, '').trim();
 
   /// מצב המיזוג לפי קטגוריית-השורש. תיקיות בעלות אותו שם חולקות קטגוריה,
   /// ולכן כשמצביהן האפקטיביים חלוקים חוזרים לברירת המחדל הגלובלית.
@@ -4375,6 +4392,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
           return orderA.compareTo(orderB);
         });
+    final categoryPathInfo = _categoryPathInfo(category);
     for (final dbBook in dbBooks) {
       final book = _convertMinimalBookMapToBook(
         dbBook,
@@ -4385,6 +4403,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         idOverride: dbBook['id'] as int? ?? 0,
         categoryIdOverride: nativeCategoryId,
         remapMovedPath: false,
+        categoryPathInfo: categoryPathInfo,
       );
       if (book == null) continue;
       _registerUserBook(book, category);
@@ -4401,11 +4420,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final children = [
       ...?categoriesByParent[dbCategory.id],
     ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final targets = _MergeTargets(category.subCategories);
     for (final child in children) {
-      final existingSubCategory = _findMergeTarget(
-        category.subCategories,
-        child.title,
-      );
+      final existingSubCategory = targets.find(child.title);
       if (existingSubCategory == null) {
         final subCategory = _buildUserBooksCatalogCategoryRecursive(
           child,
@@ -4415,7 +4432,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           category,
           metadata,
         );
-        category.subCategories.add(subCategory);
+        targets.add(subCategory);
       } else {
         existingSubCategory.parent = category;
         _appendUserBooksContentToCategoryRecursive(
