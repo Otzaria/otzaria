@@ -233,7 +233,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 ## נספח — בדיקות הסריקה הקיימות
 | בדיקה | אוכפת | הערה |
 |---|---|---|
-| `test/widgets/text/bare_text_field_scan_test.dart` | אין `TextField(` גולמי | מפספסת `TextFormField`/`EditableText` |
+| ~~`test/widgets/text/bare_text_field_scan_test.dart`~~ | אין `TextField(` גולמי | **הועברה ל־UIL-011**, שתופס גם `TextFormField`/`EditableText` |
 | `test/core/messages/uisnack_literal_scan_test.dart` | אין ליטרל בארגומנט הראשון של `UiSnack` | מפספסת ארגומנט בשם |
 | `test/widgets/text/default_context_menu_scan_test.dart` | `SelectionArea` עם `contextMenuBuilder` | חלון של 15 שורות |
 | `test/widgets/rtl_icon_registered_usage_test.dart` | `RtlIcon` רק לאייקונים רשומים | לא בודקת משתנים |

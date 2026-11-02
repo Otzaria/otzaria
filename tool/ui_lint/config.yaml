@@ -16,6 +16,11 @@ rules:
       - path: lib/settings/dialogs/list_dialog_frame.dart
         reason: המסגרת המשותפת של דיאלוגי הרשימות
 
+  UIL-011:
+    exclude:
+      - path: lib/widgets/text/rtl_text_field.dart
+        reason: העטיפה שבונה את השדה ומוסיפה לו RTL
+
   UIL-015:
     exclude:
       - path: lib/theme/**
