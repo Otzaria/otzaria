@@ -84,7 +84,6 @@
         {"scope":"_FindRefDialogState._buildFooter","fp":"a7c1dfe6","n":1},
         {"scope":"_FindRefDialogState._buildIdleState","fp":"a8c1e179","n":1},
         {"scope":"_FindRefDialogState._buildIdleState","fp":"acc1e7c5","n":1},
-        {"scope":"_FindRefDialogState._buildPersonalBooksToggle","fp":"a8c1e179","n":1},
         {"scope":"_FindRefDialogState._buildQueryCard","fp":"a7c1dfe6","n":1},
         {"scope":"_FindRefDialogState._buildResultTile","fp":"aac1e49f","n":1},
         {"scope":"_FindRefDialogState._buildSuggestionsLabel","fp":"a7c1dfe6","n":1},
@@ -125,8 +124,6 @@
         {"scope":"_AdvancedSearchControlsState._buildAlternativeWordsList","fp":"a9c1e30c","n":1},
         {"scope":"_AdvancedSearchControlsState._buildInputColumn","fp":"a9c1e30c","n":2},
         {"scope":"_AdvancedSearchControlsState._buildNavigationRow","fp":"adc1e958","n":1},
-        {"scope":"_AdvancedSearchControlsState._buildSavedAlternativesToggle","fp":"a8c1e179","n":1},
-        {"scope":"_AdvancedSearchControlsState._buildScopeToggle","fp":"a8c1e179","n":1},
         {"scope":"_AdvancedSearchControlsState.build","fp":"a8c1e179","n":1}
       ],
       "lib/search/view/external_result_title_row.dart": [
@@ -226,9 +223,6 @@
         {"scope":"_CompositeLabelValue.build","fp":"a6c1de53","n":1},
         {"scope":"_CompositeLabelValue.build","fp":"a7c1dfe6","n":1},
         {"scope":"_ZmanCard.build","fp":"a6c1de53","n":1}
-      ],
-      "lib/tools/calendar/widgets/calendar_top_bar.dart": [
-        {"scope":"_ViewBtn.build","fp":"a7c1dfe6","n":1}
       ],
       "lib/widgets/commentary/commentary_search_results_list.dart": [
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"a9c1e30c","n":1},
