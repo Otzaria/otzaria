@@ -893,19 +893,13 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        await client.accept(
+          const CalendarAlertsUpdate(epoch: epoch, revision: 5, values: {}),
+        ),
+        isFalse,
+      );
       expect(seen, [5]);
-      expect(client.appliedRevision, 5);
-    });
-
-    test('אחרי forgetAppliedRevision אותו revision מוחל שוב', () async {
-      final client = LocalCalendarAlertsClient(owner());
-      const update = CalendarAlertsUpdate(epoch: 'e', revision: 5, values: {});
-      expect(await client.accept(update), isTrue);
-      expect(await client.accept(update), isFalse);
-
-      client.forgetAppliedRevision();
-
-      expect(await client.accept(update), isTrue);
     });
   });
 

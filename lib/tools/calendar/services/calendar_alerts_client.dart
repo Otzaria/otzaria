@@ -79,15 +79,6 @@ mixin _OrderedUpdates {
 
   Stream<CalendarAlertsUpdate> get updates => _updates.stream;
 
-  /// ה-revision האחרון שהוחל בחלון הזה; -1 לפני העדכון הראשון.
-  int get appliedRevision => _revision;
-
-  /// ההגדרות המקומיות נמחקו: המצב הבא מהבעלים מוחל גם אם ה-revision שלו כבר הוחל.
-  void forgetAppliedRevision() {
-    _epoch = null;
-    _revision = -1;
-  }
-
   /// מחיל ומפרסם את [update] אם הוא חדש. מחזיר false כשנזרק.
   Future<bool> accept(CalendarAlertsUpdate update) {
     if (!update.isNewerThan(_epoch, _revision)) return Future.value(false);
