@@ -186,7 +186,7 @@ const _hebcalBlue = Color(0xFF1565C0);
    - `pumpAndSettle`.
    - זרע קבוע דרך `AppThemeData.createColorScheme`.
    - `debugDisableShadows = false` כשהצל הוא חלק מהבדיקה.
-6. **Comparator:** `TolerantGoldenFileComparator` (`test/goldens/golden_harness.dart`), תת־מחלקה של `LocalFileComparator` שמקבלת הבדל של עד 0.05% מהפיקסלים. תמונה בגודל אחר נכשלת תמיד. התמונות בגודל רכיב ולא מסך מלא, כדי שהאחוז יהיה משמעותי: `pumpGolden` עוטף את הרכיב ב־`RepaintBoundary`, ו־`expectGolden` מצלם אותו. שינוי ריפוד של פיקסל אחד ב־`ActionButton` הוא 0.51% ונכשל.
+6. **Comparator:** `TolerantGoldenFileComparator` (`test/goldens/golden_harness.dart`), תת־מחלקה של `LocalFileComparator` שמקבלת הבדל של עד 0.05% מהפיקסלים. תמונה בגודל אחר נכשלת תמיד. התמונות בגודל רכיב ולא מסך מלא, כדי שהאחוז יהיה משמעותי: `pumpGolden` עוטף את הרכיב ב־`RepaintBoundary`, ו־`expectGolden` מצלם אותו. שינוי ריפוד של פיקסל אחד ב־`ActionButton` הוא 0.51% ונכשל. **הסף נשאר 0.05% (DD-22, השלמה 2.11).** פרט שקטן מהסף (הסרת ה־X מדיאלוג `small` עברה), כמו X, תג אייקון או אייקון בכפתור, נבדק בבדיקת widget רגילה ליד בדיקות החוזה (`test/design_system/contracts/`), ולא בהידוק הסף.
 7. **מטריצה:** pairwise, לא מכפלה מלאה. לכל רכיב:
    - בסיס: `light-rtl-wide-1.0`;
    - `dark-rtl-wide-1.0`;
