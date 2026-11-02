@@ -349,14 +349,18 @@ class SettingsActionTile extends StatelessWidget {
     required bool selected,
     VoidCallback? onTap,
     List<Widget> actions = const [],
-  }) => SettingsActionTile.text(
+  }) => Semantics(
     key: key,
-    title: title,
-    subtitle: subtitle,
-    subtitleLtr: subtitleLtr,
-    leading: _RadioIndicator(selected: selected),
-    actions: actions,
-    onTap: onTap,
+    checked: selected,
+    inMutuallyExclusiveGroup: true,
+    child: SettingsActionTile.text(
+      title: title,
+      subtitle: subtitle,
+      subtitleLtr: subtitleLtr,
+      leading: _RadioIndicator(selected: selected),
+      actions: actions,
+      onTap: onTap,
+    ),
   );
 
   /// קונסטרקטור ייעודי לנתיבי קבצים — מאכוף LTR ומוסיף סימני U+200E אחרי מפרידים.

@@ -158,29 +158,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                     children: AppSeedColors.options.map((entry) {
                       final isSelected =
                           _selected.toARGB32() == entry.color.toARGB32();
-                      return Tooltip(
-                        message: context.settingsText(entry.name),
-                        child: GestureDetector(
-                          onTap: () => _select(entry.color),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppSeedColors.swatchOf(entry.color),
-                              shape: BoxShape.circle,
-                              border: isSelected
-                                  ? Border.all(color: cs.onSurface, width: 3)
-                                  : null,
-                            ),
-                            child: isSelected
-                                ? const Icon(
-                                    FluentIcons.checkmark_24_regular,
-                                    color: Colors.white,
-                                    size: 20,
-                                  )
-                                : null,
-                          ),
-                        ),
+                      return _ColorSwatch(
+                        name: context.settingsText(entry.name),
+                        color: AppSeedColors.swatchOf(entry.color),
+                        isSelected: isSelected,
+                        checkColor: Colors.white,
+                        onTap: () => _select(entry.color),
                       );
                     }).toList(),
                   ),
@@ -188,6 +171,81 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// עיגול צבע: לחיץ בעכבר ובמקלדת (Enter/רווח), עם שם ומצב נבחר לקורא מסך.
+class _ColorSwatch extends StatefulWidget {
+  final String name;
+  final Color color;
+  final bool isSelected;
+  final Color checkColor;
+  final VoidCallback onTap;
+
+  const _ColorSwatch({
+    required this.name,
+    required this.color,
+    required this.isSelected,
+    required this.checkColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_ColorSwatch> createState() => _ColorSwatchState();
+}
+
+class _ColorSwatchState extends State<_ColorSwatch> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // טבעת הפוקוס בצבע ההדגשה, כדי שלא תתבלבל עם טבעת הבחירה.
+    final border = _focused
+        ? Border.all(color: cs.primary, width: 3)
+        : widget.isSelected
+        ? Border.all(color: cs.onSurface, width: 3)
+        : null;
+    return Semantics(
+      button: true,
+      selected: widget.isSelected,
+      label: widget.name,
+      excludeSemantics: true,
+      onTap: widget.onTap,
+      child: Tooltip(
+        message: widget.name,
+        child: FocusableActionDetector(
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
+                border: border,
+              ),
+              child: widget.isSelected
+                  ? Icon(
+                      FluentIcons.checkmark_24_regular,
+                      color: widget.checkColor,
+                      size: 20,
+                    )
+                  : null,
+            ),
+          ),
         ),
       ),
     );

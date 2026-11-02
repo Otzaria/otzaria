@@ -536,6 +536,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                       vertical: 8,
                     ),
                     suffixIcon: IconButton(
+                      tooltip: 'נקה',
                       icon: const Icon(
                         FluentIcons.dismiss_24_regular,
                         size: 20,
@@ -598,6 +599,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                     vertical: 8,
                   ),
                   prefixIcon: IconButton(
+                    tooltip: 'הוסף מילה חלופית',
                     icon: const Icon(FluentIcons.add_24_regular, size: 20),
                     onPressed: isEnabled ? _addAlternative : null,
                   ),
@@ -644,6 +646,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
               style: const TextStyle(fontSize: 14),
             ),
             trailing: IconButton(
+              tooltip: 'מחק',
               icon: const Icon(FluentIcons.delete_24_regular, size: 18),
               onPressed: () => _removeAlternative(index),
             ),

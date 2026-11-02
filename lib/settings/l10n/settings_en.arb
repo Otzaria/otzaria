@@ -1639,5 +1639,10 @@
   "דואר אלקטרוני לחזרה אליך": "Email address for replies",
   "מה נשלח יחד עם הדיווח": "Included with this report",
   "הדביקו, שחררו או הקליקו לבחירת תמונה": "Paste, drop, or click to choose an image",
-  "הדביקו או הקליקו לבחירת תמונה": "Paste or click to choose an image"
+  "הדביקו או הקליקו לבחירת תמונה": "Paste or click to choose an image",
+  "הרחב": "Expand",
+  "כווץ": "Collapse",
+  "תוצאה קודמת": "Previous result",
+  "תוצאה הבאה": "Next result",
+  "הצג מפרשים": "Show commentaries"
 }

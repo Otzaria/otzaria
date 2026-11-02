@@ -170,7 +170,7 @@ class TourTooltipCard extends StatelessWidget {
                         _TourNextButton(
                           icon: isLastStep
                               ? FluentIcons.checkmark_24_regular
-                              : FluentIcons.arrow_left_24_regular,
+                              : FluentIcons.arrow_right_24_regular,
                           text: context.settingsText(
                             isLastStep
                                 ? 'סגור'

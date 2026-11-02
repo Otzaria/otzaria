@@ -193,28 +193,23 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                                   ),
                           ),
                         ],
-                  tabs: isCompact
-                      ? [
-                          PanelTab(icon: firstTabIconData),
-                          const PanelTab(icon: OtzariaIcons.links_24_regular),
-                          const PanelTab(icon: FluentIcons.note_24_regular),
-                        ]
-                      : [
-                          PanelTab(
-                            icon: firstTabIconData,
-                            label: widget.showSplitView
-                                ? 'מפרשים'
-                                : 'סינון מפרשים',
-                          ),
-                          const PanelTab(
-                            icon: OtzariaIcons.links_24_regular,
-                            label: 'קישורים',
-                          ),
-                          const PanelTab(
-                            icon: FluentIcons.note_24_regular,
-                            label: 'הערות',
-                          ),
-                        ],
+                  tabs: [
+                    PanelTab(
+                      icon: firstTabIconData,
+                      label: widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
+                      showLabel: !isCompact,
+                    ),
+                    PanelTab(
+                      icon: OtzariaIcons.links_24_regular,
+                      label: 'קישורים',
+                      showLabel: !isCompact,
+                    ),
+                    PanelTab(
+                      icon: FluentIcons.note_24_regular,
+                      label: 'הערות',
+                      showLabel: !isCompact,
+                    ),
+                  ],
                 );
               },
             ),

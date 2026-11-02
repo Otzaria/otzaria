@@ -516,7 +516,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         label: 'הזזה',
         onTap: null,
         children: [
-          // RtlIcon בשורת התפריט מהפך את החץ, כך שיצביע לכיוון ההזזה בפועל.
+          // החץ מתהפך ב-RTL (matchTextDirection), כך שיצביע לכיוון ההזזה בפועל.
           ToolTileAction(
             icon: FluentIcons.arrow_left_24_regular,
             label: 'הזז אחורה',

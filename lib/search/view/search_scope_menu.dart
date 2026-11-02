@@ -1178,7 +1178,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       child: Row(
         children: [
           IconButton(
-            icon: const RtlIcon(FluentIcons.arrow_right_24_regular, size: 20),
+            icon: const Icon(FluentIcons.arrow_left_24_regular, size: 20),
             tooltip: 'חזרה',
             visualDensity: VisualDensity.compact,
             onPressed: goBack,
@@ -1398,8 +1398,8 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
             if (item.isDrill) ...[
               const SizedBox(width: 4),
               // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
-              RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 18,
                 color: colorScheme.onSurfaceVariant,
               ),

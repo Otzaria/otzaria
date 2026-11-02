@@ -126,65 +126,72 @@ class NavRailItem extends StatelessWidget {
       width: compact ? compactWidth : width,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Active Indicator ────────────────────────────────────────
-            AnimatedScale(
-              scale: isSelected ? 1.0 : 0.95,
-              duration: AppMotion.duration(context, AppTokens.animNormal),
-              curve: Curves.easeInOutCubicEmphasized,
-              child: AnimatedContainer(
-                duration: AppMotion.duration(context, AppTokens.animNormal),
-                curve: Curves.easeInOutCubicEmphasized,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? cs.secondaryContainer
-                      : isTourHighlighted
-                      ? cs.primary.withAlpha((0.08 * 255).round())
-                      : Colors.transparent,
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                child: IconButton(
-                  key: tourTargetKey,
-                  onPressed: onTap,
-                  icon: iconWidget,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
+        // התווית שמתחת לכפתור היא שמו הנגיש; ה-tooltip הוא קיצור המקשים.
+        child: MergeSemantics(
+          child: Semantics(
+            selected: isSelected,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Active Indicator ────────────────────────────────────────
+                AnimatedScale(
+                  scale: isSelected ? 1.0 : 0.95,
+                  duration: AppMotion.duration(context, AppTokens.animNormal),
+                  curve: Curves.easeInOutCubicEmphasized,
+                  child: AnimatedContainer(
+                    duration: AppMotion.duration(context, AppTokens.animNormal),
+                    curve: Curves.easeInOutCubicEmphasized,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? cs.secondaryContainer
+                          : isTourHighlighted
+                          ? cs.primary.withAlpha((0.08 * 255).round())
+                          : Colors.transparent,
                       borderRadius: AppTokens.borderRadiusAll,
                     ),
-                    minimumSize: Size(
-                      compact ? _compactIndicatorWidth : _indicatorWidth,
-                      25,
+                    // ui-lint: allow UIL-003 — השם הנגיש הוא התווית שמתחת (MergeSemantics)
+                    child: IconButton(
+                      key: tourTargetKey,
+                      onPressed: onTap,
+                      icon: iconWidget,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppTokens.borderRadiusAll,
+                        ),
+                        minimumSize: Size(
+                          compact ? _compactIndicatorWidth : _indicatorWidth,
+                          25,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 2),
+                // ── תווית ──────────────────────────────────────────────────
+                AnimatedDefaultTextStyle(
+                  duration: AppMotion.duration(context, AppTokens.animNormal),
+                  curve: Curves.easeInOutCubicEmphasized,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected
+                        ? cs.onSecondaryContainer
+                        : isTourHighlighted
+                        ? cs.primary
+                        : cs.onSurfaceVariant,
+                    fontWeight: isTourHighlighted
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            // ── תווית ──────────────────────────────────────────────────
-            AnimatedDefaultTextStyle(
-              duration: AppMotion.duration(context, AppTokens.animNormal),
-              curve: Curves.easeInOutCubicEmphasized,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected
-                    ? cs.onSecondaryContainer
-                    : isTourHighlighted
-                    ? cs.primary
-                    : cs.onSurfaceVariant,
-                fontWeight: isTourHighlighted
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

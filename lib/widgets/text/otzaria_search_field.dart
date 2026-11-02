@@ -58,12 +58,16 @@ class OtzariaSearchAction {
   }
 
   /// תוצאה קודמת ↑
-  static Widget prevResult({required VoidCallback? onPressed}) =>
-      _NavButton(icon: FluentIcons.chevron_up_24_regular, onPressed: onPressed);
+  static Widget prevResult({required VoidCallback? onPressed}) => _NavButton(
+    icon: FluentIcons.chevron_up_24_regular,
+    tooltip: 'תוצאה קודמת',
+    onPressed: onPressed,
+  );
 
   /// תוצאה הבאה ↓
   static Widget nextResult({required VoidCallback? onPressed}) => _NavButton(
     icon: FluentIcons.chevron_down_24_regular,
+    tooltip: 'תוצאה הבאה',
     onPressed: onPressed,
   );
 
@@ -81,7 +85,7 @@ class OtzariaSearchAction {
   static Widget icon({
     required IconData iconData,
     required VoidCallback onPressed,
-    String? tooltip,
+    required String tooltip,
     Color? color,
     double size = 32,
     double iconSize = 20,
@@ -94,20 +98,22 @@ class OtzariaSearchAction {
     iconSize: iconSize,
   );
 
-  /// כפתור הניקוי (X) שבסוף שדה חיפוש.
+  /// כפתור הניקוי (X) שבסוף שדה חיפוש. בלי [tooltip] — "נקה".
   static Widget clear({
     Key? key,
     required VoidCallback onPressed,
     String? tooltip,
     double size = 32,
     double iconSize = 18,
-  }) => _ActionButton(
+  }) => Builder(
     key: key,
-    icon: FluentIcons.dismiss_24_regular,
-    onPressed: onPressed,
-    tooltip: tooltip,
-    size: size,
-    iconSize: iconSize,
+    builder: (context) => _ActionButton(
+      icon: FluentIcons.dismiss_24_regular,
+      onPressed: onPressed,
+      tooltip: tooltip ?? context.settingsText('נקה'),
+      size: size,
+      iconSize: iconSize,
+    ),
   );
 }
 
@@ -163,8 +169,15 @@ class OtzariaSearchClearButton extends StatelessWidget {
 
 class _NavButton extends StatelessWidget {
   final IconData icon;
+
+  /// מפתח הקטלוג של ה-tooltip.
+  final String tooltip;
   final VoidCallback? onPressed;
-  const _NavButton({required this.icon, required this.onPressed});
+  const _NavButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +186,7 @@ class _NavButton extends StatelessWidget {
       width: 28,
       height: 28,
       child: IconButton(
+        tooltip: context.settingsText(tooltip),
         icon: Icon(icon, size: 18),
         onPressed: onPressed,
         padding: EdgeInsets.zero,
@@ -188,15 +202,14 @@ class _NavButton extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
-  final String? tooltip;
+  final String tooltip;
   final Color? color;
   final double size;
   final double iconSize;
   const _ActionButton({
-    super.key,
     required this.icon,
     required this.onPressed,
-    this.tooltip,
+    required this.tooltip,
     this.color,
     this.size = 32,
     this.iconSize = 20,

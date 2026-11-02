@@ -25,14 +25,18 @@ class ExpandingChevron extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!hasContent) return const SizedBox.shrink();
-    return AnimatedRotation(
-      turns: isExpanded ? 0.5 : 0.0,
-      duration: AppMotion.duration(context, AppTokens.animNormal),
-      curve: Curves.easeInOut,
-      child: Icon(
-        FluentIcons.chevron_down_24_regular,
-        size: size,
-        color: color,
+    // המצב נקלט ברכיב הלחיץ שמכיל את הצ'בֺרן (שורה או כפתור).
+    return Semantics(
+      expanded: isExpanded,
+      child: AnimatedRotation(
+        turns: isExpanded ? 0.5 : 0.0,
+        duration: AppMotion.duration(context, AppTokens.animNormal),
+        curve: Curves.easeInOut,
+        child: Icon(
+          FluentIcons.chevron_down_24_regular,
+          size: size,
+          color: color,
+        ),
       ),
     );
   }

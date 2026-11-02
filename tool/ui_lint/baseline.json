@@ -53,15 +53,8 @@
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState._buildToolbar","fp":"5ba189c4","n":1}
       ],
-      "lib/core/ui_snack.dart": [
-        {"scope":"_SnackToastState.build","fp":"5ba189c4","n":1}
-      ],
       "lib/library/view/grid_items.dart": [
         {"scope":"_libraryInfoButton","fp":"5ba189c4","n":1}
-      ],
-      "lib/search/view/advanced_search_controls.dart": [
-        {"scope":"_AdvancedSearchControlsState._buildAlternativeWordsList","fp":"5ba189c4","n":1},
-        {"scope":"_AdvancedSearchControlsState._buildInputColumn","fp":"5ba189c4","n":2}
       ],
       "lib/search/view/enhanced_search_field.dart": [
         {"scope":"_EnhancedSearchFieldState.build","fp":"5ba189c4","n":1}
@@ -70,14 +63,8 @@
         {"scope":"_SaferModePasswordDialogState.build","fp":"5ba189c4","n":1},
         {"scope":"_SaferModeSetPasswordDialogState.build","fp":"5ba189c4","n":2}
       ],
-      "lib/settings/view/settings_screen.dart": [
-        {"scope":"_MySettingsScreenState._buildContent","fp":"5ba189c4","n":1}
-      ],
       "lib/text_book/view/commentary_list_base.dart": [
         {"scope":"CommentaryListBaseState._buildClosePaneButton","fp":"5ba189c4","n":1}
-      ],
-      "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"5ba189c4","n":2}
       ],
       "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
         {"scope":"_ZmanInfoButton.build","fp":"5ba189c4","n":1}
@@ -87,25 +74,6 @@
       ],
       "lib/tools/gematria/gematria_search_screen.dart": [
         {"scope":"GematriaSearchScreenState.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/widgets/feedback/indexing_warning.dart": [
-        {"scope":"IndexingWarning.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/widgets/lists/nav_tree_tile.dart": [
-        {"scope":"NavTreeTile.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/widgets/navigation/nav_rail_item.dart": [
-        {"scope":"NavRailItem.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/widgets/navigation/panel_tab_header.dart": [
-        {"scope":"PanelTabHeader.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/widgets/text/otzaria_search_field.dart": [
-        {"scope":"_NavButton.build","fp":"5ba189c4","n":1}
-      ],
-      "lib/workspaces/view/workspace_switcher_dialog.dart": [
-        {"scope":"_WorkspaceNameFieldState.build","fp":"5ba189c4","n":1},
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"5ba189c4","n":1}
       ]
     },
     "UIL-015": {

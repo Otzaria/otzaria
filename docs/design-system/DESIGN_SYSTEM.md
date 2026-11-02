@@ -247,7 +247,7 @@
 ### 2.5 טוקנים נוספים
 
 #### 2.5.1 אייקונים
-**[מחייב] · קיים** הכללים ב־`docs/agent_ui_reference.md` §1 (otzaria_icons קודם, אחר כך Fluent; בלי Material). **חריג חשוב:** מודל `RtlIcon` שגוי עבור אייקוני Fluent שמוגדרים `matchTextDirection: true`. ההחלפה וההיפוך האוטומטי מבטלים זה את זה, ולכן התוצאה זהה ב־RTL וב־LTR (UI-023). את התיעוד מתקנים לפני שמרחיבים את השימוש ב־`RtlIcon` (MIG-11).
+**[מחייב] · קיים** הכללים ב־`docs/agent_ui_reference.md` §1 (otzaria_icons קודם, אחר כך Fluent; בלי Material). אייקון Fluent שמוגדר `matchTextDirection: true` (חיצים ושברונים שמאלה/ימינה, קודם/הבא, יישור טקסט) נכתב ב־`Icon` רגיל עם הגליף של LTR, ו־Flutter מהפך אותו ב־RTL. `RtlIcon` מעביר אייקון כזה כמו שהוא, ומהפך רק את הרשומים בו (UI-023, MIG-11).
 
 **גדלי אייקון [מחייב] (DD-03) · יעד — טרם מומש (MIG-04):**
 
@@ -430,7 +430,7 @@
 | שדה טקסט | `RtlTextField` + `InputDecoration` מערכת הנושא | `TextField` גולמי אסור (נאכף בבדיקה) |
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
 | חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16) |
-| בחירה אחת מרשימה נפתחת | `AppDropdownField` | **באג:** `decoration.labelText` לא מוצג (MIG-11). עד התיקון התווית נכתבת מחוץ לשדה. |
+| בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11). |
 | 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsActionTile.segmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (יעד, DD-13, MIG-08) | היום `FilterChipsSelector` / `compactFilterChips` בצבעי `secondary` |
 | Checkbox | `Checkbox` של Material + `checkboxTheme` (יעד, MIG-08) | השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
@@ -594,7 +594,7 @@
 - **טקסט מעורב:** שם ספר עם מספרים, או אנגלית בתוך עברית. משתמשים בכיוון הבסיס של הפסקה ולא כופים כיוון. לנתיב או מזהה בתוך משפט עברי עוטפים את הקטע ב־`Text.rich` עם `TextSpan` שבו `textDirection: ltr`, או משתמשים בתווי בידוד (`⁦…⁩`).
 - **מספרים:** ספרות מערביות בכל המקומות. גימטריה ואותיות עבריות לפי ההקשר.
 - **קיצורי מקשים:** תמיד LTR, ובצורה אחידה `Ctrl+Shift+P` דרך `ShortcutHelper`.
-- **אייקונים כיווניים:** ראו 2.5.1. אייקון Fluent עם `matchTextDirection` משתמש ב־`Icon` רגיל, **לא** ב־`RtlIcon`, עד תיקון `RtlIcon` (UI-023, MIG-11).
+- **אייקונים כיווניים:** ראו 2.5.1. אייקון Fluent עם `matchTextDirection` משתמש ב־`Icon` רגיל עם הגליף של LTR (חזרה = `arrow_left`, כניסה/הבא = `chevron_right`), ומתהפך מעצמו במצב עברית (UI-023, MIG-11).
 - **LTR מכוון בתוך RTL:** עורך קוד או נתיב, פריסת מקלדת וכפתורי חלון של מערכת ההפעלה. עוטפים ב־`Directionality(ltr)` מקומי עם הערה של שורה אחת.
 
 ### 6.2 מקלדת ופוקוס [מחייב]

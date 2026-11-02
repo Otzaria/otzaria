@@ -761,6 +761,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         Row(
           children: [
             IconButton(
+              tooltip: 'הקטן גופן',
               icon: const Icon(FluentIcons.subtract_24_regular),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
@@ -777,6 +778,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
               ),
             ),
             IconButton(
+              tooltip: 'הגדל גופן',
               icon: const Icon(FluentIcons.add_24_regular),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 40, minHeight: 40),

@@ -17,8 +17,8 @@ Icon(OtzariaIcons.calendar_24_regular)
 
 // Fallback — Fluent, only for what otzaria_icons does not have:
 Icon(FluentIcons.settings_24_regular)
-RtlIcon(FluentIcons.chevron_right_24_regular)     // in _fluentMirrorMap
-RtlIcon(FluentIcons.arrow_left_24_regular)        // in _fluentMirrorMap — auto-mirrors to arrow_right in RTL
+Icon(FluentIcons.arrow_left_24_regular)           // matchTextDirection — write the LTR glyph; points right in RTL
+RtlIcon(FluentIcons.chevron_double_left_20_regular) // in _fluentMirrorMap — no matchTextDirection in the font
 ```
 
 **What `otzaria_icons` is for.** It is not a general-purpose set and does not try to cover Fluent. It exists for exactly four cases:
@@ -79,19 +79,18 @@ Three shared widgets take an `icon:` / `searchIcon:` parameter for exactly this 
 | Icon | Use |
 |---|---|
 | Any `OtzariaIcons.…` | `Icon(...)` — always |
+| Fluent icon declared `matchTextDirection: true` (`chevron_left/right`, `arrow_left/right`, `arrow_previous/next`, `text_align_left/right`) | `Icon(<the LTR glyph>)` — Flutter mirrors it in RTL. Write the glyph that is right in **English**: back = `arrow_left`, next/enter = `chevron_right` |
 | Fluent icon registered in `rtl_icon.dart` (`_fluentMirrorMap`, `_flippableIcons`) | `RtlIcon(...)` |
 | Any other Fluent icon | `Icon(...)` — plain, no wrapper |
 
+`RtlIcon` passes a `matchTextDirection` icon through untouched (also one that arrives as a variable, e.g. from a plugin) — swapping it as well would cancel the font's own mirroring and draw the same glyph in both directions.
+
 **Icons currently registered in `lib/widgets/misc/rtl_icon.dart`:**
 
-*`_fluentMirrorMap` (swaps to opposite-direction variant in RTL):*
-- `chevron_right/left_24/20/16_regular`
+*`_fluentMirrorMap` (swaps to opposite-direction variant in RTL; none of these is `matchTextDirection`):*
 - `chevron_double_right/left_20/16_regular`
-- `arrow_right/left_24_regular`, `arrow_right/left_24_filled`
-- `arrow_previous/next_24_regular`
 - `calendar_24_regular/filled` → `calendar_rtl_*`
 - `panel_left/right_24_regular`, `panel_left/right_24_filled`
-- `text_align_right/left_24_regular`
 
 *`_flippableIcons` (geometrically flipped in RTL — no opposite-direction variant in Fluent):*
 - `book_24_regular`, `book_24_filled`

@@ -2514,8 +2514,8 @@ class _CommentaryGroupHeader extends StatelessWidget {
                 context,
                 AppTokens.animPanelOpacity,
               ),
-              child: RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              child: Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 20,
                 color: Theme.of(
                   context,

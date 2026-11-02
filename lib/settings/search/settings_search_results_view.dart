@@ -9,7 +9,6 @@ import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// תצוגת תוצאות חיפוש בהגדרות — מוצגת באזור התוכן כאשר השאילתה אינה ריקה.
 class SettingsSearchResultsView extends StatelessWidget {
@@ -152,8 +151,8 @@ class _SearchResultTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 18,
                 color: colorScheme.onSurfaceVariant,
               ),

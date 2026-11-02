@@ -437,7 +437,7 @@ class TextSettingsTab extends StatelessWidget {
         ),
         if (state.copyWithHeaders != 'none')
           SettingsActionTile.dropdownTile<String>(
-            rtlIcon: FluentIcons.text_align_right_24_regular,
+            icon: FluentIcons.text_align_left_24_regular,
             title: context.settingsText('עיצוב כותרות'),
             value: state.copyHeaderFormat,
             entries: [
