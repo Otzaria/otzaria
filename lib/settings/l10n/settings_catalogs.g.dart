@@ -1104,7 +1104,6 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נקה את כל ההיסטוריה': 'Clear History',
     'נקה דיווחים': 'Clear Reports',
     'נקה הכל': 'Clear All',
-    'נקה חיפוש': 'Clear Search',
     'נקה עכשיו': 'Clean Now',
     'נראה שאתה מדלג שוב ושוב בין אותן שתי לשוניות. גרור אחת מהן כאן אל צד אזור הקריאה, או לחץ עליה לחיצה ימנית ובחר "הצג לצד". לביטול — גרור את ידית ⋮⋮ שבסרגל החלונית חזרה לשורת הכרטיסיות.': 'It looks like you keep switching between the same two tabs. Drag one of them here to the side of the reading area, or right-click it and select "הצג לצד". To undo, drag the ⋮⋮ handle in the pane\'s toolbar back to the tab strip.',
     'נראה שהכנסת קישור ישיר': 'Looks like you entered a direct link',

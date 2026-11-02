@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
@@ -993,11 +994,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
     if (_queryIsEmpty && !hasPluginActions) return null;
     final clear = _queryIsEmpty
         ? null
-        : IconButton(
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-            tooltip: context.settingsText('נקה'),
-            onPressed: () {
-              controller.clear();
+        : OtzariaSearchClearButton(
+            controller: controller,
+            onCleared: () {
               // קודם מבטלים חיפוש שעדיין רץ (restartable יקטוף
               // את ה-handler הקודם), ורק אחר-כך מחזירים את
               // ה-state ל-Initial.
@@ -1020,8 +1019,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
           controller: controller,
           onChanged: _dispatchSearch,
           onSubmitted: _onSubmitted,
-          buttonSize: 40,
-          iconSize: 22,
         ),
         ?clear,
       ],

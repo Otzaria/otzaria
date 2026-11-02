@@ -5,7 +5,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field_button.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+
+export 'package:otzaria/widgets/text/otzaria_search_field_button.dart';
 
 abstract class _ST {
   // Touch (standard)
@@ -69,50 +72,39 @@ class OtzariaSearchAction {
   static Widget settings({
     required VoidCallback onPressed,
     String tooltip = 'הגדרות חיפוש',
-  }) => _ActionButton(
+  }) => OtzariaSearchFieldButton(
     icon: FluentIcons.settings_24_regular,
     onPressed: onPressed,
     tooltip: tooltip,
   );
 
-  /// כפתור עם אייקון מותאם
+  /// כפתור עם אייקון מותאם. הגודל מהשדה ([OtzariaSearchActionSize]).
   static Widget icon({
     required IconData iconData,
     required VoidCallback onPressed,
     required String tooltip,
     Color? color,
-    double size = 32,
-    double iconSize = 20,
-  }) => _ActionButton(
+  }) => OtzariaSearchFieldButton(
     icon: iconData,
     onPressed: onPressed,
     tooltip: tooltip,
     color: color,
-    size: size,
-    iconSize: iconSize,
   );
 
-  /// כפתור הניקוי (X) שבסוף שדה חיפוש. בלי [tooltip] — "נקה".
-  static Widget clear({
-    Key? key,
-    required VoidCallback onPressed,
-    String? tooltip,
-    double size = 32,
-    double iconSize = 18,
-  }) => Builder(
+  /// ה-X של [OtzariaSearchClearButton], לקורא שמנהל בעצמו מתי הוא מוצג.
+  static Widget clear({Key? key, required VoidCallback onPressed}) => Builder(
     key: key,
-    builder: (context) => _ActionButton(
+    builder: (context) => OtzariaSearchFieldButton(
       icon: FluentIcons.dismiss_24_regular,
       onPressed: onPressed,
-      tooltip: tooltip ?? context.settingsText('נקה'),
-      size: size,
-      iconSize: iconSize,
+      tooltip: context.settingsText('נקה'),
+      clearGlyph: true,
     ),
   );
 }
 
-/// כפתור ניקוי לשדה שאינו [OtzariaSearchField]: מוצג רק כשיש טקסט ב-[controller],
-/// אלא אם [showWhenEmpty].
+/// כפתור הניקוי של שדות החיפוש: מוצג רק כשיש טקסט ב-[controller], אלא אם
+/// [showWhenEmpty]. הגודל מהשדה ([OtzariaSearchActionSize]).
 class OtzariaSearchClearButton extends StatelessWidget {
   final TextEditingController controller;
 
@@ -124,8 +116,6 @@ class OtzariaSearchClearButton extends StatelessWidget {
 
   /// כשהניקוי מאפס גם מצב נלווה ([onCleared]), הוא נחוץ גם בשדה ריק.
   final bool showWhenEmpty;
-  final double size;
-  final double iconSize;
 
   const OtzariaSearchClearButton({
     super.key,
@@ -133,8 +123,6 @@ class OtzariaSearchClearButton extends StatelessWidget {
     this.onCleared,
     this.buttonKey,
     this.showWhenEmpty = false,
-    this.size = 40,
-    this.iconSize = 22,
   });
 
   @override
@@ -145,9 +133,6 @@ class OtzariaSearchClearButton extends StatelessWidget {
           ? const SizedBox.shrink()
           : OtzariaSearchAction.clear(
               key: buttonKey,
-              tooltip: context.settingsText('נקה'),
-              size: size,
-              iconSize: iconSize,
               onPressed: () {
                 controller.clear();
                 onCleared?.call();
@@ -188,39 +173,6 @@ class _NavButton extends StatelessWidget {
         color: onPressed != null
             ? cs.onSurfaceVariant
             : cs.onSurface.withValues(alpha: 0.25),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-  final String tooltip;
-  final Color? color;
-  final double size;
-  final double iconSize;
-  const _ActionButton({
-    required this.icon,
-    required this.onPressed,
-    required this.tooltip,
-    this.color,
-    this.size = 32,
-    this.iconSize = 20,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: IconButton(
-        icon: Icon(icon, size: iconSize),
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
-        tooltip: tooltip,
       ),
     );
   }
@@ -305,7 +257,6 @@ abstract class OtzariaSearchFieldExtraActions implements Listenable {
     required TextEditingController controller,
     required ValueChanged<String>? onChanged,
     required ValueChanged<String>? onSubmitted,
-    required bool slim,
   });
 }
 
@@ -332,6 +283,11 @@ class OtzariaSearchField extends StatefulWidget {
   /// `search_in_library_24_regular` בספרייה — כשהשדה מחפש בגוף תוכן
   /// שאינו מוצג על המסך. `leading` דוחה אותו.
   final IconData icon;
+
+  /// כשמוגדר, אייקון החיפוש הוא כפתור (למשל "חפש" בשדה שמחפש רק ב-Enter),
+  /// עם [iconTooltip]. הצבע נשאר זה של האייקון, לפי הפוקוס.
+  final VoidCallback? onIconPressed;
+  final String? iconTooltip;
 
   /// `null` = יורש אוטומטית מ-[AppDensity].
   /// `true` = שדה צר, `false` = שדה רחב.
@@ -362,13 +318,18 @@ class OtzariaSearchField extends StatefulWidget {
     this.leading,
     this.trailingActions,
     this.icon = OtzariaIcons.search_24_regular,
+    this.onIconPressed,
+    this.iconTooltip,
     this.slim,
     this.isCompact = false,
     this.onExpand,
     this.selectAllOnFocus = true,
     this.enabled = true,
     this.extraActions,
-  });
+  }) : assert(
+         onIconPressed == null || iconTooltip != null,
+         'כפתור אייקון בלבד צריך tooltip',
+       );
 
   @override
   State<OtzariaSearchField> createState() => _OtzariaSearchFieldState();
@@ -513,7 +474,6 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
             controller: widget.controller,
             onChanged: widget.onChanged,
             onSubmitted: widget.onSubmitted,
-            slim: isSlim,
           )
         : null;
     if (extraActions != null) suffixChildren.add(extraActions);
@@ -522,13 +482,9 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     }
     if (hasText && widget.onClear != null) {
       suffixChildren.add(
-        OtzariaSearchAction.clear(
-          size: isSlim ? 26 : 32,
-          iconSize: isSlim ? 15 : 18,
-          onPressed: () {
-            widget.controller.clear();
-            widget.onClear!();
-          },
+        OtzariaSearchClearButton(
+          controller: widget.controller,
+          onCleared: widget.onClear,
         ),
       );
     }
@@ -543,61 +499,75 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ? cs.onSecondaryContainer
         : cs.primary;
 
+    final Widget searchIcon = Icon(
+      widget.icon,
+      size: prefixIconSize,
+      color: _hasFocus && widget.enabled ? focusedIconColor : hintColor,
+    );
     final prefixIcon =
         widget.leading ??
-        Icon(
-          widget.icon,
-          size: prefixIconSize,
-          color: _hasFocus && widget.enabled ? focusedIconColor : hintColor,
-        );
+        (widget.onIconPressed == null
+            ? searchIcon
+            : IconButton(
+                icon: searchIcon,
+                tooltip: widget.iconTooltip,
+                onPressed: widget.enabled ? widget.onIconPressed : null,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ));
 
     final contentPadding = EdgeInsets.symmetric(
       horizontal: AppTokens.spaceXS,
       vertical: 0,
     );
 
-    return SizedBox(
-      height: effectiveHeight,
-      child: RtlTextField(
-        controller: widget.controller,
-        focusNode: _effectiveFocusNode,
-        enabled: widget.enabled,
-        autofocus: widget.autofocus,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        cursorColor: cs.onSurface.withValues(alpha: 0.87),
-        style: TextStyle(fontSize: effectiveFontSize, color: contentColor),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: fillColor,
-          contentPadding: contentPadding,
-          isCollapsed: false,
-          isDense: true,
-          prefixIcon: prefixIcon,
-          prefixIconConstraints: BoxConstraints(
-            minWidth: isSlim ? 36 : 44,
-            minHeight: effectiveHeight,
+    return OtzariaSearchActionScope(
+      size: isSlim
+          ? OtzariaSearchActionSize.slim
+          : OtzariaSearchActionSize.regular,
+      child: SizedBox(
+        height: effectiveHeight,
+        child: RtlTextField(
+          controller: widget.controller,
+          focusNode: _effectiveFocusNode,
+          enabled: widget.enabled,
+          autofocus: widget.autofocus,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          textInputAction: TextInputAction.search,
+          textAlignVertical: TextAlignVertical.center,
+          cursorColor: cs.onSurface.withValues(alpha: 0.87),
+          style: TextStyle(fontSize: effectiveFontSize, color: contentColor),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: fillColor,
+            contentPadding: contentPadding,
+            isCollapsed: false,
+            isDense: true,
+            prefixIcon: prefixIcon,
+            prefixIconConstraints: BoxConstraints(
+              minWidth: isSlim ? 36 : 44,
+              minHeight: effectiveHeight,
+            ),
+            suffixIcon: suffixWidget,
+            suffixIconConstraints: BoxConstraints(
+              minWidth: suffixChildren.isNotEmpty
+                  ? (suffixChildren.length * (isSlim ? 28.0 : 34.0)).clamp(
+                      isSlim ? 28.0 : 34.0,
+                      180.0,
+                    )
+                  : (isSlim ? 32.0 : 40.0),
+              minHeight: effectiveHeight,
+            ),
+            hintText: widget.hintText,
+            hintStyle: TextStyle(fontSize: effectiveFontSize, color: hintColor),
+            border: noBorder,
+            enabledBorder: noBorder,
+            focusedBorder: noBorder,
+            errorBorder: noBorder,
+            focusedErrorBorder: noBorder,
+            disabledBorder: noBorder,
           ),
-          suffixIcon: suffixWidget,
-          suffixIconConstraints: BoxConstraints(
-            minWidth: suffixChildren.isNotEmpty
-                ? (suffixChildren.length * (isSlim ? 28.0 : 34.0)).clamp(
-                    isSlim ? 28.0 : 34.0,
-                    180.0,
-                  )
-                : (isSlim ? 32.0 : 40.0),
-            minHeight: effectiveHeight,
-          ),
-          hintText: widget.hintText,
-          hintStyle: TextStyle(fontSize: effectiveFontSize, color: hintColor),
-          border: noBorder,
-          enabledBorder: noBorder,
-          focusedBorder: noBorder,
-          errorBorder: noBorder,
-          focusedErrorBorder: noBorder,
-          disabledBorder: noBorder,
         ),
       ),
     );

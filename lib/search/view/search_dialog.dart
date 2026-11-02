@@ -1481,8 +1481,6 @@ class _SearchDialogState extends State<SearchDialog> {
             ? FluentIcons.chevron_up_24_regular
             : FluentIcons.history_24_regular,
         tooltip: context.settingsText('היסטוריית חיפושים'),
-        size: 40,
-        iconSize: 22,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
       ),

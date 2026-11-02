@@ -137,8 +137,6 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                               controller: widget.tab.queryController,
                               onSubmitted: (_) => widget.onSubmit(),
                               invocationContext: widget.pluginInvocationContext,
-                              buttonSize: 40,
-                              iconSize: 22,
                             ),
                             ?widget.trailingAction,
                             OtzariaSearchClearButton(

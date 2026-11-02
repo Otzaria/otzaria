@@ -380,11 +380,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
           autofocus: true,
           onSubmitted: (_) => _performSearch(),
           onClear: _clearResults,
-          leading: IconButton(
-            icon: const Icon(OtzariaIcons.search_in_numbered_list_24_regular),
-            onPressed: _performSearch,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+          icon: OtzariaIcons.search_in_numbered_list_24_regular,
+          onIconPressed: _performSearch,
+          iconTooltip: 'חפש',
         ),
         trailingItems: [
           AppTopBarItem(

@@ -31,9 +31,6 @@
       ],
       "lib/tools/calendar/widgets/calendar_day_cell.dart": [
         {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
-      ],
-      "lib/tools/gematria/gematria_search_screen.dart": [
-        {"scope":"GematriaSearchScreenState.build","fp":"5ba189c4","n":1}
       ]
     },
     "UIL-015": {

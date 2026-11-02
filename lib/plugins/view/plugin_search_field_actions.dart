@@ -38,7 +38,6 @@ class PluginSearchFieldExtraActions extends OtzariaSearchFieldExtraActions {
     required TextEditingController controller,
     required ValueChanged<String>? onChanged,
     required ValueChanged<String>? onSubmitted,
-    required bool slim,
   }) {
     if (!_registry.hasActionsFor(field)) return null;
     return PluginSearchFieldActions(
@@ -47,13 +46,12 @@ class PluginSearchFieldExtraActions extends OtzariaSearchFieldExtraActions {
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       invocationContext: invocationContext,
-      buttonSize: slim ? 26 : 32,
-      iconSize: slim ? 16 : 20,
     );
   }
 }
 
 /// כפתורי התוספים בתוך שדה חיפוש [field]. ריק כשאין תוסף שתרם כפתור לשדה.
+/// הגודל מהשדה ([OtzariaSearchActionSize]).
 ///
 /// הווידג'ט הוא צד השדה בסשן: הוא כותב לשדה את מה שהתוסף שולח, מדווח על
 /// עריכה של המשתמש, וסוגר את הסשן כשהשדה נסגר.
@@ -66,8 +64,6 @@ class PluginSearchFieldActions extends StatefulWidget {
 
   /// מופעל כשהתוסף מסיים סשן עם `submit: true`.
   final ValueChanged<String>? onSubmitted;
-  final double buttonSize;
-  final double iconSize;
 
   /// ההקשר שנשלח לתוסף עם `search.fieldAction.invoked`, נבנה בלחיצה.
   final Map<String, dynamic> Function()? invocationContext;
@@ -85,8 +81,6 @@ class PluginSearchFieldActions extends StatefulWidget {
     required this.controller,
     this.onChanged,
     this.onSubmitted,
-    this.buttonSize = 32,
-    this.iconSize = 20,
     this.invocationContext,
     this.registry,
     this.sessions,
@@ -237,39 +231,13 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
         context.settingsText('מציג רק ספרי הספרייה'),
       ),
     };
-    return _iconButton(
-      context,
+    // סינון פעיל מסומן גם ברקע הנבחר, לא רק בהחלפת האייקון.
+    return OtzariaSearchFieldButton(
       key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
-      glyph: Icon(iconData, size: widget.iconSize),
+      icon: iconData,
       tooltip: '${action.title}: $state',
       selected: source != PluginLibraryBooksSource.all,
       onPressed: () => _libraryBooks.cycleSource(pluginId),
-    );
-  }
-
-  Widget _iconButton(
-    BuildContext context, {
-    required Key key,
-    required Widget glyph,
-    required String tooltip,
-    required bool selected,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: widget.buttonSize,
-      height: widget.buttonSize,
-      child: IconButton(
-        key: key,
-        icon: glyph,
-        tooltip: tooltip,
-        isSelected: selected,
-        color: selected
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.onSurfaceVariant,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        onPressed: onPressed,
-      ),
     );
   }
 
@@ -283,17 +251,6 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
     final icon =
         pluginIconFromName(action.icon) ?? FluentIcons.puzzle_piece_24_regular;
     final activeIcon = pluginIconFromName(action.activeIcon) ?? icon;
-    final Widget glyph = switch (state) {
-      PluginSearchFieldActionState.busy => SizedBox.square(
-        dimension: widget.iconSize * 0.8,
-        child: const CircularProgressIndicator(strokeWidth: 2),
-      ),
-      PluginSearchFieldActionState.active => Icon(
-        activeIcon,
-        size: widget.iconSize,
-      ),
-      PluginSearchFieldActionState.idle => Icon(icon, size: widget.iconSize),
-    };
     return Listener(
       onPointerDown: (event) {
         if (event.buttons == kPrimaryButton &&
@@ -328,10 +285,10 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
           }
         });
       },
-      child: _iconButton(
-        context,
+      child: OtzariaSearchFieldButton(
         key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
-        glyph: glyph,
+        icon: state == PluginSearchFieldActionState.active ? activeIcon : icon,
+        busy: state == PluginSearchFieldActionState.busy,
         tooltip: session?.tooltip ?? action.title,
         selected: session != null,
         onPressed: () {
