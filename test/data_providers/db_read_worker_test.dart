@@ -24,6 +24,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -202,7 +203,7 @@ void main() {
     }
   });
 
-  test('תוכן קישור ונתיב כותרות מה-worker זהים למסלול הישיר', () async {
+  test('תוכן קישור, נתיב כותרות ו-heRef מה-worker זהים למסלול הישיר', () async {
     final dbPath = await seedDb('seforim');
 
     final direct = await onDirectConnection(dbPath, (repo) async {
@@ -212,6 +213,7 @@ void main() {
         await linkContentFromDbLines(repo, 2, 99, null),
         await repo.getLineBreadcrumb(1, 3),
         await repo.getLineBreadcrumb(1, 0),
+        await repo.getLineHeRef(1, 3),
       ];
     });
     expect(direct.take(3), [
@@ -233,6 +235,11 @@ void main() {
         'dbPath': dbPath,
         'bookId': 1,
         'lineIndex': 0,
+      }),
+      DbReadWorker.batched('heRef', {
+        'dbPath': dbPath,
+        'bookId': 1,
+        'lineIndex': 3,
       }),
     ]);
     expect([
@@ -413,12 +420,16 @@ void main() {
   });
 
   test(
-    'timeout של אצווה קורא תוכן וכותרת מחוץ ל-worker ומשחרר את הקובץ',
+    'timeout של אצווה קורא תוכן, כותרת ו-heRef מחוץ ל-worker ומשחרר את הקובץ',
     () async {
       final dbPath = await seedDb('seforim');
       final expectedBreadcrumb = await onDirectConnection(
         dbPath,
         (repo) => repo.getLineBreadcrumb(1, 3),
+      );
+      final expectedHeRef = await onDirectConnection(
+        dbPath,
+        (repo) => repo.getLineHeRef(1, 3),
       );
       DbReadWorker.stallTimeout = Duration.zero;
 
@@ -429,10 +440,16 @@ void main() {
           'bookId': 1,
           'lineIndex': 3,
         }),
+        DbReadWorker.batched('heRef', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'lineIndex': 3,
+        }),
       ]);
 
       expect((results.first as Map)['content'], 'פירוש 1');
-      expect(results.last, expectedBreadcrumb);
+      expect(results[1], expectedBreadcrumb);
+      expect(results.last, expectedHeRef);
       expect(await DbReadWorker.suspendForExternalWrite(), isTrue);
       await File(dbPath).delete();
     },
@@ -1112,6 +1129,20 @@ void main() {
         TextBook(id: 1, title: 'בראשית', categoryId: 7),
       );
       expect([for (final c in detailed.commentators) c.title], ['מפרש']);
+    });
+
+    test('heRef של ספר רשמי נקרא ב-worker, לא בחיבור הראשי', () async {
+      // טבלת temp מסתירה את line בחיבור הראשי בלבד: שאילתה עליו מחזירה null.
+      final mainDb =
+          await SqliteDataProvider.instance.repository!.database.database;
+      mainDb.execute('PRAGMA query_only=OFF');
+      mainDb.execute('CREATE TEMP TABLE line AS SELECT * FROM main.line');
+      mainDb.execute('DELETE FROM temp.line');
+      final before = DbReadWorker.sentMessageCount;
+
+      final book = TextBook(id: 1, title: 'בראשית', categoryId: 7);
+      expect(await heRefFromDbLine(book, 3), 'בראשית א, 4');
+      expect(DbReadWorker.sentMessageCount - before, 1);
     });
 
     test('כותרות ספרי המסד נטענות ב-worker', () async {

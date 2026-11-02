@@ -4,6 +4,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -20,7 +21,30 @@ Future<String> refFromIndex(
 ///
 /// מחזירה `null` לספר שאינו ב-DB או לשורה שאין לה מיפוי כותרת, ואז על הקורא
 /// ליפול חזרה ל-[refFromIndex].
-Future<String?> refFromDbLine(TextBook book, int index) async {
+Future<String?> refFromDbLine(TextBook book, int index) => _lineRefFromDb(
+  book,
+  index,
+  'breadcrumb',
+  (repo, bookId) => repo.getLineBreadcrumb(bookId, index),
+);
+
+/// כתובת השורה המלאה מה-DB, עד רמת הפסוק/ההלכה; `null` לספר
+/// שאינו ב-DB או לשורה בלי `heRef` (כותרות, ספרי קבצים).
+Future<String?> heRefFromDbLine(TextBook book, int index) => _lineRefFromDb(
+  book,
+  index,
+  'heRef',
+  (repo, bookId) => repo.getLineHeRef(bookId, index),
+);
+
+/// ספר רשמי נקרא ב-[DbReadWorker]: שאילתה סינכרונית על ה-UI תוקעת את
+/// החלון כשהדיסק איטי. ספרים אישיים ומצורפים נקראים מהמאגר שלהם.
+Future<String?> _lineRefFromDb(
+  TextBook book,
+  int index,
+  String workerMethod,
+  Future<String?> Function(SeforimRepository repo, int bookId) direct,
+) async {
   final bookId = book.id;
   if (bookId == null) return null;
   try {
@@ -33,36 +57,14 @@ Future<String?> refFromDbLine(TextBook book, int index) async {
     if (repository == null) return null;
     final dbPath = SqliteDataProvider.instance.dbPath;
     if (book.source.isOfficial && dbPath.isNotEmpty) {
-      try {
-        return await DbReadWorker.batched('breadcrumb', {
-              'dbPath': dbPath,
-              'bookId': bookId,
-              'lineIndex': index,
-            })
-            as String?;
-      } catch (_) {
-        return null;
-      }
+      return await DbReadWorker.batched(workerMethod, {
+            'dbPath': dbPath,
+            'bookId': bookId,
+            'lineIndex': index,
+          })
+          as String?;
     }
-    return await repository.getLineBreadcrumb(bookId, index);
-  } catch (_) {
-    return null;
-  }
-}
-
-/// כתובת השורה המלאה מה-DB, עד רמת הפסוק/ההלכה; `null` לספר
-/// שאינו ב-DB או לשורה בלי `heRef` (כותרות, ספרי קבצים).
-Future<String?> heRefFromDbLine(TextBook book, int index) async {
-  final bookId = book.id;
-  if (bookId == null) return null;
-  try {
-    final repository = switch (book.source) {
-      OfficialBookSource() => SqliteDataProvider.instance.repository,
-      UserBookSource() => await UserBooksDatabaseHolder.instance.repository,
-      AttachedBookSource(:final slug) =>
-        await AttachedLibraryRegistry.instance.repositoryFor(slug),
-    };
-    return await repository?.getLineHeRef(bookId, index);
+    return await direct(repository, bookId);
   } catch (_) {
     return null;
   }
