@@ -6,7 +6,12 @@
 // [AppDialog.singleAction] / [showSingleActionDialog] → app_dialogs.dart
 // [AppDialog.twoActions]   / [showTwoActionsDialog]   → app_dialogs.dart
 // [AppDialog.warning]      / [showWarningDialog]      → app_dialogs.dart
-//   שימוש: דיאלוגים M3 עם ניווט מקלדת והדגשת פוקוס.
+//   שימוש: דיאלוגים M3 עם ניווט מקלדת והדגשת פוקוס. כולם מעל AppDialogFrame
+//   (app_dialog_frame.dart): רצועת כותרת, תג אייקון וגודל (AppDialogSize).
+// [showChoiceDialog]                                  → app_dialogs.dart
+//   שימוש: בחירה בין כמה פעולות שוות ("טקסט / Word / ביטול").
+// [runWithBlockingProgress]                           → blocking_progress_dialog.dart
+//   שימוש: פעולה חוסמת ארוכה, בדיאלוג שאי אפשר לסגור.
 //
 // [ConfirmationDialog] / [showConfirmationDialog]     → confirmation_dialog.dart
 //   wrapper דק מעל AppDialog — תומך ב-[isDangerous].
@@ -31,3 +36,4 @@ export 'details_info_section.dart';
 export 'input_dialog.dart';
 export 'selection_dialog.dart';
 export 'reusable_items_dialog.dart';
+export 'blocking_progress_dialog.dart';

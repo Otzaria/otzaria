@@ -16,26 +16,44 @@ Finder _button<T extends Widget>(String text) => find
 
 void main() {
   group('AppDialog.twoActions', () {
-    testWidgets('משטח surfaceContainerHigh בפינות 8 וכותרת titleLarge', (
+    testWidgets('משטח surfaceContainerHigh בפינות 8, רצועה ותג תמיד', (
       tester,
     ) async {
       await showInApp<bool>(
         tester,
         const AppDialog.twoActions(title: 'מחיקת קבוצה', content: 'להמשיך?'),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
-      final surface = firstMaterialIn(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
 
       expect(surface.color, cs.surfaceContainerHigh);
       expect(surface.shape, AppTokens.roundedShape);
-      expect(find.byType(AppDialogTitle), findsOneWidget);
-      expect(find.byType(AppDialogHeader), findsNothing);
-      expect(find.byType(AppDialogIconBadge), findsNothing);
+      final header = tester.widget<AppDialogHeader>(
+        find.byType(AppDialogHeader),
+      );
+      expect(header.compact, isTrue);
+      // בלי אייקון שאומר משהו: אייקון משפחת האישור.
+      expect(header.icon, AppDialogIcons.confirm);
+      expect(find.byType(AppDialogIconBadge), findsOneWidget);
       final title = tester.widget<Text>(find.text('מחיקת קבוצה'));
       expect(
         title.style,
-        Theme.of(tester.element(find.byType(AlertDialog))).textTheme.titleLarge,
+        Theme.of(
+          tester.element(find.byType(AppDialogFrame)),
+        ).textTheme.titleLarge,
       );
+    });
+
+    testWidgets('small: רוחב 400, הגוף בריפוד dialogPadding', (tester) async {
+      await showInApp<bool>(
+        tester,
+        const AppDialog.twoActions(title: 'כותרת', content: 'תוכן'),
+      );
+      final frame = tester.widget<AppDialogFrame>(find.byType(AppDialogFrame));
+      expect(frame.size, AppDialogSize.small);
+      expect(frame.padding, AppTokens.dialogPadding);
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(tester.getSize(find.byWidget(surface)).width, 400);
     });
 
     testWidgets('ביטול tonal לפני אישור מלא, באותה צורה של 8', (tester) async {
@@ -43,7 +61,7 @@ void main() {
         tester,
         const AppDialog.twoActions(title: 'כותרת', content: 'תוכן'),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
       final cancel = firstMaterialIn(tester, _button<FilledButton>('ביטול'));
       final confirm = firstMaterialIn(tester, _button<FilledButton>('אישור'));
 
@@ -99,12 +117,14 @@ void main() {
       final barrier = tester.widget<ModalBarrier>(
         find.byType(ModalBarrier).last,
       );
-      final cs = Theme.of(tester.element(find.byType(AlertDialog))).colorScheme;
+      final cs = Theme.of(
+        tester.element(find.byType(AppDialogFrame)),
+      ).colorScheme;
       expect(barrier.color, AppSurfaces.scrim(cs));
     });
   });
 
-  group('AppDialog.twoActions עם headerBand', () {
+  group('AppDialog — רצועת הכותרת', () {
     testWidgets('רצועת כותרת surfaceContainerHighest עם קו outlineVariant', (
       tester,
     ) async {
@@ -114,10 +134,9 @@ void main() {
           title: 'ייבוא ספרים',
           content: 'תוכן',
           icon: FluentIcons.folder_24_regular,
-          headerBand: true,
         ),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
       final header = tester.widget<AppDialogHeader>(
         find.byType(AppDialogHeader),
       );
@@ -143,10 +162,12 @@ void main() {
         const EdgeInsetsDirectional.fromSTEB(24, 8, 8, 8),
       );
 
-      final dialog = tester.widget<AlertDialog>(find.byType(AlertDialog));
-      expect(dialog.clipBehavior, Clip.antiAlias);
-      expect(dialog.titlePadding, EdgeInsets.zero);
-      expect(dialog.contentPadding, const EdgeInsets.fromLTRB(24, 16, 24, 16));
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(surface.clipBehavior, Clip.antiAlias);
+      expect(
+        tester.widget<AppDialogFrame>(find.byType(AppDialogFrame)).padding,
+        const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      );
     });
 
     testWidgets('תג האייקון: ריבוע מעוגל 40 ב-primaryContainer, אייקון 22', (
@@ -158,10 +179,9 @@ void main() {
           title: 'כותרת',
           content: 'תוכן',
           icon: FluentIcons.folder_24_regular,
-          headerBand: true,
         ),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
       expect(
         tester.getSize(find.byType(AppDialogIconBadge)),
         const Size(40, 40),
@@ -188,21 +208,48 @@ void main() {
       expect(icon.color, cs.onPrimaryContainer);
     });
 
-    testWidgets('האיקס בכותרת סוגר עם null', (tester) async {
+    testWidgets('האיקס בכותרת סוגר עם false, כמו ביטול', (tester) async {
       final outcome = await showInApp<bool>(
         tester,
-        const AppDialog.twoActions(
-          title: 'כותרת',
-          content: 'תוכן',
-          headerBand: true,
-        ),
+        const AppDialog.twoActions(title: 'כותרת', content: 'תוכן'),
       );
       final close = find.byTooltip('סגור');
       expect(close, findsOneWidget);
       await tester.tap(close);
       await tester.pumpAndSettle();
       expect(outcome.closed, isTrue);
-      expect(outcome.value, isNull);
+      expect(outcome.value, isFalse);
+    });
+
+    testWidgets('headerTrailing יושב בכותרת לפני האיקס', (tester) async {
+      await showInApp<bool>(
+        tester,
+        const AppDialog.twoActions(
+          title: 'בחירת תאריך',
+          customContent: Text('לוח'),
+          headerTrailing: Text('עברי'),
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AppDialogHeader),
+          matching: find.text('עברי'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('size: medium לתוכן מותאם רחב', (tester) async {
+      await showInApp<bool>(
+        tester,
+        const AppDialog.singleAction(
+          title: 'אודות',
+          customContent: Text('פרטים'),
+          size: AppDialogSize.medium,
+        ),
+      );
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(tester.getSize(find.byWidget(surface)).width, 560);
     });
   });
 
@@ -214,10 +261,12 @@ void main() {
         tester,
         const AppDialog.warning(title: 'איפוס', content: 'כל ההגדרות יאופסו'),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
-      final title = tester.widget<AppDialogTitle>(find.byType(AppDialogTitle));
-      expect(title.icon, FluentIcons.warning_24_regular);
-      expect(title.tone, AppDialogHeaderTone.error);
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
+      final header = tester.widget<AppDialogHeader>(
+        find.byType(AppDialogHeader),
+      );
+      expect(header.icon, FluentIcons.warning_24_regular);
+      expect(header.tone, AppDialogHeaderTone.error);
       final badge = tester.widget<Container>(
         find
             .descendant(
@@ -245,7 +294,7 @@ void main() {
           subtitle: 'אי אפשר לבטל',
         ),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
       final subtitle = tester.widget<Text>(find.text('אי אפשר לבטל'));
       expect(subtitle.style?.color, cs.error);
       expect(subtitle.style?.fontSize, 13);
@@ -275,14 +324,20 @@ void main() {
         tester,
         const AppDialog.singleAction(title: 'הודעה', content: 'הסתיים'),
       );
-      final cs = schemeAt(tester, find.byType(AlertDialog));
+      final cs = schemeAt(tester, find.byType(AppDialogFrame));
       expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
-        ),
-        findsOneWidget,
+        tester.widget<AppDialogHeader>(find.byType(AppDialogHeader)).icon,
+        AppDialogIcons.info,
       );
+      // כפתור אחד מלבד ה-X שבכותרת.
+      int buttonsIn(Type type) => find
+          .descendant(
+            of: find.byType(type),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+          )
+          .evaluate()
+          .length;
+      expect(buttonsIn(AppDialogFrame) - buttonsIn(AppDialogHeader), 1);
       expect(
         firstMaterialIn(tester, _button<FilledButton>('אישור')).color,
         cs.primary,
@@ -304,18 +359,19 @@ void main() {
       await tester.tap(find.text('אישור'));
       await tester.pumpAndSettle();
       expect(outcome.closed, isFalse);
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(AppDialogFrame), findsOneWidget);
     });
   });
 
   group('AppDialogFrame', () {
-    testWidgets('רוחב 560, ריפוד חיצוני 16, משטח הדיאלוג של התמה', (
+    testWidgets('medium כברירת מחדל: רוחב 560, ריפוד חיצוני 16, משטח התמה', (
       tester,
     ) async {
       await showInApp<void>(
         tester,
         AppDialogFrame(
           title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
           actions: [ActionButton.recommended(text: 'שמור', onPressed: () {})],
           child: const Text('גוף'),
         ),
@@ -337,18 +393,25 @@ void main() {
     testWidgets('במסך צר הרוחב מצטמצם לרוחב הפנוי פחות הריפוד', (tester) async {
       await showInApp<void>(
         tester,
-        const AppDialogFrame(title: 'מסגרת', child: Text('גוף')),
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          child: Text('גוף'),
+        ),
         size: const Size(400, 800),
       );
       final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
       expect(tester.getSize(find.byWidget(surface)).width, 400 - 32);
     });
 
-    testWidgets('שורת הפעולות צמודה לסוף (שמאל ב-RTL)', (tester) async {
+    testWidgets('שורת הפעולות צמודה לסוף (שמאל ב-RTL), בריפוד dialogPadding', (
+      tester,
+    ) async {
       await showInApp<void>(
         tester,
         AppDialogFrame(
           title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
           actions: [ActionButton.recommended(text: 'שמור', onPressed: () {})],
           child: const Text('גוף'),
         ),
@@ -357,14 +420,99 @@ void main() {
         find.byWidget(firstMaterialIn(tester, find.byType(AppDialogFrame))),
       );
       final save = tester.getRect(_button<FilledButton>('שמור'));
-      expect(save.left - surface.left, 16);
+      expect(save.left - surface.left, 24);
+      expect(surface.bottom - save.bottom, 16);
+    });
+
+    for (final (size, width) in [
+      (AppDialogSize.small, 400.0),
+      (AppDialogSize.medium, 560.0),
+      (AppDialogSize.large, 720.0),
+      (AppDialogSize.full, 1200.0 - 32),
+    ]) {
+      testWidgets('${size.name}: רוחב $width', (tester) async {
+        await showInApp<void>(
+          tester,
+          AppDialogFrame(
+            title: 'מסגרת',
+            icon: FluentIcons.folder_24_regular,
+            size: size,
+            child: const Text('גוף'),
+          ),
+        );
+        final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+        expect(tester.getSize(find.byWidget(surface)).width, width);
+      });
+    }
+
+    testWidgets('large: גובה לפי התוכן', (tester) async {
+      await showInApp<void>(
+        tester,
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          size: AppDialogSize.large,
+          child: SizedBox(height: 100),
+        ),
+      );
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(tester.getSize(find.byWidget(surface)).height, lessThan(300));
+    });
+
+    testWidgets('large: תוכן ארוך נעצר ב-85% מגובה החלון', (tester) async {
+      await showInApp<void>(
+        tester,
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          size: AppDialogSize.large,
+          scrollable: true,
+          child: SizedBox(height: 2000),
+        ),
+      );
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(tester.getSize(find.byWidget(surface)).height, 800 * 0.85);
+    });
+
+    testWidgets('full: ממלא את החלון פחות הריפוד', (tester) async {
+      await showInApp<void>(
+        tester,
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          size: AppDialogSize.full,
+          child: Text('גוף'),
+        ),
+      );
+      final surface = firstMaterialIn(tester, find.byType(AppDialogFrame));
+      expect(
+        tester.getSize(find.byWidget(surface)),
+        const Size(1200 - 32, 800 - 32),
+      );
+    });
+
+    testWidgets('showClose: false מסתיר את האיקס', (tester) async {
+      await showInApp<void>(
+        tester,
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          showClose: false,
+          child: Text('גוף'),
+        ),
+      );
+      expect(find.byTooltip('סגור'), findsNothing);
     });
 
     testWidgets('הכותרת היא שם המסלול לקורא מסך', (tester) async {
       final handle = tester.ensureSemantics();
       await showInApp<void>(
         tester,
-        const AppDialogFrame(title: 'מסגרת', child: Text('גוף')),
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          child: Text('גוף'),
+        ),
       );
       expect(
         tester.getSemantics(

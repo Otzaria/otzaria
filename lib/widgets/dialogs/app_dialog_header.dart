@@ -22,6 +22,7 @@ class AppDialogHeader extends StatelessWidget {
     this.tone = AppDialogHeaderTone.primary,
     this.onClose,
     this.closeEnabled = true,
+    this.showClose = true,
     this.closeTooltip = 'סגור',
     this.compact = false,
     this.subtitleMaxLines,
@@ -44,6 +45,9 @@ class AppDialogHeader extends StatelessWidget {
   /// של הדיאלוג. [closeEnabled] false משבית את הכפתור, למשל בזמן שליחה.
   final VoidCallback? onClose;
   final bool closeEnabled;
+
+  /// false = בלי כפתור סגירה, למשל בדיאלוג התקדמות שאי אפשר לסגור.
+  final bool showClose;
 
   /// טקסט הרמז של כפתור הסגירה; מסכים מתורגמים מעבירים את התרגום.
   final String closeTooltip;
@@ -128,13 +132,16 @@ class AppDialogHeader extends StatelessWidget {
             const SizedBox(width: AppTokens.spaceSM),
             trailing!,
           ],
-          IconButton(
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-            tooltip: closeTooltip,
-            onPressed: closeEnabled
-                ? (onClose ?? () => Navigator.of(context).maybePop())
-                : null,
-          ),
+          if (showClose)
+            IconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              tooltip: closeTooltip,
+              onPressed: closeEnabled
+                  ? (onClose ?? () => Navigator.of(context).maybePop())
+                  : null,
+            )
+          else
+            const SizedBox(width: AppTokens.spaceSM),
         ],
       ),
     );

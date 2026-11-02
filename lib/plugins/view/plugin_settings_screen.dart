@@ -223,7 +223,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         return AppDialogFrame(
           icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
-          width: 620,
+          size: AppDialogSize.medium,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,

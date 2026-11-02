@@ -2680,7 +2680,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         args: {'count': books.length},
       ),
       icon: FluentIcons.library_24_regular,
-      headerBand: true,
+      size: AppDialogSize.large,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: 600,

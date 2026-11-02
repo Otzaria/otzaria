@@ -125,7 +125,7 @@ Future<void> showBookDetailsDialog(
     context: context,
     title: 'אודות הספר',
     icon: OtzariaIcons.book_information_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: 'סגור',
     customContent: _BookDetailsDialogContent(
       book: book,

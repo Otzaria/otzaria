@@ -36,9 +36,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
     context: context,
     title: 'בחירת סוג קובץ',
     icon: FluentIcons.document_arrow_right_24_regular,
-    headerBand: true,
-    // מוצג דרך customContent, שמחליף את content.
-    content: '',
+    size: AppDialogSize.medium,
     // רוחב קבוע: AlertDialog מודד רוחב פנימי, ו-segmentedTile בנוי על LayoutBuilder.
     customContent: StatefulBuilder(
       builder: (context, setDialogState) => SizedBox(

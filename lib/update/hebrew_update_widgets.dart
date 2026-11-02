@@ -163,8 +163,7 @@ void hebrewDefaultDialog({
       return AppDialog.twoActions(
         title: 'עדכון זמין',
         icon: FluentIcons.arrow_sync_24_regular,
-        headerBand: true,
-        content: '',
+        size: AppDialogSize.small,
         cancelText: 'מאוחר יותר',
         confirmText: 'עדכן כעת',
         customContent: SizedBox(

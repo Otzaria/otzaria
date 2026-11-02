@@ -10,6 +10,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
+import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import '../support/search_engine_test_init.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
@@ -99,7 +100,7 @@ Future<void> main() async {
 
       await tester.enterText(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(InputDialog),
           matching: find.byType(TextField),
         ),
         'המאגר שלי',

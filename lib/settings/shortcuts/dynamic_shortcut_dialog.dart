@@ -58,7 +58,7 @@ class _DynamicShortcutDialog extends StatelessWidget {
     return AppDialogFrame(
       title: t(isNew ? 'קיצור דינמי חדש' : 'עריכת קיצור דינמי'),
       icon: FluentIcons.flash_24_regular,
-      width: 680,
+      size: AppDialogSize.large,
       actions: [
         ActionButton.ghost(
           text: t('ביטול'),

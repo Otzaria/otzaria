@@ -28,7 +28,7 @@ Future<void> showAppInfoDialog(
   context: context,
   title: report.topic.title,
   icon: report.topic.icon,
-  headerBand: true,
+  size: AppDialogSize.medium,
   confirmText: 'סגירה',
   customContent: AppInfoDialogContent(report: report),
 );

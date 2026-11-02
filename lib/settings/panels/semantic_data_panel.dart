@@ -282,7 +282,7 @@ Future<void> showSemanticLicenseDialog(
     context: context,
     title: title,
     icon: FluentIcons.certificate_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     customContent: _LicenseContent(license: license),
     confirmText: context.settingsText('סגור'),
   );

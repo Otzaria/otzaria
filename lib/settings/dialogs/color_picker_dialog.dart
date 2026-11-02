@@ -93,10 +93,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AppDialogFrame(
-      backgroundColor: cs.surfaceContainerHigh,
       title: context.settingsText('בחר צבע בסיס'),
       icon: FluentIcons.color_24_regular,
-      width: 460,
+      size: AppDialogSize.small,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

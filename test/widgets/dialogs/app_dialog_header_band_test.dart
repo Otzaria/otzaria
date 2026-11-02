@@ -14,8 +14,6 @@ void main() {
             onPressed: () => showTwoActionsDialog(
               context: context,
               title: 'כותרת',
-              content: '',
-              headerBand: true,
               customContent: const SizedBox(key: Key('body'), height: 40),
             ),
             child: const Text('open'),

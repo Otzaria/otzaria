@@ -64,7 +64,7 @@ void showReadingSettingsDialog() {
       (context) => AppDialog.singleAction(
         title: context.settingsText('הגדרות תצוגת הספרים'),
         icon: FluentIcons.text_font_24_regular,
-        headerBand: true,
+        size: AppDialogSize.large,
         confirmText: context.settingsText('סגור'),
         customContent: SizedBox(
           width: 650,

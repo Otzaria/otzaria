@@ -1609,7 +1609,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         (ctx) => AppDialog.singleAction(
           title: ctx.settingsText('יומן שינויים בתוכנה'),
           icon: FluentIcons.history_24_regular,
-          headerBand: true,
+          size: AppDialogSize.large,
           confirmText: ctx.settingsText('סגור'),
           customContent: SizedBox(
             width: 600,

@@ -793,7 +793,7 @@ $detailsSection
       context: context,
       title: title,
       icon: FluentIcons.document_text_24_regular,
-      headerBand: true,
+      size: AppDialogSize.medium,
       confirmText: 'סגור',
       customContent: _DirectReportDetails(report: report),
     );

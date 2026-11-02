@@ -297,7 +297,6 @@ void main() {
         context: context,
         title: 'עריכה',
         content: 'תוכן',
-        headerBand: true,
         isDirty: dirty,
       ),
     );
@@ -374,6 +373,7 @@ void main() {
         tester,
         AppDialogFrame(
           title: 'טופס',
+          icon: Icons.edit,
           isDirty: dirty,
           child: const Text('גוף'),
         ),
