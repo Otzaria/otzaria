@@ -554,7 +554,7 @@
 5. **לאשר:** את ההמלצה.
 6. **סטטוס: אושר** (1.11.2026, בעל הפרויקט).
    - **הוכרע:** A. ThemeExtension למשטחים ולצפיפות בלבד (כהמלצה).
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש חלקית (MIG-06): ThemeExtension בשם AppSurfaceColors עם 12 משטחים מחושבים מראש נבנה ב־AppThemeData; AppSurfaces.x(context) עטיפה דקה שקוראת אותו עד ש־MIG-07 תעביר את הקוראים; אזור הקורא מתועד כ־ReaderSurfaceScope ב־lib/theme. ערכים זהים לפיקסל. נשאר: payload התוספים (DD-25), SizedBox.fromSize ורקע ההדפסה לפי בהירות (UI-127), פונקציות ה־ColorScheme ב־AppSurfaces (MIG-07).
 
 ### DD-22 · פלטפורמת ייחוס ל־golden tests 🏗⚙
 1. **הבעיה:** אין golden tests. הרינדור שונה בין Linux, שעליו ה־CI רץ, לבין Windows, שעליו מפתחים. גופן הממשק לא כלול באפליקציה.

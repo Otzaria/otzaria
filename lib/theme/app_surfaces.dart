@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 
-ColorScheme _cs(BuildContext context) => Theme.of(context).colorScheme;
+AppSurfaceColors _s(BuildContext context) => AppSurfaceColors.of(context);
 
 extension on ColorScheme {
   bool get isDark => brightness == Brightness.dark;
 }
 
-/// רקעי מסך לסביבות שימוש שונות באפליקציה
-/// כשיש הבדל בין מצב בהיר לכהה, כתוב isDark ומצב כהה מסומן עם ? סימן שאלה.
+/// רקעי מסך לסביבות שימוש שונות באפליקציה.
+///
+/// הפונקציות שמקבלות [BuildContext] קוראות את [AppSurfaceColors] מה-Theme;
+/// הן נשארות עטיפה עד שהקוראים יעברו ל-`AppSurfaceColors.of(context)`.
 class AppSurfaces {
   AppSurfaces._();
 
-  /// נקודת ה-override היחידה לרקע מסך העיון (טקסט, PDF, חיפוש).
-  /// הכנה לערכות נושא עתידיות שייתכן וירצו להפריד בין רקע מסך עיון לרקע מסכי לוח.
+  /// רקע מסך העיון (טקסט, PDF, חיפוש).
   static Color readerBackground(BuildContext context) =>
-      _cs(context).isDark ? AppColors.darkScaffold : _cs(context).surface;
+      _s(context).readerBackground;
 
   /// צבע קישורי ספר; בסכמה נייטרלית מובחן מהטקסט בלי לשנות את צבעי הממשק.
   static Color readerLink(ColorScheme cs) =>
@@ -26,52 +27,38 @@ class AppSurfaces {
       : cs.primary;
 
   /// רקע מסכי לוח — הגדרות, ספריה, כלים וכל מסך משני
-  static Color panelBackground(BuildContext context) {
-    final cs = _cs(context);
-    return cs.isDark
-        ? Colors.black
-        : Color.alphaBlend(
-            cs.surfaceContainerHighest.withValues(alpha: 0.475),
-            cs.surface,
-          );
-  }
+  static Color panelBackground(BuildContext context) =>
+      _s(context).panelBackground;
 
-  /// רקע סרגל עליון (AppTopBar) — נקודת ה-override היחידה לצבע הסרגל.
+  /// רקע סרגל עליון (AppTopBar).
   static Color topBarBackground(BuildContext context) =>
-      _cs(context).surfaceContainerHigh;
+      _s(context).topBarBackground;
 
-  /// רקע חלונית הניווט — צבע הסרגל העליון, כדי שתיראה כהמשך רציף שלו.
-  /// תפקיד נפרד במכוון: ערכה עתידית יכולה להפריד בין השניים.
+  /// רקע חלונית הניווט.
   static Color navPanelBackground(BuildContext context) =>
-      topBarBackground(context);
+      _s(context).navPanelBackground;
 
   /// צבע ברירת המחדל לכרטיסי תוכן באפליקציה.
-  static Color card(BuildContext context) => _cs(context).isDark
-      ? _cs(context).surfaceContainer
-      : _cs(context).surface;
+  static Color card(BuildContext context) => _s(context).card;
 
   /// רקע קטע-משנה ניטרלי בתוך חלונית הגדרות.
-  static Color panelSection(BuildContext context) =>
-      _cs(context).surfaceContainerHighest.withValues(alpha: 0.5);
+  static Color panelSection(BuildContext context) => _s(context).panelSection;
 
   /// רקע קטע-משנה מודגש בתוך חלונית (הגדרות, עורך הערה אישית).
   static Color panelSectionAccent(BuildContext context) =>
-      _cs(context).primaryContainer.withValues(alpha: 0.3);
+      _s(context).panelSectionAccent;
 
   /// גבול קטע-משנה מודגש בתוך חלונית הגדרות.
   static Color panelSectionAccentBorder(BuildContext context) =>
-      _cs(context).primary.withValues(alpha: 0.3);
+      _s(context).panelSectionAccentBorder;
 
   /// צבע מפריד פנימי בין שורות בתוך כרטיס תוכן.
-  /// משמש בהגדרות עם עץ נפתח
-  static Color cardRowDivider(BuildContext context) => panelBackground(context);
+  static Color cardRowDivider(BuildContext context) =>
+      _s(context).cardRowDivider;
 
   /// שכבת בחירה לכרטיסי תוכן.
-  ///
-  /// מוגדרת בשכבת ה-theme כדי למנוע overrides מקומיים של שקיפות
-  /// מחוץ ל-`lib/theme/`.
   static Color cardSelectionOverlay(BuildContext context) =>
-      Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3);
+      _s(context).cardSelectionOverlay;
 
   /// רקע כפתור סרגל במצב נבחר (BarButton, BarSplitButton).
   static Color barButtonSelected(ColorScheme cs) =>
@@ -124,17 +111,11 @@ class AppSurfaces {
       cs.primary.withValues(alpha: 0.7);
 
   /// רקע כרטיס החלונית בטאב מפוצל — אותו רקע קריאה, בתוך מסגרת מעוגלת.
-  static Color paneCard(BuildContext context) => readerBackground(context);
+  static Color paneCard(BuildContext context) => _s(context).paneCard;
 
   /// הרווח שבין כרטיסי החלוניות. גוון אחד כהה/בהיר מרקע הקריאה, כדי
   /// שההפרדה תיראה בלי קו מפריד — ובלי להתנגש בצבע הקריאה שהמשתמש בחר.
-  static Color paneGutter(BuildContext context) {
-    final cs = _cs(context);
-    return Color.alphaBlend(
-      (cs.isDark ? cs.onSurface : cs.shadow).withValues(alpha: 0.07),
-      readerBackground(context),
-    );
-  }
+  static Color paneGutter(BuildContext context) => _s(context).paneGutter;
 
   /// מסגרת כרטיס החלונית. החלונית הפעילה מסומנת בקו דק בצבע הראשי, והשאר
   /// נשענות על הרווח שביניהן בלבד.
