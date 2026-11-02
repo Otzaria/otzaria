@@ -84,7 +84,7 @@ class CompanionBookSync {
     if (_disposed || generation != _generation) return;
     if (target == null || target == _lastCompanionLine) return;
     _lastCompanionLine = target;
-    await companion.lines.scrollToLine(target);
+    await companion.lines.scrollToLine(target, rememberPosition: false);
   }
 
   /// How far back to look for a line with a base link, past headings.

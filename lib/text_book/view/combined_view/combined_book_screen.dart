@@ -39,6 +39,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -356,6 +357,8 @@ class _ParagraphStateKey extends GlobalKey {
 }
 
 class _CombinedViewState extends State<CombinedView> {
+  late final NavigationKeyTracker _navigationKeys;
+
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
 
@@ -880,6 +883,10 @@ class _CombinedViewState extends State<CombinedView> {
       _onLocalCorrectionChanged,
     );
     _focusNode = FocusNode();
+    _navigationKeys = NavigationKeyTracker(
+      hasNavigationFocus: () =>
+          _focusNode.hasFocus && !ShortcutHelper.isEditingText,
+    );
     _textBookBloc = context.read<TextBookBloc>();
 
     _siblingController = SiblingCommentariesController(
@@ -1116,7 +1123,10 @@ class _CombinedViewState extends State<CombinedView> {
     final tabChanged =
         !identical(oldWidget.tab, widget.tab) ||
         oldWidget.isPreviewMode != widget.isPreviewMode;
-    if (tabChanged) _detachTabBindings(oldWidget);
+    if (tabChanged) {
+      _navigationKeys.clear();
+      _detachTabBindings(oldWidget);
+    }
     if (tabChanged ||
         !sameSourceIdentity(oldWidget.tab.book, widget.tab.book)) {
       _resetBookState();
@@ -1196,6 +1206,7 @@ class _CombinedViewState extends State<CombinedView> {
     _savedSelectedIndex.dispose();
     _currentSelectedIndex.dispose();
     _anchorScrollTargetNotifier.dispose();
+    _navigationKeys.clear();
     _focusNode.dispose();
     _selectionAreaFocusNode.dispose();
     widget.selectionSyncController?.removeListener(
@@ -1950,6 +1961,7 @@ class _CombinedViewState extends State<CombinedView> {
   /// ←/→ לקטע הבא/הקודם ו-Ctrl+←/→ לדף/פרק, כמו החיצים בסרגל (← קדימה, כמו ב-PDF).
   /// עם טקסט מסומן Ctrl+חץ נשאר להזזת קצה הבחירה.
   KeyEventResult _handleSideArrowNavigation(FocusNode _, KeyEvent event) {
+    _navigationKeys.release(event);
     final key = event.logicalKey;
     if (event is KeyUpEvent ||
         (key != LogicalKeyboardKey.arrowLeft &&
@@ -1975,7 +1987,12 @@ class _CombinedViewState extends State<CombinedView> {
         : (forward
               ? tab.navNextSegmentNotifier
               : tab.navPreviousSegmentNotifier);
-    notifier.value++;
+    // החזקת המקש היא נקודת חזרה אחת, כמו החזקת חץ ב-ProgressiveScroll.
+    if (_navigationKeys.isRepeat(event)) {
+      tab.lines.withoutHistory(() => notifier.value++);
+    } else {
+      notifier.value++;
+    }
     return KeyEventResult.handled;
   }
 

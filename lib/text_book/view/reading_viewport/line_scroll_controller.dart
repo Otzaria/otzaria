@@ -102,6 +102,7 @@ class LineScrollController {
   ValueListenable<bool> get canGoBack => _canGoBack;
 
   void _rememberPosition({ReadingAnchor? destination}) {
+    if (_historyPaused) return;
     final anchor = captureAnchor();
     if (anchor == null ||
         anchor == destination ||
@@ -118,6 +119,19 @@ class LineScrollController {
     _rememberPosition();
     _navigationEpoch.value++;
     _cancelRun();
+  }
+
+  bool _historyPaused = false;
+
+  /// מריץ את [navigate] בלי נקודות חזרה, כשהניווט עובר דרך notifier ואין
+  /// דרך להעביר ל-[scrollToLine] את rememberPosition.
+  void withoutHistory(VoidCallback navigate) {
+    _historyPaused = true;
+    try {
+      navigate();
+    } finally {
+      _historyPaused = false;
+    }
   }
 
   Future<void> goBack() {
@@ -197,12 +211,15 @@ class LineScrollController {
   }
 
   /// גלילה לשורת המקור [line]. בלי תצוגה מחוברת היעד נשמר ומבוצע בחיבור.
+  /// [rememberPosition] false — תנועה שאינה ניווט (החזקת מקש, סנכרון), בלי
+  /// נקודת חזרה.
   Future<void> scrollToLine(
     int line, {
     double alignment = kReadingAnchorAlignment,
     double intraLineFraction = 0,
     Duration duration = const Duration(milliseconds: 250),
     Curve curve = Curves.ease,
+    bool rememberPosition = true,
   }) {
     final segments = _segments;
     final target = _Target(
@@ -214,13 +231,15 @@ class LineScrollController {
       duration: duration,
       curve: curve,
     );
-    _rememberPosition(
-      destination: ReadingAnchor(
-        line: target.line,
-        intraLineFraction: target.intraLineFraction,
-        alignment: target.alignment,
-      ),
-    );
+    if (rememberPosition) {
+      _rememberPosition(
+        destination: ReadingAnchor(
+          line: target.line,
+          intraLineFraction: target.intraLineFraction,
+          alignment: target.alignment,
+        ),
+      );
+    }
     return _navigate(target);
   }
 
