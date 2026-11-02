@@ -1,9 +1,12 @@
 // lib/widgets/dialogs/app_dialog_frame.dart
 // מסגרת לדיאלוגים בינוניים וגדולים: רצועת כותרת אחידה, גוף ושורת פעולות.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
+import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
 /// [Dialog] עם [AppDialogHeader] — אייקון בתחילת הכותרת, איקס סגירה בסופה וקו
 /// חוצץ מתחתיה — ואחריה [child] ושורת [actions] אופציונלית. לדיאלוגים שאינם
@@ -24,6 +27,7 @@ class AppDialogFrame extends StatelessWidget {
     this.insetPadding = const EdgeInsets.all(AppTokens.spaceMD),
     this.backgroundColor,
     this.closeEnabled = true,
+    this.isDirty,
   });
 
   final String title;
@@ -45,7 +49,12 @@ class AppDialogFrame extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final EdgeInsets insetPadding;
   final Color? backgroundColor;
+
+  /// false חוסם את כל דרכי היציאה, לא רק את ה-X — למשל בזמן שליחה.
   final bool closeEnabled;
+
+  /// כל עוד true, X, Escape ולחיצה בחוץ שואלים לפני הסגירה.
+  final ValueListenable<bool>? isDirty;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +94,7 @@ class AppDialogFrame extends StatelessWidget {
       ],
     );
 
-    return Dialog(
+    final dialog = Dialog(
       insetPadding: insetPadding,
       backgroundColor: backgroundColor,
       clipBehavior: Clip.antiAlias,
@@ -102,6 +111,11 @@ class AppDialogFrame extends StatelessWidget {
               : content,
         ),
       ),
+    );
+    return DialogDismissGuard.listenable(
+      canDismiss: closeEnabled,
+      isDirty: isDirty,
+      child: DialogKeyboardNavigator(child: dialog),
     );
   }
 }

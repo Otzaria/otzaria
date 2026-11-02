@@ -333,7 +333,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
           ),
         ),
       ),
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
     );
     hasChanges.dispose();
     if (confirmed != true) return;

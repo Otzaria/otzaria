@@ -6,7 +6,7 @@ import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
-/// דיאלוג הזנת טקסט עם תמיכה באנטר וחיצים
+/// דיאלוג הזנת טקסט: Enter בשדה שומר.
 class InputDialog extends StatefulWidget {
   final String title;
   final String? subtitle;
@@ -39,11 +39,6 @@ class _InputDialogState extends State<InputDialog>
     with DialogFocusRestorerMixin<InputDialog> {
   late final TextEditingController _controller;
   final FocusNode _textFieldFocusNode = FocusNode();
-  final FocusNode _cancelFocusNode = FocusNode();
-  final FocusNode _confirmFocusNode = FocusNode();
-
-  // 0 = ביטול, 1 = אישור (כברירת מחדל האישור ממוקד)
-  int _focusedIndex = 1;
 
   @override
   void initState() {
@@ -60,8 +55,6 @@ class _InputDialogState extends State<InputDialog>
   void dispose() {
     _controller.dispose();
     _textFieldFocusNode.dispose();
-    _cancelFocusNode.dispose();
-    _confirmFocusNode.dispose();
     super.dispose();
   }
 
@@ -69,19 +62,10 @@ class _InputDialogState extends State<InputDialog>
     Navigator.of(context).pop(_controller.text.trim());
   }
 
-  void _moveFocus(int index) {
-    setState(() => _focusedIndex = index);
-    (index == 1 ? _confirmFocusNode : _cancelFocusNode).requestFocus();
-  }
-
   @override
   Widget build(BuildContext context) {
     return DialogKeyboardNavigator(
-      focusedIndex: _focusedIndex,
-      onFocusChange: _moveFocus,
       onConfirm: _submit,
-      onCancel: () => Navigator.of(context).pop(),
-      textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
         title: AppDialogTitle(widget.title),
         content: Column(
@@ -111,12 +95,10 @@ class _InputDialogState extends State<InputDialog>
         ),
         actions: [
           ActionButton.neutral(
-            focusNode: _cancelFocusNode,
             text: widget.cancelText,
             onPressed: () => Navigator.of(context).pop(),
           ),
           ActionButton.recommended(
-            focusNode: _confirmFocusNode,
             text: widget.confirmText,
             onPressed: _submit,
           ),

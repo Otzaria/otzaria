@@ -97,6 +97,11 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   Future<void> send(WidgetTester tester) async {
     await tester.ensureVisible(find.byKey(const ValueKey('app-report-send')));
     await tester.tap(find.byKey(const ValueKey('app-report-send')));
@@ -277,5 +282,23 @@ void main() {
     expect(find.byType(AppReportDialog), findsNothing);
     expect(service.sent, isEmpty);
     expect(popped, isNull);
+  });
+
+  testSnack('עם טקסט ביטול ו-X שואלים לפני הסגירה (DD-08)', (tester) async {
+    await pumpDialog(tester);
+    await fill(tester);
+    await tester.tap(find.byTooltip('סגור'));
+    await settle(tester);
+    expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+    await tester.tap(find.text('המשך לערוך'));
+    await settle(tester);
+    expect(find.byType(AppReportDialog), findsOneWidget);
+
+    await tester.tap(find.text('ביטול'));
+    await settle(tester);
+    await tester.tap(find.text('סגור בלי לשמור'));
+    await settle(tester);
+    expect(find.byType(AppReportDialog), findsNothing);
+    expect(service.sent, isEmpty);
   });
 }

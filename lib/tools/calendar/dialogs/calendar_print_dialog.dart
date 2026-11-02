@@ -24,8 +24,7 @@ class CalendarPrintDialog extends StatefulWidget {
   State<CalendarPrintDialog> createState() => _CalendarPrintDialogState();
 }
 
-class _CalendarPrintDialogState extends State<CalendarPrintDialog>
-    with DialogNavigationMixin {
+class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
   int _count = 1;
 
   @override
@@ -151,9 +150,8 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog>
       );
     }
 
-    return buildKeyboardNavigator(
+    return DialogKeyboardNavigator(
       onConfirm: () => Navigator.of(context).pop(_count),
-      onCancel: () => Navigator.of(context).pop(),
       child: result,
     );
   }

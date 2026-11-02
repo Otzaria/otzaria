@@ -29,7 +29,7 @@ class SelectionDialog<T> extends StatefulWidget {
 }
 
 class _SelectionDialogState<T> extends State<SelectionDialog<T>>
-    with DialogNavigationMixin, DialogFocusRestorerMixin<SelectionDialog<T>> {
+    with DialogFocusRestorerMixin<SelectionDialog<T>> {
   late List<SelectionItem<T>> filteredItems;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -37,7 +37,6 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
   @override
   void initState() {
     super.initState();
-    focusedButtonIndex = 0;
     filteredItems = widget.items;
     _searchController.addListener(_filterItems);
     registerDialogFocusRestorer(_searchFocusNode);
@@ -60,20 +59,11 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
     });
   }
 
-  void _handleConfirm() {
-    if (_searchFocusNode.hasFocus) {
-      return;
-    }
-
-    Navigator.of(context).pop();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return buildKeyboardNavigator(
-      onConfirm: _handleConfirm,
-      onCancel: () => Navigator.of(context).pop(),
-      textFieldFocusNode: _searchFocusNode,
+    // Enter על פריט בוחר אותו (הפריט עצמו מגיב ל-Enter); בשדה החיפוש אינו סוגר.
+    return DialogKeyboardNavigator(
+      handleEnterKey: false,
       child: AlertDialog(
         title: AppDialogTitle(widget.title),
         content: SizedBox(

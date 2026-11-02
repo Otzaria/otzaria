@@ -288,7 +288,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
       customContent: SizedBox(
         width: 560,
         child: _PendingReportEditFields(

@@ -12,6 +12,7 @@ import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -28,7 +29,6 @@ Future<AppReportDeliveryResult?> showAppReportDialog(
   if (dialogBuilder != null) builder = dialogBuilder(context, builder);
   return showDialog<AppReportDeliveryResult>(
     context: context,
-    barrierDismissible: false,
     builder: builder,
   );
 }
@@ -170,14 +170,14 @@ class _AppReportDialogState extends State<AppReportDialog> {
               ),
             ),
           );
-          // טקסט או צילום שצורף חוסמים סגירה עקיפה (קיצור ניווט, חזרה); הכפתורים סוגרים ב-pop.
-          return PopScope(
-            canPop:
-                state is! AppReportEditing ||
-                (state.title + state.description + state.steps)
+          return DialogDismissGuard(
+            canDismiss: !(state is AppReportEditing && state.isSending),
+            isDirty:
+                state is AppReportEditing &&
+                ((state.title + state.description + state.steps)
                         .trim()
-                        .isEmpty &&
-                    state.images.isEmpty,
+                        .isNotEmpty ||
+                    state.images.isNotEmpty),
             child: dialog,
           );
         },
@@ -403,7 +403,9 @@ class _AppReportDialogState extends State<AppReportDialog> {
         children: [
           ActionButton.ghost(
             text: 'ביטול',
-            onPressed: isSending ? null : () => Navigator.of(context).pop(),
+            onPressed: isSending
+                ? null
+                : () => Navigator.of(context).maybePop(),
           ),
           if (_bloc.supportsDraft) ...[
             const SizedBox(width: 8),

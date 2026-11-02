@@ -380,7 +380,7 @@
    - **הוכרע:** A. חוזה אחד (כהמלצה).
    - **תשובות:**
      - q1: Enter כשהפוקוס על ״ביטול״ מבטל, וכשהפוקוס בשדה טקסט רב־שורתי מוסיף שורה? → **כן**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — DialogKeyboardNavigator כבר לא בולע Enter וחיצים: Enter בשדה חד־שורתי מפעיל את הפעולה הראשית, על כפתור או פריט מפעיל את הרכיב הממוקד (על "ביטול" מבטל), בשדה רב־שורתי מוסיף שורה, וכשאין רכיב ממוקד שמגיב ל־Enter מפעיל את הפעולה הראשית. Escape עובר דרך DismissIntent ו־maybePop, גם כשהלחיצה בחוץ חסומה. DialogDismissGuard (isDirty + canDismiss) אחד ב־AppDialog, AppDialogFrame ו־AppCustomContentDialog; ה־X של AppDialogHeader וכפתורי הביטול סוגרים ב־maybePop, ולכן כל דרכי היציאה שואלות "לסגור בלי לשמור?". hasUnsavedChanges הוחלף ב־isDirty. SelectionDialog: Enter על פריט בוחר אותו. דיווח טעות בספר ודיווח תקלה בתוכנה: Escape ולחיצה בחוץ סוגרים, ויציאה עם טקסט שואלת. נשאר: isDirty בדיאלוג אירוע בלוח השנה, ListDialogFrame (מתאחד עם AppDialogFrame ב־MIG-10), וסגירת חלוניות הצד ב־Escape (UI-003).
 
 ### DD-11 · כרטיס רגיל מול כרטיס תוצאה מול רשימה 🎨
 1. **הבעיה:**

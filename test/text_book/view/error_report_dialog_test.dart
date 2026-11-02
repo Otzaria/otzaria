@@ -1504,6 +1504,77 @@ void main() {
       expect(height, greaterThan(560));
     });
   });
+
+  group('TabbedReportDialog — סגירה (DD-08)', () {
+    Future<void> open(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1600, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => showDialog<void>(
+                  context: ctx,
+                  builder: (_) => const TabbedReportDialog(
+                    selectedText: 'קטע',
+                    fontSize: 18,
+                    bookTitle: 'ספר בדיקה',
+                    currentLineNumber: 1,
+                    directReportTargetLabel: 'אוצריא',
+                  ),
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+    }
+
+    final details = find.byKey(const ValueKey('report-details-field'));
+
+    testWidgets('Escape סוגר טופס ריק', (tester) async {
+      await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsNothing);
+    });
+
+    testWidgets('עם טקסט Escape שואל ו"המשך לערוך" שומר את הטקסט', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.enterText(details, 'פירוט הטעות');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text('המשך לערוך'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsOneWidget);
+      expect(find.text('פירוט הטעות'), findsOneWidget);
+    });
+
+    testWidgets('עם טקסט X וביטול שואלים לפני הסגירה', (tester) async {
+      await open(tester);
+      await tester.enterText(details, 'פירוט הטעות');
+      await tester.pump();
+      await tester.tap(find.byTooltip('סגור'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('המשך לערוך'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ביטול'));
+      await tester.pumpAndSettle();
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text('סגור בלי לשמור'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsNothing);
+    });
+  });
 }
 
 TextBookLoaded _loadedState() {

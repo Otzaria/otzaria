@@ -1049,7 +1049,6 @@ $detailsSection
     // פתיחת הדיאלוג. בספר דיקטה מוצג בתוכו קישור בולט לתיקון עצמי.
     final ReportDialogResult? result = await showDialog<ReportDialogResult>(
       context: context,
-      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return TabbedReportDialog(
           selectedText: resolvedSelectedText,
@@ -1169,10 +1168,16 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   bool _isLoadingData = true;
   List<String> _dataErrors = [];
 
+  final ValueNotifier<bool> _regularTabDirty = ValueNotifier(false);
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // לשונית הדיווח הרגיל נבנית מחדש ריקה כשעוברים ממנה, ואין עוד מה לאבד.
+    _tabController.addListener(() {
+      if (_tabController.index != 0) _regularTabDirty.value = false;
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1184,6 +1189,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   @override
   void dispose() {
     _tabController.dispose();
+    _regularTabDirty.dispose();
     super.dispose();
   }
 
@@ -1237,7 +1243,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
     final minHeight = maxHeight < 400 ? maxHeight : 400.0;
     final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
-    return Dialog(
+    final dialog = Dialog(
       clipBehavior: Clip.antiAlias,
       insetPadding: isCompact ? const EdgeInsets.all(8) : null,
       child: ConstrainedBox(
@@ -1272,6 +1278,10 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         ),
       ),
     );
+    return DialogDismissGuard.listenable(
+      isDirty: _regularTabDirty,
+      child: dialog,
+    );
   }
 
   /// כותרת בצורת כותרת [AppReportDialog]: אייקון מסומל, שם הטופס ואיפה
@@ -1298,9 +1308,8 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
       onActionSelected: (action, reportData) {
         Navigator.of(context).pop(ReportDialogResult(action, reportData));
       },
-      onCancel: () {
-        Navigator.of(context).pop();
-      },
+      onCancel: () => Navigator.of(context).maybePop(),
+      onDirtyChanged: (dirty) => _regularTabDirty.value = dirty,
     );
   }
 
@@ -1342,7 +1351,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
             ),
             const SizedBox(height: 24),
             ActionButton.neutral(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(context).maybePop(),
               text: 'סגור',
             ),
           ],
@@ -1356,9 +1365,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
       libraryVersion: _libraryVersion,
       bookId: _bookId,
       lineNumber: widget.currentLineNumber,
-      onCancel: () {
-        Navigator.of(context).pop();
-      },
+      onCancel: () => Navigator.of(context).maybePop(),
     );
   }
 }
@@ -1379,6 +1386,9 @@ class RegularReportTab extends StatefulWidget {
   final void Function(ErrorReportAction, ReportedErrorData) onActionSelected;
   final VoidCallback onCancel;
 
+  /// מדווח אם יש בטופס טקסט או הצעת תיקון שיאבדו בסגירה.
+  final ValueChanged<bool>? onDirtyChanged;
+
   const RegularReportTab({
     super.key,
     required this.selectedText,
@@ -1390,6 +1400,7 @@ class RegularReportTab extends StatefulWidget {
     this.validateBeforeSubmit,
     required this.onActionSelected,
     required this.onCancel,
+    this.onDirtyChanged,
   });
 
   @override
@@ -1413,6 +1424,17 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _isCorrection => _mode == _ReportMode.correction;
 
   bool get _hasDetails => _detailsController.text.trim().isNotEmpty;
+
+  bool get _isDirty {
+    final draft = _draft;
+    final editedProposal =
+        _isCorrection &&
+        draft != null &&
+        draft.correction.proposedText != widget.correctionTemplate?.target;
+    return _hasDetails || editedProposal;
+  }
+
+  void _reportDirty() => widget.onDirtyChanged?.call(_isDirty);
 
   bool get _canSubmit {
     if (!_isCorrection) return _hasDetails;
@@ -1449,6 +1471,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   void _handleDetailsChanged() {
     if (mounted) {
       setState(() {});
+      _reportDirty();
     }
   }
 
@@ -1555,7 +1578,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         ),
                       ],
                       currentValue: _mode,
-                      onChanged: (mode) => setState(() => _mode = mode),
+                      onChanged: (mode) {
+                        setState(() => _mode = mode);
+                        _reportDirty();
+                      },
                       expandToFillWidth: true,
                     ),
                     const SizedBox(height: 12),
@@ -1564,7 +1590,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     TextCorrectionEditor(
                       original: widget.correctionTemplate!,
                       fontSize: widget.fontSize,
-                      onChanged: (draft) => setState(() => _draft = draft),
+                      onChanged: (draft) {
+                        setState(() => _draft = draft);
+                        _reportDirty();
+                      },
                     )
                   else ...[
                     Text(

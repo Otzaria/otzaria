@@ -42,8 +42,8 @@ class AppDialogHeader extends StatelessWidget {
 
   final AppDialogHeaderTone tone;
 
-  /// ברירת מחדל: סגירת הדיאלוג. [closeEnabled] false משבית את הכפתור, למשל
-  /// בזמן שליחה.
+  /// ברירת מחדל: [Navigator.maybePop], כמו Escape, כדי שיעבור בשומר השינויים
+  /// של הדיאלוג. [closeEnabled] false משבית את הכפתור, למשל בזמן שליחה.
   final VoidCallback? onClose;
   final bool closeEnabled;
 
@@ -136,7 +136,7 @@ class AppDialogHeader extends StatelessWidget {
             icon: const Icon(FluentIcons.dismiss_24_regular),
             tooltip: closeTooltip,
             onPressed: closeEnabled
-                ? (onClose ?? () => Navigator.of(context).pop())
+                ? (onClose ?? () => Navigator.of(context).maybePop())
                 : null,
           ),
         ],

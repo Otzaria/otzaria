@@ -217,7 +217,7 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
           ),
         ),
       ),
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
     );
     hasChanges.dispose();
     if (confirmed != true) return;
