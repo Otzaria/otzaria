@@ -1005,12 +1005,26 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       await initializeSqliteTempDirectory();
       // WAL מאפשר לקוראים להמשיך לקרוא את ה-snapshot שלפני העדכון בזמן
       // שהאיזולייט כותב — בלי לסגור את חיבור ה-RO (שחסם פתיחת ספרים לדקות).
-      // אם ההמרה נכשלת, נסוגים למסלול הישן: סגירת ה-RO למשך הכתיבה.
-      final walFailure = await _trySetJournalMode(dbPath, 'WAL');
+      // קריאה ארוכה חוסמת את ההמרה, ולכן סוגרים את הקוראים רק לרגע ההמרה.
+      var walFailure = await _trySetJournalMode(dbPath, 'WAL');
+      final readersClosed = walFailure != null;
+      if (readersClosed) {
+        await SqliteDataProvider.instance.closeForExternalWrite();
+        walFailure = await _trySetJournalMode(dbPath, 'WAL');
+      }
       final concurrentReads = walFailure == null;
       if (!concurrentReads) {
+        // הקוראים נשארים סגורים למשך הכתיבה (המסלול הישן).
         _logJournalModeFailure('WAL', walFailure);
-        await SqliteDataProvider.instance.closeForExternalWrite();
+      }
+      SqliteDataProvider.instance.keepWalJournal = concurrentReads;
+      if (concurrentReads && readersClosed) {
+        try {
+          await SqliteDataProvider.instance.reopenAfterExternalWrite();
+        } catch (_) {
+          SqliteDataProvider.instance.keepWalJournal = false;
+          rethrow;
+        }
       }
       try {
         // ללא גיבוי מלא: ה-apply עטוף ב-transaction יחיד של SQLite, אז קריסה
@@ -1043,6 +1057,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         }
         rethrow;
       } finally {
+        SqliteDataProvider.instance.keepWalJournal = false;
         try {
           if (concurrentReads) {
             // היציאה מ-WAL דורשת שאין חיבורים אחרים — סוגרים לרגע את ה-RO,
