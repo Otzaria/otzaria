@@ -132,10 +132,10 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
     );
   }
 
-  /// רקע חלונית הניווט מאחורי התוצאות — כך הכרטיסים בהירים ממנו, כמו בחלונית
-  /// הצד של הקורא.
+  /// התוצאות הן אזור כלים: כרטיסים על רקע הלוח (DD-18). עץ הסינון שלצדן הוא
+  /// חלונית ונשאר ברקע חלונית הניווט.
   BoxDecoration _resultsDecoration(BuildContext context) =>
-      BoxDecoration(color: AppSurfaces.navPanelBackground(context));
+      BoxDecoration(color: AppSurfaces.panelBackground(context));
 
   Widget _buildForSmallScreens(bool collapseMenus) {
     return Container(
