@@ -24,9 +24,11 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
 
   factory AppSurfaceColors.fromScheme(ColorScheme cs) {
     final isDark = cs.brightness == Brightness.dark;
+    // בכהה הקריאה נייטרלית ולא נגזרת מהזרע, והלוחות בסולם ה-surface שלו
+    // (DD-05).
     final reader = isDark ? AppColors.darkScaffold : cs.surface;
     final panel = isDark
-        ? Colors.black
+        ? cs.surfaceContainerLow
         : Color.alphaBlend(
             cs.surfaceContainerHighest.withValues(alpha: 0.475),
             cs.surface,

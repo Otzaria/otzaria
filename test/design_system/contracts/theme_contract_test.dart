@@ -191,14 +191,15 @@ void main() {
       expect(AppSurfaces.navPanelBackground(context), cs.surfaceContainerHigh);
     });
 
-    testWidgets('כהה: רקע עיון 242424, לוח שחור, כרטיס surfaceContainer', (
+    testWidgets('כהה: רקע עיון 242424, לוח surfaceContainerLow', (
       tester,
     ) async {
       await pumpBoth(tester);
       final context = contexts[Brightness.dark]!;
       final cs = Theme.of(context).colorScheme;
       expect(AppSurfaces.readerBackground(context), const Color(0xFF242424));
-      expect(AppSurfaces.panelBackground(context), Colors.black);
+      expect(AppSurfaces.panelBackground(context), cs.surfaceContainerLow);
+      expect(AppSurfaces.cardRowDivider(context), cs.surfaceContainerLow);
       expect(AppSurfaces.card(context), cs.surfaceContainer);
       expect(AppSurfaces.topBarBackground(context), cs.surfaceContainerHigh);
     });

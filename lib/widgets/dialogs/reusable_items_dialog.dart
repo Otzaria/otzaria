@@ -69,10 +69,7 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog>
       handleEnterKey: effectiveHandleEnterKey,
       child: Dialog(
         insetPadding: const EdgeInsets.all(AppTokens.spaceMD),
-        // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? Theme.of(context).colorScheme.surface
-            : AppSurfaces.panelBackground(context),
+        backgroundColor: AppSurfaces.panelBackground(context),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
           width: width,

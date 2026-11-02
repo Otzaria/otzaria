@@ -38,21 +38,15 @@ void main() {
     });
 
     for (final brightness in Brightness.values) {
-      testWidgets('רקע ב-$brightness: לוח בבהיר, surface בכהה', (tester) async {
+      testWidgets('רקע ב-$brightness: רקע הלוח', (tester) async {
         await showInApp<void>(
           tester,
           const AppCustomContentDialog(title: 'רשימה', child: Text('גוף')),
           brightness: brightness,
         );
         final context = tester.element(find.byType(AppCustomContentDialog));
-        final cs = Theme.of(context).colorScheme;
         final surface = _dialogSurface(tester);
-        expect(
-          surface.color,
-          brightness == Brightness.dark
-              ? cs.surface
-              : AppSurfaces.panelBackground(context),
-        );
+        expect(surface.color, AppSurfaces.panelBackground(context));
         expect(surface.shape, AppTokens.roundedShape);
         expect(surface.clipBehavior, Clip.antiAlias);
         expect(

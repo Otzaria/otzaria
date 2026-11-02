@@ -91,7 +91,7 @@ void main() {
       );
       final context = await _pumpTheme(tester, ThemeData(colorScheme: cs));
       expect(AppSurfaceColors.of(context), AppSurfaceColors.fromScheme(cs));
-      expect(AppSurfaces.panelBackground(context), Colors.black);
+      expect(AppSurfaces.panelBackground(context), cs.surfaceContainerLow);
     });
 
     test('lerp מחזיר את הקצוות ומערבב באמצע', () {
