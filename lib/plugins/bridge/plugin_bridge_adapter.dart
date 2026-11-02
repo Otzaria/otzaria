@@ -51,6 +51,7 @@ import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_search_api.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -341,21 +342,7 @@ class PluginBridgeDependencies {
   ///
   /// `bookId` הוא ה-id המספרי ב-DB (-1 ל-PDF ממערכת הקבצים), ותקף רק במקור
   /// רשמי: שאר המסדים מקצים מזהים באותו טווח, ולכן id שלהם אינו חד-משמעי.
-  final Future<
-    List<
-      ({
-        String title,
-        int index,
-        bool isPdf,
-        int bookId,
-        String reference,
-        String bookPath,
-        bool isSourceLine,
-        BookSource source,
-      })
-    >
-  >
-  Function(String reference)?
+  final Future<List<PluginReferenceHit>> Function(String reference)?
   resolveReference;
 
   /// פותר הפניה לרמת שורה (פסוק/סעיף) דרך ה-heRef הפר-שורתי — מדויק מתחת
