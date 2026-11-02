@@ -208,10 +208,23 @@ void main() {
       expect(icon.color, cs.onPrimaryContainer);
     });
 
+    testWidgets('small: בלי איקס בכותרת (DD-07)', (tester) async {
+      await showInApp<bool>(
+        tester,
+        const AppDialog.twoActions(title: 'כותרת', content: 'תוכן'),
+      );
+      expect(find.byType(AppDialogHeader), findsOneWidget);
+      expect(find.byTooltip('סגור'), findsNothing);
+    });
+
     testWidgets('האיקס בכותרת סוגר עם false, כמו ביטול', (tester) async {
       final outcome = await showInApp<bool>(
         tester,
-        const AppDialog.twoActions(title: 'כותרת', content: 'תוכן'),
+        const AppDialog.twoActions(
+          title: 'כותרת',
+          content: 'תוכן',
+          size: AppDialogSize.medium,
+        ),
       );
       final close = find.byTooltip('סגור');
       expect(close, findsOneWidget);
@@ -534,6 +547,42 @@ void main() {
         tester.getSize(find.byWidget(surface)),
         const Size(1200 - 32, 800 - 32),
       );
+    });
+
+    // DD-07: X לפי הגודל — בלי X ב-small, עם X מ-medium; showClose גובר.
+    for (final (size, showClose, expected) in [
+      (AppDialogSize.small, null, findsNothing),
+      (AppDialogSize.medium, null, findsOneWidget),
+      (AppDialogSize.large, null, findsOneWidget),
+      (AppDialogSize.small, true, findsOneWidget),
+    ]) {
+      testWidgets('X ב-${size.name} (showClose: $showClose)', (tester) async {
+        await showInApp<void>(
+          tester,
+          AppDialogFrame(
+            title: 'מסגרת',
+            icon: FluentIcons.folder_24_regular,
+            size: size,
+            showClose: showClose,
+            child: const Text('גוף'),
+          ),
+        );
+        expect(find.byTooltip('סגור'), expected);
+      });
+    }
+
+    testWidgets('מתחת ל-600: small בלי X', (tester) async {
+      await showInApp<void>(
+        tester,
+        const AppDialogFrame(
+          title: 'מסגרת',
+          icon: FluentIcons.folder_24_regular,
+          size: AppDialogSize.small,
+          child: Text('גוף'),
+        ),
+        size: const Size(400, 800),
+      );
+      expect(find.byTooltip('סגור'), findsNothing);
     });
 
     testWidgets('showClose: false מסתיר את האיקס', (tester) async {
