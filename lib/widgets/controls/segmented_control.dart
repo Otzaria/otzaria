@@ -88,7 +88,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
             label: Text(
               o.label,
               key: o.labelKey,
-              style: AppTextStyles.settingTitle,
               maxLines: maxLabelLines,
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,

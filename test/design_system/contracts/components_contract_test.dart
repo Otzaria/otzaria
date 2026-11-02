@@ -325,7 +325,7 @@ void main() {
       expect(title.color, cs.onSurface);
 
       final message = tester.widget<Text>(find.text('נסה מילה אחרת')).style!;
-      expect(message.fontSize, 18);
+      expect(message.fontSize, 14);
       expect(message.color, cs.onSurfaceVariant);
 
       expect(
@@ -343,7 +343,7 @@ void main() {
       );
     });
 
-    testWidgets('קומפקטי: אייקון 36, כותרת bodyMedium (18) w600, הודעה 12', (
+    testWidgets('קומפקטי: אייקון 36, כותרת bodyMedium (14) w600, הודעה 12', (
       tester,
     ) async {
       await pumpInApp(
@@ -358,7 +358,7 @@ void main() {
       final icon = tester.widget<Icon>(find.byType(Icon));
       expect(icon.size, 36);
       final title = tester.widget<Text>(find.text('אין תוצאות')).style!;
-      expect(title.fontSize, 18);
+      expect(title.fontSize, 14);
       expect(title.fontWeight, FontWeight.w600);
       final message = tester.widget<Text>(find.text('נסה מילה אחרת')).style!;
       expect(message.fontSize, 12);

@@ -37,11 +37,13 @@ class AppTokens {
     borderRadius: borderRadiusAll,
   );
 
-  // ── Typography Scale ——————————————————————
+  // ── Typography Scale — מקור ה-textTheme ב-AppThemeData (DD-02) ——————
+  static const double fontXS = 11;
   static const double fontSM = 12;
   static const double fontMD = 14;
-  static const double fontLG = 16; // רוב ה-ListTile titles
+  static const double fontLG = 16;
   static const double fontXL = 18;
+  static const double font2XL = 22;
 
   // ── Elevation ——————————————————————————————
   static const double elevation1 = 1;

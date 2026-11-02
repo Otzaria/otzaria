@@ -113,7 +113,7 @@
    - **תשובות:**
      - q1: טבלת הגדלים: גוף 16/14/12, כותרות 18/16/14, תוויות 14/12/11, כותרת ראשית 22 (DESIGN_SYSTEM §2.4.1) → **מאשר**
      - q2: לאסור גודל גופן מספרי בקוד פיצ'ר (מותר רק ב־Theme ובתוכן ספר)? → **כן**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — textTheme מלא ב־AppThemeData מטוקני AppTokens.font* (נוספו fontXS=11, font2XL=22): headlineSmall 22/w600, titleLarge 18/w600, titleMedium 16/w700, titleSmall 14/w600, גוף 16/14/12, תוויות 14/12/11; כותרת דיאלוג גולמי titleLarge דרך dialogTheme; AppTopBar.titleStyle/subtitleStyle מ־titleLarge/bodySmall; תוויות AppSegmentedControl ב־labelLarge (14/w500) במקום settingTitle 16; fallbacks מתים ב־OtzariaEmptyState הוסרו. נשאר: צבע primary לכותרות מקטע (DD-14, MIG-13), segmentedButtonTheme ורקע surface של AppSegmentedControl (UI-094), ~158 גדלים מספריים בפיצ'רים ו־AppTextStyles (MIG-28), ברירות המחדל של גודל הקריאה (UI-118).
 
 ### DD-03 · סולם ריווח, גדלי אייקון וטוקנים סמנטיים 🎨🏗
 1. **הבעיה:** חסרים בסולם 12 (בכ־133 מקומות) ו־2. המשתמשים כותבים `spaceSM + 1`, ‏14 ו־10, ואין גדלי אייקון בכלל.
