@@ -642,10 +642,7 @@ class _CityDropdown extends StatelessWidget {
       child: AppDropdownField<String>(
         value: cityName,
         enableSearch: true,
-        decoration: const InputDecoration(
-          labelText: 'עיר',
-          isDense: true,
-        ),
+        semanticLabel: 'עיר',
         entries: cityNames
             .map((city) => AppMenuEntry<String>(value: city, label: city))
             .toList(),

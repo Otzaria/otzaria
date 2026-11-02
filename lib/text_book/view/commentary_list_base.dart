@@ -5,7 +5,6 @@ import 'package:otzaria/book_common/bloc/commentary_search_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
@@ -2507,8 +2506,8 @@ class _CommentaryGroupHeader extends StatelessWidget {
                 context,
                 AppTokens.animPanelOpacity,
               ),
-              child: RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              child: Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 20,
                 color: Theme.of(
                   context,

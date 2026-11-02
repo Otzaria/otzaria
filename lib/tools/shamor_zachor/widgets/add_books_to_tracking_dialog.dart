@@ -307,10 +307,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             ),
             child: Row(
               children: [
-                RtlIcon(
+                Icon(
                   isExpanded
                       ? FluentIcons.chevron_down_24_regular
-                      : FluentIcons.chevron_left_24_regular,
+                      : FluentIcons.chevron_right_24_regular,
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),

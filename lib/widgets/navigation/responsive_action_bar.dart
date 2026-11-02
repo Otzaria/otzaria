@@ -610,10 +610,7 @@ class _MenuIconActionRow extends StatelessWidget {
             IconButton(
               onPressed: action.onPressed,
               tooltip: action.tooltip,
-              // אייקון עם matchTextDirection מתהפך כבר ב-Icon; RtlIcon היה מהפך פעמיים.
-              icon: action.icon!.matchTextDirection
-                  ? Icon(action.icon, size: _iconSize)
-                  : RtlIcon(action.icon!, size: _iconSize),
+              icon: RtlIcon(action.icon!, size: _iconSize),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(
                 minWidth: _buttonSize,

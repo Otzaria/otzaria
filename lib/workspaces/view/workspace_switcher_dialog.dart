@@ -240,6 +240,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
             top: 4,
             right: 4,
             child: IconButton(
+              tooltip: 'מחק שולחן עבודה',
               icon: const Icon(FluentIcons.dismiss_24_regular, size: 16),
               onPressed: () {
                 // Remove the workspace
@@ -427,6 +428,7 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
           ),
         ),
         IconButton(
+          tooltip: 'שנה שם',
           icon: const Icon(FluentIcons.edit_24_regular),
           onPressed: _startEditing,
         ),

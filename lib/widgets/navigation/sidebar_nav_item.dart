@@ -71,40 +71,43 @@ class SidebarNavItem extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
-      child: Material(
-        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: InkWell(
-          onTap: onTap,
+      child: Semantics(
+        selected: isSelected,
+        child: Material(
+          color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
           borderRadius: AppTokens.borderRadiusAll,
-          hoverColor: AppSurfaces.hoverRow(cs),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: [
-                iconWidget,
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AnimatedDefaultTextStyle(
-                    duration: AppMotion.duration(
-                      context,
-                      AppTokens.animPanelOpacity,
-                    ),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? AppSurfaces.onSelectedRow(cs)
-                          : cs.onSurfaceVariant,
-                    ),
-                    child: Text(
-                      label,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTokens.borderRadiusAll,
+            hoverColor: AppSurfaces.hoverRow(cs),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  iconWidget,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: AppMotion.duration(
+                        context,
+                        AppTokens.animPanelOpacity,
+                      ),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? AppSurfaces.onSelectedRow(cs)
+                            : cs.onSurfaceVariant,
+                      ),
+                      child: Text(
+                        label,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

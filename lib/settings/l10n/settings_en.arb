@@ -1468,5 +1468,10 @@
   "אין": "None",
   "מחפש מילים שלמות בלבד": "Searching whole words only",
   "מחפש גם חלק ממילה — לחץ למילים שלמות": "Also searching parts of words — click for whole words",
-  "רווח בסוף מחפש סוף מילה, רווח בהתחלה מחפש תחילת מילה": "A trailing space matches word ends, a leading space matches word starts"
+  "רווח בסוף מחפש סוף מילה, רווח בהתחלה מחפש תחילת מילה": "A trailing space matches word ends, a leading space matches word starts",
+  "הרחב": "Expand",
+  "כווץ": "Collapse",
+  "תוצאה קודמת": "Previous result",
+  "תוצאה הבאה": "Next result",
+  "הצג מפרשים": "Show commentaries"
 }

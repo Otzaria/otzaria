@@ -18,7 +18,6 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -252,7 +251,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
           alignment: AlignmentDirectional.centerStart,
           child: ActionButton.ghost(
             text: previous == null ? 'חזרה לרשימה' : 'חזרה אל ${previous.name}',
-            iconWidget: const RtlIcon(FluentIcons.arrow_left_24_regular),
+            iconWidget: const Icon(FluentIcons.arrow_left_24_regular),
             onPressed: _closeEntry,
           ),
         ),

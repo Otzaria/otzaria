@@ -30,7 +30,6 @@ import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show showWarningDialog;
@@ -596,7 +595,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
         ? [
             IconButton(
               tooltip: 'עמוד קודם',
-              icon: const RtlIcon(FluentIcons.chevron_right_24_regular),
+              icon: const Icon(FluentIcons.chevron_left_24_regular),
               onPressed: state.nav.currentColumnIndex > 0
                   ? () => bloc.add(const TikkunPrevColumn())
                   : null,
@@ -607,7 +606,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
             ),
             IconButton(
               tooltip: 'עמוד הבא',
-              icon: const RtlIcon(FluentIcons.chevron_left_24_regular),
+              icon: const Icon(FluentIcons.chevron_right_24_regular),
               onPressed: state.nav.currentColumnIndex < state.columnCount - 1
                   ? () => bloc.add(const TikkunNextColumn())
                   : null,

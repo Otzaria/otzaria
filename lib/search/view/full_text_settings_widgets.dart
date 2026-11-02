@@ -789,9 +789,7 @@ class OrderOfResults extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: AppDropdownField<ResultsOrder>(
               value: state.sortBy,
-              decoration: const InputDecoration(
-                labelText: 'מיון',
-              ),
+              semanticLabel: 'מיון',
               entries: _entries,
               onSelected: (value) {
                 if (value != null) {
@@ -853,9 +851,7 @@ class GroupingOfResults extends StatelessWidget {
               message: state.resultGrouping.tooltip,
               child: AppDropdownField<ResultGroupingMode>(
                 value: state.resultGrouping,
-                decoration: const InputDecoration(
-                  labelText: 'איחוד תוצאות',
-                ),
+                semanticLabel: 'איחוד תוצאות',
                 entries: _entries,
                 onSelected: (value) {
                   if (value != null) {
@@ -964,9 +960,7 @@ class ExternalResultsPositionControl extends StatelessWidget {
                 ),
                 child: AppDropdownField<bool>(
                   value: settings.externalResultsFirst,
-                  decoration: InputDecoration(
-                    labelText: 'מיקום תוצאות ${status.sourceTitle}',
-                  ),
+                  semanticLabel: 'מיקום תוצאות ${status.sourceTitle}',
                   entries: entries,
                   onSelected: (value) {
                     if (value != null) {

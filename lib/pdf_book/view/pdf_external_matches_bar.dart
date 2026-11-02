@@ -3,7 +3,6 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// מיקום העמוד [page] ביחס ל-[pages] הממוינים: [exact] כשהוא עצמו התאמה,
@@ -198,9 +197,7 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                 const Spacer(),
                 if (hasPages) ...[
                   IconButton(
-                    icon: const RtlIcon(
-                      FluentIcons.chevron_right_24_regular,
-                    ),
+                    icon: const Icon(FluentIcons.chevron_left_24_regular),
                     iconSize: 18,
                     tooltip: 'המופע הקודם',
                     onPressed: cursor.previous == null
@@ -227,9 +224,7 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                     ),
                   ),
                   IconButton(
-                    icon: const RtlIcon(
-                      FluentIcons.chevron_left_24_regular,
-                    ),
+                    icon: const Icon(FluentIcons.chevron_right_24_regular),
                     iconSize: 18,
                     tooltip: 'המופע הבא',
                     onPressed: cursor.next == null

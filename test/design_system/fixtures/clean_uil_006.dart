@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
-Widget registered() => const RtlIcon(FluentIcons.arrow_left_24_regular);
+Widget registered() =>
+    const RtlIcon(FluentIcons.chevron_double_left_20_regular);
 Widget variable(IconData icon) => RtlIcon(icon);
 Widget otzaria() => const Icon(OtzariaIcons.book_24_regular);
 Widget flippedText(Widget child) => Transform.flip(flipX: true, child: child);

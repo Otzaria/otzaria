@@ -2,22 +2,34 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 
 /// טאב סטנדרטי לפנלים הימניים (ללא אייקון filled).
-/// כאשר [label] הוא null — מוצג אייקון בלבד (מצב compact).
+/// כש-[showLabel] כבוי מוצג אייקון בלבד (מצב compact), ו-[label] עובר ל-tooltip.
 class PanelTab extends StatelessWidget {
   final IconData icon;
-  final String? label;
+  final String label;
+  final bool showLabel;
 
-  const PanelTab({super.key, required this.icon, this.label});
+  const PanelTab({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.showLabel = true,
+  });
 
   @override
-  Widget build(BuildContext context) =>
-      buildTab(Icon(icon, size: AppTokens.panelTabIconSize), label);
+  Widget build(BuildContext context) {
+    final tab = buildTab(
+      Icon(icon, size: AppTokens.panelTabIconSize),
+      showLabel ? label : null,
+    );
+    return showLabel ? tab : Tooltip(message: label, child: tab);
+  }
 
   /// הטאב עם אייקון כלשהו — גם האייקון המונפש של `NavPanelTabHeader`.
   static Tab buildTab(Widget icon, String? label) {
@@ -39,7 +51,7 @@ class PanelTab extends StatelessWidget {
   }
 }
 
-/// כפתור "פתח פאנל" — רצועה מונפשת בשולי המסך שמתרחבת עם hover.
+/// כפתור "הצג מפרשים" — רצועה מונפשת בשולי המסך שמתרחבת עם hover ועם פוקוס.
 class PanelOpenHandle extends StatefulWidget {
   final VoidCallback onTap;
 
@@ -50,34 +62,55 @@ class PanelOpenHandle extends StatefulWidget {
 }
 
 class _PanelOpenHandleState extends State<PanelOpenHandle> {
-  bool _isHovering = false;
+  bool _hovered = false;
+  bool _focused = false;
+
+  bool get _isHovering => _hovered || _focused;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-          curve: Curves.easeOut,
-          width: _isHovering ? 48 : 20,
-          height: 80,
-          decoration: ShapeDecoration(
-            color: AppSurfaces.panelOpenHandle(cs, isHovering: _isHovering),
-            shape: const _PanelOpenHandleBorder(),
-            shadows: AppShadows.floating(cs),
-          ),
-          child: Center(
-            child: AnimatedOpacity(
-              duration: AppMotion.duration(context, AppTokens.animFast),
-              opacity: _isHovering ? 1.0 : 0.6,
-              child: Icon(
-                FluentIcons.chevron_right_24_regular,
-                size: _isHovering ? 24 : 18,
-                color: cs.onSurface,
+    final label = context.settingsText('הצג מפרשים');
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      onTap: widget.onTap,
+      child: Tooltip(
+        message: label,
+        child: FocusableActionDetector(
+          onShowHoverHighlight: (v) => setState(() => _hovered = v),
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
+              curve: Curves.easeOut,
+              width: _isHovering ? 48 : 20,
+              height: 80,
+              decoration: ShapeDecoration(
+                color: AppSurfaces.panelOpenHandle(cs, isHovering: _isHovering),
+                shape: const _PanelOpenHandleBorder(),
+                shadows: AppShadows.floating(cs),
+              ),
+              child: Center(
+                child: AnimatedOpacity(
+                  duration: AppMotion.duration(context, AppTokens.animFast),
+                  opacity: _isHovering ? 1.0 : 0.6,
+                  child: Icon(
+                    FluentIcons.chevron_right_24_regular,
+                    size: _isHovering ? 24 : 18,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
             ),
           ),
@@ -163,6 +196,7 @@ class PanelTabHeader extends StatelessWidget {
           ),
           ...extraActions,
           IconButton(
+            tooltip: context.settingsText('סגור חלונית'),
             iconSize: 18,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),

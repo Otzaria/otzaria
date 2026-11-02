@@ -3,8 +3,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
@@ -377,8 +379,30 @@ class _SnackToastState extends State<_SnackToast>
       ..reverseDuration = AppMotion.duration(context, _ToastTokens.animExit);
     if (!_entered) {
       _entered = true;
+      _announce();
       _ctrl.forward();
     }
+  }
+
+  @override
+  void didUpdateWidget(_SnackToast oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message != widget.message) _announce();
+  }
+
+  /// ההודעה צפה ב-Overlay ואינה מקבלת פוקוס, ולכן קורא המסך לא יקרא אותה
+  /// בלי הכרזה מפורשת.
+  void _announce() {
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        widget.message,
+        Directionality.of(context),
+        assertiveness: widget.variant == _SnackVariant.error
+            ? Assertiveness.assertive
+            : Assertiveness.polite,
+      ),
+    );
   }
 
   void _close() {
@@ -524,6 +548,7 @@ class _SnackToastState extends State<_SnackToast>
                               if (widget.showCloseButton) ...[
                                 const SizedBox(width: AppTokens.spaceSM),
                                 IconButton(
+                                  tooltip: context.settingsText('סגור'),
                                   onPressed: _close,
                                   icon: Icon(
                                     FluentIcons.dismiss_24_regular,

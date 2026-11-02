@@ -28,8 +28,9 @@ class RtlIconRule extends UiLintRule {
 
   @override
   String get hint =>
-      'OtzariaIcons או אייקון סימטרי: Icon(...). אייקון כיווני: לרשום ב-'
-      '$registryPath ולהשתמש ב-RtlIcon (DESIGN_SYSTEM.md §2.5.1)';
+      'OtzariaIcons, אייקון סימטרי או אייקון שמתהפך בעצמו (matchTextDirection): '
+      'Icon(...). אייקון כיווני אחר: לרשום ב-$registryPath ולהשתמש ב-RtlIcon '
+      '(DESIGN_SYSTEM.md §2.5.1)';
 
   /// האייקונים שבמפות ובסט של rtl_icon.dart, לפני build().
   static Set<String> registered(String root) =>

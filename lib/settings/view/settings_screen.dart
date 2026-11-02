@@ -390,9 +390,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       color: colorScheme.primary,
                     ),
                     title: Text(context.settingsText(_tabsData[idx].label)),
-                    trailing: const RtlIcon(
-                      FluentIcons.chevron_left_24_regular,
-                    ),
+                    trailing: const Icon(FluentIcons.chevron_right_24_regular),
                     onTap: () {
                       setState(() {
                         _selectedIndex = idx;
@@ -454,14 +452,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                   ),
                   leading: onBack == null
                       ? null
-                      : Tooltip(
-                          message: context.settingsText('חזור (Esc)'),
-                          child: IconButton(
-                            icon: const RtlIcon(
-                              FluentIcons.arrow_right_24_regular,
-                            ),
-                            onPressed: onBack,
-                          ),
+                      : IconButton(
+                          tooltip: context.settingsText('חזור (Esc)'),
+                          icon: const Icon(FluentIcons.arrow_left_24_regular),
+                          onPressed: onBack,
                         ),
                 ),
                 body: Column(

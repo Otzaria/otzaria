@@ -67,7 +67,6 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -2278,8 +2277,8 @@ class _PdfCommentaryGroupHeader extends StatelessWidget {
             AnimatedRotation(
               turns: isExpanded ? -0.25 : 0,
               duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-              child: RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              child: Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 20,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
