@@ -1975,7 +1975,12 @@ class _CombinedViewState extends State<CombinedView> {
         : (forward
               ? tab.navNextSegmentNotifier
               : tab.navPreviousSegmentNotifier);
-    notifier.value++;
+    // החזקת המקש היא נקודת חזרה אחת, כמו החזקת חץ ב-ProgressiveScroll.
+    if (event is KeyRepeatEvent) {
+      tab.lines.withoutHistory(() => notifier.value++);
+    } else {
+      notifier.value++;
+    }
     return KeyEventResult.handled;
   }
 

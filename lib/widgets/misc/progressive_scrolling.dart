@@ -35,7 +35,7 @@ class ProgressiveScroll extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
 
-  /// מודיע פעם אחת בתחילת החזקת חץ, לפני שהמיקום משתנה.
+  /// מודיע פעם אחת בתחילת החזקת חץ או PageDown/PageUp, לפני שהמיקום משתנה.
   final VoidCallback? onNavigationStart;
   // קיצורי התוכן מקבלים קדימות על פני גלילת החיצים.
   final FocusOnKeyEventCallback? onKeyEvent;
@@ -317,7 +317,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
       final position = _position;
       if (position == null) return KeyEventResult.ignored;
       _stopScrolling();
-      widget.onNavigationStart?.call();
+      if (event is KeyDownEvent) widget.onNavigationStart?.call();
       widget.scrollController.listController?.cancelPositioning();
       animatePageScroll(position, forward: forward);
     }

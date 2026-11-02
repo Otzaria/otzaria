@@ -1776,6 +1776,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     LogicalKeyboardKey logicalKey, {
     required bool isAltPressed,
     bool isShiftPressed = false,
+    bool isRepeat = false,
     required String source,
   }) {
     if (!widget.isMainText) {
@@ -1805,6 +1806,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           nextIndex,
           duration: const Duration(milliseconds: 200),
           alignment: 0.5,
+          rememberPosition: !isRepeat,
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-arrow-down');
@@ -1822,6 +1824,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           prevIndex,
           duration: const Duration(milliseconds: 200),
           alignment: 0.5,
+          rememberPosition: !isRepeat,
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-arrow-up');
@@ -1829,13 +1832,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (logicalKey == LogicalKeyboardKey.pageDown) {
-      if (!_scrollPage(forward: true)) return false;
+      if (!_scrollPage(forward: true, isRepeat: isRepeat)) return false;
       _requestKeyboardFocusAfterFrame('navigation-page-down');
       return true;
     }
 
     if (logicalKey == LogicalKeyboardKey.pageUp) {
-      if (!_scrollPage(forward: false)) return false;
+      if (!_scrollPage(forward: false, isRepeat: isRepeat)) return false;
       _requestKeyboardFocusAfterFrame('navigation-page-up');
       return true;
     }
@@ -1884,6 +1887,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           targetIndex,
           duration: const Duration(milliseconds: 300),
           alignment: 0.0,
+          rememberPosition: !isRepeat,
         ),
       );
       _requestKeyboardFocusAfterFrame('navigation-space');
@@ -1893,14 +1897,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return false;
   }
 
-  bool _scrollPage({required bool forward}) {
+  bool _scrollPage({required bool forward, required bool isRepeat}) {
     final scroll = _scrollController.scrollController;
     if (scroll == null ||
         !scroll.hasClients ||
         !scroll.position.hasContentDimensions) {
       return false;
     }
-    _lines?.beginUserNavigation();
+    // החזקת המקש היא נקודת חזרה אחת, כמו החזקת חץ ב-ProgressiveScroll.
+    if (!isRepeat) _lines?.beginUserNavigation();
     animatePageScroll(scroll.position, forward: forward);
     return true;
   }
@@ -2881,6 +2886,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                                       isShiftPressed: HardwareKeyboard
                                           .instance
                                           .isShiftPressed,
+                                      isRepeat: event is KeyRepeatEvent,
                                       source: 'content-focus',
                                     )
                                   : _scrollCommentaryByKey(event.logicalKey);

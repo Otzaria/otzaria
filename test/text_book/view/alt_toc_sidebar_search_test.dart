@@ -45,6 +45,7 @@ class _RecordingLines extends LineScrollController {
     double intraLineFraction = 0,
     Duration duration = const Duration(milliseconds: 250),
     Curve curve = Curves.ease,
+    bool rememberPosition = true,
   }) async {
     requested.add(line);
   }
