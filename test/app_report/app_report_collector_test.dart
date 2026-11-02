@@ -285,6 +285,7 @@ void main() {
         clock: () => now,
       ).collectDiagnostics();
       expect(diagnostics.containsKey('context'), isFalse);
+      expect(diagnostics.containsKey('inputFocus'), isFalse);
     });
 
     test('כרטיסיית חיפוש: השאילתה לא נכנסת לכותרת', () {
