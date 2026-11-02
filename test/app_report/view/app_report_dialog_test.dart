@@ -118,6 +118,11 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   Future<void> send(WidgetTester tester) async {
     await tester.ensureVisible(find.byKey(const ValueKey('app-report-send')));
     await tester.tap(find.byKey(const ValueKey('app-report-send')));
@@ -374,4 +379,37 @@ void main() {
     expect(service.sent, isEmpty);
     expect(popped, isNull);
   });
+
+  for (final viaHeader in [true, false]) {
+    testSnack(
+      '${viaHeader ? 'X' : 'כפתור היציאה'} שומר את כל התוכן בלי לשלוח או לשאול',
+      (tester) async {
+        await pumpDialog(tester);
+        await fill(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('app-report-steps')),
+          'שלב ראשון\nשלב שני',
+        );
+        await tester.pump();
+
+        final close = viaHeader
+            ? find.byTooltip('סגור')
+            : find.byKey(const ValueKey('app-report-save-draft'));
+        await tester.ensureVisible(close);
+        await tester.tap(close);
+        await settle(tester);
+
+        expect(find.text('לסגור בלי לשמור?'), findsNothing);
+        expect(find.byType(AppReportDialog), findsNothing);
+        expect(service.draft, isNotNull);
+        expect(service.draft!.title, 'כותרת');
+        expect(service.draft!.description, 'תיאור');
+        expect(service.draft!.steps, 'שלב ראשון\nשלב שני');
+        expect(service.draft!.email, 'me@x.com');
+        expect(service.sent, isEmpty);
+        expect(service.queued, isEmpty);
+        expect(popped, isNull);
+      },
+    );
+  }
 }

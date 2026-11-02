@@ -295,7 +295,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
       customContent: wrapWithReportScope(
         context,
         SizedBox(

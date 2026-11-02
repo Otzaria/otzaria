@@ -27,9 +27,7 @@ class SaferModePasswordDialog extends StatefulWidget {
 }
 
 class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
-    with
-        DialogNavigationMixin,
-        DialogFocusRestorerMixin<SaferModePasswordDialog> {
+    with DialogFocusRestorerMixin<SaferModePasswordDialog> {
   final TextEditingController _passwordController = TextEditingController();
   final FocusNode _textFieldFocusNode = FocusNode();
   final FocusNode _cancelFocusNode = FocusNode();
@@ -88,10 +86,9 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
 
   @override
   Widget build(BuildContext context) {
-    return buildKeyboardNavigator(
+    return DialogKeyboardNavigator(
       onConfirm: _handleVerify,
-      onCancel: () => Navigator.of(context).pop(false),
-      textFieldFocusNode: _textFieldFocusNode,
+      dismissResult: false,
       child: AlertDialog(
         title: AppDialogTitle(
           widget.title,
@@ -181,9 +178,7 @@ class SaferModeSetPasswordDialog extends StatefulWidget {
 }
 
 class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
-    with
-        DialogNavigationMixin,
-        DialogFocusRestorerMixin<SaferModeSetPasswordDialog> {
+    with DialogFocusRestorerMixin<SaferModeSetPasswordDialog> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
   final FocusNode _passwordFocusNode = FocusNode();
@@ -286,10 +281,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
 
   @override
   Widget build(BuildContext context) {
-    return buildKeyboardNavigator(
+    return DialogKeyboardNavigator(
       onConfirm: _handleSave,
-      onCancel: () => Navigator.of(context).pop(false),
-      textFieldFocusNode: _passwordFocusNode,
+      dismissResult: false,
       child: AlertDialog(
         title: AppDialogTitle(
           context.settingsText('הגדרת סיסמה'),

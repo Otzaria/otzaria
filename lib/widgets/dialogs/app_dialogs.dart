@@ -4,10 +4,10 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
@@ -15,7 +15,8 @@ import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
 enum _DialogVariant { singleAction, twoActions, warning }
 
-/// דיאלוג גנרי M3 עם ניווט מקלדת מלא והדגשת פוקוס. השתמש בבנאים הממוינים:
+/// דיאלוג גנרי M3 לפי חוזה המקלדת של [DialogKeyboardNavigator]. השתמש בבנאים
+/// הממוינים:
 /// - [AppDialog.singleAction] — כפתור אישור בלבד
 /// - [AppDialog.twoActions] — ביטול + אישור
 /// - [AppDialog.warning] — ביטול (primary/בטוח) + אישור (error/מסוכן)
@@ -40,8 +41,8 @@ class AppDialog extends StatefulWidget {
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
 
-  /// כל עוד true, לחיצה מחוץ לדיאלוג לא סוגרת אותו ומשמיעה צליל אזהרה.
-  final ValueListenable<bool>? hasUnsavedChanges;
+  /// כל עוד true, ביטול, X, Escape ולחיצה בחוץ שואלים לפני הסגירה.
+  final ValueListenable<bool>? isDirty;
 
   const AppDialog.singleAction({
     super.key,
@@ -61,7 +62,7 @@ class AppDialog extends StatefulWidget {
        cancelText = '',
        subtitle = null,
        handleEnterKey = true,
-       hasUnsavedChanges = null;
+       isDirty = null;
 
   const AppDialog.twoActions({
     super.key,
@@ -72,7 +73,7 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'אישור',
     this.textDirection,
     this.handleEnterKey = true,
-    this.hasUnsavedChanges,
+    this.isDirty,
     this.icon,
     this.headerBand = false,
   }) : _variant = _DialogVariant.twoActions,
@@ -93,55 +94,26 @@ class AppDialog extends StatefulWidget {
        _variant = _DialogVariant.warning,
        handleEnterKey = true,
        onConfirm = null,
-       hasUnsavedChanges = null;
+       isDirty = null;
 
   @override
   State<AppDialog> createState() => _AppDialogState();
 }
 
 class _AppDialogState extends State<AppDialog> {
-  // 0 = cancel/first, 1 = confirm/second
-  // warning: safer default = cancel (0); others: confirm (1)
-  late int _focusedIndex;
-
-  late final FocusNode _confirmFocusNode;
-  FocusNode? _cancelFocusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _confirmFocusNode = FocusNode();
-    if (widget._variant != _DialogVariant.singleAction) {
-      _cancelFocusNode = FocusNode();
-    }
-    _focusedIndex = widget._variant == _DialogVariant.warning ? 0 : 1;
-  }
-
-  @override
-  void dispose() {
-    _confirmFocusNode.dispose();
-    _cancelFocusNode?.dispose();
-    super.dispose();
-  }
-
-  void _moveFocus(int newIndex) {
-    setState(() => _focusedIndex = newIndex);
-    (newIndex == 1 ? _confirmFocusNode : _cancelFocusNode)?.requestFocus();
-  }
-
   void _handleConfirm() {
     if (widget.onConfirm != null && !widget.onConfirm!()) return;
     Navigator.of(context).pop(true);
   }
 
+  void _cancel() => Navigator.of(context).maybePop(false);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final dialog = DialogKeyboardNavigator(
-      focusedIndex: _focusedIndex,
-      onFocusChange: _moveFocus,
       onConfirm: _handleConfirm,
-      onCancel: () => Navigator.of(context).pop(false),
+      dismissResult: false,
       handleEnterKey: widget.handleEnterKey,
       child: AlertDialog(
         backgroundColor: cs.surfaceContainerHigh,
@@ -168,18 +140,8 @@ class _AppDialogState extends State<AppDialog> {
         actions: _buildActions(),
       ),
     );
-    final unsaved = widget.hasUnsavedChanges;
-    if (unsaved == null) return dialog;
-    // הרקע סוגר דרך maybePop, שנחסם כאן; הכפתורים ו-Esc סוגרים ב-pop ישיר.
-    return ValueListenableBuilder<bool>(
-      valueListenable: unsaved,
-      builder: (context, hasChanges, child) => PopScope(
-        canPop: !hasChanges,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) SystemSound.play(SystemSoundType.alert);
-        },
-        child: child!,
-      ),
+    return DialogDismissGuard.listenable(
+      isDirty: widget.isDirty,
       child: dialog,
     );
   }
@@ -207,7 +169,6 @@ class _AppDialogState extends State<AppDialog> {
   List<Widget> _buildActions() => switch (widget._variant) {
     _DialogVariant.singleAction => [
       ActionButton.recommended(
-        focusNode: _confirmFocusNode,
         autofocus: widget.customContent == null,
         text: widget.confirmText,
         onPressed: _handleConfirm,
@@ -215,12 +176,10 @@ class _AppDialogState extends State<AppDialog> {
     ],
     _DialogVariant.twoActions => [
       ActionButton.neutral(
-        focusNode: _cancelFocusNode,
         text: widget.cancelText,
-        onPressed: () => Navigator.of(context).pop(false),
+        onPressed: _cancel,
       ),
       ActionButton.recommended(
-        focusNode: _confirmFocusNode,
         autofocus: true,
         text: widget.confirmText,
         onPressed: () => Navigator.of(context).pop(true),
@@ -228,13 +187,11 @@ class _AppDialogState extends State<AppDialog> {
     ],
     _DialogVariant.warning => [
       ActionButton.recommended(
-        focusNode: _cancelFocusNode,
         autofocus: true,
         text: widget.cancelText,
-        onPressed: () => Navigator.of(context).pop(false),
+        onPressed: _cancel,
       ),
       ActionButton.warning(
-        focusNode: _confirmFocusNode,
         text: widget.confirmText,
         onPressed: () => Navigator.of(context).pop(true),
       ),
@@ -291,7 +248,7 @@ Future<bool?> showTwoActionsDialog({
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool handleEnterKey = true,
-  ValueListenable<bool>? hasUnsavedChanges,
+  ValueListenable<bool>? isDirty,
   IconData? icon,
   bool headerBand = false,
 }) => showDialogUntilTornDown<bool>(
@@ -307,7 +264,7 @@ Future<bool?> showTwoActionsDialog({
       confirmText: confirmText,
       textDirection: textDirection,
       handleEnterKey: handleEnterKey,
-      hasUnsavedChanges: hasUnsavedChanges,
+      isDirty: isDirty,
       icon: icon,
       headerBand: headerBand,
     ),

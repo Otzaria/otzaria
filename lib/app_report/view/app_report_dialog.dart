@@ -33,7 +33,6 @@ Future<AppReportDeliveryResult?> showAppReportDialog(
   builder = reportDialogBuilder(context, builder);
   return showDialog<AppReportDeliveryResult>(
     context: context,
-    barrierDismissible: false,
     builder: builder,
   );
 }

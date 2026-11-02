@@ -1363,7 +1363,6 @@ $detailsSection
     try {
       final result = await showDialog<ReportDialogResult>(
         context: context,
-        barrierDismissible: false,
         builder: reportDialogBuilder(
           context,
           (_) => TabbedReportDialog(
@@ -1498,6 +1497,13 @@ const double _freeTextReportDialogHeight = 560;
 
 class _TabbedReportDialogState extends State<TabbedReportDialog> {
   bool _leaving = false;
+  final ValueNotifier<bool> _regularTabDirty = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _regularTabDirty.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1524,36 +1530,44 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
     final minHeight = maxHeight < 400 ? maxHeight : 400.0;
     final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
+    final dialog = AbsorbPointer(
+      absorbing: _leaving,
+      child: ExcludeFocus(
+        excluding: _leaving,
+        child: Dialog(
+          clipBehavior: Clip.antiAlias,
+          insetPadding: isCompact ? const EdgeInsets.all(8) : null,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: minWidth,
+              maxWidth: maxWidth,
+              minHeight: minHeight,
+              maxHeight: maxHeight,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(context),
+                Expanded(child: _buildRegularReportTab()),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (widget.draft == null) {
+      return DialogDismissGuard.listenable(
+        isDirty: _regularTabDirty,
+        canDismiss: !_leaving,
+        child: dialog,
+      );
+    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _leave();
       },
-      child: AbsorbPointer(
-        absorbing: _leaving,
-        child: ExcludeFocus(
-          excluding: _leaving,
-          child: Dialog(
-            clipBehavior: Clip.antiAlias,
-            insetPadding: isCompact ? const EdgeInsets.all(8) : null,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: minWidth,
-                maxWidth: maxWidth,
-                minHeight: minHeight,
-                maxHeight: maxHeight,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildHeader(context),
-                  Expanded(child: _buildRegularReportTab()),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: dialog,
     );
   }
 
@@ -1563,7 +1577,8 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
     return AppDialogHeader(
       icon: OtzariaIcons.book_exclamation_24_regular,
       title: context.settingsText('דיווח על טעות בספר'),
-      onClose: _leaving ? () {} : _leave,
+      onClose: _requestLeave,
+      closeEnabled: !_leaving,
       subtitle: widget.bookTitle,
       subtitleMaxLines: 1,
       compact: true,
@@ -1587,8 +1602,18 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
       validateBeforeSubmit: widget.validateBeforeSubmit,
       onActionSelected: (action, reportData) =>
           _leave(ReportDialogResult(action, reportData)),
-      onCancel: _leave,
+      onCancel: _requestLeave,
+      onDirtyChanged: (dirty) => _regularTabDirty.value = dirty,
     );
+  }
+
+  void _requestLeave() {
+    if (_leaving) return;
+    if (widget.draft == null) {
+      Navigator.of(context).maybePop();
+    } else {
+      _leave();
+    }
   }
 
   Future<void> _leave([ReportDialogResult? result]) async {
@@ -1650,6 +1675,9 @@ class RegularReportTab extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onDraftChanged;
   final bool sourceChanged;
 
+  /// מדווח אם יש בטופס טקסט או הצעת תיקון שיאבדו בסגירה.
+  final ValueChanged<bool>? onDirtyChanged;
+
   const RegularReportTab({
     super.key,
     required this.selectedText,
@@ -1667,6 +1695,7 @@ class RegularReportTab extends StatefulWidget {
     this.initialForm,
     this.onDraftChanged,
     this.sourceChanged = false,
+    this.onDirtyChanged,
   });
 
   @override
@@ -1710,6 +1739,17 @@ class _RegularReportTabState extends State<RegularReportTab> {
   }
 
   bool get _hasDetails => _detailsController.text.trim().isNotEmpty;
+
+  bool get _isDirty {
+    final draft = _draft;
+    final editedProposal =
+        _isCorrection &&
+        draft != null &&
+        draft.correction.proposedText != widget.correctionTemplate?.target;
+    return _hasDetails || editedProposal;
+  }
+
+  void _reportDirty() => widget.onDirtyChanged?.call(_isDirty);
 
   bool get _canSubmit {
     if (_validating) return false;
@@ -1824,7 +1864,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
     _draftChanged();
   }
 
-  void _draftChanged() => widget.onDraftChanged?.call(_form);
+  void _draftChanged() {
+    widget.onDraftChanged?.call(_form);
+    _reportDirty();
+  }
 
   void _handleDetailsChanged(String _) {
     if (mounted) {

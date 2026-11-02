@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
@@ -16,8 +18,8 @@ class AppCustomContentDialog extends StatefulWidget {
   /// הכנס [ActionButton.recommended] / [ActionButton.neutral] כסטנדרט.
   final List<Widget>? actions;
 
-  /// נקרא בלחיצת Enter (כשהפוקוס לא בשדה טקסט).
-  /// כשמוגדר null, Enter מושבת לחלוטין ללא קשר ל-[handleEnterKey].
+  /// נקרא ב-Enter בשדה טקסט חד־שורתי, או כשאין רכיב ממוקד שמגיב ל-Enter.
+  /// כשמוגדר null, Enter מגיע רק לרכיב הממוקד.
   final VoidCallback? onConfirm;
 
   /// האם Enter יכול להפעיל [onConfirm]. ברירת מחדל: false.
@@ -31,6 +33,10 @@ class AppCustomContentDialog extends StatefulWidget {
   /// האם ניתן לסגור דרך X, Escape או חזרה בזמן שהתוכן מבצע פעולה.
   final bool canDismiss;
 
+  /// כל עוד true, X, ביטול שסוגר ב-maybePop, Escape ולחיצה בחוץ שואלים
+  /// לפני הסגירה.
+  final ValueListenable<bool>? isDirty;
+
   const AppCustomContentDialog({
     super.key,
     required this.title,
@@ -41,14 +47,14 @@ class AppCustomContentDialog extends StatefulWidget {
     this.handleEnterKey = false,
     this.scrollable = true,
     this.canDismiss = true,
+    this.isDirty,
   });
 
   @override
   State<AppCustomContentDialog> createState() => _AppCustomContentDialogState();
 }
 
-class _AppCustomContentDialogState extends State<AppCustomContentDialog>
-    with DialogNavigationMixin {
+class _AppCustomContentDialogState extends State<AppCustomContentDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -56,17 +62,9 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog>
     final isNarrow = size.width < LayoutBreakpoints.compact;
     final width = isNarrow ? size.width * 0.95 : size.width * 0.5;
 
-    // Enter פעיל רק כשגם handleEnterKey=true וגם onConfirm מוגדר.
-    // אחרת — לחיצת Enter בשדה טקסט עלולה לסגור את הדיאלוג בטעות.
-    final effectiveHandleEnterKey =
-        widget.handleEnterKey && widget.onConfirm != null;
-
-    final dialog = buildKeyboardNavigator(
-      onConfirm: widget.onConfirm ?? () {},
-      onCancel: () {
-        if (widget.canDismiss) Navigator.of(context).pop();
-      },
-      handleEnterKey: effectiveHandleEnterKey,
+    final dialog = DialogKeyboardNavigator(
+      onConfirm: widget.onConfirm,
+      handleEnterKey: widget.handleEnterKey,
       child: Dialog(
         insetPadding: const EdgeInsets.all(AppTokens.spaceMD),
         backgroundColor: AppSurfaces.panelBackground(context),
@@ -119,6 +117,10 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog>
         ),
       ),
     );
-    return PopScope(canPop: widget.canDismiss, child: dialog);
+    return DialogDismissGuard.listenable(
+      canDismiss: widget.canDismiss,
+      isDirty: widget.isDirty,
+      child: dialog,
+    );
   }
 }
