@@ -325,7 +325,7 @@
      - q1: הכלל ״צבע מקומי מותר רק לתוכן, לייצוא ולחיקוי כרום מערכת״ → **לשנות (פרט בהערה)** ⚠ ההמלצה: מאשר
    - **הערת בעל הפרויקט:** ״הסמל וי הודעת הצלחה להשאיר את הגוון הקיים״
    - **ליישום:** הערת בעל הפרויקט ״הסמל וי הודעת הצלחה להשאיר את הגוון הקיים״: נוספים טוקני `warning`, `onWarning`, `warningContainer`, `onWarningContainer`. ״הצלחה״ לא מקבלת צבע ירוק: הבאנר וסמל ה־וי נשארים בגוון הנייטרלי הקיים (`secondaryContainer`), כמו DD-13. כלל הצבע המקומי מאושר בנוסחו המקורי.
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — טוקני warning, onWarning, warningContainer, onWarningContainer ב-AppSurfaceColors (ו-AppSurfaces.warning…): הגוון הקבוע AppColors.warningHue (‎#FB8C00) עובר Blend.harmonize מול primary (עד 15°) ונבנה בטונים של M3 בכרומה 40 — 40/100/90/10 בבהיר, 80/20/30/90 בכהה; תלות ישירה ב-material_color_utilities (הגרסה של Flutter). הוסבו: הודעת UiSnack.showWarning (הייתה tertiaryContainer, ירוק בערכת ברירת המחדל), באנר 'התוצאות חלקיות' בחיפוש, באנר הפעלה ברקע במסך התקנת תוסף, אייקון ההרשאה הרגישה בהתקנה ובהגדרות התוסף, ובאנר 'האינדקס בעדכון' (היה errorContainer; 'אין אינדקס' נשאר שגיאה). הצלחה נשארת secondaryContainer, בלי ירוק. נשאר: AppInfoBanner(tone:) ו-MetaChip(tone: warning) (MIG-12, MIG-13), טוקני אזהרה ב-payload של התוספים (DD-25), צבעי לוח השנה (UI-078, MIG-22).
 
 ---
 

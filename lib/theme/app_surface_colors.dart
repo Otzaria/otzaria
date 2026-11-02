@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:otzaria/theme/app_colors.dart';
 
 /// רקעי המשטחים של ערכת הנושא, מחושבים פעם אחת מתוך [ColorScheme].
@@ -19,6 +20,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     required this.cardRowDivider,
     required this.paneCard,
     required this.paneGutter,
+    required this.warning,
+    required this.onWarning,
+    required this.warningContainer,
+    required this.onWarningContainer,
   });
 
   factory AppSurfaceColors.fromScheme(ColorScheme cs) {
@@ -33,6 +38,18 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
             cs.surface,
           );
     final topBar = cs.surfaceContainerHigh;
+    // אזהרה: גוון קבוע שמתקרב לזרע (עד 15°), בטונים של M3 (DD-24).
+    final warningTones = TonalPalette.of(
+      Hct.fromInt(
+        Blend.harmonize(
+          AppColors.warningHue.toARGB32(),
+          cs.primary.toARGB32(),
+        ),
+      ).hue,
+      40,
+    );
+    Color tone(int light, int dark) =>
+        Color(warningTones.get(isDark ? dark : light));
     return AppSurfaceColors(
       readerBackground: reader,
       panelBackground: panel,
@@ -48,6 +65,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
         (isDark ? cs.onSurface : cs.shadow).withValues(alpha: 0.07),
         reader,
       ),
+      warning: tone(40, 80),
+      onWarning: tone(100, 20),
+      warningContainer: tone(90, 30),
+      onWarningContainer: tone(10, 90),
     );
   }
 
@@ -92,6 +113,18 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
   /// הרווח שבין כרטיסי החלוניות: גוון אחד כהה/בהיר מרקע הקריאה.
   final Color paneGutter;
 
+  /// אזהרה: אייקון, מסגרת וטקסט מודגש על המשטח.
+  final Color warning;
+
+  /// טקסט ואייקון על [warning].
+  final Color onWarning;
+
+  /// רקע באנר, הודעה או תגית של אזהרה.
+  final Color warningContainer;
+
+  /// טקסט ואייקון על [warningContainer].
+  final Color onWarningContainer;
+
   @override
   AppSurfaceColors copyWith({
     Color? readerBackground,
@@ -105,6 +138,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     Color? cardRowDivider,
     Color? paneCard,
     Color? paneGutter,
+    Color? warning,
+    Color? onWarning,
+    Color? warningContainer,
+    Color? onWarningContainer,
   }) => AppSurfaceColors(
     readerBackground: readerBackground ?? this.readerBackground,
     panelBackground: panelBackground ?? this.panelBackground,
@@ -118,6 +155,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     cardRowDivider: cardRowDivider ?? this.cardRowDivider,
     paneCard: paneCard ?? this.paneCard,
     paneGutter: paneGutter ?? this.paneGutter,
+    warning: warning ?? this.warning,
+    onWarning: onWarning ?? this.onWarning,
+    warningContainer: warningContainer ?? this.warningContainer,
+    onWarningContainer: onWarningContainer ?? this.onWarningContainer,
   );
 
   @override
@@ -139,6 +180,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       cardRowDivider: l(cardRowDivider, other.cardRowDivider),
       paneCard: l(paneCard, other.paneCard),
       paneGutter: l(paneGutter, other.paneGutter),
+      warning: l(warning, other.warning),
+      onWarning: l(onWarning, other.onWarning),
+      warningContainer: l(warningContainer, other.warningContainer),
+      onWarningContainer: l(onWarningContainer, other.onWarningContainer),
     );
   }
 
@@ -155,7 +200,11 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       other.panelSectionAccentBorder == panelSectionAccentBorder &&
       other.cardRowDivider == cardRowDivider &&
       other.paneCard == paneCard &&
-      other.paneGutter == paneGutter;
+      other.paneGutter == paneGutter &&
+      other.warning == warning &&
+      other.onWarning == onWarning &&
+      other.warningContainer == warningContainer &&
+      other.onWarningContainer == onWarningContainer;
 
   @override
   int get hashCode => Object.hash(
@@ -170,6 +219,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     cardRowDivider,
     paneCard,
     paneGutter,
+    warning,
+    onWarning,
+    warningContainer,
+    onWarningContainer,
   );
 }
 
