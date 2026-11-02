@@ -30,14 +30,14 @@ void main() {
     return bloc;
   }
 
-  test('MoveTabToWorkspace adds the tab to the target workspace', () async {
+  test('MoveTabsToWorkspace adds the tab to the target workspace', () async {
     final target = Workspace(name: 'יעד', tabs: const []);
     final repo = _Repo([target]);
     final bloc = await loaded(repo);
 
     bloc.add(
-      MoveTabToWorkspace(
-        tab: tab('ספר מועבר'),
+      MoveTabsToWorkspace(
+        tabs: [tab('ספר מועבר')],
         targetWorkspaceId: target.id,
         currentTabs: const [],
         currentTabIndex: 0,

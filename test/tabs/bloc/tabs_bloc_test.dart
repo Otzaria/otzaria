@@ -1527,7 +1527,7 @@ void main() {
       bloc.add(ToggleTabSelection(tabs[1]));
       await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
 
-      // "העבר לשולחן עבודה" שולח RemoveTab; הנבחרת שנותרה לבדה אינה קבוצה.
+      // "העבר לחלון חדש" שולח RemoveTab; הנבחרת שנותרה לבדה אינה קבוצה.
       bloc.add(RemoveTab(tabs[1]));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 

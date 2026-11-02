@@ -63,7 +63,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
       _onUpdateCurrentWorkspaceTabs,
       transformer: sequential(),
     );
-    on<MoveTabToWorkspace>(_onMoveTabToWorkspace, transformer: sequential());
+    on<MoveTabsToWorkspace>(_onMoveTabsToWorkspace, transformer: sequential());
     on<SetWorkspacePinned>(_onSetWorkspacePinned, transformer: sequential());
   }
 
@@ -373,29 +373,26 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     }
   }
 
-  Future<void> _onMoveTabToWorkspace(
-    MoveTabToWorkspace event,
+  Future<void> _onMoveTabsToWorkspace(
+    MoveTabsToWorkspace event,
     Emitter<WorkspaceState> emit,
   ) async {
     try {
       final currentId = state.activeWorkspaceId;
 
-      // מעדכן את שני שולחנות העבודה:
-      // 1. מסיר את הטאב משולחן העבודה הנוכחי
-      // 2. מוסיף את הטאב לשולחן העבודה היעד
       final saved = await _repository.mutateWorkspaces(
         (current) => current.map((w) {
           if (w.id == currentId && !w.isPinned) {
-            // מסיר את הטאב משולחן העבודה הנוכחי
+            // מסיר את הטאבים משולחן העבודה הנוכחי
             return w.withTabs(
               tabs: _cloneTabs(event.currentTabs),
               activeTabIndex: event.currentTabIndex,
               activePane: event.currentActivePane,
             );
           } else if (w.id == event.targetWorkspaceId) {
-            // מוסיף את הטאב לשולחן העבודה היעד
+            // מוסיף את הטאבים לשולחן העבודה היעד
             return w.copyWith(
-              tabs: [..._cloneTabs(w.tabs), OpenedTab.from(event.tab)],
+              tabs: [..._cloneTabs(w.tabs), ..._cloneTabs(event.tabs)],
             );
           }
           return w;

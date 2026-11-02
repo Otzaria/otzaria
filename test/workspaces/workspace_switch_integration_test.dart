@@ -222,8 +222,8 @@ void main() {
         (s) => s.workspaces.last.tabs.length == 2,
       );
       bloc.add(
-        MoveTabToWorkspace(
-          tab: leaf('מועבר'),
+        MoveTabsToWorkspace(
+          tabs: [leaf('מועבר')],
           targetWorkspaceId: other.id,
           currentTabs: [],
           currentTabIndex: 0,

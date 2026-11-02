@@ -230,6 +230,10 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
   final tabIndex = state.tabs.indexOf(tab);
   final hasClosableAfter =
       tabIndex != -1 && state.tabs.skip(tabIndex + 1).any((t) => !t.isPinned);
+  // על טאב שנכלל בבחירה מרובה "סגור" ו"העבר לשולחן עבודה" חלים על כל
+  // הקבוצה (כמו בדפדפן).
+  final inSelection =
+      state.selectedTabs.length > 1 && state.selectedTabs.contains(tab);
   final transferTargets = RunnerWindowChannel.canOpenWindows
       ? _transferTargets(context)
       : const <WindowPeer>[];
@@ -240,8 +244,7 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
           : context.settingsText('הצמד כרטיסיה'),
       onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
     ),
-    // על טאב שנכלל בבחירה מרובה "סגור" הופך לסגירת כל הקבוצה (כמו בדפדפן).
-    if (state.selectedTabs.length > 1 && state.selectedTabs.contains(tab))
+    if (inSelection)
       AppContextMenuEntry(
         label: context.settingsText(
           'סגור {count} כרטיסיות',
@@ -388,7 +391,12 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
       ),
       childrenRefreshStream: context.read<TabsBloc>().stream,
     ),
-    _buildMoveToWorkspaceMenuEntry(context, tab),
+    _buildMoveToWorkspaceMenuEntry(
+      context,
+      inSelection
+          ? state.tabs.where(state.selectedTabs.contains).toList()
+          : [tab],
+    ),
   ]);
 
   return entries;
@@ -502,10 +510,10 @@ List<AppContextMenuEntry> _openTabsMenuEntries(
   }).toList();
 }
 
-/// בונה פריט תפריט להעברת טאב לשולחן עבודה אחר
+/// בונה פריט תפריט להעברת [tabs] לשולחן עבודה אחר.
 AppContextMenuEntry _buildMoveToWorkspaceMenuEntry(
   BuildContext context,
-  OpenedTab tab,
+  List<OpenedTab> tabs,
 ) {
   final workspaceState = context.read<WorkspaceBloc>().state;
 
@@ -525,22 +533,21 @@ AppContextMenuEntry _buildMoveToWorkspaceMenuEntry(
     children: otherWorkspaces.map((workspace) {
       return AppContextMenuEntry(
         label: workspace.name,
-        onTap: () => _moveTabToWorkspace(context, tab, workspace.id),
+        onTap: () => _moveTabsToWorkspace(context, tabs, workspace.id),
       );
     }).toList(),
   );
 }
 
-/// מעביר טאב לשולחן עבודה אחר
-Future<void> _moveTabToWorkspace(
+Future<void> _moveTabsToWorkspace(
   BuildContext context,
-  OpenedTab tab,
+  List<OpenedTab> tabs,
   String targetWorkspaceId,
 ) async {
   final tabsBloc = context.read<TabsBloc>();
   final workspaceBloc = context.read<WorkspaceBloc>();
-  // ההעברה סוגרת את הכרטיסיה כאן; מצב ה-JS של תוסף אינו עובר איתה.
-  if (!await confirmCloseTabs(context, [tab])) return;
+  // ההעברה סוגרת את הכרטיסיות כאן; מצב ה-JS של תוסף אינו עובר איתן.
+  if (!await confirmCloseTabs(context, tabs)) return;
   final tabsState = tabsBloc.state;
   final workspaceState = workspaceBloc.state;
 
@@ -554,14 +561,14 @@ Future<void> _moveTabToWorkspace(
     return;
   }
 
-  tabsBloc.add(RemoveTab(tab));
+  tabsBloc.add(tabs.length == 1 ? RemoveTab(tabs.single) : RemoveTabs(tabs));
 
-  final currentTabs = tabsState.tabs.where((t) => t != tab).toList();
+  final currentTabs = tabsState.tabs.where((t) => !tabs.contains(t)).toList();
   final newActiveIndex = currentTabs.isEmpty
       ? 0
       : tabsState.currentTabIndex.clamp(0, currentTabs.length - 1);
 
-  // הסרת הטאב מזיזה את האינדקס, ולכן צד החלונית הפעילה תקף רק אם הטאב
+  // הסרת הטאבים מזיזה את האינדקס, ולכן צד החלונית הפעילה תקף רק אם הטאב
   // הפעיל אחרי ההסרה הוא אותו טאב עצמו. אחרת הוא מתייחס לטאב אחר.
   final newActiveTab = currentTabs.isEmpty ? null : currentTabs[newActiveIndex];
   final activePaneToKeep = identical(newActiveTab, tabsState.currentTab)
@@ -569,8 +576,8 @@ Future<void> _moveTabToWorkspace(
       : null;
 
   workspaceBloc.add(
-    MoveTabToWorkspace(
-      tab: tab,
+    MoveTabsToWorkspace(
+      tabs: tabs,
       targetWorkspaceId: targetWorkspaceId,
       currentTabs: currentTabs,
       currentTabIndex: newActiveIndex,
@@ -578,5 +585,7 @@ Future<void> _moveTabToWorkspace(
     ),
   );
 
-  UiSnack.show(LibraryMessages.tabMovedToWorkspace(targetWorkspace.name));
+  UiSnack.show(
+    LibraryMessages.tabsMovedToWorkspace(tabs.length, targetWorkspace.name),
+  );
 }
