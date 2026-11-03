@@ -22,6 +22,9 @@ abstract final class CalendarAlertsKeys {
   static const String ledger =
       SettingsRepository.keyCalendarEventNotificationIds;
 
+  static const String duplicatesCleaned =
+      SettingsRepository.keyCalendarEventDuplicatesCleaned;
+
   static const Map<String, Object> defaults = {
     events: '[]',
     enabled: true,
@@ -44,6 +47,11 @@ abstract class CalendarAlertsStore {
   List<int> readLedger();
 
   Future<void> writeLedger(List<int> ids);
+
+  /// האם ניקוי הכפילויות החד-פעמי כבר רץ בהתקנה הזו.
+  bool readDuplicatesCleaned();
+
+  Future<void> markDuplicatesCleaned();
 }
 
 /// קורא וכותב ישירות להגדרות של ה-isolate, כך שכל פקודה רואה את הערך העדכני.
@@ -76,6 +84,14 @@ class SettingsCalendarAlertsStore implements CalendarAlertsStore {
   @override
   Future<void> writeLedger(List<int> ids) =>
       Settings.setValue<String>(CalendarAlertsKeys.ledger, jsonEncode(ids));
+
+  @override
+  bool readDuplicatesCleaned() =>
+      Settings.getValue<bool>(CalendarAlertsKeys.duplicatesCleaned) ?? false;
+
+  @override
+  Future<void> markDuplicatesCleaned() =>
+      Settings.setValue<bool>(CalendarAlertsKeys.duplicatesCleaned, true);
 }
 
 /// מעל [SettingsRepository] שהוזרק (בדיקות): נטען פעם אחת ומוחזק בזיכרון.
@@ -141,6 +157,14 @@ class RepositoryCalendarAlertsStore implements CalendarAlertsStore {
   @override
   Future<void> writeLedger(List<int> ids) =>
       _repository.updateCalendarEventNotificationIdsJson(jsonEncode(ids));
+
+  @override
+  bool readDuplicatesCleaned() =>
+      _repository.getCalendarEventDuplicatesCleaned();
+
+  @override
+  Future<void> markDuplicatesCleaned() =>
+      _repository.markCalendarEventDuplicatesCleaned();
 }
 
 bool sameKind(Object? value, Object fallback) => switch (fallback) {

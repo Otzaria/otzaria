@@ -212,6 +212,10 @@ class SettingsRepository {
   static const String keyCalendarEventNotificationIds =
       'key-calendar-event-notification-ids';
 
+  // הניקוי החד-פעמי של כפילויות שגרסאות קודמות השאירו ב-Windows כבר רץ.
+  static const String keyCalendarEventDuplicatesCleaned =
+      'key-calendar-event-duplicates-cleaned';
+
   // Google Calendar integration
   static const String keyGoogleCalendarEnabled = 'key-google-calendar-enabled';
   static const String keyGoogleCalendarSelectedIds =
@@ -341,6 +345,7 @@ class SettingsRepository {
     keyCalendarZmanAlerts,
     keyCalendarEnabledZmanim,
     keyCalendarEventNotificationIds,
+    keyCalendarEventDuplicatesCleaned,
     keyGoogleCalendarEnabled,
     keyGoogleCalendarSelectedIds,
     keyGoogleCalendarClientId,
@@ -1027,6 +1032,14 @@ class SettingsRepository {
   Future<void> updateCalendarEventNotificationIdsJson(String json) async {
     await _settings.setValue(keyCalendarEventNotificationIds, json);
   }
+
+  bool getCalendarEventDuplicatesCleaned() => _settings.getValue<bool>(
+    keyCalendarEventDuplicatesCleaned,
+    defaultValue: false,
+  );
+
+  Future<void> markCalendarEventDuplicatesCleaned() =>
+      _settings.setValue(keyCalendarEventDuplicatesCleaned, true);
 
   // Google Calendar integration
   String getGoogleCalendarCredentialsJson() {

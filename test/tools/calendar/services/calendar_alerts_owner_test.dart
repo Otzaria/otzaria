@@ -19,6 +19,35 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 
 import '../support/calendar_alerts_fakes.dart';
 
+class _FailingCleanupStore extends MemoryAlertsStore {
+  _FailingCleanupStore({this.failRead = false, this.failWrite = false});
+
+  bool failRead;
+  bool failWrite;
+  int cleanupReads = 0;
+  int cleanupWrites = 0;
+
+  @override
+  bool readDuplicatesCleaned() {
+    cleanupReads++;
+    if (failRead) {
+      failRead = false;
+      throw StateError('transient cleanup marker read failure');
+    }
+    return super.readDuplicatesCleaned();
+  }
+
+  @override
+  Future<void> markDuplicatesCleaned() async {
+    cleanupWrites++;
+    if (failWrite) {
+      failWrite = false;
+      throw StateError('transient cleanup marker write failure');
+    }
+    await super.markDuplicatesCleaned();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   tz_data.initializeTimeZones();
@@ -63,7 +92,9 @@ void main() {
   Set<int> expectedPlan() {
     final events = [
       for (final item
-          in jsonDecode(store.values[CalendarAlertsKeys.events] as String)
+          in jsonDecode(
+                store.values[CalendarAlertsKeys.events] as String,
+              )
               as List)
         CustomEvent.fromJson(item as Map<String, dynamic>),
       ...pluginEvents,
@@ -474,6 +505,70 @@ void main() {
     expect(notifications.counts[99], 2);
     expect(store.ledger, [reminderId('a')]);
   });
+
+  test('ניקוי הכפילויות אינו שואל את המערכת שוב בהפעלה הבאה', () async {
+    store.values[CalendarAlertsKeys.events] = jsonEncode([
+      futureEvent('a').toJson(),
+    ]);
+    await owner(dedupe: true).restoreIfNeeded();
+    expect(notifications.pendingQueries, 1);
+
+    // תהליך חדש על אותו מצב שמור: השאילתה הסינכרונית תוקעת את ה-UI (#4027).
+    final next = WindowsLikeNotifications()..counts[reminderId('a')] = 2;
+    await owner(using: next, dedupe: true).restoreIfNeeded();
+
+    expect(next.pendingQueries, 0);
+    expect(next.counts[reminderId('a')], 2);
+  });
+
+  for (final failure in ['read', 'write']) {
+    test('כשל $failure בסמן הניקוי אינו עוצר תזמון וביטול', () async {
+      final failingStore = _FailingCleanupStore(
+        failRead: failure == 'read',
+        failWrite: failure == 'write',
+      );
+      store = failingStore;
+      store.values[CalendarAlertsKeys.events] = jsonEncode([
+        futureEvent('a').toJson(),
+      ]);
+      store.ledger = [reminderId('a'), 77];
+      notifications.counts.addAll({reminderId('a'): 1, 77: 1, 99: 3});
+      final current = owner(dedupe: true);
+
+      await current.restoreIfNeeded();
+
+      expect(notifications.pendingQueries, 0);
+      expect(notifications.scheduled, hasLength(1));
+      expect(notifications.scheduled.single.id, reminderId('a'));
+      expect(notifications.cancelled, contains(77));
+      expect(notifications.counts[reminderId('a')], 1);
+      expect(notifications.counts[77], 0);
+      expect(notifications.counts[99], 3);
+      expect(store.ledger, [reminderId('a')]);
+      expect(store.duplicatesCleaned, isFalse);
+      expect(statuses.last.ok, isTrue);
+      expect(failingStore.cleanupReads, 1);
+      expect(failingStore.cleanupWrites, failure == 'read' ? 0 : 1);
+
+      await current.restoreIfNeeded();
+      expect(notifications.pendingQueries, 0);
+      expect(failingStore.cleanupReads, 1);
+
+      final restarted = WindowsLikeNotifications()
+        ..counts.addAll(notifications.counts);
+      await owner(using: restarted, dedupe: true).restoreIfNeeded();
+      expect(restarted.pendingQueries, 1);
+      expect(store.duplicatesCleaned, isTrue);
+      expect(failingStore.cleanupReads, 2);
+      expect(failingStore.cleanupWrites, failure == 'read' ? 1 : 2);
+      expect(restarted.counts[reminderId('a')], 1);
+      expect(store.ledger, [reminderId('a')]);
+
+      final next = WindowsLikeNotifications()..counts.addAll(restarted.counts);
+      await owner(using: next, dedupe: true).restoreIfNeeded();
+      expect(next.pendingQueries, 0);
+    });
+  }
 
   test('קריסה באמצע ריצה אינה משאירה התראה שאין לבטל', () async {
     store.values[CalendarAlertsKeys.events] = jsonEncode([
@@ -934,9 +1029,9 @@ void main() {
     test('אין initialize לפני שער החשיפה, ואחריו בדיוק אחד', () async {
       // השירות האמיתי בודק את שעון המערכת, ולכן גם האירועים יחסיים אליו.
       now = DateTime.now();
-      CustomEvent event(String id) => futureEvent(id).copyWith(
-        baseGregorianDate: now.add(const Duration(days: 5)),
-      );
+      CustomEvent event(String id) => futureEvent(
+        id,
+      ).copyWith(baseGregorianDate: now.add(const Duration(days: 5)));
       final reveal = Completer<void>();
       NotificationService.startupGate = () => reveal.future;
       final o = CalendarAlertsOwner(

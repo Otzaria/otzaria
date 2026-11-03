@@ -20,6 +20,7 @@ typedef ScheduledCall = ({
 /// מופע אחד בלבד. כך כפילות שנשארת נראית בספירה.
 class WindowsLikeNotifications implements NotificationService {
   final counts = <int, int>{};
+  var pendingQueries = 0;
   final scheduled = <ScheduledCall>[];
   final cancelled = <int>[];
   final shown = <int>[];
@@ -127,10 +128,13 @@ class WindowsLikeNotifications implements NotificationService {
   }
 
   @override
-  Future<List<int>> pendingNotificationIds() async => [
-    for (final entry in counts.entries)
-      for (var i = 0; i < entry.value; i++) entry.key,
-  ];
+  Future<List<int>> pendingNotificationIds() async {
+    pendingQueries++;
+    return [
+      for (final entry in counts.entries)
+        for (var i = 0; i < entry.value; i++) entry.key,
+    ];
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -161,6 +165,7 @@ class MemoryAlertsStore implements CalendarAlertsStore {
   final Map<String, Object?> values;
   List<int> ledger = [];
   final ledgerWrites = <List<int>>[];
+  bool duplicatesCleaned = false;
 
   @override
   Future<Map<String, Object?>> readValues() async {
@@ -182,6 +187,12 @@ class MemoryAlertsStore implements CalendarAlertsStore {
     ledger = [...ids];
     ledgerWrites.add([...ids]);
   }
+
+  @override
+  bool readDuplicatesCleaned() => duplicatesCleaned;
+
+  @override
+  Future<void> markDuplicatesCleaned() async => duplicatesCleaned = true;
 }
 
 /// הגדרות בזיכרון שמשדרות כתיבה כמו `HiveCache`.
