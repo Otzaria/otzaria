@@ -37,26 +37,35 @@ void main() {
     }
   });
 
-  test('כתיבה ישירה לקובץ ההגדרות מגיעה ל־SettingsBloc של היקף התהליך', () async {
-    final bloc = AppScopeProviders.createSettingsBloc(SettingsRepository());
-    // LoadSettings (בלי כתיבות) רץ ברקע.
-    await pumpEventQueue();
-    expect(bloc.state.splitedView, isTrue);
-    expect(bloc.state.backupIncludesAllSections, isTrue);
+  test(
+    'כתיבה ישירה לקובץ ההגדרות מגיעה ל־SettingsBloc של היקף התהליך',
+    () async {
+      final bloc = AppScopeProviders.createSettingsBloc(SettingsRepository());
+      // LoadSettings (בלי כתיבות) רץ ברקע.
+      await pumpEventQueue();
+      expect(bloc.state.splitedView, isTrue);
+      expect(bloc.state.backupIncludesAllSections, isTrue);
 
-    // הקורא (TextBookBloc) ושירות הגיבוי כותבים ישר ל־Settings.
-    await Settings.setValue<bool>(SettingsRepository.keySplitedView, false);
-    await Settings.setValue<bool>(SettingsRepository.keyBackupNotes, false);
-    await pumpEventQueue();
+      // הקורא (TextBookBloc) ושירות הגיבוי כותבים ישר ל־Settings.
+      await Settings.setValue<bool>(SettingsRepository.keySplitedView, false);
+      await Settings.setValue<bool>(SettingsRepository.keyBackupNotes, false);
+      // הגדרת הספרייה כותבת את הנתיב ישר ל־Settings (q10 שאלה 21).
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        'C:/otzaria/books',
+      );
+      await pumpEventQueue();
 
-    expect(bloc.state.splitedView, isFalse);
-    expect(
-      bloc.state.backupIncludes(SettingsRepository.keyBackupNotes),
-      isFalse,
-    );
-    expect(bloc.state.backupIncludesAllSections, isFalse);
-    await bloc.close();
-  });
+      expect(bloc.state.splitedView, isFalse);
+      expect(
+        bloc.state.backupIncludes(SettingsRepository.keyBackupNotes),
+        isFalse,
+      );
+      expect(bloc.state.backupIncludesAllSections, isFalse);
+      expect(bloc.state.libraryPath, 'C:/otzaria/books');
+      await bloc.close();
+    },
+  );
 
   test('בלי Hive פתוח הזרם ריק', () async {
     await Hive.close();

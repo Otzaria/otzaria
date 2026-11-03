@@ -242,6 +242,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         settings['backupSections'] as Map<String, bool>? ?? const {},
       ),
       splitedView: settings['splitedView'] ?? true,
+      libraryPath: settings['libraryPath'] ?? '',
+      hebrewBooksPath: settings['hebrewBooksPath'] ?? '',
       readingTabsPlacement:
           settings['readingTabsPlacement'] ??
           SettingsRepository.readingTabsPlacementTop,

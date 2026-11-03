@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
@@ -211,15 +210,6 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  /// האם הוגדרה תיקיית ספרי היברובוקס מקומיים.
-  bool get _hasHebrewBooksPath {
-    if (!Settings.isInitialized) return false;
-    final path = Settings.getValue<String>(
-      SettingsRepository.keyHebrewBooksPath,
-    );
-    return path != null && path.isNotEmpty;
-  }
-
   /// מתג הצגת ספרי היברובוקס שכבר ירדו למחשב (issue #1143) — מיועד למי
   /// שהגדיר את התיקייה עבור תוסף ואינו רוצה אותם באיתור הספר.
   Widget _buildLocalHebrewBooksTile(BuildContext context, SettingsState state) {
@@ -227,7 +217,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
         ? context.settingsText(
             'כדי להציג ספרי היברובוקס מקומיים, יש להוריד את הקטלוג באמצעות "הורד קטלוג".',
           )
-        : !_hasHebrewBooksPath
+        : state.hebrewBooksPath.isEmpty
         ? context.settingsText(
             'כדי להציג ספרי היברובוקס שברשותך, יש לבחור תיקייה ב"מיקום ספרי היברובוקס".',
           )
