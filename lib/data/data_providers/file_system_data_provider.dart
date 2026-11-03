@@ -291,14 +291,20 @@ class FileSystemData {
 
     for (final directory in directories) {
       final normalized = path.normalize(directory.absolute.path);
-      if (!visited.add(normalized) || !await directory.exists()) continue;
-      await for (final entity in directory.list()) {
-        if (entity is File && entity.path.toLowerCase().endsWith('.pdf')) {
-          pdfFiles.putIfAbsent(
-            path.basename(entity.path).toLowerCase(),
-            () => entity.path,
-          );
+      if (!visited.add(normalized)) continue;
+      // ב-Windows כונן לא מוכן זורק ב-exists() במקום להחזיר false.
+      try {
+        if (!await directory.exists()) continue;
+        await for (final entity in directory.list()) {
+          if (entity is File && entity.path.toLowerCase().endsWith('.pdf')) {
+            pdfFiles.putIfAbsent(
+              path.basename(entity.path).toLowerCase(),
+              () => entity.path,
+            );
+          }
         }
+      } on FileSystemException {
+        continue;
       }
     }
     return pdfFiles;
@@ -320,16 +326,20 @@ class FileSystemData {
     }
     final roots = [hebrewBooksPath, path.join(hebrewBooksPath, 'Books')];
     final pdfFiles = <String, String>{};
-    for (final id in ids) {
-      for (final name in ['$id.pdf', 'hebrewbooks_org_$id.pdf']) {
-        for (final root in roots) {
-          final file = File(path.join(root, name));
-          if (await file.exists()) {
-            pdfFiles.putIfAbsent(name, () => file.path);
-            break;
+    try {
+      for (final id in ids) {
+        for (final name in ['$id.pdf', 'hebrewbooks_org_$id.pdf']) {
+          for (final root in roots) {
+            final file = File(path.join(root, name));
+            if (await file.exists()) {
+              pdfFiles.putIfAbsent(name, () => file.path);
+              break;
+            }
           }
         }
       }
+    } on FileSystemException {
+      // כונן לא זמין - מחזירים את מה שנמצא עד כה.
     }
     return pdfFiles;
   }
