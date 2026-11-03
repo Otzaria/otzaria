@@ -10,6 +10,7 @@ import 'raw_dialog_rule.dart';
 import 'raw_menu_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
+import 'shared_feature_import_rule.dart';
 import 'ui_snack_literal_rule.dart';
 
 /// הכללים הפעילים, לפי הסדר בקטלוג.
@@ -26,4 +27,5 @@ const List<UiLintRule> uiLintRules = [
   LiteralFontSizeRule(),
   LiteralRadiusRule(),
   LiteralWidthBreakpointRule(),
+  SharedFeatureImportRule(),
 ];

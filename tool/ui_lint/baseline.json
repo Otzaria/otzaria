@@ -270,6 +270,58 @@
       "lib/widgets/text/rtl_text_field.dart": [
         {"scope":"_RtlTextFieldState._buildMenuItem","fp":"a9c1e30c","n":1}
       ]
+    },
+    "UIL-024": {
+      "lib/widgets/commentary/commentary_content.dart": [
+        {"scope":"<top>","fp":"41f259d0","n":1},
+        {"scope":"<top>","fp":"46022cfc","n":1},
+        {"scope":"<top>","fp":"6ef7750f","n":1},
+        {"scope":"<top>","fp":"9b384570","n":1},
+        {"scope":"<top>","fp":"f1642a34","n":1},
+        {"scope":"<top>","fp":"fdde402d","n":1}
+      ],
+      "lib/widgets/commentary/commentary_search_results_list.dart": [
+        {"scope":"<top>","fp":"8efa1bd3","n":1},
+        {"scope":"<top>","fp":"c92d983e","n":1}
+      ],
+      "lib/widgets/commentary/links_list_view.dart": [
+        {"scope":"<top>","fp":"291e2d7a","n":1},
+        {"scope":"<top>","fp":"41f259d0","n":1},
+        {"scope":"<top>","fp":"46022cfc","n":1},
+        {"scope":"<top>","fp":"fdde402d","n":1}
+      ],
+      "lib/widgets/commentary/panel_anchor_links.dart": [
+        {"scope":"<top>","fp":"41f259d0","n":1},
+        {"scope":"<top>","fp":"fdde402d","n":1}
+      ],
+      "lib/widgets/dialogs/ad_popup_dialog.dart": [
+        {"scope":"<top>","fp":"f178add5","n":1}
+      ],
+      "lib/widgets/misc/direct_link_menu_entries.dart": [
+        {"scope":"<top>","fp":"fd21a06b","n":1}
+      ],
+      "lib/widgets/misc/link_context_menu_entry.dart": [
+        {"scope":"<top>","fp":"46022cfc","n":1},
+        {"scope":"<top>","fp":"fdde402d","n":1}
+      ],
+      "lib/widgets/misc/link_preview_overlay.dart": [
+        {"scope":"<top>","fp":"46022cfc","n":1},
+        {"scope":"<top>","fp":"fdde402d","n":1}
+      ],
+      "lib/widgets/misc/phone_report_tab.dart": [
+        {"scope":"<top>","fp":"6ef7750f","n":1},
+        {"scope":"<top>","fp":"ab161d96","n":1}
+      ],
+      "lib/widgets/smart_text/smart_text_widget.dart": [
+        {"scope":"<top>","fp":"0976d869","n":1},
+        {"scope":"<top>","fp":"41f259d0","n":1},
+        {"scope":"<top>","fp":"4399f51d","n":1},
+        {"scope":"<top>","fp":"52b3fa91","n":1},
+        {"scope":"<top>","fp":"96ae5b07","n":1},
+        {"scope":"<top>","fp":"b4dcdaad","n":1},
+        {"scope":"<top>","fp":"cb7579e6","n":1},
+        {"scope":"<top>","fp":"cff68829","n":1}
+      ]
     }
   }
 }

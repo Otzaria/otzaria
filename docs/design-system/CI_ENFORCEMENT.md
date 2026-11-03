@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו; כללי הטוקנים (MIG-28) ושאר הכללים טרם.
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024); כללי הטוקנים (MIG-28) ושאר הכללים טרם.
 
 ## 1. המצב היום
 
@@ -97,7 +97,7 @@ test/design_system/
 | UIL-021 | אין `EdgeInsets.only(left/right)`/`fromLTRB`/`Alignment.centerLeft/Right`/`Positioned(left/right)` | ctor + named arg | גאומטריית ציור, עם allow; ערכים סימטריים (JX-20) | ~110 | 3 |
 | UIL-022 | אין השוואת רוחב לליטרל ≥100 (`width < 520`). בדיאלוג: `LayoutBreakpoints.compact` (DD-15) | BinaryExpression על `.width`/`maxWidth` | קבוע `static const` עם שם בתוך הרכיב | 32 | 3 |
 | UIL-023 | אין `Duration(milliseconds: n)` בפרמטר `duration:` של רכיב Animated*/Transition. התחליף: `AppMotion.duration(context, AppTokens.anim*)` (DD-21) | ctor + parent arg | לא־UI (timeouts, debounce) לא נתפס, כי הכלל מסתכל רק על `duration:` של Widget | ~90 | 3 |
-| UIL-024 | רכיב משותף לא מייבא פיצ'ר | import directive | — | ~8 | 2 |
+| UIL-024 | **רכיב משותף לא מייבא פיצ'ר (DESIGN_SYSTEM §3 כלל 4):** קובץ ב־`lib/widgets/**` לא מייבא ולא מייצא את `lib/settings/engine/`, ‏`lib/settings/settings_exports.dart`, ‏`lib/plugins/`, ‏`lib/tabs/` או `lib/models/`. ‏`settings/l10n` (settingsText) ו־`theme` מותרים. התחליף: הנתון בפרמטר, הצפיפות מ־`AppDensity`, ומה שהפיצ'ר מוסיף דרך scope או ממשק שהפיצ'ר מממש | import/export directive, ‏`package:otzaria/` ויחסי (מנורמל לנתיב) | הכלל חל רק על `lib/widgets/**`; קוד פיצ'ר רשאי לייבא פיצ'ר | 30 (מומש: `widgets/commentary`, ‏`smart_text`, תפריטי הקישורים, `ad_popup_dialog`, ‏`phone_report_tab`) | 2 · **מומש** |
 | UIL-025 | אין `compactMenuMode` מתוך `lib/widgets/**`. התחליף: `AppDensity.of(context)` (DD-10, אחרי MIG-06) | PropertyAccess | — | ~12 | 4 |
 | UIL-026 | אין `MediaQuery.withNoTextScaling`/`TextScaler.noScaling`/`RichText(` גולמי | ctor/invocation | עם allow ונימוק (JX-10) | ~10 | 2 |
 | UIL-027 | אין `Brightness.dark`/`isDark` מחוץ ל־`lib/theme/` להחלטת צבע | identifier | פלטפורמה (סרגל מערכת), תוספים | ~57 | 4 |
@@ -120,7 +120,7 @@ test/design_system/
 - **רשומה שלא נוצלה** מכשילה את הבדיקה: "baseline מת — הרץ `--update-baseline`". זה ה־ratchet, לפי התקדים של `backup_storage_coverage_test.dart:134`.
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **workflow ‏`ui_baseline_guard.yml`** (בסגנון `lockfile_guard.yml`) מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו תווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope` בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול.
-- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 2: UIL-001, ‏003, ‏004, ‏005). חריגה חדשה בכללי הטוקנים (שלב 3) מופיעה בדוח בלבד עד MIG-28. baseline מת והערת allow פגומה מכשילים בכל כלל.
+- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 2: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024). חריגה חדשה בכללי הטוקנים (שלב 3) מופיעה בדוח בלבד עד MIG-28. baseline מת והערת allow פגומה מכשילים בכל כלל.
 
 ### 3.5 חריגים מתועדים
 **inline**, על הצומת הבא בלבד:
