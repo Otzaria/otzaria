@@ -172,6 +172,18 @@ void main() {
       );
     });
 
+    test('תיקייה ששמה מכיל פסיק מסווגת ל-facet שלה בשתי צורות הנתיב', () {
+      // עץ הספרייה של התוסף נותן את השם עם הפסיק; נתיב הספר — מנורמל.
+      const facet = '/הלכה/נתיבות המשפט/ביאורים';
+      for (final suggested in ['/הלכה/נתיבות המשפט, ביאורים', facet]) {
+        expect(
+          externalValidatedCategoryOf(suggested, {'/הלכה', facet}),
+          facet,
+          reason: suggested,
+        );
+      }
+    });
+
     test('נתיב זר לגמרי, ריק או null — אין סיווג (דלי "עוד מ")', () {
       expect(externalValidatedCategoryOf('/קבלה/זוהר', validPaths), isNull);
       expect(externalValidatedCategoryOf('/', validPaths), isNull);
