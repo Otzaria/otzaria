@@ -189,7 +189,13 @@ const top = TextStyle(fontSize: 11);
 
   group('החרגות לפי נתיב', () {
     test('שכבת הטוקנים פטורה מכללי הטוקנים', () {
-      for (final suffix in ['uil_015', 'uil_016', 'uil_017', 'uil_019']) {
+      for (final suffix in [
+        'uil_015',
+        'uil_016',
+        'uil_017',
+        'uil_019',
+        'uil_020',
+      ]) {
         expect(
           _lint(
             'violating_$suffix',
