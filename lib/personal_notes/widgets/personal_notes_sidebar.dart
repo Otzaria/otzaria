@@ -34,6 +34,7 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class PersonalNotesSidebar extends StatefulWidget {
   final String bookId;
@@ -529,12 +530,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             bookId: widget.bookId,
             categoryId: widget.categoryId,
             linkableNotes: linkableNotes,
-            extraAction: IconButton(
+            extraAction: AppIconButton(
+              size: AppIconButtonSize.small,
               tooltip: widget.isPdf ? 'שנה מיקום בדף' : 'שנה שיוך לשורה נבחרת',
-              icon: const Icon(FluentIcons.pin_24_regular, size: 18),
-              iconSize: 18,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              icon: const Icon(FluentIcons.pin_24_regular),
               onPressed: () => _reanchorNote(context, note, selectedLineNumber),
             ),
           ),
@@ -588,12 +587,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                     ),
                   )
                 : null,
-            extraAction: IconButton(
+            extraAction: AppIconButton(
+              size: AppIconButtonSize.small,
               tooltip: 'מיקום מחדש',
-              icon: const Icon(FluentIcons.location_24_regular, size: 18),
-              iconSize: 18,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              icon: const Icon(FluentIcons.location_24_regular),
               onPressed: () => _reposition(context, note),
             ),
           ),
