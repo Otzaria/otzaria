@@ -51,4 +51,7 @@ class LayoutConstraints {
 
   /// הרוחב המינימלי להצגת חלונית צד ותוכן ראשי זה לצד זה.
   static const double sideBySideMinWidth = sidePaneWidth + mainContentMinWidth;
+
+  /// גובה שורת הכותרת של החלון בדסקטופ: הכרטיסיות וכפתורי החלון.
+  static const double windowCaptionHeight = 40.0;
 }
