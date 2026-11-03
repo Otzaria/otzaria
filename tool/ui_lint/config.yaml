@@ -118,3 +118,14 @@ rules:
         reason: פלט נייר
       - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
         reason: פלט נייר
+
+  UIL-021:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
