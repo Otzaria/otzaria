@@ -1122,9 +1122,16 @@ class CalendarCubit extends Cubit<CalendarState> {
           for (final e in events)
             if (before[e.id] != e) e,
         ];
+        // מה שהמיזוג השמיט נמחק בגוגל.
+        final deletedIds = before.keys.toSet()
+          ..removeAll(events.map((e) => e.id));
         emit(
           state.copyWith(
-            events: [..._upsertedUserEvents(changed), ..._pluginEvents],
+            events: [
+              for (final e in _upsertedUserEvents(changed))
+                if (!deletedIds.contains(e.id)) e,
+              ..._pluginEvents,
+            ],
             googleCalendarConnected: true,
             googleCalendarSyncInProgress: false,
             googleCalendarLastSync: syncTime,
@@ -1139,6 +1146,9 @@ class CalendarCubit extends Cubit<CalendarState> {
             'kind': 'google',
             'events': [for (final e in changed) _eventJson(e)],
           });
+        }
+        for (final id in deletedIds) {
+          await _send('deleteEvent', {'id': id});
         }
       } catch (e) {
         _emitGoogleSyncError(e);
