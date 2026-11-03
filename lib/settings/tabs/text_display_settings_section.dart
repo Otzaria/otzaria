@@ -346,7 +346,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
             children: [
               Icon(
                 FluentIcons.info_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: AppTokens.spaceSM),

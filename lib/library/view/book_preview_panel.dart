@@ -490,7 +490,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           children: [
             Icon(
               OtzariaIcons.link_24_regular,
-              size: 64,
+              size: AppTokens.iconXL,
               color: Theme.of(
                 context,
               ).colorScheme.secondary.withValues(alpha: 0.3),

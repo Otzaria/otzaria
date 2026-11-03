@@ -321,7 +321,7 @@ class NavTreeTile extends StatelessWidget {
                           isExpanded: isExpanded,
                           style: ExpandingChevronStyle.tree,
                           color: cs.onSurfaceVariant,
-                          size: 18,
+                          size: AppTokens.iconSM,
                         ),
                       ),
                       visualDensity: VisualDensity.compact,

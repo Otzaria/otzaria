@@ -466,7 +466,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                           ),
                           icon: Icon(
                             FluentIcons.info_24_regular,
-                            size: 18,
+                            size: AppTokens.iconSM,
                             color: theme.colorScheme.primary,
                           ),
                         ),

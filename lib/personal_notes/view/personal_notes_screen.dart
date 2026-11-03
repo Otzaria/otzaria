@@ -1158,7 +1158,7 @@ class _PersonalNotesManagerScreenState
         children: [
           Icon(
             OtzariaIcons.calendar_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: cs.onSecondaryContainer,
           ),
           const SizedBox(width: 8),
@@ -1173,7 +1173,10 @@ class _PersonalNotesManagerScreenState
           ),
           IconButton(
             tooltip: 'נקה סינון תאריך',
-            icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
+            icon: const Icon(
+              FluentIcons.dismiss_24_regular,
+              size: AppTokens.iconSM,
+            ),
             color: cs.onSecondaryContainer,
             onPressed: _clearDateRange,
           ),

@@ -165,7 +165,7 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
               marking
                   ? FluentIcons.checkbox_checked_24_regular
                   : FluentIcons.checkbox_unchecked_24_regular,
-              size: AppTokens.fontXL,
+              size: AppTokens.iconSM,
               color: cs.onSecondaryContainer,
             ),
             const SizedBox(width: AppTokens.spaceSM),

@@ -364,7 +364,10 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
       placeholder: '',
       pinnedTrailing: Builder(
         builder: (anchor) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: () => _showFolderMenu(anchor, folder),
           tooltip: context.settingsText('אפשרויות'),
         ),
@@ -505,7 +508,10 @@ class _AttachedLibraryTile extends StatelessWidget {
       ),
       pinnedTrailing: Builder(
         builder: (anchor) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: enabled ? () => onMenu(anchor) : null,
           tooltip: context.settingsText('אפשרויות'),
         ),

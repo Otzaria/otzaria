@@ -364,7 +364,7 @@ class _LeadingIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8),
-      child: Icon(icon, size: 18, color: color),
+      child: Icon(icon, size: AppTokens.iconSM, color: color),
     );
   }
 }

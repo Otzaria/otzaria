@@ -384,7 +384,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         children: [
           Icon(
             OtzariaIcons.book_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppTokens.spaceSM),

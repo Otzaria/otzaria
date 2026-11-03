@@ -366,7 +366,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
         style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
       ),
       trailing: IconButton(
-        icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+        icon: const Icon(FluentIcons.delete_24_regular, size: AppTokens.iconSM),
         onPressed: isBusy ? null : () => _deleteBook(file),
         tooltip: context.settingsText('מחק ספר'),
       ),

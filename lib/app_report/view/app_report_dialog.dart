@@ -209,7 +209,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
       padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            icon,
+            size: AppTokens.iconSM,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: AppTokens.spaceSM),
           Text(
             label,
@@ -371,7 +375,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
       children: [
         Icon(
           FluentIcons.drafts_24_regular,
-          size: 18,
+          size: AppTokens.iconSM,
           color: theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),

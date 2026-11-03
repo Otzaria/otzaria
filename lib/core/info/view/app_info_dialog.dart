@@ -430,7 +430,7 @@ class _FolderTileState extends State<_FolderTile> {
                     : hidden
                     ? FluentIcons.eye_off_24_regular
                     : FluentIcons.folder_open_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: exists ? cs.primary : cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -584,7 +584,7 @@ class _AttachedLibraryTile extends StatelessWidget {
             children: [
               Icon(
                 FluentIcons.database_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: ok ? cs.primary : cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -787,7 +787,7 @@ class _ErrorTile extends StatelessWidget {
             children: [
               Icon(
                 FluentIcons.error_circle_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),

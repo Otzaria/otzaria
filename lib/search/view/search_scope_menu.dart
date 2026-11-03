@@ -1333,8 +1333,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
             const SizedBox(width: 2),
             if (item.icon != null) ...[
               item.useRtlIcon
-                  ? RtlIcon(item.icon!, size: 18, color: iconColor)
-                  : Icon(item.icon, size: 18, color: iconColor),
+                  ? RtlIcon(
+                      item.icon!,
+                      size: AppTokens.iconSM,
+                      color: iconColor,
+                    )
+                  : Icon(item.icon, size: AppTokens.iconSM, color: iconColor),
               const SizedBox(width: 8),
             ],
             Expanded(
@@ -1387,7 +1391,10 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               ),
             if (item.onDelete != null)
               IconButton(
-                icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+                icon: const Icon(
+                  FluentIcons.delete_24_regular,
+                  size: AppTokens.iconSM,
+                ),
                 tooltip: context.settingsText('מחק היקף שמור'),
                 visualDensity: VisualDensity.compact,
                 onPressed: () {
@@ -1400,7 +1407,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
               Icon(
                 FluentIcons.chevron_right_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: colorScheme.onSurfaceVariant,
               ),
             ],

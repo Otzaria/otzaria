@@ -134,7 +134,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                     children: [
                       Icon(
                         FluentIcons.trophy_24_regular,
-                        size: 64,
+                        size: AppTokens.iconXL,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(height: 16),

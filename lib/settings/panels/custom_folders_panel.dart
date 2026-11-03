@@ -460,7 +460,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       // הכפתור נשאר צמוד לטקסט תמיד — בניגוד ל-actions, לא גולש למטה במסך צר.
       pinnedTrailing: Builder(
         builder: (buttonContext) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: isSyncing
               ? null
               : () => _showFolderMenu(buttonContext, folder),

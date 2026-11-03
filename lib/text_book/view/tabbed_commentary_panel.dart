@@ -30,6 +30,7 @@ import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// אינדקסי הלשוניות ב-[TabbedCommentaryPanel]
 const int kCommentaryTabIndex = 0;
@@ -174,7 +175,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       ? const []
                       : [
                           IconButton(
-                            iconSize: 18,
+                            iconSize: AppTokens.iconSM,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                               minWidth: 36,
