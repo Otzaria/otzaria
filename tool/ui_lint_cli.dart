@@ -6,6 +6,7 @@
 //   dart tool/ui_lint_cli.dart --update-baseline [--allow-growth]
 //
 // --update-baseline רק מוחק רשומות שתוקנו; הוספה דורשת --allow-growth.
+// כלל נעול (strict: true ב־config.yaml) לא מקבל רשומות גם עם --allow-growth.
 // github: טבלה ל-$GITHUB_STEP_SUMMARY ו-annotations לחריגות החדשות בלבד.
 // מצב דוח: היציאה היא 0 גם כשיש חריגות.
 
@@ -40,15 +41,30 @@ void main(List<String> args) {
   }
 
   final root = Directory.current.path;
-  final result = runUiLint(root);
+  final config = UiLintConfig.load(root);
+  final result = runUiLint(root, config: config);
   final baseline = UiLintBaseline.load(root);
 
   if (update) {
-    final next = baseline.updated(result.findings, allowGrowth: allowGrowth);
+    final next = baseline.updated(
+      result.findings,
+      allowGrowth: allowGrowth,
+      strictRules: config.strictRules,
+    );
     File(p.join(root, baselineRelativePath)).writeAsStringSync(
       next.toJsonString(),
     );
     print('baseline: ${baseline.size} → ${next.size} מופעים');
+    final locked = {
+      for (final f in result.findings)
+        if (config.isStrict(f.rule)) f.rule,
+    };
+    if (locked.isNotEmpty) {
+      print(
+        'כללים נעולים עם חריגות, שלא נכנסו ל-baseline: '
+        '${(locked.toList()..sort()).join(', ')}',
+      );
+    }
     return;
   }
 
@@ -58,7 +74,7 @@ void main(List<String> args) {
       print(_json(result, comparison));
     case 'github':
       final summary = Platform.environment['GITHUB_STEP_SUMMARY'];
-      final markdown = _markdown(result, comparison);
+      final markdown = _markdown(result, comparison, config);
       if (summary == null) {
         print(markdown);
       } else {
@@ -78,13 +94,17 @@ void main(List<String> args) {
         );
       }
     default:
-      print(_markdown(result, comparison));
+      print(_markdown(result, comparison, config));
   }
 }
 
 UiLintRule _rule(String id) => uiLintRules.firstWhere((r) => r.id == id);
 
-String _markdown(UiLintResult result, BaselineComparison comparison) {
+String _markdown(
+  UiLintResult result,
+  BaselineComparison comparison,
+  UiLintConfig config,
+) {
   final buffer = StringBuffer('## ui_lint (מצב דוח)\n\n')
     ..writeln('| כלל | תיאור | סה"כ | ב-baseline | חדשות | allow |')
     ..writeln('|---|---|---|---|---|---|');
@@ -93,7 +113,8 @@ String _markdown(UiLintResult result, BaselineComparison comparison) {
     final fresh = comparison.newFindings.where((f) => f.rule == rule.id).length;
     final allows = result.allows.where((a) => a.rule == rule.id).length;
     buffer.writeln(
-      '| ${rule.id} | ${rule.title} | $total | ${total - fresh} | $fresh | $allows |',
+      '| ${rule.id}${config.isStrict(rule.id) ? ' (strict)' : ''} | '
+      '${rule.title} | $total | ${total - fresh} | $fresh | $allows |',
     );
   }
   if (comparison.newFindings.isNotEmpty) {

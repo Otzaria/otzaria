@@ -1,6 +1,10 @@
 # החרגות ui_lint לפי נתיב. לכל החרגה נדרש reason.
 # החרגה של צומת בודד נכתבת בקוד: // ui-lint: allow UIL-xxx — נימוק
 # הפירוט: docs/design-system/CI_ENFORCEMENT.md §3.5–3.6.
+#
+# strict: true נועל כלל שהחוב שלו נגמר (CI_ENFORCEMENT.md §6, רמה 4): כל
+# חריגה בו חוסמת, בכל שלב, ו־--allow-growth לא כותב לו רשומות baseline.
+# ui_lint_test דורש strict לכל כלל שאין לו רשומות baseline.
 
 exclude:
   - path: "**/*.g.dart"
@@ -9,22 +13,37 @@ exclude:
     reason: מפת אייקונים שנוצרת אוטומטית
 
 rules:
+  UIL-004:
+    strict: true
+
+  UIL-005:
+    strict: true
+
+  UIL-009:
+    strict: true
+
+  UIL-022:
+    strict: true
+
   UIL-001:
     exclude:
       - path: lib/widgets/dialogs/**
         reason: הרכיבים המשותפים שבונים את הדיאלוגים
 
   UIL-006:
+    strict: true
     exclude:
       - path: lib/widgets/misc/rtl_icon.dart
         reason: הרכיב עצמו מחזיק את הרשימה ומהפך בה
 
   UIL-007:
+    strict: true
     exclude:
       - path: lib/theme/**
         reason: ערכת הנושא מגדירה את צבעי המצב
 
   UIL-011:
+    strict: true
     exclude:
       - path: lib/widgets/text/rtl_text_field.dart
         reason: העטיפה שבונה את השדה ומוסיפה לו RTL
@@ -73,6 +92,7 @@ rules:
         reason: פלט נייר
 
   UIL-018:
+    strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים (AppThemeData, AppFonts)
