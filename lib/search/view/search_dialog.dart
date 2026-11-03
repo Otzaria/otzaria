@@ -1766,7 +1766,7 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildQueryRow() {
     final searchField = EnhancedSearchField(
       key: AppWindowKeys.of(context).enhancedSearchField,
-      widget: _SearchDialogWrapper(tab: _searchTab),
+      tab: _searchTab,
       onSubmit: _performSearch,
       trailingAction: _buildHistoryButton(),
       pluginInvocationContext: _pluginInvocationContext,
@@ -2282,12 +2282,4 @@ class _IndexMissingGate extends StatelessWidget {
           ),
     );
   }
-}
-
-/// Wrapper class to provide the TantivyFullTextSearch interface
-/// without actually using the full widget
-class _SearchDialogWrapper {
-  final SearchingTab tab;
-
-  _SearchDialogWrapper({required this.tab});
 }

@@ -2009,6 +2009,21 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+
+    testWidgets(
+      'Enter בשדה מחיל את השאילתה על כותרת הטאב הנערך',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        await tester.enterText(queryField, 'צדיק גאולה');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SearchDialog), findsNothing);
+        expect(editedTab.title, 'חיפוש: צדיק גאולה');
+        expect(editedTab.titleNotifier.value, 'חיפוש: צדיק גאולה');
+      },
+      skip: !engineReady,
+    );
     Future<void> pickWordDistanceMode(
       WidgetTester tester,
       WordMatchMode mode,
