@@ -338,18 +338,18 @@ class TantivyDataProvider {
       indexPath = await AppPaths.getIndexPath();
       final canonicalIndexPath = indexPath;
       final parentDir = Directory(indexPath).parent;
-      if (!parentDir.existsSync()) {
-        parentDir.createSync(recursive: true);
+      if (!await parentDir.exists()) {
+        await parentDir.create(recursive: true);
       }
 
       sentinelFile = File('${parentDir.path}/.engine_init_started');
 
       // סנטינל שנשאר = הריצה הקודמת מתה בזמן פתיחת המנוע.
       var failedAttempts = 0;
-      if (sentinelFile.existsSync()) {
+      if (await sentinelFile.exists()) {
         String? content;
         try {
-          content = sentinelFile.readAsStringSync();
+          content = await sentinelFile.readAsString();
         } catch (_) {}
         failedAttempts = sentinelFailedAttempts(content);
         debugPrint('⚠️ נמצא סנטינל פתיחה ($failedAttempts כשלונות קודמים)');
@@ -358,11 +358,11 @@ class TantivyDataProvider {
       if (shouldDiscardIndex(failedAttempts)) {
         debugPrint('⚠️ שני כשלונות פתיחה רצופים — מזיז את האינדקס הצידה');
         try {
-          if (Directory(indexPath).existsSync()) {
+          if (await Directory(indexPath).exists()) {
             // Use rename instead of delete - much safer on Windows
             final corruptedPath =
                 '${indexPath}_corrupted_${DateTime.now().millisecondsSinceEpoch}';
-            Directory(indexPath).renameSync(corruptedPath);
+            await Directory(indexPath).rename(corruptedPath);
             debugPrint('📦 Moved corrupted index to $corruptedPath');
           }
         } catch (e) {
@@ -384,8 +384,8 @@ class TantivyDataProvider {
 
       // Ensure the index directory exists before opening the engine.
       final indexDir = Directory(indexPath);
-      if (!indexDir.existsSync()) {
-        indexDir.createSync(recursive: true);
+      if (!await indexDir.exists()) {
+        await indexDir.create(recursive: true);
       }
 
       // Try to open engine
@@ -440,7 +440,9 @@ class TantivyDataProvider {
   /// מנוע על תיקייה זמנית, כשאינדקס הדיסק אינו ניתן לפתיחה. במצב זה
   /// האינדוקס חסום ([isTempFallback]) כדי שכתיבות לא ילכו לתיקייה שנזרקת.
   Future<SearchEngine> _openTempFallbackEngine() async {
-    final tempDir = Directory.systemTemp.createTempSync('otzaria_temp_index_');
+    final tempDir = await Directory.systemTemp.createTemp(
+      'otzaria_temp_index_',
+    );
     final engine = await SearchEngine.newInstance(path: tempDir.path);
     await RustSearchEngineOperations.prepareCancellation(engine);
     isTempFallback = true;
