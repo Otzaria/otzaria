@@ -408,6 +408,7 @@ class SecondaryIconButton extends StatelessWidget {
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: AppTokens.roundedShape,
       ),
     );
   }
@@ -438,6 +439,7 @@ class PrimaryIconButton extends StatelessWidget {
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: AppTokens.roundedShape,
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 /// לחצן צף ליציאה ממסך מלא — למסכים ללא סרגל עליון (תוספים).
@@ -18,6 +19,7 @@ class ExitFullscreenButton extends StatelessWidget {
       style: IconButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
+        shape: AppTokens.roundedShape,
       ),
     );
   }

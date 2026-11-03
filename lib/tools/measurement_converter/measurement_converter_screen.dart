@@ -685,6 +685,9 @@ class _MeasurementConverterScreenState
       );
     },
     tooltip: 'החלף יחידות',
+    style: IconButton.styleFrom(
+      shape: AppTokens.roundedShape,
+    ),
   );
 
   // ── קלט ──────────────────────────────────────────────────────────────────────

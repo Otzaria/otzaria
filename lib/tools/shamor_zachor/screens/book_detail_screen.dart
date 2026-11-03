@@ -476,6 +476,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   ? IconButton.filledTonal(
                       tooltip: 'הוסף עמודה',
                       visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(
+                        shape: AppTokens.roundedShape,
+                      ),
                       icon: const Icon(FluentIcons.add_24_regular),
                       onPressed: () => _addColumn(progressProvider),
                     )

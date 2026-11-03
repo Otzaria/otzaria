@@ -731,6 +731,7 @@ Widget _toggleIconButton(
       foregroundColor: isSelected
           ? null
           : (offForegroundColor ?? cs.onSurfaceVariant),
+      shape: AppTokens.roundedShape,
     ),
     onPressed: onPressed,
   );
@@ -1051,6 +1052,7 @@ class _PluginRowState extends State<_PluginRow> {
           ? IconButton.styleFrom(
               backgroundColor: a.fixedBg,
               foregroundColor: a.fixedFg,
+              shape: AppTokens.roundedShape,
             )
           : null,
       onPressed: a.onTap,

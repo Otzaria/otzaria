@@ -105,10 +105,14 @@ void main() {
           theme.filledButtonTheme.style,
           theme.textButtonTheme.style,
           theme.outlinedButtonTheme.style,
-          theme.iconButtonTheme.style,
         ]) {
           expect(style?.shape?.resolve({}), AppTokens.roundedShape);
         }
+        // כפתור אייקון בלבד עגול (DD-04, q9 שאלה 3).
+        expect(
+          theme.iconButtonTheme.style?.shape?.resolve({}),
+          const CircleBorder(),
+        );
       });
 
       test('ב-$brightness: תפריטים, בועות מידע ולשוניות', () {

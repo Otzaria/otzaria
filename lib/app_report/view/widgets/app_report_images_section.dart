@@ -294,6 +294,9 @@ class _ImageThumbnail extends StatelessWidget {
                     height: 24,
                   ),
                   padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    shape: AppTokens.roundedShape,
+                  ),
                   onPressed: onRemove,
                   icon: const Icon(FluentIcons.dismiss_16_regular),
                 ),
