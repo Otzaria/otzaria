@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
@@ -155,6 +156,32 @@ void main() {
       expect(inline.first, '0@$here');
       db.close();
     });
+
+    test(
+      'רשימה גדולה בלי decodeInBackground: ה-JSON מפוענח מחוץ ל-UI (#3977)',
+      () async {
+        final db = UserStateDatabase.openAt(dbPath);
+        final store = UserStateListStore(database: db);
+        await store.write('history', 'history', entries(2000));
+
+        final fake = FakeAsync();
+        List<String>? loaded;
+        fake.run(
+          (_) => repo(store, background: false).load().then((v) => loaded = v),
+        );
+        fake.flushMicrotasks();
+        // פענוח ב-isolate הנוכחי היה מסתיים כבר כאן, במיקרו-משימות בלבד.
+        expect(loaded, isNull);
+
+        for (var i = 0; loaded == null && i < 1000; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          fake.flushMicrotasks();
+        }
+        expect(loaded, hasLength(2000));
+        expect(loaded!.first, '0@${Isolate.current.debugName}');
+        db.close();
+      },
+    );
 
     test('רשימה קטנה נשארת בפענוח מקומי', () async {
       final db = UserStateDatabase.openAt(dbPath);
