@@ -126,14 +126,9 @@ void main() {
         const AppCard(selected: true, child: Text('כרטיס')),
       );
       final context = tester.element(find.byType(AppCard));
-      final overlay = tester.widget<ColoredBox>(
-        find.descendant(
-          of: find.byType(AppCard),
-          matching: find.byType(ColoredBox),
-        ),
-      );
+      // על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו.
       expect(
-        overlay.color,
+        firstMaterialIn(tester, find.byType(AppCard)).color,
         AppSurfaces.selectedRow(Theme.of(context).colorScheme),
       );
     });

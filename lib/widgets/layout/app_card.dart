@@ -76,7 +76,8 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
   final EdgeInsetsGeometry? padding;
 
-  /// מוסיף overlay של secondaryContainer מעל הכרטיס
+  /// רקע [AppSurfaces.selectedRow] במקום רקע הטון. נצבע על ה-Material, כדי
+  /// שהריחוף והלחיצה של הכרטיס יצוירו מעליו.
   final bool selected;
 
   /// הפריט הפעיל ברשת כרטיסים (למשל שולחן העבודה הנוכחי): מסגרת הבחירה
@@ -112,11 +113,12 @@ class AppCard extends StatelessWidget {
   Widget _buildSingle(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final cardShape = shape(cs, active: active);
-    final (Color color, Color? onColor) = switch (tone) {
+    final (Color toneColor, Color? onColor) = switch (tone) {
       AppCardTone.normal => (AppSurfaces.card(context), null),
       AppCardTone.primary => (cs.primaryContainer, cs.onPrimaryContainer),
       AppCardTone.error => (cs.errorContainer, cs.onErrorContainer),
     };
+    final color = selected ? AppSurfaces.selectedRow(cs) : toneColor;
     Widget content = child!;
     if (onColor != null) {
       content = IconTheme.merge(
@@ -130,10 +132,6 @@ class AppCard extends StatelessWidget {
 
     if (padding != null) {
       content = Padding(padding: padding!, child: content);
-    }
-
-    if (selected) {
-      content = _withSelected(context, content);
     }
 
     if (onTap != null) {
@@ -204,9 +202,4 @@ class AppCard extends StatelessWidget {
       child: ClipRRect(borderRadius: resolvedRadius, child: content),
     );
   }
-
-  Widget _withSelected(BuildContext context, Widget w) => ColoredBox(
-    color: AppSurfaces.selectedRow(Theme.of(context).colorScheme),
-    child: w,
-  );
 }

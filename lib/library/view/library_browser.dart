@@ -2172,10 +2172,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       height: isGrouped ? 1.1 : null,
     );
 
-    final row = DecoratedBox(
-      decoration: BoxDecoration(
-        color: isSelected ? AppSurfaces.selectedRow(cs) : null,
-      ),
+    // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+    final row = Material(
+      color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+      textStyle: DefaultTextStyle.of(context).style,
       child: InkWell(
         focusNode: focusNode,
         mouseCursor: SystemMouseCursors.click,
