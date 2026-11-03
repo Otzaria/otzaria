@@ -149,6 +149,16 @@ Future<String?> _readLineRef(
 
 const _lineRefMethods = {'breadcrumb', 'heRef'};
 
+Future<List<Map<String, dynamic>>> _readSiblingCommentaryRows(
+  SeforimRepository repository,
+  Map<String, Object?> args,
+) => repository.getSiblingCommentaryLinkRowsForLine(
+  bookId: args['bookId'] as int,
+  bookTitle: args['bookTitle'] as String,
+  lineIndex: args['lineIndex'] as int,
+  excludeBookId: args['excludeBookId'] as int,
+);
+
 Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
   List<Map<String, Object?>> items,
   Map<String, Map<String, String>> queryCache,
@@ -190,6 +200,10 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
               args['bookId'] as int,
             ),
           });
+          continue;
+        }
+        if (method == 'siblingCommentaryRows') {
+          results.add({'result': await _readSiblingCommentaryRows(repo, args)});
           continue;
         }
         if (method != 'linkContent') {
@@ -1054,12 +1068,7 @@ void _workerMain(_Bootstrap bootstrap) {
         );
       case 'siblingCommentaryRows':
         final repo = await ensureRepo(args['dbPath'] as String);
-        return repo.getSiblingCommentaryLinkRowsForLine(
-          bookId: args['bookId'] as int,
-          bookTitle: args['bookTitle'] as String,
-          lineIndex: args['lineIndex'] as int,
-          excludeBookId: args['excludeBookId'] as int,
-        );
+        return _readSiblingCommentaryRows(repo, args);
       case 'bookText':
         final repo = await ensureRepo(args['dbPath'] as String);
         return readBookContentText(

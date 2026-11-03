@@ -1272,6 +1272,32 @@ void main() {
       expect(DbReadWorker.sentMessageCount - before, 1);
     });
 
+    test(
+      'המפרשים הנוספים לא רצים על ה-UI isolate כשה-worker אינו זמין',
+      () async {
+        addCommentaryLink(dbPath);
+        final repository = TextBookRepository(
+          fileSystem: FileSystemData.instance,
+        );
+        // טבלת temp מסתירה את link בחיבור הראשי בלבד: שאילתה עליו מחזירה ריק.
+        final mainDb =
+            await SqliteDataProvider.instance.repository!.database.database;
+        mainDb.execute('PRAGMA query_only=OFF');
+        mainDb.execute('CREATE TEMP TABLE link AS SELECT * FROM main.link');
+        mainDb.execute('DELETE FROM temp.link');
+        DbReadWorker.stallTimeout = Duration.zero;
+
+        final links = await repository.getSiblingCommentaries(
+          sourceBookTitle: 'בראשית',
+          sourceCategoryId: 7,
+          sourceLineIndex: 1,
+          currentBookTitle: 'אחר',
+          currentCategoryId: 7,
+        );
+        expect([for (final link in links) link.path2], ['מפרש']);
+      },
+    );
+
     test('מפרשים נוספים: התצוגה המקדימה מציגה את כל קטעי המפרש על שורת המקור '
         '(issue #3026)', () async {
       final db = sqlite3.sqlite3.open(dbPath);

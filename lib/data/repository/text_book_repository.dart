@@ -696,19 +696,16 @@ class TextBookRepository {
   }) async {
     final dbPath = _sqliteProvider.dbPath;
     if (source.isOfficial && dbPath.isNotEmpty) {
-      try {
-        return (await DbReadWorker.request('siblingCommentaryRows', {
-                  'dbPath': dbPath,
-                  'bookId': bookId,
-                  'bookTitle': bookTitle,
-                  'lineIndex': lineIndex,
-                  'excludeBookId': excludeBookId,
-                })
-                as List)
-            .cast<Map<String, dynamic>>();
-      } on DbReadWorkerUnavailable {
-        // נופלים לשאילתה הישירה, כמו שאר הקריאות כשה-worker אינו זמין.
-      }
+      // batched: כשה-worker אינו זמין השאילתה רצה ב-isolate זמני, לא על ה-UI.
+      return (await DbReadWorker.batched('siblingCommentaryRows', {
+                'dbPath': dbPath,
+                'bookId': bookId,
+                'bookTitle': bookTitle,
+                'lineIndex': lineIndex,
+                'excludeBookId': excludeBookId,
+              })
+              as List)
+          .cast<Map<String, dynamic>>();
     }
     return repository.getSiblingCommentaryLinkRowsForLine(
       bookId: bookId,
