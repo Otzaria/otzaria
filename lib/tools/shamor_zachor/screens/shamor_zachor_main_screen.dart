@@ -407,9 +407,9 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
                     return Scaffold(
                       backgroundColor: Colors.transparent,
-                      body: Builder(
-                        builder: (context) {
-                          final screenWidth = MediaQuery.sizeOf(context).width;
+                      body: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final screenWidth = constraints.maxWidth;
                           const secondaryRowBelow = 900.0;
                           final useSecondaryRow =
                               screenWidth < secondaryRowBelow;
