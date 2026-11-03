@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
+
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 
@@ -37,13 +40,16 @@ class PluginDevWatchService {
     Future<void> Function() reload,
   ) => _handled[change] ??= Future.sync(reload);
 
-  final Map<String, StreamSubscription<FileSystemEvent>> _watchers = {};
+  final Map<String, _WatchIsolate> _watchers = {};
   final Map<String, String> _watchedPaths = {};
-  final Map<String, Timer> _debounceTimers = {};
-  final Map<String, Set<String>> _pendingChanges = {};
 
   final _eventsController = StreamController<PluginDevFsChange>.broadcast();
   Stream<PluginDevFsChange> get events => _eventsController.stream;
+
+  /// מסתיים כשה-isolate של [pluginId] כבר מאזין לתיקייה.
+  @visibleForTesting
+  Future<void> watching(String pluginId) =>
+      _watchers[pluginId]?.ready.future ?? Future<void>.value();
 
   void syncWatchers(List<InstalledPlugin> devPlugins) {
     // localhost_dev plugins reload via HMR — no filesystem to watch.
@@ -71,82 +77,110 @@ class PluginDevWatchService {
     }
   }
 
+  // ב-Windows ה-SDK מריץ stat סינכרוני על כל אירוע בתוך ה-isolate המאזין (#3984),
+  // ולכן ההאזנה כולה רצה ב-isolate נפרד.
   void _startWatcher(InstalledPlugin plugin) {
     final devRootPath = plugin.devRootPath;
     if (devRootPath == null) return;
+    final pluginId = plugin.pluginId;
 
-    final dir = Directory(devRootPath);
-    if (!dir.existsSync()) return;
+    final watcher = _WatchIsolate();
+    _watchers[pluginId] = watcher;
+    _watchedPaths[pluginId] = devRootPath;
 
-    _watchedPaths[plugin.pluginId] = devRootPath;
-
-    _watchers[plugin.pluginId] = dir.watch(recursive: true).listen((event) {
-      final changedPath = event.path;
-      final basename = p.basename(changedPath);
-
-      if (basename == '.DS_Store' ||
-          basename == 'Thumbs.db' ||
-          basename.endsWith('.swp') ||
-          basename.endsWith('.tmp') ||
-          basename.endsWith('~') ||
-          basename.endsWith('.ts') ||
-          basename.endsWith('.tsx') ||
-          basename.endsWith('.scss') ||
-          basename.endsWith('.sass')) {
-        return;
+    watcher.port.listen((message) {
+      if (message is bool) {
+        _eventsController.add(
+          PluginDevFsChange(pluginId: pluginId, manifestChanged: message),
+        );
+      } else if (message == _readyMessage) {
+        watcher.markReady();
+      } else if (message == _missingMessage && _watchers[pluginId] == watcher) {
+        stopWatcher(pluginId);
       }
-
-      _pendingChanges.putIfAbsent(plugin.pluginId, () => <String>{});
-      _pendingChanges[plugin.pluginId]!.add(changedPath);
-
-      _debounceTimers[plugin.pluginId]?.cancel();
-      _debounceTimers[plugin.pluginId] = Timer(
-        const Duration(milliseconds: 300),
-        () {
-          _emitChange(plugin.pluginId, devRootPath);
-        },
-      );
     });
-  }
-
-  void _emitChange(String pluginId, String devRootPath) {
-    final changes = _pendingChanges[pluginId] ?? <String>{};
-    if (changes.isEmpty) return;
-
-    final manifestPath = p.join(devRootPath, 'manifest.json');
-    final manifestChanged =
-        changes.contains(manifestPath) ||
-        changes.any((path) => p.normalize(path) == p.normalize(manifestPath));
-
-    final changeEvent = PluginDevFsChange(
-      pluginId: pluginId,
-      manifestChanged: manifestChanged,
-    );
-
-    _pendingChanges[pluginId]?.clear();
-    _eventsController.add(changeEvent);
+    watcher.isolate =
+        Isolate.spawn(_watchIsolateMain, (
+          watcher.port.sendPort,
+          devRootPath,
+        ), debugName: 'plugin-dev-watch:$pluginId').then((isolate) {
+          if (watcher.closed) isolate.kill(priority: Isolate.immediate);
+          return isolate;
+        });
   }
 
   void stopWatcher(String pluginId) {
-    _debounceTimers[pluginId]?.cancel();
-    _debounceTimers.remove(pluginId);
-    _watchers[pluginId]?.cancel();
-    _watchers.remove(pluginId);
+    _watchers.remove(pluginId)?.close();
     _watchedPaths.remove(pluginId);
-    _pendingChanges.remove(pluginId);
   }
 
   void dispose() {
-    for (final timer in _debounceTimers.values) {
-      timer.cancel();
-    }
-    _debounceTimers.clear();
-    for (final sub in _watchers.values) {
-      sub.cancel();
+    for (final watcher in _watchers.values) {
+      watcher.close();
     }
     _watchers.clear();
     _watchedPaths.clear();
-    _pendingChanges.clear();
     _eventsController.close();
   }
+}
+
+const _readyMessage = 'ready';
+const _missingMessage = 'missing';
+
+class _WatchIsolate {
+  final port = ReceivePort();
+  final ready = Completer<void>();
+  Future<Isolate>? isolate;
+  bool closed = false;
+
+  void markReady() {
+    if (!ready.isCompleted) ready.complete();
+  }
+
+  void close() {
+    closed = true;
+    port.close();
+    markReady();
+    isolate?.then((i) => i.kill(priority: Isolate.immediate));
+  }
+}
+
+bool _isIgnoredFile(String basename) =>
+    basename == '.DS_Store' ||
+    basename == 'Thumbs.db' ||
+    basename.endsWith('.swp') ||
+    basename.endsWith('.tmp') ||
+    basename.endsWith('~') ||
+    basename.endsWith('.ts') ||
+    basename.endsWith('.tsx') ||
+    basename.endsWith('.scss') ||
+    basename.endsWith('.sass');
+
+/// שולח `bool` (האם manifest.json השתנה) לכל קבוצת שינויים אחרי debounce.
+void _watchIsolateMain((SendPort, String) args) {
+  final (sendPort, devRootPath) = args;
+  final dir = Directory(devRootPath);
+  if (!dir.existsSync()) {
+    sendPort.send(_missingMessage);
+    return;
+  }
+
+  final manifestPath = p.normalize(p.join(devRootPath, 'manifest.json'));
+  final pending = <String>{};
+  Timer? debounce;
+
+  dir.watch(recursive: true).listen((event) {
+    if (_isIgnoredFile(p.basename(event.path))) return;
+    pending.add(event.path);
+    debounce?.cancel();
+    debounce = Timer(const Duration(milliseconds: 300), () {
+      if (pending.isEmpty) return;
+      final manifestChanged = pending.any(
+        (path) => p.normalize(path) == manifestPath,
+      );
+      pending.clear();
+      sendPort.send(manifestChanged);
+    });
+  });
+  sendPort.send(_readyMessage);
 }
