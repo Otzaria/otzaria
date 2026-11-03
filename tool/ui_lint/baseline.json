@@ -700,14 +700,6 @@
         {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"1a491541","n":1}
       ]
     },
-    "UIL-019": {
-      "lib/book_common/view/book_source_dialog.dart": [
-        {"scope":"_BookDetailsDialogContentState.build","fp":"e9d5bfc3","n":1}
-      ],
-      "lib/library/view/category_details_dialog.dart": [
-        {"scope":"_CategoryDetailsDialogContentState.build","fp":"e9d5bfc3","n":1}
-      ]
-    },
     "UIL-020": {
       "lib/app_report/view/widgets/app_report_images_section.dart": [
         {"scope":"_AppReportImagesSectionState.build","fp":"d7123934","n":1}

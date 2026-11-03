@@ -98,6 +98,7 @@ rules:
         reason: שכבת הטוקנים (AppThemeData, AppFonts)
 
   UIL-019:
+    strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
