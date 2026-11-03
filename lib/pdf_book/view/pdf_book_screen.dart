@@ -5012,11 +5012,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               if (state is! PdfBookLoaded || state.showRightPane) {
                 return const SizedBox.shrink();
               }
-              return Positioned(
-                left: 0,
-                top: MediaQuery.of(context).size.height * 0.10,
-                child: PanelOpenHandle(onTap: _openCommentaryPane),
-              );
+              return PositionedPanelOpenHandle(onTap: _openCommentaryPane);
             },
           ),
           BlocBuilder<PdfBookBloc, PdfBookState>(
