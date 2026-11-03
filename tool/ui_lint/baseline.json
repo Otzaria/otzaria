@@ -299,7 +299,6 @@
         {"scope":"_PdfScrollbarState._buildPageNumberText","fp":"a6c1de53","n":1}
       ],
       "lib/pdf_book/view/pdf_zoom_bar.dart": [
-        {"scope":"PdfZoomBar.build","fp":"a9c1e30c","n":1},
         {"scope":"PdfZoomBar.build","fp":"aac1e49f","n":1}
       ],
       "lib/personal_notes/view/personal_notes_screen.dart": [
