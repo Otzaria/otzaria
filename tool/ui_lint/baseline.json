@@ -172,9 +172,6 @@
         {"scope":"_BookCardWidgetState._buildProgressInfo","fp":"8d7fa525","n":1},
         {"scope":"_CycleRing.build","fp":"23d1d32c","n":1}
       ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.build","fp":"0cb25735","n":1}
-      ],
       "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
         {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"07dfa8d2","n":1}
       ],
