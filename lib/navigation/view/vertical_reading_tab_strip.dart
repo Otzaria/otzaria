@@ -11,7 +11,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
@@ -214,14 +213,14 @@ class _VerticalTabRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final background = isInSelection
-        ? AppSurfaces.multiSelected(cs)
-        // הפעילה בצבע הסרגל, כמו ברצועה האופקית (DD-06).
-        : isSelected
-        ? AppSurfaces.topBarBackground(context)
-        : isHovered
-        ? AppSurfaces.hoverRow(cs)
-        : Colors.transparent;
+    final background =
+        TabStateColors.background(
+          context,
+          selected: isSelected,
+          inSelection: isInSelection,
+        ) ??
+        TabStateColors.hover(context, hovered: isHovered, selected: false) ??
+        Colors.transparent;
 
     final leading = buildTabTypeIcon(context, tab);
     // במצב מכווץ ה-X רק בריחוף, כדי לא להעמיס על העמודה הצרה.
@@ -235,7 +234,7 @@ class _VerticalTabRow extends StatelessWidget {
           borderRadius: AppTokens.borderRadiusAll,
           border: isInSelection
               ? Border.all(
-                  color: AppSurfaces.multiSelectedBorder(cs),
+                  color: TabStateColors.border(context, inSelection: true)!,
                   width: AppTokens.multiSelectedBorderWidth,
                 )
               : null,

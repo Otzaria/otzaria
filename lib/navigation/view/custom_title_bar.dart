@@ -863,16 +863,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     TabsState state, {
     required bool isSelected,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    if (state.selectedTabs.contains(tab)) {
-      return _TabBackgroundPainter(
-        AppSurfaces.multiSelected(colorScheme),
-        borderColor: AppSurfaces.multiSelectedBorder(colorScheme),
-      );
-    }
-    return isSelected
-        ? _TabBackgroundPainter(AppSurfaces.topBarBackground(context))
-        : null;
+    final inSelection = state.selectedTabs.contains(tab);
+    final color = TabStateColors.background(
+      context,
+      selected: isSelected,
+      inSelection: inSelection,
+    );
+    if (color == null) return null;
+    return _TabBackgroundPainter(
+      color,
+      borderColor: TabStateColors.border(context, inSelection: inSelection),
+    );
   }
 
   /// מפריד מוצג רק כשאין הבלטה משני צדיו: הכרטיסיה הפעילה והכרטיסיה שבריחוף
@@ -893,10 +894,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     required bool isHovered,
     required bool isSelected,
   }) {
-    if (!isHovered || isSelected) return null;
-    return _TabBackgroundPainter(
-      AppSurfaces.hoverRow(Theme.of(context).colorScheme),
+    final color = TabStateColors.hover(
+      context,
+      hovered: isHovered,
+      selected: isSelected,
     );
+    return color == null ? null : _TabBackgroundPainter(color);
   }
 
   /// כרטיסיה שהצטמצמה מתחת ל-[_kTabContentMinWidth]. כל שכבות האינטראקציה
