@@ -157,11 +157,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                     children: AppSeedColors.options.map((entry) {
                       final isSelected =
                           _selected.toARGB32() == entry.color.toARGB32();
+                      final swatch = AppSeedColors.swatchOf(entry.color);
                       return _ColorSwatch(
                         name: context.settingsText(entry.name),
-                        color: AppSeedColors.swatchOf(entry.color),
+                        color: swatch,
                         isSelected: isSelected,
-                        checkColor: Colors.white,
+                        checkColor: AppSeedColors.checkColorOn(swatch),
                         onTap: () => _select(entry.color),
                       );
                     }).toList(),
