@@ -393,11 +393,17 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
     });
   }
 
-  Alignment _cardAlignmentFor(TourStep step, Rect targetRect, Size size) {
+  /// הכרטיס בפינה התחתונה בצד הסוף, כך שבממשק באנגלית הוא מתהפך יחד עם שאר
+  /// הממשק (q10 Q17 A). בעברית זו הפינה השמאלית, כמו לפני ההמרה.
+  AlignmentGeometry _cardAlignmentFor(
+    TourStep step,
+    Rect targetRect,
+    Size size,
+  ) {
     if (step.isDialog) {
       return Alignment.center;
     }
-    return Alignment.bottomLeft;
+    return AlignmentDirectional.bottomEnd;
   }
 
   bool _shouldSkipCardTransition({

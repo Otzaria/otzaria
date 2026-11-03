@@ -12,6 +12,7 @@ import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 /// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (panelBackground).
 /// - מעבר מרוחב רחב למסך צר סוגר אוטומטית את החלונית.
 /// - חלונית ניווט אמורה להיות בצד ימין (`centerEnd`) וחלונית מידע בצד שמאל (`centerStart`).
+///   הצד פיזי ולא תלוי בכיוון: ראו [alignment].
 ///
 /// ## התנהגות גרירה
 /// בזמן גרירת הוו, רוחב הפאנל מנוהל פנימית ב-[ValueNotifier] ולא גורם ל-rebuild
@@ -26,6 +27,11 @@ class AdaptiveSidePane extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback? onOpen;
   final Color? paneColor;
+
+  /// הצד של החלונית. **פיזי, למרות הטיפוס:** `centerEnd` הוא תמיד ימין
+  /// ו־`centerStart` תמיד שמאל, בכל כיוון (ראו [_AdaptiveSidePaneState._isPaneOnRight]).
+  /// המרה לצד לוגי תעביר את כל החלוניות לצד השני ב־8 מסכים, ולכן היא שינוי
+  /// API נפרד, למשל צד מפורש שמאל/ימין (q10 Q17 A).
   final AlignmentDirectional alignment;
   final bool wrapPaneInFloatingPanel;
   final bool isResizable;
@@ -403,6 +409,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     // ה-handle לא תלוי ברוחב — מוגדר מחוץ ל-ValueListenableBuilder
     final handleWidget = showHandle
+        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
         ? Positioned(
             top: _wideTopGap,
             bottom: _wideBottomGap,
@@ -468,13 +475,17 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
               child: ClipRect(
                 child: Align(
                   alignment: paneOnRight
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       ? Alignment.centerRight
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       : Alignment.centerLeft,
                   child: OverflowBox(
                     maxWidth: currentOccupied,
                     minWidth: 0,
                     alignment: paneOnRight
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         ? Alignment.centerRight
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         : Alignment.centerLeft,
                     child: paneSlotContent,
                   ),
@@ -512,6 +523,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       builder: (context, liveWidth, _) {
         if (!widget.isOpen) return const SizedBox.shrink();
         final occupied = liveWidth + _wideOuterSideGap + _wideInnerSideGap;
+        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
         return Positioned(
           top: 0,
           right: paneOnRight ? occupied : null,
@@ -587,6 +599,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                     );
                     return Stack(
                       children: [
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         Positioned(
                           top: 0,
                           bottom: 0,
@@ -596,6 +609,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                           child: slide,
                         ),
                         if (showHandle && widget.isOpen)
+                          // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                           Positioned(
                             top: 0,
                             bottom: 0,
@@ -663,6 +677,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
                   return Stack(
                     children: [
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       Positioned(
                         top: _kNarrowTopGap,
                         bottom: _kNarrowBottomGap,
@@ -687,6 +702,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                         ),
                       ),
                       if (showHandle)
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         Positioned(
                           top: _kNarrowTopGap,
                           bottom: _kNarrowBottomGap,
