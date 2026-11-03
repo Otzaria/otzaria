@@ -86,6 +86,10 @@ typedef PageShapeDefaultsLoader =
     Future<({Map<String, String?> commentators, Map<String, bool> visibility})>
     Function(TextBook book, List<String> availableCommentators);
 
+/// רוחב חלונית הצד כשלא נשמר רוחב, ותקרתו — כחלק מרוחב המסך.
+const double _kSidebarDefaultFraction = 0.22;
+const double _kSidebarMaxFraction = 0.35;
+
 class PageShapeScreen extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final ValueNotifier<int?>? sidebarTabNotifier;
@@ -171,11 +175,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // סרגל הצד נשמר בפיקסלים — יש לחתוך לגבולות החלון הנוכחי.
-    _leftSidebarWidth =
-        (Settings.getValue<double>('page_shape_left_sidebar_width') ??
-                screenWidth * 0.22)
-            .clamp(0.0, screenWidth * 0.35);
+    // סרגל הצד נשמר בפיקסלים — יש לחתוך לגבולות החלון הנוכחי. בלי ערך שמור
+    // נשאר null, וברירת המחדל מחושבת ב-build מרוחב המסך הזה (לא של החלון).
+    _leftSidebarWidth = Settings.getValue<double>(
+      'page_shape_left_sidebar_width',
+    )?.clamp(0.0, screenWidth * _kSidebarMaxFraction);
     _leftWidth = _loadFraction('page_shape_left_width', screenWidth);
     _rightWidth = _loadFraction('page_shape_right_width', screenWidth);
     _bottomHeight = _loadFraction('page_shape_bottom_height', screenHeight);
@@ -1590,47 +1594,52 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                 return Scaffold(
                   body: Stack(
                     children: [
-                      AdaptiveSidePane(
-                        isOpen: _isLeftSidebarOpen,
-                        alignment: AlignmentDirectional.centerStart,
-                        paneWidth:
+                      // ברירת המחדל והתקרה של החלונית — מרוחב המסך הזה, לא של
+                      // החלון (בתצוגה מפוצלת הוא רק חלק ממנו).
+                      LayoutBuilder(
+                        builder: (context, screen) => AdaptiveSidePane(
+                          isOpen: _isLeftSidebarOpen,
+                          alignment: AlignmentDirectional.centerStart,
+                          // הרוחב השמור לא נחתך במצב, רק בתצוגה: חזרה לחלון
+                          // מלא מחזירה את מה שהמשתמש בחר, והגרירה לא קופצת.
+                          paneWidth: math.min(
                             _leftSidebarWidth ??
-                            MediaQuery.of(context).size.width * 0.22,
-                        minPaneWidth: 220,
-                        maxPaneWidth: MediaQuery.of(context).size.width * 0.35,
-                        minMainContentWidth: 300,
-                        isResizable: true,
-                        scrollbarTopMargin: 0,
-                        autoHandleResponsiveVisibility: false,
-                        onClose: _toggleLeftSidebar,
-                        onPaneWidthChanged: (width) {
-                          _leftSidebarWidth = width;
-                        },
-                        onPaneResizeEnd: _saveSizes,
-                        paneContent: _buildSidebar(state),
-                        mainContent: Stack(
-                          children: [
-                            // הגדרת "רוחב הטקסט" מגבילה כאן את כל תוכן הדף
-                            // (טקסט + מפרשים) עם שוליים בצדדים.
-                            LayoutBuilder(
-                              builder: (context, pageConstraints) => _buildPage(
-                                context,
-                                pageConstraints,
-                                state,
-                                showBottom: showBottom,
-                                showBottomRight: showBottomRight,
+                                screen.maxWidth * _kSidebarDefaultFraction,
+                            screen.maxWidth * _kSidebarMaxFraction,
+                          ),
+                          minPaneWidth: 220,
+                          maxPaneWidth: screen.maxWidth * _kSidebarMaxFraction,
+                          minMainContentWidth: 300,
+                          isResizable: true,
+                          scrollbarTopMargin: 0,
+                          autoHandleResponsiveVisibility: false,
+                          onClose: _toggleLeftSidebar,
+                          onPaneWidthChanged: (width) {
+                            _leftSidebarWidth = width;
+                          },
+                          onPaneResizeEnd: _saveSizes,
+                          paneContent: _buildSidebar(state),
+                          mainContent: Stack(
+                            children: [
+                              // הגדרת "רוחב הטקסט" מגבילה כאן את כל תוכן הדף
+                              // (טקסט + מפרשים) עם שוליים בצדדים.
+                              LayoutBuilder(
+                                builder: (context, pageConstraints) =>
+                                    _buildPage(
+                                      context,
+                                      pageConstraints,
+                                      state,
+                                      showBottom: showBottom,
+                                      showBottomRight: showBottomRight,
+                                    ),
                               ),
-                            ),
-                            // כפתור צף לפתיחת הסיידבר
-                            if (!_isLeftSidebarOpen)
-                              Positioned(
-                                left: 0,
-                                top: MediaQuery.of(context).size.height * 0.10,
-                                child: PanelOpenHandle(
+                              // כפתור צף לפתיחת הסיידבר
+                              if (!_isLeftSidebarOpen)
+                                PositionedPanelOpenHandle(
                                   onTap: _openCommentatorsPane,
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       // פאנל הגדרות צורת הדף — overlay צף בצד הימני הויזואלי

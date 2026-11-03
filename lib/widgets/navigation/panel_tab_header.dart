@@ -52,6 +52,34 @@ class PanelTab extends StatelessWidget {
   }
 }
 
+/// [PanelOpenHandle] במקומו הקבוע: בשוליים השמאליים של ה-Stack, בעשירית
+/// מגובהו — של המכל, לא של החלון, כדי שבחלונית מפוצלת הידית תישאר בתוכה.
+/// צריך להיות ילד ישיר של Stack.
+class PositionedPanelOpenHandle extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const PositionedPanelOpenHandle({super.key, required this.onTap});
+
+  /// המרחק מראש המכל, כחלק מגובהו.
+  static const double topFraction = 0.10;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: 0,
+    top: 0,
+    bottom: 0,
+    child: LayoutBuilder(
+      builder: (context, constraints) => Padding(
+        padding: EdgeInsets.only(top: constraints.maxHeight * topFraction),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: PanelOpenHandle(onTap: onTap),
+        ),
+      ),
+    ),
+  );
+}
+
 /// כפתור "הצג מפרשים" — רצועה מונפשת בשולי המסך שמתרחבת עם hover ועם פוקוס.
 class PanelOpenHandle extends StatefulWidget {
   final VoidCallback onTap;

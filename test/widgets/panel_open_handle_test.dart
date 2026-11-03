@@ -59,4 +59,26 @@ void main() {
       }
     },
   );
+
+  testWidgets('PositionedPanelOpenHandle sits a tenth down its container', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 400,
+            child: Stack(
+              children: [PositionedPanelOpenHandle(onTap: () {})],
+            ),
+          ),
+        ),
+      ),
+    );
+    final rect = tester.getRect(find.byType(PanelOpenHandle));
+    expect(rect.left, 0);
+    expect(rect.top, 40);
+  });
 }
