@@ -1563,6 +1563,26 @@
         {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"f9f7b292","n":1},
         {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"89f0467d","n":4}
       ]
+    },
+    "UIL-030": {
+      "lib/pdf_book/view/pdf_book_screen.dart": [
+        {"scope":"_PdfBookScreenState._pageDropShadow","fp":"ce1f078a","n":1}
+      ],
+      "lib/pdf_book/view/pdf_thumbnails_screen.dart": [
+        {"scope":"_PageThumbnailState._pageShadow","fp":"ce1f078a","n":1}
+      ],
+      "lib/settings/panels/tools_management_panel.dart": [
+        {"scope":"_AnimatedPluginMoveWrapperState.build","fp":"ce1f078a","n":1}
+      ],
+      "lib/settings/search/settings_anchor.dart": [
+        {"scope":"_SettingsAnchorState.build","fp":"ce1f078a","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
+        {"scope":"_CompletionAnimationState.build","fp":"ce1f078a","n":1}
+      ],
+      "lib/tools/view/tools_launcher_panel.dart": [
+        {"scope":"_MovePulseState.build","fp":"ce1f078a","n":1}
+      ]
     }
   }
 }
