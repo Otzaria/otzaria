@@ -58,4 +58,5 @@ const List<String> pluginNetworkAllowlist = <String>[
   'https://api.github.com/repos/yakov100/otzaria-voice',
   'http://chavruta-relay.chavruta.workers.dev',
   'http://hiruv.com',
+  'https://oraysa-media.s3.amazonaws.com',
 ];
