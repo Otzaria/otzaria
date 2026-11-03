@@ -200,9 +200,6 @@
       ]
     },
     "UIL-015": {
-      "lib/settings/dialogs/color_picker_dialog.dart": [
-        {"scope":"_ColorPickerDialogState.build","fp":"2495af7e","n":1}
-      ],
       "lib/text_book/view/commentary_list_base.dart": [
         {"scope":"CommentaryListBaseState.build","fp":"87b7ed1e","n":1}
       ],
