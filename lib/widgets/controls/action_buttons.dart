@@ -41,6 +41,10 @@ class ActionButton extends StatelessWidget {
   /// שגיאה). null = primary.
   final Color? color;
 
+  /// צד האייקון: [IconAlignment.start] (ברירת המחדל) לפני הטקסט, או
+  /// [IconAlignment.end] אחריו ("הבא ←", "הצג עוד ⌄").
+  final IconAlignment iconAlignment;
+
   const ActionButton.recommended({
     super.key,
     required this.text,
@@ -52,6 +56,7 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
        color = null,
        _variant = _Variant.recommended;
@@ -68,6 +73,7 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
     this.errorText = false,
+    this.iconAlignment = IconAlignment.start,
   }) : color = null,
        _variant = _Variant.neutral;
 
@@ -82,6 +88,7 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
        color = null,
        _variant = _Variant.ghost;
@@ -97,6 +104,7 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
        color = null,
        _variant = _Variant.warning;
@@ -117,6 +125,7 @@ class ActionButton extends StatelessWidget {
        iconWidget = null,
        textAlign = TextAlign.start,
        errorText = false,
+       iconAlignment = IconAlignment.start,
        _variant = _Variant.inline;
 
   Color _loadingColor(ColorScheme cs) => switch (_variant) {
@@ -189,6 +198,7 @@ class ActionButton extends StatelessWidget {
         style: style,
         focusNode: focusNode,
         autofocus: autofocus,
+        iconAlignment: iconAlignment,
         icon: leading,
         label: label,
       ),
@@ -197,6 +207,7 @@ class ActionButton extends StatelessWidget {
         style: style,
         focusNode: focusNode,
         autofocus: autofocus,
+        iconAlignment: iconAlignment,
         icon: leading,
         label: label,
       ),
@@ -204,6 +215,7 @@ class ActionButton extends StatelessWidget {
         onPressed: onPressed,
         icon: leading,
         label: label,
+        iconAlignment: iconAlignment,
         style: style,
         focusNode: focusNode,
         autofocus: autofocus,

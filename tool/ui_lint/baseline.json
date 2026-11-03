@@ -1374,9 +1374,6 @@
       "lib/tools/aramaic_dictionary/widgets/aramaic_result_card.dart": [
         {"scope":"_ActionButton.build","fp":"7bf03073","n":1}
       ],
-      "lib/tools/biographies/widgets/biography_card.dart": [
-        {"scope":"_BiographyCardState._buildCard","fp":"7bf03073","n":1}
-      ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
         {"scope":"_CalendarEventDialogState._buildTimeField","fp":"7bf03073","n":1},
         {"scope":"_CalendarEventDialogState._pickerButton","fp":"7bf03073","n":1},

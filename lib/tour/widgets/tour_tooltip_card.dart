@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/tour/models/tour_shortcuts.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/widgets/tour_progress_dots.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 
@@ -207,25 +206,10 @@ class _TourNextButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text,
-          ),
-          const SizedBox(width: 8),
-          RtlIcon(icon),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ActionButton.recommended(
+    onPressed: onPressed,
+    icon: icon,
+    iconAlignment: IconAlignment.end,
+    text: text,
+  );
 }

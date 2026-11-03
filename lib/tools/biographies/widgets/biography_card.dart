@@ -235,23 +235,13 @@ class _BiographyCardState extends State<BiographyCard> {
           if (hasBody)
             Align(
               alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
+              child: ActionButton.ghost(
                 onPressed: _toggle,
-                icon: Icon(
-                  _expanded
-                      ? FluentIcons.chevron_up_24_regular
-                      : FluentIcons.chevron_down_24_regular,
-                  size: 18,
-                ),
+                icon: _expanded
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.chevron_down_24_regular,
                 iconAlignment: IconAlignment.end,
-                label: Text(_expanded ? 'הצג פחות' : 'הצג עוד'),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceSM,
-                  ),
-                ),
+                text: _expanded ? 'הצג פחות' : 'הצג עוד',
               ),
             ),
         ],
