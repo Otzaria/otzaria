@@ -473,10 +473,16 @@ class _ItemsListViewState extends State<ItemsListView> {
           return;
         }
       }
-      _itemScrollController.scrollTo(
-        index: rowIndex,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 150),
+      AppMotion.scroll(
+        context,
+        AppTokens.animFast,
+        animate: (duration) => _itemScrollController.scrollTo(
+          index: rowIndex,
+          alignment: 0.4,
+          duration: duration,
+        ),
+        jump: () =>
+            _itemScrollController.jumpTo(index: rowIndex, alignment: 0.4),
       );
     });
   }

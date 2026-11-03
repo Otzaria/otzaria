@@ -56,6 +56,7 @@ import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/update/app_release_version.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
 class SystemSettingsTab extends StatefulWidget {
@@ -647,7 +648,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 if (ctx != null) {
                   Scrollable.ensureVisible(
                     ctx,
-                    duration: const Duration(milliseconds: 200),
+                    duration: AppMotion.duration(
+                      ctx,
+                      AppTokens.animPanelOpacity,
+                    ),
                     alignment: 0.0,
                   );
                 }

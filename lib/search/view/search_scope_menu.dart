@@ -31,6 +31,7 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// כפתור-שדה אחד המרכז את כל סינון היקף החיפוש: הקלדה מסננת בזמן אמת, ותפריט
 /// עם ניווט drill-down פנימי (עץ הקטגוריות/ספרים, ספרי יסוד, תקופה, מחבר).
@@ -910,9 +911,10 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final target = _highlight * _rowHeight;
     final min = _scrollController.position.minScrollExtent;
     final max = _scrollController.position.maxScrollExtent;
-    _scrollController.animateTo(
+    AppMotion.scrollPosition(
+      _scrollController.position,
       (target - _rowHeight).clamp(min, max),
-      duration: const Duration(milliseconds: 120),
+      const Duration(milliseconds: 120),
       curve: Curves.easeOut,
     );
   }

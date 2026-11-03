@@ -88,4 +88,49 @@ void main() {
       await tester.pumpAndSettle();
     });
   });
+
+  group('AppMotion.scrollPosition (DD-21, q10 Q12)', () {
+    Future<ScrollController> list(
+      WidgetTester tester, {
+      required bool disableAnimations,
+    }) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _host(
+          disableAnimations: disableAnimations,
+          child: ListView(
+            controller: controller,
+            children: [for (var i = 0; i < 50; i++) const SizedBox(height: 50)],
+          ),
+        ),
+      );
+      return controller;
+    }
+
+    testWidgets('disableAnimations: קופץ ליעד מיד', (tester) async {
+      final controller = await list(tester, disableAnimations: true);
+      AppMotion.scrollPosition(
+        controller.position,
+        400,
+        AppTokens.animPanelSlide,
+      );
+      expect(controller.offset, 400);
+    });
+
+    testWidgets('בלי העדפה: גולל בהדרגה במשך הטוקן', (tester) async {
+      final controller = await list(tester, disableAnimations: false);
+      AppMotion.scrollPosition(
+        controller.position,
+        400,
+        AppTokens.animPanelSlide,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(controller.offset, greaterThan(0));
+      expect(controller.offset, lessThan(400));
+      await tester.pumpAndSettle();
+      expect(controller.offset, 400);
+    });
+  });
 }

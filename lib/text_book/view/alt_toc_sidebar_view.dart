@@ -30,6 +30,8 @@ import 'package:otzaria/text_book/utils/section_search_utils.dart'
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// "הלכות וסימנים" (`SimanNames`) ראשון — המבנה הראשון המתאים למיקום הוא
 /// שנפתח מעצמו; שאר המבנים בסדר המסד.
@@ -226,11 +228,16 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         return;
       }
     }
-    _searchScrollController.scrollTo(
-      index: index,
-      alignment: 0.3,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
+    AppMotion.scroll(
+      context,
+      AppTokens.animPanelOpacity,
+      animate: (duration) => _searchScrollController.scrollTo(
+        index: index,
+        alignment: 0.3,
+        duration: duration,
+        curve: Curves.easeInOut,
+      ),
+      jump: () => _searchScrollController.jumpTo(index: index, alignment: 0.3),
     );
   }
 
@@ -603,10 +610,10 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             (viewportHeight / 2) +
             (itemHeight / 2);
 
-        _sidebarScrollController.animateTo(
+        AppMotion.scrollPosition(
+          _sidebarScrollController.position,
           target.clamp(0.0, _sidebarScrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          AppTokens.animPanelSlide,
         );
 
         _lastScrolledEntryIds[structureId] = entryId;

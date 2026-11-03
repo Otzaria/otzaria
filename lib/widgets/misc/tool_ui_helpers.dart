@@ -57,9 +57,10 @@ void scrollToolContentByPage(
     0.0,
     position.maxScrollExtent,
   );
-  controller.animateTo(
+  AppMotion.scrollPosition(
+    position,
     target,
-    duration: const Duration(milliseconds: 180),
+    const Duration(milliseconds: 180),
     curve: Curves.easeOut,
   );
 }

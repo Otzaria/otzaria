@@ -44,6 +44,8 @@ import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// ערך מיוחד ל-_selectedParagraphIdx שמשמעו "כל הכותרת" (כל המפרשים בקטע),
 /// במקביל ל-_kAllChapter בכרטסיית הטקסט.
@@ -262,12 +264,18 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         _navSearchController.text,
       ).indexOf(_selectedHeadingIdx);
       if (headingIdx < 0) return;
-      _navScrollController.scrollTo(
-        // +1: פריט 0 הוא הכותרת הראשית.
-        index: headingIdx + 1,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+      // +1: פריט 0 הוא הכותרת הראשית.
+      final index = headingIdx + 1;
+      AppMotion.scroll(
+        context,
+        AppTokens.animPanelSlide,
+        animate: (duration) => _navScrollController.scrollTo(
+          index: index,
+          alignment: 0.4,
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+        jump: () => _navScrollController.jumpTo(index: index, alignment: 0.4),
       );
     });
   }

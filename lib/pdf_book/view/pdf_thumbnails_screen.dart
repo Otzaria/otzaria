@@ -6,6 +6,7 @@ import 'package:otzaria/pdf_book/utils/bounded_image_cache.dart';
 import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class ThumbnailsView extends StatefulWidget {
   const ThumbnailsView({
@@ -138,10 +139,10 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
       _scrollController.position.maxScrollExtent,
     );
     if (animate) {
-      _scrollController.animateTo(
+      AppMotion.scrollPosition(
+        _scrollController.position,
         offset,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        AppTokens.animPanelSlide,
       );
     } else {
       _scrollController.jumpTo(offset);
