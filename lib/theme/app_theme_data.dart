@@ -154,8 +154,11 @@ class AppThemeData {
           side: BorderSide(color: cs.outlineVariant),
         ),
       ),
+      // כפתור אייקון בלבד עגול (DD-04); כפתור עם רקע משלו קובע 8 בעצמו.
       iconButtonTheme: IconButtonThemeData(
-        style: _hoverButtonStyle(cs.primary),
+        style: _hoverButtonStyle(
+          cs.primary,
+        ).copyWith(shape: const WidgetStatePropertyAll(CircleBorder())),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: _hoverButtonStyle(cs.onPrimary),

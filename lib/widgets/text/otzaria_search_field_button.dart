@@ -100,6 +100,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
         style: selected
             ? IconButton.styleFrom(
                 backgroundColor: AppSurfaces.barButtonSelected(cs),
+                shape: AppTokens.roundedShape,
               )
             : null,
       ),

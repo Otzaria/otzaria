@@ -178,6 +178,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                       foregroundColor: Theme.of(
                         context,
                       ).colorScheme.onSurfaceVariant,
+                      shape: AppTokens.roundedShape,
                     ),
                   ),
                 ),

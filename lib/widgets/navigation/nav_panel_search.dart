@@ -434,7 +434,14 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                     child: _toggleOffscreen && !_isOpen
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
-                            shape: AppTokens.roundedShape,
+                            // בצורת כפתור האייקון שעליו (#1942).
+                            shape:
+                                Theme.of(
+                                  context,
+                                ).iconButtonTheme.style?.shape?.resolve(
+                                  const {},
+                                ) ??
+                                AppTokens.roundedShape,
                             elevation: AppTokens.elevation1,
                             shadowColor: AppShadows.color(
                               Theme.of(context).colorScheme,

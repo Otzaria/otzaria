@@ -413,6 +413,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
           foregroundColor: cs.onPrimaryContainer,
           visualDensity: VisualDensity.compact,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: AppTokens.roundedShape,
         ),
       ),
     );

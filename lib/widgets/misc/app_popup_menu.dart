@@ -187,6 +187,7 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         style: IconButton.styleFrom(
           backgroundColor: cs.secondaryContainer,
           foregroundColor: cs.onSecondaryContainer,
+          shape: AppTokens.roundedShape,
         ),
         icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
       );
