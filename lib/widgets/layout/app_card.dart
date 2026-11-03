@@ -11,6 +11,10 @@ enum AppCardTone {
 
   /// שגיאה: `errorContainer`.
   error,
+
+  /// כרטיס שיושב בתוך כרטיס אחר (למשל בתוך SettingsCard): `surfaceContainerHigh`,
+  /// כדי שיובחן מהמשטח שסביבו. הטקסט נשאר בצבעי ברירת המחדל.
+  inset,
 }
 
 /// כרטיס תוכן מרכזי עם צבע ופינות מעוגלות אחידים, ומסגרת `outlineVariant`
@@ -117,6 +121,7 @@ class AppCard extends StatelessWidget {
       AppCardTone.normal => (AppSurfaces.card(context), null),
       AppCardTone.primary => (cs.primaryContainer, cs.onPrimaryContainer),
       AppCardTone.error => (cs.errorContainer, cs.onErrorContainer),
+      AppCardTone.inset => (cs.surfaceContainerHigh, null),
     };
     final color = selected ? AppSurfaces.selectedRow(cs) : toneColor;
     Widget content = child!;
