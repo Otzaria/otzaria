@@ -8,6 +8,7 @@ import 'literal_radius_rule.dart';
 import 'literal_width_breakpoint_rule.dart';
 import 'local_alpha_rule.dart';
 import 'material_icons_rule.dart';
+import 'physical_direction_rule.dart';
 import 'primary_color_rule.dart';
 import 'raw_dialog_rule.dart';
 import 'raw_menu_rule.dart';
@@ -36,6 +37,7 @@ const List<UiLintRule> uiLintRules = [
   LiteralRadiusRule(),
   LiteralWidthBreakpointRule(),
   SpacingScaleRule(),
+  PhysicalDirectionRule(),
   SharedFeatureImportRule(),
   LiteralElevationRule(),
 ];

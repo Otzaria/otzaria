@@ -195,6 +195,7 @@ const top = TextStyle(fontSize: 11);
         'uil_017',
         'uil_019',
         'uil_020',
+        'uil_021',
       ]) {
         expect(
           _lint(
