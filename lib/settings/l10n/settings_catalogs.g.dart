@@ -1362,6 +1362,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'עם הכולל': 'Im Hakollel',
     'ענבר': 'Amber',
     'עצור': 'Stop',
+    'עצור את החיפוש': 'Stop the search',
     'עצור הצגה אוטומטית': 'Stop Showing Automatically',
     'עצירת עדכון': 'Stop the update?',
     'ערוך': 'Edit',
