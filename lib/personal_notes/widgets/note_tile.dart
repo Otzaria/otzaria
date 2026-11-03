@@ -8,6 +8,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class NoteTile extends StatefulWidget {
   final PersonalNote note;
@@ -261,44 +262,26 @@ class _NoteActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
+        AppIconButton(
+          size: AppIconButtonSize.small,
           tooltip: 'עריכה',
-          icon: const Icon(FluentIcons.edit_24_regular, size: 18),
-          iconSize: 18,
-          padding: const EdgeInsets.all(8),
-          constraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 32,
-          ),
+          icon: const Icon(FluentIcons.edit_24_regular),
           onPressed: onEdit,
         ),
         ?extraAction,
-        IconButton(
+        AppIconButton(
+          size: AppIconButtonSize.small,
           tooltip: 'מחיקה',
-          icon: const Icon(FluentIcons.delete_24_regular, size: 18),
-          iconSize: 18,
-          padding: const EdgeInsets.all(8),
-          constraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 32,
-          ),
+          icon: const Icon(FluentIcons.delete_24_regular),
           onPressed: onDelete,
         ),
-        IconButton(
+        AppIconButton(
+          size: AppIconButtonSize.small,
           tooltip: isExpanded ? 'סגור' : 'פתח',
           icon: AnimatedRotation(
             turns: isExpanded ? 0.5 : 0.0,
             duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-            child: const Icon(
-              FluentIcons.chevron_down_24_regular,
-              size: 18,
-            ),
-          ),
-          iconSize: 18,
-          padding: const EdgeInsets.all(8),
-          constraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 32,
+            child: const Icon(FluentIcons.chevron_down_24_regular),
           ),
           onPressed: onToggleExpansion,
         ),
