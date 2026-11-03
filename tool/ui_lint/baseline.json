@@ -1298,6 +1298,128 @@
         {"scope":"<top>","fp":"cff68829","n":1}
       ]
     },
+    "UIL-028": {
+      "lib/app_report/view/app_report_dialog.dart": [
+        {"scope":"showAppReportDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/app_report/view/crash_prompt_dialog.dart": [
+        {"scope":"showCrashPromptDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/bookmarks/view/book_bookmarks_action.dart": [
+        {"scope":"showBookBookmarksDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/bookmarks/view/save_group_bookmark_dialog.dart": [
+        {"scope":"showSaveGroupBookmarkDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/core/windowing/mac_menu_bar.dart": [
+        {"scope":"MacMenuBar._showDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/library/view/book_versions_dialog.dart": [
+        {"scope":"showBookVersionsDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/library/view/library_browser.dart": [
+        {"scope":"_LibraryBrowserState._openOtzarBook","fp":"3e6ca19c","n":1},
+        {"scope":"_LibraryBrowserState._openSearchDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/navigation/view/custom_title_bar.dart": [
+        {"scope":"_CustomTitleBarState._showBookmarksDialog","fp":"3e6ca19c","n":1},
+        {"scope":"_CustomTitleBarState._showHistoryDialog","fp":"3e6ca19c","n":1},
+        {"scope":"_CustomTitleBarState._showSaveWorkspaceDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/navigation/view/main_window_screen.dart": [
+        {"scope":"MainWindowScreenState._dispatchExternalUriAction","fp":"3e6ca19c","n":2},
+        {"scope":"MainWindowScreenState._handleFindRefOpen","fp":"3e6ca19c","n":1},
+        {"scope":"MainWindowScreenState._handleSearchTabOpen","fp":"3e6ca19c","n":1},
+        {"scope":"MainWindowScreenState._showPluginInstallDialog","fp":"3e6ca19c","n":2}
+      ],
+      "lib/navigation/view/tab_search_menu.dart": [
+        {"scope":"_TabSearchPanelState._openHistory","fp":"3e6ca19c","n":1}
+      ],
+      "lib/pdf_book/view/pdf_book_screen.dart": [
+        {"scope":"_PdfBookScreenState._handlePrintPress","fp":"3e6ca19c","n":1}
+      ],
+      "lib/pdf_book/view/pdf_commentary_panel.dart": [
+        {"scope":"PdfCommentaryPanelState.printDisplayedCommentaries","fp":"3e6ca19c","n":1}
+      ],
+      "lib/personal_notes/view/personal_notes_screen.dart": [
+        {"scope":"_PersonalNotesManagerScreenState._editNote","fp":"3e6ca19c","n":1},
+        {"scope":"_PersonalNotesManagerScreenState._exportSelected","fp":"3e6ca19c","n":1},
+        {"scope":"_PersonalNotesManagerScreenState._importNotes","fp":"3e6ca19c","n":1}
+      ],
+      "lib/personal_notes/widgets/note_draft_decision_dialog.dart": [
+        {"scope":"showNoteDraftDecisionDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/personal_notes/widgets/personal_note_editor.dart": [
+        {"scope":"_PersonalNoteEditorBodyState._insertLink","fp":"3e6ca19c","n":1}
+      ],
+      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
+        {"scope":"openNoteLink","fp":"3e6ca19c","n":1}
+      ],
+      "lib/plugins/bridge/plugin_bridge_adapter.dart": [
+        {"scope":"PluginBridgeAdapter._defaultPrintBookRange","fp":"3e6ca19c","n":1},
+        {"scope":"PluginBridgeAdapter._defaultPrintPluginFile","fp":"3e6ca19c","n":1}
+      ],
+      "lib/plugins/view/plugin_dev_error_view.dart": [
+        {"scope":"PluginDevErrorView.build","fp":"3e6ca19c","n":1}
+      ],
+      "lib/search/view/in_book_advanced_search_dialog.dart": [
+        {"scope":"showInBookAdvancedSearchDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/search/view/tantivy_full_text_search.dart": [
+        {"scope":"_TantivyFullTextSearchState._openEditDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/semantic_search/view/semantic_search_results_screen.dart": [
+        {"scope":"_SemanticSearchResultsScreenState._openEditDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/shortcuts/keyboard_shortcuts.dart": [
+        {"scope":"_KeyboardShortcutsState._handleKeyEvent","fp":"3e6ca19c","n":5}
+      ],
+      "lib/shortcuts/view/shortcut_dropdown_tile.dart": [
+        {"scope":"_ShortcutDropDownTileState._handleSelection","fp":"3e6ca19c","n":1}
+      ],
+      "lib/text_book/view/error_report_dialog.dart": [
+        {"scope":"ErrorReportHelper.showErrorReportDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/text_book/view/page_shape/simple_text_viewer.dart": [
+        {"scope":"_SimpleTextViewerState._createCommentaryNote","fp":"3e6ca19c","n":1}
+      ],
+      "lib/text_book/view/reader_print_actions.dart": [
+        {"scope":"showPrintingScreen","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/biographies/widgets/biographies_credit_line.dart": [
+        {"scope":"BiographiesCreditLine._showCredits","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/calendar/calendar_screen.dart": [
+        {"scope":"CalendarWidgetState._togglePrintCalendar","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
+        {"scope":"_CalendarEventDialogState._pickColorWithDialog","fp":"3e6ca19c","n":1},
+        {"scope":"_CalendarEventDialogState._pickDateWithDialog","fp":"3e6ca19c","n":1},
+        {"scope":"_CalendarEventDialogState._showCustomNotificationDialog","fp":"3e6ca19c","n":1},
+        {"scope":"showCalendarEventDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/calendar/dialogs/calendar_print_dialog.dart": [
+        {"scope":"showCalendarPrintDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/calendar/dialogs/calendar_zman_alert_dialog.dart": [
+        {"scope":"showZmanAlertDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
+        {"scope":"showZmanimSettingsDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
+        {"scope":"showAddBooksToTrackingDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/tools/tikkun_korim/view/tikkun_korim_screen.dart": [
+        {"scope":"_TikkunKorimViewState._print","fp":"3e6ca19c","n":1}
+      ],
+      "lib/update/hebrew_update_widgets.dart": [
+        {"scope":"hebrewDefaultDialog","fp":"3e6ca19c","n":1}
+      ],
+      "lib/utils/ui/context_menu_utils.dart": [
+        {"scope":"ContextMenuUtils._createCommentaryNote","fp":"3e6ca19c","n":1}
+      ]
+    },
     "UIL-029": {
       "lib/app_report/view/app_report_dialog.dart": [
         {"scope":"_AppReportDialogState._buildDraftNotice","fp":"7bf03073","n":1},
