@@ -198,3 +198,9 @@ rules:
 
   UIL-026:
     strict: true
+
+
+  UIL-028:
+    exclude:
+      - path: lib/widgets/dialogs/**
+        reason: העזרים המשותפים שבונים את הדיאלוגים (showDialogUntilTornDown)
