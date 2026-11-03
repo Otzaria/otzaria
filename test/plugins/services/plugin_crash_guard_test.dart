@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -184,28 +185,29 @@ void main() {
       expect(PluginCrashGuard.isBlocked('com.ok.plugin'), false);
     });
 
-    test('markLoadSuccessSync clears the plugin from disk', () async {
+    test('markLoadSuccess מ-dispose מנקה את הסימון מהדיסק', () async {
       await PluginCrashGuard.markLoadAttempt('com.sync.plugin');
 
-      // sync clear (the path used by dispose())
-      PluginCrashGuard.markLoadSuccessSync('com.sync.plugin');
+      // dispose() מפעיל בלי await; העדכון בזיכרון מיידי
+      final cleared = PluginCrashGuard.markLoadSuccess('com.sync.plugin');
       expect(PluginCrashGuard.isBlocked('com.sync.plugin'), false);
+      await cleared;
 
-      // persisted to disk synchronously — visible on next "launch"
       PluginCrashGuard.resetForTesting();
       await PluginCrashGuard.ensureInitialized();
       expect(PluginCrashGuard.isBlocked('com.sync.plugin'), false);
     });
 
-    test('markLoadSuccessSync is safe when not initialized yet', () {
-      // לא קורא ל-ensureInitialized — שמיר על rule שזה בטוח בכל מצב
-      PluginCrashGuard.markLoadSuccessSync('any.plugin'); // לא זורק
+    test('markLoadSuccess לפני אתחול אינו כותב לדיסק', () async {
+      await PluginCrashGuard.markLoadSuccess('any.plugin');
+      expect(await File(_guardPath(tempDir)).exists(), false);
     });
 
-    test('markLoadAttemptSync persists immediately', () async {
+    test('markLoadAttemptIfInitialized מסתיים כשהסימון כבר בדיסק', () async {
       await PluginCrashGuard.ensureInitialized();
-      PluginCrashGuard.markLoadAttemptSync('com.sync.attempt');
+      await PluginCrashGuard.markLoadAttemptIfInitialized('com.sync.attempt');
       expect(PluginCrashGuard.isBlocked('com.sync.attempt'), false);
+      expect(_blockedOnDisk(tempDir), ['com.sync.attempt']);
 
       // verified on next "launch"
       PluginCrashGuard.resetForTesting();
@@ -213,8 +215,43 @@ void main() {
       expect(PluginCrashGuard.isBlocked('com.sync.attempt'), true);
     });
 
-    test('markLoadAttemptSync is safe when not initialized yet', () {
-      PluginCrashGuard.markLoadAttemptSync('something'); // לא זורק
+    test('markLoadAttemptIfInitialized לפני אתחול אינו מסמן', () async {
+      expect(PluginCrashGuard.markLoadAttemptIfInitialized('something'), null);
+      expect(await File(_guardPath(tempDir)).exists(), false);
+    });
+
+    test('מסלול הסימון אינו כותב לדיסק באופן סינכרוני (#4008)', () async {
+      final spy = _SyncIoSpy();
+      await IOOverrides.runWithIOOverrides(() async {
+        await PluginCrashGuard.ensureInitialized();
+        await PluginCrashGuard.markLoadAttempt('com.async.plugin', owner: 't');
+        await PluginCrashGuard.markLoadSuccess('com.async.plugin', owner: 't');
+        await PluginCrashGuard.markLoadAttempt('com.async.plugin', owner: 't');
+        await PluginCrashGuard.markCleanShutdown();
+      }, spy);
+      expect(spy.syncCalls, isEmpty);
+      expect(spy.asyncWrites, 4);
+    });
+
+    test('סגירה בזמן שמירת הסימון אינה משאירה סימון ישן', () async {
+      await PluginCrashGuard.ensureInitialized();
+      final attempt = _attempt('com.closing.plugin', 'tab-1');
+      // dispose רץ לפני שהשמירה הסתיימה
+      final cleared = PluginCrashGuard.markLoadSuccess(
+        'com.closing.plugin',
+        owner: 'tab-1',
+      );
+      await Future.wait([attempt, cleared]);
+      expect(_blockedOnDisk(tempDir), isEmpty);
+    });
+
+    test('סגירה יזומה ממתינה לכתיבה של טאב שנסגר רגע לפניה', () async {
+      await PluginCrashGuard.markLoadAttempt('com.tab.plugin', owner: 'tab-1');
+      unawaited(
+        PluginCrashGuard.markLoadSuccess('com.tab.plugin', owner: 'tab-1'),
+      );
+      await PluginCrashGuard.markCleanShutdown();
+      expect(_blockedOnDisk(tempDir), isEmpty);
     });
 
     test('ניסיון בסשן הנוכחי אינו נחשב חסימה — rebuild באמצע טעינה לא '
@@ -238,7 +275,7 @@ void main() {
     });
 
     test(
-      'markCleanShutdownSync מנקה canaries בטיסה אך לא quarantine קיים',
+      'markCleanShutdown מנקה canaries בטיסה אך לא quarantine קיים',
       () async {
         // quarantine מהפעלה קודמת + טעינה חדשה שבטיסה ברגע הסגירה
         await PluginCrashGuard.markLoadAttempt('com.old.blocked');
@@ -246,7 +283,7 @@ void main() {
         await PluginCrashGuard.ensureInitialized();
         await PluginCrashGuard.markLoadAttempt('com.inflight.plugin');
 
-        PluginCrashGuard.markCleanShutdownSync();
+        await PluginCrashGuard.markCleanShutdown();
 
         // הפעלה הבאה: הבטיסה נוקתה, החסום נשאר חסום
         PluginCrashGuard.resetForTesting();
@@ -256,8 +293,8 @@ void main() {
       },
     );
 
-    test('markCleanShutdownSync בטוח לפני אתחול', () {
-      PluginCrashGuard.markCleanShutdownSync(); // לא זורק
+    test('markCleanShutdown בטוח לפני אתחול', () async {
+      await PluginCrashGuard.markCleanShutdown(); // לא זורק
     });
 
     test('canary נשאר עד אירוע מפורש — אין ניקוי לפי זמן', () async {
@@ -272,11 +309,12 @@ void main() {
 
     test('שני מופעים טוענים — סגירת האחד לא מנקה canary של השני', () async {
       await PluginCrashGuard.ensureInitialized();
-      PluginCrashGuard.markLoadAttemptSync('com.two.plugin', owner: 'tab-1');
-      PluginCrashGuard.markLoadAttemptSync('com.two.plugin', owner: 'tab-2');
-
-      // המופע הראשון נסגר תקין בזמן שהשני עוד באמצע טעינה — ואז קריסה.
-      PluginCrashGuard.markLoadSuccessSync('com.two.plugin', owner: 'tab-1');
+      await Future.wait([
+        _attempt('com.two.plugin', 'tab-1'),
+        _attempt('com.two.plugin', 'tab-2'),
+        // המופע הראשון נסגר תקין בזמן שהשני עוד באמצע טעינה — ואז קריסה.
+        PluginCrashGuard.markLoadSuccess('com.two.plugin', owner: 'tab-1'),
+      ]);
 
       PluginCrashGuard.resetForTesting();
       await PluginCrashGuard.ensureInitialized();
@@ -285,10 +323,12 @@ void main() {
 
     test('שני מופעים — ה-canary נמחק רק כשהאחרון שבהם מסיים', () async {
       await PluginCrashGuard.ensureInitialized();
-      PluginCrashGuard.markLoadAttemptSync('com.two.plugin', owner: 'tab-1');
-      PluginCrashGuard.markLoadAttemptSync('com.two.plugin', owner: 'tab-2');
-      PluginCrashGuard.markLoadSuccessSync('com.two.plugin', owner: 'tab-1');
-      PluginCrashGuard.markLoadSuccessSync('com.two.plugin', owner: 'tab-2');
+      await Future.wait([
+        _attempt('com.two.plugin', 'tab-1'),
+        _attempt('com.two.plugin', 'tab-2'),
+        PluginCrashGuard.markLoadSuccess('com.two.plugin', owner: 'tab-1'),
+        PluginCrashGuard.markLoadSuccess('com.two.plugin', owner: 'tab-2'),
+      ]);
 
       PluginCrashGuard.resetForTesting();
       await PluginCrashGuard.ensureInitialized();
@@ -305,13 +345,14 @@ void main() {
       expect(PluginCrashGuard.isBlocked('com.two.plugin'), true);
     });
 
-    test('attempt+success סינכרוני אטומי — אין race', () async {
-      // מדמה את התרחיש: onWebViewCreated קורא markLoadAttemptSync, ומיד
-      // לאחר מכן dispose() קורא markLoadSuccessSync. שניהם sync, אין
-      // ביניהם async gap. התוצאה: התוסף לא נשאר ב-quarantine.
+    test('attempt ומיד success — אין race', () async {
+      // פתיחת הטאב מסמנת ומיד dispose() מנקה, בלי await ביניהם;
+      // התור הסדרתי מבטיח שהתוסף לא נשאר ב-quarantine.
       await PluginCrashGuard.ensureInitialized();
-      PluginCrashGuard.markLoadAttemptSync('com.race.plugin');
-      PluginCrashGuard.markLoadSuccessSync('com.race.plugin');
+      await Future.wait([
+        _attempt('com.race.plugin', ''),
+        PluginCrashGuard.markLoadSuccess('com.race.plugin'),
+      ]);
 
       // verify on next launch
       PluginCrashGuard.resetForTesting();
@@ -319,4 +360,93 @@ void main() {
       expect(PluginCrashGuard.isBlocked('com.race.plugin'), false);
     });
   });
+}
+
+Future<void> _attempt(String pluginId, String owner) =>
+    PluginCrashGuard.markLoadAttemptIfInitialized(pluginId, owner: owner)!;
+
+String _guardPath(Directory root) =>
+    p.join(root.path, 'plugin_crash_guard.json');
+
+List<Object?> _blockedOnDisk(Directory root) =>
+    (jsonDecode(File(_guardPath(root)).readAsStringSync()) as Map)['blocked']
+        as List<Object?>;
+
+/// מתעד גישה סינכרונית לקובץ ה-guard ולתיקיות; השאר עובר לקבצים אמיתיים.
+final class _SyncIoSpy extends IOOverrides {
+  final syncCalls = <String>[];
+  int asyncWrites = 0;
+
+  @override
+  File createFile(String path) {
+    final real = super.createFile(path);
+    return path.contains('plugin_crash_guard') ? _SpyFile(real, this) : real;
+  }
+
+  @override
+  Directory createDirectory(String path) =>
+      _SpyDirectory(super.createDirectory(path), this);
+}
+
+class _SpyFile implements File {
+  _SpyFile(this._real, this._spy);
+  final File _real;
+  final _SyncIoSpy _spy;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Directory get parent => Directory(p.dirname(path));
+
+  @override
+  Future<bool> exists() => _real.exists();
+
+  @override
+  Future<String> readAsString({Encoding encoding = utf8}) =>
+      _real.readAsString(encoding: encoding);
+
+  @override
+  Future<File> writeAsString(
+    String contents, {
+    FileMode mode = FileMode.write,
+    Encoding encoding = utf8,
+    bool flush = false,
+  }) {
+    _spy.asyncWrites++;
+    return _real.writeAsString(
+      contents,
+      mode: mode,
+      encoding: encoding,
+      flush: flush,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    _spy.syncCalls.add('File.${invocation.memberName}');
+    return super.noSuchMethod(invocation);
+  }
+}
+
+class _SpyDirectory implements Directory {
+  _SpyDirectory(this._real, this._spy);
+  final Directory _real;
+  final _SyncIoSpy _spy;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Future<Directory> create({bool recursive = false}) =>
+      _real.create(recursive: recursive);
+
+  @override
+  Future<bool> exists() => _real.exists();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    _spy.syncCalls.add('Directory.${invocation.memberName}');
+    return super.noSuchMethod(invocation);
+  }
 }

@@ -202,6 +202,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// מוחלף רק כשה-WebView משוחרר, כדי שהבא ייווצר מאפס.
   GlobalKey _webViewKey = GlobalKey();
 
+  /// ה-WebView שסימון הטעינה שלו כבר בדיסק; רק הוא נבנה.
+  GlobalKey? _crashGuardArmedKey;
+  bool _crashGuardArming = false;
+
   /// ה-WebView שוחרר (פינוי או נפילה) וייווצר מחדש כשהמופע יוצג.
   bool _webViewReleased = false;
   PluginRestoreReason? _releaseReason;
@@ -350,7 +354,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     // במסך שגיאה ה-WebView ירד מהעץ וה-controller מת — ניקוי הדגל בונה
     // WebView חדש שטוען מחדש את נקודת הכניסה, במקום reload על controller מת.
     if (_hasError) {
-      setState(() => _hasError = false);
+      setState(() {
+        _hasError = false;
+        _crashGuardArmedKey = null;
+      });
       return;
     }
 
@@ -360,7 +367,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       // במסך שגיאת חיבור אין WebView חי (ה-controller מת) — ניקוי השגיאה בונה
       // WebView חדש שטוען את כתובת השרת מחדש, במקום reload על controller מת.
       if (_devErrorMessage != null) {
-        setState(() => _devErrorMessage = null);
+        setState(() {
+          _devErrorMessage = null;
+          _crashGuardArmedKey = null;
+        });
         return;
       }
       try {
@@ -422,13 +432,15 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         );
         return;
       }
+      // אחרי שגיאה יש לבנות WebView חדש (עם סימון חדש), ולא לטעון ב-controller המת.
+      final rebuild = wasInError || webViewController == null;
       setState(() {
         _devErrorMessage = null;
         _entrypointMissing = false;
+        if (rebuild) _crashGuardArmedKey = null;
       });
 
-      if (wasInError || webViewController == null) {
-        // אחרי שגיאה יש לבנות WebView חדש, ולא לטעון כתובת ב-controller המת.
+      if (rebuild) {
         webViewController = null;
         return;
       }
@@ -439,9 +451,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     } catch (e) {
       webViewController = null;
       if (mounted) {
-        setState(
-          () => _devErrorMessage = 'שגיאה בלתי צפויה בריענון התוסף: $e',
-        );
+        setState(() {
+          _devErrorMessage = 'שגיאה בלתי צפויה בריענון התוסף: $e';
+          _crashGuardArmedKey = null;
+        });
       }
     }
   }
@@ -470,7 +483,42 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       },
       creationFailure: true,
     );
-    setState(() => _creationFailure = failure.error.toString());
+    // הכשל דווח מ-Dart, כלומר התהליך חי; "נסה שוב" יסמן מחדש.
+    unawaited(
+      PluginCrashGuard.markLoadSuccess(
+        widget.plugin.pluginId,
+        owner: widget.instanceId,
+      ),
+    );
+    setState(() {
+      _creationFailure = failure.error.toString();
+      _crashGuardArmedKey = null;
+    });
+  }
+
+  /// הסימון נשמר לפני יצירת ה-WebView, כך שקריסה native ביצירה או בטעינה
+  /// משאירה אותו. false כל עוד השמירה בדרך; בסיומה הטאב נבנה מחדש.
+  bool _crashGuardArmed() {
+    final key = _webViewKey;
+    if (_crashGuardArmedKey == key) return true;
+    if (_crashGuardArming) return false;
+    final persisted = PluginCrashGuard.markLoadAttemptIfInitialized(
+      widget.plugin.pluginId,
+      owner: widget.instanceId,
+    );
+    if (persisted == null) {
+      _crashGuardArmedKey = key;
+      return true;
+    }
+    _crashGuardArming = true;
+    unawaited(
+      persisted.then((_) {
+        _crashGuardArming = false;
+        // אם הטאב נסגר בינתיים, dispose כבר ניקה את הסימון של המופע.
+        if (mounted) setState(() => _crashGuardArmedKey = key);
+      }),
+    );
+    return false;
   }
 
   WebUri get _entrypointUri =>
@@ -498,12 +546,13 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
 
   @override
   void dispose() {
-    // dispose = unmount רגיל (סגירת טאב) בזמן שהתהליך חי — לא קריסה, מנקים
-    // את ה-canary. סגירת האפליקציה לא מריצה dispose; אותה מכסה
-    // PluginCrashGuard.markCleanShutdownSync ב-onWindowClose.
-    PluginCrashGuard.markLoadSuccessSync(
-      widget.plugin.pluginId,
-      owner: widget.instanceId,
+    // סגירת טאב אינה קריסה. סגירת האפליקציה לא מריצה dispose; אותה מכסה
+    // PluginCrashGuard.markCleanShutdown ב-onWindowClose.
+    unawaited(
+      PluginCrashGuard.markLoadSuccess(
+        widget.plugin.pluginId,
+        owner: widget.instanceId,
+      ),
     );
     _creationWatchdog?.cancel();
     unawaited(_creationFailureSub?.cancel());
@@ -645,6 +694,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
 
     final contentBlockers = pluginContentBlockers;
     if (contentBlockers == null) return const SizedBox.shrink();
+    if (!_crashGuardArmed()) return const LoadingIndicator();
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -693,12 +743,6 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         _creationWatchdog?.cancel();
         unawaited(_creationFailureSub?.cancel());
         _creationFailureSub = null;
-        // כתיבה סינכרונית מונעת מ-dispose לנקות לפני שהסימון נוסף,
-        // ומשאירה אותו בדיסק אם התהליך מת native בזמן הטעינה.
-        PluginCrashGuard.markLoadAttemptSync(
-          widget.plugin.pluginId,
-          owner: widget.instanceId,
-        );
         final attached = attachPluginController(controller, _entrypointUri, () {
           controller.addJavaScriptHandler(
             handlerName: 'otzaria_escape_pressed',

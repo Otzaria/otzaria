@@ -15,6 +15,8 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
@@ -63,11 +65,62 @@ final class _EntryFileSpy extends IOOverrides {
   Future<bool> manifestExists = Future.value(true);
   final existsCalls = <String>[];
   final existsSyncCalls = <String>[];
+  final guardWrites = <({String contents, Completer<void> done})>[];
 
   @override
-  File createFile(String path) => path.replaceAll(r'\', '/').startsWith(prefix)
-      ? _SpyFile(path, this)
-      : super.createFile(path);
+  File createFile(String path) {
+    final normalized = path.replaceAll(r'\', '/');
+    if (normalized.startsWith(_guardRoot)) return _GuardFile(path, this);
+    return normalized.startsWith(prefix)
+        ? _SpyFile(path, this)
+        : super.createFile(path);
+  }
+
+  @override
+  Directory createDirectory(String path) =>
+      path.replaceAll(r'\', '/').startsWith(_guardRoot)
+      ? _GuardDirectory(path)
+      : super.createDirectory(path);
+}
+
+const _guardRoot = '/guard';
+
+/// קובץ הגנת הקריסות: כל כתיבה ממתינה עד שהבדיקה משחררת אותה.
+class _GuardFile implements File {
+  _GuardFile(this.path, this._spy);
+  @override
+  final String path;
+  final _EntryFileSpy _spy;
+
+  @override
+  Directory get parent => _GuardDirectory(_guardRoot);
+
+  @override
+  Future<File> writeAsString(
+    String contents, {
+    FileMode mode = FileMode.write,
+    Encoding encoding = utf8,
+    bool flush = false,
+  }) {
+    final done = Completer<void>();
+    _spy.guardWrites.add((contents: contents, done: done));
+    return done.future.then((_) => this);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _GuardDirectory implements Directory {
+  _GuardDirectory(this.path);
+  @override
+  final String path;
+
+  @override
+  Future<Directory> create({bool recursive = false}) async => this;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _SpyFile implements File {
@@ -130,6 +183,7 @@ InstalledPlugin _plugin() => InstalledPlugin(
 
 class _FakePlatform extends InAppWebViewPlatform {
   final controller = _FakeController();
+  int webViewsCreated = 0;
 
   @override
   PlatformInAppWebViewController createPlatformInAppWebViewControllerStatic() =>
@@ -138,7 +192,10 @@ class _FakePlatform extends InAppWebViewPlatform {
   @override
   PlatformInAppWebViewWidget createPlatformInAppWebViewWidget(
     PlatformInAppWebViewWidgetCreationParams params,
-  ) => _FakeWebView(params);
+  ) {
+    webViewsCreated++;
+    return _FakeWebView(params);
+  }
 }
 
 class _FakeController extends PlatformInAppWebViewController {
@@ -443,5 +500,46 @@ void main() {
         devRootPath: 'http://localhost:5173/',
       ),
     );
+  });
+
+  group('סימון הגנת הקריסות (#4008)', () {
+    setUp(() {
+      AppPaths.debugOverrideDataRootPath(_guardRoot);
+      PluginCrashGuard.setInitialBlockedForTesting({});
+    });
+    tearDown(() {
+      AppPaths.debugOverrideDataRootPath(null);
+      PluginCrashGuard.resetForTesting();
+    });
+
+    testWidgets('ה-WebView נוצר רק אחרי שהסימון נשמר בדיסק', (tester) async {
+      final io = _EntryFileSpy('/install/')
+        ..entrypointResults.add(Future.value(true));
+      await _run(tester, io, (platform) async {
+        expect(platform.webViewsCreated, 0);
+        expect(io.guardWrites.single.contents, contains('test.plugin'));
+        io.guardWrites.single.done.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(platform.webViewsCreated, 1);
+        expect(find.text('התוסף מוכן'), findsOneWidget);
+      });
+    });
+
+    testWidgets('סגירה בזמן השמירה: אין WebView והסימון מנוקה', (tester) async {
+      final io = _EntryFileSpy('/install/')
+        ..entrypointResults.add(Future.value(true));
+      await _run(tester, io, (platform) async {
+        await tester.pumpWidget(const SizedBox());
+        io.guardWrites.single.done.complete();
+        await tester.pump();
+        expect(io.guardWrites, hasLength(2));
+        expect(io.guardWrites.last.contents, isNot(contains('test.plugin')));
+        io.guardWrites.last.done.complete();
+        await tester.pump();
+        expect(platform.webViewsCreated, 0);
+        expect(tester.takeException(), isNull);
+      });
+    });
   });
 }

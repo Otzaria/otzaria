@@ -24,7 +24,7 @@ import 'package:otzaria/core/app_paths.dart';
 /// את עצמו ב-`onLoadStop` — והתוסף חוזר לעבוד אוטומטית.
 ///
 /// **הגנות מפני האשמת-שווא**: [isBlocked] מתעלם מניסיונות של הסשן הנוכחי,
-/// ו-[markCleanShutdownSync] מנקה canaries בטיסה בסגירה יזומה.
+/// ו-[markCleanShutdown] מנקה canaries בטיסה בסגירה יזומה.
 class PluginCrashGuard {
   static Set<String>? _blocked;
   static String? _currentAppVersion;
@@ -125,36 +125,27 @@ class PluginCrashGuard {
     return _blocked?.contains(pluginId) ?? false;
   }
 
-  /// מסמן שמתחילים לטעון את התוסף. אם הקוד יקרוס מכאן והלאה, ההפעלה הבאה
-  /// תראה את ה-pluginId בקובץ ותסרב לטעון אותו אוטומטית.
+  /// מסמן שמתחילים לטעון את התוסף; ה-Future מסתיים כשהסימון כבר בדיסק.
+  /// אם הקוד יקרוס מכאן והלאה, ההפעלה הבאה תסרב לטעון אותו אוטומטית.
   /// [owner] מזהה את המופע הטוען — ראו [_loadsInFlight].
   static Future<void> markLoadAttempt(
     String pluginId, {
     String owner = '',
   }) async {
-    await ensureInitialized();
+    // אחרי האתחול העדכון בזיכרון סינכרוני, כדי ש-dispose מיידי ימצא אותו.
+    if (_blocked == null) await ensureInitialized();
     _sessionAttempts.add(pluginId);
     _loadsInFlight.putIfAbsent(pluginId, () => <String>{}).add(owner);
     _blocked!.add(pluginId);
     await _persist();
   }
 
-  /// גרסה סינכרונית של [markLoadAttempt] — לשימוש בנקודות שבהן חייבים
-  /// לעדכן את ה-canary לפני שקוד native קריטי רץ, ובלי לפתוח race עם
-  /// [markLoadSuccessSync] (לדוגמה, סגירה מהירה של הטאב/האפליקציה מיד
-  /// אחרי onWebViewCreated).
-  ///
-  /// דורש ש-[ensureInitialized] כבר רץ (main.dart דואג לזה באתחול).
-  static void markLoadAttemptSync(String pluginId, {String owner = ''}) {
-    final blocked = _blocked;
-    if (blocked == null) {
-      debugPrint('PluginCrashGuard.markLoadAttemptSync called before init');
-      return;
-    }
-    _sessionAttempts.add(pluginId);
-    _loadsInFlight.putIfAbsent(pluginId, () => <String>{}).add(owner);
-    if (blocked.add(pluginId)) _persistSync();
-  }
+  /// [markLoadAttempt] למסלול פתיחת התוסף: לפני האתחול (main.dart דואג לו)
+  /// אין סימון ואין IO, ומוחזר null.
+  static Future<void>? markLoadAttemptIfInitialized(
+    String pluginId, {
+    String owner = '',
+  }) => _blocked == null ? null : markLoadAttempt(pluginId, owner: owner);
 
   /// מסמן שסיום הטעינה של [owner] הגיע בעוד התהליך חי. הסימון מוסר מ-disk
   /// רק כשלא נותרה טעינה פתוחה של מופע אחר לאותו תוסף.
@@ -162,58 +153,25 @@ class PluginCrashGuard {
     String pluginId, {
     String owner = '',
   }) async {
-    await ensureInitialized();
-    if (!_finishLoad(pluginId, owner)) return;
-    final removed = _blocked!.remove(pluginId);
-    if (removed) await _persist();
-  }
-
-  /// גרסה סינכרונית של [markLoadSuccess] — לשימוש ב-`State.dispose()` בלבד,
-  /// כי שם async writes לא תמיד מגיעים ל-disk לפני שהאפליקציה נסגרת.
-  /// מבטיח שניקוי ה-canary יקרה גם בעת סגירה רגילה של התוכנה בזמן טעינה.
-  static void markLoadSuccessSync(String pluginId, {String owner = ''}) {
-    // לפני ensureInitialized ה-pluginId עוד לא נרשם, לא בזיכרון ולא בקובץ.
+    // לפני האתחול ה-pluginId עוד לא נרשם, לא בזיכרון ולא בקובץ.
     final blocked = _blocked;
     if (blocked == null) return;
     if (!_finishLoad(pluginId, owner)) return;
-    final removed = blocked.remove(pluginId);
-    if (!removed) return;
-    _persistSync();
+    if (blocked.remove(pluginId)) await _persist();
   }
 
   /// נקרא בתחילת סגירה יזומה (onWindowClose): מנקה canaries של טעינות בטיסה.
   /// סגירה רגילה אינה קריסה, וה-dispose של הטאבים לא רץ במסלול היציאה.
-  static void markCleanShutdownSync() {
+  static Future<void> markCleanShutdown() async {
     final blocked = _blocked;
-    if (blocked == null || _sessionAttempts.isEmpty) return;
-    _loadsInFlight.clear();
-    final before = blocked.length;
-    blocked.removeAll(_sessionAttempts);
-    if (blocked.length != before) _persistSync();
-  }
-
-  /// כתיבה סינכרונית ל-disk של מצב ה-_blocked הנוכחי.
-  /// חישוב הנתיב חייב להיות sync — `AppPaths.getDataRootPath()` הוא async,
-  /// ולכן משתמשים ב-`cachedDataRootPath` ש-AppPaths חושף אחרי שהוא חושב
-  /// פעם אחת (קורה ב-`_initializeDataRootForEarlyLogging` ב-main.dart,
-  /// ושוב ב-ensureInitialized של ה-guard).
-  static void _persistSync() {
-    final blocked = _blocked;
-    if (blocked == null) return;
-    try {
-      final cachedRoot = AppPaths.cachedDataRootPath;
-      if (cachedRoot == null) return; // לא ידוע הנתיב — לא ניתן לכתוב sync
-      final file = File(p.join(cachedRoot, 'plugin_crash_guard.json'));
-      if (!file.parent.existsSync()) {
-        file.parent.createSync(recursive: true);
-      }
-      file.writeAsStringSync(
-        jsonEncode(_serializeState()),
-        flush: true,
-      );
-    } catch (e) {
-      debugPrint('PluginCrashGuard: failed to persist (sync) state: $e');
+    if (blocked != null && _sessionAttempts.isNotEmpty) {
+      _loadsInFlight.clear();
+      final before = blocked.length;
+      blocked.removeAll(_sessionAttempts);
+      if (blocked.length != before) unawaited(_persist());
     }
+    // ממתינים גם לכתיבות שכבר בתור, למשל של טאב שנסגר רגע לפני היציאה.
+    await _writes;
   }
 
   /// המשתמש לחץ "נסה שוב". מסיר את הסימון לתוסף ספציפי כך שהוא ינסה
@@ -234,6 +192,7 @@ class PluginCrashGuard {
     _initFuture = null;
     _sessionAttempts.clear();
     _loadsInFlight.clear();
+    _writes = Future<void>.value();
   }
 
   /// משמש לטסטים בלבד — מאפשר להחדיר state התחלתי.
@@ -254,12 +213,16 @@ class PluginCrashGuard {
     };
   }
 
-  static Future<void> _persist() async {
+  /// תור כתיבות סדרתי: כל כתיבה שומרת את המצב העדכני בזמן ריצתה, כך שכתיבה
+  /// מאוחרת לעולם אינה נדרסת על ידי מוקדמת.
+  static Future<void> _writes = Future<void>.value();
+
+  static Future<void> _persist() => _writes = _writes.then((_) => _write());
+
+  static Future<void> _write() async {
     try {
       final file = File(await _filePath());
-      if (!file.parent.existsSync()) {
-        await file.parent.create(recursive: true);
-      }
+      await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode(_serializeState()),
         flush: true, // חיוני: צריך flush ל-disk לפני קריסה אפשרית

@@ -367,7 +367,11 @@ class AppWindowListener extends WindowListener {
       await prepareUpdateForClose?.call();
 
       // סגירה מסודרת: מנקה את מעקב הקריסות של התוספים ושל האתחול.
-      PluginCrashGuard.markCleanShutdownSync();
+      await _runBestEffortShutdownStep(
+        'pluginCrashGuardCleanShutdown',
+        PluginCrashGuard.markCleanShutdown,
+        timeout: const Duration(seconds: 2),
+      );
       StartupCrashCounter.markStableSync();
 
       // מכריעים פעם אחת: ספירה חוזרת אחרי ה-flush עלולה להשלים חצי כיבוי.
