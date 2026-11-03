@@ -345,6 +345,7 @@ class _ExternalSearchResultsSectionState
   ) {
     if (active == null) return;
     _recomputeVisibleIds();
+    _syncFilteredOutPreview();
     _fetchGeneration++;
     _visibleConsumed = 0;
     final visible = _visibleIds;
@@ -362,6 +363,21 @@ class _ExternalSearchResultsSectionState
     if (visible == null || visible.isNotEmpty) {
       unawaited(_fetch(state, active.$1, reset: true));
     }
+  }
+
+  /// ספר חיצוני שבתצוגה המקדימה ושהסינון הסתיר מסומן ב-
+  /// [SearchingTab.filteredOutPreview]; ספר שהמדור אינו מכיר נשאר מוצג.
+  void _syncFilteredOutPreview() {
+    final target = widget.tab.previewTarget.value;
+    if (target == null || target.openInReader == null) return;
+    Object? id;
+    for (final entry in _previewPaths.entries) {
+      if (entry.value == target.filePath) id = entry.key;
+    }
+    if (id == null) return;
+    final visible = _visibleIds;
+    widget.tab.filteredOutPreview.value =
+        visible == null || visible.contains(id) ? null : target;
   }
 
   /// הסינון פעיל רק כשנבחרו קטגוריות ויש סיווג מוכן.
