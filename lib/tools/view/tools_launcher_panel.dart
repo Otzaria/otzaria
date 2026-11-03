@@ -99,7 +99,8 @@ List<ToolCatalogEntry> orderedToolEntries(List<ToolCatalogEntry> entries) => [
 @visibleForTesting
 const double kToolTileTargetWidth = 88;
 
-/// המרווח בקצה ימין שמפנה מקום לפס הגלילה, כדי שלא יעלה על הקוביות.
+/// המרווח בקצה ימין שמפנה מקום לפס הגלילה, כדי שלא יעלה על הקוביות. הפס
+/// מוצמד לימין בכל כיוון (EdgeScrollbarBehavior.right), ולכן גם המרווח פיזי (q10 Q16 A).
 @visibleForTesting
 const double kToolGridScrollbarGutter = 14;
 
@@ -846,6 +847,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       if (i > 0 && isNewLabel) {
         slivers.add(
           const SliverPadding(
+            // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
             padding: EdgeInsets.only(
               top: AppTokens.spaceMD,
               right: kToolGridScrollbarGutter,
@@ -858,6 +860,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       if (isNewLabel) {
         slivers.add(
           SliverPadding(
+            // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
             padding: const EdgeInsets.only(
               top: AppTokens.spaceSM,
               right: kToolGridScrollbarGutter,
@@ -879,6 +882,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       runningIndex += group.entries.length;
       slivers.add(
         SliverPadding(
+          // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
           padding: const EdgeInsets.only(right: kToolGridScrollbarGutter),
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -902,6 +906,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     }
     slivers.add(
       SliverPadding(
+        // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
         padding: EdgeInsets.only(
           right: kToolGridScrollbarGutter,
           bottom: bottomInset,
@@ -1018,6 +1023,7 @@ class _PluginsFooter extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Padding(
+      // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
       padding: const EdgeInsets.only(
         top: AppTokens.spaceMD,
         right: kToolGridScrollbarGutter,

@@ -1064,13 +1064,6 @@
       "lib/tools/tikkun_korim/view/widgets/stam_word.dart": [
         {"scope":"tikkunWordText","fp":"f7030732","n":1}
       ],
-      "lib/tools/view/tools_launcher_panel.dart": [
-        {"scope":"_PluginsFooter.build","fp":"1ab24abf","n":1},
-        {"scope":"_ToolsLauncherPanelState._buildGridSlivers","fp":"383cf572","n":1},
-        {"scope":"_ToolsLauncherPanelState._buildGridSlivers","fp":"b8313fc2","n":1},
-        {"scope":"_ToolsLauncherPanelState._buildGridSlivers","fp":"ee39634a","n":1},
-        {"scope":"_ToolsLauncherPanelState._buildGridSlivers","fp":"fa0668f8","n":1}
-      ],
       "lib/tour/view/tour_overlay_screen.dart": [
         {"scope":"_TourOverlayScreenState._cardAlignmentFor","fp":"f8d1800a","n":1}
       ],
