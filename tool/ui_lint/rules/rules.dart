@@ -1,6 +1,7 @@
 import '../ui_lint.dart';
 import 'hardcoded_color_rule.dart';
 import 'icon_button_tooltip_rule.dart';
+import 'icon_size_rule.dart';
 import 'literal_duration_rule.dart';
 import 'literal_elevation_rule.dart';
 import 'literal_font_family_rule.dart';
@@ -40,6 +41,7 @@ const List<UiLintRule> uiLintRules = [
   SpacingScaleRule(),
   PhysicalDirectionRule(),
   LiteralDurationRule(),
+  IconSizeRule(),
   SharedFeatureImportRule(),
   LiteralElevationRule(),
 ];

@@ -134,3 +134,16 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
+
+  UIL-029:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/widgets/smart_text/**
+        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
+      - path: lib/text_book/view/reader_line/**
+        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
