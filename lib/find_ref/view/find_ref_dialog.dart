@@ -214,9 +214,6 @@ class LibraryBookIndex {
   }
 }
 
-/// מאתר ספר טקסט רשמי לפי [bookId] מה-DB הראשי.
-/// מזהי seforim.db אינם ייחודיים מול user_books.db ומול ייצוגי PDF בעץ —
-/// ולכן ספרים אישיים וספרים שאינם TextBook מדולגים ולא מסתירים את היעד.
 /// הספר בעל [bookId] במסד של [source] (אישי או מצורף), מכל סוג.
 @visibleForTesting
 Book? findBookBySourceAndId(Category category, int bookId, BookSource source) {
@@ -230,6 +227,9 @@ Book? findBookBySourceAndId(Category category, int bookId, BookSource source) {
   return null;
 }
 
+/// מאתר ספר טקסט רשמי לפי [bookId] מה-DB הראשי.
+/// מזהי seforim.db אינם ייחודיים מול user_books.db ומול ייצוגי PDF בעץ —
+/// ולכן ספרים אישיים וספרים שאינם TextBook מדולגים ולא מסתירים את היעד.
 @visibleForTesting
 TextBook? findOfficialTextBookById(Category category, int bookId) {
   for (final b in category.books) {

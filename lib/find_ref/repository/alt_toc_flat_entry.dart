@@ -388,7 +388,7 @@ typedef _BookRows<T> = ({
   List<FindRefRankKey<T>> replacers,
 });
 
-/// הצמצום של ספר אחד, בדיוק כמו `_dedupeRefs` ו-`_suppressDeeperVariants`
+/// הצמצום של ספר אחד, בדיוק כמו `_dedupeRefs` ו-`suppressDeeperVariants`
 /// על שורותיו, ואז [perBookCap] השורות הראשונות בדירוג.
 _BookRows<T> _rankedBookRows<T>(
   _GlobalAltTocBook<T> book, {
