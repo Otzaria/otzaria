@@ -1,0 +1,3 @@
+# The prebuilt Android binaries of irondash_engine_context are 4KB-aligned, which Google Play rejects;
+# NDK 28+ links 16KB-aligned by default. Overrides the root file for Android builds only.
+use_precompiled_binaries: false
