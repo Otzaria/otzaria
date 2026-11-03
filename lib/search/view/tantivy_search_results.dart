@@ -1295,6 +1295,9 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                   )
                                 else
                                   RichText(
+                                    textScaler: MediaQuery.textScalerOf(
+                                      context,
+                                    ),
                                     textAlign: TextAlign.justify,
                                     text: TextSpan(
                                       style: TextStyle(

@@ -470,6 +470,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       text: TextSpan(children: spans),
       maxLines: 1,
       textDirection: TextDirection.rtl,
+      textScaler: MediaQuery.textScalerOf(context),
     );
 
     textPainter.layout(maxWidth: double.infinity);
@@ -688,6 +689,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
     final spans = _buildFormattedTextSpans(text, context);
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(children: spans),
       textAlign: TextAlign.center,
     );

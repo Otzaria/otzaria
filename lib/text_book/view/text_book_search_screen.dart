@@ -1106,6 +1106,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                         child: child!,
                       ),
                       child: RichText(
+                        textScaler: MediaQuery.textScalerOf(context),
                         textAlign: TextAlign.justify,
                         text: TextSpan(
                           style: defaultStyle,
