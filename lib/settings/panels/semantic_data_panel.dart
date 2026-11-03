@@ -53,7 +53,6 @@ class _SemanticDataCard extends StatelessWidget {
         final bloc = context.read<SemanticSearchBloc>();
         return SettingsCard(
           cardId: 'system.semanticData',
-          spacedAbove: true,
           title: context.settingsText('נתוני {name}', args: _nameArgs(context)),
           subtitle: context.settingsText(
             'הנתונים ש{name} משתמש בהם, כ-1.8GB בכונן. אחרי ההורדה הם מתעדכנים ברקע עם עדכוני הספרייה.',

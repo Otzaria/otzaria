@@ -40,7 +40,6 @@ class SearchFeedbackPanel extends StatelessWidget {
             : null);
     return SettingsCard(
       cardId: 'system.searchFeedback',
-      spacedAbove: true,
       title: modeName,
       children: [
         StreamBuilder<SearchFeedbackConsent>(

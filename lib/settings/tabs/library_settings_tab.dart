@@ -536,14 +536,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                         ..._buildSearchChildren(context, state, libraryState),
                       ],
                     ),
-                    kSettingsCardSpacing,
 
                     // הפאנל המשותף (תצוגה + ספרים נוספים, כולל תיקיית היברובוקס)
                     LibrarySettingsPanel(
                       hebrewBooksPathWidget: hebrewPathWidget,
                     ),
 
-                    kSettingsCardSpacing,
                     SettingsCard(
                       cardId: 'library.hidden_books',
                       title: context.settingsText('ספרים וקטגוריות מוסתרים'),
@@ -560,7 +558,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     // ייבוא ספרים אישיים (רק במובייל — בדסקטופ יש תיקיות
                     // מותאמות אישית עם גישה ישירה למערכת הקבצים)
                     if (Platform.isAndroid || Platform.isIOS) ...[
-                      kSettingsCardSpacing,
                       SettingsCard(
                         cardId: 'library.personal_books_import',
                         title: context.settingsText('ספרים אישיים'),
@@ -579,7 +576,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
                     // תיקיות מותאמות אישית (רק בדסקטופ)
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
-                      kSettingsCardSpacing,
                       CustomFoldersPanel(
                         mergeToggle: SettingsSwitchTile(
                           icon: OtzariaIcons.person_24_regular,
@@ -602,7 +598,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                           },
                         ),
                       ),
-                      kSettingsCardSpacing,
                       SettingsCard(
                         cardId: 'library.user_content_import',
                         title: context.settingsText(
@@ -617,7 +612,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       ),
                     ],
 
-                    kSettingsCardSpacing,
                     AttachedLibrariesPanel(
                       supportsLinking: attachedLibrariesSupportLinking,
                     ),

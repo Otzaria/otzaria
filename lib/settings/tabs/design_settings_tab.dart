@@ -219,8 +219,6 @@ class DesignSettingsTab extends StatelessWidget {
                   ],
                 ),
 
-                kSettingsCardSpacing,
-
                 // מצב כהה וצבע בסיס
                 SettingsCard(
                   cardId: 'design.theme',
@@ -299,8 +297,6 @@ class DesignSettingsTab extends StatelessWidget {
                   ],
                 ),
 
-                kSettingsCardSpacing,
-
                 // צפיפות תצוגה (רק בדסקטופ)
                 if (!Platform.isAndroid && !Platform.isIOS) ...[
                   SettingsCard(
@@ -361,7 +357,6 @@ class DesignSettingsTab extends StatelessWidget {
                       ),
                     ],
                   ),
-                  kSettingsCardSpacing,
                 ],
 
                 SettingsCard(
@@ -421,8 +416,6 @@ class DesignSettingsTab extends StatelessWidget {
                     ),
                   ],
                 ),
-
-                kSettingsCardSpacing,
 
                 // התנהגות סרגל צד
                 SettingsCard(

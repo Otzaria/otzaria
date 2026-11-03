@@ -7,7 +7,6 @@ import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// טאב הגדרות גימטריה
 class GematriaSettingsTab extends StatefulWidget {
@@ -196,7 +195,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
           ],
         ),
-        kSettingsCardSpacing,
         SettingsCard(
           title: context.settingsText('שיטת חישוב גימטריה'),
           children: [

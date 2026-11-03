@@ -147,7 +147,6 @@ class TikkunSettingsPanel extends StatelessWidget {
               ),
           ],
         ),
-        kSettingsCardSpacing,
         SettingsCard(
           title: 'תוכן ומנהגים',
           children: [

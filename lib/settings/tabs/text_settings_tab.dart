@@ -224,11 +224,8 @@ class TextSettingsTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildFontSection(context, settingsState),
-                kSettingsCardSpacing,
                 _buildNikudSection(context, settingsState),
-                kSettingsCardSpacing,
                 _buildCopySection(context, settingsState),
-                kSettingsCardSpacing,
                 _buildPerBookSection(context, settingsState),
               ],
             ),

@@ -634,8 +634,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ],
         ),
 
-        kSettingsCardSpacing,
-
         // ── ניווט כללי ────────────────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.nav',
@@ -711,8 +709,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
               ),
           ]),
         ),
-
-        kSettingsCardSpacing,
 
         // ── תצוגת ספר ─────────────────────────────────────────────────
         SettingsCard(
@@ -878,8 +874,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── לוח שנה ושמור וזכור ───────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.calendar',
@@ -924,8 +918,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── תיקון קוראים ──────────────────────────────────────────────
         SettingsCard(
           title: context.settingsText('תיקון קוראים'),
@@ -947,7 +939,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פתיחת כלים (אופציונלי) — מוצג רק כשהוגדר קיצור לכלי אחד לפחות ──
         if (openToolTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.open_tools',
             title: context.settingsText('פתיחת כלים'),
@@ -960,7 +951,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פתיחת תוספים (אופציונלי) — מוצג רק כשהוגדר קיצור לתוסף אחד לפחות ──
         if (openPluginTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פתיחת תוספים'),
             subtitle: context.settingsText(
@@ -972,7 +962,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── העתקת קישורים (אופציונלי) — מוצג רק כשהוגדר קיצור אחד לפחות ──
         if (copyLinkTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.copy_links',
             title: context.settingsText('העתקת קישורים'),
@@ -984,7 +973,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
         ],
 
         if (pluginShortcutTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('קיצורי תוספים'),
             subtitle: context.settingsText(
@@ -996,7 +984,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
         ],
 
         // ── קיצורים דינמיים: פעולה + פרמטרים שהמשתמש מגדיר ──────────────
-        kSettingsCardSpacing,
         SettingsCard(
           cardId: 'shortcuts.dynamic',
           title: context.settingsText('קיצורים דינמיים'),
@@ -1043,7 +1030,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פעולות זמינות להגדרת קיצור ────────────────────────────────
         if (unconfiguredKeys.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פעולות זמינות לקיצור'),
             subtitle: context.settingsText(
