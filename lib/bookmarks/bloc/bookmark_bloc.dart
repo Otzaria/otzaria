@@ -10,16 +10,15 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/models/books.dart';
 
-/// ⚠️ כל שינוי עובר דרך `mutate*` ולא דרך "חשב מה-state וכתוב הכול".
-///
-/// הסימניות משותפות לכל חלונות אוצריא, וה-state כאן הוא עותק בזיכרון של
-/// חלון אחד. כתיבה של הרשימה השלמה מתוכו מוחקת כל סימנייה שחלון אחר הוסיף
-/// מאז הטעינה — לא במרוץ, אלא בכל פעם. `mutate` מחיל את השינוי על הרשימה
-/// הטרייה אצל הבעלים ומחזיר את התוצאה המוסמכת.
+/// כל שינוי עובר דרך `mutate*` על הרשימה הטרייה, כדי לשמר כתיבות מחלונות אחרים.
 class BookmarkBloc extends Cubit<BookmarkState> {
   final BookmarkRepository _repository;
   StreamSubscription<void>? _bookmarksChanged;
   StreamSubscription<void>? _groupsChanged;
+
+  // פענוח ברקע עלול להשלים אחרי כתיבה או טעינה חדשה יותר.
+  int _bookmarksGeneration = 0;
+  int _groupsGeneration = 0;
 
   BookmarkBloc(this._repository) : super(BookmarkState.initial()) {
     _loadBookmarks();
@@ -41,39 +40,44 @@ class BookmarkBloc extends Cubit<BookmarkState> {
 
   Future<void> _loadBookmarks() async {
     await _reloadBookmarks();
-    await _reloadGroups();
+    if (!isClosed) await _reloadGroups();
   }
 
   Future<void> _reloadBookmarks() async {
+    final generation = ++_bookmarksGeneration;
     try {
       final bookmarks = await _repository.loadBookmarks();
-      if (!isClosed) emit(state.copyWith(bookmarks: bookmarks));
+      if (!isClosed && generation == _bookmarksGeneration) {
+        emit(state.copyWith(bookmarks: bookmarks));
+      }
     } catch (e, stackTrace) {
       debugPrint('שגיאה בטעינת סימניות: $e\n$stackTrace');
     }
   }
 
   Future<void> _reloadGroups() async {
+    final generation = ++_groupsGeneration;
     try {
       final groups = await _repository.loadGroups();
-      if (!isClosed) emit(state.copyWith(groups: groups));
+      if (!isClosed && generation == _groupsGeneration) {
+        emit(state.copyWith(groups: groups));
+      }
     } catch (e, stackTrace) {
       debugPrint('שגיאה בטעינת סימניות מרוכזות: $e\n$stackTrace');
     }
   }
 
-  /// מציג מיד את [optimistic], מחיל את [apply] על הרשימה הטרייה, ומיישר
-  /// את התצוגה לתוצאה המוסמכת.
-  ///
-  /// בכשל התצוגה **חוזרת למה שבאמת שמור**: סימנייה שנראית קיימת ואיננה היא
-  /// בדיוק התלונה "הוספתי סימנייה ולמחרת היא נעלמה".
+  /// מציג מיד את [optimistic] ומחיל את [apply] על הרשימה הטרייה.
+  /// בכשל חוזר למה שבאמת שמור, כדי לא להציג סימנייה שלא נשמרה.
   Future<bool> _applyBookmarks(
     List<Bookmark> Function(List<Bookmark> current) apply, {
     required List<Bookmark> optimistic,
   }) async {
+    _bookmarksGeneration++;
     emit(state.copyWith(bookmarks: optimistic));
     try {
       final saved = await _repository.mutateBookmarks(apply);
+      _bookmarksGeneration++;
       if (!isClosed) emit(state.copyWith(bookmarks: saved));
       return true;
     } catch (e) {
@@ -88,9 +92,11 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     List<BookmarkGroup> Function(List<BookmarkGroup> current) apply, {
     required List<BookmarkGroup> optimistic,
   }) async {
+    _groupsGeneration++;
     emit(state.copyWith(groups: optimistic));
     try {
       final saved = await _repository.mutateGroups(apply);
+      _groupsGeneration++;
       if (!isClosed) emit(state.copyWith(groups: saved));
       return true;
     } catch (e) {
@@ -234,11 +240,18 @@ class BookmarkBloc extends Cubit<BookmarkState> {
   }
 
   void clearBookmarks() {
+    _bookmarksGeneration++;
     // דריסה מכוונת: "מחק את כל הסימניות" פירושו הכול.
-    _repository.clearBookmarks().catchError((Object e) {
-      debugPrint('שגיאה במחיקת סימניות: $e');
-      UiSnack.showError(NotesMessages.bookmarkClearError);
-    });
+    _repository
+        .clearBookmarks()
+        .then((_) {
+          _bookmarksGeneration++;
+          if (!isClosed) emit(state.copyWith(bookmarks: []));
+        })
+        .catchError((Object e) {
+          debugPrint('שגיאה במחיקת סימניות: $e');
+          UiSnack.showError(NotesMessages.bookmarkClearError);
+        });
     emit(state.copyWith(bookmarks: []));
   }
 
