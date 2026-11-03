@@ -2298,12 +2298,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.1),
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                      ),
                       icon: Icon(
                         _allExpanded
                             ? FluentIcons.arrow_collapse_all_24_regular
