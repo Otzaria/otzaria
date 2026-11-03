@@ -1126,7 +1126,11 @@ class _PluginRowState extends State<_PluginRow> {
     final tile = SizedBox(
       height: _rowHeight,
       child: ListTile(
-        hoverColor: widget.isSelectionMode ? Colors.transparent : null,
+        // במצב בחירה לחיצה על השורה מסמנת אותה, ולכן ריחוף כמו בכל שורה
+        // לחיצה (DD-06, q10 שאלה 3).
+        hoverColor: widget.isSelectionMode
+            ? AppSurfaces.hoverRow(Theme.of(context).colorScheme)
+            : null,
         leading: widget.isSelectionMode
             ? SizedBox(
                 width: 24,
