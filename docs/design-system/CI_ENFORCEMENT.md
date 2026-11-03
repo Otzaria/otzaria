@@ -69,7 +69,7 @@ test/design_system/
 | UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | ערך מ־`AppSurfaces.*` (למשל `hoverRow`); `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap:` וגם `trailing:` (JX-14). ב־`ListTile` בלי `onTap` אין ריחוף, ולכן `transparent` שם נתפס כקוד מת | 0 | 1 · **חוסם** |
 | UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | 0 | 1 · **חוסם**, נעול (strict) |
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי | — | 0 | 1 · **חוסם** |
-| UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow (JX-09) | הערכת שלב א': כ־15 | 1 · לא מומש |
+| UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow (JX-09) | 0 (5 חריגים ב־allow: ארבעת הציטוטים במסך "אודות" ומסך שגיאת האתחול) | 1 · **חוסם**, נעול (strict) |
 | UIL-011 | אין `TextField(`/`TextFormField(`/`EditableText(` גולמי | ctor | `rtl_text_field.dart` | 0 | 1 · **חוסם** |
 | UIL-012 | אין `Card(` גולמי | ctor | `lib/widgets/layout/**` | 3 | 2 · לא מומש |
 | UIL-013 | אין `CircularProgressIndicator(` מחוץ ל־`lib/widgets/feedback/` | ctor | `ActionButton` | כ־60 | 2 · לא מומש |

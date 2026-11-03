@@ -20,6 +20,7 @@ import 'shared_feature_import_rule.dart';
 import 'snack_bar_rule.dart';
 import 'spacing_scale_rule.dart';
 import 'state_color_override_rule.dart';
+import 'text_rtl_direction_rule.dart';
 import 'ui_snack_literal_rule.dart';
 
 /// הכללים הפעילים, לפי הסדר בקטלוג.
@@ -32,6 +33,7 @@ const List<UiLintRule> uiLintRules = [
   StateColorOverrideRule(),
   SnackBarRule(),
   UiSnackLiteralRule(),
+  TextRtlDirectionRule(),
   RawTextFieldRule(),
   RawMenuRule(),
   HardcodedColorRule(),
