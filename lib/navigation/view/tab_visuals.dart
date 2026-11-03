@@ -424,3 +424,34 @@ class _TabActivationRegionState extends State<TabActivationRegion> {
     );
   }
 }
+
+/// צבעי המצב של כרטיסיה, אחד לרצועה האופקית ולאנכית (DD-06).
+abstract final class TabStateColors {
+  /// הרקע: בחירה מרובה, ואחריה הכרטיסיה הפעילה (בצבע הסרגל). null = שקוף.
+  static Color? background(
+    BuildContext context, {
+    required bool selected,
+    required bool inSelection,
+  }) {
+    if (inSelection) {
+      return AppSurfaces.multiSelected(Theme.of(context).colorScheme);
+    }
+    if (selected) return AppSurfaces.topBarBackground(context);
+    return null;
+  }
+
+  /// מסגרת הבחירה המרובה.
+  static Color? border(BuildContext context, {required bool inSelection}) =>
+      inSelection
+      ? AppSurfaces.multiSelectedBorder(Theme.of(context).colorScheme)
+      : null;
+
+  /// הצללת הריחוף; לא על הכרטיסיה הפעילה.
+  static Color? hover(
+    BuildContext context, {
+    required bool hovered,
+    required bool selected,
+  }) => hovered && !selected
+      ? AppSurfaces.hoverRow(Theme.of(context).colorScheme)
+      : null;
+}
