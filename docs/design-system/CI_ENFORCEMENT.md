@@ -229,7 +229,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 - `clean_UIL-xxx.dart`: חייב להחזיר 0. כאן נכנסים המקרים הלגיטימיים: ייצוא, painter ועוטף מורשה.
 - `allowed_UIL-xxx.dart`: allow תקין מחזיר 0. allow בלי נימוק מכשיל. allow שלא השתיק כלום מכשיל.
 - ב־CI: PR שמכניס חריגה חדשה בקובץ ב־`lib` נכשל עם הודעה בעברית, `path:line: snippet`, הרכיב או הטוקן שצריך להשתמש בו וקישור לסעיף ב־`DESIGN_SYSTEM.md`.
-- golden: PR שמשנה ריפוד ב־`ActionButton` בלי לעדכן golden נכשל ב־`goldens_windows`.
+- golden: PR שמשנה ריפוד ב־`ActionButton` בלי לעדכן golden נכשל ב־`goldens_windows`. הבדיקה "הזזה של פיקסל אחד בריפוד חורגת מהסף" (`test/goldens/action_button/action_button_golden_test.dart`) מקבעת זאת: אותו רכיב, התוכן זז בפיקסל בתוך אותו גודל, וההבדל מהתמונה גדול מ־0.05%.
 
 ## נספח — בדיקות הסריקה הקיימות
 | בדיקה | אוכפת | הערה |
