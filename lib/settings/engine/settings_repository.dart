@@ -606,6 +606,14 @@ class SettingsRepository {
         keyBackupRetentionProfile,
         defaultValue: '',
       ),
+      'libraryPath': _settings.getValue<String>(
+        keyLibraryPath,
+        defaultValue: '',
+      ),
+      'hebrewBooksPath': _settings.getValue<String>(
+        keyHebrewBooksPath,
+        defaultValue: '',
+      ),
       'splitedView': _settings.getValue<bool>(
         keySplitedView,
         defaultValue: true,

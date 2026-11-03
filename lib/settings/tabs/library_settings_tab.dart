@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
@@ -303,6 +302,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
   /// שפותח את הדיאלוג המאוחד; אחרת שורת המיקום עם תפריט "אפשרויות מיקום".
   List<Widget> _buildRepositoryCardChildren(
     BuildContext context,
+    SettingsState state,
     bool libraryEmpty,
   ) {
     if (libraryEmpty) {
@@ -323,7 +323,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       ];
     }
     return [
-      _buildLibraryLocationWidget(context),
+      _buildLibraryLocationWidget(context, state),
       if (_orphanLibrary != null) _buildOrphanLibraryWidget(context),
     ];
   }
@@ -410,9 +410,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
   /// שורת מיקום הספרייה והאינדקס — מציגה את תיקיית השורש המשותפת
   /// (ההורה של books ו-index), בלי אפשרות ניקוי (הספרייה חיונית לפעולה).
-  Widget _buildLibraryLocationWidget(BuildContext context) {
-    final booksPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
+  Widget _buildLibraryLocationWidget(
+    BuildContext context,
+    SettingsState state,
+  ) {
+    final booksPath = state.libraryPath;
     final rootPath = booksPath.isEmpty ? '' : _libraryRootOf(booksPath);
     final indexPath = _indexPath ?? '';
     final databasesPath = _databasesPath ?? '';
@@ -446,16 +448,17 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
   }
 
   /// שורת מיקום ספרי היברובוקס — עם אפשרות ניקוי הנתיב
-  Widget _buildHebrewBooksLocationWidget(BuildContext context) {
-    final pathStr = Settings.getValue<String>(
-      SettingsRepository.keyHebrewBooksPath,
-    );
-    final hasPath = pathStr != null && pathStr.isNotEmpty;
+  Widget _buildHebrewBooksLocationWidget(
+    BuildContext context,
+    SettingsState state,
+  ) {
+    final pathStr = state.hebrewBooksPath;
+    final hasPath = pathStr.isNotEmpty;
 
     return SettingsPathTile(
       icon: FluentIcons.folder_24_regular,
       title: context.settingsText('מיקום ספרי היברובוקס'),
-      currentPath: hasPath ? pathStr : '',
+      currentPath: pathStr,
       placeholder: context.settingsText(
         'במידה וקיימים ברשותך ספרים ממאגר זה',
       ),
@@ -465,7 +468,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         if (mounted) setState(() {});
       },
       requestChangeLocation: makeChangeLocationCallback(
-        currentPath: hasPath ? pathStr : '',
+        currentPath: pathStr,
         folderName: _hebrewBooksFolderName,
         onPathChanged: (newPath) async {
           if (!context.mounted) return;
@@ -477,7 +480,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                   _afterMoveUpdateBloc(newPath, UpdateHebrewBooksPath.new)
             : null,
       ),
-      onOpenFolder: () => openInFileManager(hasPath ? pathStr : ''),
+      onOpenFolder: () => openInFileManager(pathStr),
       onClearPath: () => _removeHebrewBooksPath(context),
     );
   }
@@ -517,7 +520,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             );
             // בניית כפתור בחירת תיקייה רק בדסקטופ והעברה לפאנל
             final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
-                ? _buildHebrewBooksLocationWidget(context)
+                ? _buildHebrewBooksLocationWidget(context, state)
                 : null;
 
             return SettingsTabScrollView(
@@ -532,7 +535,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                         'תיקיות הספרים והאינדקס ומצב האינדקס',
                       ),
                       children: [
-                        ..._buildRepositoryCardChildren(context, libraryEmpty),
+                        ..._buildRepositoryCardChildren(
+                          context,
+                          state,
+                          libraryEmpty,
+                        ),
                         ..._buildSearchChildren(context, state, libraryState),
                       ],
                     ),
@@ -673,12 +680,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
               isActive && indexingState.isPaused && !indexingState.isFinalizing;
           final isCheckingManualReindex = _requiresManualReindex == null;
           String subtitleText;
-          final libraryPath = Settings.getValue<String>(
-            SettingsRepository.keyLibraryPath,
-          );
+          final libraryPath = state.libraryPath;
           final library = libraryState.library;
           final hasBooks = library?.hasBooks ?? false;
-          if (libraryPath == null || libraryPath.isEmpty) {
+          if (libraryPath.isEmpty) {
             subtitleText = context.settingsText('לא קיימת ספרייה לאינדוקס');
           } else if (!hasBooks) {
             subtitleText = context.settingsText(

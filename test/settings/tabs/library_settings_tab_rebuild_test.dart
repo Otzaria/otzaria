@@ -66,6 +66,8 @@ void main() {
 
   late Directory temp;
   late StreamController<LibraryState> libraryStates;
+  late StreamController<SettingsState> settingsStates;
+  late SettingsState settingsState;
   late List<BlocBase<Object?>> blocs;
 
   Library libraryWithBook(String title) {
@@ -104,11 +106,13 @@ void main() {
       p.join(temp.path, 'books'),
     );
     libraryStates = StreamController<LibraryState>.broadcast();
+    settingsStates = StreamController<SettingsState>.broadcast();
     blocs = [];
   });
 
   tearDown(() async {
     await libraryStates.close();
+    await settingsStates.close();
     for (final bloc in blocs) {
       await bloc.close();
     }
@@ -130,6 +134,13 @@ void main() {
     TantivyDataProvider.instance = TantivyDataProvider.forTesting(
       Future.value(_OpenEngine()),
     );
+    // הלשונית קוראת את הנתיבים מ־SettingsState, שנטען מההגדרות השמורות.
+    settingsState = SettingsState.initial().copyWith(
+      libraryPath: Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+      hebrewBooksPath: Settings.getValue<String>(
+        SettingsRepository.keyHebrewBooksPath,
+      ),
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -139,7 +150,11 @@ void main() {
                 value: mock(_MockLibraryBloc(), initial, libraryStates.stream),
               ),
               BlocProvider<SettingsBloc>.value(
-                value: mock(_MockSettingsBloc(), SettingsState.initial()),
+                value: mock(
+                  _MockSettingsBloc(),
+                  settingsState,
+                  settingsStates.stream,
+                ),
               ),
               BlocProvider<NavigationBloc>.value(
                 value: mock(
@@ -181,6 +196,19 @@ void main() {
   Future<void> emit(WidgetTester tester, LibraryState state) async {
     libraryStates.add(state);
     // whenListen מעביר את ה-state דרך stream נוסף — שתי פעימות עד ה-builder.
+    await tester.pump();
+    await tester.pump();
+  }
+
+  /// כמו כתיבה של LibraryBloc: הנתיב נשמר, וה־SettingsBloc מקבל אותו מזרם
+  /// השינויים של ההגדרות.
+  Future<void> saveHebrewBooksPath(WidgetTester tester, String path) async {
+    await Settings.setValue<String>(
+      SettingsRepository.keyHebrewBooksPath,
+      path,
+    );
+    settingsState = settingsState.copyWith(hebrewBooksPath: path);
+    settingsStates.add(settingsState);
     await tester.pump();
     await tester.pump();
   }
@@ -249,10 +277,7 @@ void main() {
     // כמו UpdateHebrewBooksPath: הנתיב נשמר, והטעינה מסתיימת בשגיאה בלי
     // ספרייה חדשה.
     await emit(tester, base.copyWith(isLoading: true));
-    await Settings.setValue<String>(
-      SettingsRepository.keyHebrewBooksPath,
-      newPath,
-    );
+    await saveHebrewBooksPath(tester, newPath);
     await emit(tester, base.copyWith(isLoading: false, error: 'שגיאה'));
     expect(find.textContaining('hebrewbooks-new'), findsOneWidget);
     expect(find.textContaining('hebrewbooks-old'), findsNothing);
@@ -279,10 +304,7 @@ void main() {
       tester,
       LibraryState(library: refreshed, currentCategory: refreshed),
     );
-    await Settings.setValue<String>(
-      SettingsRepository.keyHebrewBooksPath,
-      newPath,
-    );
+    await saveHebrewBooksPath(tester, newPath);
     await emit(
       tester,
       LibraryState(

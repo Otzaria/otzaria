@@ -98,6 +98,13 @@ class SettingsState extends Equatable {
   /// הצגת המפרשים בחלונית בצד ([SettingsRepository.keySplitedView]).
   final bool splitedView;
 
+  /// תיקיית הספרים ([SettingsRepository.keyLibraryPath]); ריק = לא הוגדרה.
+  /// נכתבת מחוץ לבלוק (הגדרת הספרייה, LibraryBloc) ומגיעה דרך externalChanges.
+  final String libraryPath;
+
+  /// תיקיית ספרי היברובוקס ([SettingsRepository.keyHebrewBooksPath]); ריק = אין.
+  final String hebrewBooksPath;
+
   bool backupIncludes(String key) => backupSections[key] ?? true;
 
   bool get backupIncludesAllSections => backupSections.values.every((v) => v);
@@ -174,6 +181,8 @@ class SettingsState extends Equatable {
     this.backupRetentionProfile = '',
     this.backupSections = const {},
     this.splitedView = true,
+    this.libraryPath = '',
+    this.hebrewBooksPath = '',
     this.readingTabsPlacement = SettingsRepository.readingTabsPlacementTop,
     this.readingTabsColumnWidth =
         SettingsRepository.defaultReadingTabsColumnWidth,
@@ -285,6 +294,8 @@ class SettingsState extends Equatable {
     String? backupRetentionProfile,
     Map<String, bool>? backupSections,
     bool? splitedView,
+    String? libraryPath,
+    String? hebrewBooksPath,
     String? readingTabsPlacement,
     double? readingTabsColumnWidth,
     bool? readingTabsColumnCollapsed,
@@ -375,6 +386,8 @@ class SettingsState extends Equatable {
           backupRetentionProfile ?? this.backupRetentionProfile,
       backupSections: backupSections ?? this.backupSections,
       splitedView: splitedView ?? this.splitedView,
+      libraryPath: libraryPath ?? this.libraryPath,
+      hebrewBooksPath: hebrewBooksPath ?? this.hebrewBooksPath,
       readingTabsPlacement: readingTabsPlacement ?? this.readingTabsPlacement,
       readingTabsColumnWidth:
           readingTabsColumnWidth ?? this.readingTabsColumnWidth,
@@ -453,6 +466,8 @@ class SettingsState extends Equatable {
     backupRetentionProfile,
     backupSections,
     splitedView,
+    libraryPath,
+    hebrewBooksPath,
     readingTabsPlacement,
     readingTabsColumnWidth,
     readingTabsColumnCollapsed,

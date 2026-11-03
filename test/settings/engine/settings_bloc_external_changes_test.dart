@@ -42,6 +42,8 @@ void main() {
       expect(state.autoBackupFrequency, 'weekly');
       expect(state.backupRetentionProfile, '');
       expect(state.splitedView, isTrue);
+      expect(state.libraryPath, '');
+      expect(state.hebrewBooksPath, '');
       expect(state.backupIncludesAllSections, isTrue);
       expect(
         state.backupSections.keys,
@@ -159,6 +161,43 @@ void main() {
 
       final state = await bloc.stream.first;
       expect(state.splitedView, isFalse);
+    });
+
+    // q10 שאלה 21: לשונית הספרייה קוראת את הנתיבים מהבלוק. הם נכתבים מחוץ לו
+    // (דיאלוג הגדרת הספרייה, LibraryBloc).
+    test('נתיב הספרייה ונתיב היברובוקס שנכתבו מבחוץ מגיעים למצב', () async {
+      final bloc = newBloc(externalChanges: changes.stream);
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        'C:/otzaria/books',
+      );
+      changes.add(SettingsRepository.keyLibraryPath);
+      expect((await bloc.stream.first).libraryPath, 'C:/otzaria/books');
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyHebrewBooksPath,
+        'D:/hebrewbooks',
+      );
+      changes.add(SettingsRepository.keyHebrewBooksPath);
+      expect((await bloc.stream.first).hebrewBooksPath, 'D:/hebrewbooks');
+
+      // ניקוי הנתיב (RemoveHebrewBooksPath) מוחק את המפתח.
+      await Settings.setValue<String?>(
+        SettingsRepository.keyHebrewBooksPath,
+        null,
+      );
+      changes.add(SettingsRepository.keyHebrewBooksPath);
+      expect((await bloc.stream.first).hebrewBooksPath, '');
+    });
+
+    test('ערכי נתיבים שמורים נטענים בבנייה', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        'C:/otzaria/books',
+      );
+      final state = newBloc().state;
+      expect(state.libraryPath, 'C:/otzaria/books');
     });
 
     test('חלון אחר משנה סעיף גיבוי: המצב מתעדכן', () async {
