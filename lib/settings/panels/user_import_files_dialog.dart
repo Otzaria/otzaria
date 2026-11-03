@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
@@ -178,7 +179,7 @@ class _ImportFileRow extends StatelessWidget {
       // ברוחב טלפון שלוש הפעולות מצמצמות את שם הקובץ לכמה אותיות — הן עוברות
       // לתפריט אחד.
       trailing: narrow
-          ? PopupMenuButton<int>(
+          ? AppPopupMenuButton<int>(
               enabled: !busy,
               tooltip: context.settingsText('פעולות'),
               onSelected: (action) {
@@ -196,23 +197,15 @@ class _ImportFileRow extends StatelessWidget {
                     _delete(context);
                 }
               },
-              itemBuilder: (_) => [
-                PopupMenuItem(
+              entries: [
+                AppMenuEntry(
                   value: 0,
-                  child: Text(
-                    file.enabled
-                        ? context.settingsText('השהה')
-                        : context.settingsText('החזר לשימוש'),
-                  ),
+                  label: file.enabled
+                      ? context.settingsText('השהה')
+                      : context.settingsText('החזר לשימוש'),
                 ),
-                PopupMenuItem(
-                  value: 1,
-                  child: Text(context.settingsText('ייצוא')),
-                ),
-                PopupMenuItem(
-                  value: 2,
-                  child: Text(context.settingsText('מחיקה')),
-                ),
+                AppMenuEntry(value: 1, label: context.settingsText('ייצוא')),
+                AppMenuEntry(value: 2, label: context.settingsText('מחיקה')),
               ],
             )
           : Row(

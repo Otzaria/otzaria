@@ -24,6 +24,11 @@ rules:
       - path: lib/widgets/text/rtl_text_field.dart
         reason: העטיפה שבונה את השדה ומוסיפה לו RTL
 
+  UIL-014:
+    exclude:
+      - path: lib/widgets/misc/**
+        reason: מערכת התפריטים המשותפת (app_popup_menu) עצמה
+
   UIL-015:
     exclude:
       - path: lib/theme/**

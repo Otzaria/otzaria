@@ -7,6 +7,7 @@ import 'literal_width_breakpoint_rule.dart';
 import 'material_icons_rule.dart';
 import 'primary_color_rule.dart';
 import 'raw_dialog_rule.dart';
+import 'raw_menu_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
 import 'ui_snack_literal_rule.dart';
@@ -19,6 +20,7 @@ const List<UiLintRule> uiLintRules = [
   MaterialIconsRule(),
   RtlIconRule(),
   UiSnackLiteralRule(),
+  RawMenuRule(),
   RawTextFieldRule(),
   HardcodedColorRule(),
   LiteralFontSizeRule(),

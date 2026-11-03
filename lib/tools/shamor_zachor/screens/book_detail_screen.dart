@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
@@ -596,76 +597,62 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     int columnCount,
   ) {
     final theme = Theme.of(context);
-    return PopupMenuButton<String>(
-      tooltip: 'אפשרויות עמודה',
-      padding: EdgeInsets.zero,
-      onSelected: (value) {
-        if (value == 'range') {
-          _markRange(progressProvider, bookDetails, column);
-        } else if (value == 'rename') {
-          _renameColumn(progressProvider, column);
-        } else if (value == 'remove') {
-          _removeColumn(progressProvider, column);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem<String>(
-          value: 'range',
-          child: Row(
-            children: [
-              Icon(FluentIcons.checkbox_checked_24_regular, size: 18),
-              SizedBox(width: 8),
-              Text('סימון טווח'),
-            ],
+    return Tooltip(
+      message: 'אפשרויות עמודה',
+      child: AppPopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'range') {
+            _markRange(progressProvider, bookDetails, column);
+          } else if (value == 'rename') {
+            _renameColumn(progressProvider, column);
+          } else if (value == 'remove') {
+            _removeColumn(progressProvider, column);
+          }
+        },
+        entries: [
+          const AppMenuEntry(
+            value: 'range',
+            label: 'סימון טווח',
+            icon: FluentIcons.checkbox_checked_24_regular,
           ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'rename',
-          child: Row(
-            children: [
-              Icon(FluentIcons.rename_24_regular, size: 18),
-              SizedBox(width: 8),
-              Text('שנה שם'),
-            ],
+          const AppMenuEntry(
+            value: 'rename',
+            label: 'שנה שם',
+            icon: FluentIcons.rename_24_regular,
           ),
-        ),
-        if (columnCount > 1)
-          const PopupMenuItem<String>(
-            value: 'remove',
-            child: Row(
-              children: [
-                Icon(FluentIcons.delete_24_regular, size: 18),
-                SizedBox(width: 8),
-                Text('הסר עמודה'),
-              ],
+          if (columnCount > 1)
+            const AppMenuEntry(
+              value: 'remove',
+              label: 'הסר עמודה',
+              icon: FluentIcons.delete_24_regular,
             ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                column.label,
-                style: TextStyle(
-                  fontSize: AppTokens.fontSM,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface,
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  column.label,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontSM,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-          const SizedBox(width: 2),
-          Icon(
-            FluentIcons.chevron_down_24_regular,
-            size: 14,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ],
+            const SizedBox(width: 2),
+            Icon(
+              FluentIcons.chevron_down_24_regular,
+              size: 14,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }

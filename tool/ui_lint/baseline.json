@@ -33,6 +33,21 @@
         {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
       ]
     },
+    "UIL-014": {
+      "lib/search/view/full_text_facet_filtering.dart": [
+        {"scope":"SearchDimensionFilterButton.build","fp":"a5034eeb","n":1}
+      ],
+      "lib/search/view/search_dialog.dart": [
+        {"scope":"_SearchDialogState._buildDefaultsMenu","fp":"a5034eeb","n":1},
+        {"scope":"_SearchDialogState._buildHistoryButton","fp":"a5034eeb","n":1}
+      ],
+      "lib/widgets/dialogs/ad_popup_dialog.dart": [
+        {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"3efca7da","n":1}
+      ],
+      "lib/widgets/text/rtl_text_field.dart": [
+        {"scope":"_RtlTextFieldState._showContextMenu","fp":"d8481033","n":1}
+      ]
+    },
     "UIL-015": {
       "lib/navigation/view/custom_title_bar.dart": [
         {"scope":"_CaptionActionButtonState.build","fp":"220ea01c","n":4},
