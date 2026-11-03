@@ -5,6 +5,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -119,7 +120,11 @@ void main() {
     return bloc;
   }
 
-  Future<void> pumpTab(WidgetTester tester, LibraryState initial) async {
+  Future<void> pumpTab(
+    WidgetTester tester,
+    LibraryState initial, {
+    IndexingBloc? indexing,
+  }) async {
     // מנוע פתוח בלי צורך באיפוס. נוצר בתוך הבדיקה, כדי שההמתנה לו תסתיים
     // ב-pump.
     TantivyDataProvider.instance = TantivyDataProvider.forTesting(
@@ -149,10 +154,12 @@ void main() {
                 ),
               ),
               BlocProvider<IndexingBloc>.value(
-                value: mock<_MockIndexingBloc, IndexingState>(
-                  _MockIndexingBloc(),
-                  IndexingInitial(),
-                ),
+                value:
+                    indexing ??
+                    mock<_MockIndexingBloc, IndexingState>(
+                      _MockIndexingBloc(),
+                      IndexingInitial(),
+                    ),
               ),
               BlocProvider<CustomFoldersBloc>.value(
                 value: mock(
@@ -286,5 +293,98 @@ void main() {
     );
     expect(find.textContaining('hebrewbooks-new'), findsOneWidget);
     expect(find.textContaining('hebrewbooks-old'), findsNothing);
+  });
+
+  testWidgets('השהיה מחלונית החיווי מוצגת בשורת האינדקס (issue #3243)', (
+    tester,
+  ) async {
+    final library = libraryWithBook('תהילים');
+    final indexingStates = StreamController<IndexingState>();
+    addTearDown(indexingStates.close);
+    const running = IndexingInProgress(
+      booksProcessed: 3,
+      totalBooks: 10,
+      isCreatingIndex: true,
+    );
+    final indexing = mock<_MockIndexingBloc, IndexingState>(
+      _MockIndexingBloc(),
+      running,
+      indexingStates.stream,
+    );
+    Future<void> emitIndexing(IndexingState state) async {
+      indexingStates.add(state);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    await pumpTab(
+      tester,
+      LibraryState(library: library, currentCategory: library),
+      indexing: indexing,
+    );
+    expect(find.text('התקדמות האינדקס: 3/10'), findsOneWidget);
+    expect(find.text('המשך'), findsNothing);
+
+    // לחצן "השהה" בחלונית החיווי: IndexingBloc פולט את אותה התקדמות מושהית.
+    await emitIndexing(
+      const IndexingInProgress(
+        booksProcessed: 3,
+        totalBooks: 10,
+        isCreatingIndex: true,
+        isPaused: true,
+      ),
+    );
+    expect(find.text('התקדמות האינדקס: 3/10'), findsNothing);
+    expect(find.text('האינדוקס מושהה: 3/10'), findsOneWidget);
+    expect(find.text('עצור'), findsOneWidget);
+
+    await tester.tap(find.text('המשך'));
+    verify(() => indexing.add(ResumeIndexing())).called(1);
+    // ההמשך מחזיר את אותה ריצה עם אותו מונה.
+    await emitIndexing(running);
+    expect(find.text('התקדמות האינדקס: 3/10'), findsOneWidget);
+    expect(find.text('המשך'), findsNothing);
+
+    await emitIndexing(
+      const IndexingInProgress(
+        booksProcessed: 4,
+        totalBooks: 10,
+        isScanning: true,
+        isPaused: true,
+      ),
+    );
+    expect(find.text('בדיקת הספרים מושהית: 4/10'), findsOneWidget);
+    expect(find.text('המשך'), findsOneWidget);
+
+    // "עצור" בזמן השהיה מבטל את הריצה.
+    await tester.tap(find.text('עצור'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('עצור').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    verify(() => indexing.add(CancelIndexing())).called(1);
+  });
+
+  testWidgets('הגדרות שנפתחות אחרי ההשהיה מציגות אותה (issue #3243)', (
+    tester,
+  ) async {
+    final library = libraryWithBook('תהילים');
+    await pumpTab(
+      tester,
+      LibraryState(library: library, currentCategory: library),
+      indexing: mock<_MockIndexingBloc, IndexingState>(
+        _MockIndexingBloc(),
+        const IndexingInProgress(
+          booksProcessed: 3,
+          totalBooks: 10,
+          isCreatingIndex: true,
+          isPaused: true,
+        ),
+      ),
+    );
+    expect(find.text('האינדוקס מושהה: 3/10'), findsOneWidget);
+    expect(find.text('המשך'), findsOneWidget);
+    expect(find.text('עצור'), findsOneWidget);
   });
 }
