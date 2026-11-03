@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -121,20 +122,23 @@ class AramaicResultCard extends StatelessWidget {
                   _ActionButton(
                     visible: hovering,
                     icon: OtzariaIcons.search_24_regular,
-                    tooltip: 'חפש "$aramaic" בארמית',
+                    tooltip: context.settingsText(
+                      'חפש "{term}" בארמית',
+                      args: {'term': aramaic},
+                    ),
                     onPressed: () => onSearch!(aramaic, hebrewToAramaic: false),
                   ),
                 if (queryIsAramaic)
                   _ActionButton(
                     visible: hovering,
                     icon: FluentIcons.copy_add_24_regular,
-                    tooltip: _copyWithResultTooltip,
+                    tooltip: context.settingsText(_copyWithResultTooltip),
                     onPressed: () => _copy(_entryAsText(meanings)),
                   ),
                 _ActionButton(
                   visible: hovering,
                   icon: FluentIcons.copy_24_regular,
-                  tooltip: 'העתק את הערך',
+                  tooltip: context.settingsText('העתק את הערך'),
                   onPressed: () => _copy(aramaic),
                 ),
               ],
@@ -282,20 +286,22 @@ class _MeaningRow extends StatelessWidget {
             _ActionButton(
               visible: showActions,
               icon: OtzariaIcons.search_24_regular,
-              tooltip: 'חפש בעברית',
+              tooltip: context.settingsText('חפש בעברית'),
               onPressed: onSearch!,
             ),
           if (onCopyWithEntry != null)
             _ActionButton(
               visible: showActions,
               icon: FluentIcons.copy_add_24_regular,
-              tooltip: AramaicResultCard._copyWithResultTooltip,
+              tooltip: context.settingsText(
+                AramaicResultCard._copyWithResultTooltip,
+              ),
               onPressed: onCopyWithEntry!,
             ),
           _ActionButton(
             visible: showActions,
             icon: FluentIcons.copy_24_regular,
-            tooltip: 'העתק פירוש',
+            tooltip: context.settingsText('העתק פירוש'),
             onPressed: onCopy,
           ),
         ],

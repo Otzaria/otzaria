@@ -1490,5 +1490,10 @@
   "חיפוש...": "Search...",
   "הגדרות…": "Settings…",
   "מעבר": "Go",
-  "חלון": "Window"
+  "חלון": "Window",
+  "חפש \"{term}\" בארמית": "Search Aramaic for \"{term}\"",
+  "העתק את הערך עם התוצאה": "Copy the entry with the result",
+  "העתק את הערך": "Copy the entry",
+  "חפש בעברית": "Search in Hebrew",
+  "העתק פירוש": "Copy the definition"
 }
