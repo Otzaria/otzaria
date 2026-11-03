@@ -1,11 +1,12 @@
 # מערכת העיצוב של אוצריא — מסמך התקן
 
-> **מעמד:** גרסה 1.1 (3.11.2026). כל ההכרעות DD-01..31 אושרו בידי בעל הפרויקט, ונימוקיהן ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). האכיפה האוטומטית: [CI_ENFORCEMENT.md](CI_ENFORCEMENT.md).
+> **מעמד:** גרסה 1.2 (3.11.2026). כל ההכרעות DD-01..31 אושרו בידי בעל הפרויקט, ונימוקיהן ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). האכיפה האוטומטית: [CI_ENFORCEMENT.md](CI_ENFORCEMENT.md).
 > **קהל:** כל מי שכותב קוד ממשק באוצריא: מפתחים, סוקרים וסוכני AI. סעיף 8 מסביר איך עובדים לפי התקן בפועל.
 > **גרסאות:**
 > - **1.0 (1.11.2026):** נעילת ההכרעות של חמשת סבבי ההכרעה.
 > - **השלמות 2.11 ו־3.11:** ארבעה סבבי המשך שעלו מהמימוש, משולבים בסעיפים ומסומנים "השלמה 2.11" או "השלמה 3.11". פירוטם ב־DESIGN_DECISIONS.
 > - **1.1 (3.11.2026):** סימוני המימוש נבדקו מול הקוד ב־`design-system/stage-b`. מה שמומש מסומן **קיים**, ומה שמומש בחלקו מסומן **חלקי** עם מה שנשאר.
+> - **1.2 (3.11.2026):** תשובות הסבב החמישי (q10) משולבות, מסומנות "q10", ומספרי ה־baseline עודכנו. מה שעוד פתוח מרוכז בסוף DESIGN_DECISIONS.
 
 ## 0. איך לקרוא את המסמך
 
@@ -23,7 +24,7 @@
 | **קיים** | הטוקן, הרכיב או ההתנהגות כבר בקוד. | משתמשים בו. |
 | **חלקי** | הרכיב או הטוקן קיים, אבל חלק מהקוד עוד לא עבר אליו. מה שנשאר מצוין לצידו. | קוד חדש משתמש בו. קוד ישן עובר אליו כשנוגעים בו. |
 | **יעד** | הוכרע, אבל עוד לא בקוד. | קוד חדש משתמש ברכיב או בטוקן הקיים הקרוב ביותר (מצוין לצידו). לא משנים מראה קיים בלי commit מיישם עם תמונות. |
-| **⚠** | ממתין להכרעה של בעל הפרויקט. | לא מיישמים את החלק המסומן עד תשובה. |
+| **⚠** | ממתין להכרעה של בעל הפרויקט (הרשימה בסוף DESIGN_DECISIONS). | לא מיישמים את החלק המסומן עד תשובה. |
 
 **ערך שלא נקבע בהכרעה** (גוון מדויק, ריפוד שלא נשאל עליו) נקבע ב־commit המיישם, עם תמונות לפני/אחרי לאישור בעל הפרויקט. המסמך לא ממציא ערכים.
 
@@ -31,7 +32,7 @@
 
 **מה לא נכלל:** טיפוגרפיה וצבעים של **תוכן הספרים** כפופים להגדרות הקריאה של המשתמש, ולא לטוקני הממשק. ראו סעיף 2.4.2.
 
-**מספרים "היום"** במסמך הם ספירות ה־baseline של `tool/ui_lint` ב־3.11.2026. המצב העדכני: `dart tool/ui_lint_cli.dart`.
+**מספרים "היום"** במסמך הם ספירות ה־baseline של `tool/ui_lint` ב־3.11.2026, אחרי q10. המצב העדכני: `dart tool/ui_lint_cli.dart`.
 
 ---
 
@@ -57,10 +58,8 @@
 - כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A). פעולה מסוכנת: `ActionButton.warning`, כפתור מלא ברקע `error` (השלמה 3.11).
 - כותרות מקטע בצבע `primary`, דרך `AppSectionLabel` (DD-14 A). חריג: בדיאלוג החיפוש ובאיתור המקורות נשארות הכותרות הקטנות שלהם, 13 (השלמה 2.11).
 - מסגרת `outlineVariant` ולא צל לכרטיסים (DD-12 A).
-- רדיוס אחד, 8, לכל רכיב מלבני, כולל צ'יפים, כפתור סרגל עם תווית ותג אייקון (DD-04 A). שני חריגים: כפתור אייקון בלבד נשאר עגול, ו־`BarSplitButton` (אייקון וחץ) נשאר גלולה (השלמה 2.11). גם הריחוף של `IconButton` גולמי עגול, דרך ערכת הנושא (השלמה 3.11).
-
-**⚠ ממתין להכרעה (סבב ההכרעות של 3.11):**
-- **`AppTogglePill`:** גודל התווית, 13, אינו בסולם הטיפוגרפיה (UIL-017). חריגה מתועדת, או 12 או 14 מהסולם? גם תווית כפתור הסינון בשדה חיפוש (`OtzariaSearchFieldButton.label`) היא 13, גופן השדה הצר (`AppInputTokens.compactFontSize`).
+- רדיוס אחד, 8, לכל רכיב מלבני, כולל צ'יפים, כפתור סרגל עם תווית ותג אייקון (DD-04 A). שני חריגים: כפתור אייקון בלבד נשאר עגול, ו־`BarSplitButton` (אייקון וחץ) נשאר גלולה (השלמה 2.11). גם הריחוף של `IconButton` גולמי עגול, דרך ערכת הנושא (השלמה 3.11). כפתור אייקון עם רקע משלו נשאר 8 (q10 Q22).
+- תוויות קטנות מהסולם: `AppTogglePill` ותווית הסינון של תוסף ב־`labelMedium` (12), ותווית פריט בעמודת הניווט ב־`labelSmall` (11) (q10 Q1, Q2, Q23).
 
 ---
 
@@ -75,14 +74,14 @@
 | `lib/theme/app_surface_colors.dart` | `AppSurfaceColors` (ThemeExtension, DD-19) | המשטחים, האזהרה והמצבים, נבנים ב־`AppThemeData` מתוך ה־`ColorScheme`. |
 | `lib/theme/app_surfaces.dart` | `AppSurfaces` | הגישה למשטחים ולמצבים: `AppSurfaces.card(context)` קורא את `AppSurfaceColors`, ופונקציות של `ColorScheme` (`selectedRow(cs)` וכדומה) לצבעי מצב שנגזרים ישירות מתפקיד. |
 | `lib/theme/app_density.dart` | `AppDensity` (ThemeExtension, DD-10) | "צפיפות ממשק": `isCompact`, גובה סרגל, מידות כפתור ותפריט. |
-| `lib/theme/app_motion.dart` | `AppMotion` | משך אנימציה בכפוף ל"הפחתת אנימציות" של המערכת (DD-21). |
+| `lib/theme/app_motion.dart` | `AppMotion` | משך אנימציה וגלילה מונפשת (`duration`, `scroll`, `scrollPosition`) בכפוף ל"הפחתת אנימציות" של המערכת (DD-21). |
 | `lib/theme/app_shadows.dart` | `AppShadows` | הצל היחיד (DD-12): צבע הצל ו־`floating`. |
 | `lib/theme/app_colors.dart` | `AppColors` | שלושה צבעים קבועים: `darkScaffold` (רקע קריאה כהה), `warningHue` (גוון האזהרה) ו־`pageWhite` (דף נייר). |
 | `lib/theme/app_input_tokens.dart` | `AppInputTokens` | גובה שדה 48/36, גופן השדה ושקיפויות. |
 | `lib/theme/layout_tokens.dart` | `LayoutBreakpoints`, `WindowClass`, `LayoutPadding`, `LayoutConstraints` | 600/840/1200, סוג החלון (DD-15), 16/24/32, ‏860, רוחב חלונית צד 340 ורוחב תוכן מינימלי 500. |
 | `lib/theme/app_theme_data.dart` | `AppThemeData` | בניית `ColorScheme`, `ThemeData`, ‏`textTheme` המלא וה־component themes. |
 | `packages/otzaria_context_menu` | `AppMenuMetrics` | מידות התפריטים, צפופות יותר במצב הקומפקטי (DD-10). |
-| `lib/theme/app_seed_colors.dart`, `calendar_event_colors.dart` | — | פלטות תוכן. תוכן, לא מדיניות. מוחרגים מכללי ה־CI. |
+| `lib/theme/app_seed_colors.dart`, `calendar_event_colors.dart` | `AppSeedColors`, `CalendarEventColors` | פלטות תוכן. תוכן, לא מדיניות. מוחרגים מכללי ה־CI. `AppSeedColors.checkColorOn(swatch)` מחזיר שחור או לבן לסימון על עיגול צבע, לפי בהירות העיגול (q10 Q4.1). |
 
 **[מחייב]** טוקנים חדשים נוספים לקבצים האלה בלבד. לא פותחים קובץ טוקנים מקביל בתיקיית פיצ'ר.
 **[מחייב]** טוקן הוא `static const` כשהערך לא תלוי בערכת הנושא, כמו ריווח, רדיוס, משך וגודל. כשהערך תלוי בערכת הנושא (צבע) או בצפיפות, הוא שדה ב־ThemeExtension: `AppSurfaceColors` או `AppDensity` (DD-19 A). ריווח ורדיוס **לא** נכנסים ל־ThemeExtension.
@@ -97,10 +96,10 @@
 **[אסור]** בקבצי פיצ'ר:
 - `Color(0x…)`.
 - `Colors.<גוון>` (`red`, `blue`, `grey` וכו').
-- `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 93 מופעים ב־baseline).
+- `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 91 מופעים ב־baseline).
 - `Theme.of(context).primaryColor`. זהו באג מוכח: במצב כהה Flutter מחזיר דרכו את `surface`, ולכן טקסט ותיבות סימון נעלמו.
-- `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה.
-- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors` (היום עוד 54 בדיקות כאלה מחוץ ל־`lib/theme`).
+- `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה, גם בתנאי שכל ענפיו `AppSurfaces` או `null`.
+- ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. בדיקה לפי שם מצאה 31 אתרים מחוץ ל־`lib/theme`, ורובם אינם החלטת צבע (בניית הערכה, פלטפורמה, תוכן). הכלל (UIL-027) עוד לא מומש.
 
 `Colors.transparent` מותר. החריגים המותרים מפורטים בסעיף 2.1.3.
 
@@ -139,8 +138,9 @@
 | צל | `AppShadows` | `cs.shadow` 22% | | קיים (DD-12 A). כרטיסים בלי צל | תפריט, חלונית צפה, כפתור צף |
 
 #### 2.1.2 צבעי ניווט, קריאה וסימון
-- **ניווט [מחייב] · קיים:** הסרגל העליון וחלונית הניווט חולקים צבע אחד (`topBarBackground`), כדי שייראו כרצועה רציפה.
+- **ניווט [מחייב] · קיים:** הסרגל העליון וחלונית הניווט חולקים צבע אחד (`topBarBackground`), כדי שייראו כרצועה רציפה. עמודת הניווט והסרגל התחתון בטלפון באותו צבע, `navPanelBackground` (q10 Q18).
 - **כרטיסיות [מחייב] · קיים (DD-06):** שתי רצועות הכרטיסיות (האופקית והאנכית) מקבלות את צבעי המצב מ־`TabStateColors` אחד (`lib/navigation/view/tab_visuals.dart`): `hoverRow` ו־`multiSelected`. הכרטיסייה הפעילה, בשתי הרצועות, בצבע הסרגל (`topBarBackground`) ובמשקל w600 (השלמה 2.11). ברצועה האופקית הצורה מחברת אותה לפס, וברצועה האנכית היא בולטת על רקע הלוח. בחיפוש הכרטיסיות הכרטיסייה הנוכחית ב־`selectedRow`. "נבחר" מסומן גם במשקל הגופן או באייקון, לא רק בצבע.
+- **פרטי הכרטיסייה · קיים (q10 Q14):** זהים בשתי הרצועות: אייקון PDF אחד (של אוצריא), X בגודל 12, ונעץ לחיץ בתחילת כרטיסייה מוצמדת (`TabPinButton`, שמבטל את ההצמדה).
 - **סימון טקסט בקורא:** צבעי הדגשה שהמשתמש בוחר (מרקר, צבעי אירועים) הם **תוכן**. שומרים אותם כנתון (אינדקס או ARGB) ומתאימים אותם לבהירות בזמן ציור, כפי ש־`CalendarEventColors` עושה.
 
 #### 2.1.3 חריגים מותרים לצבע מקומי [מחייב] (DD-24)
@@ -166,7 +166,7 @@
 | `AppTokens.spaceLG` | 24 | ריפוד דיאלוג (M3), בין מקטעים |
 | `AppTokens.spaceXL` | 32 | שוליים של מסך רחב |
 
-**כלל העיגול [מחייב] (DD-03):** ריווח שמחוץ לסולם **עולה** לערך הבא: 6→8, ‏10→12, ‏14→16. העיגול נעשה כשהקובץ מוסב, לא בהחלפה גורפת. UIL-020 חוסם ריווח חדש מחוץ לסולם (153 מופעים ב־baseline).
+**כלל העיגול [מחייב] (DD-03):** ריווח שמחוץ לסולם **עולה** לערך הבא: 6→8, ‏10→12, ‏14→16. העיגול נעשה כשהקובץ מוסב, לא בהחלפה גורפת. UIL-020 חוסם ריווח חדש מחוץ לסולם (151 מופעים ב־baseline).
 
 **טוקנים סמנטיים** (`static const` ב־`AppTokens`, DD-03 C). כל הערכים נגזרים מהסולם. ערך שלא הוכרע נקבע ב־commit המיישם, עם תמונות:
 
@@ -197,9 +197,10 @@
 | כפתור אייקון בלבד ב־`BarButton` (`CircleBorder` לבחירה ול־hover) | **עיגול**, חריג מאושר (DD-04, השלמה 2.11) | קיים |
 | כפתור סרגל מפוצל (`BarSplitButton`, אייקון וחץ בלי תווית) | **גלולה**, חריג מאושר (DD-04, השלמה 2.11) | קיים |
 | `IconButton` גולמי בלי צורה משלו (`iconButtonTheme`) | **עיגול**, כמו `AppIconButton` (DD-04, השלמה 3.11). כפתור אייקון עם רקע גלוי משלו (`filled`, `filledTonal`, `backgroundColor`) קובע `roundedShape` בעצמו ונשאר 8 | קיים |
-| כפתור סינון של תוסף בשדה חיפוש, במצב סינון עם תווית | **גלולה**, כמו שתוארה האפשרות שנבחרה (DD-31, השלמה 3.11) | קיים. ⚠ הצורה והגופן ממתינים להכרעה (סבב 3.11) |
+| כפתור סינון של תוסף בשדה חיפוש, במצב סינון עם תווית | 8, בצורת צ'יפ, עם תווית `labelMedium` (12) (DD-31, q10 Q23) | קיים |
+| ידית פס גלילה | חצי מהעובי, מחושב מקבוע העובי (q10 Q10) | קיים |
 
-**[אסור]** כל רדיוס אחר: `circular(n)` ליטרלי (UIL-019, 2 מופעים ב־baseline), `StadiumBorder` (⚠ הכלל עוד לא בודק אותו; ממתין להכרעה על רשימת החריגים), ו־4 בתוך תפריט. `CircleBorder` מותר רק לרכיב עגול מטבעו ולכפתור אייקון בלבד.
+**[אסור]** כל רדיוס אחר: `circular(n)` ליטרלי, `StadiumBorder`, ו־4 בתוך תפריט. `CircleBorder` מותר רק לרכיב עגול מטבעו ולכפתור אייקון בלבד. UIL-019 בודק את כולם, עם החריגים שבטבלה (q10 Q13). אין לו חוב, והוא נעול.
 
 ### 2.4 טיפוגרפיה
 
@@ -220,12 +221,12 @@
 | טקסט גוף משני / תיאור | `bodyMedium` | 14 |
 | מטא, הערות שוליים, מונים | `bodySmall` | 12 |
 | תווית שדה / כפתור | `labelLarge` | 14 / w500 |
-| תווית קטנה (צ'יפ, לשונית) | `labelMedium` / `labelSmall` | 12 / 11 |
+| תווית קטנה (צ'יפ, `AppTogglePill`, לשונית) / פריט בעמודת הניווט | `labelMedium` / `labelSmall` | 12 / 11 (q10 Q1, Q2) |
 | הודעת שגיאה בשדה | `bodySmall` + `cs.error` | 12 |
 | מונוספייס (נתיב, קיצור מקשים, גרסה) | המשפחה: `AppTextStyles.monospaceFamily` (קיים). סגנון `AppTextStyles.mono` עם גודל מה־slots: יעד | גופן `monospace` של המערכת |
 
 **[מחייב]**
-- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme. UIL-017 חוסם את שניהם (203 מופעים ב־baseline). ⚠ כמה גדלים בלי תפקיד ברור ממתינים להכרעה על המיפוי (סבב 3.11).
+- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme. UIL-017 חוסם את שניהם (188 מופעים ב־baseline). גם גודל שאין לו תפקיד ברור מקבל את ה־slot הקרוב, ולא חריג (q10 Q5).
 - `TextStyle(fontFamily: '…')` ליטרלי אסור (UIL-018). המשפחה נקבעת ב־`AppThemeData` (גופן ממשק), ב־`AppFonts` (תוכן) או ב־`AppTextStyles.monospaceFamily`.
 - `AppTextStyles.settingTitle/settingSubtitle` שמורים לשורות הגדרה. לא בונים מהם סגנונות לשימושים אחרים.
 
@@ -235,7 +236,7 @@
 
 הכללים:
 - גדלים יחסיים בתוך תוכן (×0.85 לכותרת מפרש, ‎sup/small ב־HTML) הם חלק מהתוכן ומותרים.
-- **הודעות ממשק בתוך אזור התוכן** ("טוען מפרשים…", "אין תוכן זמין", שגיאת טעינה) הן ממשק, ולכן `textTheme`. ⚠ חלקן עוד מוגדלות לפי גודל הקריאה ובצבע קבוע; ממתין להכרעה (סבב 3.11).
+- **הודעות ממשק בתוך אזור התוכן** ("טוען מפרשים…", "אין תוכן זמין", שגיאת טעינה) הן ממשק, ולכן `textTheme`, וטקסט משני בהן `onSurfaceVariant`. חלקי: "טוען מפרשים…" כבר ב־`onSurfaceVariant` (q10 Q4.2), אבל עדיין בגודל הקריאה.
 - גופני ספר נקבעים דרך `AppFonts` בלבד.
 - ההחרגה ב־CI נעשית לפי נתיבים ודפוסים ולא בהערות. הרשימה ב־`CI_ENFORCEMENT.md` §3.6.
 
@@ -254,7 +255,7 @@
 | `AppTokens.iconLG` | 24 | ברירת מחדל של M3 |
 | `AppTokens.iconXL` | 48 | מצב ריק |
 
-**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 182 מופעים ב־baseline). ⚠ גודל 18, הנפוץ בחוב, ממתין להכרעה (סבב 3.11).
+**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 116 מופעים ב־baseline). גודל מחוץ לסולם עובר לטוקן: 18 ל־`iconSM` ‏(16), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9). ⚠ גודל 22 עוד ממתין להכרעה.
 
 #### 2.5.2 גבהים סטנדרטיים
 | רכיב | ערך | מקור | סטטוס |
@@ -279,7 +280,7 @@
 - 1 (`AppTokens.elevation1`): סרגל עליון וחלונית מוצמדת.
 - 3 (`AppTokens.elevation2`): תפריט, tooltip וחלונית צפה.
 
-הדיאלוג נשאר לפי M3. צל רק דרך `AppShadows`. ה־scrim אחד, עדין כמו בדיאלוגים (2.1.1). UIL-030 חוסם הגבהה ליטרלית ו־`BoxShadow` מחוץ ל־`lib/theme` (6 מופעים ב־baseline: צללי הנייר של עמוד PDF ואנימציות הדגשה וחגיגת סיום).
+הדיאלוג נשאר לפי M3. צל רק דרך `AppShadows`. ה־scrim אחד, עדין כמו בדיאלוגים (2.1.1). UIL-030 חוסם הגבהה ליטרלית ו־`BoxShadow` מחוץ ל־`lib/theme` (4 מופעים ב־baseline: אנימציות הדגשה וחגיגת סיום). צל הנייר של עמוד PDF הוא תוכן, ומסומן allow (JX-05, q10 Q11).
 
 #### 2.5.5 תנועה
 | טוקן | ערך | סטטוס |
@@ -292,12 +293,22 @@
 | `AppTokens.curveStandard` / `curveEnter` / `curveExit` | `Curves.easeInOut` / `easeOutCubic` לכניסה. הערכים הקיימים | יעד. עד אז: `Curves.easeInOut` |
 
 **[מחייב]**
-- משך אנימציה של ממשק הוא טוקן (UIL-023; 33 מופעים ב־baseline, רובם גלילה מונפשת).
-- **הפחתת תנועה (DD-21 A) · קיים:** כל משך של אנימציית ממשק עובר דרך `AppMotion.duration(context, AppTokens.animNormal)`, שמחזיר `Duration.zero` כשהמערכת מבקשת להפחית אנימציות. כך נכבות פתיחת חלונית והחלפת לשונית. אנימציה שמעבירה מידע, כמו התקדמות, נשארת. ⚠ גלילה מונפשת דרך `AppMotion` ממתינה להכרעה (סבב 3.11).
+- משך אנימציה של ממשק הוא טוקן (UIL-023; 8 מופעים ב־baseline, כולם `AnimationController`).
+- **הפחתת תנועה (DD-21 A) · קיים:** כל משך של אנימציית ממשק עובר דרך `AppMotion.duration(context, AppTokens.animNormal)`, שמחזיר `Duration.zero` כשהמערכת מבקשת להפחית אנימציות. כך נכבות פתיחת חלונית והחלפת לשונית. אנימציה שמעבירה מידע, כמו התקדמות, נשארת.
+- **גלילה מונפשת · קיים (q10 Q12):** דרך `AppMotion.scroll` או `AppMotion.scrollPosition`, שקופצים ליעד תחת הפחתת תנועה, כי `animateTo` לא מקבל משך 0. ‏`Scrollable.ensureVisible` מקבל `AppMotion.duration`.
+- ⚠ משכים בלי טוקן שווה (120, ‏180, ‏280) עוברים היום דרך `AppMotion` בערך ליטרלי. ממתין להכרעה אם להוסיף להם טוקנים.
+
+```dart
+AppMotion.scrollPosition(_scroll.position, offset, AppTokens.animPanelSlide);
+AppMotion.scroll(context, AppTokens.animPanelSlide,
+    animate: (d) => _pages.animateToPage(i, duration: d, curve: Curves.easeInOut),
+    jump: () => _pages.jumpToPage(i));
+```
 
 #### 2.5.6 שטחי לחיצה [מחייב] · קיים
 - מינימום 40×40 בדסקטופ, ו־48×48 במגע (`MaterialTapTargetSize.padded`). `AppIconButton` במובייל 48 גם בשורה צפופה, כשהשורה גבוהה ב־8 (DD-11, השלמה 3.11).
 - אפשר לצייר אייקון קטן בתוך שטח לחיצה גדול יותר. מקטינים את השטח רק כשהרכיב הוא חלק משורה צפופה שיש לה חלופה במקלדת.
+- ⚠ חמישה מקומות קטנים מ־48 במגע, וממתינים להכרעה: `BarButton.icon` ב־`AppTopBar` ‏(40), ‏`AppTogglePill` (גובה 24), ‏`StatusChip` (גובה 32), כפתור הניקוי של `OtzariaSearchField` ‏(32), וכפתורי כרטיס ההערה במסך הניהול (`AppIconButton(small)` עם `shrinkWrap`, ‏32, q10 Q25). ארבעת הראשונים נמדדים ב־`test/design_system/a11y_guidelines_test.dart`.
 
 #### 2.5.7 מגבלות רוחב
 | טוקן | ערך | סטטוס |
@@ -313,7 +324,7 @@
 - גודל אייקון בסרגל ו־menu metrics. **התפריטים צפופים יותר במצב הקומפקטי**;
 - `isCompact`.
 
-שינוי ההגדרה מתעדכן מיד בכל הממשק. שם ההגדרה למשתמש נשאר **"צפיפות ממשק"**. רכיבים קוראים `AppDensity.of(context)`. **[אסור]** לקרוא את `compactMenuMode` מתוך רכיב תצוגה. מחוץ ל־`lib/theme` ולהגדרות הוא נקרא היום רק ב־`app.dart` וב־`main_window_screen.dart`.
+שינוי ההגדרה מתעדכן מיד בכל הממשק. שם ההגדרה למשתמש נשאר **"צפיפות ממשק"**. רכיבים קוראים `AppDensity.of(context)`. **[אסור]** לקרוא את `compactMenuMode` מתוך רכיב תצוגה. מחוץ ל־`lib/theme` ולהגדרות הוא נקרא היום רק ב־`app.dart` וב־`main_window_screen.dart`, וב־`lib/widgets` הכלל UIL-025 נועל אותו.
 
 ---
 
@@ -331,7 +342,7 @@
 
 ### 3.1 דיאלוגים
 
-**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001.
+**המסגרות:** `AppDialog` (שאלות קצרות, מאחורי `showTwoActionsDialog`/`showWarningDialog`/`showSingleActionDialog`), `AppDialogFrame(size:)` לכל השאר, ו־`InputDialog`/`SelectionDialog` מאחורי `showInputDialog`/`showSelectionDialog`. `AppCustomContentDialog` ו־`ListDialogFrame` הוסרו לטובת `AppDialogFrame`. נשארו 3 דיאלוגים גולמיים, ב־baseline של UIL-001, ו־54 קריאות `showDialog` ישירות (UIL-028, דוח בלבד).
 
 #### משפחות הדיאלוג [מחייב] (DD-07 B, DD-16 A) · קיים
 
@@ -381,14 +392,16 @@
 |---|---|---|
 | ראשי | `ActionButton.recommended` | אחד לכל קבוצת פעולות |
 | משני / ניטרלי, **וביטול בדיאלוג** | `ActionButton.neutral` (tonal) | DD-09 A |
-| פעולה משנית שקטה שאינה ביטול ("דלג", "איפוס" בתוך פאנל) | `ActionButton.ghost` | |
+| פעולה משנית שקטה שאינה ביטול ("דלג", "איפוס" בתוך פאנל) | `ActionButton.ghost` | גם מספר העמוד ו"אפס" בסרגלי ה־PDF (q10 Q7.2, Q7.3) |
+| פעולה צפופה בתוך הודעה, שורה או פירורי לחם | `ActionButton.inline(text:, onPressed:, color:, tooltip:)`: ghost בלי גודל מינימלי, ריפוד 8×4 ושטח מגע בגודל הכפתור (q10 Q7.1, Q7.8, Q7.9) | פעולת `UiSnack`, פירורי הלחם ו"רק" בתפריט ההיקף. `color` רק כשההקשר קובע אותו, למשל טון ההודעה |
+| אייקון אחרי הטקסט ("הבא", "הצג עוד") | `iconAlignment: IconAlignment.end` בכל וריאנט חוץ מ־`inline` (q10 Q7.4, Q7.6) | ברירת המחדל `start` |
 | מסוכן (אישור מחיקה) | `ActionButton.warning`: כפתור מלא, רקע `error` וטקסט `onError` (DD-09, השלמה 3.11) | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. גם ״דרוס״ בייבוא ההערות, ליד שלושה כפתורי `neutral` (השלמה 3.11) |
-| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים נשארו כ־115 `IconButton` גולמיים |
+| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים נשארו כ־90 `IconButton` גולמיים |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
-| פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה (השלמה 3.11) |
-| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip` | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. ⚠ מצב "מוריד…" ממתין להכרעה (סבב 3.11) |
+| פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה, ליד הספר ובמסך הניהול (השלמה 3.11, q10 Q25) |
+| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**
@@ -399,7 +412,7 @@
 **מדיניות Tooltip [מחייב]:** לכל כפתור שמכיל אייקון בלבד יש `tooltip` (UIL-003). הטקסט שלו הוא גם השם הנגיש. אם יש קיצור מקשים, הוא מופיע ב־tooltip בצורה `"הדפסה (Ctrl+P)"`, בעזרת `ShortcutHelper.formatShortcutForDisplay`. כפתור עם תווית טקסט לא צריך tooltip.
 
 **[אסור]**
-- `TextButton(`, `FilledButton(`, `OutlinedButton(`, `ElevatedButton(` מחוץ ל־`lib/widgets/controls/`. ⚠ הכלל (UIL-002) עוד לא באכיפה, ותשעת הכפתורים הגולמיים שנשארו ממתינים להכרעה (סבב 3.11).
+- `TextButton(`, `FilledButton(`, `OutlinedButton(`, `ElevatedButton(` מחוץ ל־`lib/widgets/controls/`. תשעת הכפתורים הגולמיים האחרונים הוסבו (q10 Q7), ואין יותר כאלה בפיצ'רים. הכלל (UIL-002) עוד לא באכיפה.
 - `IconButton` בלי `tooltip`.
 - `IconButton` בתוך `ResponsiveActionBar` במקום `BarButton`.
 
@@ -409,12 +422,12 @@
 |---|---|---|
 | שדה טקסט | `RtlTextField` + `InputDecoration` מערכת הנושא | `TextField` גולמי אסור (UIL-011) |
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
-| חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton`, וגודל הכפתורים נגזר מהשדה. כפתור סינון של תוסף (`providerBooksFilter`): במצב סינון גלולה עם אייקון ותווית קצרה, ״רק התוסף״ / ״רק הספרייה״, שהתוסף יכול להחליף (`pluginOnlyLabel`, `libraryOnlyLabel` במניפסט); בשדה שאין בו מקום לתווית, אייקון ו־tooltip (DD-31, השלמה 3.11) |
+| חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton`, וגודל הכפתורים נגזר מהשדה. כפתור סינון של תוסף (`providerBooksFilter`): במצב סינון אייקון ותווית קצרה בצורת צ'יפ (פינות 8, ‏`labelMedium`, q10 Q23), ״רק התוסף״ / ״רק הספרייה״, שהתוסף יכול להחליף (`pluginOnlyLabel`, `libraryOnlyLabel` במניפסט); בשדה שאין בו מקום לתווית, אייקון ו־tooltip (DD-31, השלמה 3.11) |
 | ניווט בין תוצאות | `SearchResultNavigator` | אחד, בשדות, בחלוניות החיפוש, בתצוגה המשולבת וב־PDF |
 | בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (השלמה 2.11). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה) |
 | 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsSegmentedTile` | קיים. גם בורר מצב החיפוש ובורר שבוע/חודש בלוח השנה (DD-31a) |
-| מתג קטן בתוך שורה | `AppTogglePill` | קיים. ⚠ גודל התווית (1.2) |
-| בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת |
+| מתג קטן בתוך שורה | `AppTogglePill` | קיים. תווית `labelMedium` (12), כמו הצ'יפים שלידה (q10 Q1). גם מתג שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
+| בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת. גם תיבת סימון שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | Checkbox | `Checkbox` של Material | יעד: `checkboxTheme`. השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
 | Switch | `SettingsSwitchTile`. מחוץ להגדרות: `Switch` | יעד: `switchTheme`. `CustomSwitch` (4 קוראים) יוסר באותו שינוי, כדי שלא יישארו שני מתגים |
 | Slider | `SettingsSliderTile` | `SliderTheme` מקומי אסור |
@@ -427,13 +440,14 @@
 
 | תפקיד | רכיב | הערות |
 |---|---|---|
-| כרטיס מידע | `AppCard(tone: normal\|primary\|error)` | `Card(` גולמי אסור (נשארו 3: אודות, פופאפ ההודעות, לוח השנה). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on |
+| כרטיס מידע | `AppCard(tone: normal\|primary\|error\|inset)` | `Card(` גולמי אסור (UIL-012; נשארו 2: כרטיס הזמן בלוח השנה, כרטיס הארגון בחלון הגיוס). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on. `inset` לכרטיס בתוך כרטיס, על `surfaceContainerHigh` (q10 Q8a) |
 | קבוצת שורות בכרטיס | `AppCard.section(children:)` | מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | חלקי. בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
+| כותרת מקטע מתקפל בטבלה או בעץ עם עמודות | `TreeSectionHeader(isExpanded:, onToggle:, child:, leadingExtent:, padding:)` (‏`lib/widgets/lists/tree_section_header.dart`) | כל השורה לחיצה, החץ בסגנון עץ בתחילת השורה ברוחב `leadingExtent`, ושורות הילדים משאירות אותו רוחב ריק כדי שהעמודות יתיישרו. במקום `ExpansionTile` עטוף ב־Theme מקומי (q10 Q8d, שמור וזכור) |
 | שורת הגדרה | `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsPathTile`, `SettingsSliderTile`, ו־`SettingsActionTile` (.text/.path/radioOption) לשאר, בתוך `SettingsCard` | בין כרטיסים בלשונית: **24 בכל הלשוניות** (השלמה 3.11): ריפוד הכותרת של `SettingsCard`, בלי מרווח נוסף. כרטיס שלפעמים לא מוצג לא משאיר מרווח. חלקי: עדיין נבנים ידנית ההדפסה, חלונית צורת הדף, `ShortcutDropDownTile`, `ColorPickerTile` ועוד |
 | פריט רשימה | `ListTile`, או `NavTreeTile` בחלוניות | יעד: `listTileTheme` |
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
@@ -448,11 +462,11 @@
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו כ־60 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 59 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
 | טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2) | |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
-| ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | |
+| ריק "גדול" (ספרייה ריקה, הגדרה ראשונית) | `OtzariaEmptyState.large` (DD-31d) | גם מסך הנעילה של מצב סייפר (q10 Q8c) |
 | שגיאה | `OtzariaErrorState(actions: [נסה שוב])` | לא `Text` אדום |
 | הצלחה / הודעה קצרה | `UiSnack.show(<Module>Messages.x)` (למשל `SettingsMessages`) | מחרוזות מקטלוג בלבד (UIL-009). `UiSnack` מכריז את ההודעה לקורא מסך |
 | באנר בתוך המסך | `AppInfoBanner(tone: info/warning/error/success, title:)` (DD-24). `warning` מטוקני האזהרה, `success` בגוון הנייטרלי. `info` על רקע נייטרלי `surfaceContainerHighest`, אייקון `primary` וטקסט רגיל (השלמה 2.11). בלי מסגרת, כותרת `titleSmall`, הודעה `bodyMedium` | חלקי: נשארו הבאנרים ברוחב מלא בתוצאות החיפוש |
@@ -466,7 +480,7 @@
 
 | דפוס | רכיב | הערות |
 |---|---|---|
-| מעטפת מסך לוח (הגדרות, ספרייה, כלים) | `AppTopBar` + רקע `panelBackground` + `LayoutConstraints.panelContentMaxWidth` | אזור "כלים ועבודה" (DD-18) |
+| מעטפת מסך לוח (הגדרות, ספרייה, כלים) | `AppTopBar` + רקע `panelBackground` + `LayoutConstraints.panelContentMaxWidth` | אזור "כלים ועבודה" (DD-18). גם מסך ההגדרות בטלפון, עם `BarButton.icon` (q10 Q8b) |
 | מעטפת כלי חיפוש | `ToolScaffold` (`lib/widgets/layout`): סרגל עם שדה החיפוש, מסננים, גוף ושורת תחתית; הסרגל נשאר בטעינה ובשגיאת טעינה (`loading`, `loadError` + `onRetry`); קיצור "חפש בחלון" | קיים בחמשת כלי החיפוש |
 | אזור תוכן | `PanelScrollableContent` / `CenteredScrollableState` | |
 | כותרת מסך | `AppTopBar(center:)` עם `AppTopBar.titleStyle(context)` (`titleLarge`) / `subtitleStyle(context)` (`bodySmall`) | |
@@ -476,7 +490,7 @@
 | ידית פתיחה של חלונית | `PositionedPanelOpenHandle` | ממוקמת לפי המכל שלה ולא לפי החלון |
 | Split pane | `SplitPaneView` (tabs) | |
 | מסך הגדרות | `SettingsTabScrollView` + `SettingsCard` | |
-| מסך תוצאות | `ResultCardFrame`; מעל תוצאות כלי: `ToolResultsHeader(label, leading, child)` | אזור התוצאות על `panelBackground`, ועץ הסינון על `navPanelBackground` (DD-18). ⚠ צבע אחד לניווט ממתין להכרעה (סבב 3.11) |
+| מסך תוצאות | `ResultCardFrame`; מעל תוצאות כלי: `ToolResultsHeader(label, leading, child)` | אזור התוצאות על `panelBackground`, ועץ הסינון על `navPanelBackground` (DD-18) |
 | מסך קריאה | `TextBookScreen` / `PdfBookScreen` על `readerBackground` | אזור "קריאה": בלי כרטיסים סביב טקסט הספר, צבע רק לתוכן. סרגל המפרשים המשותף: `CommentaryPanelToolbar` |
 
 **[מחייב]** מעדיפים קומפוזיציה: מעטפת מסך מקבלת `child` ולא עשרות דגלים. מסך שלא מתאים לאף דפוס בונה פריסה משלו, אבל רק מרכיבים מהקטלוג.
@@ -521,7 +535,7 @@
 ### 5.1 נקודות השבירה הכלליות
 `LayoutBreakpoints`: ‏`compact < 600`, ‏`medium < 840`, ‏`expanded < 1200`, ומעל זה `large`. הערכים עקביים עם M3 ונשארים **[מחייב] · קיים**.
 
-**[מחייב] (DD-15 A) · קיים:** סף "דיאלוג צר" 520 הוחלף ב־`LayoutBreakpoints.compact` (600), דרך `WindowClass.isCompact`. דיאלוגים בחלון ברוחב 520–600 עוברים לפריסה הצרה. UIL-022 חוסם השוואת רוחב חדשה לליטרל (0 ב־baseline).
+**[מחייב] (DD-15 A) · קיים:** סף "דיאלוג צר" 520 הוחלף ב־`LayoutBreakpoints.compact` (600), דרך `WindowClass.isCompact`. דיאלוגים בחלון ברוחב 520–600 עוברים לפריסה הצרה. UIL-022 חוסם השוואת רוחב חדשה לליטרל, גם כשהרוחב במשתנה מקומי (`width`, `screenWidth` וכדומה). אין לו חוב, והוא נעול.
 
 ### 5.2 שני סוגי החלטות [מחייב] (DD-15 A) · קיים
 1. **סוג החלון** (window class): ניווט צדדי מול ניווט תחתון, דיאלוג במסך מלא מול דיאלוג צף, מספר עמודות בדף הבית. נקבע דרך עזר יחיד, `WindowClass.of(context)` → `compact|medium|expanded|large`, לפי רוחב החלון מול `LayoutBreakpoints`.
@@ -551,8 +565,8 @@
 ### 6.1 כיווניות [מחייב]
 - **הכיווניות גלובלית:** `Locale('he','IL')`. לא מוסיפים `TextDirection.rtl` ל־`Text`. כן מוסיפים `TextDirection.ltr` לתוכן שהוא LTR מטבעו: נתיב, URL, דוא"ל, גרסה, hash ומזהה.
 - **Directional APIs בלבד:** `EdgeInsetsDirectional`, `AlignmentDirectional`, `PositionedDirectional`, `BorderRadiusDirectional`, `start`/`end`.
-  - אסור: `left`/`right` ו־`Alignment.centerLeft` (UIL-021; 74 מופעים ב־baseline).
-  - ערך סימטרי (`fromLTRB(a, b, a, c)`) אינו תלוי כיוון ומותר. גאומטריה אחרת שתלויה בצד הפיזי מקבלת `ui-lint: allow` עם נימוק. ⚠ סיווג המופעים שנשארו ממתין להכרעה (סבב 3.11).
+  - אסור: `left`/`right` ו־`Alignment.centerLeft` (UIL-021; 51 מופעים ב־baseline).
+  - ערך סימטרי (`fromLTRB(a, b, a, c)`) אינו תלוי כיוון ומותר. גאומטריה אחרת שתלויה בצד הפיזי מקבלת `ui-lint: allow` עם נימוק. כך סווגו (q10 Q15–Q17): ידית "הצג מפרשים" בשמאל, ליד החלונית ש־`AdaptiveSidePane` פותח בשמאל; המרווח בחלונית הכלים בימין, מול פס הגלילה; `AdaptiveSidePane` ו־`ContextOverlayPanel`, שמחשבים את הצד בעצמם; ועוגני הרשימה בדיאלוג הדוא"ל. כרטיס הסיור עבר ל־Directional.
 - **ממשק אנגלי (DD-20 A) · קיים:** שפת הממשק חלה על "כרום הממשק" בלבד, לפי הרשימה הסגורה הזו:
   1. **שורת הכותרת:** כפתורי החלון ומסך מלא, כותרת המסך, היסטוריה/סימניות/שולחן עבודה, הגדרות תצוגת הספרים, רצועת הכרטיסיות, תפריט הכרטיסייה וחיפוש הכרטיסיות, ועמודת הכרטיסיות האנכית.
   2. **סרגל הניווט** (צדדי ותחתון) ותפריט היישום ב־macOS.
@@ -590,10 +604,10 @@
 - **הודעות:** `UiSnack` מכריז את ההודעה לקורא מסך (קיים).
 - **הגדלת טקסט:**
   - אין `MediaQuery.withNoTextScaling` או `textScaler: TextScaler.noScaling` בממשק.
-  - `RichText` גולמי מתעלם מהגדלת הטקסט של מערכת ההפעלה. משתמשים ב־`Text.rich`, או מעבירים `textScaler: MediaQuery.textScalerOf(context)`, כמו שנעשה בקטעי התוצאות ובמדידות הגלישה.
-  - כל פריסה נבדקת ב־`TextScaler.linear(1.3)` בלי גלישה. גובה קבוע לרכיב עם טקסט אסור. משתמשים ב־`minHeight`.
+  - `RichText` גולמי מתעלם מהגדלת הטקסט של מערכת ההפעלה. משתמשים ב־`Text.rich`, או מעבירים `textScaler: MediaQuery.textScalerOf(context)`, כמו שנעשה בקטעי התוצאות ובמדידות הגלישה. UIL-026 נועל את שלושתם.
+  - כל פריסה נבדקת ב־`TextScaler.linear(1.3)` בלי גלישה. גובה קבוע לרכיב עם טקסט אסור. משתמשים ב־`minHeight`. הרכיבים המשותפים נבדקים ב־1.0, ‏1.3 ו־2.0 ב־`test/design_system/contracts/text_scale_contract_test.dart`.
 - **ניגודיות:**
-  - טקסט רגיל ≥4.5:1, ורכיבים גרפיים וטקסט גדול ≥3:1. נבדק לכל זרע בבדיקות `test/theme/app_theme_data_test.dart`.
+  - טקסט רגיל ≥4.5:1, ורכיבים גרפיים וטקסט גדול ≥3:1. נבדק לכל זרע בבדיקות `test/theme/app_theme_data_test.dart`, וברכיבים המשותפים גם ב־`meetsGuideline(textContrastGuideline)` (`test/design_system/a11y_guidelines_test.dart`).
   - טקסט משני הוא `onSurfaceVariant`, לא `onSurface` בשקיפות.
   - צבע אינו הסימן היחיד למצב: נבחר מסומן גם במשקל או באייקון (DD-06).
 - **הפחתת תנועה:** ראו 2.5.5 (DD-21).
@@ -704,6 +718,12 @@ AppCard(onTap: _open, padding: AppTokens.cardPadding, child: Column(
 AppCard(tone: AppCardTone.error, padding: AppTokens.cardPadding, child: errors);
 AppIconButton(icon: const Icon(FluentIcons.dismiss_24_regular),
   tooltip: 'סגור', size: AppIconButtonSize.small, onPressed: _close);
+AppCard(tone: AppCardTone.inset, padding: AppTokens.cardPadding, child: quote);
+
+// ✅ פעולה צפופה בתוך הודעה או שורה, ואייקון אחרי הטקסט
+ActionButton.inline(text: 'פתח מיקום', onPressed: _reveal);
+ActionButton.ghost(text: 'הצג עוד', icon: FluentIcons.chevron_down_24_regular,
+  iconAlignment: IconAlignment.end, onPressed: _more);
 
 // ✅ מסך לוח
 Scaffold(
@@ -794,12 +814,12 @@ final band = Color(markerArgb);
 | גופן ממשק | `ThemeData.fontFamilyFallback` ב־`AppThemeData` (DD-01) | קיים | `'Rubik'` ב־`uiFontFamily` של התוספים, לתאימות (DD-25) |
 | טיפוגרפיית תוכן | `SettingsState` + `AppFonts` | קיים | — |
 | ריווח | `AppTokens.space*` + טוקנים סמנטיים | חלקי | ריווח מחוץ לסולם (UIL-020), ארבעה טוקנים סמנטיים ביעד |
-| רדיוסים | `AppTokens.radius` (ערך אחד, DD-04) | קיים | `StadiumBorder` עדיין לא נבדק |
-| הגבהה וצל | `AppTokens.elevation*` + `AppShadows` (DD-12) | קיים | 6 צללים מקומיים (UIL-030) |
+| רדיוסים | `AppTokens.radius` (ערך אחד, DD-04) | קיים | — (UIL-019 נעול) |
+| הגבהה וצל | `AppTokens.elevation*` + `AppShadows` (DD-12) | קיים | 4 צללים מקומיים (UIL-030) |
 | גבהים | `AppInputTokens` + `AppDensity` | קיים | — |
 | גדלי אייקון | `AppTokens.icon*` (DD-03) | חלקי | גדלים מספריים (UIL-029) |
-| אנימציות | `AppTokens.anim*` + `AppMotion` (DD-21) | חלקי | משכים ליטרליים בגלילה (UIL-023), עקומות ביעד |
-| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־`showDialog` ישיר |
+| אנימציות | `AppTokens.anim*` + `AppMotion` (DD-21) | חלקי | 8 `AnimationController` עם משך ליטרלי (UIL-023), משכים בלי טוקן, עקומות ביעד |
+| הגדרות דיאלוג | `lib/widgets/dialogs/` (`AppDialog`, `AppDialogFrame(size: AppDialogSize)`) | חלקי | 3 דיאלוגים גולמיים (UIL-001) ו־54 `showDialog` ישירים (UIL-028) |
 | פריסות מסך | `lib/widgets/layout/`, `navigation/`, `ToolScaffold` | חלקי | מעטפות מקומיות |
 | רכיבי ניווט | `NavSidePanel`, `NavRailItem`, `NavTreeTile`; רוחב חלונית `LayoutConstraints.sidePaneWidth` (DD-28) | קיים | — |
 | רספונסיביות | `LayoutBreakpoints` + `WindowClass` (DD-15) | קיים | — |
