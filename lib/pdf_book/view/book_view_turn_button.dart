@@ -35,6 +35,7 @@ class BookViewTurnButton extends StatelessWidget {
         // ההדגשה נחתכת לעיגול של המכל.
         child: Material(
           color: Colors.transparent,
+          // ui-lint: allow UIL-019 — כפתור אייקון בלבד עגול, ההדגשה נחתכת לעיגול (DD-04, q10 Q13)
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
