@@ -11,6 +11,9 @@ const _fixtures = 'test/design_system/fixtures';
 /// נתיב של פיצ'ר רגיל, שאף החרגה בקונפיגורציה לא חלה עליו.
 const _featurePath = 'lib/feature/view/feature_screen.dart';
 
+/// נתיב לכלל שחל רק על חלק מ-lib.
+const _rulePaths = {'UIL-024': 'lib/widgets/misc/shared_widget.dart'};
+
 final _config = UiLintConfig.load('.');
 
 String _fixture(String name) =>
@@ -81,25 +84,27 @@ void main() {
 
   for (final rule in uiLintRules) {
     final suffix = rule.id.toLowerCase().replaceAll('-', '_');
+    final path = _rulePaths[rule.id] ?? _featurePath;
 
     group(rule.id, () {
       test('violating: מוצא בדיוק את השורות המסומנות', () {
         final source = _fixture('violating_$suffix');
         final lines = _lint(
           'violating_$suffix',
+          path: path,
         ).findings.where((f) => f.rule == rule.id).map((f) => f.line).toList();
         expect(_markedLines(source), isNotEmpty);
         expect(lines, _markedLines(source));
       });
 
       test('clean: שימוש תקין ושימושים מוחרגים לא נתפסים', () {
-        final result = _lint('clean_$suffix');
+        final result = _lint('clean_$suffix', path: path);
         expect(result.findings.where((f) => f.rule == rule.id), isEmpty);
         expect(result.problems, isEmpty);
       });
 
       test('allowed: הערת allow תקינה משתיקה את החריגה', () {
-        final result = _lint('allowed_$suffix');
+        final result = _lint('allowed_$suffix', path: path);
         expect(result.findings.where((f) => f.rule == rule.id), isEmpty);
         expect(result.problems, isEmpty);
         expect(result.allows.single.rule, rule.id);
@@ -107,6 +112,27 @@ void main() {
       });
     });
   }
+
+  group('UIL-024 לפי נתיב', () {
+    const source = '''
+import '../../tabs/view/pane_drag_handle.dart';
+import '../controls/bar_button.dart';
+import 'package:otzaria/models/books.dart';
+''';
+
+    List<int> lines(String path) => [
+      for (final f in lintSource(source, path, config: _config).findings)
+        if (f.rule == 'UIL-024') f.line,
+    ];
+
+    test('ייבוא יחסי מחוץ ל-lib/widgets נתפס, ובתוכו מותר', () {
+      expect(lines('lib/widgets/misc/shared_widget.dart'), [1, 3]);
+    });
+
+    test("קובץ פיצ'ר רשאי לייבא פיצ'ר", () {
+      expect(lines(_featurePath), isEmpty);
+    });
+  });
 
   group('ניתוח AST לא מפוענח', () {
     test('ctorCallsNamed מוצא בנאי בכל הצורות', () {
