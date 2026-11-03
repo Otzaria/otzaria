@@ -40,6 +40,7 @@ import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
+import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
@@ -371,20 +372,8 @@ PluginBridgeDependencies _buildNetworkDeps({TabsBloc? tabsBloc}) {
   );
 }
 
-/// צורת ההתאמה שמנוע `find_ref` מחזיר לגשר.
-typedef _RefHit = ({
-  String title,
-  int index,
-  bool isPdf,
-  int bookId,
-  String reference,
-  String bookPath,
-  bool isSourceLine,
-  BookSource source,
-});
-
 /// ברירות מחדל שפויות, כדי שטסט יציין רק את השדה שהוא בודק.
-_RefHit _refHit({
+PluginReferenceHit _refHit({
   required String title,
   required int index,
   bool isPdf = false,
@@ -1474,7 +1463,7 @@ Future<void> main() async {
     late TextBook yerushalmi;
 
     PluginBridgeAdapter buildAdapter({
-      Future<List<_RefHit>> Function(String)? resolveReference,
+      Future<List<PluginReferenceHit>> Function(String)? resolveReference,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(permissions: const ['reader.open']),
@@ -1550,7 +1539,7 @@ Future<void> main() async {
     late Category category;
 
     PluginBridgeAdapter buildAdapter({
-      Future<List<_RefHit>> Function(String)? resolveReference,
+      Future<List<PluginReferenceHit>> Function(String)? resolveReference,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(permissions: const ['library.books.read']),
