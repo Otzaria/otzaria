@@ -26,7 +26,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/companion/companion_books.dart';
 import 'package:otzaria/search/models/search_configuration.dart'
-    show SearchMode;
+    show InBookSearchOrigin, SearchMode;
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show kSearchResultAnchorAlignment;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
@@ -594,9 +594,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         existingTab: matchingTab,
         incomingTab: event.tab,
       );
-      // סימניות/היסטוריה: המשתמש בחר מיקום ספציפי בספר, ולא מספיק להעביר
-      // focus לטאב הקיים — צריך לגלול אותו למיקום המבוקש.
-      if (event.navigateToPositionIfReused) {
+      // מיקום מפורש (סימניה, היסטוריה, או תוצאת חיפוש בשורה אחרת של אותה
+      // כותרת) — לא מספיק להעביר focus לטאב הקיים, צריך לגלול אותו אליו.
+      final incoming = event.tab;
+      final navigate =
+          event.navigateToPositionIfReused ||
+          (incoming is TextBookTab &&
+              incoming.searchOrigin == InBookSearchOrigin.globalResult);
+      if (navigate) {
         await _propagateNavigationToExistingTab(
           existingTab: matchingTab,
           incomingTab: event.tab,
@@ -626,7 +631,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           // ניווט בספר שכבר פעיל חייב להגיע גם ל-WebView: ערך index
           // משתנה בתוך הכרטיסייה ואינו נכלל בהשוואת TabsState.
           forceUpdate:
-              event.navigateToPositionIfReused &&
+              navigate &&
               readerTarget != null &&
               PluginTextReaderRegistry.instance.usesPlugin(readerTarget),
           // null מציין התאמה לטאב עצמו; clear מסיר חלונית פעילה מטאב אחר.
