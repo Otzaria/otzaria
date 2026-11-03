@@ -101,6 +101,12 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
+      - path: lib/widgets/controls/app_icon_button.dart
+        reason: כפתור אייקון בלבד עגול (CircleBorder), חריג מאושר (DD-04, q9 שאלה 3, q10 Q13)
+      - path: lib/widgets/controls/bar_button.dart
+        reason: כפתור אייקון בלבד בסרגל עגול (CircleBorder), חריג מאושר (DD-04, q10 Q13)
+      - path: lib/widgets/controls/bar_split_button.dart
+        reason: הגלולה של BarSplitButton, חריג מאושר (DD-04, q8 שאלה 7, q10 Q13)
       - path: lib/printing/**
         reason: פלט נייר
 

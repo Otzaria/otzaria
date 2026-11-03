@@ -17,3 +17,10 @@ class Painter extends CustomPainter {
   @override
   bool shouldRepaint(Painter oldDelegate) => false;
 }
+
+Widget iconButton(VoidCallback f) => IconButton(
+  tooltip: 'x',
+  onPressed: f,
+  style: IconButton.styleFrom(shape: const CircleBorder()),
+  icon: const Icon(IconData(0xe000)),
+);

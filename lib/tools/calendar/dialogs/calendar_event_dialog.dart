@@ -1232,6 +1232,7 @@ class _ColorSwatch extends StatelessWidget {
       message: tooltip ?? '',
       child: InkWell(
         onTap: onTap,
+        // ui-lint: allow UIL-019 — עיגול צבע, רכיב עגול מטבעו (DESIGN_SYSTEM §2.3)
         customBorder: const CircleBorder(),
         // ריפוד סביב העיגול הנראה — מטרת לחיצה של 48dp לפחות
         child: Container(
