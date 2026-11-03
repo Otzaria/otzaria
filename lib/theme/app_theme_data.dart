@@ -154,7 +154,9 @@ class AppThemeData {
           side: BorderSide(color: cs.outlineVariant),
         ),
       ),
-      // כפתור אייקון בלבד עגול (DD-04); כפתור עם רקע משלו קובע 8 בעצמו.
+      // כפתור אייקון בלבד עגול (DD-04, q9 שאלה 3). כפתור אייקון עם רקע גלוי
+      // משלו (filled, filledTonal או backgroundColor) קובע roundedShape בעצמו
+      // ונשאר 8 (q10 שאלה 22). components_contract_test בודק את שניהם.
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(
           cs.primary,
