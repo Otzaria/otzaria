@@ -172,6 +172,11 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     '0.9.97',
     hasPermissionHint: true,
   ),
+  'library.getLineNotes': PluginApiMethod(
+    'library.content.read',
+    '0.9.98.4',
+    hasPermissionHint: true,
+  ),
   'library.getRawLinks': PluginApiMethod(
     'library.links.read',
     '0.9.97',

@@ -685,6 +685,24 @@ export interface BookLink {
   anchor?: LinkAnchor;
 }
 
+/** הערת שוליים אחת, כפי שמוחזרת מ-`library.getLineNotes`. */
+export interface LineNote {
+  /** השורה, 0-based. */
+  line: number;
+  /** סדר ההערה בשורה. */
+  noteIndex: number;
+  /** סימן ההערה בשורה, או `null` להערה בלי סימן. */
+  marker: string | null;
+  /** האופסט הגלוי בשורה השמורה שבו עמד הגוף, או `-1` כשאינו ידוע. */
+  charPos: number;
+  /** ה-HTML של גוף ההערה; שם הוי"ה לפי בחירת המשתמש. */
+  body: string;
+}
+
+export interface GetLineNotesResult {
+  notes: LineNote[];
+}
+
 export interface GetLinksResult {
   links: BookLink[];
   /** `true` כשהתשובה נחתכה בתקרת 2,000 הרשומות. */
@@ -2440,6 +2458,7 @@ export type OtzariaMethod =
   | 'library.getBookAltToc'
   | 'library.getCommentators'
   | 'library.getLinks'
+  | 'library.getLineNotes'
   | 'library.getRawLinks'
   | 'library.getLinkTargetsSummary'
   | 'library.getLinkContent'

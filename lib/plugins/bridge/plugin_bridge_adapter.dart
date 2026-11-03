@@ -1697,6 +1697,8 @@ class PluginBridgeAdapter {
         return await _getCommentators(library, args);
       case 'getLinks':
         return await _getLinks(library, args);
+      case 'getLineNotes':
+        return await _getLineNotes(library, args);
       case 'getRawLinks':
         return await _getRawLinks(library, args);
       case 'getLinkTargetsSummary':
@@ -1943,6 +1945,52 @@ class PluginBridgeAdapter {
       },
     );
     return {'links': filtered.records, 'truncated': filtered.truncated};
+  }
+
+  /// `library.getLineNotes` — הערות השוליים של טווח שורות, מטבלת `line_note`.
+  /// בספר שההערות שלו בטבלה נפרדת `getBookContent` מחזיר את השורה בלי גופי
+  /// ההערות, ותוסף שמציג את הטקסט אינו יכול להגיע אליהן בדרך אחרת. ספר
+  /// שההערות שלו בתוך השורה (ספר אישי, קובץ, מהדורה חלופית, ספרייה ישנה) —
+  /// רשימה ריקה: ההערות כבר בטקסט.
+  Future<dynamic> _getLineNotes(
+    Library library,
+    Map<String, dynamic> args,
+  ) async {
+    final startLine = _requireWireLine(args['startLine'], 'startLine');
+    final endLine = _requireWireLine(args['endLine'], 'endLine');
+    if (endLine < startLine) {
+      throw Exception('error.invalid_params: endLine must be >= startLine');
+    }
+    if (endLine - startLine + 1 > _pluginLinksMaxWindowLines) {
+      throw Exception(
+        'error.invalid_params: line window must not exceed '
+        '$_pluginLinksMaxWindowLines lines',
+      );
+    }
+    final book = _findLinksTextBook(library, args);
+    if (book == null) throw Exception('error.not_found: book not found');
+    await _ensureBookTextAvailable(book);
+    final notes = await BookNotesRepository.instance.notesFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    final names = await _derivedTextNames(book, args);
+    return {
+      'notes': [
+        for (var line = startLine; line <= endLine; line++)
+          for (final note in notes.notesAt(line))
+            {
+              'line': line,
+              'noteIndex': note.noteIndex,
+              'marker': note.marker,
+              'charPos': note.charPos,
+              'body': filterPluginDivineNamesText(note.body, names),
+            },
+      ],
+    };
   }
 
   /// `library.getRawLinks` — אותם קישורים של [_getLinks], בחמשת המפתחות של

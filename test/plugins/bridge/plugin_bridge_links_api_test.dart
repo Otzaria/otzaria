@@ -648,6 +648,108 @@ void main() {
     });
   });
 
+  group('library.getLineNotes', () {
+    tearDown(() {
+      BookNotesRepository.instance
+        ..debugLoader = null
+        ..clear();
+    });
+
+    test('מחזיר את הערות הטווח לפי שורה, 0-based, בסדר הקריאה', () async {
+      BookNotesRepository.instance
+        ..clear()
+        ..debugLoader = (title, {categoryId, required source}) async =>
+            (BookNotesBuilder()
+                  ..add(0, 0, '*', 'הערה ראשונה', charPos: 3)
+                  ..add(2, 0, null, 'בלי סמן')
+                  ..add(2, 1, '*', 'שנייה בשורה', charPos: 9)
+                  ..add(5, 0, '*', 'מחוץ לטווח', charPos: 1))
+                .build();
+
+      final result =
+          await adapter.execute('library', 'getLineNotes', {
+                'bookId': 'בראשית',
+                'startLine': 0,
+                'endLine': 3,
+              })
+              as Map<String, dynamic>;
+
+      expect(result['notes'], [
+        {
+          'line': 0,
+          'noteIndex': 0,
+          'marker': '*',
+          'charPos': 3,
+          'body': 'הערה ראשונה',
+        },
+        {
+          'line': 2,
+          'noteIndex': 0,
+          'marker': null,
+          'charPos': -1,
+          'body': 'בלי סמן',
+        },
+        {
+          'line': 2,
+          'noteIndex': 1,
+          'marker': '*',
+          'charPos': 9,
+          'body': 'שנייה בשורה',
+        },
+      ]);
+    });
+
+    test('ספר בלי טבלת הערות — רשימה ריקה', () async {
+      BookNotesRepository.instance
+        ..clear()
+        ..debugLoader = (title, {categoryId, required source}) async =>
+            BookNotes.empty;
+
+      final result =
+          await adapter.execute('library', 'getLineNotes', {
+                'bookId': 'בראשית',
+                'startLine': 0,
+                'endLine': 0,
+              })
+              as Map<String, dynamic>;
+      expect(result['notes'], isEmpty);
+    });
+
+    test('חלון רחב מ-200 שורות או הפוך — invalid_params', () async {
+      await expectLater(
+        adapter.execute('library', 'getLineNotes', {
+          'bookId': 'בראשית',
+          'startLine': 0,
+          'endLine': 200,
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+      await expectLater(
+        adapter.execute('library', 'getLineNotes', {
+          'bookId': 'בראשית',
+          'startLine': 3,
+          'endLine': 2,
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+    });
+
+    test('ספר שלא נמצא — not_found', () async {
+      await expectLater(
+        adapter.execute('library', 'getLineNotes', {
+          'bookId': 'אין ספר כזה',
+          'startLine': 0,
+          'endLine': 0,
+        }),
+        throwsA(predicate((e) => e.toString().contains('error.not_found'))),
+      );
+    });
+  });
+
   group('library.getRawLinks', () {
     test('מחזיר את הקישור בחמשת מפתחות links.json, 1-based', () async {
       repository.links = [
@@ -1427,6 +1529,7 @@ void main() {
       'library.getRawLinks': pluginLinksReadPermission,
       'library.getLinkTargetsSummary': pluginLinksReadPermission,
       'library.getLinkContent': 'library.content.read',
+      'library.getLineNotes': 'library.content.read',
       'reader.getActiveCommentators': 'reader.open',
     }.entries) {
       test('${entry.key} דורשת ${entry.value}', () async {
@@ -1475,6 +1578,10 @@ void main() {
       );
       expect(
         apiCallToPermissionHint['library.getLinkContent'],
+        'library.content.read',
+      );
+      expect(
+        apiCallToPermissionHint['library.getLineNotes'],
         'library.content.read',
       );
       expect(pluginValidPermissions, contains(pluginLinksReadPermission));
