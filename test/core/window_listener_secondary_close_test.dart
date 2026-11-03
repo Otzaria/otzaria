@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'dart:io';
 
@@ -26,6 +27,7 @@ import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/window_listener.dart';
+import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
@@ -125,6 +127,22 @@ void main() {
     preparing.complete();
     await close;
     expect(steps, ['prepare', 'launched', 'flush']);
+    expect(runner.closeSelfCalls, 1);
+  });
+
+  test('כתיבת canary של תוסף שנתקעה אינה עוצרת את הסגירה (#4008)', () async {
+    AppPaths.debugOverrideDataRootPath(tmp.path);
+    PluginCrashGuard.setInitialBlockedForTesting({});
+    addTearDown(() {
+      AppPaths.debugOverrideDataRootPath(null);
+      PluginCrashGuard.resetForTesting();
+    });
+    await IOOverrides.runWithIOOverrides(() async {
+      unawaited(PluginCrashGuard.markLoadAttempt('stuck.plugin', owner: 't'));
+      await AppWindowListener().handleWindowClose().timeout(
+        const Duration(seconds: 6),
+      );
+    }, _StuckCrashGuardWrites());
     expect(runner.closeSelfCalls, 1);
   });
 
@@ -637,4 +655,35 @@ class _RecordingWindow extends Fake implements AppWindowController {
   int closes = 0;
   @override
   Future<void> close() async => closes++;
+}
+
+/// כתיבה לקובץ ה-canary של התוספים לעולם אינה מסתיימת.
+final class _StuckCrashGuardWrites extends IOOverrides {
+  @override
+  File createFile(String path) {
+    final real = super.createFile(path);
+    return path.contains('plugin_crash_guard') ? _StuckFile(real) : real;
+  }
+}
+
+class _StuckFile implements File {
+  _StuckFile(this._real);
+  final File _real;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Directory get parent => _real.parent;
+
+  @override
+  Future<File> writeAsString(
+    String contents, {
+    FileMode mode = FileMode.write,
+    Encoding encoding = utf8,
+    bool flush = false,
+  }) => Completer<File>().future;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

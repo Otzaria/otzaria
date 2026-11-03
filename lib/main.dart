@@ -894,10 +894,8 @@ Future<void> _initializeRestartableRuntime() async {
   // כלא-זמינים (regression: ראה PluginDatabaseService._registry.getSource).
   await _timedPhase('pluginDbSources', initPluginDatabaseSources);
 
-  // PluginCrashGuard.ensureInitialized חייב להסתיים לפני שטעינת תוסף מתחילה.
-  // PluginTabPage.markLoadAttemptSync דורש state אתחל (אחרת ה-canary לא נשמר
-  // והתוסף לא ייכנס ל-quarantine אם יקרוס), ו-PluginCrashGuard.isBlocked
-  // מחזיר false כל עוד _blocked הוא null. הקריאה זולה (קריאת JSON קטן).
+  // חייב להסתיים לפני טעינת תוסף: לפני האתחול PluginTabPage לא מסמן canary
+  // ו-isBlocked מחזיר false. הקריאה זולה (קריאת JSON קטן).
   await _timedPhase(
     'pluginCrashGuard',
     () => PluginCrashGuard.ensureInitialized().catchError((
