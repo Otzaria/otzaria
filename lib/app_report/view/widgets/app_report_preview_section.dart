@@ -227,7 +227,7 @@ class _PreviewBox extends StatelessWidget {
                   content,
                   textDirection: TextDirection.ltr,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
+                    fontFamily: AppTextStyles.monospaceFamily,
                   ),
                 ),
               ),

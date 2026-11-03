@@ -89,4 +89,8 @@ class AppTextStyles {
 
   /// תת-כותרת שורת הגדרה (13sp) — לשימוש ב-ListTile subtitle
   static const TextStyle settingSubtitle = TextStyle(fontSize: 13);
+
+  /// משפחת המונוספייס של המערכת (נתיב, גרסה, פרטים טכניים). רק המשפחה: הגודל
+  /// בא מה־slot של הטקסט (DESIGN_SYSTEM §2.4.1, `AppTextStyles.mono` יעד).
+  static const String monospaceFamily = 'monospace';
 }

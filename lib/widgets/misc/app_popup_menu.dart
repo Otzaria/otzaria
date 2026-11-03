@@ -511,7 +511,7 @@ class _AnchoredMenu<T> extends StatelessWidget {
         type: MaterialType.card,
         shape: menuTheme.shape ?? AppTokens.roundedShape,
         color: menuTheme.color ?? theme.colorScheme.surfaceContainer,
-        elevation: menuTheme.elevation ?? 3,
+        elevation: menuTheme.elevation ?? AppTokens.elevation2,
         shadowColor: menuTheme.shadowColor ?? theme.colorScheme.shadow,
         surfaceTintColor: menuTheme.surfaceTintColor ?? Colors.transparent,
         child: AnimatedBuilder(
