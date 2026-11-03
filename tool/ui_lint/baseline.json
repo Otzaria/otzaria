@@ -1186,15 +1186,12 @@
         {"scope":"CommentaryPanelToolbar.build","fp":"9b4452fb","n":1}
       ],
       "lib/core/info/view/app_info_dialog.dart": [
-        {"scope":"_AppInfoDialogContentState._buildHeader","fp":"fdc90bff","n":1},
         {"scope":"_AttachedLibraryTile.build","fp":"06977d5e","n":1},
         {"scope":"_ErrorTile.build","fp":"06977d5e","n":1},
-        {"scope":"_FolderTileState.build","fp":"06977d5e","n":1},
-        {"scope":"_FolderTileState.build","fp":"1ccb7b63","n":1}
+        {"scope":"_FolderTileState.build","fp":"06977d5e","n":1}
       ],
       "lib/core/ui_snack.dart": [
-        {"scope":"_SnackToastState.build","fp":"7bf03073","n":1},
-        {"scope":"_SnackToastState.build","fp":"f1e89b70","n":1}
+        {"scope":"_SnackToastState.build","fp":"7bf03073","n":1}
       ],
       "lib/find_ref/view/find_ref_dialog.dart": [
         {"scope":"_FindRefDialogState._buildCenteredState","fp":"f9f9f129","n":1},
