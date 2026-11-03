@@ -86,11 +86,13 @@ bool isSemanticScopeFacetSupported(
 bool Function(String facet)? officialCategoryFilter(Library? library) {
   if (library == null) return null;
   return (facet) {
+    // פסיק בשם תיקייה הוא מפריד ב-facet, ולכן משווים לנתיב ה-facet של התיקייה.
     Category? category = library;
-    for (final title in facet.split('/').where((part) => part.isNotEmpty)) {
-      category = category?.subCategories
-          .where((child) => child.title == title)
-          .firstOrNull;
+    while (category != null && FacetHelper.categoryFacet(category) != facet) {
+      category = category.subCategories.where((child) {
+        final path = FacetHelper.categoryFacet(child);
+        return facet == path || facet.startsWith('$path/');
+      }).firstOrNull;
     }
     return category != null && _hasOfficialBook(category);
   };

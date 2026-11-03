@@ -76,6 +76,14 @@ class FacetHelper {
     return '$categoryPath/$bookKey';
   }
 
+  /// ה-facet של [category]: כמו באינדקס ובספירות, פסיק בשם תיקייה הוא מפריד.
+  static String categoryFacet(Category category) {
+    final facet = BookFacet.resolveFacetCategoryPath(
+      categoryPath: category.path,
+    );
+    return facet.isEmpty ? '/' : facet;
+  }
+
   /// Increments a facet count in the given map
   static void incrementFacet(
     Map<String, int> counts,
