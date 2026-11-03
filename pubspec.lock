@@ -2116,50 +2116,50 @@ packages:
     dependency: "direct main"
     description:
       name: zstandard
-      sha256: e12ae98504d4d15991d0a0c35c7bdd856ed9b866a6c2a44e2333f2483a31693e
+      sha256: "0332045357644eaf66ff0b92619edefc5f8d2e1ef385403d2cb46c150db5db89"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_android:
     dependency: transitive
     description:
       name: zstandard_android
-      sha256: "88cfeb2a9e536b4c2d6f0483841a4c21d4d139de662252c32e772822b56343f8"
+      sha256: b8dc9860d2ae834744bd82d6b648fc15bdf11dd85d61e01ac563c9e1d51f4bcf
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_ios:
     dependency: transitive
     description:
       name: zstandard_ios
-      sha256: "6700f4a38864164d55b8a6aa7630ff5ba7a0425436b800901609f39ab5f80ce3"
+      sha256: a992ee46aef915029abce6acd54f03a4bf7076e92d9148000fc56e9e6068f6d9
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_linux:
     dependency: transitive
     description:
       name: zstandard_linux
-      sha256: f8dc140709fb70854b3a1b5e563f4ac74c645f3cae16abda76315ab4a084f825
+      sha256: "3006d3bc722e97581d89f568001779bab63372c1ddf2f885ae554b7203d17206"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_macos:
     dependency: transitive
     description:
       name: zstandard_macos
-      sha256: "574ff029ba784b7ba7100ef732c35e822d8043366ca4b13ea0164467fe69a235"
+      sha256: "121dd02005b7bb0f5f2a2e7f952e640931d5c9855444f13551348206023f6e38"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_native:
     dependency: "direct main"
     description:
       name: zstandard_native
-      sha256: "15c3651efe8a3f815de717770f77c7e85f0d2432c1916e4462342781e2ef9a9e"
+      sha256: ff8d27287670934f0894ea5cb016c888ca94b1ba0be9f653f089cf3888716fe1
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
   zstandard_platform_interface:
     dependency: transitive
     description:
@@ -2180,10 +2180,10 @@ packages:
     dependency: transitive
     description:
       name: zstandard_windows
-      sha256: "6b404d6ab4fbe650d551b2062e55b092fbae2a4ad2f88ab1f890a6bde433ec65"
+      sha256: "5b60bc38633a82caca806c534bfc31fa0f73dfa2c57a9d7a161413560fc57e5d"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.5"
+    version: "1.5.0"
 sdks:
   dart: ">=3.13.0 <4.0.0"
   flutter: ">=3.47.0"

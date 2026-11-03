@@ -101,8 +101,8 @@ dependencies:
   pinenacl: ^0.6.0
   path: ^1.9.1
   http: ^1.6.0
-  zstandard: ^1.5.5
-  zstandard_native: ^1.5.5
+  zstandard: 1.5.0
+  zstandard_native: 1.5.0
   ffi: ^2.2.0
   win32: ^6.4.0
   win32_registry: ^3.0.3
