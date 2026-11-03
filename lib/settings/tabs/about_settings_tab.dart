@@ -560,7 +560,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 'וְצִדְקָתוֹ עֹמֶדֶת לָעַד',
                 textAlign: TextAlign.center,
-                // ציטוט תורני נשאר עברי גם כשההגדרות באנגלית.
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 20,
@@ -573,6 +573,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(תהילים קיב, ג)',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 12,
@@ -611,6 +612,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 'זֶה הַכּוֹתֵב סְפָרִים וּמַשְׁאִילָן לַאֲחֵרִים',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 18,
@@ -623,6 +625,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(כתובות נ.)',
                 textAlign: TextAlign.center,
+                // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 12,

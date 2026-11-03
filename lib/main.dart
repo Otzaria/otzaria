@@ -1599,6 +1599,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
           body: Center(
             child: Text(
               'שגיאת אתחול: $_error',
+              // ui-lint: allow UIL-010 — מסך שגיאת האתחול, ב־MaterialApp בלי השפה והכיוון של האפליקציה
               textDirection: TextDirection.rtl,
             ),
           ),

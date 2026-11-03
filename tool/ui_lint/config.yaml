@@ -173,3 +173,6 @@ rules:
     exclude:
       - path: lib/core/ui_snack.dart
         reason: UiSnack עצמו
+
+  UIL-010:
+    strict: true
