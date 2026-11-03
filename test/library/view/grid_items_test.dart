@@ -769,21 +769,24 @@ void main() {
           SeforimFixtureVariant.full,
         );
         final registry = AttachedLibraryRegistry(idleTimeout: null);
-        registry.update([
-          AttachedLibrary(
-            slug: 'recovery',
-            displayName: 'בדיקה',
-            path: dbPath,
-            addedAt: DateTime.now(),
-          ),
-        ]);
+        // אתחול ה-worker וההמתנה לסגירתו צריכים להישאר מחוץ ל-fakeAsync.
+        await tester.runAsync(() async {
+          registry.update([
+            AttachedLibrary(
+              slug: 'recovery',
+              displayName: 'בדיקה',
+              path: dbPath,
+              addedAt: DateTime.now(),
+            ),
+          ]);
+        });
         AttachedLibraryRegistry.instance = registry;
         final provider = DatabaseLibraryProvider.instance;
         provider.clearCache();
         addTearDown(() async {
           AttachedLibraryRegistry.instance = originalRegistry;
           provider.clearCache();
-          await registry.closeAll();
+          await tester.runAsync(() => registry.closeAll());
           directory.deleteSync(recursive: true);
         });
         book = TextBook(

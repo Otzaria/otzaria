@@ -108,8 +108,12 @@ void main() {
           'attached-reveal-db-',
         );
         final path = SeforimFixtureDb.create(dbDir, SeforimFixtureVariant.full);
-        final registry = AttachedLibraryRegistry(idleTimeout: null)
-          ..update([
+        final registry = AttachedLibraryRegistry(idleTimeout: null);
+        var opened = false;
+        late Future<SeforimRepository?> pending;
+        await tester.runAsync(() async {
+          // אתחול ה-worker וההמתנה לסגירתו צריכים להישאר מחוץ ל-fakeAsync.
+          registry.update([
             AttachedLibrary(
               slug: 'a',
               displayName: 'ספרייה',
@@ -120,9 +124,6 @@ void main() {
               addedAt: DateTime(2026),
             ),
           ]);
-        var opened = false;
-        late Future<SeforimRepository?> pending;
-        await tester.runAsync(() async {
           pending = registry.repositoryFor('a').then((repository) {
             opened = true;
             return repository;
