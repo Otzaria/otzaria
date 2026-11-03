@@ -553,9 +553,7 @@
         {"scope":"_ImportFileRow.build","fp":"4642f6a0","n":1}
       ],
       "lib/settings/tabs/about_settings_tab.dart": [
-        {"scope":"_ClosingQuote.build","fp":"37c97e5b","n":1},
         {"scope":"_ClosingQuote.build","fp":"a7c1dfe6","n":2},
-        {"scope":"_ClosingQuote.build","fp":"adc1e958","n":1},
         {"scope":"_MemorialCard.build","fp":"a6c1de53","n":1}
       ],
       "lib/shortcuts/view/custom_shortcut_dialog.dart": [
@@ -665,10 +663,7 @@
       ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_ExpandableOrgCardState._buildDetailsText","fp":"a8c1e179","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"37c97e5b","n":1},
-        {"scope":"_ExpandableOrgCardState.build","fp":"a9c1e30c","n":3},
-        {"scope":"_ExpandableOrgCardState.build","fp":"adc1e958","n":1},
-        {"scope":"_OrganizationsList._buildSectionTitle","fp":"37c97e5b","n":1}
+        {"scope":"_ExpandableOrgCardState.build","fp":"a9c1e30c","n":3}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
         {"scope":"DetailsCard.build","fp":"4642f6a0","n":1},
@@ -677,15 +672,11 @@
         {"scope":"DetailsInfoSection.build","fp":"2d3a28a0","n":2},
         {"scope":"DetailsText.build","fp":"2d3a28a0","n":1}
       ],
-      "lib/widgets/dialogs/zip_extraction_progress_dialog.dart": [
-        {"scope":"ZipExtractionProgressDialog.showAndExtract","fp":"adc1e958","n":1}
-      ],
       "lib/widgets/layout/tool_results_header.dart": [
         {"scope":"ToolResultsHeader.build","fp":"1a491541","n":1}
       ],
       "lib/widgets/lists/items_list_view.dart": [
         {"scope":"_ItemsListViewState._buildInlineSubtitle","fp":"2d3a28a0","n":1},
-        {"scope":"_ItemsListViewState._buildInlineSubtitle","fp":"a8c1e179","n":1},
         {"scope":"_ItemsListViewState._buildItemRow","fp":"503c9e50","n":1}
       ],
       "lib/widgets/lists/nav_tree_tile.dart": [

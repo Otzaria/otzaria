@@ -192,8 +192,7 @@ class _ItemsListViewState extends State<ItemsListView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       constraints: const BoxConstraints(maxWidth: 360),
-      textStyle: TextStyle(
-        fontSize: 13,
+      textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
         height: 1.4,
         color: cs.onSurface,
       ),
