@@ -54,6 +54,7 @@ rules:
         reason: מערכת התפריטים המשותפת (app_popup_menu) עצמה
 
   UIL-015:
+    strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים

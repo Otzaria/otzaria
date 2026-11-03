@@ -142,7 +142,9 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12.0),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.05),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             borderRadius: AppTokens.borderRadiusAll,
                           ),
                           child: AppSelectionArea(
