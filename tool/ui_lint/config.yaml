@@ -41,6 +41,10 @@ rules:
         reason: פלט נייר
       - path: lib/core/windowing/**
         reason: כפתורי החלון מחקים את מערכת ההפעלה
+      - path: lib/pdf_book/utils/pdf_color_filter.dart
+        reason: צבע הנייר ומסנן ההיפוך של עמוד PDF (תוכן)
+      - path: lib/widgets/misc/app_cursors.dart
+        reason: ציור תמונת סמן העכבר, חיקוי של סמן המערכת
       - path: lib/widgets/smart_text/**
         reason: צבעי CSS של תוכן הספר
       - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart

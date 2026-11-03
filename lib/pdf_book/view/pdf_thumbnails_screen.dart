@@ -321,6 +321,7 @@ class _PageThumbnailState extends State<_PageThumbnail> {
             aspectRatio: page.width / page.height,
             child: DecoratedBox(
               decoration: BoxDecoration(
+                // ui-lint: allow UIL-015 — נייר העמוד עד שתמונת ה־PDF נטענת (תוכן, DESIGN_SYSTEM §2.1.3)
                 color: image == null ? Colors.white : null,
                 boxShadow: const [_pageShadow],
               ),

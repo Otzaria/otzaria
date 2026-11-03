@@ -140,7 +140,6 @@ TextStyle _libraryTooltipTextStyle(BuildContext context) {
   final theme = Theme.of(context);
   return (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
     color: theme.colorScheme.onSurface,
-    fontSize: 14,
     height: 1.3,
   );
 }

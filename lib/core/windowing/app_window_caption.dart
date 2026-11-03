@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/caption_button_colors.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 
 /// כמו `WindowCaption` של window_manager (בלי כותרת), אבל הכפתורים ומצב
@@ -122,7 +123,7 @@ class AppWindowCaptionTooltips {
 }
 
 /// כפתור באותו מראה כמו כפתורי החלון של window_manager, עם אייקון לבחירה
-/// (מסך מלא). הצבעים הם של כפתורי מערכת ההפעלה, כמו ב-[WindowCaptionButton].
+/// (מסך מלא). הצבעים הם של כפתורי מערכת ההפעלה ([CaptionButtonColors]).
 class AppCaptionIconButton extends StatefulWidget {
   const AppCaptionIconButton({
     super.key,
@@ -162,26 +163,11 @@ class _AppCaptionIconButtonState extends State<AppCaptionIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.brightness == Brightness.dark;
-
-    Color bgColor = Colors.transparent;
-    Color iconColor = isDark
-        ? Colors.white
-        : Colors.black.withValues(alpha: 0.8956);
-
-    if (_isHovering) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0605)
-          : Colors.black.withValues(alpha: 0.0373);
-    }
-    if (_isPressed) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0419)
-          : Colors.black.withValues(alpha: 0.0241);
-      iconColor = isDark
-          ? Colors.white.withValues(alpha: 0.786)
-          : Colors.black.withValues(alpha: 0.6063);
-    }
+    final colors = CaptionButtonColors.of(
+      brightness: widget.brightness,
+      hovering: _isHovering,
+      pressed: _isPressed,
+    );
 
     return Tooltip(
       message: widget.tooltip,
@@ -199,8 +185,10 @@ class _AppCaptionIconButtonState extends State<AppCaptionIconButton> {
               minWidth: AppCaptionIconButton.width,
               minHeight: 32,
             ),
-            decoration: BoxDecoration(color: bgColor),
-            child: Center(child: Icon(widget.icon, size: 16, color: iconColor)),
+            decoration: BoxDecoration(color: colors.background),
+            child: Center(
+              child: Icon(widget.icon, size: 16, color: colors.icon),
+            ),
           ),
         ),
       ),

@@ -1606,6 +1606,7 @@ class _SearchDialogState extends State<SearchDialog> {
     return Text(
       text,
       style: TextStyle(
+        // ui-lint: allow UIL-017 — כותרת קטנה 13 של דיאלוג החיפוש ואיתור המקורות נשארת (DD-14, השלמה 2.11)
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: Theme.of(context).colorScheme.primary,

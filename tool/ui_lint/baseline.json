@@ -49,19 +49,6 @@
       ]
     },
     "UIL-015": {
-      "lib/navigation/view/tab_visuals.dart": [
-        {"scope":"buildFadedTabTitle","fp":"2495af7e","n":2}
-      ],
-      "lib/pdf_book/utils/pdf_color_filter.dart": [
-        {"scope":"pdfInvertColors","fp":"2495af7e","n":1},
-        {"scope":"pdfPageColor","fp":"220ea01c","n":1}
-      ],
-      "lib/pdf_book/view/pdf_thumbnails_screen.dart": [
-        {"scope":"_PageThumbnailState.build","fp":"2495af7e","n":1}
-      ],
-      "lib/plugins/view/plugin_confirmation_dialog.dart": [
-        {"scope":"PluginConfirmationDialog.show","fp":"7aa58cad","n":1}
-      ],
       "lib/settings/dialogs/color_picker_dialog.dart": [
         {"scope":"_ColorPickerDialogState.build","fp":"2495af7e","n":1}
       ],
@@ -70,17 +57,6 @@
       ],
       "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
         {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"220ea01c","n":1}
-      ],
-      "lib/tools/tikkun_korim/view/stam_roof_metrics.dart": [
-        {"scope":"_rasterize","fp":"3fb93410","n":1},
-        {"scope":"_rasterize","fp":"52ec8720","n":1}
-      ],
-      "lib/widgets/dialogs/dialog_teardown.dart": [
-        {"scope":"showDialogUntilTornDown","fp":"7aa58cad","n":1}
-      ],
-      "lib/widgets/misc/app_cursors.dart": [
-        {"scope":"AppCursors._paintHandImage","fp":"220ea01c","n":1},
-        {"scope":"AppCursors._paintHandImage","fp":"2495af7e","n":1}
       ]
     },
     "UIL-017": {
@@ -97,8 +73,7 @@
         {"scope":"_FindRefDialogState._buildIdleState","fp":"acc1e7c5","n":1},
         {"scope":"_FindRefDialogState._buildQueryCard","fp":"a7c1dfe6","n":1},
         {"scope":"_FindRefDialogState._buildResultTile","fp":"aac1e49f","n":1},
-        {"scope":"_FindRefDialogState._buildSuggestionsLabel","fp":"a7c1dfe6","n":1},
-        {"scope":"_FindRefDialogState._sectionLabel","fp":"a8c1e179","n":1}
+        {"scope":"_FindRefDialogState._buildSuggestionsLabel","fp":"a7c1dfe6","n":1}
       ],
       "lib/history/view/history_screen.dart": [
         {"scope":"_searchTitleSpan","fp":"a8c1e179","n":1}
@@ -106,9 +81,6 @@
       "lib/library/view/book_preview_panel.dart": [
         {"scope":"_BookPreviewPanelState.build","fp":"a9c1e30c","n":1},
         {"scope":"_BookPreviewPanelState.build","fp":"adc1e958","n":1}
-      ],
-      "lib/library/view/grid_items.dart": [
-        {"scope":"_libraryTooltipTextStyle","fp":"a9c1e30c","n":1}
       ],
       "lib/navigation/view/custom_title_bar.dart": [
         {"scope":"_CustomTitleBarState._buildPanelTitle","fp":"abc1e632","n":1},
@@ -134,8 +106,7 @@
       "lib/search/view/advanced_search_controls.dart": [
         {"scope":"_AdvancedSearchControlsState._buildAlternativeWordsList","fp":"a9c1e30c","n":1},
         {"scope":"_AdvancedSearchControlsState._buildInputColumn","fp":"a9c1e30c","n":2},
-        {"scope":"_AdvancedSearchControlsState._buildNavigationRow","fp":"adc1e958","n":1},
-        {"scope":"_AdvancedSearchControlsState.build","fp":"a8c1e179","n":1}
+        {"scope":"_AdvancedSearchControlsState._buildNavigationRow","fp":"adc1e958","n":1}
       ],
       "lib/search/view/external_result_title_row.dart": [
         {"scope":"ExternalResultTitleRow._buildTitle","fp":"aac1e49f","n":1}
@@ -156,8 +127,7 @@
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
       ],
       "lib/search/view/search_dialog.dart": [
-        {"scope":"_SearchDialogState._buildHistoryDropdown","fp":"a9c1e30c","n":1},
-        {"scope":"_SearchDialogState._sectionLabel","fp":"a8c1e179","n":1}
+        {"scope":"_SearchDialogState._buildHistoryDropdown","fp":"a9c1e30c","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
         {"scope":"_ScopeMenuPanelState._buildBreadcrumb","fp":"a8c1e179","n":1},
@@ -232,12 +202,14 @@
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
         {"scope":"_AlertControl.build","fp":"a6c1de53","n":1},
         {"scope":"_CompositeLabelValue.build","fp":"a6c1de53","n":1},
-        {"scope":"_CompositeLabelValue.build","fp":"a7c1dfe6","n":1},
         {"scope":"_ZmanCard.build","fp":"a6c1de53","n":1}
       ],
       "lib/widgets/commentary/commentary_search_results_list.dart": [
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"a9c1e30c","n":1},
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"abc1e632","n":1}
+      ],
+      "lib/widgets/controls/toggle_pill.dart": [
+        {"scope":"AppTogglePill.build","fp":"a8c1e179","n":1}
       ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_ExpandableOrgCardState._buildDetailsText","fp":"a8c1e179","n":1},

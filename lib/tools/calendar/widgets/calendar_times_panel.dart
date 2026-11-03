@@ -1141,7 +1141,6 @@ class _CompositeLabelValue extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: textColor,
-                fontSize: 12,
               ),
             ),
           ),
