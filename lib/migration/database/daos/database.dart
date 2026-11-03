@@ -43,8 +43,10 @@ class MyDatabase {
   bool get isReadOnly => _readOnly;
 
   /// היעד לפתיחת אותו קובץ ב-isolate אחר, באותה רמת הקשחה.
-  ReadOnlyDbTarget get readOnlyTarget =>
-      (path: _path, untrusted: _untrusted, immutable: _immutable);
+  ReadOnlyDbTarget get readOnlyTarget {
+    if (_retired) throw StateError('Database $_path was released');
+    return (path: _path, untrusted: _untrusted, immutable: _immutable);
+  }
 
   /// האם המסד אינו בשליטת התוכנה (מסד ספרים מצורף).
   bool get isUntrusted => _untrusted;

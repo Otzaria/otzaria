@@ -337,18 +337,20 @@ class AttachedLibraryRegistry {
   /// משחרר את הקובץ של [slug] — החיבור נסגר ונשכח. גישה הבאה פותחת מחדש.
   /// גם המנוע משחרר את הקובץ, עד הסנכרון הבא ([update] או [syncEngineSources]).
   Future<void> close(String slug) async {
-    AttachedFindRefWorker.instance.reset();
+    final workerClosed = AttachedFindRefWorker.instance.reset();
     _closeEntry(slug);
+    await workerClosed;
     await _idleClosing[slug];
     if (_engineSyncEnabled) await _enqueueEngine(() => _unconfigure(slug));
   }
 
   /// סוגר את כל החיבורים (איפוס runtime, יציאה).
   Future<void> closeAll() async {
-    AttachedFindRefWorker.instance.reset();
+    final workerClosed = AttachedFindRefWorker.instance.reset();
     for (final slug in _open.keys.toList()) {
       _closeEntry(slug);
     }
+    await workerClosed;
     await Future.wait(_idleClosing.values.toList());
     if (_engineSyncEnabled) {
       await _enqueueEngine(() async {
