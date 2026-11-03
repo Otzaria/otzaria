@@ -3,7 +3,7 @@
 // Tokens משותפים לכל שדות הקלט באפליקציה.
 // מגדיר גבהים, רדיוסים, גדלי פונט ו-alpha values אחידים.
 
-import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 abstract class AppInputTokens {
   // ── גבהים ──────────────────────────────────────────────────────────────────
