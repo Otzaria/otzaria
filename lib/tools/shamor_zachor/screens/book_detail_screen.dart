@@ -25,6 +25,7 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/lists/tree_section_header.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -942,125 +943,83 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
     }
 
-    // Parent
-    // Material and not ColoredBox, so the tile's ink is painted above the tint.
+    // Parent: TreeSectionHeader במקום ExpansionTile עם Theme מקומי (q10 Q8d).
+    // השורה כולה פותחת וסוגרת, החץ יושב ברוחב שההלכות משאירות ריק בתחילתן,
+    // ולכן העמודות מיושרות. התיבות בצפיפות של שורת הלכה מקוננת.
+    // Material ולא ColoredBox, כדי שהדיו של השורה ייצבע מעל הגוון.
     return Material(
       color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
-      child: Theme(
-        data: theme.copyWith(
-          // צמצום מרווחי ה-ListTile של ה-ExpansionTile
-          listTileTheme: const ListTileThemeData(
-            dense: true,
-            minVerticalPadding: 0,
-            horizontalTitleGap: 0,
-            minLeadingWidth: 0,
-            contentPadding: EdgeInsets.zero,
-          ),
-          // צמצום tap-target של Checkbox
-          checkboxTheme: const CheckboxThemeData(
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-          ),
-          dividerColor: Colors.transparent,
+      child: TreeSectionHeader(
+        key: ValueKey(section.id),
+        isExpanded: isExpanded,
+        onToggle: () =>
+            setState(() => _expandedSections[section.id] = !isExpanded),
+        leadingExtent: _chevronReserve + _titleGutter,
+        padding: const EdgeInsets.symmetric(
+          horizontal: _gridHPad,
+          vertical: AppTokens.space2XS,
         ),
-        child: ExpansionTile(
-          key: ValueKey(section.id),
-          initiallyExpanded: isExpanded,
-          onExpansionChanged: (expanded) {
-            setState(() => _expandedSections[section.id] = expanded);
-          },
-          tilePadding: const EdgeInsetsDirectional.only(
-            end: _gridHPad + _titleGutter,
-          ),
-          childrenPadding: EdgeInsets.zero,
-          controlAffinity: ListTileControlAffinity.trailing,
-          title: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _gridHPad,
-              vertical: 3,
-            ),
-            child: Row(
-              children: [
-                // קודם כותרת, כמו ב־Header
-                Expanded(
-                  flex: _titleFlex,
-                  child: Padding(
-                    // הזחה ביחס ל־RTL מהימין פנימה - רק לכותרת!
-                    padding: EdgeInsetsDirectional.only(
-                      start: _levelIndent * level,
-                    ),
-                    child: Text(
-                      section.title,
-                      style: _headingStyle.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
-                  ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: _titleFlex,
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(
+                  start: _levelIndent * level,
                 ),
-                Expanded(
-                  flex: _gridFlex,
-                  child: Row(
-                    children: _columnsOf(progressProvider).map((col) {
-                      final columnId = col.id;
-
-                      // אם אין bookId, נחזיר checkbox ריק
-                      if (widget.bookId == null) {
-                        return Expanded(
-                          child: SizedBox(
-                            height: 24,
-                            child: Center(
-                              child: Checkbox(
-                                value: false,
-                                tristate: true,
-                                onChanged: null, // disabled
-                              ),
-                            ),
-                          ),
+                child: Text(
+                  section.title,
+                  style: _headingStyle.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: _gridFlex,
+              child: Row(
+                children: _columnsOf(progressProvider).map((col) {
+                  final bookId = widget.bookId;
+                  final state = bookId == null
+                      ? false
+                      : progressProvider.getSectionColumnStateById(
+                          bookId,
+                          bookDetails,
+                          section.id,
+                          col.id,
                         );
-                      }
-
-                      final state = progressProvider.getSectionColumnStateById(
-                        widget.bookId!,
-                        bookDetails,
-                        section.id,
-                        columnId,
-                      );
-                      return Expanded(
-                        child: SizedBox(
-                          height: 24,
-                          child: Center(
-                            child: Checkbox(
-                              value: state,
-                              tristate: true,
-                              onChanged: (value) async {
-                                if (_isCurrentBook(bookDetails) &&
-                                    widget.bookId != null) {
-                                  await progressProvider
-                                      .toggleSectionColumnById(
-                                        widget.bookId!,
-                                        bookDetails,
-                                        section.id,
-                                        columnId,
-                                        value == true,
-                                      );
-                                }
+                  return Expanded(
+                    child: Tooltip(
+                      message: col.label,
+                      child: Checkbox(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        value: state,
+                        tristate: true,
+                        // בלי bookId אין לאן לשמור, ולכן התיבה מושבתת.
+                        onChanged: bookId == null
+                            ? null
+                            : (value) async {
+                                if (!_isCurrentBook(bookDetails)) return;
+                                await progressProvider.toggleSectionColumnById(
+                                  bookId,
+                                  bookDetails,
+                                  section.id,
+                                  col.id,
+                                  value == true,
+                                );
                               },
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          // הילדים נבנים כשורות נפרדות ברשימה השטוחה.
-          children: const [],
+          ],
         ),
       ),
     );

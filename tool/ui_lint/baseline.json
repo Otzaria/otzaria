@@ -883,8 +883,7 @@
         {"scope":"_LaazCommentarySubBlockState.build","fp":"920fa78d","n":1}
       ],
       "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
-        {"scope":"_BookDetailScreenState._buildFlatItemsSliver","fp":"ebe52bba","n":1},
-        {"scope":"_BookDetailScreenState._buildSectionExpansionTile","fp":"c1c23ec8","n":1}
+        {"scope":"_BookDetailScreenState._buildFlatItemsSliver","fp":"ebe52bba","n":1}
       ],
       "lib/tools/shamor_zachor/screens/shamor_zachor_main_screen.dart": [
         {"scope":"_ShamorZachorMainScreenState._buildFilterControls","fp":"a215a261","n":1},
