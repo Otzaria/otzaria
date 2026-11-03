@@ -318,6 +318,62 @@ void main() {
       );
     });
 
+    group('UpdateThemeMode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'כהה: מצב אחד עם followSystemTheme כבוי ו־isDarkMode דלוק',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(followSystemTheme: true),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.dark)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: false,
+            isDarkMode: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(false)).called(1);
+          verify(mockRepository.updateDarkMode(true)).called(1);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בהיר: מצב אחד עם שני הדגלים כבויים',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(
+          followSystemTheme: true,
+          isDarkMode: true,
+        ),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.light)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: false,
+            isDarkMode: false,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(false)).called(1);
+          verify(mockRepository.updateDarkMode(false)).called(1);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'לפי המערכת: מצב אחד, ו־isDarkMode לא נכתב',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(isDarkMode: true),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.system)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: true,
+            isDarkMode: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(true)).called(1);
+          verifyNever(mockRepository.updateDarkMode(any));
+        },
+      );
+    });
+
     group('UpdateSeedColor', () {
       const newColor = Colors.red;
 

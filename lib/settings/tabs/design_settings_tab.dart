@@ -253,20 +253,13 @@ class DesignSettingsTab extends StatelessWidget {
                           : state.isDarkMode
                           ? _ThemeMode.dark
                           : _ThemeMode.light,
-                      onChanged: (mode) {
-                        if (mode == _ThemeMode.system) {
-                          context.read<SettingsBloc>().add(
-                            UpdateFollowSystemTheme(true),
-                          );
-                        } else {
-                          context.read<SettingsBloc>().add(
-                            UpdateFollowSystemTheme(false),
-                          );
-                          context.read<SettingsBloc>().add(
-                            UpdateDarkMode(mode == _ThemeMode.dark),
-                          );
-                        }
-                      },
+                      onChanged: (mode) => context.read<SettingsBloc>().add(
+                        UpdateThemeMode(switch (mode) {
+                          _ThemeMode.light => ThemeMode.light,
+                          _ThemeMode.system => ThemeMode.system,
+                          _ThemeMode.dark => ThemeMode.dark,
+                        }),
+                      ),
                     ),
                     ColorPickerTile(
                       key: ValueKey(
