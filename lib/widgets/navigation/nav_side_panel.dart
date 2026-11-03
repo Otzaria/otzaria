@@ -4,6 +4,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/misc/animated_pin_button.dart';
+import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 /// חלונית הניווט האחידה של האפליקציה — מקור האמת היחיד למראה שלה.
 ///
@@ -164,22 +165,7 @@ class _NavPanelTabHeaderState extends State<NavPanelTabHeader> {
         size: AppTokens.panelTabIconSize,
       ),
     );
-    final lbl = data.label;
-    if (lbl == null) {
-      return Tab(icon: iconWidget, height: AppTokens.panelTabHeight);
-    }
-    return Tab(
-      icon: iconWidget,
-      iconMargin: AppTokens.panelTabIconMargin,
-      height: AppTokens.panelTabHeight,
-      child: Text(
-        lbl,
-        style: const TextStyle(fontSize: AppTokens.panelTabFontSize),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-      ),
-    );
+    return PanelTab.buildTab(iconWidget, data.label);
   }
 }
 

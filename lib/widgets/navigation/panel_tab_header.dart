@@ -14,20 +14,20 @@ class PanelTab extends StatelessWidget {
   const PanelTab({super.key, required this.icon, this.label});
 
   @override
-  Widget build(BuildContext context) {
-    final lbl = label;
-    if (lbl == null) {
-      return Tab(
-        icon: Icon(icon, size: AppTokens.panelTabIconSize),
-        height: AppTokens.panelTabHeight,
-      );
+  Widget build(BuildContext context) =>
+      buildTab(Icon(icon, size: AppTokens.panelTabIconSize), label);
+
+  /// הטאב עם אייקון כלשהו — גם האייקון המונפש של `NavPanelTabHeader`.
+  static Tab buildTab(Widget icon, String? label) {
+    if (label == null) {
+      return Tab(icon: icon, height: AppTokens.panelTabHeight);
     }
     return Tab(
-      icon: Icon(icon, size: AppTokens.panelTabIconSize),
+      icon: icon,
       iconMargin: AppTokens.panelTabIconMargin,
       height: AppTokens.panelTabHeight,
       child: Text(
-        lbl,
+        label,
         style: const TextStyle(fontSize: AppTokens.panelTabFontSize),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
