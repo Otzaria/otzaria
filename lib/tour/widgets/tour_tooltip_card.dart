@@ -145,23 +145,17 @@ class TourTooltipCard extends StatelessWidget {
                         if (!isLastStep &&
                             !isWelcomeStep &&
                             !isRestartEntry) ...[
-                          Tooltip(
-                            message: context.settingsText(
+                          AppIconButton(
+                            tooltip: context.settingsText(
                               isAutoPlaying
                                   ? 'עצור הצגה אוטומטית'
                                   : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
                             ),
-                            child: FilledButton.tonal(
-                              onPressed: onToggleAutoPlay,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(44, 44),
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Icon(
-                                isAutoPlaying
-                                    ? FluentIcons.pause_circle_24_regular
-                                    : FluentIcons.play_circle_24_regular,
-                              ),
+                            onPressed: onToggleAutoPlay,
+                            icon: Icon(
+                              isAutoPlaying
+                                  ? FluentIcons.pause_circle_24_regular
+                                  : FluentIcons.play_circle_24_regular,
                             ),
                           ),
                           const SizedBox(width: 8),

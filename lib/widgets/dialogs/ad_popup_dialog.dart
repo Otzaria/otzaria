@@ -10,6 +10,7 @@ import 'package:otzaria/services/support_organizations_service.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/image_decode_size.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 const _organizationsLoadError = 'לא ניתן לטעון את פרטי הארגונים';
 
@@ -300,6 +301,10 @@ class _AdPopupDialogState extends State<AdPopupDialog>
         alignment: Alignment.centerLeft,
         child: Builder(
           builder: (builderContext) => PopupMenuButton<String>(
+            // הכפתור שבתוכו פותח את התפריט; עטיפת ה-InkWell של התפריט כבויה,
+            // כדי שלא יהיו שתי שכבות ריחוף ושני יעדי פוקוס.
+            enabled: false,
+            tooltip: '',
             onSelected: (value) async {
               final navigator = Navigator.of(builderContext);
               switch (value) {
@@ -347,17 +352,14 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 ),
               ),
             ],
-            child: OutlinedButton.icon(
-              onPressed: null, // הכפתור עצמו לא עושה כלום, רק פותח תפריט
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                side: BorderSide(color: Theme.of(context).colorScheme.outline),
+            child: Builder(
+              builder: (menuContext) => ActionButton.neutral(
+                text: 'אל תציג שוב',
+                icon: FluentIcons.dismiss_24_regular,
+                onPressed: () => menuContext
+                    .findAncestorStateOfType<PopupMenuButtonState<String>>()
+                    ?.showButtonMenu(),
               ),
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-              label: const Text('אל תציג שוב'),
             ),
           ),
         ),
