@@ -174,16 +174,12 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
     });
   }
 
+  /// מחזיר את התוכן. לא נוגע בניווט: ה־Navigator כאן הוא של החלון (DD-29).
   void _reset() {
     setState(() {
       _hasError = false;
       _error = null;
     });
-
-    // Navigate back to root or refresh the app
-    if (Navigator.canPop(context)) {
-      Navigator.popUntil(context, (route) => route.isFirst);
-    }
   }
 
   static void _registerBoundary(_ErrorBoundaryState boundary) {

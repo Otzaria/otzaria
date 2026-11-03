@@ -24,7 +24,7 @@ import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// פותח דיאלוג לבחירת ספרים מעץ הספרייה והוספתם למעקב בשמור וזכור.
 ///
-/// [dataProvider] מועבר במפורש כי הוא Provider מקומי שאינו זמין מעל ה-Navigator.
+/// [dataProvider] מועבר במפורש, כך שהדיאלוג אינו תלוי ב־Provider שמעליו.
 Future<void> showAddBooksToTrackingDialog({
   required BuildContext context,
   required ShamorZachorDataProvider dataProvider,

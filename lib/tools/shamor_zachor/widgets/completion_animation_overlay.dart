@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// Overlay widget for showing completion animations
+/// אנימציית סיום. עולה בשכבת ה־Overlay של החלון, ולכן במרכז החלון ומעל כולו.
 class CompletionAnimationOverlay {
   /// Show completion animation with message
   static void show(BuildContext context, String message) {
