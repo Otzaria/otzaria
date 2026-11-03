@@ -44,7 +44,8 @@ String tabTitleBesideContentIcon(OpenedTab tab, String title) {
   return title.substring(prefix.length);
 }
 
-/// אייקון סוג הכרטיסיה — משותף לעמודה האנכית ולחלונית חיפוש הכרטיסיות.
+/// אייקון סוג הכרטיסיה — משותף לעמודה האנכית ולחלונית חיפוש הכרטיסיות. כל
+/// מקום בגודל שלו (16 כאן, 14 ברצועה העליונה), מאותו סט אייקונים (q10 Q14 C).
 ///
 /// מחזיר `null` לכרטיסיית טקסט רגילה, שאין לה אייקון ייעודי.
 Widget? buildTabTypeIcon(
@@ -60,7 +61,7 @@ Widget? buildTabTypeIcon(
   }
   if (tab is PdfBookTab) {
     return Icon(
-      FluentIcons.document_pdf_16_regular,
+      OtzariaIcons.document_pdf_24_regular,
       size: size,
       color: resolved,
     );
@@ -98,7 +99,7 @@ Widget? buildTabTypeIcon(
 IconData tabTypeIconData(OpenedTab tab) {
   final contentIcon = tabContentIconData(tab);
   if (contentIcon != null) return contentIcon;
-  if (tab is PdfBookTab) return FluentIcons.document_pdf_16_regular;
+  if (tab is PdfBookTab) return OtzariaIcons.document_pdf_24_regular;
   if (tab is CombinedTab) return FluentIcons.split_horizontal_24_regular;
   if (tab is ToolTab) return FluentIcons.toolbox_24_regular;
   return FluentIcons.document_24_regular;
@@ -365,6 +366,39 @@ class TabCloseButton extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(FluentIcons.dismiss_24_regular, size: iconSize),
       ),
+    );
+  }
+}
+
+/// הנעץ של כרטיסיה מוצמדת: בתחילת הכרטיסיה, ולחיצה עליו מבטלת את ההצמדה. משותף
+/// לרצועה העליונה ולעמודה האנכית (q10 Q14 C).
+///
+/// IconButton ולא Tooltip סביב אייקון, מאותה סיבה כמו [TabCloseButton]: Tooltip
+/// חיצוני מתמזג לצומת הסמנטיקה של הכרטיסיה (issue #1399).
+class TabPinButton extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  /// גודל האייקון, שהוא גם גודל הכפתור: הנעץ לא תופס יותר מקום מהאייקון.
+  static const double extent = 14;
+
+  const TabPinButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: EdgeInsets.zero,
+      ),
+      constraints: BoxConstraints.tight(const Size.square(extent)),
+      onPressed: onPressed,
+      icon: const Icon(FluentIcons.pin_24_filled, size: extent),
     );
   }
 }
