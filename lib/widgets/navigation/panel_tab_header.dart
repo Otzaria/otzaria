@@ -64,6 +64,7 @@ class PositionedPanelOpenHandle extends StatelessWidget {
   static const double topFraction = 0.10;
 
   @override
+  // ui-lint: allow UIL-021 — הידית בשמאל הפיזי כמו בשלושת המסכים שלפני האיחוד; הצד ב־RTL ממתין להכרעה (q10)
   Widget build(BuildContext context) => Positioned(
     left: 0,
     top: 0,
@@ -72,6 +73,7 @@ class PositionedPanelOpenHandle extends StatelessWidget {
       builder: (context, constraints) => Padding(
         padding: EdgeInsets.only(top: constraints.maxHeight * topFraction),
         child: Align(
+          // ui-lint: allow UIL-021 — באותו צד של הידית (ראו למעלה)
           alignment: Alignment.topLeft,
           child: PanelOpenHandle(onTap: onTap),
         ),

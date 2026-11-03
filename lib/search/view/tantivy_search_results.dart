@@ -1470,10 +1470,11 @@ class EngineResultCard extends StatelessWidget {
                   children: [
                     if (result.isPdf)
                       Padding(
-                        padding: const EdgeInsets.only(left: 8),
+                        // תוכן התוצאות תמיד RTL: end הוא הצד שבין האייקון לכותרת.
+                        padding: const EdgeInsetsDirectional.only(end: 8),
                         child: Icon(
                           OtzariaIcons.book_pdf_24_regular,
-                          size: 16,
+                          size: AppTokens.iconSM,
                           color: Theme.of(
                             context,
                           ).colorScheme.primary,
@@ -1514,7 +1515,7 @@ class EngineResultCard extends StatelessWidget {
                     IconButton(
                       icon: const Icon(
                         FluentIcons.copy_24_regular,
-                        size: 16,
+                        size: AppTokens.iconSM,
                       ),
                       color: Theme.of(
                         context,

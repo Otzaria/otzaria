@@ -914,7 +914,6 @@
         {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"ed9a519a","n":1},
         {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"8d6981b7","n":1},
         {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"ddc2e324","n":1},
-        {"scope":"_PdfBookScreenState._buildReaderMainContent","fp":"5baf5ee7","n":1},
         {"scope":"_PdfBookScreenState._buildReaderMainContent","fp":"85ed7cdf","n":1}
       ],
       "lib/pdf_book/view/pdf_commentary_panel.dart": [
@@ -938,19 +937,12 @@
         {"scope":"PluginPdfLayout.toPdfConfiguration","fp":"80f0b89e","n":1}
       ],
       "lib/search/view/tantivy_search_results.dart": [
-        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1},
-        {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"67cce6ab","n":1}
+        {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1}
       ],
       "lib/text_book/view/commentary_list_base.dart": [
         {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1},
         {"scope":"_CommentaryLinkItemState.build","fp":"1242d491","n":1},
         {"scope":"_NotesCommentaryWidgetState.build","fp":"4a334ce9","n":1}
-      ],
-      "lib/text_book/view/page_shape/page_shape_screen.dart": [
-        {"scope":"_PageShapeScreenState.build","fp":"20d0dae8","n":1}
-      ],
-      "lib/text_book/view/splited_view/splited_view_screen.dart": [
-        {"scope":"_SplitedViewScreenState.build","fp":"45c358b2","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
         {"scope":"_AnchoredMenuState._buildOverlay","fp":"ec8a633e","n":1}
@@ -1213,7 +1205,6 @@
         {"scope":"LibraryBreadcrumbBar.build","fp":"84f03e9e","n":1}
       ],
       "lib/navigation/view/custom_title_bar.dart": [
-        {"scope":"_CaptionActionButtonState.build","fp":"89f0467d","n":1},
         {"scope":"_CustomTitleBarState._buildPinIconInline","fp":"87f04357","n":1},
         {"scope":"_CustomTitleBarState._buildTab","fp":"87f04357","n":2},
         {"scope":"_CustomTitleBarState._tabCloseButton","fp":"093cb160","n":1}
@@ -1324,7 +1315,6 @@
       ],
       "lib/search/view/tantivy_search_results.dart": [
         {"scope":"_MergedSiblingsSectionState.build","fp":"89f0467d","n":2},
-        {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"89f0467d","n":2},
         {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"7bf03073","n":1}
       ],
       "lib/semantic_search/view/semantic_mode_panel.dart": [
@@ -1428,7 +1418,6 @@
       ],
       "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
         {"scope":"_BookDetailScreenState._buildBookBody","fp":"f1e89b70","n":1},
-        {"scope":"_BookDetailScreenState._buildColumnHeaderLabel","fp":"7bf03073","n":3},
         {"scope":"_BookDetailScreenState._buildColumnHeaderLabel","fp":"87f04357","n":1}
       ],
       "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
