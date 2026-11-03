@@ -327,6 +327,7 @@ class PluginExtendedValidator {
   static const String _searchSubmitRoutingMinVersion = '0.9.97';
   static const String _searchResultsActionMinVersion = '0.9.98.3';
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
+  static const String _searchFilterLabelsMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
@@ -568,6 +569,7 @@ class PluginExtendedValidator {
     }
     final ids = <String>{};
     var usesNewOptions = false;
+    var usesFilterLabels = false;
     for (final item in startup.searchFieldActions) {
       try {
         final parsed = PluginSearchFieldAction.fromPayload(item);
@@ -577,6 +579,10 @@ class PluginExtendedValidator {
             item.containsKey('visibleWhen') ||
             item.containsKey('mode') ||
             item.containsKey('libraryOnlyIcon');
+        usesFilterLabels =
+            usesFilterLabels ||
+            item.containsKey('pluginOnlyLabel') ||
+            item.containsKey('libraryOnlyLabel');
         if (parsed.isProviderBooksFilter) {
           if (!declaredPermissions.contains(
             pluginLibraryBooksProvidePermission,
@@ -614,6 +620,14 @@ class PluginExtendedValidator {
         manifest,
         _searchUiOptionsMinVersion,
         '$field: visibleWhen, mode ו-libraryOnlyIcon',
+        errors,
+      );
+    }
+    if (usesFilterLabels) {
+      _requireMinVersion(
+        manifest,
+        _searchFilterLabelsMinVersion,
+        '$field: pluginOnlyLabel ו-libraryOnlyLabel',
         errors,
       );
     }

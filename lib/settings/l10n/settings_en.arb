@@ -1016,6 +1016,8 @@
   "מציג את כולם": "Showing all",
   "מציג רק ספרי התוסף": "Showing plugin books only",
   "מציג רק ספרי הספרייה": "Showing library books only",
+  "רק התוסף": "Plugin only",
+  "רק הספרייה": "Library only",
   "לחיצה תחליף את הטקסט שהוקלד": "Click to replace the typed text",
   "חזרה לתיקיה הקודמת": "Back to the previous folder",
   "חזרה לתיקיה הראשית": "Back to the main folder",

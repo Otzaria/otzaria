@@ -6103,6 +6103,8 @@ async function scheduleReminder(title, body, dateTime) {
 | `visibleWhen` | לא | מגרסה 0.9.98.3. `"always"` (ברירת מחדל): הכפתור תמיד מוצג. `"nonEmptyText"`: מוצג רק כשיש טקסט בשדה (רווחים נחשבים לטקסט), כמו כפתור הניקוי; כפתור שיש לו סשן פתוח נשאר מוצג גם כשהשדה התרוקן. |
 | `mode` | לא | מגרסה 0.9.98.3. `"session"` (ברירת מחדל): סשן והאירוע `search.fieldAction.invoked`. `"providerBooksFilter"`: סינון מקור הספרים באיתור הספרים, ראו להלן. |
 | `libraryOnlyIcon` | לא | מגרסה 0.9.98.3, רק עם `mode: "providerBooksFilter"`: האייקון במצב "ספרי הספרייה בלבד". בלעדיו משמש `icon`. |
+| `pluginOnlyLabel` | לא | מגרסה 0.9.99, רק עם `mode: "providerBooksFilter"`: התווית הקצרה שליד האייקון במצב "ספרי התוסף בלבד", למשל `"רק בר אילן"`. בלעדיה: "רק התוסף". עד 24 תווים, לא ריקה ולא רווחים בלבד. |
+| `libraryOnlyLabel` | לא | מגרסה 0.9.99, רק עם `mode: "providerBooksFilter"`: התווית במצב "ספרי הספרייה בלבד", למשל `"רק אוצריא"`. בלעדיה: "רק הספרייה". אותן מגבלות. |
 
 עד 2 כפתורים לתוסף, ועד 3 כפתורים של תוספים בשדה אחד.
 
@@ -6164,6 +6166,12 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 
 המצב אינו נשמר בין הפעלות. הסרת הספק או השבתת התוסף מחזירות אותו למצב ההתחלתי.
 
+מגרסה 0.9.99, בשני מצבי הסינון הכפתור מתרחב לגלולה עם האייקון ותווית קצרה:
+"רק התוסף" ו"רק הספרייה", או `pluginOnlyLabel` ו־`libraryOnlyLabel` של התוסף.
+במצב ההתחלתי הוא כפתור אייקון. כשאין בשדה מקום לתווית בלי לצמצם את תיבת הקלט
+או לדחוק את שאר הכפתורים (חלון צר), הכפתור נשאר אייקון בלבד, וה־tooltip
+(`title` והמצב) אומר מה מסונן. כדאי לבחור תווית קצרה, של מילה או שתיים.
+
 ```json
 {
   "id": "source-filter",
@@ -6171,6 +6179,8 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
   "icon": "library_24_regular",
   "activeIcon": "library_24_filled",
   "libraryOnlyIcon": "book_24_regular",
+  "pluginOnlyLabel": "רק הספרייה שלי",
+  "libraryOnlyLabel": "רק אוצריא",
   "mode": "providerBooksFilter"
 }
 ```
@@ -6186,6 +6196,7 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 שנוספו מגרסה 0.9.98.3 (`visibleWhen`, `mode`, `libraryOnlyIcon`, וגם `persist`
 ו-`type: "switch"` ב-`searchDialogItems`) דורשים `minAppVersion: "0.9.98.3"`:
 מארח ישן יותר דוחה את המניפסט על מפתח לא מוכר, ולא מתעלם ממנו.
+`pluginOnlyLabel` ו־`libraryOnlyLabel` דורשים `minAppVersion: "0.9.99"`, מאותה סיבה.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 

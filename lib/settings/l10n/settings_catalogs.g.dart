@@ -1368,6 +1368,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'רענן': 'Refresh',
     'רענן תוספים': 'Refresh plugins',
     'רצף': 'Running Text',
+    'רק הספרייה': 'Library only',
+    'רק התוסף': 'Plugin only',
     'רשימה': 'List',
     'רשימות ההערות יוצגו כשהן סגורות': 'Note lists will appear collapsed',
     'רשימות ההערות יוצגו כשהן פתוחות': 'Note lists will appear expanded',

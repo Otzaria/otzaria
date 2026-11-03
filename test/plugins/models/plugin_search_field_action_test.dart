@@ -93,6 +93,37 @@ void main() {
       expect(action.libraryOnlyIcon, 'book_24_regular');
     });
 
+    test('תוויות הסינון: חסרות כברירת מחדל, ומה שהתוסף קבע', () {
+      final plain = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+      });
+      expect(plain.pluginOnlyLabel, isNull);
+      expect(plain.libraryOnlyLabel, isNull);
+
+      final labeled = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+        'pluginOnlyLabel': 'רק בר אילן',
+        'libraryOnlyLabel': 'רק אוצריא',
+      });
+      expect(labeled.pluginOnlyLabel, 'רק בר אילן');
+      expect(labeled.libraryOnlyLabel, 'רק אוצריא');
+    });
+
+    test('תווית באורך המרבי תקפה', () {
+      final label = 'א' * PluginSearchFieldAction.maxFilterLabelLength;
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+        'libraryOnlyLabel': label,
+      });
+      expect(action.libraryOnlyLabel, label);
+    });
+
     test('providerBooksFilter עם library ושדה עתידי לא מוכר תקף', () {
       final action = PluginSearchFieldAction.fromPayload({
         'id': 'f',
@@ -122,6 +153,24 @@ void main() {
         },
       ),
       ('libraryOnlyIcon בלי providerBooksFilter', {'libraryOnlyIcon': 'x'}),
+      ('pluginOnlyLabel בלי providerBooksFilter', {'pluginOnlyLabel': 'רק'}),
+      ('libraryOnlyLabel בלי providerBooksFilter', {'libraryOnlyLabel': 'רק'}),
+      for (final key in ['pluginOnlyLabel', 'libraryOnlyLabel']) ...[
+        ('$key ריק', {'mode': 'providerBooksFilter', key: ''}),
+        ('$key רווחים בלבד', {'mode': 'providerBooksFilter', key: '   '}),
+        (
+          '$key ארוך מדי',
+          {
+            'mode': 'providerBooksFilter',
+            key: 'א' * (PluginSearchFieldAction.maxFilterLabelLength + 1),
+          },
+        ),
+        ('$key לא מחרוזת', {'mode': 'providerBooksFilter', key: 7}),
+        (
+          '$key עם תו בקרה',
+          {'mode': 'providerBooksFilter', key: 'רק\nבר אילן'},
+        ),
+      ],
     ]) {
       test('נדחה: $name', () {
         expect(
