@@ -142,6 +142,13 @@ class HiveCache extends CacheProvider {
     await _preferences?.deleteAll(getKeys().cast<String>());
   }
 
+  /// שם המפתח של כל כתיבה או מחיקה בקובץ ההגדרות, מכל מקור: כל החלונות באותו
+  /// תהליך חולקים את הקופסה. ריק כשהקופסה לא פתוחה (בדיקות עם מטמון בזיכרון).
+  static Stream<String> changedKeys() {
+    if (!Hive.isBoxOpen(keyName)) return const Stream<String>.empty();
+    return Hive.box<dynamic>(keyName).watch().map((event) => '${event.key}');
+  }
+
   /// מחיקת כל ההגדרות, בהמתנה לסיומה.
   static Future<void> clearAllPreferences() async {
     if (!Hive.isBoxOpen(keyName)) return;

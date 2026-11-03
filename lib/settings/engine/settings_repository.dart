@@ -120,6 +120,31 @@ class SettingsRepository {
   static const String keyIndexPath = 'key-index-path';
   static const String keyDatabasesPath = 'key-databases-path';
   static const String keyBackupPath = 'key-backup-path';
+
+  /// הצגת המפרשים בחלונית בצד. גם הקורא כותב אותו (TextBookBloc).
+  static const String keySplitedView = 'key-splited-view';
+  static const String keyAutoBackupFrequency = 'key-auto-backup-frequency';
+  static const String keyBackupRetentionProfile =
+      'key-backup-retention-profile';
+  static const String keyBackupSettings = 'key-backup-settings';
+  static const String keyBackupBookmarks = 'key-backup-bookmarks';
+  static const String keyBackupHistory = 'key-backup-history';
+  static const String keyBackupNotes = 'key-backup-notes';
+  static const String keyBackupWorkspaces = 'key-backup-workspaces';
+  static const String keyBackupShamorZachor = 'key-backup-shamor-zachor';
+  static const String keyBackupPlugins = 'key-backup-plugins';
+
+  /// מתגי סעיפי הגיבוי. הגיבוי הידני והאוטומטי קוראים את אותם מתגים,
+  /// ו"גבה הכל" במסך פירושו שכולם דולקים.
+  static const List<String> backupSectionKeys = [
+    keyBackupSettings,
+    keyBackupBookmarks,
+    keyBackupHistory,
+    keyBackupNotes,
+    keyBackupWorkspaces,
+    keyBackupShamorZachor,
+    keyBackupPlugins,
+  ];
   static const String keyLibraryFolderName = 'key-library-folder-name';
 
   /// Android only: nתיב ה-DB שנגיש ל-sqlite3 native (override ל-getDatabasePath).
@@ -314,6 +339,16 @@ class SettingsRepository {
     keyIndexPath,
     keyDatabasesPath,
     keyBackupPath,
+    keyAutoBackupFrequency,
+    keyBackupRetentionProfile,
+    keyBackupSettings,
+    keyBackupBookmarks,
+    keyBackupHistory,
+    keyBackupNotes,
+    keyBackupWorkspaces,
+    keyBackupShamorZachor,
+    keyBackupPlugins,
+    keySplitedView,
     keyLibraryFolderName,
     keyDbEffectivePath,
     keyAndroidLibraryRoot,
@@ -553,6 +588,32 @@ class SettingsRepository {
         keyCompactMenuMode,
         defaultValue: false,
       ),
+      'autoSync': _settings.getValue<bool>(keyAutoSync, defaultValue: true),
+      'updateCheckFrequency': _settings.getValue<String>(
+        keyUpdateCheckFrequency,
+        defaultValue: '',
+      ),
+      'restoreAllWindows': _settings.getValue<bool>(
+        keyRestoreAllWindows,
+        defaultValue: false,
+      ),
+      'backupPath': _settings.getValue<String>(keyBackupPath, defaultValue: ''),
+      'autoBackupFrequency': _settings.getValue<String>(
+        keyAutoBackupFrequency,
+        defaultValue: 'weekly',
+      ),
+      'backupRetentionProfile': _settings.getValue<String>(
+        keyBackupRetentionProfile,
+        defaultValue: '',
+      ),
+      'splitedView': _settings.getValue<bool>(
+        keySplitedView,
+        defaultValue: true,
+      ),
+      'backupSections': <String, bool>{
+        for (final key in backupSectionKeys)
+          key: _settings.getValue<bool>(key, defaultValue: true),
+      },
       'readingTabsPlacement': _settings.getValue<String>(
         keyReadingTabsPlacement,
         defaultValue: readingTabsPlacementTop,
@@ -893,6 +954,39 @@ class SettingsRepository {
 
   Future<void> updatePersonalNotesCollapsedByDefault(bool value) async {
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
+  }
+
+  Future<void> updateAutoSync(bool value) async {
+    await _settings.setValue(keyAutoSync, value);
+  }
+
+  Future<void> updateUpdateCheckFrequency(String value) async {
+    await _settings.setValue(keyUpdateCheckFrequency, value);
+  }
+
+  Future<void> updateRestoreAllWindows(bool value) async {
+    await _settings.setValue(keyRestoreAllWindows, value);
+  }
+
+  Future<void> updateBackupPath(String value) async {
+    await _settings.setValue(keyBackupPath, value);
+  }
+
+  Future<void> updateAutoBackupFrequency(String value) async {
+    await _settings.setValue(keyAutoBackupFrequency, value);
+  }
+
+  Future<void> updateBackupRetentionProfile(String value) async {
+    await _settings.setValue(keyBackupRetentionProfile, value);
+  }
+
+  Future<void> updateBackupSection(String key, bool include) async {
+    assert(backupSectionKeys.contains(key), key);
+    await _settings.setValue(key, include);
+  }
+
+  Future<void> updateSplitedView(bool value) async {
+    await _settings.setValue(keySplitedView, value);
   }
 
   Future<void> updateCompactMenuMode(bool value) async {
