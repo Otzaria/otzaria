@@ -1190,6 +1190,22 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return result;
   }
 
+  /// קובץ הגופן [family]: נכס מובנה, או קובץ גופן המחשב שאותר בסריקה.
+  /// גופן מחשב שלא נמצא או לא נקרא — נופלים לגופן המובנה הראשון.
+  Future<Uint8List> _loadPrintFont(String family) async {
+    if (!fonts.containsKey(family)) {
+      final path = AppFonts.systemFamilyFaces(family)?.regularPath;
+      try {
+        if (path != null) return await File(path).readAsBytes();
+        debugPrint('[PRINT] system font not found: $family');
+      } on FileSystemException catch (e) {
+        debugPrint('[PRINT] system font unreadable: $family: $e');
+      }
+    }
+    final asset = await rootBundle.load(fonts[family] ?? fonts.values.first);
+    return asset.buffer.asUint8List();
+  }
+
   /// מרנדר רשימת בלוקים (ייצוג פנימי) ל-PDF — משותף למצב הרגיל ולמצב הבלוקים
   /// המוכנים מראש.
   Future<Uint8List> _renderBlocksToPdf({
@@ -1199,13 +1215,20 @@ class _PrintingScreenState extends State<PrintingScreen> {
     required double pageMargin,
     required double fontSize,
   }) async {
-    // אם הגופן לא מוטמע, השתמש בגופן ברירת מחדל
-    final fontPath = fonts[fontName] ?? fonts.values.first;
-    final primaryBytes = (await rootBundle.load(fontPath)).buffer.asUint8List();
+    final primaryBytes = await _loadPrintFont(fontName);
     final fallbackBytes = (await rootBundle.load(
       'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
     )).buffer.asUint8List();
-    final font = pw.Font.ttf(primaryBytes.buffer.asByteData());
+    // pw.Font קורא רק קווי מתאר TrueType: בגופן CFF הכותרות ושולי העמוד נשארים
+    // בגופן המובנה, וגוף הטקסט המעוצב — בגופן שנבחר.
+    final isTrueType =
+        primaryBytes.length >= 4 &&
+        ByteData.sublistView(primaryBytes).getUint32(0) == 0x10000;
+    final font = pw.Font.ttf(
+      (isTrueType ? primaryBytes : await _loadPrintFont(fonts.keys.first))
+          .buffer
+          .asByteData(),
+    );
     final fullBackFont = pw.Font.ttf(fallbackBytes.buffer.asByteData());
 
     // Body text is shaped so nikud and te'amim come out as vector text. The
@@ -3062,7 +3085,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // שימוש בקבועים מ-AppFonts
   Map<String, String> get fonts => AppFonts.fontPaths;
   Map<String, String> get fontNames {
-    // כולל את כל הגופנים הזמינים (גם מהמערכת), אבל רק גופנים מוטמעים יכולים להיות מודפסים
+    // כולל את כל הגופנים הזמינים, גם מהמערכת.
     final Map<String, String> allFonts = {};
     for (final font in AppFonts.availableFonts) {
       allFonts[font.value] = font.label;
