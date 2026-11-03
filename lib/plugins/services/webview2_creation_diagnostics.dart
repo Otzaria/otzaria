@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -101,7 +102,7 @@ $r.events = Section {
   /// תוצאת חימום WebView2 בתהליך הזה (תוצאה, משך, מתי הסתיים), אם רץ.
   static String? prewarmOutcome;
 
-  /// Process.start חוסם את ה-thread הראשי ב-Windows; ממתינים לחשיפת החלון.
+  /// סריקת CIM ויומן האירועים כבדה במעבד; לא מתחרים בה בעלייה ובחשיפת החלון.
   static Future<void> Function() startupGate = () => Future<void>.value();
 
   /// מריץ PowerShell עם הארגומנטים ומחזיר stdout, או null בכשל/פסק זמן.
@@ -267,8 +268,24 @@ $r.events = Section {
     'powershell.exe',
   );
 
-  static Future<String?> _runPowerShell(List<String> args) async {
-    final process = await Process.start(_powerShellExecutable, args);
+  static Future<String?> _runPowerShell(List<String> args) =>
+      runProcessOffMainIsolate(_powerShellExecutable, args, _processTimeout);
+
+  /// מריץ תהליך ב-isolate עזר ומחזיר stdout, או null ביציאה לא תקינה/פסק זמן.
+  /// Process.start קורא ל-CreateProcess סינכרונית ב-thread של ה-isolate הקורא.
+  @visibleForTesting
+  static Future<String?> runProcessOffMainIsolate(
+    String executable,
+    List<String> args,
+    Duration timeout,
+  ) => Isolate.run(() => _runProcess(executable, args, timeout));
+
+  static Future<String?> _runProcess(
+    String executable,
+    List<String> args,
+    Duration timeout,
+  ) async {
+    final process = await Process.start(executable, args);
     final stdout = process.stdout
         .transform(const Utf8Decoder(allowMalformed: true))
         .join();
@@ -277,7 +294,7 @@ $r.events = Section {
       final results = await Future.wait<Object>([
         process.exitCode,
         stdout,
-      ]).timeout(_processTimeout);
+      ]).timeout(timeout);
       return results[0] == 0 ? results[1] as String : null;
     } on TimeoutException {
       process.kill();
