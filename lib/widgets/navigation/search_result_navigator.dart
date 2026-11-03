@@ -84,7 +84,7 @@ class SearchResultNavigator extends StatelessWidget {
         if (onStop != null)
           _NavButton(
             icon: FluentIcons.stop_24_regular,
-            tooltip: 'עצור את החיפוש',
+            tooltip: context.settingsText('עצור את החיפוש'),
             onPressed: onStop,
           ),
         // אופקי: המונה בין החצים, כמו בדפדוף עמודים.
