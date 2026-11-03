@@ -22,6 +22,25 @@ BoxDecoration _decorationIn(WidgetTester tester, Finder of) =>
 
 void main() {
   group('AppCard', () {
+    testWidgets('active: מסגרת הבחירה (primary, 1.5) במקום outlineVariant', (
+      tester,
+    ) async {
+      await pumpInApp(
+        tester,
+        AppCard(active: true, onTap: () {}, child: const Text('כרטיס')),
+      );
+      final cs = schemeAt(tester, find.byType(AppCard));
+      final material = firstMaterialIn(tester, find.byType(AppCard));
+      final side = (material.shape! as RoundedRectangleBorder).side;
+      expect(side.color, AppSurfaces.multiSelectedBorder(cs));
+      expect(side.width, AppTokens.multiSelectedBorderWidth);
+      expect(material.shape, AppCard.shape(cs, active: true));
+      expect(
+        material.color,
+        AppSurfaces.card(tester.element(find.text('כרטיס'))),
+      );
+    });
+
     for (final (tone, bg, on) in [
       (AppCardTone.primary, 'primaryContainer', 'onPrimaryContainer'),
       (AppCardTone.error, 'errorContainer', 'onErrorContainer'),

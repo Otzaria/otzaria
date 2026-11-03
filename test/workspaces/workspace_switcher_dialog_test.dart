@@ -13,6 +13,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
@@ -262,6 +263,124 @@ void main() {
       },
     );
   }
+
+  // q9 שאלה 7: פח בשורת השם, מושבת בפעיל; מסגרת הבחירה ורק התצוגה המקדימה
+  // בצבע "נבחר" בפעיל; הלא פעילים על רקע נייטרלי; הגוף בצבע הדיאלוג.
+  group('כרטיס שולחן העבודה', () {
+    Future<_TestWorkspaceBloc> pumpDialog(
+      WidgetTester tester,
+      Workspace active,
+      Workspace other,
+    ) async {
+      final workspaceBloc = _TestWorkspaceBloc(
+        WorkspaceState(
+          workspaces: [active, other],
+          isLoading: false,
+          activeWorkspaceId: active.id,
+        ),
+      );
+      final tabsBloc = _TestTabsBloc(TabsState.initial());
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await workspaceBloc.close();
+        await tabsBloc.close();
+        await navigationBloc.close();
+      });
+      tester.view.physicalSize = const Size(1200, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          ],
+          child: const MaterialApp(
+            locale: Locale('he', 'IL'),
+            home: Scaffold(body: WorkspaceSwitcherDialog()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return workspaceBloc;
+    }
+
+    Finder card(String name) =>
+        find.ancestor(of: find.text(name), matching: find.byType(AppCard));
+
+    IconButton deleteIn(WidgetTester tester, String name) =>
+        tester.widget<IconButton>(
+          find.ancestor(
+            of: find.descendant(
+              of: card(name),
+              matching: find.byIcon(FluentIcons.delete_24_regular),
+            ),
+            matching: find.byType(IconButton),
+          ),
+        );
+
+    testWidgets('פח בשורת השם: מושבת בשולחן הפעיל, ואין X בפינה', (
+      tester,
+    ) async {
+      await pumpDialog(
+        tester,
+        Workspace(name: 'פעיל', tabs: const []),
+        Workspace(name: 'אחר', tabs: const []),
+      );
+      expect(deleteIn(tester, 'פעיל').onPressed, isNull);
+      expect(deleteIn(tester, 'אחר').onPressed, isNotNull);
+      expect(
+        find.descendant(
+          of: find.byType(AppCard),
+          matching: find.byIcon(FluentIcons.dismiss_24_regular),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: card('אחר'),
+          matching: find.byIcon(FluentIcons.delete_24_regular),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('למחוק את שולחן העבודה?'), findsOneWidget);
+    });
+
+    testWidgets('הפעיל במסגרת הבחירה, ורק התצוגה המקדימה שלו בצבע "נבחר"', (
+      tester,
+    ) async {
+      await pumpDialog(
+        tester,
+        Workspace(name: 'פעיל', tabs: const []),
+        Workspace(name: 'אחר', tabs: const []),
+      );
+      final cs = Theme.of(tester.element(card('פעיל'))).colorScheme;
+      expect(tester.widget<AppCard>(card('פעיל')).active, isTrue);
+      expect(tester.widget<AppCard>(card('אחר')).active, isFalse);
+      expect(tester.widget<AppCard>(card('פעיל')).selected, isFalse);
+
+      Color? previewColor(String name) =>
+          (tester
+                      .widgetList<Container>(
+                        find.descendant(
+                          of: card(name),
+                          matching: find.byType(Container),
+                        ),
+                      )
+                      .firstWhere((c) => c.decoration is BoxDecoration)
+                      .decoration!
+                  as BoxDecoration)
+              .color;
+      expect(previewColor('פעיל'), AppSurfaces.selectedRow(cs));
+      expect(previewColor('אחר'), cs.surfaceContainerHighest);
+    });
+  });
 
   group('תצוגת הכרטיסיות של שולחן העבודה הפעיל', () {
     testWidgets(
