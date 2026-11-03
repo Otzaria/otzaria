@@ -194,3 +194,7 @@ rules:
 
   UIL-025:
     strict: true
+
+
+  UIL-026:
+    strict: true
