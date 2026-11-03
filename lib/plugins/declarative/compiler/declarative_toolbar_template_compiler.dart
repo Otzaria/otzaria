@@ -1,4 +1,4 @@
-import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_action_compiler.dart';
 import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_toolbar_template.dart';
@@ -248,36 +248,12 @@ class DeclarativeToolbarTemplateCompiler {
   }) {
     assertOnlyKeys(action, const {'type', 'args'}, 'action');
     final type = _requiredString(action['type'], 'action.type');
-    final definition = DeclarativeCommandRegistry.require(type);
-    if (definition.phase != DeclarativeCommandPhase.action ||
-        definition.requiredPermission == null) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_phase',
-        'Command "$type" is not an action',
-      );
-    }
-    final permission = definition.requiredPermission!;
-    if (!declaredPermissions.contains(permission)) {
-      throw DeclarativeProgramException(
-        'declarative.permission_not_declared',
-        'Action "$type" requires permission "$permission"',
-      );
-    }
-    final args = _requiredMap(action['args'], 'action.args');
-    assertOnlyKeys(
-      args,
-      {...definition.requiredArgs, ...definition.optionalArgs},
-      'action.args',
+    final definition = DeclarativeActionCompiler.requireActionDefinition(
+      type,
+      declaredPermissions: declaredPermissions,
     );
-    final missing = definition.requiredArgs
-        .where((field) => !args.containsKey(field))
-        .toList();
-    if (missing.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_args',
-        'Action "$type" is missing: ${missing.join(', ')}',
-      );
-    }
+    final args = _requiredMap(action['args'], 'action.args');
+    DeclarativeActionCompiler.assertActionArgs(definition, args);
     _validateExpression(args, program, referenceKey, depth: 0);
   }
 
