@@ -1203,22 +1203,14 @@
       "lib/library/view/book_preview_panel.dart": [
         {"scope":"_BookPreviewPanelState.build","fp":"85f27ec8","n":1}
       ],
-      "lib/library/view/category_preview_panel.dart": [
-        {"scope":"CategoryPreviewPanel._header","fp":"f5e8a1bc","n":1}
-      ],
       "lib/library/view/grid_items.dart": [
         {"scope":"CategoryActionsMenuButton.build","fp":"86f041c4","n":1},
-        {"scope":"CategoryGridItem.build","fp":"89f0467d","n":1},
         {"scope":"_BookActionsMenuButtonState.build","fp":"86f041c4","n":1},
         {"scope":"_PersonalSourceBadge.build","fp":"335fec9e","n":1},
         {"scope":"_libraryInfoButton","fp":"86f041c4","n":1}
       ],
       "lib/library/view/library_breadcrumb_bar.dart": [
-        {"scope":"LibraryBreadcrumbBar.build","fp":"84f03e9e","n":1},
-        {"scope":"LibraryBreadcrumbBar.build","fp":"89f0467d","n":1}
-      ],
-      "lib/library/view/otzar_book_dialog.dart": [
-        {"scope":"_OtzarBookDialogState._buildInfoRow","fp":"f1e89b70","n":1}
+        {"scope":"LibraryBreadcrumbBar.build","fp":"84f03e9e","n":1}
       ],
       "lib/navigation/view/custom_title_bar.dart": [
         {"scope":"_CaptionActionButtonState.build","fp":"89f0467d","n":1},

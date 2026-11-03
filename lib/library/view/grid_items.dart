@@ -310,7 +310,7 @@ class CategoryGridItem extends StatelessWidget {
       child: Icon(
         FluentIcons.folder_24_regular,
         color: cs.onSecondaryContainer,
-        size: 16,
+        size: AppTokens.iconSM,
       ),
     );
     return AppCard(

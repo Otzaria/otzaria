@@ -131,7 +131,7 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
         children: [
           RtlIcon(
             icon,
-            size: 20,
+            size: AppTokens.iconMD,
             color: Theme.of(context).colorScheme.secondary,
           ),
           const SizedBox(width: 10),
