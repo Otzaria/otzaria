@@ -129,3 +129,8 @@ rules:
         reason: פלט נייר
       - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
         reason: פלט נייר
+
+  UIL-023:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
