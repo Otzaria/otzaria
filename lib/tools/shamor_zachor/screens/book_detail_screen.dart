@@ -542,28 +542,44 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     );
   }
 
-  /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי.
+  /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי. בתא
+  /// שהתאריך המלא לא נכנס בו — יום וחודש בלי שנה; המלא תמיד ב-tooltip.
   Widget _buildColumnCompletionDate(ThemeData theme, DateTime completedAt) {
     final style = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final hebrew = HebrewUtils.hebrewDate(completedAt);
     return Tooltip(
       message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
       child: Padding(
         // Keeps neighbouring dates apart when narrow cells shrink them.
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
         child: LayoutBuilder(
-          builder: (context, constraints) => FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(HebrewUtils.hebrewDate(completedAt), style: style),
-                if (constraints.maxWidth >= _kGregorianDateMinWidth)
-                  Text(HebrewUtils.gregorianDate(completedAt), style: style),
-              ],
-            ),
-          ),
+          builder: (context, constraints) {
+            final painter = TextPainter(
+              text: TextSpan(text: hebrew, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+              maxLines: 1,
+            )..layout();
+            final fits = painter.width <= constraints.maxWidth;
+            painter.dispose();
+            // FittedBox רק כגיבוי, כשגם התאריך הקצר לא נכנס.
+            return FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fits ? hebrew : HebrewUtils.hebrewDayMonth(completedAt),
+                    style: style,
+                  ),
+                  if (constraints.maxWidth >= _kGregorianDateMinWidth)
+                    Text(HebrewUtils.gregorianDate(completedAt), style: style),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
