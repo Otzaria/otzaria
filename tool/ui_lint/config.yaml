@@ -176,3 +176,9 @@ rules:
 
   UIL-010:
     strict: true
+
+
+  UIL-012:
+    exclude:
+      - path: lib/widgets/layout/**
+        reason: רכיבי הכרטיס המשותפים (AppCard, ResultCardFrame)

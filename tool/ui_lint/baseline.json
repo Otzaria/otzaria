@@ -33,6 +33,17 @@
         {"scope":"_HoverableDayCellState._buildAddButton","fp":"65815792","n":1}
       ]
     },
+    "UIL-012": {
+      "lib/settings/tabs/about_settings_tab.dart": [
+        {"scope":"_SurfaceCard.build","fp":"0855387f","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
+        {"scope":"_ZmanCard.build","fp":"0855387f","n":1}
+      ],
+      "lib/widgets/dialogs/ad_popup_dialog.dart": [
+        {"scope":"_ExpandableOrgCardState.build","fp":"0855387f","n":1}
+      ]
+    },
     "UIL-014": {
       "lib/search/view/full_text_facet_filtering.dart": [
         {"scope":"SearchDimensionFilterButton.build","fp":"a5034eeb","n":1}
