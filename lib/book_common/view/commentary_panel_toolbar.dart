@@ -47,7 +47,6 @@ class CommentaryPanelToolbar extends StatelessWidget {
           CommentatorsFilterButton(
             isActive: false,
             onPressed: onOpenFilter,
-            iconSize: 20,
           ),
           if (onToggleAllExpanded != null) ...[
             gap,
