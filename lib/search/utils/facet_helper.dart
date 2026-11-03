@@ -48,10 +48,10 @@ class FacetHelper {
 
   /// Resolves the category path for a book
   static String? resolveCategoryPath(Book book) {
-    if (book.category?.path != null && book.category!.path.isNotEmpty) {
-      return BookFacet.resolveFacetCategoryPath(
-        categoryPath: book.category!.path,
-      );
+    // path נבנה בהליכה עד השורש — פעם אחת ולא לכל בדיקה.
+    final categoryPath = book.category?.path;
+    if (categoryPath != null && categoryPath.isNotEmpty) {
+      return BookFacet.resolveFacetCategoryPath(categoryPath: categoryPath);
     }
     if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
       return BookFacet.resolveFacetCategoryPath(
@@ -139,7 +139,7 @@ class FacetHelper {
     // בחיפוש רחב זה כל הספרייה: הנתיב נפתר פעם אחת לקטגוריה, והאבות
     // מקבלים את סכום הנתיב במקום תוספת לכל ספר.
     final pathByCategory = Map<Category, String?>.identity();
-    final countByCategoryPath = <String, int>{};
+    var countByCategoryPath = <String, int>{};
 
     for (final entry in bookCounts.entries) {
       final count = entry.value;
@@ -159,13 +159,22 @@ class FacetHelper {
       incrementFacet(countByCategoryPath, categoryPath ?? '', count);
     }
 
-    for (final MapEntry(key: categoryPath, value: count)
-        in countByCategoryPath.entries) {
-      if (categoryPath.isNotEmpty) {
-        incrementFacetWithAncestors(counts, categoryPath, count);
-      } else {
-        incrementFacet(counts, '/', count);
+    // כל נתיב מעביר את סכומו לאביו ('' הוא השורש), כך שנתיב של אב נבנה
+    // ונספר פעם אחת בכל רמה ולא שוב לכל קטגוריה שתחתיו.
+    while (countByCategoryPath.isNotEmpty) {
+      final parentCounts = <String, int>{};
+      for (final MapEntry(key: categoryPath, value: count)
+          in countByCategoryPath.entries) {
+        if (categoryPath.isEmpty) {
+          incrementFacet(counts, '/', count);
+          continue;
+        }
+        incrementFacet(counts, categoryPath, count);
+        final cut = categoryPath.lastIndexOf('/');
+        final parent = cut > 0 ? categoryPath.substring(0, cut) : '';
+        incrementFacet(parentCounts, parent, count);
       }
+      countByCategoryPath = parentCounts;
     }
 
     return counts;

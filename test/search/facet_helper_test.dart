@@ -154,18 +154,9 @@ void main() {
     late Map<String, Book> booksByKey;
 
     setUp(() {
-      Category category(String title, Category? parent) => Category(
-        title: title,
-        description: '',
-        shortDescription: '',
-        order: 0,
-        subCategories: [],
-        books: [],
-        parent: parent,
-      );
-      final root = category('ספריית אוצריא', null);
-      final talmud = category('תלמוד בבלי', root);
-      leaf = _CountingCategory(category('סדר מועד', talmud));
+      final root = _category('ספריית אוצריא', null);
+      final talmud = _category('תלמוד בבלי', root);
+      leaf = _CountingCategory(_category('סדר מועד', talmud));
       bookCounts = {};
       booksByKey = {};
       for (var i = 0; i < 40; i++) {
@@ -182,40 +173,93 @@ void main() {
 
     test('נתיב הקטגוריה מחושב פעם אחת לקטגוריה ולא לכל ספר', () {
       FacetHelper.buildFacetCountsFromBookCounts(bookCounts, booksByKey);
-      expect(leaf.pathReads, lessThanOrEqualTo(3));
+      expect(leaf.pathReads, 1);
     });
 
     test('הספירות זהות לחישוב ספר-ספר', () {
-      final expected = <String, int>{};
-      for (final MapEntry(:key, :value) in bookCounts.entries) {
-        final book = booksByKey[key]!;
-        final categoryPath = FacetHelper.resolveCategoryPath(book);
-        FacetHelper.incrementFacet(
-          expected,
-          FacetHelper.buildBookFacet(categoryPath, book),
-          value,
-        );
-        if (categoryPath != null && categoryPath.isNotEmpty) {
-          FacetHelper.incrementFacetWithAncestors(
-            expected,
-            categoryPath,
-            value,
-          );
-        } else {
-          FacetHelper.incrementFacet(expected, '/', value);
-        }
-      }
-
       final counts = FacetHelper.buildFacetCountsFromBookCounts(
         bookCounts,
         booksByKey,
       );
 
-      expect(counts, expected);
+      expect(counts, _countsBookByBook(bookCounts, booksByKey));
       expect(counts['/'], 827);
       expect(counts['/תלמוד בבלי/סדר מועד'], 820);
     });
+
+    test('הספירות זהות לחישוב ספר-ספר בעץ בכמה עומקים עם אבות משותפים', () {
+      final root = _category('ספריית אוצריא', null);
+      final talmud = _category('תלמוד בבלי', root);
+      final nashim = _category('סדר נשים', talmud);
+      final shulchanAruch = _category('שולחן ערוך', _category('הלכה', root));
+      final books = [
+        TextBook(title: 'ברכות', id: 1, category: talmud),
+        TextBook(title: 'שבת', id: 2, category: leaf),
+        TextBook(title: 'יבמות', id: 3, category: nashim),
+        TextBook(title: 'כתובות', id: 4, category: nashim),
+        TextBook(
+          title: 'קצות החושן',
+          id: 5,
+          category: _category('חושן משפט, ביאורים', shulchanAruch),
+        ),
+        TextBook(title: 'אורח חיים', id: 6, category: shulchanAruch),
+        TextBook(title: 'ספר בשורש', id: 7, category: root),
+        TextBook(title: 'בראשית', id: 8, categoryPath: 'תנ"ך, תורה'),
+        TextBook(title: 'שמות', id: 9, topics: 'תנ"ך, תורה'),
+        TextBook(title: 'ספר בלי מיקום', id: 10),
+      ];
+      final counts = <String, int>{};
+      final byKey = <String, Book>{};
+      for (final (i, book) in books.indexed) {
+        final key = BookIdentity.indexedFilePath(book);
+        counts[key] = i + 1;
+        byKey[key] = book;
+      }
+
+      final facetCounts = FacetHelper.buildFacetCountsFromBookCounts(
+        counts,
+        byKey,
+      );
+
+      expect(facetCounts, _countsBookByBook(counts, byKey));
+      expect(facetCounts['/'], 55);
+      expect(facetCounts['/תלמוד בבלי'], 1 + 2 + 3 + 4);
+      expect(facetCounts['/הלכה/שולחן ערוך/חושן משפט/ביאורים'], 5);
+    });
   });
+}
+
+Category _category(String title, Category? parent) => Category(
+  title: title,
+  description: '',
+  shortDescription: '',
+  order: 0,
+  subCategories: [],
+  books: [],
+  parent: parent,
+);
+
+/// החישוב ספר-ספר: נתיב ואבות מלאים לכל ספר בנפרד.
+Map<String, int> _countsBookByBook(
+  Map<String, int> bookCounts,
+  Map<String, Book> booksByKey,
+) {
+  final expected = <String, int>{};
+  for (final MapEntry(:key, :value) in bookCounts.entries) {
+    final book = booksByKey[key]!;
+    final categoryPath = FacetHelper.resolveCategoryPath(book);
+    FacetHelper.incrementFacet(
+      expected,
+      FacetHelper.buildBookFacet(categoryPath, book),
+      value,
+    );
+    if (categoryPath != null && categoryPath.isNotEmpty) {
+      FacetHelper.incrementFacetWithAncestors(expected, categoryPath, value);
+    } else {
+      FacetHelper.incrementFacet(expected, '/', value);
+    }
+  }
+  return expected;
 }
 
 class _CountingCategory extends Category {
