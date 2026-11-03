@@ -746,8 +746,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
           ],
         ),
 
-        kSettingsCardSpacing,
-
         // ── ניווט כללי ────────────────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.nav',
@@ -823,8 +821,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               ),
           ]),
         ),
-
-        kSettingsCardSpacing,
 
         // ── תצוגת ספר ─────────────────────────────────────────────────
         SettingsCard(
@@ -990,8 +986,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── לוח שנה ושמור וזכור ───────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.calendar',
@@ -1036,8 +1030,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── תיקון קוראים ──────────────────────────────────────────────
         SettingsCard(
           title: context.settingsText('תיקון קוראים'),
@@ -1059,7 +1051,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
         // ── פתיחת כלים (אופציונלי) — מוצג רק כשהוגדר קיצור לכלי אחד לפחות ──
         if (openToolTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.open_tools',
             title: context.settingsText('פתיחת כלים'),
@@ -1072,7 +1063,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
         // ── פתיחת תוספים (אופציונלי) — מוצג רק כשהוגדר קיצור לתוסף אחד לפחות ──
         if (openPluginTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פתיחת תוספים'),
             subtitle: context.settingsText(
@@ -1084,7 +1074,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
         // ── העתקת קישורים (אופציונלי) — מוצג רק כשהוגדר קיצור אחד לפחות ──
         if (copyLinkTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.copy_links',
             title: context.settingsText('העתקת קישורים'),
@@ -1096,7 +1085,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
         ],
 
         if (pluginShortcutTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('קיצורי תוספים'),
             subtitle: context.settingsText(
@@ -1108,7 +1096,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
         ],
 
         // ── קיצורים דינמיים: פעולה + פרמטרים שהמשתמש מגדיר ──────────────
-        kSettingsCardSpacing,
         SettingsCard(
           cardId: 'shortcuts.dynamic',
           title: context.settingsText('קיצורים דינמיים'),
@@ -1155,7 +1142,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
         // ── פעולות זמינות להגדרת קיצור ────────────────────────────────
         if (unconfiguredKeys.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: ShortcutsSettingsTab.availableActionsCardId,
             title: context.settingsText('פעולות זמינות לקיצור'),

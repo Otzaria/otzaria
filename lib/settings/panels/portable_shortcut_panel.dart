@@ -76,7 +76,6 @@ class _PortableShortcutPanelState extends State<PortableShortcutPanel> {
     if (!_available || shortcut == null) return const SizedBox.shrink();
     return SettingsCard(
       cardId: 'system.portable',
-      spacedAbove: true,
       title: context.settingsText('גרסה ניידת'),
       subtitle: context.settingsText(
         'אוצריא רצה מהתיקייה שלה, בלי התקנה, ושומרת לידה את כל הנתונים',

@@ -23,17 +23,12 @@ class SettingsCard extends StatelessWidget {
   final List<Widget> children;
   final String? cardId;
 
-  /// מרווח [kSettingsCardSpacing] מעל הכרטיס, לכרטיס שלפעמים לא מוצג
-  /// (פאנל שמחזיר SizedBox.shrink): המרווח נעלם יחד איתו.
-  final bool spacedAbove;
-
   const SettingsCard({
     super.key,
     this.title,
     this.subtitle,
     required this.children,
     this.cardId,
-    this.spacedAbove = false,
   });
 
   // כשאין title (null או מחרוזת ריקה) הכותרת מוגדרת בתוך children — בלי כותרת חיצונית.
@@ -46,13 +41,7 @@ class SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget card = _buildCard(context);
-    if (spacedAbove) {
-      card = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [kSettingsCardSpacing, card],
-      );
-    }
+    final card = _buildCard(context);
     if (cardId != null) return SettingsAnchor(cardId: cardId!, child: card);
     return card;
   }

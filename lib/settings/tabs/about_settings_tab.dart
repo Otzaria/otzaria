@@ -149,15 +149,14 @@ class AboutSettingsTab extends StatelessWidget {
               ],
             ),
 
-            kSettingsCardSpacing,
+            // לכרטיס בלי כותרת אין את ריפוד הכותרת, שהוא המרווח בין הכרטיסים.
+            const SizedBox(height: AppTokens.spaceLG),
 
             // ── ציטוט סיום ──
             SettingsCard(
               cardId: 'about.main',
               children: [_ClosingQuote()],
             ),
-
-            kSettingsCardSpacing,
 
             // ── תורמים ──
             SettingsCard(
@@ -179,8 +178,6 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
               ],
             ),
-
-            kSettingsCardSpacing,
 
             // ── מפתחים ──
             SettingsCard(
@@ -218,8 +215,6 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
               ],
             ),
-
-            kSettingsCardSpacing,
 
             // ── אודות ספריית אוצריא ──
             SettingsCard(
@@ -264,7 +259,7 @@ class AboutSettingsTab extends StatelessWidget {
               ],
             ),
 
-            kSettingsCardSpacing,
+            const SizedBox(height: AppTokens.spaceMD),
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),

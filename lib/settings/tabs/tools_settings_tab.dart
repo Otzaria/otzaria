@@ -6,7 +6,6 @@ import 'package:otzaria/settings/panels/tools_management_panel.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/widgets/widgets_exports.dart' show kSettingsCardSpacing;
 
 /// טאב כלים — לוח שנה, גימטריות, עורך.
 ///
@@ -28,11 +27,8 @@ class ToolsSettingsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ToolsManagementPanel(),
-            kSettingsCardSpacing,
             CalendarSettingsTab(),
-            kSettingsCardSpacing,
             GematriaSettingsTab(),
-            kSettingsCardSpacing,
             TikkunKorimSettingsTab(),
             SizedBox(height: AppTokens.spaceMD),
           ],

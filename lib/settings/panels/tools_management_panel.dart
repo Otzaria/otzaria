@@ -223,7 +223,6 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                       ],
                     ),
                     if (plugins.isNotEmpty) ...[
-                      kSettingsCardSpacing,
                       SettingsCard(
                         cardId: _pluginsCardId,
                         title: context.settingsText('תוספים מותקנים'),

@@ -168,8 +168,6 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
               ],
             ),
 
-            kSettingsCardSpacing,
-
             // ספרים נוספים (משלב מיקום היברובוקס וספרים חיצוניים)
             SettingsCard(
               cardId: 'library.external',

@@ -274,8 +274,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               ],
             ),
 
-            kSettingsCardSpacing,
-
             // ── אירועים ותזכורות: התראות + Google Calendar ──
             SettingsCard(
               cardId: CalendarSettingsTab.eventsCardId,

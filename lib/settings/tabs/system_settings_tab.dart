@@ -631,15 +631,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   // 1. גרסאות + נתיב ספרייה
                   _buildVersionAndPathSection(context, state),
 
-                  // מוצגים רק בחלק מההתקנות, עם המרווח שמעליהם.
+                  // מוצגים רק בחלק מההתקנות.
                   const PortableShortcutPanel(),
 
                   // 2. עדכוני מערכת (רשת + עדכון מפתחים)
-                  kSettingsCardSpacing,
                   _buildSystemUpdatesSection(context, state),
 
                   // 3. דיווחים (טעויות בספרים, תוכנה ותוספים)
-                  kSettingsCardSpacing,
                   const ReportsCard(),
 
                   const SearchFeedbackPanel(),
@@ -647,11 +645,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   const SemanticDataPanel(),
 
                   // 4. מתקדם (גיבוי + מצב סייפר)
-                  kSettingsCardSpacing,
                   _buildAdvancedSection(context, state),
 
                   // 6. איפוס
-                  kSettingsCardSpacing,
                   _buildResetSection(context),
                 ],
               ),
