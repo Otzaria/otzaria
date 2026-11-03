@@ -199,11 +199,6 @@
         {"scope":"_RtlTextFieldState._showContextMenu","fp":"d8481033","n":1}
       ]
     },
-    "UIL-015": {
-      "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
-        {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"220ea01c","n":1}
-      ]
-    },
     "UIL-016": {
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState.build","fp":"148c29b1","n":1}
@@ -316,9 +311,6 @@
         {"scope":"_BookCardWidgetState._buildProgressInfo","fp":"12f1a54c","n":1},
         {"scope":"_BookCardWidgetState._buildProgressInfo","fp":"8d7fa525","n":1},
         {"scope":"_CycleRing.build","fp":"23d1d32c","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
-        {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"07dfa8d2","n":1}
       ],
       "lib/tools/shamor_zachor/widgets/mark_range_dialog.dart": [
         {"scope":"_MarkRangeFormState._summary","fp":"56218c47","n":1}
