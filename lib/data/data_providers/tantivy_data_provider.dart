@@ -527,20 +527,20 @@ class TantivyDataProvider {
     }
 
     Directory indexDirectory = Directory(indexPath);
-    if (indexDirectory.existsSync()) {
+    if (await indexDirectory.exists()) {
       try {
-        indexDirectory.deleteSync(recursive: true);
+        await indexDirectory.delete(recursive: true);
       } catch (e) {
         debugPrint('❌ Failed to delete index directory: $e');
         // On Windows, sometimes files are locked for a bit longer
         await Future.delayed(const Duration(seconds: 1));
-        if (indexDirectory.existsSync()) {
-          indexDirectory.deleteSync(recursive: true);
+        if (await indexDirectory.exists()) {
+          await indexDirectory.delete(recursive: true);
         }
       }
     }
 
-    indexDirectory.createSync(recursive: true);
+    await indexDirectory.create(recursive: true);
 
     debugPrint('✅ Index reset completed');
   }
@@ -649,9 +649,9 @@ class TantivyDataProvider {
 
     for (final path in paths) {
       final dir = Directory(path);
-      if (dir.existsSync()) {
+      if (await dir.exists()) {
         try {
-          dir.deleteSync(recursive: true);
+          await dir.delete(recursive: true);
           debugPrint('🧹 נמחקה תיקיית אינדקס: $path');
         } catch (e) {
           debugPrint('⚠️ כשל במחיקת תיקיית אינדקס $path: $e');
