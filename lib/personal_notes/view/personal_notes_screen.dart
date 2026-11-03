@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -288,23 +289,15 @@ class _PersonalNotesManagerScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingBooks) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_isLoadingBooks) return const LoadingIndicator();
 
     if (_booksError != null && _books.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'אירעה שגיאה בעת טעינת רשימת ההערות:\n${_booksError!}',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ActionButton.recommended(text: 'נסה שוב', onPressed: _loadBooks),
-          ],
-        ),
+      return OtzariaErrorState(
+        title: 'אירעה שגיאה בעת טעינת רשימת ההערות',
+        details: _booksError,
+        actions: [
+          ActionButton.recommended(text: 'נסה שוב', onPressed: _loadBooks),
+        ],
       );
     }
 
@@ -708,9 +701,7 @@ class _PersonalNotesManagerScreenState
     return BlocBuilder<LibraryBloc, LibraryState>(
       buildWhen: LibraryState.catalogChanged,
       builder: (context, libraryState) {
-        if (libraryState.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (libraryState.isLoading) return const LoadingIndicator();
 
         if (libraryState.error != null) {
           return OtzariaErrorState(
