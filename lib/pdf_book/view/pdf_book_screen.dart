@@ -632,6 +632,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   /// צל העמוד — מוגדר במפורש (ולא נשען על ברירת המחדל של pdfrx) כי הצילום
   /// המורכב מראש חייב לצייר בדיוק את אותו צל, אחרת הוא צץ בסיום האנימציה.
+  // ui-lint: allow UIL-030 — צל הנייר של עמוד PDF הוא תוכן (JX-05, q10 Q11)
   static const BoxShadow _pageDropShadow = BoxShadow(
     color: Colors.black54,
     blurRadius: 4,

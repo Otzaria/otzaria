@@ -89,7 +89,7 @@ test/design_system/
 | UIL-027 | אין `Brightness.dark`/`isDark` מחוץ ל־`lib/theme/` להחלטת צבע | identifier | פלטפורמה (סרגל מערכת), תוספים | כ־54 | 4 · לא מומש |
 | UIL-028 | `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם | invocation | `lib/widgets/dialogs/**` | 54 (showDialog שה־builder שלו אינו settingsDialogBuilder) | 4 · **דוח בלבד** |
 | UIL-029 | **גודל אייקון מטוקן (DD-03):** אין `size:` ליטרלי ב־`Icon(`, אין `iconSize:` ליטרלי, ואין `AppTokens.font*` כגודל אייקון. התחליף: `AppTokens.icon*` | ctor + named arg: `size:` ב־`Icon`/`RtlIcon`/`ImageIcon`, ו־`iconSize:` בכל מקום | `CustomPainter`, ‏`pw.*`, ייצוא, מעבדי תוכן (`smart_text`, `reader_line`, JX-19); ביטוי מחושב | 182 (ראשון 223) | 3 · **חוסם** (⚠ גודל 18 ממתין להכרעה, סבב 3.11) |
-| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | 6 `BoxShadow`: 2 צללי נייר של עמוד PDF (⚠ אישורם כ־allow ממתין, סבב 3.11) ו־4 אנימציות הדגשה וחגיגת סיום. הגבהה ליטרלית: 0. שקיפות בתוך `BoxShadow` נספרת כאן ולא ב־UIL-016 | 3 · **חוסם** |
+| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | 4 `BoxShadow`: אנימציות הדגשה וחגיגת סיום. שני צללי הנייר של עמוד PDF ב־allow כתוכן (JX-05, q10 Q11). הגבהה ליטרלית: 0. שקיפות בתוך `BoxShadow` נספרת כאן ולא ב־UIL-016 | 3 · **חוסם** |
 
 **כלל חדש לא נכנס לשלב 1** אם שיעור ההתראות השגויות שלו בהרצה ראשונה גבוה מ־10%. כלל כזה נשאר בדוח עד שהוא משתפר.
 

@@ -246,6 +246,7 @@ class _PageThumbnail extends StatefulWidget {
 
 class _PageThumbnailState extends State<_PageThumbnail> {
   static const double _maximumDpi = 300;
+  // ui-lint: allow UIL-030 — צל הנייר של עמוד PDF הוא תוכן (JX-05, q10 Q11)
   static const BoxShadow _pageShadow = BoxShadow(
     color: Colors.black54,
     blurRadius: 4,
