@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/core/app_paths.dart';
@@ -24,7 +25,7 @@ abstract class OrphanLibraryService {
     if (await AppPaths.detectInstallMode() != InstallMode.perUser) return null;
     // התקנת מנהל במחשב (גם של משתמש אחר) עשויה להשתמש ב-ProgramData באופן
     // פעיל — גם כשהותקנה בנתיב מותאם, ולכן הזיהוי דרך רישומי ההסרה.
-    if (await _machineWideInstallRegistered()) return null;
+    if (await machineWideInstallRegistered()) return null;
     if (_programFilesInstallExists()) return null;
 
     final programData =
@@ -83,7 +84,12 @@ abstract class OrphanLibraryService {
       r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
       r'\{EEC4F712-CD05-4D15-A753-509E840A51A5}_is1';
 
-  static Future<bool> _machineWideInstallRegistered() async {
+  /// Process.run חוסם את ה-thread הקורא ב-Windows; לכן רץ ב-isolate עזר.
+  @visibleForTesting
+  static Future<bool> machineWideInstallRegistered() =>
+      Isolate.run(_queryUninstallKey);
+
+  static Future<bool> _queryUninstallKey() async {
     for (final view in const ['/reg:64', '/reg:32']) {
       try {
         final result = await Process.run('reg', [
