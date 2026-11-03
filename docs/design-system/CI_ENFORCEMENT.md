@@ -67,7 +67,7 @@ test/design_system/
 | UIL-005 | אין `Icons.`/`CupertinoIcons.` | identifier prefix | — | 0 | 1 · **חוסם** |
 | UIL-006 | `RtlIcon` רק לאייקון כיווני שרשום ב־`rtl_icon.dart` (אף פעם לא `OtzariaIcons`), ואין `Transform.flip`/`Transform.scale(scaleX: -n)` שעוטף `Icon` | ctor + ילד + הרשימה ב־`rtl_icon.dart` | `rtl_icon.dart` | 0 | 1 · **חוסם** |
 | UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | ערך מ־`AppSurfaces.*` (למשל `hoverRow`); `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap:` וגם `trailing:` (JX-14). ב־`ListTile` בלי `onTap` אין ריחוף, ולכן `transparent` שם נתפס כקוד מת | 0 | 1 · **חוסם** |
-| UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | 0 | 1 · לא מומש |
+| UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | 0 | 1 · **חוסם**, נעול (strict) |
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי | — | 0 | 1 · **חוסם** |
 | UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow (JX-09) | הערכת שלב א': כ־15 | 1 · לא מומש |
 | UIL-011 | אין `TextField(`/`TextFormField(`/`EditableText(` גולמי | ctor | `rtl_text_field.dart` | 0 | 1 · **חוסם** |
