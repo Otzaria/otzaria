@@ -1249,7 +1249,7 @@ class _ColorSwatch extends StatelessWidget {
           child: color == null
               ? Icon(
                   FluentIcons.line_horizontal_1_24_regular,
-                  size: 16,
+                  size: AppTokens.iconSM,
                   color: cs.onSurfaceVariant,
                 )
               : null,

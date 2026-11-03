@@ -255,7 +255,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               padding: const EdgeInsets.only(right: 4),
                               child: Icon(
                                 FluentIcons.arrow_sync_24_regular,
-                                size: 14,
+                                size: AppTokens.iconXS,
                                 color: scheme.primary,
                               ),
                             ),

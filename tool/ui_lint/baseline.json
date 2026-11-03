@@ -1405,45 +1405,26 @@
       "lib/tools/aramaic_dictionary/widgets/aramaic_result_card.dart": [
         {"scope":"_ActionButton.build","fp":"7bf03073","n":1}
       ],
-      "lib/tools/biographies/widgets/biographies_credit_line.dart": [
-        {"scope":"BiographiesCreditLine.build","fp":"87f04357","n":1}
-      ],
       "lib/tools/biographies/widgets/biography_card.dart": [
-        {"scope":"_BiographyCardState._buildCard","fp":"7bf03073","n":1},
-        {"scope":"_BiographyCardState._buildDetails","fp":"89f0467d","n":1}
+        {"scope":"_BiographyCardState._buildCard","fp":"7bf03073","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
         {"scope":"_CalendarEventDialogState._buildTimeField","fp":"7bf03073","n":1},
         {"scope":"_CalendarEventDialogState._pickerButton","fp":"7bf03073","n":1},
-        {"scope":"_ColorSwatch.build","fp":"89f0467d","n":1},
         {"scope":"_InlineTimeEditorState.build","fp":"7bf03073","n":1}
       ],
-      "lib/tools/calendar/dialogs/calendar_print_dialog.dart": [
-        {"scope":"_CalendarPrintDialogState.build","fp":"fdc90bff","n":1}
-      ],
-      "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
-        {"scope":"_ZmanInfoButton.build","fp":"89f0467d","n":1}
-      ],
-      "lib/tools/calendar/widgets/calendar_day_cell.dart": [
-        {"scope":"_HoverableDayCellState._buildAddButton","fp":"89f0467d","n":1}
-      ],
       "lib/tools/calendar/widgets/calendar_events_panel.dart": [
-        {"scope":"_CalendarEventsPanelState._buildEventsList","fp":"87f04357","n":1},
         {"scope":"_CalendarEventsPanelState.build","fp":"9d445621","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_CalendarTimesPanelState._buildOmerButton","fp":"f1e89b70","n":1},
-        {"scope":"_CalendarTimesPanelState.build","fp":"7bf03073","n":1},
-        {"scope":"_CalendarTimesPanelState.build","fp":"9f445947","n":1}
+        {"scope":"_CalendarTimesPanelState.build","fp":"7bf03073","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"87f04357","n":1}
       ],
       "lib/tools/measurement_converter/measurement_converter_screen.dart": [
-        {"scope":"_MeasurementConverterScreenState._buildInputCard","fp":"89f0467d","n":1},
         {"scope":"_MeasurementConverterScreenState._buildUnitCard","fp":"7bf03073","n":1},
-        {"scope":"_MeasurementConverterScreenState.build","fp":"f3e89e96","n":1},
-        {"scope":"_MeasurementConverterScreenState.build","fp":"f5e8a1bc","n":1}
+        {"scope":"_MeasurementConverterScreenState.build","fp":"f3e89e96","n":1}
       ],
       "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
         {"scope":"_BookDetailScreenState._buildBookBody","fp":"f1e89b70","n":1},

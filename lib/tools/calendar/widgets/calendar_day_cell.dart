@@ -405,7 +405,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
       message: 'צור אירוע',
       verticalOffset: -40.0,
       child: IconButton.filled(
-        icon: const Icon(FluentIcons.add_24_regular, size: 16),
+        icon: const Icon(FluentIcons.add_24_regular, size: AppTokens.iconSM),
         onPressed: () => widget.onAdd(),
         style: IconButton.styleFrom(
           minimumSize: const Size(24, 24),

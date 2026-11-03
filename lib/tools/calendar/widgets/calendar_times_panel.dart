@@ -401,7 +401,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                   // 24 ולא 20 כשאר הסרגל: השעון ב-clock_add אינו ממלא את
                   // הקנבס — הפלוס תופס את הפינה — ולכן הוא נקרא קטן
                   // משמעותית מאייקון פלואנט באותו גודל נומינלי.
-                  iconSize: 24,
+                  iconSize: AppTokens.iconLG,
                   compact: true,
                   onPressed: () => showZmanimSettingsDialog(context),
                 ),
@@ -583,7 +583,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         ? Icon(FluentIcons.alert_24_filled)
         : Icon(
             OtzariaIcons.mount_sinai_24_regular,
-            size: 20,
+            size: AppTokens.iconMD,
             color: cs.onPrimary,
           );
 

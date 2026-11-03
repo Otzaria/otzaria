@@ -300,7 +300,11 @@ class _BiographyCardState extends State<BiographyCard> {
               padding: const EdgeInsets.only(top: 2),
               child: Row(
                 children: [
-                  Icon(icon, size: 16, color: cs.onSurfaceVariant),
+                  Icon(
+                    icon,
+                    size: AppTokens.iconSM,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: AppTokens.spaceXS),
                   Expanded(child: Text(label, style: labelStyle)),
                 ],
