@@ -172,7 +172,7 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
     if (repository != null && openPath == path) return repository!;
     database?.close();
     resolvedBooks.clear();
-    database = MyDatabase.withPath(path, readOnly: true);
+    database = MyDatabase.withPath(path, readOnly: true, official: true);
     repository = SeforimRepository(database!);
     await repository!.ensureInitialized();
     openPath = path;

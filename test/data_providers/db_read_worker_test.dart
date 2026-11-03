@@ -16,6 +16,7 @@ import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/journal_mode.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/migration/models/book.dart' as db_models;
@@ -278,7 +279,9 @@ void main() {
     expect(direct.books.map((b) => b.title), ['בראשית', 'מפרש', 'ספר גדול']);
 
     final viaWorker =
-        await DbReadWorker.request('bookCatalog', {'dbPath': dbPath})
+        await DbReadWorker.request('bookCatalog', {
+              'dbPath': dbPath,
+            })
             as ({
               List<db_models.Book> books,
               List<db_models.Category> categories,
@@ -315,6 +318,58 @@ void main() {
       direct,
     );
   });
+
+  for (final (lineIndex, expectedPlan) in [(2, 'range'), (0, 'book')]) {
+    test(
+      'fallback שומר את בחירת שאילתת הטווח של המסד הרשמי ($expectedPlan)',
+      () async {
+        final dbPath = await seedDb('seforim');
+        addCommentaryLink(dbPath);
+        final db = sqlite3.sqlite3.open(dbPath);
+        try {
+          db.execute("INSERT INTO tocText (id, text) VALUES (3, 'פרק ב')");
+          db.execute(
+            'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineIndex) '
+            'VALUES (3, 1, 1, 3, 1, 4)',
+          );
+        } finally {
+          db.close();
+        }
+        final originalQueries = QueryLoader.cacheSnapshot;
+        final markedQueries = QueryLoader.cacheSnapshot;
+        final links = markedQueries['LinkQueries.sq']!;
+        for (final suffix in ['', 'Official']) {
+          final name = 'selectCommentaryLinksByLineRange$suffix';
+          // מזהים את ה-SQL שנבחר בלי לשנות את הסינון או למדוד זמן ריצה.
+          links[name] = links[name]!.replaceFirst(
+            'SELECT ',
+            "SELECT '${suffix.isEmpty ? 'book' : 'range'}' AS queryPlan, ",
+          );
+        }
+        QueryLoader.seedCache(markedQueries);
+        try {
+          final args = <String, Object?>{
+            'dbPath': dbPath,
+            'bookId': 1,
+            'bookTitle': 'בראשית',
+            'lineIndex': lineIndex,
+            'excludeBookId': -1,
+          };
+          final workerRows =
+              await DbReadWorker.request('siblingCommentaryRows', args) as List;
+          expect(workerRows.single['queryPlan'], expectedPlan);
+          expect(workerRows.single['targetBookTitle'], 'מפרש');
+
+          DbReadWorker.stallTimeout = Duration.zero;
+          final fallbackRows =
+              await DbReadWorker.batched('siblingCommentaryRows', args) as List;
+          expect(fallbackRows, workerRows);
+        } finally {
+          QueryLoader.seedCache(originalQueries);
+        }
+      },
+    );
+  }
 
   test('ספר שאינו ברשמי מוחזר למסלול הישיר ולא כשגיאה', () async {
     final dbPath = await seedDb('seforim');
@@ -411,11 +466,7 @@ void main() {
     expect(DbReadWorker.sentMessageCount - before, 1);
     expect(
       [for (final r in results) (r! as Map)['content']],
-      [
-        'פירוש 0',
-        'פירוש 1',
-        'פירוש 2',
-      ],
+      ['פירוש 0', 'פירוש 1', 'פירוש 2'],
     );
   });
 
@@ -825,7 +876,10 @@ void main() {
       final second = await seedDb('replacement');
       await DbReadWorker.resumeAfterExternalWrite();
       final after =
-          await DbReadWorker.batched('linkContent', linkArgs(second, 'מפרש', 2))
+          await DbReadWorker.batched(
+                'linkContent',
+                linkArgs(second, 'מפרש', 2),
+              )
               as Map;
       expect(after['content'], 'פירוש 1');
     },
