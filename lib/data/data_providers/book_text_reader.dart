@@ -104,7 +104,7 @@ class BookTextReader {
           }),
         );
       } on DbReadWorkerUnavailable {
-        return DbReadWorker.runOnFreshIsolate(
+        return DbReadWorker.runFallbackOnFreshIsolate(
           _readOnTargetTask(database.readOnlyTarget, key, read),
         );
       }
