@@ -40,8 +40,7 @@ class AppTogglePill extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                   color: value ? cs.primary : cs.onSurfaceVariant,
                 ),
