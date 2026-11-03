@@ -562,9 +562,7 @@ class _ClosingQuote extends StatelessWidget {
                 textAlign: TextAlign.center,
                 // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: colorScheme.primary,
                   height: 1.6,
                 ),
@@ -614,9 +612,7 @@ class _ClosingQuote extends StatelessWidget {
                 textAlign: TextAlign.center,
                 // ui-lint: allow UIL-010 — ציטוט תורני נשאר עברי גם כשההגדרות באנגלית
                 textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: colorScheme.onSurface,
                   height: 1.6,
                 ),

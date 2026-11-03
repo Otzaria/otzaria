@@ -381,13 +381,13 @@ class _OrganizationsList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // קווי חירום
-        _buildSectionTitle('קווי חירום', cs.error),
+        _buildSectionTitle(context, 'קווי חירום', cs.error),
         ...organizations.emergencyLines.map(
           (org) => _ExpandableOrgCard(org: org, isEmergency: true),
         ),
         const SizedBox(height: 20),
         // ארגוני סיוע
-        _buildSectionTitle('ארגוני סיוע', cs.primary),
+        _buildSectionTitle(context, 'ארגוני סיוע', cs.primary),
         ...organizations.supportOrgs.map(
           (org) => _ExpandableOrgCard(org: org, isEmergency: false),
         ),
@@ -395,7 +395,7 @@ class _OrganizationsList extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(String title, Color color) {
+  Widget _buildSectionTitle(BuildContext context, String title, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
       margin: const EdgeInsets.only(bottom: 12, top: 8),
@@ -413,9 +413,7 @@ class _OrganizationsList extends StatelessWidget {
       ),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: color.withValues(alpha: 0.85),
           letterSpacing: 0.5,
         ),
@@ -538,16 +536,11 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                   );
                   final name = Text(
                     widget.org.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium,
                   );
                   final phone = Text(
                     widget.org.phone,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color:
                           (widget.isEmergency
                                   ? colorScheme.error
