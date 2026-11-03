@@ -1424,35 +1424,46 @@ class _PersonalNotesManagerScreenState
             ),
           ),
           const SizedBox(width: 8),
-          // כל כפתור במסגרת משלו (כמו כפתור ההעתקה במילון ראשי התיבות).
+          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). הטור בגובה
+          // הכרטיס, ולכן אזור המגע בגודל הכפתור, כמו קודם.
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SecondaryIconButton(
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'עריכה',
-                  icon: FluentIcons.edit_24_regular,
+                  icon: const Icon(FluentIcons.edit_24_regular),
                   onPressed: () => _editNote(note),
                 ),
                 const SizedBox(height: 6),
                 if (isMissing)
-                  SecondaryIconButton(
+                  AppIconButton(
+                    size: AppIconButtonSize.small,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: note.pdfAnchor != null
                         ? 'פתח PDF לשינוי המיקום'
                         : 'מיקום מחדש',
-                    icon: FluentIcons.location_24_regular,
+                    icon: const Icon(FluentIcons.location_24_regular),
                     onPressed: () => _repositionMissing(note),
                   )
                 else
-                  SecondaryIconButton(
+                  AppIconButton(
+                    size: AppIconButtonSize.small,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: 'פתח ספר בשורה',
-                    icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
+                    icon: const Icon(
+                      OtzariaIcons.otzaria_icon_2_page_24_regular,
+                    ),
                     onPressed: () => _openNoteInBook(note),
                   ),
                 const SizedBox(height: 6),
-                SecondaryIconButton(
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'מחיקה',
-                  icon: FluentIcons.delete_24_regular,
+                  icon: const Icon(FluentIcons.delete_24_regular),
                   onPressed: () => _deleteNote(note),
                 ),
               ],
