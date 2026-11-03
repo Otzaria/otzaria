@@ -107,3 +107,14 @@ rules:
         reason: צבעי CSS של תוכן הספר
       - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
         reason: צבעי CSS של תוכן הספר
+
+  UIL-020:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
