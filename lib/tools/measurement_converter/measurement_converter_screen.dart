@@ -1033,7 +1033,7 @@ class _MeasurementConverterScreenState
             ),
             child: Row(
               children: [
-                Icon(icon, size: 18, color: cs.primary),
+                Icon(icon, size: AppTokens.iconSM, color: cs.primary),
                 const SizedBox(width: AppTokens.spaceSM),
                 Text(
                   title,

@@ -415,7 +415,10 @@ class SearchNavigationTree extends StatelessWidget {
         tooltip: context.settingsText('כווץ הכל'),
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        icon: const Icon(FluentIcons.arrow_collapse_all_24_regular, size: 18),
+        icon: const Icon(
+          FluentIcons.arrow_collapse_all_24_regular,
+          size: AppTokens.iconSM,
+        ),
         onPressed: () => _collapseAll(rows),
       ),
     );

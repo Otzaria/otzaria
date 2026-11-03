@@ -1220,7 +1220,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         children: [
           Icon(
             FluentIcons.warning_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: AppSurfaces.warning(context),
           ),
           const SizedBox(width: 8),

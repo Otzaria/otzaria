@@ -71,7 +71,7 @@ class PaneDragHandleButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Icon(
             FluentIcons.re_order_dots_vertical_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),

@@ -416,7 +416,7 @@ class _TocViewerState extends State<TocViewer>
               collapsed
                   ? FluentIcons.arrow_expand_all_24_regular
                   : FluentIcons.arrow_collapse_all_24_regular,
-              size: 18,
+              size: AppTokens.iconSM,
             ),
             onPressed: () => setState(() {
               if (_virtualScrollController.isAttached) {

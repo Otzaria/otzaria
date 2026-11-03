@@ -98,7 +98,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                 children: [
                   Icon(
                     FluentIcons.error_circle_24_regular,
-                    size: 64,
+                    size: AppTokens.iconXL,
                     color: Theme.of(context).colorScheme.error,
                   ),
                   const SizedBox(height: 16),

@@ -151,7 +151,7 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
               children: [
                 Icon(
                   OtzariaIcons.book_search_24_regular,
-                  size: 18,
+                  size: AppTokens.iconSM,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 8),

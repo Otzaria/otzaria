@@ -508,7 +508,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           child: IgnorePointer(
             ignoring: !hasMore,
             child: IconButton(
-              iconSize: 18,
+              iconSize: AppTokens.iconSM,
               visualDensity: VisualDensity.compact,
               icon: const Icon(FluentIcons.chevron_down_24_regular),
               tooltip: context.settingsText('גלול לסוף הרשימה'),
@@ -1467,7 +1467,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     Widget? action,
   }) {
     return OtzariaEmptyState(
-      customIcon: Icon(icon, size: 56, color: iconColor),
+      customIcon: Icon(icon, size: AppTokens.iconXL, color: iconColor),
       title: title,
       message: message,
       action: action,

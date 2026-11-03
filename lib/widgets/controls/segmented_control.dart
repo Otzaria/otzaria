@@ -101,8 +101,8 @@ class AppSegmentedControl<T> extends StatelessWidget {
   }
 
   Widget _buildOptionIcon(SegmentOption<T> o) {
-    if (o.rtlIcon != null) return RtlIcon(o.rtlIcon!, size: 18);
-    if (o.icon != null) return Icon(o.icon, size: 18);
+    if (o.rtlIcon != null) return RtlIcon(o.rtlIcon!, size: AppTokens.iconSM);
+    if (o.icon != null) return Icon(o.icon, size: AppTokens.iconSM);
     return const SizedBox(width: 18);
   }
 

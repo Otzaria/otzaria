@@ -153,7 +153,7 @@ class _SearchResultTile extends StatelessWidget {
               const SizedBox(width: 8),
               Icon(
                 FluentIcons.chevron_right_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: colorScheme.onSurfaceVariant,
               ),
             ],

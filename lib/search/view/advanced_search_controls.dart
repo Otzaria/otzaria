@@ -587,7 +587,10 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
             ),
             trailing: IconButton(
               tooltip: 'מחק',
-              icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+              icon: const Icon(
+                FluentIcons.delete_24_regular,
+                size: AppTokens.iconSM,
+              ),
               onPressed: () => _removeAlternative(index),
             ),
           );

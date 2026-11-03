@@ -656,7 +656,7 @@ class _PersonalNoteToolbar extends StatelessWidget {
         }) => BarButton.icon(
           tooltip: tooltip,
           icon: icon,
-          iconSize: 18,
+          iconSize: AppTokens.iconSM,
           compact: compact,
           selected:
               attribute != null && _isAttributeActive(attribute, selected),

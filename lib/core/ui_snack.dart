@@ -544,7 +544,7 @@ class _SnackToastState extends State<_SnackToast>
                                   icon: Icon(
                                     FluentIcons.dismiss_24_regular,
                                     color: c.fg,
-                                    size: 18,
+                                    size: AppTokens.iconSM,
                                   ),
                                   visualDensity: VisualDensity.compact,
                                   padding: EdgeInsets.zero,

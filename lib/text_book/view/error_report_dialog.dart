@@ -1892,7 +1892,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
               ),
               Icon(
                 FluentIcons.open_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: colorScheme.onPrimaryContainer,
               ),
             ],

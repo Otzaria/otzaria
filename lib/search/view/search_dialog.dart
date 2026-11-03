@@ -815,7 +815,7 @@ class _SearchDialogState extends State<SearchDialog> {
                     dense: true,
                     leading: const Icon(
                       OtzariaIcons.search_24_regular,
-                      size: 18,
+                      size: AppTokens.iconSM,
                     ),
                     title: Text(
                       displayText,
@@ -823,7 +823,10 @@ class _SearchDialogState extends State<SearchDialog> {
                       style: const TextStyle(fontSize: 14),
                     ),
                     trailing: IconButton(
-                      icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+                      icon: const Icon(
+                        FluentIcons.delete_24_regular,
+                        size: AppTokens.iconSM,
+                      ),
                       tooltip: context.settingsText('מחק מההיסטוריה'),
                       onPressed: () => context.read<HistoryBloc>().add(
                         RemoveHistory(originalIndex),

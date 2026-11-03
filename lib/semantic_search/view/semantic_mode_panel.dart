@@ -394,7 +394,7 @@ class SemanticDebugPreviewBanner extends StatelessWidget {
         children: [
           Icon(
             FluentIcons.beaker_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: colorScheme.onTertiaryContainer,
           ),
           const SizedBox(width: 8),

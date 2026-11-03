@@ -9,6 +9,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/dialogs/safer_mode_password_dialog.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן במצב סייפר
 class SaferModeGuard extends StatefulWidget {
@@ -184,7 +185,7 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
           children: [
             Icon(
               FluentIcons.lock_closed_24_regular,
-              size: 64,
+              size: AppTokens.iconXL,
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 24),

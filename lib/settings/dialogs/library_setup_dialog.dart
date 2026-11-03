@@ -693,7 +693,7 @@ class _LibrarySetupDialogContentState
           state is EmptyLibraryDownloading
               ? FluentIcons.arrow_download_24_regular
               : FluentIcons.folder_zip_24_regular,
-          size: 56,
+          size: AppTokens.iconXL,
           color: Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(height: 24),

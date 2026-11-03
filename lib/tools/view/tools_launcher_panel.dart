@@ -1354,8 +1354,11 @@ class _ToolDragFeedback extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             entry.imageIcon != null
-                ? ImageIcon(AssetImage(entry.imageIcon!), size: 18)
-                : Icon(entry.icon, size: 18),
+                ? ImageIcon(
+                    AssetImage(entry.imageIcon!),
+                    size: AppTokens.iconSM,
+                  )
+                : Icon(entry.icon, size: AppTokens.iconSM),
             const SizedBox(width: 8),
             Text(
               context.settingsText(entry.label),

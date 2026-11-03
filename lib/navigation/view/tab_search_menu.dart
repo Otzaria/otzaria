@@ -344,7 +344,7 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                     isDense: true,
                     prefixIcon: const Icon(
                       FluentIcons.search_24_regular,
-                      size: 18,
+                      size: AppTokens.iconSM,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: AppTokens.borderRadiusAll,

@@ -365,7 +365,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                           pinnedTrailing: IconButton(
                             icon: const Icon(
                               FluentIcons.dismiss_24_regular,
-                              size: 18,
+                              size: AppTokens.iconSM,
                             ),
                             tooltip: 'הסר גישה',
                             onPressed: () => _revokeUserFolder(folder),

@@ -791,7 +791,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RtlIcon(icon, size: 18),
+              RtlIcon(icon, size: AppTokens.iconSM),
               const SizedBox(width: 8),
               Text(label),
               if (trailing != null) ...[const SizedBox(width: 4), trailing],
@@ -946,7 +946,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     if (!_isDesktop) {
       final trailing = _selectedTime != null
           ? IconButton(
-              icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
+              icon: Icon(
+                FluentIcons.dismiss_24_regular,
+                size: AppTokens.iconSM,
+              ),
               tooltip: 'כל היום',
               visualDensity: VisualDensity.compact,
               onPressed: _setAllDay,
@@ -1585,7 +1588,10 @@ class _InlineTimeEditorState extends State<_InlineTimeEditor> {
                 _onMinuteKey,
               ),
               IconButton(
-                icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
+                icon: Icon(
+                  FluentIcons.dismiss_24_regular,
+                  size: AppTokens.iconSM,
+                ),
                 tooltip: widget.clearTooltip,
                 visualDensity: VisualDensity.compact,
                 onPressed: widget.onClear,

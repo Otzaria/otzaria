@@ -2084,7 +2084,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             ExpandingChevron(
               isExpanded: isExpanded,
               color: cs.onSecondaryContainer,
-              size: 18,
+              size: AppTokens.iconSM,
             ),
           ],
         ),

@@ -329,7 +329,7 @@ class _ActionButton extends StatelessWidget {
       opacity: visible ? 1 : 0,
       duration: AppMotion.duration(context, AppTokens.animFast),
       child: IconButton(
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: AppTokens.iconSM),
         tooltip: tooltip,
         visualDensity: VisualDensity.compact,
         color: Theme.of(context).colorScheme.onSurfaceVariant,

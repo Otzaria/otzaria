@@ -540,7 +540,7 @@ class _SearchToggleButton extends StatelessWidget {
         onPressed: onPressed,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        icon: const Icon(FluentIcons.search_24_regular, size: 18),
+        icon: const Icon(FluentIcons.search_24_regular, size: AppTokens.iconSM),
       ),
     );
   }
