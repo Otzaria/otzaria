@@ -1729,17 +1729,8 @@ class BackupService {
     return true;
   }
 
-  /// מתגי סעיפי הגיבוי. הגיבוי הידני והאוטומטי קוראים את אותם מתגים,
-  /// ו"גבה הכל" במסך פירושו שכולם דולקים.
-  static const sectionSettingKeys = [
-    'key-backup-settings',
-    'key-backup-bookmarks',
-    'key-backup-history',
-    'key-backup-notes',
-    'key-backup-workspaces',
-    'key-backup-shamor-zachor',
-    'key-backup-plugins',
-  ];
+  /// מתגי סעיפי הגיבוי ([SettingsRepository.backupSectionKeys]).
+  static const sectionSettingKeys = SettingsRepository.backupSectionKeys;
 
   static bool get includesAllSections =>
       sectionSettingKeys.every((key) => Settings.getValue<bool>(key) ?? true);

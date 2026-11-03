@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
@@ -46,7 +47,8 @@ class BackupMaintenance {
   static final Logger _logger = Logger('BackupMaintenance');
 
   static const String archiveFileName = 'otzaria_archive.json';
-  static const String keyRetentionProfile = 'key-backup-retention-profile';
+  static const String keyRetentionProfile =
+      SettingsRepository.keyBackupRetentionProfile;
 
   /// מפרק שם קובץ גיבוי ל-timestamp ודגל ידני. מחזיר null אם אינו קובץ גיבוי.
   static BackupEntryInfo? parseBackupFileName(String path) {

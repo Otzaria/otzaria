@@ -1,13 +1,12 @@
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -347,20 +346,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   final GlobalKey _networkModeTileKey = GlobalKey();
   final GlobalKey _backupHeaderKey = GlobalKey();
 
-  // ── מפתחות גיבוי ──────────────────────────────────────────────────────────
-  static const _keyBackupSettings = 'key-backup-settings';
-  static const _keyBackupBookmarks = 'key-backup-bookmarks';
-  static const _keyBackupHistory = 'key-backup-history';
-  static const _keyBackupNotes = 'key-backup-notes';
-  static const _keyBackupWorkspaces = 'key-backup-workspaces';
-  static const _keyBackupShamorZachor = 'key-backup-shamor-zachor';
-  static const _keyBackupPlugins = 'key-backup-plugins';
-  static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
-
-  late _BackupMode _selectedBackupMode = BackupService.includesAllSections
+  late _BackupMode _selectedBackupMode =
+      context.read<SettingsBloc>().state.backupIncludesAllSections
       ? _BackupMode.all
       : _BackupMode.custom;
-  StreamSubscription<BoxEvent>? _backupSettingsSubscription;
+
+  /// הבורר "גבה הכל / מותאם אישית" הוא בחירה מקומית, ומתעדכן רק כשסעיפי
+  /// הגיבוי עצמם משתנים בבלוק (כאן, בחלון אחר, בשחזור).
+  late final StreamSubscription<SettingsState> _settingsSubscription;
 
   // ── גיבוי (expandable) ─────────────────────────────────────────────────────
   bool _isBackupExpanded = false;
@@ -378,6 +371,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   String _resolvedBackupPath = '';
   String _defaultBackupPath = '';
 
+  /// הבלוק של התהליך, נקרא פעם אחת: העברת תיקיית הגיבוי ממשיכה גם אם הלשונית
+  /// נסגרה בינתיים, והנתיב החדש עדיין צריך להישמר.
+  late final SettingsBloc _settingsBloc;
+
   @override
   void initState() {
     super.initState();
@@ -389,14 +386,23 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       'system.advanced',
       _openAdvancedSection,
     );
-    if (Hive.isBoxOpen(HiveCache.keyName)) {
-      _backupSettingsSubscription = Hive.box<dynamic>(HiveCache.keyName)
-          .watch()
-          .where(
-            (event) => BackupService.sectionSettingKeys.contains(event.key),
-          )
-          .listen((_) => _refreshBackupMode());
-    }
+    _settingsBloc = context.read<SettingsBloc>();
+    var backupSections = _settingsBloc.state.backupSections;
+    var backupPath = _settingsBloc.state.backupPath;
+    _settingsSubscription = _settingsBloc.stream.listen((state) {
+      if (!mapEquals(state.backupSections, backupSections)) {
+        backupSections = state.backupSections;
+        setState(() {
+          _selectedBackupMode = state.backupIncludesAllSections
+              ? _BackupMode.all
+              : _BackupMode.custom;
+        });
+      }
+      if (state.backupPath != backupPath) {
+        backupPath = state.backupPath;
+        _loadResolvedBackupPath();
+      }
+    });
     _loadVersionInfo();
     _refreshLibraryChanges();
     LibraryChangesNotes.instance.revision.addListener(_refreshLibraryChanges);
@@ -464,7 +470,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       'system.advanced',
       _openAdvancedSection,
     );
-    unawaited(_backupSettingsSubscription?.cancel());
+    unawaited(_settingsSubscription.cancel());
     LibraryChangesNotes.instance.revision.removeListener(
       _refreshLibraryChanges,
     );
@@ -489,15 +495,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         'system.$section',
         isCurrent: isCurrent,
       );
-    });
-  }
-
-  void _refreshBackupMode() {
-    if (!mounted) return;
-    setState(() {
-      _selectedBackupMode = BackupService.includesAllSections
-          ? _BackupMode.all
-          : _BackupMode.custom;
     });
   }
 
@@ -608,7 +605,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  bool _shouldInclude(String key) => Settings.getValue<bool>(key) ?? true;
+  /// בלי context: נקרא גם אחרי await moveDirectory, כשהלשונית אולי כבר סגורה.
+  Future<void> _setBackupPath(String path) async =>
+      _settingsBloc.add(UpdateBackupPath(path));
+
+  bool _shouldInclude(String key) =>
+      context.read<SettingsBloc>().state.backupIncludes(key);
 
   // ════════════════════════════════════════════════════════════════════════════
   //  BUILD
@@ -741,35 +743,28 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 label: context.settingsText('פעם בשבוע'),
               ),
             ],
-            currentValue: currentUpdateCheckFrequency().storageValue,
-            onChanged: (value) {
-              Settings.setValue<String>(
-                SettingsRepository.keyUpdateCheckFrequency,
-                value,
-              );
-              setState(() {});
-            },
+            currentValue: UpdateCheckFrequency.fromStorage(
+              state.updateCheckFrequency,
+            ).storageValue,
+            onChanged: (value) => context.read<SettingsBloc>().add(
+              UpdateUpdateCheckFrequency(value),
+            ),
           ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
             state.canUseSoftwareAndBookUpdates) ...[
           SettingsSwitchTile(
             icon: FluentIcons.arrow_sync_24_regular,
             title: context.settingsText('סינכרון הספרייה באופן אוטומטי'),
-            subtitle:
-                (Settings.getValue<bool>(SettingsRepository.keyAutoSync) ??
-                    true)
+            subtitle: state.autoSync
                 ? context.settingsText(
                     'מסד הנתונים של הספרייה יתעדכן אוטומטית בטעינת הספרייה',
                   )
                 : context.settingsText(
                     'סינכרון הספרייה לא יופעל אוטומטית, אך עדיין אפשר להפעיל סינכרון ידני',
                   ),
-            value:
-                Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
-            onChanged: (value) {
-              Settings.setValue<bool>(SettingsRepository.keyAutoSync, value);
-              setState(() {});
-            },
+            value: state.autoSync,
+            onChanged: (value) =>
+                context.read<SettingsBloc>().add(UpdateAutoSync(value)),
           ),
         ],
       ],
@@ -864,13 +859,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   Future<void> _createBackup() async {
     try {
       final result = await BackupService.createBackup(
-        includeSettings: _shouldInclude(_keyBackupSettings),
-        includeBookmarks: _shouldInclude(_keyBackupBookmarks),
-        includeHistory: _shouldInclude(_keyBackupHistory),
-        includeNotes: _shouldInclude(_keyBackupNotes),
-        includeWorkspaces: _shouldInclude(_keyBackupWorkspaces),
-        includeShamorZachor: _shouldInclude(_keyBackupShamorZachor),
-        includePlugins: _shouldInclude(_keyBackupPlugins),
+        includeSettings: _shouldInclude(SettingsRepository.keyBackupSettings),
+        includeBookmarks: _shouldInclude(SettingsRepository.keyBackupBookmarks),
+        includeHistory: _shouldInclude(SettingsRepository.keyBackupHistory),
+        includeNotes: _shouldInclude(SettingsRepository.keyBackupNotes),
+        includeWorkspaces: _shouldInclude(
+          SettingsRepository.keyBackupWorkspaces,
+        ),
+        includeShamorZachor: _shouldInclude(
+          SettingsRepository.keyBackupShamorZachor,
+        ),
+        includePlugins: _shouldInclude(SettingsRepository.keyBackupPlugins),
       );
       if (!mounted) return;
       final backupPath = result.path;
@@ -1228,10 +1227,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildAdvancedSection(BuildContext context, SettingsState state) {
-    final autoFrequency =
-        Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'weekly';
+    final autoFrequency = state.autoBackupFrequency;
     final retentionProfile = RetentionProfile.fromName(
-      Settings.getValue<String>(BackupMaintenance.keyRetentionProfile),
+      state.backupRetentionProfile,
     );
     final hasPassword = state.protectedModePasswordSet;
 
@@ -1243,29 +1241,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           SettingsSwitchTile(
             icon: FluentIcons.window_apps_24_regular,
             title: context.settingsText('שחזר את כל החלונות בהפעלה'),
-            subtitle:
-                Settings.getValue<bool>(
-                      SettingsRepository.keyRestoreAllWindows,
-                    ) ??
-                    false
+            subtitle: state.restoreAllWindows
                 ? context.settingsText(
                     'כל החלונות שהיו פתוחים בסגירה ייפתחו שוב, במקומם',
                   )
                 : context.settingsText(
                     'ייפתח חלון אחד, עם הכרטיסיות של כל החלונות',
                   ),
-            value:
-                Settings.getValue<bool>(
-                  SettingsRepository.keyRestoreAllWindows,
-                ) ??
-                false,
-            onChanged: (value) {
-              Settings.setValue<bool>(
-                SettingsRepository.keyRestoreAllWindows,
-                value,
-              );
-              setState(() {});
-            },
+            value: state.restoreAllWindows,
+            onChanged: (value) => context.read<SettingsBloc>().add(
+              UpdateRestoreAllWindows(value),
+            ),
           ),
         // ── צור/שחזר גיבוי ──
         SettingsActionTile.text(
@@ -1362,8 +1348,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             ],
             onSelected: (value) {
               if (value == null) return;
-              Settings.setValue<String>(_keyAutoBackupFrequency, value);
-              setState(() {});
+              context.read<SettingsBloc>().add(
+                UpdateAutoBackupFrequency(value),
+              );
             },
             isExpanded: false,
           ),
@@ -1381,37 +1368,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   'שימוש בתיקיית ברירת המחדל',
                 ),
                 simpleButtonWhenEmpty: false,
-                clearPathEnabled:
-                    (Settings.getValue<String>(
-                              SettingsRepository.keyBackupPath,
-                            ) ??
-                            '')
-                        .isNotEmpty,
-                onFolderChanged: (path) async {
-                  Settings.setValue<String>(
-                    SettingsRepository.keyBackupPath,
-                    path,
-                  );
-                  _loadResolvedBackupPath();
-                },
+                clearPathEnabled: state.backupPath.isNotEmpty,
+                onFolderChanged: _setBackupPath,
                 requestChangeLocation: makeChangeLocationCallback(
                   currentPath: _resolvedBackupPath,
                   folderName: _backupFolderName,
-                  onPathChanged: (newPath) async {
-                    Settings.setValue<String>(
-                      SettingsRepository.keyBackupPath,
-                      newPath,
-                    );
-                    _loadResolvedBackupPath();
-                  },
+                  onPathChanged: _setBackupPath,
                   onAfterMove: _resolvedBackupPath.isNotEmpty
-                      ? (newPath) async {
-                          Settings.setValue<String>(
-                            SettingsRepository.keyBackupPath,
-                            newPath,
-                          );
-                          _loadResolvedBackupPath();
-                        }
+                      ? _setBackupPath
                       : null,
                   defaultPath: _defaultBackupPath.isNotEmpty
                       ? _defaultBackupPath
@@ -1419,13 +1383,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ),
                 onOpenFolder: () =>
                     unawaited(openInFileManager(_resolvedBackupPath)),
-                onClearPath: () {
-                  Settings.setValue<String>(
-                    SettingsRepository.keyBackupPath,
-                    '',
-                  );
-                  _loadResolvedBackupPath();
-                },
+                onClearPath: () => _setBackupPath(''),
               ),
             SettingsAnchor(
               cardId: 'system.backup.mode',
@@ -1448,7 +1406,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 currentValue: _selectedBackupMode,
                 onChanged: (value) {
                   if (value == _BackupMode.all) {
-                    unawaited(BackupService.includeAllSections());
+                    context.read<SettingsBloc>().add(
+                      const IncludeAllBackupSections(),
+                    );
                   }
                   setState(() => _selectedBackupMode = value);
                 },
@@ -1460,48 +1420,48 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 icon: FluentIcons.settings_24_regular,
                 title: context.settingsText('הגדרות'),
                 subtitle: context.settingsText('כולל את כלל הגדרות התוכנה'),
-                settingKey: _keyBackupSettings,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupSettings,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'bookmarks',
                 icon: FluentIcons.bookmark_24_regular,
                 title: context.settingsText('סימניות'),
                 subtitle: context.settingsText('כל הסימניות שנשמרו'),
-                settingKey: _keyBackupBookmarks,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupBookmarks,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'history',
                 icon: FluentIcons.history_24_regular,
                 title: context.settingsText('היסטוריה'),
                 subtitle: context.settingsText('היסטוריית הלימוד'),
-                settingKey: _keyBackupHistory,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupHistory,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'notes',
                 icon: FluentIcons.note_24_regular,
                 title: context.settingsText('הערות אישיות'),
                 subtitle: context.settingsText('כל ההערות האישיות שלך'),
-                settingKey: _keyBackupNotes,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupNotes,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'workspaces',
                 icon: FluentIcons.grid_24_regular,
                 title: context.settingsText('שולחנות עבודה'),
                 subtitle: context.settingsText('כל שולחנות העבודה'),
-                settingKey: _keyBackupWorkspaces,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupWorkspaces,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'shamor_zachor',
                 icon: OtzariaIcons.book_24_regular,
                 title: context.settingsText('שמור וזכור'),
                 subtitle: context.settingsText('ספרים ומעקב לימוד'),
-                settingKey: _keyBackupShamorZachor,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupShamorZachor,
+                state: state,
               ),
               _BackupOptionTile(
                 searchSection: 'plugins',
@@ -1510,8 +1470,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 subtitle: context.settingsText(
                   'התוספים שהותקנו, הגדרותיהם ונתוניהם',
                 ),
-                settingKey: _keyBackupPlugins,
-                onChanged: _refreshBackupMode,
+                settingKey: SettingsRepository.keyBackupPlugins,
+                state: state,
               ),
             ],
             SettingsAnchor(
@@ -1540,11 +1500,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                     ],
                     onSelected: (value) {
                       if (value == null) return;
-                      Settings.setValue<String>(
-                        BackupMaintenance.keyRetentionProfile,
-                        value,
+                      context.read<SettingsBloc>().add(
+                        UpdateBackupRetentionProfile(value),
                       );
-                      setState(() {});
                     },
                   ),
                   ActionButton.neutral(
@@ -1737,7 +1695,7 @@ class _BackupOptionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final String settingKey;
-  final VoidCallback onChanged;
+  final SettingsState state;
 
   const _BackupOptionTile({
     required this.searchSection,
@@ -1745,7 +1703,7 @@ class _BackupOptionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.settingKey,
-    required this.onChanged,
+    required this.state,
   });
 
   @override
@@ -1756,11 +1714,10 @@ class _BackupOptionTile extends StatelessWidget {
         icon: icon,
         title: title,
         subtitle: subtitle,
-        value: Settings.getValue<bool>(settingKey) ?? true,
-        onChanged: (value) {
-          Settings.setValue<bool>(settingKey, value);
-          onChanged();
-        },
+        value: state.backupIncludes(settingKey),
+        onChanged: (value) => context.read<SettingsBloc>().add(
+          UpdateBackupSection(settingKey, value),
+        ),
       ),
     );
   }

@@ -81,6 +81,28 @@ class SettingsState extends Equatable {
   /// כדי שה-UI יתרענן ריאקטיבית גם כשהמצב המוגן עצמו לא מופעל.
   final bool protectedModePasswordSet;
   final bool compactMenuMode;
+  final bool autoSync;
+
+  /// `UpdateCheckFrequency.storageValue`; ריק = ברירת המחדל.
+  final String updateCheckFrequency;
+  final bool restoreAllWindows;
+
+  /// תיקיית הגיבוי שנבחרה; ריק = ברירת המחדל.
+  final String backupPath;
+  final String autoBackupFrequency;
+
+  /// `RetentionProfile.name`; ריק = ברירת המחדל.
+  final String backupRetentionProfile;
+
+  /// מתגי סעיפי הגיבוי לפי מפתח; מפתח חסר = כלול.
+  final Map<String, bool> backupSections;
+
+  /// הצגת המפרשים בחלונית בצד ([SettingsRepository.keySplitedView]).
+  final bool splitedView;
+
+  bool backupIncludes(String key) => backupSections[key] ?? true;
+
+  bool get backupIncludesAllSections => backupSections.values.every((v) => v);
 
   /// מיקום כרטיסיות העיון: `top` ברצועת הכותרת, `side` בעמודה אנכית.
   final String readingTabsPlacement;
@@ -147,6 +169,14 @@ class SettingsState extends Equatable {
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
+    this.autoSync = true,
+    this.updateCheckFrequency = '',
+    this.restoreAllWindows = false,
+    this.backupPath = '',
+    this.autoBackupFrequency = 'weekly',
+    this.backupRetentionProfile = '',
+    this.backupSections = const {},
+    this.splitedView = true,
     this.readingTabsPlacement = SettingsRepository.readingTabsPlacementTop,
     this.readingTabsColumnWidth =
         SettingsRepository.defaultReadingTabsColumnWidth,
@@ -251,6 +281,14 @@ class SettingsState extends Equatable {
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
+    bool? autoSync,
+    String? updateCheckFrequency,
+    bool? restoreAllWindows,
+    String? backupPath,
+    String? autoBackupFrequency,
+    String? backupRetentionProfile,
+    Map<String, bool>? backupSections,
+    bool? splitedView,
     String? readingTabsPlacement,
     double? readingTabsColumnWidth,
     bool? readingTabsColumnCollapsed,
@@ -333,6 +371,15 @@ class SettingsState extends Equatable {
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
+      autoSync: autoSync ?? this.autoSync,
+      updateCheckFrequency: updateCheckFrequency ?? this.updateCheckFrequency,
+      restoreAllWindows: restoreAllWindows ?? this.restoreAllWindows,
+      backupPath: backupPath ?? this.backupPath,
+      autoBackupFrequency: autoBackupFrequency ?? this.autoBackupFrequency,
+      backupRetentionProfile:
+          backupRetentionProfile ?? this.backupRetentionProfile,
+      backupSections: backupSections ?? this.backupSections,
+      splitedView: splitedView ?? this.splitedView,
       readingTabsPlacement: readingTabsPlacement ?? this.readingTabsPlacement,
       readingTabsColumnWidth:
           readingTabsColumnWidth ?? this.readingTabsColumnWidth,
@@ -404,6 +451,14 @@ class SettingsState extends Equatable {
     protectedModeEnabled,
     protectedModePasswordSet,
     compactMenuMode,
+    autoSync,
+    updateCheckFrequency,
+    restoreAllWindows,
+    backupPath,
+    autoBackupFrequency,
+    backupRetentionProfile,
+    backupSections,
+    splitedView,
     readingTabsPlacement,
     readingTabsColumnWidth,
     readingTabsColumnCollapsed,

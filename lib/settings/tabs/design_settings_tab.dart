@@ -2,14 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
-import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -512,44 +510,18 @@ class DesignSettingsTab extends StatelessWidget {
                         );
                       },
                     ),
-                    StatefulBuilder(
-                      builder: (context, setState) {
-                        final splitedView =
-                            Settings.getValue<bool>('key-splited-view') ?? true;
-                        return SettingsSwitchTile(
-                          title: context.settingsText(
-                            'הצגת המפרשים בחלונית בצד',
-                          ),
-                          subtitle: context.settingsText(
-                            splitedView
-                                ? 'המפרשים יוצגו בחלונית מפוצלת'
-                                : 'המפרשים יוצגו בתוך הטקסט',
-                          ),
-                          value: splitedView,
-                          onChanged: (value) {
-                            setState(() {
-                              Settings.setValue<bool>(
-                                'key-splited-view',
-                                value,
-                              );
-                              final settingsBloc = context.read<SettingsBloc>();
-                              PerBookSettings.cleanupRedundantSettings(
-                                defaultFontSize: settingsBloc.state.fontSize,
-                                defaultRemoveNikud:
-                                    settingsBloc.state.defaultRemoveNikud,
-                                removeNikudFromTanach:
-                                    settingsBloc.state.removeNikudFromTanach,
-                                defaultRemovePunctuation:
-                                    settingsBloc.state.defaultRemovePunctuation,
-                                defaultShowSplitView: value,
-                                defaultContinuousReadingMode: settingsBloc
-                                    .state
-                                    .defaultContinuousReadingMode,
-                              );
-                            });
-                          },
-                        );
-                      },
+                    // גם הקורא כותב את המפתח; הבלוק מתעדכן דרך externalChanges.
+                    SettingsSwitchTile(
+                      title: context.settingsText('הצגת המפרשים בחלונית בצד'),
+                      subtitle: context.settingsText(
+                        state.splitedView
+                            ? 'המפרשים יוצגו בחלונית מפוצלת'
+                            : 'המפרשים יוצגו בתוך הטקסט',
+                      ),
+                      value: state.splitedView,
+                      onChanged: (value) => context.read<SettingsBloc>().add(
+                        UpdateSplitedView(value),
+                      ),
                     ),
                   ],
                 ),
