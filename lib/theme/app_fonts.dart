@@ -679,7 +679,6 @@ class AppFonts {
   }
 
   /// מיפוי גופנים לנתיבי קבצים (לשימוש בהדפסה)
-  /// הערה: רק גופנים עם קבצים בתיקיית fonts נתמכים בהדפסה
   static const Map<String, String> fontPaths = {
     'TaameyDavidCLM': 'fonts/TaameyDavidCLM-Medium.ttf',
     'FrankRuhlCLM': 'fonts/FrankRuehlCLM-Medium.ttf',

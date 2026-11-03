@@ -23,6 +23,7 @@ import 'package:printing/printing.dart';
 import 'package:printing/src/interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../support/shaper_test_init.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -62,6 +63,13 @@ const _systemFamily = 'גופן מהמחשב';
 const _systemFontFile = 'fonts/Tinos-Regular.ttf';
 const _systemPostScriptName = 'Tinos-Regular';
 const _bundledDefaultPostScriptName = 'TaameyDavidCLM-Medium';
+
+/// גופן מחשב בקווי מתאר CFF (OTF), שחבילת pdf אינה קוראת כ-pw.Font.
+const _cffFamily = 'גופן CFF מהמחשב';
+const _cffPostScriptName = 'OtzariaAshurit-Regular';
+
+/// גופן שהסריקה מצאה, אבל הקובץ שלו נמחק מאז.
+const _missingFamily = 'גופן שהוסר';
 
 /// שמות הגופנים המוטמעים ב-PDF, בלי תגית ה-subset.
 Set<String> _embeddedFonts(Uint8List pdf) => RegExp(
@@ -164,6 +172,7 @@ void main() {
   late PrintingPlatform originalPlatform;
   late Directory fontsDir;
   late String systemFontPath;
+  late String cffFontPath;
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -175,6 +184,10 @@ void main() {
     systemFontPath = File(
       _systemFontFile,
     ).copySync('${fontsDir.path}${Platform.pathSeparator}system.ttf').path;
+    final ashurit = resolvedTestPackageRoot('otzaria_ashurit')!;
+    cffFontPath = File(
+      '${ashurit.path}/lib/OtzariaAshurit-Regular.otf',
+    ).copySync('${fontsDir.path}${Platform.pathSeparator}system.otf').path;
   });
 
   tearDownAll(() {
@@ -188,11 +201,23 @@ void main() {
     AppFonts.debugResetSystemFontsCache();
     await AppFonts.debugStoreScan(
       SystemFontScanResult(
-        fonts: const [FontInfo(value: _systemFamily, label: _systemFamily)],
+        fonts: const [
+          FontInfo(value: _systemFamily, label: _systemFamily),
+          FontInfo(value: _cffFamily, label: _cffFamily),
+          FontInfo(value: _missingFamily, label: _missingFamily),
+        ],
         families: {
           _systemFamily: SystemFontFamilyFaces(
             family: _systemFamily,
             regularPath: systemFontPath,
+          ),
+          _cffFamily: SystemFontFamilyFaces(
+            family: _cffFamily,
+            regularPath: cffFontPath,
+          ),
+          _missingFamily: SystemFontFamilyFaces(
+            family: _missingFamily,
+            regularPath: '${fontsDir.path}${Platform.pathSeparator}gone.ttf',
           ),
         },
         allFamilies: const {},
@@ -205,13 +230,14 @@ void main() {
 
   Future<Set<String>> printWithSystemFont(
     WidgetTester tester,
-    PrintingScreen screen,
-  ) async {
+    PrintingScreen screen, {
+    String family = _systemFamily,
+  }) async {
     // גופני המחשב מוצעים רק בדסקטופ — כמו אצל המדווח.
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     try {
       return _embeddedFonts(
-        await _printWithFont(tester, screen, _systemFamily),
+        await _printWithFont(tester, screen, family),
       );
     } finally {
       debugDefaultTargetPlatformOverride = null;
@@ -249,5 +275,34 @@ void main() {
     );
     expect(fonts, contains(_systemPostScriptName));
     expect(fonts, isNot(contains(_bundledDefaultPostScriptName)));
+  });
+
+  PrintingScreen bookScreen() => PrintingScreen(
+    data: Future.value(['בראשית', 'בְּרֵאשִׁית בָּרָא'].join('\n')),
+    bookId: 'בראשית',
+    startLine: 1,
+    endLine: 2,
+  );
+
+  testWidgets('גופן CFF מהמחשב: גוף הטקסט בגופן שנבחר, וההדפסה לא נכשלת', (
+    tester,
+  ) async {
+    final fonts = await printWithSystemFont(
+      tester,
+      bookScreen(),
+      family: _cffFamily,
+    );
+    expect(fonts, contains(_cffPostScriptName));
+    // הכותרת ושולי העמוד נכתבים ב-pw.Font, שקורא רק TrueType.
+    expect(fonts, contains(_bundledDefaultPostScriptName));
+  });
+
+  testWidgets('קובץ גופן המחשב שהוסר — ההדפסה בגופן המובנה', (tester) async {
+    final fonts = await printWithSystemFont(
+      tester,
+      bookScreen(),
+      family: _missingFamily,
+    );
+    expect(fonts, contains(_bundledDefaultPostScriptName));
   });
 }
