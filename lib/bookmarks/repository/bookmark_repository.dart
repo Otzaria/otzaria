@@ -15,10 +15,12 @@ class BookmarkRepository extends BaseListRepository<Bookmark> {
         fromJson: (json) => BookmarkGroup.fromJson(json),
         toJson: (group) => group.toJson(),
         store: store,
+        decodeInBackground: true,
       ),
       super(
         boxName: 'bookmarks',
         key: 'key-bookmarks',
+        decodeInBackground: true,
         fromJson: (json) => Bookmark.fromJson(json),
         toJson: (bookmark) => bookmark.toJson(),
       );
