@@ -674,6 +674,9 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           final processed = indexingState.booksProcessed ?? 0;
           final total = indexingState.totalBooks ?? 0;
           final isActive = indexingState is IndexingInProgress && total > 0;
+          // השהיה מחלונית החיווי; בשלב האיחוד היא כבר אינה עוצרת דבר.
+          final isPaused =
+              isActive && indexingState.isPaused && !indexingState.isFinalizing;
           final isCheckingManualReindex = _requiresManualReindex == null;
           String subtitleText;
           final libraryPath = Settings.getValue<String>(
@@ -698,6 +701,16 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           } else if (isActive && indexingState.isFinalizing) {
             subtitleText = context.settingsText(
               'מסיים ומאחד את קבצי האינדקס',
+            );
+          } else if (isPaused && indexingState.isScanning) {
+            subtitleText = context.settingsText(
+              'בדיקת הספרים מושהית: {processed}/{total}',
+              args: {'processed': processed, 'total': total},
+            );
+          } else if (isPaused) {
+            subtitleText = context.settingsText(
+              'האינדוקס מושהה: {processed}/{total}',
+              args: {'processed': processed, 'total': total},
             );
           } else if (isActive && indexingState.isScanning) {
             subtitleText = context.settingsText(
@@ -733,6 +746,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             title: context.settingsText('אינדקס חיפוש'),
             subtitle: subtitleText,
             actions: [
+              if (isPaused)
+                ActionButton.recommended(
+                  text: context.settingsText('המשך'),
+                  onPressed: () =>
+                      context.read<IndexingBloc>().add(ResumeIndexing()),
+                ),
               if (isActive)
                 ActionButton.neutral(
                   text: context.settingsText('עצור'),
