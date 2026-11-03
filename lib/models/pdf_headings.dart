@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as migration_models;
 import 'package:otzaria/models/book_source.dart';
 
@@ -50,7 +51,8 @@ class PdfHeadings {
     String? bookTitle,
   }) async {
     try {
-      final tocEntries = await resolvedBook.repository.getBookTocs(
+      final tocEntries = await readBookTocEntries(
+        resolvedBook.repository,
         resolvedBook.book.id,
       );
       final headingsMap = buildHeadingsMapFromTocEntries(tocEntries);

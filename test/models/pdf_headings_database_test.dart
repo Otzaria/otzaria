@@ -6,6 +6,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
@@ -54,6 +55,7 @@ void main() {
   });
 
   tearDown(() async {
+    (await FindRefDbIsolate.instance()).disposeForTesting();
     await SqliteDataProvider.instance.dispose();
     await UserBooksDatabaseHolder.instance.close();
     seforimDb.close();
@@ -143,6 +145,30 @@ void main() {
 
         expect(fromUser?.headingsMap, {'מ-user-books': 12});
         expect(fromOfficial?.headingsMap, {'מ-seforim': 5});
+      },
+    );
+
+    test(
+      'TOC של user_books.db נקרא בחיבור נפרד, לא בחיבור ה-UI (#4028)',
+      () async {
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        await insertBookWithToc(
+          repo: userBooksRepo,
+          title: 'אישי',
+          headings: {'פרק א': 3},
+        );
+        // מחיקה שלא נשמרה גלויה רק לחיבור הראשי; קריאה ב-isolate לא רואה אותה.
+        final mainConnection = await userBooksRepo.database.database;
+        mainConnection.execute('BEGIN');
+        mainConnection.execute('DELETE FROM tocEntry');
+        addTearDown(() => mainConnection.execute('ROLLBACK'));
+
+        final result = await PdfHeadings.loadFromDatabase(
+          'אישי',
+          preferSource: BookSource.user,
+        );
+
+        expect(result?.headingsMap, {'פרק א': 3});
       },
     );
 

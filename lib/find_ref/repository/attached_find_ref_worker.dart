@@ -31,6 +31,7 @@ class AttachedFindRefWorker {
 
   Isolate? _isolate;
   Future<SendPort>? _port;
+  Future<void> _closing = Future.value();
   final Map<String, DateTime> _failedUntil = {};
 
   static int _nextScope = 0;
@@ -190,13 +191,15 @@ class AttachedFindRefWorker {
     final isolate = _isolate;
     _isolate = null;
     _port = null;
-    if (isolate == null) return Future.value();
+    if (isolate == null) return _closing;
     final exited = ReceivePort();
     isolate.addOnExitListener(exited.sendPort);
     isolate.kill(priority: Isolate.immediate);
-    return exited.first
-        .timeout(const Duration(seconds: 2), onTimeout: () => null)
-        .whenComplete(exited.close);
+    final previousClosing = _closing;
+    return _closing = Future.wait([
+      previousClosing,
+      exited.first.timeout(const Duration(seconds: 2), onTimeout: () => null),
+    ]).then((_) {}).whenComplete(exited.close);
   }
 
   Future<SendPort> _spawn() async {

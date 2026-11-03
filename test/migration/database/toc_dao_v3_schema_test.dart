@@ -5,11 +5,7 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
-/// רגרסיה: שאילתות ה-TOC השתמשו ב-`t.lineIndex`, עמודה שקיימת בסכמת האפליקציה
-/// (user_books.db) אך **לא** ב-seforim.db v3. מול v3 השאילתה נפלה ב-prepare
-/// ("no such column: t.lineIndex"), מה ששבר את ה-TOC, את "שמור וזכור" ואת
-/// הגימטריה. הבדיקות מדמות את שתי הסכמות — דבר שהבדיקות הרגילות לא עשו, כי
-/// MyDatabase תמיד יוצר את הסכמה המלאה.
+/// סכמת v3 חסרה את `tocEntry.lineIndex`; תוכן עניינים של PDF משתמש בה.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -70,6 +66,7 @@ void main() {
         expect(toc.first.lineIndex, 0); // מ-line.lineIndex דרך lineId
         expect(toc.last.text, 'דף ב.');
         expect(toc.last.lineIndex, 1);
+        expect(await database.tocDao.selectByBookIdInIsolate(103), toc);
       } finally {
         database.close();
         await tempDir.delete(recursive: true);
@@ -102,6 +99,7 @@ void main() {
             toc.first.lineIndex,
             42,
           ); // נפילה ל-t.lineIndex כי אין line תואם
+          expect(await database.tocDao.selectByBookIdInIsolate(7), toc);
         } finally {
           database.close();
           await tempDir.delete(recursive: true);
