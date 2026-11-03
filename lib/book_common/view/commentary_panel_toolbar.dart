@@ -47,8 +47,6 @@ class CommentaryPanelToolbar extends StatelessWidget {
           CommentatorsFilterButton(
             isActive: false,
             onPressed: onOpenFilter,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             iconSize: 20,
           ),
           if (onToggleAllExpanded != null) ...[
