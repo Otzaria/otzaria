@@ -498,7 +498,7 @@ class _MeasurementConverterScreenState
                                 ? OtzariaIcons.panel_right_contract_24_regular
                                 : OtzariaIcons.panel_right_expand_24_regular,
                             key: ValueKey(sidebarOpen),
-                            size: 24,
+                            size: AppTokens.iconLG,
                           ),
                         ),
                         tooltip: sidebarOpen ? 'הסתר קטגוריות' : 'הצג קטגוריות',
@@ -755,7 +755,7 @@ class _MeasurementConverterScreenState
                     ? IconButton(
                         icon: const Icon(
                           FluentIcons.dismiss_24_regular,
-                          size: 16,
+                          size: AppTokens.iconSM,
                         ),
                         tooltip: 'נקה',
                         padding: EdgeInsets.zero,

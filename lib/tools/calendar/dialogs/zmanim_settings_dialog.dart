@@ -333,7 +333,11 @@ class _ZmanInfoButton extends StatelessWidget {
         border: Border.all(color: scheme.outlineVariant),
       ),
       child: IconButton(
-        icon: Icon(FluentIcons.info_24_regular, size: 16, color: color),
+        icon: Icon(
+          FluentIcons.info_24_regular,
+          size: AppTokens.iconSM,
+          color: color,
+        ),
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
         constraints: const BoxConstraints.tightFor(width: 32, height: 32),

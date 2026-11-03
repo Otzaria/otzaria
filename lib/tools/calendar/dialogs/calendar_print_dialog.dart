@@ -120,7 +120,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
               children: [
                 Icon(
                   FluentIcons.info_24_regular,
-                  size: AppTokens.fontLG,
+                  size: AppTokens.iconSM,
                   color: cs.onSurfaceVariant,
                 ),
                 const SizedBox(width: AppTokens.spaceSM),

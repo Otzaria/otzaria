@@ -63,7 +63,7 @@ class BiographiesCreditLine extends StatelessWidget {
                   children: [
                     Icon(
                       FluentIcons.info_16_regular,
-                      size: 14,
+                      size: AppTokens.iconXS,
                       color: linkColor,
                     ),
                     const SizedBox(width: AppTokens.spaceXS),
