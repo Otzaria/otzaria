@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class PdfZoomBar extends StatelessWidget {
@@ -38,20 +39,7 @@ class PdfZoomBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // כפתור איפוס
-            TextButton(
-              onPressed: onResetZoom,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                minimumSize: const Size(60, 36),
-              ),
-              child: const Text(
-                'אפס',
-                style: TextStyle(fontSize: 14),
-              ),
-            ),
+            ActionButton.ghost(text: 'אפס', onPressed: onResetZoom),
             Container(
               width: 1,
               height: 24,

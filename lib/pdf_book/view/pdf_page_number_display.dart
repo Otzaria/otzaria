@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 class PageNumberDisplay extends StatefulWidget {
   final PdfViewerController controller;
@@ -146,31 +147,23 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
                 onSubmitted: _handleSubmitted,
               ),
             )
-          : Tooltip(
-              message: "הזן מספר דף",
-              child: InkWell(
-                mouseCursor: SystemMouseCursors.click,
-                child: TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isEditing = true;
-                      _textController.text = pageNumber.toString();
-                    });
-                    // Ensure the text is selected when editing starts
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      _focusNode.requestFocus();
-                      _textController.selection = TextSelection(
-                        baseOffset: 0,
-                        extentOffset: _textController.text.length,
-                      );
-                    });
-                  },
-                  child: Text(
-                    '$pageNumber/$pageCount',
-                    style: AppTopBar.titleStyle(context),
-                  ),
-                ),
-              ),
+          : ActionButton.ghost(
+              tooltip: 'הזן מספר דף',
+              text: '$pageNumber/$pageCount',
+              onPressed: () {
+                setState(() {
+                  _isEditing = true;
+                  _textController.text = pageNumber.toString();
+                });
+                // Ensure the text is selected when editing starts
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  _focusNode.requestFocus();
+                  _textController.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: _textController.text.length,
+                  );
+                });
+              },
             ),
     );
   }
