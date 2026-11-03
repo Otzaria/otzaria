@@ -1,7 +1,7 @@
 # אכיפה ב־CI
 
 > המטרה: לזהות חריגה מהתקן ([DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)) לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן. ההכרעות שמאחורי המנגנון: DD-22 (golden) ו־DD-23 (המנוע והתוויות) ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
-> **מצב (3.11.2026):** המנוע `tool/ui_lint` פועל עם 21 כללים, וכולם חוסמים חריגה חדשה מול baseline. golden tests רצים על Windows. שני guards בודקים גידול ב־baseline ושינוי בתמונות ה־golden. 9 כללים מהקטלוג (§3.3) עוד לא מומשו, ורמת Strict (§6) עוד לא קיימת. ה־workflows לא הורצו עדיין על GitHub.
+> **מצב (3.11.2026):** המנוע `tool/ui_lint` פועל עם 28 כללים. כולם חוסמים חריגה חדשה מול baseline, חוץ מ־UIL-028 (שלב 4, דוח בלבד). golden tests רצים על Windows. שני guards בודקים גידול ב־baseline ושינוי בתמונות ה־golden. 2 כללים מהקטלוג (§3.3) עוד לא מומשו: UIL-002 ו־UIL-027. רמת Strict (§6) קיימת, ו־12 כללים נעולים. ה־workflows לא הורצו עדיין על GitHub.
 
 ## 1. איך זה רץ היום
 
@@ -216,7 +216,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | **1. Report** | `ui_lint_cli --format=github` עם `continue-on-error`: טבלה ל־`$GITHUB_STEP_SUMMARY` ו־annotations לחריגות חדשות (GitHub מציג עד ~10 בכל step) | לא | קיים |
 | **2. New violations** | `test/design_system/ui_lint_test.dart` חוסם חריגה חדשה מול ה־baseline, ו־`ui_baseline_guard.yml` חוסם גידול ב־baseline בלי תווית | כן, לחריגות חדשות | קיים |
 | **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6, כל אחד עם baseline של החוב שלו | כן, לחריגות חדשות | קיים |
-| **4. Strict** | כלל שה־baseline שלו התרוקן ננעל, כך שגם `--allow-growth` עם תווית לא יכול להוסיף לו | כן | **מתוכנן, לא מומש:** אין היום מפתח `strict` במנוע או ב־`config.yaml`. מועמדים: UIL-004, 005, 006, 007, 009, 011, 018, 022, ו־UIL-025 כשייכנס |
+| **4. Strict** | כלל שה־baseline שלו התרוקן ננעל, כך שגם `--allow-growth` עם תווית לא יכול להוסיף לו | כן | **קיים:** `strict: true` ב־`config.yaml`. כלל נעול חוסם בכל שלב, ו־`--allow-growth` לא כותב לו רשומות. ‏ui_lint_test דורש strict לכל כלל בלי רשומות baseline, ואוסר רשומות בכלל נעול. נעולים: UIL-004, 005, 006, 007, 008, 009, 010, 011, 018, 022, 025, 026 |
 
 **הבדיקות הקיימות** עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.
 
