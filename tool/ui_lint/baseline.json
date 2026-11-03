@@ -59,6 +59,192 @@
         {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"220ea01c","n":1}
       ]
     },
+    "UIL-016": {
+      "lib/core/diagnostics/frame_stats_overlay.dart": [
+        {"scope":"_FrameStatsPanelState.build","fp":"148c29b1","n":1}
+      ],
+      "lib/core/ui_snack.dart": [
+        {"scope":"_SnackToastState.build","fp":"122d037b","n":1}
+      ],
+      "lib/library/view/book_preview_panel.dart": [
+        {"scope":"_BookPreviewPanelState.build","fp":"6bea4fa7","n":1}
+      ],
+      "lib/library/view/library_browser.dart": [
+        {"scope":"_LibraryBrowserState._buildLoadingOverlay","fp":"6aca16f2","n":1},
+        {"scope":"_LibraryBrowserState._buildSecondaryRow","fp":"6abc73dc","n":1}
+      ],
+      "lib/navigation/view/custom_title_bar.dart": [
+        {"scope":"_CustomTitleBarState.build","fp":"c495b3f9","n":1}
+      ],
+      "lib/pdf_book/view/pdf_book_screen.dart": [
+        {"scope":"_PdfBookScreenState._buildBookViewStackDecoration","fp":"cc860c0d","n":1},
+        {"scope":"_PdfBookScreenState._buildBookViewStackDecoration","fp":"f4aa9ec0","n":1},
+        {"scope":"_PdfBookScreenState._composeCachedSpreadSnapshot","fp":"cc860c0d","n":1},
+        {"scope":"_PdfBookScreenState._composeCachedSpreadSnapshot","fp":"f4aa9ec0","n":1}
+      ],
+      "lib/pdf_book/view/pdf_scrollbar.dart": [
+        {"scope":"_PdfHorizontalScrollbarState.build","fp":"bf6b9a9e","n":1},
+        {"scope":"_PdfScrollbarState.build","fp":"bf6b9a9e","n":1},
+        {"scope":"_PdfScrollbarState.build","fp":"d5191e04","n":1}
+      ],
+      "lib/personal_notes/view/personal_notes_screen.dart": [
+        {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"11d75f92","n":1}
+      ],
+      "lib/personal_notes/widgets/note_tile.dart": [
+        {"scope":"_NoteTileState.build","fp":"43297a9d","n":1}
+      ],
+      "lib/personal_notes/widgets/notes_search_header.dart": [
+        {"scope":"_NotesSearchHeaderState.build","fp":"8181d0d8","n":1}
+      ],
+      "lib/personal_notes/widgets/personal_note_editor.dart": [
+        {"scope":"_PersonalNoteEditorBodyState.build","fp":"8983067a","n":1},
+        {"scope":"_PersonalNoteEditorBodyState.build","fp":"ea90b069","n":1}
+      ],
+      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
+        {"scope":"PersonalNotesSidebarState._buildContent","fp":"017a4b93","n":1},
+        {"scope":"PersonalNotesSidebarState._buildContent","fp":"8181d0d8","n":1},
+        {"scope":"PersonalNotesSidebarState._buildContent","fp":"b355fcab","n":1}
+      ],
+      "lib/search/view/tantivy_full_text_search.dart": [
+        {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"70836f0d","n":1},
+        {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"c1ad859d","n":1}
+      ],
+      "lib/semantic_search/view/semantic_search_results_screen.dart": [
+        {"scope":"_NarrowScopeBanner.build","fp":"70836f0d","n":1}
+      ],
+      "lib/settings/panels/tools_management_panel.dart": [
+        {"scope":"_AnimatedPluginMoveWrapperState.build","fp":"0997b441","n":1}
+      ],
+      "lib/settings/search/settings_search_results_view.dart": [
+        {"scope":"_HighlightedText.build","fp":"82cb4554","n":1},
+        {"scope":"_SearchResultTile.build","fp":"f3629575","n":1}
+      ],
+      "lib/settings/tabs/about_settings_tab.dart": [
+        {"scope":"_ClosingQuote.build","fp":"61a39db6","n":1},
+        {"scope":"_ClosingQuote.build","fp":"9dd646fd","n":2},
+        {"scope":"_MemorialCard.build","fp":"61a39db6","n":1}
+      ],
+      "lib/text_book/view/commentary_list_base.dart": [
+        {"scope":"_CommentaryGroupHeader.build","fp":"8181d0d8","n":1},
+        {"scope":"_CommentaryLinkItemState.build","fp":"017a4b93","n":1}
+      ],
+      "lib/text_book/view/page_shape/page_shape_screen.dart": [
+        {"scope":"_PageShapeScreenState._buildEmptyColumnContent","fp":"44fd81cd","n":1}
+      ],
+      "lib/text_book/view/page_shape/simple_text_viewer.dart": [
+        {"scope":"_SimpleTextViewerState.build","fp":"94444940","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_day_cell.dart": [
+        {"scope":"buildDayCell","fp":"0f736c3f","n":1},
+        {"scope":"buildDayCell","fp":"72466283","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
+        {"scope":"_OverflowAwareTooltipText.build","fp":"d2aa3949","n":1}
+      ],
+      "lib/tools/calendar/widgets/calendar_top_bar.dart": [
+        {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"17cb6f38","n":1},
+        {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"4f0c3e16","n":1},
+        {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"5a23db68","n":1},
+        {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"6a25d001","n":1},
+        {"scope":"_CalendarTopBarState._buildTopBarDivider","fp":"376e4781","n":1}
+      ],
+      "lib/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart": [
+        {"scope":"_MeaningView.build","fp":"29bbefdc","n":1},
+        {"scope":"_MeaningView.build","fp":"e75e0563","n":1}
+      ],
+      "lib/tools/gematria/widgets/gematria_result_card.dart": [
+        {"scope":"GematriaResultCard.build","fp":"ec798d79","n":1}
+      ],
+      "lib/tools/measurement_converter/measurement_converter_screen.dart": [
+        {"scope":"_MeasurementConverterScreenState._buildResultCard","fp":"647edefb","n":1},
+        {"scope":"_MeasurementConverterScreenState._buildResultCard","fp":"8eea3a93","n":1},
+        {"scope":"_MeasurementConverterScreenState._buildResultCard","fp":"e837830e","n":1},
+        {"scope":"_MeasurementConverterScreenState._sectionLabel","fp":"19ede0b8","n":1}
+      ],
+      "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
+        {"scope":"_BookDetailScreenState._buildBookBody","fp":"23d1d32c","n":1},
+        {"scope":"_BookDetailScreenState._buildHeader","fp":"1f977cf6","n":1},
+        {"scope":"_BookDetailScreenState._buildSectionExpansionTile","fp":"b0020b90","n":1},
+        {"scope":"_BookDetailScreenState._rowColor","fp":"6114051d","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/book_card_widget.dart": [
+        {"scope":"_BookCardWidgetState._buildProgressInfo","fp":"12f1a54c","n":1},
+        {"scope":"_BookCardWidgetState._buildProgressInfo","fp":"8d7fa525","n":1},
+        {"scope":"_CycleRing.build","fp":"23d1d32c","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
+        {"scope":"_CompletionAnimationState.build","fp":"0cb25735","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
+        {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"07dfa8d2","n":1}
+      ],
+      "lib/tools/shamor_zachor/widgets/mark_range_dialog.dart": [
+        {"scope":"_MarkRangeFormState._summary","fp":"56218c47","n":1}
+      ],
+      "lib/tour/widgets/live_tip_card.dart": [
+        {"scope":"LiveTipCard.build","fp":"19ef0f17","n":1}
+      ],
+      "lib/tour/widgets/tour_tooltip_card.dart": [
+        {"scope":"TourTooltipCard.build","fp":"695e837e","n":1},
+        {"scope":"TourTooltipCard.build","fp":"873366db","n":1}
+      ],
+      "lib/widgets/commentary/links_list_view.dart": [
+        {"scope":"_LinksListViewState._buildExpansionTile","fp":"513e1515","n":2},
+        {"scope":"_LinksListViewState._buildLinkContent","fp":"2409bf30","n":1}
+      ],
+      "lib/widgets/controls/custom_switch.dart": [
+        {"scope":"CustomSwitch.build","fp":"14414a5d","n":1},
+        {"scope":"CustomSwitch.build","fp":"9b2b545b","n":1}
+      ],
+      "lib/widgets/dialogs/ad_popup_dialog.dart": [
+        {"scope":"_AdPopupDialogState.build","fp":"12f1a54c","n":1},
+        {"scope":"_ExpandableOrgCardState.build","fp":"2c874cf5","n":1},
+        {"scope":"_ExpandableOrgCardState.build","fp":"ecba9957","n":1},
+        {"scope":"_OrganizationsList._buildSectionTitle","fp":"0959be04","n":1},
+        {"scope":"_OrganizationsList._buildSectionTitle","fp":"3e94a82f","n":1},
+        {"scope":"_OrganizationsList._buildSectionTitle","fp":"8138225e","n":1},
+        {"scope":"_OrganizationsList._buildSectionTitle","fp":"baad7049","n":1}
+      ],
+      "lib/widgets/layout/resizable_drag_handle.dart": [
+        {"scope":"_ResizableDragHandleState.build","fp":"2756b3d9","n":1},
+        {"scope":"_ResizableDragHandleState.build","fp":"393cd8d1","n":1},
+        {"scope":"_ResizableDragHandleState.build","fp":"6027abd1","n":1},
+        {"scope":"_ResizableDragHandleState.build","fp":"cd06c0b0","n":1}
+      ],
+      "lib/widgets/lists/items_list_view.dart": [
+        {"scope":"_ItemsListViewState._buildInlineSubtitle","fp":"c1ad859d","n":1}
+      ],
+      "lib/widgets/misc/app_popup_menu.dart": [
+        {"scope":"_AnchoredSearchMenuContentState.build","fp":"1faf3a9e","n":1}
+      ],
+      "lib/widgets/misc/commentators_filter_button.dart": [
+        {"scope":"CommentatorsFilterButton.build","fp":"6b016109","n":1}
+      ],
+      "lib/widgets/misc/phone_report_tab.dart": [
+        {"scope":"_PhoneReportTabState._buildErrorTypeSelection","fp":"cb82f756","n":1}
+      ],
+      "lib/widgets/misc/reporting_numbers_widget.dart": [
+        {"scope":"ReportingNumbersWidget._buildPhoneSection","fp":"78f4f6f3","n":1}
+      ],
+      "lib/widgets/navigation/nav_rail_item.dart": [
+        {"scope":"NavRailItem.build","fp":"6bc6c990","n":1}
+      ],
+      "lib/widgets/text/otzaria_search_field.dart": [
+        {"scope":"OtzariaSearchDisplayBar.build","fp":"a920ae99","n":1},
+        {"scope":"_OtzariaSearchFieldState._buildCompact","fp":"a920ae99","n":1},
+        {"scope":"_OtzariaSearchFieldState._buildField","fp":"27204e50","n":2},
+        {"scope":"_OtzariaSearchFieldState._buildField","fp":"35154553","n":1},
+        {"scope":"_OtzariaSearchFieldState._buildField","fp":"86ad90ac","n":1},
+        {"scope":"_OtzariaSearchFieldState._buildField","fp":"a920ae99","n":1}
+      ],
+      "lib/work_status/work_status_overlay.dart": [
+        {"scope":"WorkStatusOverlay.build","fp":"cf73160c","n":1}
+      ],
+      "lib/workspaces/view/workspace_switcher_dialog.dart": [
+        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"1d0370a9","n":1},
+        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"84f98705","n":1}
+      ]
+    },
     "UIL-017": {
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState.build","fp":"a6c1de53","n":1}
