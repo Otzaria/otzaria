@@ -23,22 +23,6 @@ void main() {
     });
   }
 
-  test('זרימת boot שהדף שלה הוחלף אינה מזריקה boot לדף החדש', () {
-    final source = File(
-      'lib/plugins/view/plugin_tab_page.dart',
-    ).readAsStringSync();
-    expect(
-      source,
-      contains(
-        'onLoadStart: (controller, url) => _loadGeneration.invalidate()',
-      ),
-    );
-    final install = source.indexOf('await installPluginFonts(');
-    final boot = source.indexOf('source: pluginBootScript(');
-    expect(source.indexOf('if (stale()) return;', install), lessThan(boot));
-    expect(source.indexOf('if (stale()) return;', boot), greaterThan(boot));
-  });
-
   test('הגופנים נרשמים ונטענים לפני ה-boot, וה-boot נשאר סינכרוני', () {
     final source = File(
       'lib/plugins/view/plugin_tab_page.dart',

@@ -18,6 +18,9 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
+import 'package:otzaria/plugins/services/plugin_fonts.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
@@ -209,6 +212,40 @@ class _FakeController extends PlatformInAppWebViewController {
   int cacheClears = 0;
   int reloads = 0;
   final loadedUrls = <String>[];
+  final fontLoads = <Completer<CallAsyncJavaScriptResult?>>[];
+  final scripts = <String>[];
+  Completer<dynamic>? bootGate;
+  Completer<void>? fontStarted;
+  Completer<void>? bootStarted;
+
+  List<String> get boots => scripts
+      .where((source) => source.contains('return window.Otzaria._boot('))
+      .toList();
+
+  @override
+  Future<CallAsyncJavaScriptResult?> callAsyncJavaScript({
+    required String functionBody,
+    Map<String, dynamic> arguments = const {},
+    ContentWorld? contentWorld,
+  }) {
+    final gate = Completer<CallAsyncJavaScriptResult?>();
+    fontLoads.add(gate);
+    fontStarted?.complete();
+    return gate.future;
+  }
+
+  @override
+  Future<dynamic> evaluateJavascript({
+    required String source,
+    ContentWorld? contentWorld,
+  }) async {
+    scripts.add(source);
+    if (source.contains('return window.Otzaria._boot(')) {
+      bootStarted?.complete();
+      return bootGate?.future;
+    }
+    return null;
+  }
 
   @override
   Future<void> clearAllCache({bool includeDiskFiles = true}) async {
@@ -314,6 +351,11 @@ Future<void> _run(
         await body(platform);
       } finally {
         await tester.pumpWidget(const SizedBox());
+        for (final font in platform.controller.fontLoads) {
+          if (!font.isCompleted) font.complete(null);
+        }
+        final boot = platform.controller.bootGate;
+        if (boot != null && !boot.isCompleted) boot.complete();
         await tester.pump();
         for (var i = 0; i < io.guardWrites.length; i++) {
           if (!io.guardWrites[i].done.isCompleted) {
@@ -328,6 +370,58 @@ Future<void> _run(
     await settings.close();
     InAppWebViewPlatform.instance = previousPlatform;
     PluginWebViewHost.cachedPackageInfo = previousPackageInfo;
+  }
+}
+
+Future<({Future<void> done})> _startBoot(
+  WidgetTester tester,
+  PlatformInAppWebViewWidgetCreationParams view,
+  _FakeController native,
+  InAppWebViewController controller,
+  WebUri url, {
+  bool holdBoot = false,
+}) async {
+  late Future<void> done;
+  await tester.runAsync(() async {
+    native.fontStarted = Completer<void>();
+    native.bootStarted = Completer<void>();
+    native.bootGate = holdBoot ? Completer<dynamic>() : null;
+    // ה-API מצהיר void; גוף ה-callback האסינכרוני מחזיר Future שניתן לנקז.
+    done = Function.apply(view.onLoadStop!, [controller, url]) as Future<void>;
+    await Future.any([native.fontStarted!.future, done]);
+  });
+  await tester.pump();
+  return (done: done);
+}
+
+Future<void> _runBoot(
+  WidgetTester tester,
+  Future<void> Function(_FakePlatform platform) body,
+) async {
+  final root = (await tester.runAsync(
+    () => Directory.systemTemp.createTemp('plugin_boot_generation_'),
+  ))!;
+  final previousFontSource = debugPluginFontsFromFileServer;
+  debugPluginFontsFromFileServer = true;
+  PluginCrashGuard.resetForTesting();
+  AppPaths.debugOverrideDataRootPath(root.path);
+  final database = PluginSystemDatabase.instance;
+  database.resetForTests();
+  try {
+    await tester.runAsync(() async {
+      await Directory('${root.path}/databases').create();
+      await database.database;
+    });
+    final io = _EntryFileSpy('/install/')
+      ..entrypointResults.add(Future.value(true));
+    await _run(tester, io, body, plugin: _developmentPlugin());
+  } finally {
+    await tester.runAsync(() async {
+      await database.close();
+      await root.delete(recursive: true);
+    });
+    AppPaths.debugOverrideDataRootPath(null);
+    debugPluginFontsFromFileServer = previousFontSource;
   }
 }
 
@@ -526,6 +620,113 @@ void main() {
         devRootPath: 'http://localhost:5173/',
       ),
     );
+  });
+
+  for (final waitingAt in ['גופנים', 'boot']) {
+    testWidgets(
+      'ניווט חדש בזמן המתנה ל-$waitingAt מבטל את זרימת ה-boot הישנה',
+      (
+        tester,
+      ) async {
+        await _runBoot(tester, (platform) async {
+          final view = platform.views.last;
+          final native = platform.controller;
+          final controller = InAppWebViewController.fromPlatform(
+            platform: native,
+          );
+          final url = WebUri('file:///install/path/index.html');
+          final first = await _startBoot(
+            tester,
+            view,
+            native,
+            controller,
+            url,
+            holdBoot: waitingAt == 'boot',
+          );
+          expect(native.fontLoads, hasLength(1));
+          expect(native.boots, isEmpty);
+          if (waitingAt == 'boot') {
+            await tester.runAsync(() async {
+              native.fontLoads.single.complete(
+                CallAsyncJavaScriptResult(value: true),
+              );
+              await Future.any([native.bootStarted!.future, first.done]);
+            });
+            expect(native.boots, hasLength(1));
+          }
+          view.onLoadStart!(controller, url);
+          await tester.runAsync(() async {
+            if (waitingAt == 'גופנים') {
+              native.fontLoads.single.complete(
+                CallAsyncJavaScriptResult(value: true),
+              );
+            } else {
+              native.bootGate!.complete();
+            }
+            await first.done;
+          });
+          await tester.pump();
+          expect(native.boots, hasLength(waitingAt == 'גופנים' ? 0 : 1));
+          expect(find.byType(LoadingIndicator), findsOneWidget);
+
+          final second = await _startBoot(
+            tester,
+            view,
+            native,
+            controller,
+            url,
+          );
+          expect(native.fontLoads, hasLength(2));
+          await tester.runAsync(() async {
+            native.fontLoads.last.complete(
+              CallAsyncJavaScriptResult(value: true),
+            );
+            await second.done;
+          });
+          await tester.pump();
+          expect(native.boots, hasLength(waitingAt == 'גופנים' ? 1 : 2));
+          expect(find.byType(LoadingIndicator), findsNothing);
+        });
+      },
+    );
+  }
+
+  testWidgets('onLoadStart של ניסיון קודם אינו מבטל boot של הניסיון הנוכחי', (
+    tester,
+  ) async {
+    await _runBoot(tester, (platform) async {
+      final previous = platform.views.last;
+      final native = platform.controller;
+      final controller = InAppWebViewController.fromPlatform(platform: native);
+      final url = WebUri('file:///install/path/index.html');
+      previous.onReceivedError!(
+        controller,
+        WebResourceRequest(url: url, isForMainFrame: true),
+        WebResourceError(
+          type: WebResourceErrorType.UNKNOWN,
+          description: 'failed',
+        ),
+      );
+      await tester.pump();
+      await _reload();
+      await tester.pump();
+      final current = platform.views.last;
+      final active = await _startBoot(tester, current, native, controller, url);
+      expect(native.fontLoads, hasLength(1));
+      previous.onLoadStart!(controller, url);
+      previous.onLoadStop!(controller, url);
+      await tester.pump();
+      expect(native.fontLoads, hasLength(1));
+      await tester.runAsync(() async {
+        native.fontLoads.single.complete(
+          CallAsyncJavaScriptResult(value: true),
+        );
+        await active.done;
+      });
+      await tester.pump();
+      expect(native.boots, hasLength(1));
+      expect(find.byType(LoadingIndicator), findsNothing);
+    });
   });
 
   group('סימון הגנת הקריסות (#4008)', () {
