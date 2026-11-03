@@ -9,13 +9,14 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
 
-enum _Variant { recommended, neutral, ghost, warning }
+enum _Variant { recommended, neutral, ghost, warning, inline }
 
 /// כפתור פעולה גנרי בסגנון M3. השתמש בבנאים הממוינים:
 /// - [ActionButton.recommended] — FilledButton (Primary) לפעולה מומלצת
 /// - [ActionButton.neutral] — FilledButton.tonal לפעולה ניטרלית
 /// - [ActionButton.ghost] — TextButton שקוף וניטרלי
 /// - [ActionButton.warning] — FilledButton ברקע cs.error לפעולות מסוכנות
+/// - [ActionButton.inline] — ghost צפוף לפעולה בתוך שורה, הודעה או פירורי לחם
 class ActionButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -36,6 +37,10 @@ class ActionButton extends StatelessWidget {
   /// עוגן overlay אחר — למשל `MenuAnchor.builder`.
   final String? tooltip;
 
+  /// צבע הטקסט של [ActionButton.inline], כשההקשר קובע אותו (למשל הודעה בטון
+  /// שגיאה). null = primary.
+  final Color? color;
+
   const ActionButton.recommended({
     super.key,
     required this.text,
@@ -48,6 +53,7 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.recommended;
 
   const ActionButton.neutral({
@@ -62,7 +68,8 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
     this.errorText = false,
-  }) : _variant = _Variant.neutral;
+  }) : color = null,
+       _variant = _Variant.neutral;
 
   const ActionButton.ghost({
     super.key,
@@ -76,6 +83,7 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.ghost;
 
   const ActionButton.warning({
@@ -90,25 +98,60 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.warning;
+
+  /// ghost צפוף: בלי גודל מינימלי, ריפוד 8×4, אזור מגע בגודל הכפתור, וטקסט
+  /// 14 מודגש. לפעולה שיושבת בתוך שורה, הודעה צפה או פירורי לחם, שבהן כפתור
+  /// בגובה 40 היה מגביה אותן.
+  const ActionButton.inline({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.color,
+    this.focusNode,
+    this.autofocus = false,
+    this.tooltip,
+  }) : isLoading = false,
+       icon = null,
+       iconWidget = null,
+       textAlign = TextAlign.start,
+       errorText = false,
+       _variant = _Variant.inline;
 
   Color _loadingColor(ColorScheme cs) => switch (_variant) {
     _Variant.recommended => cs.onPrimary,
     _Variant.neutral => cs.onSecondaryContainer,
     _Variant.ghost => cs.primary,
     _Variant.warning => cs.onError,
+    _Variant.inline => color ?? cs.primary,
   };
 
-  ButtonStyle? _buttonStyle(ColorScheme cs) => switch (_variant) {
-    _Variant.warning => FilledButton.styleFrom(
-      backgroundColor: cs.error,
-      foregroundColor: cs.onError,
-    ),
-    _Variant.neutral when errorText => FilledButton.styleFrom(
-      foregroundColor: cs.error,
-    ),
-    _ => null,
-  };
+  ButtonStyle? _buttonStyle(ThemeData theme) {
+    final cs = theme.colorScheme;
+    return switch (_variant) {
+      _Variant.warning => FilledButton.styleFrom(
+        backgroundColor: cs.error,
+        foregroundColor: cs.onError,
+      ),
+      _Variant.neutral when errorText => FilledButton.styleFrom(
+        foregroundColor: cs.error,
+      ),
+      _Variant.inline => TextButton.styleFrom(
+        foregroundColor: color,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSM,
+          vertical: AppTokens.spaceXS,
+        ),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      _ => null,
+    };
+  }
 
   Widget _plain({
     required VoidCallback? onPressed,
@@ -129,7 +172,7 @@ class ActionButton extends StatelessWidget {
       autofocus: autofocus,
       child: child,
     ),
-    _Variant.ghost => TextButton(
+    _Variant.ghost || _Variant.inline => TextButton(
       onPressed: onPressed,
       style: style,
       focusNode: focusNode,
@@ -157,7 +200,7 @@ class ActionButton extends StatelessWidget {
         icon: leading,
         label: label,
       ),
-      _Variant.ghost => TextButton.icon(
+      _Variant.ghost || _Variant.inline => TextButton.icon(
         onPressed: onPressed,
         icon: leading,
         label: label,
@@ -177,7 +220,7 @@ class ActionButton extends StatelessWidget {
   Widget _buildButton(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final leading = iconWidget ?? (icon != null ? RtlIcon(icon!) : null);
-    final style = _buttonStyle(cs);
+    final style = _buttonStyle(Theme.of(context));
 
     if (isLoading) {
       return _plain(
