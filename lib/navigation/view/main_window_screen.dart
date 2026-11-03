@@ -1,4 +1,5 @@
 import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/data/book_identity.dart';
 // לתחזוקת חיבור הסיור המודרך למסך הראשי ראו:
 // docs/guided_tour_developer_guide.md
@@ -318,8 +319,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// מפתחות החלון — נשלפים פעם אחת, כדי שיהיו זמינים גם מ-callback-ים מאוחרים.
   late final AppWindowKeys _windowKeys = AppWindowKeys.of(context);
 
-  // לא final: ה-controller נוצר מחדש בעת שינוי אוריינטציה
-  // (ראה _handleOrientationChange) כדי למנוע מצב שבו pixel offset מהציר
+  // לא final: ה-controller נוצר מחדש כשציר הניווט מתחלף
+  // (ראה _handleNavAxisChange) כדי למנוע מצב שבו pixel offset מהציר
   // הישן (vertical) מתפרש כעמוד שגוי בציר החדש (horizontal).
   late PageController pageController;
 
@@ -342,7 +343,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   late final SettingsScreenController _settingsScreenController;
   late final TourCubit _tourCubit;
   ReaderLocationTracker? _readerLocationTracker;
-  Orientation? _previousOrientation;
+  bool? _previousWideLayout;
   int _currentPageIndex = 0;
 
   // עמוד הספרייה נבנה דינמית ב-build(); LibraryBrowser הוא תמיד עמוד הספרייה
@@ -1952,11 +1953,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
     super.dispose();
   }
 
-  void _handleOrientationChange(BuildContext context, Orientation orientation) {
-    if (_previousOrientation == orientation) return;
+  /// [wide] — חלון שאינו צר (WindowClass): עמודת ניווט בצד ומסכים בציר
+  /// אנכי; צר — סרגל תחתון וציר אופקי.
+  void _handleNavAxisChange(BuildContext context, bool wide) {
+    if (_previousWideLayout == wide) return;
 
-    final isFirstDetection = _previousOrientation == null;
-    _previousOrientation = orientation;
+    final isFirstDetection = _previousWideLayout == null;
+    _previousWideLayout = wide;
     if (isFirstDetection) return;
 
     // החלפת ציר ב-PageView (vertical↔horizontal) משבשת את חישוב העמוד
@@ -3773,16 +3776,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
                               Expanded(
                                 child: Builder(
                                   builder: (context) {
-                                    // כיוון החלון כולו, כמו בסרגל הכותרת. כיוון
-                                    // אזור התוכן שונה ממנו בחלון כמעט ריבועי.
-                                    final orientation =
-                                        MediaQuery.orientationOf(
-                                          context,
-                                        );
-                                    _handleOrientationChange(
+                                    // רוחב החלון כולו, כמו בסרגל הכותרת, ולא
+                                    // הכיוון: חלון נמוך וצר במחשב הוא "לרוחב"
+                                    // אבל אין בו מקום לעמודה (DESIGN_SYSTEM §5.2).
+                                    final wide = !WindowClass.of(
                                       context,
-                                      orientation,
-                                    );
+                                    ).isCompact;
+                                    _handleNavAxisChange(context, wide);
 
                                     final pageView = Stack(
                                       children: [
@@ -3791,9 +3791,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         ContentDirectionality(
                                           child: PageView(
                                             controller: pageController,
-                                            scrollDirection:
-                                                orientation ==
-                                                    Orientation.landscape
+                                            scrollDirection: wide
                                                 ? Axis.vertical
                                                 : Axis.horizontal,
                                             physics:
@@ -3831,8 +3829,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                       ],
                                     );
 
-                                    final isLandscape =
-                                        orientation == Orientation.landscape;
+                                    final isLandscape = wide;
                                     final isCompactRail = AppDensity.of(
                                       context,
                                     ).isCompact;

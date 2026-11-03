@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
@@ -199,11 +200,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   bool _useStackedTabs(BuildContext context, NavigationState navState) {
     if (!_isReadingScreen(navState)) return false;
-    return MediaQuery.of(context).orientation == Orientation.portrait;
+    return WindowClass.of(context).isCompact;
   }
 
   /// במצב "בצד" הכרטיסיות מוצגות בעמודה אנכית שבמסך הראשי, ולכן הרצועה
-  /// שבכותרת אינה נבנית כלל. במסך לאורך נשמרת ההתנהגות הקיימת (שורה שנייה).
+  /// שבכותרת אינה נבנית כלל. בחלון צר — שורה שנייה, כמו בלי "בצד".
   bool _useSideTabs(
     BuildContext context,
     NavigationState navState,
@@ -212,7 +213,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     if (!_isReadingScreen(navState) || !settingsState.readingTabsOnSide) {
       return false;
     }
-    return MediaQuery.of(context).orientation == Orientation.landscape;
+    return !WindowClass.of(context).isCompact;
   }
 
   @override
