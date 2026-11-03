@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/controls/custom_switch.dart';
+import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -201,7 +203,7 @@ Future<void> main() async {
       );
       await _openMoreOptions(tester);
       expect(contribution, findsOneWidget);
-      expect(tester.widget<CheckboxListTile>(contribution).value, isTrue);
+      expect(tester.widget<FilterChip>(contribution).selected, isTrue);
 
       await tester.tap(find.text('מתקדם').first);
       await tester.pumpAndSettle();
@@ -367,16 +369,16 @@ Future<void> main() async {
       const ValueKey('plugin-search-dialog-test.plugin-include-external'),
     );
     await _openMoreOptions(tester);
-    expect(tester.widget<CheckboxListTile>(contribution).value, isTrue);
+    expect(tester.widget<FilterChip>(contribution).selected, isTrue);
 
     await tester.ensureVisible(contribution);
     await tester.tap(contribution);
     await tester.pumpAndSettle();
-    expect(tester.widget<CheckboxListTile>(contribution).value, isFalse);
+    expect(tester.widget<FilterChip>(contribution).selected, isFalse);
 
     // בחירה ששונה מברירת המחדל פותחת את "אפשרויות נוספות" מעצמה.
     await pumpDialog(const ValueKey('second'));
-    expect(tester.widget<CheckboxListTile>(contribution).value, isFalse);
+    expect(tester.widget<FilterChip>(contribution).selected, isFalse);
   });
 
   group('שורות תוסף בדיאלוג', () {
@@ -434,43 +436,52 @@ Future<void> main() async {
     Finder row(String id) =>
         find.byKey(ValueKey('plugin-search-dialog-test.plugin-$id'));
 
-    testWidgets('שורת switch מוצגת כמתג, ושורה עם persist:false אינה נשמרת', (
-      tester,
-    ) async {
-      registry.registerPayload('test.plugin', {
-        'id': 'sw',
-        'type': 'switch',
-        'title': 'מתג',
-        'visibleInModes': ['exact'],
-      });
-      registry.registerPayload('test.plugin', {
-        'id': 'tmp',
-        'type': 'checkbox',
-        'title': 'זמני',
-        'persist': false,
-        'visibleInModes': ['exact'],
-      });
-      addTearDown(registry.dispose);
+    testWidgets(
+      'פריט switch מוצג כ-AppTogglePill, ושורה עם persist:false אינה נשמרת',
+      (
+        tester,
+      ) async {
+        registry.registerPayload('test.plugin', {
+          'id': 'sw',
+          'type': 'switch',
+          'title': 'מתג',
+          'visibleInModes': ['exact'],
+        });
+        registry.registerPayload('test.plugin', {
+          'id': 'tmp',
+          'type': 'checkbox',
+          'title': 'זמני',
+          'persist': false,
+          'visibleInModes': ['exact'],
+        });
+        addTearDown(registry.dispose);
 
-      await pumpDialog(tester, const ValueKey('first'));
-      await _openMoreOptions(tester);
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isFalse);
-      expect(row('tmp'), findsOneWidget);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
+        await pumpDialog(tester, const ValueKey('first'));
+        await _openMoreOptions(tester);
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isFalse);
+        expect(row('tmp'), findsOneWidget);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isFalse);
 
-      for (final id in ['sw', 'tmp']) {
-        await tester.ensureVisible(row(id));
-        await tester.tap(row(id));
-        await tester.pumpAndSettle();
-      }
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isTrue);
-      expect(PluginSearchSelectionPreferences.load(), {'test.plugin/sw': true});
+        // ב־AppTogglePill המתג הוא הפקד; בשבב — השבב כולו.
+        for (final target in [
+          find.descendant(of: row('sw'), matching: find.byType(CustomSwitch)),
+          row('tmp'),
+        ]) {
+          await tester.ensureVisible(target);
+          await tester.tap(target);
+          await tester.pumpAndSettle();
+        }
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isTrue);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isTrue);
+        expect(PluginSearchSelectionPreferences.load(), {
+          'test.plugin/sw': true,
+        });
 
-      await pumpDialog(tester, const ValueKey('second'));
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
-    });
+        await pumpDialog(tester, const ValueKey('second'));
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isTrue);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isFalse);
+      },
+    );
 
     testWidgets('הקשר לכפתור תוסף בשדה: בקשת החיפוש הנוכחית ובחירות השורות', (
       tester,
