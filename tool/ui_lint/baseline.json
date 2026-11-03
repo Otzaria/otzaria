@@ -1064,37 +1064,13 @@
       "lib/tools/tikkun_korim/view/widgets/stam_word.dart": [
         {"scope":"tikkunWordText","fp":"f7030732","n":1}
       ],
-      "lib/tour/view/tour_overlay_screen.dart": [
-        {"scope":"_TourOverlayScreenState._cardAlignmentFor","fp":"f8d1800a","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"d9adeea4","n":1},
         {"scope":"_AdPopupDialogState.build","fp":"0faa7316","n":1}
       ],
-      "lib/widgets/dialogs/error_report_sender_email_dialog.dart": [
-        {"scope":"_EmailFieldWithAutocompleteState._buildOverlay","fp":"f7030732","n":1},
-        {"scope":"_EmailFieldWithAutocompleteState._buildOverlay","fp":"f8d1800a","n":1}
-      ],
       "lib/widgets/feedback/scrollbar_target_label.dart": [
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"720d7210","n":1},
         {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"a336ff9d","n":1}
-      ],
-      "lib/widgets/layout/adaptive_side_pane.dart": [
-        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"08ed5afb","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"30ffc637","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"2a4d5967","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"bdf971a3","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildTopCornerFillet","fp":"e7b11f33","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"373e4811","n":2},
-        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"d9adeea4","n":2},
-        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"eb7548ff","n":1}
-      ],
-      "lib/widgets/layout/context_overlay_panel.dart": [
-        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"18a1e3dd","n":1},
-        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"45f65dc9","n":1},
-        {"scope":"_ContextOverlayPanelState._buildScrollableContent","fp":"61810615","n":1},
-        {"scope":"_ContextOverlayPanelState._buildTitleBar","fp":"9722555e","n":1},
-        {"scope":"_ContextOverlayPanelState._isLeft","fp":"d9adeea4","n":1}
       ],
       "lib/widgets/misc/app_popup_menu.dart": [
         {"scope":"_AnchoredSearchMenuContentState.build","fp":"4252f066","n":1}

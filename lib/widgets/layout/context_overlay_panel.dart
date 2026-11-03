@@ -273,11 +273,13 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   /// וימין ב-LTR.
   bool _isLeft(BuildContext context) =>
       widget.alignment.resolve(Directionality.of(context)) ==
+      // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
       Alignment.centerLeft;
 
   /// כותרת הפאנל עם כפתור סגירה (X) בקצה
   Widget _buildTitleBar(BuildContext context, EdgeInsets horizontal) {
     return Padding(
+      // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
       padding: EdgeInsets.only(
         left: horizontal.left,
         right: horizontal.right,
@@ -325,6 +327,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
       top: resolved.top,
       bottom: resolved.bottom,
     );
+    // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
     final horizontalPadding = EdgeInsets.only(
       left: resolved.left,
       right: resolved.right,
@@ -406,6 +409,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
             ),
           ),
           // ── הפאנל ──────────────────────────────────────────────────────
+          // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
           Positioned(
             top: 10,
             bottom: 12,
@@ -449,6 +453,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
           ),
           // ── הוו גרירה (מעל ה-scrim) ────────────────────────────────────
           if (showHandle)
+            // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
             Positioned(
               top: 10,
               bottom: 12,
