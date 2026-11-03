@@ -331,6 +331,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הבא': 'Next',
     'הבחירה הנוכחית תישמר ותוכל לחזור אליה בלחיצה אחת': 'The current selection is saved so you can return to it in one click',
     'הבנתי': 'Got It',
+    'הגדל': 'Maximize',
     'הגדלת הטקסט / התצוגה': 'Increase Text / View Size',
     'הגדר': 'Set',
     'הגדר מיקום': 'Set Location',

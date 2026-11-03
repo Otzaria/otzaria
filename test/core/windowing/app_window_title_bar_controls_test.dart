@@ -64,9 +64,21 @@ void main() {
     ]);
   });
 
-  Widget caption() => const Align(
+  Widget caption({bool fullscreen = false}) => Align(
     alignment: Alignment.topRight,
-    child: SizedBox(width: 138, height: 50, child: AppWindowCaption()),
+    child: SizedBox(
+      width: fullscreen ? null : 138,
+      height: 40,
+      child: AppWindowCaption(
+        fullscreen: fullscreen,
+        tooltips: const AppWindowCaptionTooltips(
+          minimize: 'מזער',
+          maximize: 'הגדל',
+          restore: 'שחזר',
+          close: 'סגור',
+        ),
+      ),
+    ),
   );
 
   testWidgets('כפתורי AppWindowCaption פונים לחלון שב-scope', (tester) async {
@@ -83,6 +95,23 @@ void main() {
       window.calls.where((c) => c != 'isMaximized'),
       ['minimize', 'maximize', 'close'],
     );
+  });
+
+  testWidgets('לכל כפתור חלון tooltip, ובמסך מלא אין maximize', (
+    tester,
+  ) async {
+    await pump(tester, caption());
+    await tester.pumpAndSettle();
+    for (final tip in ['מזער', 'הגדל', 'סגור']) {
+      expect(find.byTooltip(tip), findsOneWidget);
+    }
+
+    final window = await pump(tester, caption(fullscreen: true));
+    await tester.pumpAndSettle();
+    expect(find.byType(WindowCaptionButton), findsNWidgets(2));
+    expect(find.byTooltip('הגדל'), findsNothing);
+    await tester.tap(find.byTooltip('סגור'));
+    expect(window.calls.where((c) => c != 'isMaximized'), ['close']);
   });
 
   testWidgets('AppWindowCaption מתעדכן מ-stateChanges של החלון', (
