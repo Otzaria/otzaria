@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -686,6 +687,70 @@ void main() {
       ),
       findsOneWidget,
     );
+    // הריחוף של כפתור הנעץ (בגודל הכפתור) לא נוגע בכותרת.
+    final pin = tester.getRect(
+      find.ancestor(
+        of: find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == FluentIcons.pin_24_filled,
+        ),
+        matching: find.byType(IconButton),
+      ),
+    );
+    final title = tester.getRect(find.text('ספר א').first);
+    expect(
+      math.max(pin.left - title.right, title.left - pin.right),
+      greaterThanOrEqualTo(4),
+      reason: 'רווח בין הנעץ לכותרת',
+    );
+  });
+
+  testWidgets('הרבה כרטיסיות: הנעץ נצמד לכותרת (LQ-14)', (tester) async {
+    final tabs = [
+      for (var i = 1; i <= 16; i++) _makeTextTab('ספר $i')..isPinned = true,
+    ];
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      for (final t in tabs) {
+        t.dispose();
+      }
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    final pinButtons = find.byType(TabPinButton);
+    expect(pinButtons, findsNWidgets(tabs.length));
+    // בכרטיסיה צרה הרווחים סביב הנעץ מתכווצים כמו הריפודים: 2 אחריו (עיגול
+    // הריחוף לא נוגע בכותרת), ולא 4 כמו בכרטיסיה רחבה.
+    for (var i = 0; i < tabs.length; i++) {
+      final padding =
+          tester
+                  .widget<Padding>(
+                    find
+                        .ancestor(
+                          of: pinButtons.at(i),
+                          matching: find.byType(Padding),
+                        )
+                        .first,
+                  )
+                  .padding
+              as EdgeInsetsDirectional;
+      expect(padding.end, inInclusiveRange(2, 3), reason: 'אחרי נעץ $i');
+      expect(padding.start, lessThanOrEqualTo(2), reason: 'לפני נעץ $i');
+    }
   });
 
   testWidgets('ב-Mac ה-tooltip של כפתורי הכותרת מציג ⌘ ולא CTRL', (

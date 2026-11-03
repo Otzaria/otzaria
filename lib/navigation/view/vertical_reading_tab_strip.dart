@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
 import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/navigation/view/tab_context_menu.dart';
@@ -274,6 +273,16 @@ class _VerticalTabRow extends StatelessWidget {
                     )
                   : Row(
                       children: [
+                        // הנעץ בתחילת השורה ולחיץ, כמו ברצועה העליונה (q10 Q14 C).
+                        if (tab.isPinned) ...[
+                          TabPinButton(
+                            tooltip: context.settingsText('בטל הצמדה'),
+                            onPressed: () => context.read<TabsBloc>().add(
+                              TogglePinTab(tab),
+                            ),
+                          ),
+                          const SizedBox(width: AppTokens.spaceSM),
+                        ],
                         if (leading != null) ...[
                           leading,
                           const SizedBox(width: 6),
@@ -289,10 +298,6 @@ class _VerticalTabRow extends StatelessWidget {
                           ),
                         ),
                         if (showClose) _buildCloseButton(context, extent: 24),
-                        if (tab.isPinned) ...[
-                          const SizedBox(width: 4),
-                          const Icon(FluentIcons.pin_24_filled, size: 14),
-                        ],
                       ],
                     ),
             ),

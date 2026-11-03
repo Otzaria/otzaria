@@ -7,6 +7,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -529,41 +530,63 @@ void main() {
     expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
   });
 
-  testWidgets('נעצי כרטיסיות מוצמדות מיושרים גם כשהפעילה מציגה X', (
+  // הנעץ בתחילת השורה ולחיץ, כמו ברצועה העליונה (q10 Q14 C). קודם הוא היה
+  // אחרי ה-X, וזז כשה-X הופיע (issue #1134).
+  testWidgets(
+    'נעצי כרטיסיות מוצמדות בתחילת השורה, מיושרים גם כשהפעילה מציגה X',
+    (
+      tester,
+    ) async {
+      final pdfTab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: '/tmp/book.pdf'),
+        pageNumber: 1,
+      )..isPinned = true;
+      addTearDown(pdfTab.dispose);
+      final textTab = _StubTab('ספר ב')..isPinned = true;
+      await pumpPanel(tester, withTabs: [pdfTab, textTab]);
+
+      final pdfIcon = tester.getCenter(
+        find.byIcon(OtzariaIcons.document_pdf_24_regular),
+      );
+      final pdfTitle = tester.getCenter(find.text('ספר PDF'));
+      final textTitle = tester.getCenter(find.text('ספר ב'));
+      final pinFinder = find.byIcon(FluentIcons.pin_24_filled);
+      expect(pinFinder, findsNWidgets(2));
+      final pins = [
+        tester.getCenter(pinFinder.at(0)),
+        tester.getCenter(pinFinder.at(1)),
+      ];
+
+      // RTL: הפריט הראשון בשורה הוא הימני ביותר.
+      expect(pdfIcon.dx, greaterThan(pdfTitle.dx));
+      for (final pin in pins) {
+        expect(
+          pin.dx,
+          greaterThan(pdfIcon.dx),
+          reason: 'הנעץ בתחילת השורה, לפני אייקון הסוג והכותרת',
+        );
+        expect(pin.dx, greaterThan(textTitle.dx));
+      }
+      // הנעצים של כרטיסיית PDF ושל כרטיסיית טקסט מיושרים באותו קו אנכי.
+      expect(pins[0].dx, closeTo(pins[1].dx, 0.5));
+    },
+  );
+
+  testWidgets('לחיצה על הנעץ מבטלת את ההצמדה ולא בוחרת את הכרטיסיה', (
     tester,
   ) async {
-    final pdfTab = PdfBookTab(
-      book: PdfBook(title: 'ספר PDF', path: '/tmp/book.pdf'),
-      pageNumber: 1,
-    )..isPinned = true;
-    addTearDown(pdfTab.dispose);
-    final textTab = _StubTab('ספר ב')..isPinned = true;
-    await pumpPanel(tester, withTabs: [pdfTab, textTab]);
+    final pinned = _StubTab('ספר מוצמד')..isPinned = true;
+    final other = _StubTab('ספר אחר');
+    await pumpPanel(tester, withTabs: [other, pinned]);
 
-    final pdfIcon = tester.getCenter(
-      find.byIcon(FluentIcons.document_pdf_16_regular),
+    await tester.tap(find.byIcon(FluentIcons.pin_24_filled));
+    await tester.pump();
+
+    expect(
+      tabsBloc.addedEvents.whereType<TogglePinTab>().map((e) => e.tab),
+      [pinned],
     );
-    final pdfTitle = tester.getCenter(find.text('ספר PDF'));
-    final textTitle = tester.getCenter(find.text('ספר ב'));
-    final pinFinder = find.byIcon(FluentIcons.pin_24_filled);
-    expect(pinFinder, findsNWidgets(2));
-    final pins = [
-      tester.getCenter(pinFinder.at(0)),
-      tester.getCenter(pinFinder.at(1)),
-    ];
-
-    // RTL: הפריט הראשון בשורה הוא הימני ביותר.
-    expect(pdfIcon.dx, greaterThan(pdfTitle.dx));
-    for (final pin in pins) {
-      expect(
-        pin.dx,
-        lessThan(pdfTitle.dx),
-        reason: 'הנעץ בקצה השמאלי, אחרי הכותרת (issue #1134)',
-      );
-      expect(pin.dx, lessThan(textTitle.dx));
-    }
-    // הנעצים של כרטיסיית PDF ושל כרטיסיית טקסט מיושרים באותו קו אנכי.
-    expect(pins[0].dx, closeTo(pins[1].dx, 0.5));
+    expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
   });
 
   testWidgets('לחיצה ימנית על כרטיסיה פותחת את תפריט ההקשר', (tester) async {

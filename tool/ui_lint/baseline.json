@@ -1306,9 +1306,7 @@
         {"scope":"LibraryBreadcrumbBar.build","fp":"84f03e9e","n":1}
       ],
       "lib/navigation/view/custom_title_bar.dart": [
-        {"scope":"_CustomTitleBarState._buildPinIconInline","fp":"87f04357","n":1},
-        {"scope":"_CustomTitleBarState._buildTab","fp":"87f04357","n":2},
-        {"scope":"_CustomTitleBarState._tabCloseButton","fp":"093cb160","n":1}
+        {"scope":"_CustomTitleBarState._buildTab","fp":"87f04357","n":2}
       ],
       "lib/navigation/view/main_window_screen.dart": [
         {"scope":"_PinnedToolNavItem.buildIcon","fp":"f5e8a1bc","n":1}
@@ -1322,8 +1320,7 @@
         {"scope":"_TabRow.build","fp":"87f04357","n":1}
       ],
       "lib/navigation/view/vertical_reading_tab_strip.dart": [
-        {"scope":"_VerticalTabRow._buildCloseButton","fp":"0b3cb486","n":1},
-        {"scope":"_VerticalTabRow.build","fp":"87f04357","n":1}
+        {"scope":"_VerticalTabRow._buildCloseButton","fp":"0b3cb486","n":1}
       ],
       "lib/pdf_book/view/pdf_commentary_panel.dart": [
         {"scope":"_PdfCommentaryGroupHeader.build","fp":"f1e89b70","n":1}

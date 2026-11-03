@@ -87,16 +87,31 @@ const double _kTabCloseHideBelowWidth = 80.0;
 /// רוחב כפתור ה-X בכרטיסיה. בכרטיסיה צרה הוא מצטמצם (ראו [_kTabCloseMaxShare]).
 const double _kTabCloseExtent = 25.0;
 
-/// רוחב אייקון ה-X עצמו — מתחת לזה הוא נחתך, ולכן אינו מוצג גם בריחוף.
+/// הרוחב המזערי של אזור הלחיצה של ה-X. מתחתיו ה-X אינו מוצג גם בריחוף.
+///
+/// ⚠️ נשאר 10 גם כשהאייקון 12 ([_kTabCloseIconSize]): הגליף גולש פיקסל לכל צד
+/// בכרטיסיה הצרה ביותר, אבל אזור הסגירה לא גדל. אזור גדול יותר היה הופך לחיצה
+/// במרכז כרטיסיה צרה לסגירה במקום בחירה (issue #3276), ושני ה-X של לשונית
+/// מפוצלת היו תופסים יותר מחצי ממנה.
 const double _kTabCloseMinExtent = 10.0;
+
+/// גודל אייקון ה-X, כמו בעמודה האנכית (q10 Q14 C).
+const double _kTabCloseIconSize = 12.0;
 
 /// החלק המרבי של ה-X מרוחב התוכן (בלשונית מפוצלת — מחצי שלה), כדי שלחיצה על
 /// כרטיסיה צרה תבחר אותה ולא תסגור. לא פחות מ-[_kTabCloseMinExtent].
 const double _kTabCloseMaxShare = 1 / 3;
 
-/// מידות האייקונים שלצד הכותרת — הנעץ ואייקון סוג הכרטיסיה, כולל הרווח שאחריהם.
-const double _kTabPinExtent = 18.0;
+/// מידת אייקון סוג הכרטיסיה שלצד הכותרת, כולל הרווח שאחריו. הנעץ מחושב לפי
+/// רוחב הכרטיסיה ([_tabPinGaps]).
 const double _kTabLeadingIconExtent = 18.0;
+
+/// הרווחים לפני הנעץ ואחריו: 4 ו-4 בכרטיסיה רחבה, ובכרטיסיה צרה 0 ו-2, כך
+/// שהנעץ נצמד לכותרת כשיש הרבה כרטיסיות (LQ-14). [padScale] כמו בריפודי
+/// הכרטיסיה: 1 ברוחב מלא, 0 בצרה ביותר. 2 אחרי הנעץ נשאר גם בצרה: עיגול
+/// הריחוף של הנעץ לא נוגע באות הראשונה.
+({double start, double end}) _tabPinGaps(double padScale) =>
+    (start: 4 * padScale, end: 2 + 2 * padScale);
 
 /// רוחב מזערי לטאב הנבחר: מבטיח שכפתור ה-X שלו תמיד נכנס (כמו כרום).
 /// כשהחלוקה השווה יורדת מתחת לזה, שאר הטאבים מתחלקים ביתרה.
@@ -793,16 +808,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   /// מציג אייקון הצמדה רק כשהכרטיסיה מוצמדת
-  Widget _buildPinIconInline(BuildContext context, OpenedTab tab) {
+  Widget _buildPinIconInline(
+    BuildContext context,
+    OpenedTab tab, {
+    required ({double start, double end}) gaps,
+  }) {
     if (!tab.isPinned) return const SizedBox.shrink();
-    return GestureDetector(
-      onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4.0),
-        child: Tooltip(
-          message: context.settingsText('בטל הצמדה'),
-          child: const Icon(FluentIcons.pin_24_filled, size: 14),
-        ),
+    return Padding(
+      padding: EdgeInsetsDirectional.only(start: gaps.start, end: gaps.end),
+      child: TabPinButton(
+        tooltip: context.settingsText('בטל הצמדה'),
+        onPressed: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
       ),
     );
   }
@@ -1051,6 +1067,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final padScale = ((tabWidth - 40) / 40).clamp(0.0, 1.0);
       final outerPad = 3 + 3 * padScale;
       final innerPad = 3 + 5 * padScale;
+      final pinGaps = _tabPinGaps(padScale);
+      final pinExtent = TabPinButton.extent + pinGaps.start + pinGaps.end;
 
       // הרוחב שנשאר לתוכן הכרטיסיה אחרי המפריד, ה-paddings ורווח הטאב הנבחר.
       // הכותרת תמיד ב-Expanded ומתכווצת לאפס בעת הצורך.
@@ -1081,8 +1099,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final closeBudget = showClose
           ? closeExtent
           : (showPaneClose ? 2 * paneCloseExtent : 0);
-      final showPin =
-          tab.isPinned && (contentWidth - closeBudget) >= _kTabPinExtent;
+      final showPin = tab.isPinned && (contentWidth - closeBudget) >= pinExtent;
       // אייקון ליד שם הטאב — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
       final showPdfIcon = tab is PdfBookTab && tabWidth >= _kTabIconMinWidth;
       // כרטיסיית חיפוש מזוהה באייקון בכל רוחב שבו הוא נכנס; שאר האייקונים
@@ -1094,9 +1111,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final leadingIconFits =
           contentWidth -
               stableCloseBudget -
-              (tab.isPinned &&
-                      contentWidth - stableCloseBudget >= _kTabPinExtent
-                  ? _kTabPinExtent
+              (tab.isPinned && contentWidth - stableCloseBudget >= pinExtent
+                  ? pinExtent
                   : 0) >=
           _kTabLeadingIconExtent;
       final contentIconData =
@@ -1127,7 +1143,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         0.0,
         contentWidth -
             closeBudget -
-            (showPin ? _kTabPinExtent : 0) -
+            (showPin ? pinExtent : 0) -
             (showPdfIcon || toolIcon != null || contentIconData != null
                 ? _kTabLeadingIconExtent
                 : 0),
@@ -1184,7 +1200,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 if (isSelected) const SizedBox(width: 4),
-                                if (showPin) _buildPinIconInline(context, tab),
+                                if (showPin)
+                                  _buildPinIconInline(
+                                    context,
+                                    tab,
+                                    gaps: pinGaps,
+                                  ),
                                 if (showPdfIcon)
                                   Padding(
                                     padding: const EdgeInsetsDirectional.only(
@@ -1294,7 +1315,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       child: TabCloseButton(
         tooltip: tooltip,
         size: Size(width, _kTabCloseExtent),
-        iconSize: 10,
+        iconSize: _kTabCloseIconSize,
         preferBelow: false,
         onPressed: onPressed,
       ),
