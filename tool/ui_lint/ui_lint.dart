@@ -19,7 +19,7 @@ const configRelativePath = 'tool/ui_lint/config.yaml';
 const baselineRelativePath = 'tool/ui_lint/baseline.json';
 
 /// כללים עד השלב הזה חוסמים חריגות חדשות ב-`test/design_system/ui_lint_test.dart`
-/// (CI_ENFORCEMENT.md §6, רמה 3): גם כללי הטוקנים (MIG-28). שלב 4 בדוח בלבד.
+/// (CI_ENFORCEMENT.md §6, רמה 3): גם כללי הטוקנים. שלב 4 בדוח בלבד.
 const blockingStage = 3;
 
 /// כלל אחד של התקן.

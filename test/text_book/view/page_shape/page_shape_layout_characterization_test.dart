@@ -28,7 +28,7 @@ import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 
 /// Characterization of the page-shape layout before splitting its build
-/// (DD-30, MIG-21): the rects of the main text, the empty side columns and
+/// (DD-30): the rects of the main text, the empty side columns and
 /// their drag handles must not move.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

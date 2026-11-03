@@ -10,7 +10,7 @@ import 'package:otzaria/settings/services/backup_service.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
-/// UI-102, q9 Q6 = C: ההגדרות שלשוניות המערכת והעיצוב קראו ב־build עוברות דרך
+/// DD-30 (השלמה 3.11): ההגדרות שלשוניות המערכת והעיצוב קראו ב־build עוברות דרך
 /// SettingsBloc. זרם השינויים מוזרק לבלוק ואופציונלי: בלעדיו הבלוק עובד כמו
 /// קודם (בדיקות ומאגרים מדומים), ואיתו הוא רואה גם כתיבות שלא עברו דרכו.
 void main() {

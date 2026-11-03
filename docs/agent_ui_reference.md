@@ -159,7 +159,7 @@ showDialogUntilTornDown(
 - **Opening:** through the `show*` helpers or `showDialogUntilTornDown`, not raw `showDialog` (UIL-028). In the settings screen wrap the builder in `settingsDialogBuilder` (§11).
 - `AlertDialog`, `Dialog` and `SimpleDialog` outside `lib/widgets/dialogs/` fail UIL-001.
 
-Behaviour contract (Escape, Enter, focus, barrier): `DESIGN_SYSTEM.md` §3.1.2. Checklist for a new dialog: `DEVELOPER_GUIDE.md` §3.
+Behaviour contract (Escape, Enter, focus, barrier): `DESIGN_SYSTEM.md` §3.1. Checklist for a new dialog: `DESIGN_SYSTEM.md` §8.2.
 
 ## 5. Buttons
 
@@ -280,7 +280,7 @@ return switch (state) {
 
 - Window-level decisions (dialog size, navigation style, column count) use `WindowClass.of(context)` (`lib/theme/layout_tokens.dart`). A decision about the space a widget got uses `LayoutBuilder` and a named `static const` threshold in that widget. Never orientation or `Platform.isX` for a width question, never a bare width literal (UIL-022).
 - Use `EdgeInsetsDirectional`, `AlignmentDirectional` and `start`/`end` (UIL-021).
-- A widget that fits only one feature stays in that feature's `view/widgets/` folder, built from these components (`DEVELOPER_GUIDE.md` §9).
+- A widget that fits only one feature stays in that feature's `view/widgets/` folder, built from these components (`DESIGN_SYSTEM.md` §8.5).
 
 ## 10. Tokens
 

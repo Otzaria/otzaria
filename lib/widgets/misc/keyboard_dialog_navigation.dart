@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// חוזה המקלדת של דיאלוג (DESIGN_SYSTEM §3.1.2):
+/// חוזה המקלדת של דיאלוג (DESIGN_SYSTEM §3.1):
 /// - Escape סוגר דרך [Navigator.maybePop], ולכן עובר בשומר שינויים שלא נשמרו
 ///   ([DialogDismissGuard]) גם כשהלחיצה בחוץ חסומה.
 /// - Enter בשדה טקסט חד־שורתי מפעיל את [onConfirm]. על כפתור או פריט ממוקד
