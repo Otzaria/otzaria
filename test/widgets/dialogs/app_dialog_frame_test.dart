@@ -1,7 +1,9 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show ActionButton;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -293,5 +295,112 @@ void main() {
     await tester.tap(find.text('שנייה'));
     await tester.pumpAndSettle();
     expect(find.text('גוף שני'), findsOneWidget);
+  });
+
+  // DD-16 בחלון צר: large ו-full במסך מלא. בדסקטופ שורת הכותרת של החלון
+  // (כפתורי החלון) נשארת גלויה מעליו.
+  group('מסך מלא בחלון צר', () {
+    for (final (platform, top) in [
+      (TargetPlatform.windows, LayoutConstraints.windowCaptionHeight),
+      (TargetPlatform.linux, LayoutConstraints.windowCaptionHeight),
+      (TargetPlatform.macOS, LayoutConstraints.windowCaptionHeight),
+      (TargetPlatform.android, 0.0),
+      (TargetPlatform.iOS, 0.0),
+    ]) {
+      for (final size in [AppDialogSize.large, AppDialogSize.full]) {
+        testWidgets('${platform.name} ${size.name}: מתחיל ב-$top', (
+          tester,
+        ) async {
+          debugDefaultTargetPlatformOverride = platform;
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          tester.view.physicalSize = const Size(360, 700);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          const surface = Key('surface');
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Material(
+                child: AppDialogFrame(
+                  title: 'חיפוש',
+                  icon: FluentIcons.search_24_regular,
+                  size: size,
+                  surfaceKey: surface,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(
+            tester.getRect(find.byKey(surface)),
+            Rect.fromLTRB(0, top, 360, 700),
+          );
+          debugDefaultTargetPlatformOverride = null;
+        });
+      }
+    }
+  });
+
+  // R2-1: מעבר מעל רוחב 600 (סיבוב טלפון, גרירת חלון) לא בונה את הגוף מחדש.
+  group('מעבר מעל 600 שומר את הגוף', () {
+    for (final (name, size, height) in [
+      ('large עם גובה', AppDialogSize.large, 500.0),
+      ('large לפי התוכן', AppDialogSize.large, null),
+      ('full', AppDialogSize.full, null),
+      ('medium', AppDialogSize.medium, null),
+    ]) {
+      testWidgets(name, (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Material(
+              child: AppDialogFrame(
+                title: 'חיפוש',
+                icon: FluentIcons.search_24_regular,
+                size: size,
+                height: height,
+                child: const TextField(),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byType(TextField));
+        await tester.enterText(find.byType(TextField), 'בראשית ברא');
+        await tester.pump();
+        final state = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .controller
+            .selection = const TextSelection(
+          baseOffset: 2,
+          extentOffset: 6,
+        );
+        await tester.pump();
+
+        for (final width in [900.0, 400.0, 900.0]) {
+          tester.view.physicalSize = Size(width, 800);
+          await tester.pump();
+          final editable = tester.widget<EditableText>(
+            find.byType(EditableText),
+          );
+          expect(
+            tester.state<EditableTextState>(find.byType(EditableText)),
+            same(state),
+            reason: 'רוחב $width: השדה נבנה מחדש',
+          );
+          expect(editable.focusNode.hasFocus, isTrue, reason: 'רוחב $width');
+          expect(editable.controller.text, 'בראשית ברא');
+          expect(
+            editable.controller.selection,
+            const TextSelection(baseOffset: 2, extentOffset: 6),
+          );
+        }
+      });
+    }
   });
 }

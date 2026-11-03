@@ -154,6 +154,19 @@ class AppDialogFrame extends StatelessWidget {
   /// מפתח למשטח הדיאלוג עצמו, בלי השוליים סביבו — למשל לסימון בסיור.
   final Key? surfaceKey;
 
+  /// בדסקטופ "מסך מלא" מתחיל מתחת לשורת הכותרת של החלון, כדי שהיא תישאר
+  /// גלויה; בטלפון הוא ממלא את המסך.
+  static EdgeInsets get _fullscreenInset =>
+      !kIsWeb &&
+          switch (defaultTargetPlatform) {
+            TargetPlatform.windows ||
+            TargetPlatform.linux ||
+            TargetPlatform.macOS => true,
+            _ => false,
+          }
+      ? const EdgeInsets.only(top: LayoutConstraints.windowCaptionHeight)
+      : EdgeInsets.zero;
+
   @override
   Widget build(BuildContext context) {
     final compact = WindowClass.of(context).isCompact;
@@ -188,7 +201,10 @@ class AppDialogFrame extends StatelessWidget {
           onClose: onClose,
         ),
         ?tabs,
-        if (fixedHeight) Expanded(child: body) else Flexible(child: body),
+        Flexible(
+          fit: fixedHeight ? FlexFit.tight : FlexFit.loose,
+          child: body,
+        ),
         if (actions != null && actions!.isNotEmpty)
           Padding(
             padding: actionsPadding,
@@ -209,7 +225,7 @@ class AppDialogFrame extends StatelessWidget {
         : MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor;
     final dialog = Dialog(
       insetPadding: fullscreen
-          ? EdgeInsets.zero
+          ? _fullscreenInset
           : compact
           ? AppDialogSize.compactInset
           : AppDialogSize.inset,
@@ -228,12 +244,18 @@ class AppDialogFrame extends StatelessWidget {
             maxWidth: compact ? double.infinity : size.width ?? double.infinity,
             maxHeight: maxHeight,
           ),
-          child: fixedHeight
-              ? SizedBox(
-                  height: fills ? double.infinity : height,
-                  child: fullscreen ? SafeArea(child: content) : content,
-                )
-              : content,
+          // SizedBox ו-SafeArea תמיד, כדי שמעבר מעל 600 (סיבוב טלפון, גרירת
+          // חלון) ישמור את הגוף, את הפוקוס ואת מצב השדות.
+          child: SizedBox(
+            height: fixedHeight ? (fills ? double.infinity : height) : null,
+            child: SafeArea(
+              left: fullscreen,
+              top: fullscreen,
+              right: fullscreen,
+              bottom: fullscreen,
+              child: content,
+            ),
+          ),
         ),
       ),
     );
