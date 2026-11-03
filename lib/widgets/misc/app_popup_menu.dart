@@ -170,12 +170,11 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     } else if (_isTouchMode &&
         widget.tooltip != null &&
         !_hasCompactConstraints) {
-      trigger = TextButton.icon(
+      trigger = ActionButton.ghost(
         onPressed: widget.enabled ? _showAdaptiveMenu : null,
-        icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
-        label: Text(
-          widget.tooltip!,
-        ),
+        iconWidget:
+            widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
+        text: widget.tooltip!,
       );
     } else if (widget.highlighted) {
       final cs = Theme.of(context).colorScheme;
