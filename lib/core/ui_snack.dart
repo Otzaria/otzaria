@@ -505,7 +505,11 @@ class _SnackToastState extends State<_SnackToast>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (widget.icon != null) ...[
-                                Icon(widget.icon, color: c.fg, size: 20),
+                                Icon(
+                                  widget.icon,
+                                  color: c.fg,
+                                  size: AppTokens.iconMD,
+                                ),
                                 const SizedBox(width: AppTokens.spaceSM),
                               ],
                               Flexible(

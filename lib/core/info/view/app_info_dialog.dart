@@ -127,7 +127,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
       children: [
         Icon(
           FluentIcons.clock_24_regular,
-          size: AppTokens.fontLG,
+          size: AppTokens.iconSM,
           color: cs.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),
@@ -516,7 +516,7 @@ class _FolderTileState extends State<_FolderTile> {
                   children: [
                     Icon(
                       FluentIcons.document_24_regular,
-                      size: AppTokens.fontMD,
+                      size: AppTokens.iconXS,
                       color: cs.onSurfaceVariant,
                     ),
                     const SizedBox(width: AppTokens.spaceSM),
