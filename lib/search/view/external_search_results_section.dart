@@ -833,6 +833,7 @@ class _ExternalSearchResultsSectionState
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: RichText(
+                          textScaler: MediaQuery.textScalerOf(context),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.justify,

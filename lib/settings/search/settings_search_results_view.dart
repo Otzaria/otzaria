@@ -183,6 +183,7 @@ class _HighlightedText extends StatelessWidget {
     final spans = _buildSpans(text, query, highlightColor);
 
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         style: style ?? DefaultTextStyle.of(context).style,
         children: spans,

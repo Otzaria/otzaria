@@ -181,6 +181,7 @@ class SemanticResultCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         RichText(
+          textScaler: MediaQuery.textScalerOf(context),
           textAlign: TextAlign.justify,
           text: TextSpan(
             style: TextStyle(

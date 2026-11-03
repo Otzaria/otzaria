@@ -220,6 +220,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: RichText(
+        textScaler: MediaQuery.textScalerOf(context),
         overflow: TextOverflow.visible,
         maxLines: 1,
         text: TextSpan(

@@ -137,6 +137,7 @@ class _OtzarBookDialogState extends State<OtzarBookDialog> {
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
+              textScaler: MediaQuery.textScalerOf(context),
               text: TextSpan(
                 style: Theme.of(context).textTheme.bodyMedium,
                 children: [
