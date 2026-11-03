@@ -80,7 +80,7 @@ test/design_system/
 | UIL-004 | אין `Theme.of(…).primaryColor` / `theme.primaryColor` | PropertyAccess | — | 5 | 1 |
 | UIL-005 | אין `Icons.`/`CupertinoIcons.` | identifier prefix | — | 0 | 1 |
 | UIL-006 | `RtlIcon` רק לאייקון כיווני שרשום ב־`rtl_icon.dart` (אף פעם לא `OtzariaIcons`), ואין `Transform.flip`/`Transform.scale(scaleX: -n)` שעוטף `Icon` | ctor + ילד + הרשימה ב־`rtl_icon.dart` | `rtl_icon.dart` | 0 | 1 (מחליף את הבדיקה הקיימת) |
-| UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | `hoverColor: Colors.transparent` ב־`ListTile` עם actions (לפי התיעוד) | ~7 | 1 |
+| UIL-007 | אין `hoverColor`/`splashColor`/`overlayColor` מחוץ ל־`lib/theme/` | named arg | ערך מ־`AppSurfaces.*` (למשל `hoverRow` ברשימות המשותפות); `hoverColor: Colors.transparent` (גם בתנאי מול `null`) ב־`ListTile` שיש לו `onTap:` וגם `trailing:`. ב־`ListTile` בלי `onTap` אין ריחוף, ולכן `transparent` שם נתפס כקוד מת | 0 (מומש: 4 ה־no-ops של UI-063 הוסרו) | 1 · **מומש** |
 | UIL-008 | אין `ScaffoldMessenger`/`SnackBar(` | identifier/ctor | `lib/core/ui_snack.dart` | ~0 | 1 |
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי | — | ~0 | 1 (מחליף בדיקה קיימת ומרחיב אותה) |
 | UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow | ~15 | 1 |
@@ -120,7 +120,7 @@ test/design_system/
 - **רשומה שלא נוצלה** מכשילה את הבדיקה: "baseline מת — הרץ `--update-baseline`". זה ה־ratchet, לפי התקדים של `backup_storage_coverage_test.dart:134`.
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **workflow ‏`ui_baseline_guard.yml`** (בסגנון `lockfile_guard.yml`) מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו תווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope` בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול.
-- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024, ומ־MIG-28 גם כללי הטוקנים UIL-015, ‏017, ‏018, ‏019, ‏030). כלל בשלב 4 מופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
+- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏007, ‏009, ‏011, ‏024, ומ־MIG-28 גם כללי הטוקנים UIL-015, ‏017, ‏018, ‏019, ‏030). כלל בשלב 4 מופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
 
 ### 3.5 חריגים מתועדים
 **inline**, על הצומת הבא בלבד:

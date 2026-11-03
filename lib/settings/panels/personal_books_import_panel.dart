@@ -350,7 +350,6 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final cs = Theme.of(context).colorScheme;
     return ListTile(
       dense: true,
-      hoverColor: Colors.transparent,
       leading: Icon(
         OtzariaIcons.book_24_regular,
         color: cs.primary,

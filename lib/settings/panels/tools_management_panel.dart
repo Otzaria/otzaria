@@ -758,7 +758,6 @@ class _BuiltInToolRow extends StatelessWidget {
     // Tooltip's OverlayPortal when elements re-activate during layout. Use
     // ListTile directly for all cases.
     return ListTile(
-      hoverColor: Colors.transparent,
       leading: meta.imageIcon != null
           ? ImageIcon(AssetImage(meta.imageIcon!), size: 24)
           : RtlIcon(meta.icon!),

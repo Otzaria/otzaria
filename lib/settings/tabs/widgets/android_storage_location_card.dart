@@ -161,7 +161,6 @@ class _AndroidStorageLocationCardState
 
     return ListTile(
       enabled: canHold,
-      hoverColor: Colors.transparent,
       leading: Icon(
         option.isRemovable
             ? FluentIcons.storage_24_regular
