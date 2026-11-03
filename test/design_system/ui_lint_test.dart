@@ -54,7 +54,8 @@ void main() {
     test('אין חריגות חדשות בכללים החוסמים', () {
       final fresh = [
         for (final finding in comparison.newFindings)
-          if (_ruleOf(finding).isBlocking) finding,
+          if (_ruleOf(finding).isBlocking || _config.isStrict(finding.rule))
+            finding,
       ];
       expect(
         fresh,
@@ -84,6 +85,36 @@ void main() {
 
     test('אין הערות allow פגומות או מיותרות', () {
       expect(result.problems.map((p) => '$p'), isEmpty);
+    });
+
+    test('כלל בלי חוב ב-baseline נעול (strict), וכלל נעול בלי חוב', () {
+      final withDebt = UiLintBaseline.load(
+        '.',
+      ).counts.keys.map((k) => k.split('|').first).toSet();
+      final unlocked = [
+        for (final rule in uiLintRules)
+          if (!withDebt.contains(rule.id) && !_config.isStrict(rule.id))
+            rule.id,
+      ];
+      final lockedWithDebt = [
+        for (final rule in _config.strictRules)
+          if (withDebt.contains(rule)) rule,
+      ];
+      expect(
+        unlocked,
+        isEmpty,
+        reason:
+            'החוב של הכלל נגמר: להוסיף לו "strict: true" ב-'
+            'tool/ui_lint/config.yaml, כדי שחריגה לא תחזור דרך '
+            '--allow-growth (CI_ENFORCEMENT.md §6, רמה 4)',
+      );
+      expect(
+        lockedWithDebt,
+        isEmpty,
+        reason:
+            'כלל נעול לא מקבל רשומות baseline: לתקן את החריגה, או להוסיף '
+            'מעליה "// ui-lint: allow UIL-xxx — נימוק"',
+      );
     });
   });
 
@@ -232,6 +263,18 @@ const top = TextStyle(fontSize: 11);
       );
     });
 
+    test('strict נקרא מהקונפיגורציה, וערך שאינו bool הוא שגיאה', () {
+      final config = UiLintConfig.parse(
+        'rules:\n  UIL-015:\n    strict: true\n'
+        '  UIL-016:\n    strict: false\n',
+      );
+      expect(config.strictRules, {'UIL-015'});
+      expect(
+        () => UiLintConfig.parse('rules:\n  UIL-015:\n    strict: yes-ish\n'),
+        throwsFormatException,
+      );
+    });
+
     test('החרגה בלי reason היא שגיאת קונפיגורציה', () {
       expect(
         () => UiLintConfig.parse(
@@ -331,6 +374,16 @@ const top = TextStyle(fontSize: 11);
       // שינוי בכיוון עצמו כן נתפס.
       final moved = before.compare(positioned("Text('א')", left: '8'));
       expect(moved.newFindings, hasLength(1));
+    });
+
+    test('כלל נעול לא נכנס ל-baseline גם עם allowGrowth', () {
+      final grown = baseline.updated(
+        findings + findings,
+        allowGrowth: true,
+        strictRules: {'UIL-017'},
+      );
+      expect(grown.size, 0);
+      expect(baseline.updated(findings, strictRules: {'UIL-017'}).size, 0);
     });
 
     test('הסריאליזציה הפיכה', () {

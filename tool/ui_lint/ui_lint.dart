@@ -192,10 +192,21 @@ RegExp _globToRegExp(String glob) {
 /// החרגות לפי נתיב, כל אחת עם נימוק. החרגות לפי הקשר תחבירי (CustomPainter,
 /// `pw.*`, `BoxShadow`) כתובות בכללים עצמם.
 class UiLintConfig {
-  UiLintConfig({this.globalExcludes = const [], this.ruleExcludes = const {}});
+  UiLintConfig({
+    this.globalExcludes = const [],
+    this.ruleExcludes = const {},
+    this.strictRules = const {},
+  });
 
   final List<PathExclusion> globalExcludes;
   final Map<String, List<PathExclusion>> ruleExcludes;
+
+  /// כללים נעולים (`strict: true`, CI_ENFORCEMENT.md §6 רמה 4): החוב שלהם
+  /// נגמר, כל חריגה בהם חוסמת בלי קשר לשלב, ו־`--allow-growth` לא מוסיף להם
+  /// רשומות baseline. חריג בודד עדיין אפשרי בהערת allow עם נימוק.
+  final Set<String> strictRules;
+
+  bool isStrict(String rule) => strictRules.contains(rule);
 
   bool excludesFile(String path) => globalExcludes.any((e) => e.matches(path));
 
@@ -223,6 +234,7 @@ class UiLintConfig {
     }
 
     final rules = <String, List<PathExclusion>>{};
+    final strict = <String>{};
     final rulesNode = doc['rules'];
     if (rulesNode is YamlMap) {
       for (final MapEntry(:key, :value) in rulesNode.entries) {
@@ -230,11 +242,17 @@ class UiLintConfig {
           value is YamlMap ? value['exclude'] : null,
           key,
         );
+        final flag = value is YamlMap ? value['strict'] : null;
+        if (flag != null && flag is! bool) {
+          throw FormatException('$key: strict חייב להיות true או false');
+        }
+        if (flag == true) strict.add(key);
       }
     }
     return UiLintConfig(
       globalExcludes: exclusions(doc['exclude'], 'exclude'),
       ruleExcludes: rules,
+      strictRules: strict,
     );
   }
 
@@ -505,12 +523,16 @@ class UiLintBaseline {
     return BaselineComparison(newFindings, dead);
   }
 
-  /// ה-baseline אחרי ריצה: רק מתכווץ, אלא אם [allowGrowth].
+  /// ה-baseline אחרי ריצה: רק מתכווץ, אלא אם [allowGrowth]. לכלל ב־
+  /// [strictRules] לא נכתבת רשומה גם עם [allowGrowth].
   UiLintBaseline updated(
     List<UiLintFinding> findings, {
     bool allowGrowth = false,
+    Set<String> strictRules = const {},
   }) {
-    final actual = UiLintBaseline.fromFindings(findings).counts;
+    final actual = UiLintBaseline.fromFindings(
+      findings.where((f) => !strictRules.contains(f.rule)),
+    ).counts;
     if (allowGrowth) return UiLintBaseline(actual);
     return UiLintBaseline({
       for (final MapEntry(:key, :value) in counts.entries)
