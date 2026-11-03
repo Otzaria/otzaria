@@ -212,7 +212,7 @@
       ],
       "lib/text_book/view/page_shape/page_shape_screen.dart": [
         {"scope":"_CommentaryPaneState.build","fp":"a9c1e30c","n":1},
-        {"scope":"_PageShapeScreenState.build","fp":"a9c1e30c","n":5}
+        {"scope":"_PageShapeScreenState._rotatedLabel","fp":"a9c1e30c","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
         {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"aac1e49f","n":1},
