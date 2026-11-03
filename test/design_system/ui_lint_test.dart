@@ -148,10 +148,12 @@ final f = pw.Foo.named();
 final g = foo();
 final h = bar.foo();
 final i = Bar();
+final j = const Foo.named();
+final k = const pw.Foo.named();
 ''',
       ).unit;
       final calls = ctorCallsNamed(unit, {'Foo'});
-      expect(calls, hasLength(6));
+      expect(calls, hasLength(8));
       expect(
         calls.map((c) => (c.constructor, c.importPrefix)),
         [
@@ -160,6 +162,8 @@ final i = Bar();
           (null, null),
           ('named', null),
           (null, 'pw'),
+          ('named', 'pw'),
+          ('named', null),
           ('named', 'pw'),
         ],
       );

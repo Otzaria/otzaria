@@ -55,6 +55,21 @@ bool _isPrefixName(String name) => !_isTypeName(name);
 CtorCall? asCtorCall(AstNode node) {
   if (node is InstanceCreationExpression) {
     final type = node.constructorName.type;
+    final prefix = type.importPrefix?.name.lexeme;
+    // `const Foo.named()`: בלי פענוח המפרש קורא את `Foo` כ־prefix ואת `named`
+    // כשם הטיפוס.
+    if (prefix != null &&
+        node.constructorName.name == null &&
+        _isTypeName(prefix) &&
+        !_isTypeName(type.name.lexeme)) {
+      return CtorCall(
+        node: node,
+        typeName: prefix,
+        constructor: type.name.lexeme,
+        importPrefix: null,
+        arguments: node.argumentList,
+      );
+    }
     return CtorCall(
       node: node,
       typeName: type.name.lexeme,
