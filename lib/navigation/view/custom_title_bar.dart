@@ -76,7 +76,6 @@ const String _kTabCloseButtonHitMarker = 'custom-title-bar-tab-close';
 
 const double _kAppBarControlsWidth = 105.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
-const double _kWindowCaptionButtonWidth = 46.0;
 
 /// רוחב מרבי לטאב בודד: טאב לא נמתח מעבר לזה גם כשיש מעט טאבים ומלא מקום.
 const double _kTabMaxWidth = 140.0;
@@ -276,7 +275,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                       children: [
                         // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
                         SizedBox(
-                          height: 40,
+                          height: _kTopBarHeight,
                           child: Center(child: _buildActionButtons(context)),
                         ),
 
@@ -295,7 +294,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                 Platform.isLinux ||
                                 Platform.isMacOS))
                           SizedBox(
-                            height: 50,
+                            height: _kTopBarHeight,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -305,44 +304,36 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                   context,
                                   isFullscreen,
                                 ),
-                                if (isFullscreen)
-                                  _CaptionActionButton(
+                                SizedBox(
+                                  width: isFullscreen
+                                      ? null
+                                      : _kWindowCaptionButtonsWidth,
+                                  child: AppWindowCaption(
                                     brightness: Theme.of(context).brightness,
-                                    tooltip: context.settingsText('מזער'),
-                                    icon: FluentIcons.subtract_24_regular,
-                                    onPressed: () async {
-                                      // נלקח לפני ה-await: אחריו ה-context
-                                      // עלול כבר לא להיות מותקן.
-                                      final window =
-                                          AppWindowScope.controllerOf(context);
-                                      await FullscreenHelper.toggleFullscreen(
-                                        context,
-                                        false,
-                                      );
-                                      await window.minimize();
-                                    },
-                                  ),
-                                if (isFullscreen)
-                                  _CaptionActionButton(
-                                    brightness: Theme.of(context).brightness,
-                                    tooltip: context.settingsText('סגור'),
-                                    icon: FluentIcons.dismiss_24_regular,
-                                    // סגירה מנומסת — עוברת דרך ה-handshake
-                                    // של onWindowClose ולא הורגת מיד.
-                                    onPressed: () =>
-                                        AppWindowScope.controllerOf(
-                                          context,
-                                        ).close(),
-                                  ),
-                                if (!isFullscreen)
-                                  SizedBox(
-                                    width: _kWindowCaptionButtonsWidth,
-                                    height: 50,
-                                    child: AppWindowCaption(
-                                      brightness: Theme.of(context).brightness,
-                                      backgroundColor: Colors.transparent,
+                                    fullscreen: isFullscreen,
+                                    tooltips: AppWindowCaptionTooltips(
+                                      minimize: context.settingsText('מזער'),
+                                      maximize: context.settingsText('הגדל'),
+                                      restore: context.settingsText('שחזר'),
+                                      close: context.settingsText('סגור'),
                                     ),
+                                    onMinimize: isFullscreen
+                                        ? () async {
+                                            // נלקח לפני ה-await: אחריו ה-context
+                                            // עלול כבר לא להיות מותקן.
+                                            final window =
+                                                AppWindowScope.controllerOf(
+                                                  context,
+                                                );
+                                            await FullscreenHelper.toggleFullscreen(
+                                              context,
+                                              false,
+                                            );
+                                            await window.minimize();
+                                          }
+                                        : null,
                                   ),
+                                ),
                               ],
                             ),
                           ),
@@ -787,7 +778,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     if (!FullscreenHelper.isAllowedInContext(context)) {
       return const SizedBox.shrink();
     }
-    return _CaptionActionButton(
+    return AppCaptionIconButton(
       brightness: Theme.of(context).brightness,
       tooltip: context.settingsText(isFullscreen ? 'צא ממסך מלא' : 'מסך מלא'),
       icon: isFullscreen
@@ -1490,90 +1481,6 @@ class _TabBackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TabBackgroundPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.borderColor != borderColor;
-}
-
-class _CaptionActionButton extends StatefulWidget {
-  const _CaptionActionButton({
-    required this.onPressed,
-    required this.icon,
-    required this.brightness,
-    this.tooltip,
-  });
-
-  final VoidCallback onPressed;
-  final IconData icon;
-  final Brightness brightness;
-  final String? tooltip;
-
-  @override
-  State<_CaptionActionButton> createState() => _CaptionActionButtonState();
-}
-
-class _CaptionActionButtonState extends State<_CaptionActionButton> {
-  bool _isHovering = false;
-  bool _isPressed = false;
-
-  void _onHover(bool hovered) {
-    if (_isHovering != hovered) {
-      setState(() => _isHovering = hovered);
-    }
-  }
-
-  void _onPressedState(bool pressed) {
-    if (_isPressed != pressed) {
-      setState(() => _isPressed = pressed);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.brightness == Brightness.dark;
-
-    Color bgColor = Colors.transparent;
-    Color iconColor = isDark
-        ? Colors.white
-        : Colors.black.withValues(alpha: 0.8956);
-
-    if (_isHovering) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0605)
-          : Colors.black.withValues(alpha: 0.0373);
-    }
-    if (_isPressed) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0419)
-          : Colors.black.withValues(alpha: 0.0241);
-      iconColor = isDark
-          ? Colors.white.withValues(alpha: 0.786)
-          : Colors.black.withValues(alpha: 0.6063);
-    }
-
-    final button = MouseRegion(
-      onExit: (_) => _onHover(false),
-      onHover: (_) => _onHover(true),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _onPressedState(true),
-        onTapCancel: () => _onPressedState(false),
-        onTapUp: (_) => _onPressedState(false),
-        onTap: widget.onPressed,
-        child: Container(
-          constraints: const BoxConstraints(
-            minWidth: _kWindowCaptionButtonWidth,
-            minHeight: 32,
-          ),
-          decoration: BoxDecoration(color: bgColor),
-          child: Center(child: Icon(widget.icon, size: 16, color: iconColor)),
-        ),
-      ),
-    );
-
-    if (widget.tooltip == null) {
-      return button;
-    }
-
-    return Tooltip(message: widget.tooltip!, child: button);
-  }
 }
 
 /// מזהה לחיצה כפולה לאזור הריק של שורת הטאבים בלבד. הדחייה חייבת להיות

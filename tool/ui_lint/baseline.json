@@ -49,10 +49,6 @@
       ]
     },
     "UIL-015": {
-      "lib/navigation/view/custom_title_bar.dart": [
-        {"scope":"_CaptionActionButtonState.build","fp":"220ea01c","n":4},
-        {"scope":"_CaptionActionButtonState.build","fp":"2495af7e","n":4}
-      ],
       "lib/navigation/view/tab_visuals.dart": [
         {"scope":"buildFadedTabTitle","fp":"2495af7e","n":2}
       ],
