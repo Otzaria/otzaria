@@ -674,6 +674,106 @@ void main() {
     expect(await read, isA<DbReadWorkerSuspended>());
   });
 
+  Future<int> expectAtMostTwoFallbacks(int count) async {
+    var running = 0;
+    var maxRunning = 0;
+    final gates = <Completer<void>>[];
+    final reads = [
+      for (var i = 0; i < count; i++)
+        DbReadWorker.trackFallbackRead(() async {
+          running++;
+          maxRunning = running > maxRunning ? running : maxRunning;
+          final gate = Completer<void>();
+          gates.add(gate);
+          await gate.future;
+          running--;
+          return i;
+        }),
+    ];
+    for (var released = 0; released < count; released++) {
+      await pumpEventQueue();
+      expect(gates.length, released + (count - released).clamp(0, 2));
+      gates[released].complete();
+    }
+    expect(await Future.wait(reads), List.generate(count, (i) => i));
+    return maxRunning;
+  }
+
+  test('קריאות fallback במקביל רצות לכל היותר שתיים יחד (#4017)', () async {
+    expect(await expectAtMostTwoFallbacks(5), 2);
+  });
+
+  test(
+    'קריאה זמנית רגילה (קטלוג, דורות) אינה ממתינה בתור ה-fallback',
+    () async {
+      final gates = [Completer<void>(), Completer<void>()];
+      addTearDown(() {
+        for (final gate in gates) {
+          if (!gate.isCompleted) gate.complete();
+        }
+      });
+      for (final gate in gates) {
+        DbReadWorker.trackFallbackRead(() => gate.future).ignore();
+      }
+      await pumpEventQueue();
+      expect(
+        await DbReadWorker.trackTemporaryRead(
+          () async => 7,
+        ).timeout(const Duration(seconds: 1)),
+        7,
+      );
+    },
+  );
+
+  test('השהיה מכשילה מיד fallback שבתור, גם כשהפעילות תקועות', () async {
+    final gates = [Completer<void>(), Completer<void>()];
+    final active = [
+      for (final gate in gates)
+        DbReadWorker.trackFallbackRead(
+          () => gate.future,
+        ).then<Object?>((v) => v, onError: (Object e) => e),
+    ];
+    var queuedStarted = false;
+    final queued = DbReadWorker.trackFallbackRead(() async {
+      queuedStarted = true;
+    }).then<Object?>((v) => v, onError: (Object e) => e);
+    await pumpEventQueue();
+    final suspending = DbReadWorker.suspendForExternalWrite();
+    expect(
+      await queued.timeout(const Duration(milliseconds: 200)),
+      isA<DbReadWorkerSuspended>(),
+    );
+    expect(queuedStarted, isFalse);
+    for (final gate in gates) {
+      gate.complete();
+    }
+    expect(await suspending, isTrue);
+    expect(
+      await Future.wait(active),
+      everyElement(isA<DbReadWorkerSuspended>()),
+    );
+  });
+
+  test('fallback תקוע מפנה את מקומו אחרי stallTimeout, פעם אחת בלבד', () async {
+    DbReadWorker.stallTimeout = const Duration(milliseconds: 50);
+    final gates = [Completer<void>(), Completer<void>()];
+    for (final gate in gates) {
+      DbReadWorker.trackFallbackRead(() => gate.future).ignore();
+    }
+    expect(
+      await DbReadWorker.trackFallbackRead(
+        () async => 3,
+      ).timeout(const Duration(seconds: 2)),
+      3,
+    );
+    DbReadWorker.stallTimeout = const Duration(seconds: 10);
+    for (final gate in gates) {
+      gate.complete();
+    }
+    await pumpEventQueue();
+    expect(await expectAtMostTwoFallbacks(4), 2);
+  });
+
   test('השהיה ממתינה לחיבור RO של fallback טווח רשמי', () async {
     final dbPath = await seedDb('seforim');
     final checkpoint = ReceivePort();

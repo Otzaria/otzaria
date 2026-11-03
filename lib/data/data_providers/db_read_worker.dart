@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io' show FileMode;
 import 'dart:isolate';
 
@@ -237,6 +238,14 @@ class DbReadWorker {
   static bool _suspendedForExternalWrite = false;
   static bool _closedUntilReopen = false;
   static final Set<Future<void>> _oneShotReads = {};
+
+  /// קריאות fallback שרצות יחד כשה-worker תקוע; השאר ממתינות בתור. שתיים ולא
+  /// אחת: קריאת ספר שלם איטית לא תחסום לבדה טווח קטן.
+  @visibleForTesting
+  static int maxFallbackReads = 2;
+  static int _activeFallbackReads = 0;
+  static int _fallbackSlotsEpoch = 0;
+  static final Queue<Completer<void>> _fallbackQueue = Queue();
 
   /// בקשה שלא נענתה בזמן הזה מסמנת את ה-worker כתקוע; עד שיענה, הבקשות
   /// עוברות למסלול חלופי מחוץ ל-UI isolate.
@@ -491,7 +500,7 @@ class DbReadWorker {
     }
     await QueryLoader.initialize();
     final queryCache = QueryLoader.cacheSnapshot;
-    return runOnFreshIsolate(
+    return runFallbackOnFreshIsolate(
       () => _readBatchOnFreshConnection(items, queryCache),
     );
   }
@@ -500,6 +509,54 @@ class DbReadWorker {
   /// השהיה לכתיבה חיצונית ממתינה לה עד שתשחרר את הקובץ.
   static Future<T> runOnFreshIsolate<T>(FutureOr<T> Function() read) =>
       trackTemporaryRead(() => Isolate.run(read));
+
+  /// כמו [runOnFreshIsolate], במגבלת [maxFallbackReads] של [trackFallbackRead].
+  static Future<T> runFallbackOnFreshIsolate<T>(FutureOr<T> Function() read) =>
+      trackFallbackRead(() => Isolate.run(read));
+
+  /// [trackTemporaryRead] לקריאה שבמקום worker תקוע. ממתינה בתור כשרצות כבר
+  /// [maxFallbackReads]; קריאה שלא חזרה תוך [stallTimeout] מפנה את מקומה.
+  static Future<T> trackFallbackRead<T>(Future<T> Function() read) async {
+    if (_suspendedForExternalWrite || _closedUntilReopen) {
+      throw const DbReadWorkerSuspended();
+    }
+    final generation = _generation;
+    final epoch = _fallbackSlotsEpoch;
+    if (_activeFallbackReads < maxFallbackReads) {
+      _activeFallbackReads++;
+    } else {
+      final turn = Completer<void>();
+      _fallbackQueue.add(turn);
+      await turn.future;
+    }
+    var holdsSlot = true;
+    void releaseSlot() {
+      if (!holdsSlot) return;
+      holdsSlot = false;
+      if (epoch != _fallbackSlotsEpoch) return;
+      if (_fallbackQueue.isEmpty) {
+        _activeFallbackReads--;
+      } else {
+        _fallbackQueue.removeFirst().complete();
+      }
+    }
+
+    final stallRelease = Timer(stallTimeout, releaseSlot);
+    try {
+      if (generation != _generation) throw const DbReadWorkerSuspended();
+      return await trackTemporaryRead(read);
+    } finally {
+      stallRelease.cancel();
+      releaseSlot();
+    }
+  }
+
+  // ממתין בתור עוד לא תפס מקום, ולכן אינו משחרר אחד.
+  static void _failQueuedFallbacks() {
+    while (_fallbackQueue.isNotEmpty) {
+      _fallbackQueue.removeFirst().completeError(const DbReadWorkerSuspended());
+    }
+  }
 
   /// עוקב אחר קריאה זמנית במסד הרשמי עד שהחיבור שלה נסגר.
   /// גם fallback שכבר יוצר isolate חייב להשתחרר לפני כתיבה חיצונית.
@@ -611,6 +668,7 @@ class DbReadWorker {
   static Future<bool> suspendForExternalWrite() async {
     _suspendedForExternalWrite = true;
     _generation++;
+    _failQueuedFallbacks();
     final released = await Future.wait([
       for (final service in _runningWorkers)
         service._lifecycle('suspend', const {}).then((value) => value == true),
@@ -633,6 +691,7 @@ class DbReadWorker {
   static Future<void> closeConnectionIfRunning({bool wait = true}) async {
     _closedUntilReopen = true;
     _generation++;
+    _failQueuedFallbacks();
     final closings = <Future<Object?>>[];
     for (final service in _runningWorkers) {
       final closing = service._send('close', const {});
@@ -687,6 +746,9 @@ class DbReadWorker {
     _closedUntilReopen = false;
     bookReadCheckpointPort = null;
     _generation++;
+    _failQueuedFallbacks();
+    _activeFallbackReads = 0;
+    _fallbackSlotsEpoch++;
     for (final slot in _slots) {
       slot.spawnFuture = null;
       slot.instance?._tearDown();

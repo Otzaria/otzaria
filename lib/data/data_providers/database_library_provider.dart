@@ -1831,7 +1831,7 @@ Future<T> _loadOnReadWorker<T>(
         })
         as T;
   } on DbReadWorkerUnavailable {
-    return DbReadWorker.trackTemporaryRead(isolateRun);
+    return DbReadWorker.trackFallbackRead(isolateRun);
   }
 }
 
