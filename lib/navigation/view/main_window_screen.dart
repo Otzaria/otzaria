@@ -4223,8 +4223,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     required bool compact,
   }) {
     final isCompactRail = compact;
+    // הניווט הוא כרום, כמו הסרגל: עמודה וסרגל תחתון באותו צבע (q10 Q18 A).
     return Material(
-      color: AppSurfaces.topBarBackground(
+      color: AppSurfaces.navPanelBackground(
         context,
       ),
       surfaceTintColor: Colors.transparent,
@@ -4351,7 +4352,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 tabsState,
               );
               return NavigationBar(
-                backgroundColor: AppSurfaces.panelBackground(
+                // צבע הסרגל, כמו עמודת הניווט במחשב (q10 Q18 A).
+                backgroundColor: AppSurfaces.navPanelBackground(
                   context,
                 ),
                 surfaceTintColor: Colors.transparent,
