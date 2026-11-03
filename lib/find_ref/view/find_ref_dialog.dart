@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
@@ -677,40 +678,17 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final buttonContext = buttonKey.currentContext;
     if (buttonContext == null || !buttonContext.mounted) return;
 
-    final overlayBox =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final box = buttonContext.findRenderObject() as RenderBox;
-    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final bottomRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlayBox,
-    );
-
-    // אנו רוצים שה-popup ייפתח לכיוון שמאל פיזית: הקצה הימני של ה-popup
-    // יסיים בקצה השמאלי של ה-button (=topLeft.dx) וה-popup יתפשט שמאלה.
-    // ב-_PopupMenuRouteLayout, fork-1 נבחר כאשר position.left > position.right
-    // ואז `x = size.width - position.right - childSize.width`. לכן:
-    //   position.right = overlayWidth - topLeft.dx → popup.right == button.left
-    //   position.left  = overlayWidth (max possible) → ensures fork-1
-    final position = RelativeRect.fromLTRB(
-      overlayBox.size.width.toDouble(),
-      bottomRight.dy,
-      overlayBox.size.width - topLeft.dx,
-      overlayBox.size.height - bottomRight.dy,
-    );
-
-    final selected = await showMenu<_CommentatorEntry>(
+    final selected = await showAnchoredAppMenu<_CommentatorEntry>(
       context: context,
-      position: position,
-      constraints: const BoxConstraints(maxHeight: 400, minWidth: 220),
-      items: [
+      anchorContext: buttonContext,
+      minWidth: 220,
+      itemsBuilder: (metrics) => [
         for (final e in commentators)
-          PopupMenuItem<_CommentatorEntry>(
-            value: e,
-            child: Text(
-              e.title,
-              overflow: TextOverflow.ellipsis,
-            ),
+          buildAppPopupMenuItem<_CommentatorEntry>(
+            context,
+            AppMenuEntry(value: e, label: e.title),
+            metrics,
+            null,
           ),
       ],
     );
