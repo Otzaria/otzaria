@@ -55,14 +55,13 @@
 
 ההעדפות שהסבבים הקודמים (#3322, #3539, #3794) הנהיגו הן עכשיו תקן **[מחייב]**:
 - רצועת כותרת (`headerBand`) ותג אייקון **בכל** דיאלוג, כולל `small` (DD-07 B). ב־`small` אין X (השלמה 2.11).
-- כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A).
+- כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A). פעולה מסוכנת: `ActionButton.warning`, כפתור מלא ברקע `error` (השלמה 3.11).
 - כותרות מקטע בצבע `primary`, דרך `AppSectionLabel` (DD-14 A). חריג: בדיאלוג החיפוש ובאיתור המקורות נשארות הכותרות הקטנות שלהם, 13 (השלמה 2.11).
 - מסגרת `outlineVariant` ולא צל לכרטיסים (DD-12 A).
-- רדיוס אחד, 8, לכל רכיב מלבני, כולל צ'יפים, כפתור סרגל עם תווית ותג אייקון (DD-04 A). שני חריגים: כפתור אייקון בלבד נשאר עגול, ו־`BarSplitButton` (אייקון וחץ) נשאר גלולה (השלמה 2.11).
+- רדיוס אחד, 8, לכל רכיב מלבני, כולל צ'יפים, כפתור סרגל עם תווית ותג אייקון (DD-04 A). שני חריגים: כפתור אייקון בלבד נשאר עגול, ו־`BarSplitButton` (אייקון וחץ) נשאר גלולה (השלמה 2.11). ריחוף של `IconButton` גולמי עגול גם הוא, מערכת הנושא (השלמה 3.11).
 
 **⚠ פתוח או ממתין לאישור חוזר:**
-- **ממצא לסבב הבא (DD-07, DD-09):** בדיאלוג ההתנגשויות בייבוא ההערות, ״דרוס״ (`ActionButton.warning`) הוא טקסט אדום בלי רקע, ליד שלושה כפתורי `neutral` עם רקע, ולכן הפעולה המסוכנת נראית החלשה בשורה. לא הוכרע ולא שונה.
-- **שולחנות העבודה (MIG-17):** הוכרע להסב (השלמה 2.11), והתמונה של ההסבה תוצג לפני המימוש.
+- **UIL-017, `AppTogglePill`:** גודל התווית, 13, אינו בסולם הטיפוגרפיה. חריגה מתועדת, או 12 או 14 מהסולם? לא הוכרע (q9, 3.11).
 
 ---
 
@@ -200,6 +199,8 @@
 | רכיבים עגולים מטבעם (נקודת סטטוס, אווטאר) | עיגול | עיגול | קיים |
 | כפתור אייקון בלבד ב־`BarButton` (`CircleBorder` לבחירה ול־hover) | עיגול | **עיגול**, חריג מאושר (DD-04, השלמה 2.11) | קיים |
 | כפתור סרגל מפוצל (`BarSplitButton`, אייקון וחץ בלי תווית) | גלולה (רדיוס חצי הגובה) | **גלולה**, חריג מאושר (DD-04, השלמה 2.11) | קיים |
+| `IconButton` גולמי בלי צורה משלו (`iconButtonTheme`) | 8 | **עיגול**, כמו `AppIconButton` (DD-04, השלמה 3.11) | יעד — טרם מומש |
+| כפתור סינון של תוסף בשדה חיפוש, במצב סינון עם תווית | — | **גלולה**, כמו שתוארה האפשרות שנבחרה (DD-31, השלמה 3.11) | יעד — טרם מומש |
 
 **[אסור]** כל רדיוס אחר: `circular(n)` ליטרלי, `StadiumBorder`, ו־4 בתוך תפריט. `CircleBorder` מותר רק לרכיב עגול מטבעו ולכפתור אייקון בלבד.
 
@@ -306,7 +307,7 @@
 - **הפחתת תנועה (DD-21 A) · יעד — טרם מומש (MIG-04):** כל משך של אנימציית ממשק עובר דרך `AppMotion.duration(context, AppTokens.animNormal)`, שמחזיר `Duration.zero` כש־`MediaQuery.disableAnimationsOf(context)` פעיל. כך נכבות פתיחת חלונית והחלפת לשונית. אנימציה שמעבירה מידע, כמו התקדמות, נשארת. היום אף מקום באפליקציה לא בודק זאת (UI-028).
 
 #### 2.5.6 שטחי לחיצה [מחייב] · קיים
-- מינימום 40×40 בדסקטופ, ו־48×48 במגע (`MaterialTapTargetSize.padded`).
+- מינימום 40×40 בדסקטופ, ו־48×48 במגע (`MaterialTapTargetSize.padded`). `AppIconButton` במובייל 48 גם בשורה צפופה, כשהשורה גבוהה ב־8 (DD-11, השלמה 3.11).
 - כפתורים של 28×28 (ניווט תוצאות, סרגל מפרשים) ו־32×32 (עין בהגדרות צורת הדף) מתחת לסף, ורשומים בביקורת.
 - אפשר לצייר אייקון קטן בתוך שטח לחיצה גדול יותר. מקטינים את השטח רק כשהרכיב הוא חלק משורה צפופה שיש לה חלופה במקלדת.
 
@@ -409,16 +410,16 @@
 | ראשי | `ActionButton.recommended` | אחד לכל קבוצת פעולות |
 | משני / ניטרלי, **וביטול בדיאלוג** | `ActionButton.neutral` (tonal) | DD-09 A. קיים (18 מופעים) |
 | פעולה משנית שקטה שאינה ביטול ("דלג", "איפוס" בתוך פאנל) | `ActionButton.ghost` | ביטול ב־ghost (9 מופעים) עובר ל־`neutral` (MIG-17, MIG-19) |
-| מסוכן (אישור מחיקה) | `ActionButton.warning` | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. |
-| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)` (MIG-13): עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary` | הוסבו השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות. בפיצ'רים נשארו כ־190 `IconButton` גולמיים (UI-004, UI-030) |
+| מסוכן (אישור מחיקה) | `ActionButton.warning`: כפתור מלא, רקע `error` וטקסט `onError` (DD-09, השלמה 3.11). יעד — היום טקסט אדום | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. גם ״דרוס״ בייבוא ההערות, ליד שלושה כפתורי `neutral` (השלמה 3.11) |
+| אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)` (MIG-13): עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (אושר בהשלמה 3.11) | הוסבו השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות. בפיצ'רים נשארו כ־190 `IconButton` גולמיים (UI-004, UI-030) |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צפיפות מ־`AppDensity`. צורה 8, בלי גלולה (DD-04, MIG-13) |
 | פעולה מפוצלת | `BarSplitButton` | קיים. צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
-| פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה |
+| פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה (UI-052, השלמה 3.11) |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**
-- **hover/pressed/focus:** מגיעים מערכת הנושא (`_hoverButtonStyle`). לא מגדירים אותם מקומית.
+- **hover/pressed/focus:** מגיעים מערכת הנושא (`_hoverButtonStyle`). לא מגדירים אותם מקומית. ב־`IconButton` הצורה עגולה גם היא מערכת הנושא (DD-04, השלמה 3.11).
 - **disabled:** `onPressed: null`. `SecondaryIconButton` ו־`PrimaryIconButton` לא מאפשרים זאת היום, וזה ממצא בביקורת.
 - **loading:** `ActionButton(isLoading:)`. יעד: לשמור על רוחב הכפתור ולהוסיף `Semantics(liveRegion)` "טוען".
 
@@ -435,7 +436,7 @@
 |---|---|---|
 | שדה טקסט | `RtlTextField` + `InputDecoration` מערכת הנושא | `TextField` גולמי אסור (נאכף בבדיקה) |
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
-| חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16) |
+| חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16). כפתור סינון של תוסף (`providerBooksFilter`): במצב סינון גלולה עם אייקון ותווית קצרה, ״רק התוסף״ / ״רק הספרייה״, שהתוסף יכול להחליף; בשדה שאין בו מקום לתווית בלי לצמצם את הקלט או לדחוק כפתורים, אייקון ו־tooltip (DD-31, השלמה 3.11, יעד — טרם מומש) |
 | בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11; אושר בהשלמה 2.11: תווית מעל השדה). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה). |
 | 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsSegmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת |
@@ -456,8 +457,9 @@
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A, MIG-20): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
+| כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard` עם מסגרת `multiSelectedBorder` ‏1.5. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון, כמו היום (השלמה 2.11). מנגנון ההרחבה האחד עוד לא אוחד: `ExpandableCard` משמש רק אותם |
-| שורת הגדרה | `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsPathTile`, `SettingsSliderTile`, ו־`SettingsActionTile` (.text/.path/radioOption) לשאר, בתוך `SettingsCard` (MIG-15) | בין כרטיסים בלשונית: `kSettingsCardSpacing` (16, ועם ריפוד הכותרת 40). כרטיס שלפעמים לא מוצג: `SettingsCard(spacedAbove: true)`. עדיין נבנים ידנית: ההדפסה, חלונית צורת הדף, ShortcutDropDownTile, ColorPickerTile ועוד (UI-006) |
+| שורת הגדרה | `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsPathTile`, `SettingsSliderTile`, ו־`SettingsActionTile` (.text/.path/radioOption) לשאר, בתוך `SettingsCard` (MIG-15) | בין כרטיסים בלשונית: **24 בכל הלשוניות** (השלמה 3.11, UI-082; ⚠ לא 40). יעד — היום `kSettingsCardSpacing` (16) ועוד ריפוד הכותרת, 40. כרטיס שלפעמים לא מוצג: `SettingsCard(spacedAbove: true)`. עדיין נבנים ידנית: ההדפסה, חלונית צורת הדף, ShortcutDropDownTile, ColorPickerTile ועוד (UI-006) |
 | פריט רשימה | `ListTile` + `listTileTheme` (יעד, MIG-05), או `NavTreeTile` בחלוניות | |
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
 | תגית / מונה | `MetaChip(tone: neutral\|primary\|error\|warning\|success, size: regular\|small, tooltip:)` (DD-13 A). תווית `labelMedium` 12 (`small`: `labelSmall` 11), צורה 8. `success` בגוון החום הנייטרלי (`secondaryContainer`), לא ירוק. `neutral` ב־`surfaceContainerHighest` (השלמה 2.11) | לא נבנה צ'יפ מקומי. נשארו: `SearchResultSourceTag`, `PluginDevBadge`, `PluginUpdateChip`, תג הגימטריה |
@@ -605,7 +607,7 @@
   6. **ניהול כרטיסייה מפוצלת:** ידית הגרירה והמפריד בין החלוניות.
   7. **מעטפת הדיאלוגים המשותפים**, כשהקורא לא מסר טקסט משלו: תוויות ברירת המחדל (אישור, ביטול, המשך, שמור, איפוס), ה־X בכותרת, שאלת "לסגור בלי לשמור?" (DD-08), ורמז החיפוש וה"אין תוצאות" ב־`SelectionDialog`.
   8. **תוויות מובנות ברכיבים המשותפים:** ה־tooltip של הרחב/כווץ, נקה, תוצאה קודמת/הבאה, סגור חלונית, הצג מפרשים (MIG-11).
-  9. **tooltip של כפתור בתוך כלי:** הוא חלק מהכפתור ולא מתוכן הכלי. ששת ה־tooltips של כפתורי כרטיס המילון הארמי (״העתק״ ועוד) עוברים דרך `settingsText` (DD-20, השלמה 2.11, UI-145). תוכן המילון נשאר בעברית.
+  9. **tooltip של פעולה בתוך כלי** (כלל, DD-20, השלמה 3.11): הוא חלק מהכפתור ולא מתוכן הכלי, ולכן כרום ומתורגם בכל כלי, גם כשתוכן הכלי נשאר בעברית. ששת ה־tooltips של כפתורי כרטיס המילון הארמי (״העתק״ ועוד) עוברים דרך `settingsText` (DD-20, השלמה 2.11, UI-145). תוכן המילון נשאר בעברית.
 
   **מחוץ לכרום** (עברית ו־RTL בכל שפה): תוכן המסכים — ספרייה, איתור, עיון, חיפוש ותוצאותיו, הכלים והתוספים בתוך המסך (חוץ מ־tooltip של כפתור, סעיף 9); טקסט הספרים; הודעות `UiSnack` (הקטלוגים בעברית); ה־locale של Material; כותרת החלון במערכת ההפעלה. מסכי תוכן שכבר קוראים ל־`settingsText` (דיאלוג החיפוש, האיתור, הספריות המצורפות) נשארים כמו שהם, אבל אינם חלק מההתחייבות.
 
