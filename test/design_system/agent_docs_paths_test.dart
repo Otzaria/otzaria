@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 /// מסמכי ההנחיה שסוכנים ותורמים קוראים לפני שינוי. נתיב שמופיע בהם חייב
-/// להתקיים, אחרת הם שולחים לקובץ שנמחק או זז (UI-104).
+/// להתקיים, אחרת הם שולחים לקובץ שנמחק או זז.
 const _docs = [
   'AGENTS.md',
   '.github/PULL_REQUEST_TEMPLATE.md',
   'docs/agent_ui_reference.md',
   'docs/agent_test_map.md',
   'docs/design-system/DESIGN_SYSTEM.md',
-  'docs/design-system/DEVELOPER_GUIDE.md',
+  'docs/design-system/DESIGN_DECISIONS.md',
   'docs/design-system/CI_ENFORCEMENT.md',
 ];
 

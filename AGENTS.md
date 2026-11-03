@@ -302,11 +302,9 @@ The binding UI standard is the design system in `docs/design-system/`. Read only
 
 | Document | Use it for |
 |---|---|
-| `DESIGN_SYSTEM.md` | The standard: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7) |
-| `DEVELOPER_GUIDE.md` | How-to: picking a token, building a dialog/field/card/screen, loading-empty-error states, exceptions, the pre-PR checklist |
-| `DESIGN_DECISIONS.md` | Settled decisions (DD-xx). Follow them; do not re-decide in a PR. Each one has a "מימוש" line saying what is in code |
+| `DESIGN_SYSTEM.md` | The standard: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests) |
+| `DESIGN_DECISIONS.md` | Settled decisions (DD-xx). Follow them; do not re-decide in a PR. Each one lists the alternatives, the reason, what is implemented and the commits |
 | `CI_ENFORCEMENT.md` | The `tool/ui_lint` rules, baseline, goldens and CI guards |
-| `MIGRATION_PLAN.md`, `UI_AUDIT.md`, `ui-audit.json` | Migration PRs (MIG-xx), findings (UI-xxx) and their current status |
 
 Component-specific usage notes (icons, UiSnack catalogs, settings strings, nav panels) are in `docs/agent_ui_reference.md`.
 
@@ -336,7 +334,7 @@ Never add a raw `AlertDialog`/`Dialog`/`TextButton`/`FilledButton`/`OutlinedButt
 | Settings | `SettingsCard` and its tiles (`SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsSliderTile`, `SettingsPathTile`, `SettingsActionTile`) | `lib/settings/widgets/` |
 | Window caption (Windows) | `AppWindowCaption`, `AppCaptionIconButton` | `lib/core/windowing/` |
 
-A widget that only fits one feature's content or geometry may stay in `lib/<feature>/view/widgets/`. It must be built from catalog components and tokens, and it is not imported by other modules (`DEVELOPER_GUIDE.md` §9).
+A widget that only fits one feature's content or geometry may stay in `lib/<feature>/view/widgets/`. It must be built from catalog components and tokens, and it is not imported by other modules (`DESIGN_SYSTEM.md` §8.5).
 
 ### ui_lint and baseline
 - `tool/ui_lint` checks the design rules (UIL-xxx, catalog in `CI_ENFORCEMENT.md`). Rules at the blocking stage fail `test/design_system/ui_lint_test.dart` on any new violation and on any stale baseline entry.
@@ -345,15 +343,15 @@ A widget that only fits one feature's content or geometry may stay in `lib/<feat
 - A changed golden PNG needs the `goldens-approved` label (`goldens_guard.yml`), and the reviewer checks the GitHub image diff. The threshold stays 0.05% (DD-22).
 
 ### Processes
-- **Adding a token.** Use an existing role or scale value first (`DEVELOPER_GUIDE.md` §2). A value off the scale rounds up. A new surface or state goes into `lib/theme/app_surfaces.dart` as a function with a one-line comment, in the same PR that uses it. A new scale value or semantic colour needs a DD in `DESIGN_DECISIONS.md` approved by a maintainer, plus `test/theme/` contrast coverage for all seeds.
-- **Adding a shared component.** Only when the same role appears in 3+ places or 2+ modules and no existing component can take a variant (`DEVELOPER_GUIDE.md` §8). Keep the API small (variants, not booleans; no escape hatches), with no feature imports. Add a contract test in `test/design_system/contracts/`, plus a golden if it has a look. Move the call sites that justified it in the same PR. Replacing an existing API follows the compatibility process in `MIGRATION_PLAN.md` §7.4.
+- **Adding a token.** Use an existing role or scale value first (`DESIGN_SYSTEM.md` §8.1). A value off the scale rounds up. A new surface or state goes into `lib/theme/app_surfaces.dart` as a function with a one-line comment, in the same PR that uses it. A new scale value or semantic colour needs a DD in `DESIGN_DECISIONS.md` approved by a maintainer, plus `test/theme/` contrast coverage for all seeds.
+- **Adding a shared component.** Only when the same role appears in 3+ places or 2+ modules and no existing component can take a variant (`DESIGN_SYSTEM.md` §8.5). Keep the API small (variants, not booleans; no escape hatches), with no feature imports. Add a contract test in `test/design_system/contracts/`, plus a golden if it has a look. Move the call sites that justified it in the same PR. Before replacing an existing API, find every caller and write the contract test first; keep a temporary compatibility layer only when it is really needed, with a written removal condition, so two competing implementations do not remain (`DESIGN_SYSTEM.md` §3).
 - **Getting an exception approved.** Put `// ui-lint: allow UIL-xxx — <reason>` on the line directly above the flagged node. Use one rule per comment, with a real reason (12+ characters) and the DD that allows it, e.g. `(DD-24)`. Local colour is allowed only for content, export/print and OS-chrome imitation. A whole-folder exception goes into `tool/ui_lint/config.yaml` with `reason:` and needs maintainer approval. Never use `// ignore:` for ui-lint rules, and never exempt a whole file.
 
 ### PR checklist for visual changes
 Before opening the PR, confirm that no open PR already covers the topic, that the branch is current with `dev`, that it carries no unrelated files, and that the design decisions it relies on are approved. The PR description states:
 1. The goal.
 2. The DD ids it implements.
-3. The UI finding ids it fixes.
+3. The problems it fixes (what was wrong before).
 4. Changed infrastructure files (theme, `lib/widgets/`, `tool/ui_lint`).
 5. Affected components and screens.
 6. Impact on behaviour.
@@ -364,7 +362,7 @@ Before opening the PR, confirm that no open PR already covers the topic, that th
 11. Regression risks.
 12. Related PRs.
 
-The checklist is also in `.github/PULL_REQUEST_TEMPLATE.md`. The per-change checks (light/dark, RTL, width 360 and full, text ×1.3) are in `DEVELOPER_GUIDE.md` §12.
+The checklist is also in `.github/PULL_REQUEST_TEMPLATE.md`. The per-change checks (light/dark, RTL, width 360 and full, text ×1.3) and the required tests are in `DESIGN_SYSTEM.md` §8.7.
 
 ## Code Guidelines
 
