@@ -574,6 +574,14 @@
         {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"1a491541","n":1}
       ]
     },
+    "UIL-019": {
+      "lib/book_common/view/book_source_dialog.dart": [
+        {"scope":"_BookDetailsDialogContentState.build","fp":"e9d5bfc3","n":1}
+      ],
+      "lib/library/view/category_details_dialog.dart": [
+        {"scope":"_CategoryDetailsDialogContentState.build","fp":"e9d5bfc3","n":1}
+      ]
+    },
     "UIL-024": {
       "lib/widgets/commentary/commentary_content.dart": [
         {"scope":"<top>","fp":"41f259d0","n":1},
