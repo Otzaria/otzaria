@@ -239,10 +239,6 @@
       ],
       "lib/work_status/work_status_overlay.dart": [
         {"scope":"WorkStatusOverlay.build","fp":"cf73160c","n":1}
-      ],
-      "lib/workspaces/view/workspace_switcher_dialog.dart": [
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"1d0370a9","n":1},
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"84f98705","n":1}
       ]
     },
     "UIL-017": {
@@ -973,7 +969,7 @@
       ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"d9adeea4","n":1},
-        {"scope":"_AdPopupDialogState.build","fp":"e0c4ffff","n":1}
+        {"scope":"_AdPopupDialogState.build","fp":"73128c69","n":1}
       ],
       "lib/widgets/dialogs/error_report_sender_email_dialog.dart": [
         {"scope":"_EmailFieldWithAutocompleteState._buildOverlay","fp":"f7030732","n":1},
@@ -1174,9 +1170,6 @@
         {"scope":"_AttachedLibrariesPanelState._buildFolderTile","fp":"7bf03073","n":1},
         {"scope":"_AttachedLibraryTile.build","fp":"7bf03073","n":1}
       ],
-      "lib/book_common/view/commentary_panel_toolbar.dart": [
-        {"scope":"CommentaryPanelToolbar.build","fp":"9b4452fb","n":1}
-      ],
       "lib/core/info/view/app_info_dialog.dart": [
         {"scope":"_AttachedLibraryTile.build","fp":"06977d5e","n":1},
         {"scope":"_ErrorTile.build","fp":"06977d5e","n":1},
@@ -1240,19 +1233,11 @@
         {"scope":"InlineNoteEditorCard.build","fp":"9b4452fb","n":1},
         {"scope":"InlineNoteEditorCard.build","fp":"f1e89b70","n":1}
       ],
-      "lib/personal_notes/widgets/note_tile.dart": [
-        {"scope":"_NoteActions.build","fp":"113cbdf8","n":3},
-        {"scope":"_NoteActions.build","fp":"7bf03073","n":3}
-      ],
       "lib/personal_notes/widgets/notes_search_header.dart": [
         {"scope":"_NotesSearchHeaderState.build","fp":"f1e89b70","n":1}
       ],
       "lib/personal_notes/widgets/personal_note_editor.dart": [
         {"scope":"_PersonalNoteToolbar.build","fp":"113cbdf8","n":1}
-      ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"113cbdf8","n":2},
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"7bf03073","n":2}
       ],
       "lib/plugins/view/plugin_data_folder_unwritable_view.dart": [
         {"scope":"PluginDataFolderUnwritableView.build","fp":"f9f9f129","n":1}
@@ -1512,7 +1497,7 @@
       "lib/workspaces/view/workspace_switcher_dialog.dart": [
         {"scope":"_WorkspaceSwitcherDialogState._buildNewWorkspaceTile","fp":"fdf7b8de","n":1},
         {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"f9f7b292","n":1},
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"89f0467d","n":4}
+        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"89f0467d","n":3}
       ]
     },
     "UIL-030": {
