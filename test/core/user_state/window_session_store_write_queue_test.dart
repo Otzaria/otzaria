@@ -253,6 +253,19 @@ void main() {
     expect(await lists.read('history', 'items'), ['a']);
   });
 
+  test('קידוד ה-JSON של מוטציה רץ ב-worker ולא ב-isolate הקורא', () async {
+    final lists = UserStateListStore(database: db);
+    addTearDown(lists.dispose);
+    final encodedIn = ReceivePort();
+    addTearDown(encodedIn.close);
+    final isolateName = encodedIn.first;
+    await lists.mutate('history', 'items', (current) {
+      return [...current, _EncodeProbe(encodedIn.sendPort)];
+    });
+    expect(await isolateName, isNot(Isolate.current.debugName));
+    expect(await lists.read('history', 'items'), ['probe']);
+  });
+
   test('כשל COMMIT ב-worker מבטל את השינוי ומשחרר את התור', () async {
     final lists = UserStateListStore(database: db);
     addTearDown(lists.dispose);
@@ -346,4 +359,16 @@ void main() {
     expect(row.single['current_index'], 5);
     expect(row.single['active_workspace_id'], 'ws');
   });
+}
+
+/// מדווח באיזה isolate `jsonEncode` קרא ל-[toJson].
+class _EncodeProbe {
+  _EncodeProbe(this.port);
+
+  final SendPort port;
+
+  String toJson() {
+    port.send(Isolate.current.debugName);
+    return 'probe';
+  }
 }

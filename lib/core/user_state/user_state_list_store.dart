@@ -56,7 +56,8 @@ class UserStateListStore {
   /// קורא, מחיל את [apply] וכותב — אטומי מול כל כותב אחר. מחזיר את הרשימה
   /// שנכתבה.
   ///
-  /// [apply] רץ פעם אחת ב-isolate הקורא, בזמן שה-worker מחזיק נעילת כתיבה.
+  /// [apply] רץ פעם אחת ב-isolate הקורא, בזמן שה-worker מחזיק נעילת כתיבה;
+  /// פענוח ה-JSON וקידודו רצים ב-worker.
   Future<List<dynamic>> mutate(
     String box,
     String key,
@@ -65,10 +66,7 @@ class UserStateListStore {
   }) async {
     final result = await _database.runInWriteQueue((db) async {
       late List<dynamic> next;
-      String replace(String? payload) {
-        next = apply(decodePayload(payload));
-        return jsonEncode(next);
-      }
+      List<dynamic> replace(List<dynamic> current) => next = apply(current);
 
       if (UserStateDatabase.debugWriteInline) {
         await _mutateLocked(db, box, key, replace);
@@ -79,16 +77,16 @@ class UserStateListStore {
         );
         SendPort? response;
         try {
-          final (port, payload) =
+          final (port, current) =
               await Future.any([
                     requests.first,
                     written.then(
                       (_) => throw StateError('Missing mutation request'),
                     ),
                   ])
-                  as (SendPort, String?);
+                  as (SendPort, List<dynamic>);
           response = port;
-          response.send(replace(payload));
+          response.send(replace(current));
           await written;
         } catch (_) {
           response?.send(null);
@@ -139,11 +137,11 @@ class UserStateListStore {
     String key,
     SendPort requests,
   ) =>
-      (db) => _mutateLocked(db, box, key, (payload) async {
+      (db) => _mutateLocked(db, box, key, (current) async {
         final responses = ReceivePort();
         try {
-          requests.send((responses.sendPort, payload));
-          return await responses.first as String?;
+          requests.send((responses.sendPort, current));
+          return await responses.first as List<dynamic>?;
         } finally {
           responses.close();
         }
@@ -153,15 +151,15 @@ class UserStateListStore {
     Database db,
     String box,
     String key,
-    FutureOr<String?> Function(String? payload) replace,
+    FutureOr<List<dynamic>?> Function(List<dynamic> current) replace,
   ) async {
     db.execute('BEGIN IMMEDIATE');
     try {
-      final payload = await replace(_payloadIn(db, box, key));
-      if (payload == null) {
+      final next = await replace(decodePayload(_payloadIn(db, box, key)));
+      if (next == null) {
         db.execute('ROLLBACK');
       } else {
-        final (sql, args) = _upsert(box, key, payload);
+        final (sql, args) = _upsert(box, key, jsonEncode(next));
         db.execute(sql, args);
         db.execute('COMMIT');
       }
