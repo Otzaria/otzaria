@@ -7,10 +7,12 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -19,6 +21,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -35,7 +38,9 @@ void main() {
 
   setUp(() {
     final library = Library(categories: const []);
-    library.books.add(TextBook(id: 1, title: 'בראשית'));
+    library.books
+      ..add(TextBook(id: 1, title: 'בראשית'))
+      ..add(TextBook(id: 2, title: 'יהושע'));
     DataRepository.instance.library = Future.value(library);
   });
 
@@ -93,6 +98,18 @@ void main() {
       tabsBloc: tabsBloc,
       resultFinder: find.text('בראשית, פרק טו').first,
     );
+  }
+
+  AdaptiveSidePane previewPane(WidgetTester tester) =>
+      tester.widget(find.byType(AdaptiveSidePane));
+
+  BookPreviewPanel previewPanel(WidgetTester tester) =>
+      tester.widget(find.byType(BookPreviewPanel));
+
+  void expectChoosePrompt(WidgetTester tester) {
+    expect(previewPane(tester).isOpen, isTrue);
+    expect(previewPanel(tester).book, isNull);
+    expect(find.text('בחר תוצאה לתצוגה מקדימה'), findsOneWidget);
   }
 
   /// לחיצה אחת + המתנה לחלוף חלון הלחיצה הכפולה (אחרת ה-onTap לא יורה)
@@ -155,6 +172,80 @@ void main() {
     expect(harness.tab.previewTarget.value, isNull);
   });
 
+  testWidgets('סינון בעץ שבצד משאיר את חלונית התצוגה המקדימה (issue #3257)', (
+    tester,
+  ) async {
+    final searchBloc = _StaticSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    final target = harness.tab.previewTarget.value;
+    expect(target, isNotNull);
+
+    // צמצום לספר של התוצאה: החיפוש רץ שוב עם הסינון, והתוצאה נשארת מוצגת.
+    const genesis = ['/תנ"ך/תורה/בראשית'];
+    searchBloc.updateState(
+      _searchState(facets: genesis).copyWith(results: [], isLoading: true),
+    );
+    await tester.pump();
+    searchBloc.updateState(_searchState(facets: genesis));
+    await tester.pump();
+    expect(harness.tab.previewTarget.value, same(target));
+    expect(previewPane(tester).isOpen, isTrue);
+    expect(previewPanel(tester).book?.title, 'בראשית');
+
+    // מעבר לספר אחר: התוצאה סוננה, והחלונית מבקשת לבחור תוצאה.
+    searchBloc.updateState(
+      _searchState(facets: const ['/תנ"ך/נביאים/יהושע'], results: [_joshua]),
+    );
+    await tester.pump();
+    expectChoosePrompt(tester);
+
+    // בחירת תוצאה מהספר החדש מציגה אותה.
+    await singleTap(tester, find.text('יהושע, פרק כד').first);
+    expect(harness.tab.previewTarget.value?.filePath, 'id:2');
+    expect(previewPanel(tester).book?.title, 'יהושע');
+
+    // סינון בלי תוצאות כלל.
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/תנ"ך/כתובים/רות'],
+        results: [],
+      ).copyWith(totalResults: 0),
+    );
+    await tester.pump();
+    expectChoosePrompt(tester);
+
+    // שאילתה חדשה עדיין סוגרת את התצוגה המקדימה.
+    searchBloc.updateState(_searchState(query: 'חיפוש חדש'));
+    await tester.pump();
+    expect(harness.tab.previewTarget.value, isNull);
+    expect(previewPane(tester).isOpen, isFalse);
+  });
+
+  testWidgets('סינון בעץ אינו מבטל תצוגה מקדימה שבפתיחה (issue #3257)', (
+    tester,
+  ) async {
+    final searchBloc = _DeferredResolutionSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+
+    searchBloc.updateState(_searchState(facets: const ['/תנ"ך/תורה/בראשית']));
+    await tester.pump();
+    searchBloc.completeResolution();
+    await tester.pump();
+
+    expect(harness.tab.previewTarget.value?.filePath, 'id:1');
+    expect(previewPanel(tester).book?.title, 'בראשית');
+  });
+
   testWidgets('לחיצה כפולה פותחת את התוצאה בעיון', (tester) async {
     final harness = await pumpResults(tester, showPreviewPane: true);
 
@@ -198,30 +289,53 @@ void main() {
   });
 }
 
-SearchState _searchState({String query = 'תדע זרעך'}) => SearchState(
+SearchState _searchState({
+  String query = 'תדע זרעך',
+  List<String> facets = const ['/'],
+  List<SearchResult>? results,
+}) => SearchState(
   searchQuery: query,
+  configuration: SearchConfiguration(currentFacets: facets),
   totalResults: 1,
-  results: [
-    SearchResult(
-      id: BigInt.one,
-      title: 'בראשית',
-      reference: 'בראשית, פרק טו',
-      text: 'ידע תדע כי־גר יהיה זרעך',
-      segment: BigInt.from(389),
-      isPdf: false,
-      filePath: 'id:1',
-      mergedCount: 1,
-      merged: const [],
-      textStatus: TextStatus.ok,
-      continuesToNextLine: false,
-    ),
-  ],
+  results:
+      results ??
+      [
+        SearchResult(
+          id: BigInt.one,
+          title: 'בראשית',
+          reference: 'בראשית, פרק טו',
+          text: 'ידע תדע כי־גר יהיה זרעך',
+          segment: BigInt.from(389),
+          isPdf: false,
+          filePath: 'id:1',
+          mergedCount: 1,
+          merged: const [],
+          textStatus: TextStatus.ok,
+          continuesToNextLine: false,
+        ),
+      ],
+);
+
+final _joshua = SearchResult(
+  id: BigInt.two,
+  title: 'יהושע',
+  reference: 'יהושע, פרק כד',
+  text: 'ויתן לו את הזרע',
+  segment: BigInt.from(650),
+  isPdf: false,
+  filePath: 'id:2',
+  mergedCount: 1,
+  merged: const [],
+  textStatus: TextStatus.ok,
+  continuesToNextLine: false,
 );
 
 class _StaticSearchBloc extends SearchBloc {
   _StaticSearchBloc(SearchState initialSearchState) {
     emit(initialSearchState);
   }
+
+  void updateState(SearchState state) => emit(state);
 
   @override
   void add(SearchEvent event) {}
@@ -233,8 +347,6 @@ class _DeferredResolutionSearchBloc extends _StaticSearchBloc {
   final Completer<IndexedBookResolution> _resolution = Completer();
 
   int resolutionRequests = 0;
-
-  void updateState(SearchState state) => emit(state);
 
   void completeResolution() => _resolution.complete(
     (book: TextBook(id: 1, title: 'בראשית'), isStale: false),

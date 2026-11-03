@@ -10,6 +10,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/models/search_preview_target.dart';
 import 'package:otzaria/search/view/external_search_results_section.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
@@ -27,6 +28,8 @@ class _StaticSearchBloc extends SearchBloc {
   _StaticSearchBloc(SearchState initialState) {
     emit(initialState);
   }
+
+  void updateState(SearchState state) => emit(state);
 
   @override
   void add(SearchEvent event) {}
@@ -138,4 +141,36 @@ void main() {
 
     expect(openedExternally, isTrue);
   });
+
+  testWidgets(
+    'סינון בעץ משאיר תצוגה של תוצאה חיצונית, שאינה ברשימה הראשית (issue #3257)',
+    (tester) async {
+      await pumpResults(tester, showPreviewPane: true);
+      tab.previewTarget.value = SearchPreviewTarget(
+        book: TextBook(title: 'ספר חיצוני'),
+        title: 'ספר חיצוני',
+        reference: 'ספר חיצוני',
+        segment: 4,
+        isPdf: false,
+        filePath: 'hb:1234',
+        openInReader: () {},
+      );
+      await tester.pump();
+
+      searchBloc.updateState(
+        SearchState(
+          searchQuery: 'בדיקה',
+          totalResults: 0,
+          results: const [],
+          configuration: SearchConfiguration(currentFacets: const ['/תנ"ך']),
+        ),
+      );
+      await tester.pump();
+
+      final panel = tester.widget<BookPreviewPanel>(
+        find.byType(BookPreviewPanel),
+      );
+      expect(panel.book?.title, 'ספר חיצוני');
+    },
+  );
 }
