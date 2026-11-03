@@ -1234,19 +1234,11 @@
         {"scope":"_VerticalTabRow._buildCloseButton","fp":"0b3cb486","n":1},
         {"scope":"_VerticalTabRow.build","fp":"87f04357","n":1}
       ],
-      "lib/pdf_book/view/pdf_book_screen.dart": [
-        {"scope":"_PdfBookScreenState._buildLayoutModeDropdown","fp":"89f0467d","n":1}
-      ],
       "lib/pdf_book/view/pdf_commentary_panel.dart": [
         {"scope":"_PdfCommentaryGroupHeader.build","fp":"f1e89b70","n":1}
       ],
       "lib/pdf_book/view/pdf_external_matches_bar.dart": [
-        {"scope":"_PdfExternalMatchesBarState.build","fp":"0f3cbad2","n":1},
-        {"scope":"_PdfExternalMatchesBarState.build","fp":"7bf03073","n":1},
-        {"scope":"_PdfExternalMatchesBarState.build","fp":"89f0467d","n":1}
-      ],
-      "lib/pdf_book/view/pdf_zoom_bar.dart": [
-        {"scope":"PdfZoomBar.build","fp":"f1e89b70","n":2}
+        {"scope":"_PdfExternalMatchesBarState.build","fp":"7bf03073","n":1}
       ],
       "lib/personal_notes/view/personal_notes_screen.dart": [
         {"scope":"_PersonalNotesManagerScreenState._buildAllNotesList","fp":"f5e8a1bc","n":1},
