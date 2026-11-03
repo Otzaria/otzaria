@@ -34,6 +34,9 @@ class _CategoryDetailsDialogContent extends StatefulWidget {
 
 class _CategoryDetailsDialogContentState
     extends State<_CategoryDetailsDialogContent> {
+  /// עובי פס הגלילה; הקצוות עגולים לגמרי (חצי העובי).
+  static const _scrollbarThickness = 6.0;
+
   final _scroll = ScrollController();
 
   @override
@@ -63,8 +66,8 @@ class _CategoryDetailsDialogContentState
         controller: _scroll,
         thumbVisibility: true,
         thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: 6,
-        radius: const Radius.circular(3),
+        thickness: _scrollbarThickness,
+        radius: const Radius.circular(_scrollbarThickness / 2),
         child: SingleChildScrollView(
           controller: _scroll,
           padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),

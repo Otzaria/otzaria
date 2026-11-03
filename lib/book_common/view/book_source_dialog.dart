@@ -146,6 +146,9 @@ class _BookDetailsDialogContent extends StatefulWidget {
 }
 
 class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
+  /// עובי פס הגלילה; הקצוות עגולים לגמרי (חצי העובי).
+  static const _scrollbarThickness = 6.0;
+
   late final Future<BookInformation> _informationFuture;
   final _scroll = ScrollController();
 
@@ -175,8 +178,8 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
         controller: _scroll,
         thumbVisibility: true,
         thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: 6,
-        radius: const Radius.circular(3),
+        thickness: _scrollbarThickness,
+        radius: const Radius.circular(_scrollbarThickness / 2),
         child: SingleChildScrollView(
           controller: _scroll,
           padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
