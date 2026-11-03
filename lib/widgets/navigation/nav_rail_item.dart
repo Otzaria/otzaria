@@ -172,8 +172,7 @@ class NavRailItem extends StatelessWidget {
                 AnimatedDefaultTextStyle(
                   duration: AppMotion.duration(context, AppTokens.animNormal),
                   curve: Curves.easeInOutCubicEmphasized,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: Theme.of(context).textTheme.labelSmall!.copyWith(
                     color: isSelected
                         ? cs.onSecondaryContainer
                         : isTourHighlighted

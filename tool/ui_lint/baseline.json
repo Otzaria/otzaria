@@ -693,9 +693,6 @@
         {"scope":"NavTreeTile.build","fp":"1a491541","n":1},
         {"scope":"NavTreeTile.build","fp":"2d3a28a0","n":2}
       ],
-      "lib/widgets/navigation/nav_rail_item.dart": [
-        {"scope":"NavRailItem.build","fp":"a6c1de53","n":1}
-      ],
       "lib/widgets/navigation/search_pane_base.dart": [
         {"scope":"_SearchPaneBaseState.build","fp":"a7c1dfe6","n":1}
       ],
