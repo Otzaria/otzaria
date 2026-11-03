@@ -82,12 +82,15 @@ class BiographiesRepository {
 
     final ranked = <_RankedBiography>[];
     for (final bio in entries) {
+      final names = _normalizedNames[bio] ??= [
+        _normalize(bio.name),
+        for (final alias in bio.knownAs) _normalize(alias),
+      ];
       // A match on the name ranks before an equal match on another name, but
       // an exact other name ("הרמב"ם") ranks before a partial match on a name.
-      var rank = _matchRank(_normalize(bio.name), query, wholeWordPattern) * 2;
-      for (final alias in bio.knownAs) {
-        final aliasRank =
-            _matchRank(_normalize(alias), query, wholeWordPattern) * 2 + 1;
+      var rank = _matchRank(names.first, query, wholeWordPattern) * 2;
+      for (var i = 1; i < names.length; i++) {
+        final aliasRank = _matchRank(names[i], query, wholeWordPattern) * 2 + 1;
         if (aliasRank < rank) rank = aliasRank;
       }
       if (rank < _noMatch * 2) ranked.add(_RankedBiography(bio, rank));
@@ -104,13 +107,16 @@ class BiographiesRepository {
 
   static const int _noMatch = 4;
 
+  /// The name and other names after [_normalize], kept between keystrokes.
+  static final _normalizedNames = Expando<List<String>>();
+
   /// Lower is closer: exact < starts with < whole word < contains.
   static int _matchRank(String name, String query, RegExp wholeWordPattern) {
     if (name == query) return 0;
     if (name.startsWith(query)) return 1;
-    if (wholeWordPattern.hasMatch(name)) return 2;
-    if (name.contains(query)) return 3;
-    return _noMatch;
+    // A whole-word match is also a contains match; most names have neither.
+    if (!name.contains(query)) return _noMatch;
+    return wholeWordPattern.hasMatch(name) ? 2 : 3;
   }
 
   /// Hebrew geresh and gershayim match their ASCII look-alikes.

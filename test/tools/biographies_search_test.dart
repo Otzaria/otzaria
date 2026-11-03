@@ -165,6 +165,22 @@ void main() {
       expect(current.length, lessThan(entries.length));
     });
 
+    test('הקלדה הדרגתית על אותם ערכים זהה למימוש הישן בכל הקשה', () {
+      final entries = buildLargeBiographySet(500, 'אברהם');
+      // ההקשה הראשונה ('י') אינה בכינויים, כך שמה שנשמר בה חייב לשמש גם
+      // את ההקשות הבאות, שמתאימות לכינויים.
+      for (final typed in ['יוסף הכהן', 'אברהם', 'רבי אב', 'הלבן']) {
+        for (var i = 1; i <= typed.length; i++) {
+          final query = typed.substring(0, i);
+          expect(
+            BiographiesRepository.filter(entries, query).map((b) => b.name),
+            filterLegacy(entries, query.trim()).map((b) => b.name),
+            reason: query,
+          );
+        }
+      }
+    });
+
     test(
       'הסינון מהיר משמעותית כש-RegExp לא מקומפל מחדש בכל השוואה',
       () {
