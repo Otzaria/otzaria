@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1656,15 +1657,20 @@ class _SearchDialogState extends State<SearchDialog> {
     final sections = <Widget>[];
     var hasActive = false;
 
+    final pluginItems = _visiblePluginItems(mode);
     if (mode == SearchMode.exact) {
       final keys = SearchQueryBuilder.exactWordOptionKeys
           .where((key) => !_primaryExactOptionKeys.contains(key))
           .toList();
+      // פריטי התוסף באותה שורת שבבים, כמו שאר האפשרויות (q10 Q8e).
       sections.add(
         _buildExactOptionsRow(
           _disabledSearchOptionIds(state),
           keys,
-          trailing: [_buildWordOrderChip(state)],
+          trailing: [
+            _buildWordOrderChip(state),
+            ..._buildPluginSearchChips(pluginItems),
+          ],
         ),
       );
       hasActive |=
@@ -1677,9 +1683,19 @@ class _SearchDialogState extends State<SearchDialog> {
       sections.add(_buildNegativeSection());
       hasActive |= _searchTab.negativeQueryController.text.trim().isNotEmpty;
     }
-    final pluginItems = _visiblePluginItems(mode);
     if (pluginItems.isNotEmpty) {
-      sections.add(_buildPluginSearchRows(pluginItems));
+      if (mode != SearchMode.exact) {
+        sections.add(
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _buildPluginSearchChips(pluginItems),
+            ),
+          ),
+        );
+      }
       hasActive |= pluginItems.any(
         (record) =>
             _pluginSelectionValue(record.$1, record.$2) !=
@@ -1778,36 +1794,31 @@ class _SearchDialogState extends State<SearchDialog> {
         .toList();
   }
 
-  Widget _buildPluginSearchRows(
+  /// פריטי התוסף בשפה של שאר האפשרויות: תיבה היא FilterChip ומתג הוא
+  /// AppTogglePill, כמו במצב המתקדם (q10 Q8e).
+  List<Widget> _buildPluginSearchChips(
     List<(String, PluginSearchDialogItem)> visibleItems,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (pluginId, item) in visibleItems)
-          if (item.isSwitch)
-            SwitchListTile(
-              key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(item.title),
-              value: _pluginSelectionValue(pluginId, item),
-              onChanged: (value) =>
-                  _updatePluginSearchSelection(pluginId, item, value),
-            )
-          else
-            CheckboxListTile(
-              key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              title: Text(item.title),
-              value: _pluginSelectionValue(pluginId, item),
-              onChanged: (value) =>
-                  _updatePluginSearchSelection(pluginId, item, value ?? false),
-            ),
-      ],
-    );
+    return [
+      for (final (pluginId, item) in visibleItems)
+        if (item.isSwitch)
+          AppTogglePill(
+            key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
+            label: item.title,
+            value: _pluginSelectionValue(pluginId, item),
+            onChanged: (value) =>
+                _updatePluginSearchSelection(pluginId, item, value),
+          )
+        else
+          FilterChip(
+            key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
+            label: Text(item.title),
+            visualDensity: VisualDensity.compact,
+            selected: _pluginSelectionValue(pluginId, item),
+            onSelected: (value) =>
+                _updatePluginSearchSelection(pluginId, item, value),
+          ),
+    ];
   }
 
   Widget _buildFooter() {
