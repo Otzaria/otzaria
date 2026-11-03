@@ -182,3 +182,11 @@ rules:
     exclude:
       - path: lib/widgets/layout/**
         reason: רכיבי הכרטיס המשותפים (AppCard, ResultCardFrame)
+
+
+  UIL-013:
+    exclude:
+      - path: lib/widgets/feedback/**
+        reason: רכיבי המשוב המשותפים (LoadingIndicator)
+      - path: lib/widgets/controls/action_buttons.dart
+        reason: מצב הטעינה של ActionButton (isLoading)

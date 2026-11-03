@@ -15,6 +15,7 @@ import 'primary_color_rule.dart';
 import 'raw_card_rule.dart';
 import 'raw_dialog_rule.dart';
 import 'raw_menu_rule.dart';
+import 'raw_progress_indicator_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
 import 'shared_feature_import_rule.dart';
@@ -37,6 +38,7 @@ const List<UiLintRule> uiLintRules = [
   TextRtlDirectionRule(),
   RawTextFieldRule(),
   RawCardRule(),
+  RawProgressIndicatorRule(),
   RawMenuRule(),
   HardcodedColorRule(),
   LocalAlphaRule(),
