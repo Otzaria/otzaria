@@ -23,6 +23,9 @@ abstract class _ST {
   static const double heightSlim = AppInputTokens.compactHeight;
   static const double fontSizeSlim = AppInputTokens.compactFontSize;
 
+  /// רוחב תיבת הקלט שתווית של כפתור לא תצמצם מתחתיו.
+  static const double minInputWidthWithLabels = 120.0;
+
   static const double fillAlphaUnfocused = AppInputTokens.unfocusedAlpha;
   static const double fillAlphaFocused = AppInputTokens.focusedAlpha;
   static const Duration collapseAnim = Duration(milliseconds: 220);
@@ -186,6 +189,12 @@ class OtzariaSearchDisplayBar extends StatelessWidget {
 abstract class OtzariaSearchFieldExtraActions implements Listenable {
   const OtzariaSearchFieldExtraActions();
 
+  /// כמה כפתורים [build] עשוי להחזיר לכל היותר, לחישוב המקום לתוויות.
+  int get maxButtonCount => 1;
+
+  /// האם אחד הכפתורים עשוי להציג [OtzariaSearchFieldButton.label].
+  bool get mayShowLabels => false;
+
   /// הכפתורים לשדה פעיל; null כשאין כרגע כפתורים.
   Widget? build(
     BuildContext context, {
@@ -275,6 +284,8 @@ class OtzariaSearchField extends StatefulWidget {
 }
 
 class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
+  // השדה עובר אל LayoutBuilder וממנו כשתווית אפשרית, בלי לאבד את מצבו.
+  final _fieldKey = GlobalKey();
   late FocusNode _effectiveFocusNode;
   bool _hasFocus = false;
 
@@ -484,7 +495,19 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       vertical: 0,
     );
 
+    final actionSize = isSlim
+        ? OtzariaSearchActionSize.slim
+        : OtzariaSearchActionSize.regular;
+    final prefixMinWidth = isSlim ? 36.0 : 44.0;
+    final mayShowLabels =
+        (extraActions != null && widget.extraActions!.mayShowLabels) ||
+        (widget.trailingActions?.any(
+              (action) =>
+                  action is OtzariaSearchFieldButton && action.label != null,
+            ) ??
+            false);
     Widget field = SizedBox(
+      key: _fieldKey,
       height: effectiveHeight,
       child: RtlTextField(
         controller: widget.controller,
@@ -505,7 +528,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           isDense: true,
           prefixIcon: prefixIcon,
           prefixIconConstraints: BoxConstraints(
-            minWidth: isSlim ? 36 : 44,
+            minWidth: prefixMinWidth,
             minHeight: effectiveHeight,
           ),
           suffixIcon: suffixWidget,
@@ -544,11 +567,35 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ],
       );
     }
-    return OtzariaSearchActionScope(
-      size: isSlim
-          ? OtzariaSearchActionSize.slim
-          : OtzariaSearchActionSize.regular,
+    Widget scoped(double labelBudget) => OtzariaSearchActionScope(
+      size: actionSize,
+      labelBudget: labelBudget,
       child: field,
+    );
+    if (!mayShowLabels) return scoped(0);
+    // בשורה נפרדת התוויות חולקות רק את רוחב הפעולות; הניקוי נשאר בקלט.
+    // בתוך השדה משאירים גם מקום לאייקון, לריפוד ולרוחב קלט שמיש.
+    final clearButtons = hasText && widget.onClear != null ? 1 : 0;
+    final buttons =
+        (widget.trailingActions?.length ?? 0) +
+        clearButtons +
+        (extraActions == null ? 0 : widget.extraActions!.maxButtonCount);
+    return LayoutBuilder(
+      builder: (context, constraints) => scoped(
+        constraints.maxWidth.isFinite
+            ? math.max(
+                0,
+                widget.actionsBelow
+                    ? constraints.maxWidth -
+                          (buttons - clearButtons) * actionSize.button
+                    : constraints.maxWidth -
+                          prefixMinWidth -
+                          contentPadding.horizontal -
+                          buttons * actionSize.button -
+                          _ST.minInputWidthWithLabels,
+              )
+            : double.infinity,
+      ),
     );
   }
 

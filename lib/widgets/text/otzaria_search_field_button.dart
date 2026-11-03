@@ -36,21 +36,34 @@ class OtzariaSearchActionSize {
 class OtzariaSearchActionScope extends InheritedWidget {
   final OtzariaSearchActionSize size;
 
+  /// כמה רוחב נוסף מותר לתוויות של [OtzariaSearchFieldButton.label] בלי
+  /// לצמצם את תיבת הקלט מתחת לרוחב שמיש. 0 = אין מקום: אייקון בלבד.
+  final double labelBudget;
+
   const OtzariaSearchActionScope({
     super.key,
     required this.size,
+    this.labelBudget = 0,
     required super.child,
   });
 
+  /// מחוץ לשדה חיפוש אין מגבלה.
+  static double labelBudgetOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<OtzariaSearchActionScope>()
+          ?.labelBudget ??
+      double.infinity;
+
   @override
   bool updateShouldNotify(OtzariaSearchActionScope oldWidget) =>
-      size != oldWidget.size;
+      size != oldWidget.size || labelBudget != oldWidget.labelBudget;
 }
 
 /// כפתור אייקון בתוך שדה חיפוש: גודל מהשדה, tooltip חובה.
 ///
 /// [selected] — מצב דלוק של כפתור מתג, באותו רקע כמו [BarButton] נבחר.
 /// [busy] — ספינר במקום האייקון; הכפתור נשאר לחיץ.
+/// [label] — תווית קצרה ליד האייקון, בגלולה (q9 שאלה 14), כשיש לה מקום בשדה.
 class OtzariaSearchFieldButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -64,6 +77,37 @@ class OtzariaSearchFieldButton extends StatelessWidget {
   /// [clearIcon] של המידות במקום [icon].
   final bool clearGlyph;
 
+  /// מוצגת רק אם הגלולה נכנסת ב־[OtzariaSearchActionScope.labelBudget];
+  /// אחרת הכפתור הוא אייקון בלבד, ו־[tooltip] אומר את אותו הדבר.
+  final String? label;
+
+  /// גודל התווית: גופן השדה הצר.
+  static const double labelFontSize = AppInputTokens.compactFontSize;
+  static const double _labelPadding = AppTokens.spaceSM;
+  static const double _labelGap = AppTokens.spaceXS;
+
+  /// כמה הכפתור רחב יותר עם [label] מאשר בלעדיה.
+  static double labelExtraWidth(
+    BuildContext context,
+    String label,
+    OtzariaSearchActionSize size,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: DefaultTextStyle.of(
+          context,
+        ).style.merge(const TextStyle(fontSize: labelFontSize)),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return _labelPadding * 2 + size.icon + _labelGap + width - size.button;
+  }
+
   const OtzariaSearchFieldButton({
     super.key,
     required this.icon,
@@ -73,6 +117,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
     this.busy = false,
     this.color,
     this.clearGlyph = false,
+    this.label,
   });
 
   @override
@@ -80,6 +125,13 @@ class OtzariaSearchFieldButton extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final size = OtzariaSearchActionSize.of(context);
     final iconSize = clearGlyph ? size.clearIcon : size.icon;
+    final label = this.label;
+    if (label != null &&
+        !busy &&
+        labelExtraWidth(context, label, size) <=
+            OtzariaSearchActionScope.labelBudgetOf(context)) {
+      return _buildLabeled(context, cs, size, label);
+    }
     return SizedBox.square(
       dimension: size.button,
       child: IconButton(
@@ -103,6 +155,57 @@ class OtzariaSearchFieldButton extends StatelessWidget {
                 shape: AppTokens.roundedShape,
               )
             : null,
+      ),
+    );
+  }
+
+  // גלולה, כמו שתוארה האפשרות שנבחרה (DD-31, DD-04).
+  Widget _buildLabeled(
+    BuildContext context,
+    ColorScheme cs,
+    OtzariaSearchActionSize size,
+    String label,
+  ) {
+    final fg = selected
+        ? cs.onSecondaryContainer
+        : (color ?? cs.onSurfaceVariant);
+    const shape = StadiumBorder();
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        container: true,
+        child: SizedBox(
+          height: size.button,
+          child: Material(
+            color: selected
+                ? AppSurfaces.barButtonSelected(cs)
+                : Colors.transparent,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: shape,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _labelPadding),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: size.icon, color: fg),
+                    const SizedBox(width: _labelGap),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(fontSize: labelFontSize, color: fg),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

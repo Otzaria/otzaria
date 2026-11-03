@@ -26,6 +26,14 @@ class PluginSearchFieldExtraActions extends OtzariaSearchFieldExtraActions {
       PluginSearchFieldActionsRegistry.instance;
 
   @override
+  int get maxButtonCount => _registry.actionsFor(field).length;
+
+  @override
+  bool get mayShowLabels => _registry
+      .actionsFor(field)
+      .any((entry) => entry.$2.isProviderBooksFilter);
+
+  @override
   void addListener(VoidCallback listener) => _registry.addListener(listener);
 
   @override
@@ -217,25 +225,30 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
     final source = _libraryBooks.sourceFilter.value.sourceFor(pluginId);
     final icon =
         pluginIconFromName(action.icon) ?? FluentIcons.puzzle_piece_24_regular;
-    final (iconData, state) = switch (source) {
+    final (iconData, state, label) = switch (source) {
       PluginLibraryBooksSource.all => (
         icon,
         context.settingsText('מציג את כולם'),
+        null,
       ),
       PluginLibraryBooksSource.pluginOnly => (
         pluginIconFromName(action.activeIcon) ?? icon,
         context.settingsText('מציג רק ספרי התוסף'),
+        action.pluginOnlyLabel ?? context.settingsText('רק התוסף'),
       ),
       PluginLibraryBooksSource.libraryOnly => (
         pluginIconFromName(action.libraryOnlyIcon) ?? icon,
         context.settingsText('מציג רק ספרי הספרייה'),
+        action.libraryOnlyLabel ?? context.settingsText('רק הספרייה'),
       ),
     };
-    // סינון פעיל מסומן גם ברקע הנבחר, לא רק בהחלפת האייקון.
+    // סינון פעיל מסומן ברקע הנבחר ובתווית, לא רק בהחלפת האייקון (q9 שאלה
+    // 14). בשדה צר התווית יורדת, והכפתור חוזר לאייקון ול-tooltip.
     return OtzariaSearchFieldButton(
       key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
       icon: iconData,
       tooltip: '${action.title}: $state',
+      label: label,
       selected: source != PluginLibraryBooksSource.all,
       onPressed: () => _libraryBooks.cycleSource(pluginId),
     );

@@ -324,6 +324,55 @@ void main() {
       );
     });
 
+    test('pluginOnlyLabel ו-libraryOnlyLabel דורשים minAppVersion 0.9.99', () {
+      Map<String, dynamic> manifest(String minAppVersion) {
+        final json = actionsManifest(
+          permissions: const [
+            'app.startup_contributions',
+            'search.field_actions',
+            'library.books.provide',
+          ],
+          minAppVersion: minAppVersion,
+          items: [
+            {
+              'id': 'source',
+              'title': 'מקור הספרים',
+              'mode': 'providerBooksFilter',
+              'pluginOnlyLabel': 'רק בר אילן',
+              'libraryOnlyLabel': 'רק אוצריא',
+            },
+          ],
+        );
+        ((json['contributes'] as Map)['startup'] as Map)['libraryBooks'] = [
+          {'id': 'books', 'provider': 'mylib', 'title': 'הספרייה שלי'},
+        ];
+        return json;
+      }
+
+      expect(_run(tempDir, manifest('0.9.99')).errors, isEmpty);
+      final old = _run(tempDir, manifest('0.9.98.3'));
+      expect(old.errors, contains(contains('pluginOnlyLabel')));
+      expect(old.errors, contains(contains('0.9.99')));
+    });
+
+    test('תווית ריקה — שגיאה', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          minAppVersion: '0.9.99',
+          items: [
+            {
+              'id': 'a',
+              'title': 'א',
+              'mode': 'providerBooksFilter',
+              'libraryOnlyLabel': ' ',
+            },
+          ],
+        ),
+      );
+      expect(report.errors, contains(contains('libraryOnlyLabel')));
+    });
+
     test('libraryOnlyIcon בלי mode providerBooksFilter — שגיאה', () {
       final report = _run(
         tempDir,
