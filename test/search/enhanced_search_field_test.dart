@@ -4,34 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:otzaria/history/bloc/history_bloc.dart';
-import 'package:otzaria/history/bloc/history_event.dart';
-import 'package:otzaria/history/bloc/history_state.dart';
-import 'package:otzaria/library/bloc/library_bloc.dart';
-import 'package:otzaria/library/bloc/library_event.dart' show LibraryEvent;
-import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
-class MockHistoryBloc extends MockBloc<HistoryEvent, HistoryState>
-    implements HistoryBloc {}
-
-class MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
-    implements LibraryBloc {}
-
 class MockSearchBloc extends MockBloc<SearchEvent, SearchState>
     implements SearchBloc {}
 
 class _FakeSearchEvent extends Fake implements SearchEvent {}
-
-class _TestSearchDialogWrapper {
-  final SearchingTab tab;
-
-  _TestSearchDialogWrapper(this.tab);
-}
 
 void main() {
   testWidgets('שדה החיפוש מקבל רקע מלא מתוך ה-theme', (
@@ -54,7 +36,8 @@ void main() {
           value: tab.searchBloc,
           child: Scaffold(
             body: EnhancedSearchField(
-              widget: _TestSearchDialogWrapper(tab),
+              tab: tab,
+              onSubmit: () {},
               showInlineSearchButton: false,
             ),
           ),
@@ -74,61 +57,6 @@ void main() {
       textField.decoration?.hintText,
       'הקלד מילות חיפוש · לצמצום: מצה@רשי/פסחים',
     );
-  });
-
-  testWidgets('שליחת חיפוש מעדכנת את כותרת הטאב', (tester) async {
-    final tab = SearchingTab('חיפוש', null);
-    final historyBloc = MockHistoryBloc();
-    final libraryBloc = MockLibraryBloc();
-    final searchBloc = MockSearchBloc();
-
-    whenListen(
-      historyBloc,
-      const Stream<HistoryState>.empty(),
-      initialState: HistoryInitial(),
-    );
-    whenListen(
-      libraryBloc,
-      const Stream<LibraryState>.empty(),
-      initialState: const LibraryState(),
-    );
-    whenListen(
-      searchBloc,
-      const Stream<SearchState>.empty(),
-      initialState: tab.searchBloc.state,
-    );
-
-    addTearDown(() async {
-      await historyBloc.close();
-      await libraryBloc.close();
-      await searchBloc.close();
-      tab.dispose();
-    });
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<HistoryBloc>.value(value: historyBloc),
-            BlocProvider<LibraryBloc>.value(value: libraryBloc),
-            BlocProvider<SearchBloc>.value(value: searchBloc),
-          ],
-          child: Scaffold(
-            body: EnhancedSearchField(
-              widget: _TestSearchDialogWrapper(tab),
-              showInlineSearchButton: false,
-            ),
-          ),
-        ),
-      ),
-    );
-
-    await tester.enterText(find.byType(TextField), 'צדיק גאולה');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-
-    expect(tab.title, 'חיפוש: צדיק גאולה');
-    expect(tab.titleNotifier.value, 'חיפוש: צדיק גאולה');
   });
 
   testWidgets('כפתור הניקוי בשדה הראשי תמיד מוצג ומאפס גם כשהשדה ריק', (
@@ -153,7 +81,8 @@ void main() {
           value: searchBloc,
           child: Scaffold(
             body: EnhancedSearchField(
-              widget: _TestSearchDialogWrapper(tab),
+              tab: tab,
+              onSubmit: () {},
               showInlineSearchButton: false,
             ),
           ),
