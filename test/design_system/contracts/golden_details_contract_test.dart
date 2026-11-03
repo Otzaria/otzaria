@@ -89,7 +89,7 @@ void main() {
       );
     });
 
-    testWidgets('AppDialog.warning: בלי X, תג אזהרה בטון שגיאה, אישור כטקסט', (
+    testWidgets('AppDialog.warning: בלי X, תג אזהרה בטון שגיאה, אישור מלא', (
       tester,
     ) async {
       await showInApp<bool>(
@@ -109,7 +109,7 @@ void main() {
       expect(
         find.descendant(
           of: find.widgetWithText(ActionButton, 'צא בלי לשמור'),
-          matching: find.byType(TextButton),
+          matching: find.byType(FilledButton),
         ),
         findsOneWidget,
       );

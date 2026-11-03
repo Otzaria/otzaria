@@ -267,7 +267,7 @@ void main() {
   });
 
   group('AppDialog.warning', () {
-    testWidgets('תג אזהרה בגוון error, ביטול מלא ואישור טקסט אדום', (
+    testWidgets('תג אזהרה בגוון error, ביטול מלא ואישור מלא ב-error', (
       tester,
     ) async {
       await showInApp<bool>(
@@ -292,9 +292,9 @@ void main() {
 
       final cancel = firstMaterialIn(tester, _button<FilledButton>('ביטול'));
       expect(cancel.color, cs.primary);
-      final confirm = firstMaterialIn(tester, _button<TextButton>('המשך'));
-      expect(confirm.color, Colors.transparent);
-      expect(confirm.textStyle?.color, cs.error);
+      final confirm = firstMaterialIn(tester, _button<FilledButton>('המשך'));
+      expect(confirm.color, cs.error);
+      expect(confirm.textStyle?.color, cs.onError);
       expect(confirm.shape, AppTokens.roundedShape);
     });
 

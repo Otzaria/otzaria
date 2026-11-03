@@ -15,7 +15,7 @@ enum _Variant { recommended, neutral, ghost, warning }
 /// - [ActionButton.recommended] — FilledButton (Primary) לפעולה מומלצת
 /// - [ActionButton.neutral] — FilledButton.tonal לפעולה ניטרלית
 /// - [ActionButton.ghost] — TextButton שקוף וניטרלי
-/// - [ActionButton.warning] — TextButton שקוף עם טקסט cs.error לפעולות מסוכנות
+/// - [ActionButton.warning] — FilledButton ברקע cs.error לפעולות מסוכנות
 class ActionButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -96,11 +96,14 @@ class ActionButton extends StatelessWidget {
     _Variant.recommended => cs.onPrimary,
     _Variant.neutral => cs.onSecondaryContainer,
     _Variant.ghost => cs.primary,
-    _Variant.warning => cs.error,
+    _Variant.warning => cs.onError,
   };
 
   ButtonStyle? _buttonStyle(ColorScheme cs) => switch (_variant) {
-    _Variant.warning => TextButton.styleFrom(foregroundColor: cs.error),
+    _Variant.warning => FilledButton.styleFrom(
+      backgroundColor: cs.error,
+      foregroundColor: cs.onError,
+    ),
     _Variant.neutral when errorText => FilledButton.styleFrom(
       foregroundColor: cs.error,
     ),
@@ -112,8 +115,9 @@ class ActionButton extends StatelessWidget {
     required Widget child,
     required ButtonStyle? style,
   }) => switch (_variant) {
-    _Variant.recommended => FilledButton(
+    _Variant.recommended || _Variant.warning => FilledButton(
       onPressed: onPressed,
+      style: style,
       focusNode: focusNode,
       autofocus: autofocus,
       child: child,
@@ -125,7 +129,7 @@ class ActionButton extends StatelessWidget {
       autofocus: autofocus,
       child: child,
     ),
-    _Variant.ghost || _Variant.warning => TextButton(
+    _Variant.ghost => TextButton(
       onPressed: onPressed,
       style: style,
       focusNode: focusNode,
@@ -137,8 +141,9 @@ class ActionButton extends StatelessWidget {
   Widget _withIcon({required Widget leading, required ButtonStyle? style}) {
     final label = Text(text, textAlign: textAlign);
     return switch (_variant) {
-      _Variant.recommended => FilledButton.icon(
+      _Variant.recommended || _Variant.warning => FilledButton.icon(
         onPressed: onPressed,
+        style: style,
         focusNode: focusNode,
         autofocus: autofocus,
         icon: leading,
@@ -152,7 +157,7 @@ class ActionButton extends StatelessWidget {
         icon: leading,
         label: label,
       ),
-      _Variant.ghost || _Variant.warning => TextButton.icon(
+      _Variant.ghost => TextButton.icon(
         onPressed: onPressed,
         icon: leading,
         label: label,

@@ -134,7 +134,7 @@ void main() {
 
     await tester.tap(find.text('מחק את כל הסימניות'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'מחק'));
+    await tester.tap(find.widgetWithText(FilledButton, 'מחק'));
     await tester.pumpAndSettle();
     expect(bloc.clearAllCalls, 1);
   });
@@ -159,7 +159,7 @@ void main() {
 
     await tester.tap(find.byTooltip('מחיקה'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'מחק'));
+    await tester.tap(find.widgetWithText(FilledButton, 'מחק'));
     await tester.pumpAndSettle();
     expect(bloc.removedGroups, ['g1']);
   });
