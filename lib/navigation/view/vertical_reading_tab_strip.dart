@@ -169,16 +169,27 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
               HardwareKeyboard.instance.isShiftPressed) {
             return;
           }
-          // ה-state שנתפס ב-build עלול להיות מיושן עד הלחיצה.
-          final bloc = context.read<TabsBloc>();
-          final target = bloc.state.tabs.indexOf(tab);
-          if (target != -1 && target != bloc.state.currentTabIndex) {
-            bloc.add(SetCurrentTab(target));
-          }
+          _activate(context, tab);
         },
-        child: AutoScrollBarrier(child: child),
+        child: AutoScrollBarrier(
+          child: TabActivationRegion(
+            selected: index == state.currentTabIndex,
+            label: tab.title,
+            onActivate: () => _activate(context, tab),
+            child: child,
+          ),
+        ),
       ),
     );
+  }
+}
+
+/// בחירה בכרטיסיה; ה-state שנתפס ב-build עלול להיות מיושן עד הלחיצה.
+void _activate(BuildContext context, OpenedTab tab) {
+  final bloc = context.read<TabsBloc>();
+  final target = bloc.state.tabs.indexOf(tab);
+  if (target != -1 && target != bloc.state.currentTabIndex) {
+    bloc.add(SetCurrentTab(target));
   }
 }
 
