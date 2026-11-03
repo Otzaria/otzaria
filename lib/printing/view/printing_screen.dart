@@ -2735,10 +2735,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
               if (value == null || !_itemScrollController.isAttached) {
                 return;
               }
-              _itemScrollController.scrollTo(
-                index: value - 1,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
+              AppMotion.scroll(
+                context,
+                AppTokens.animPanelSlide,
+                animate: (duration) => _itemScrollController.scrollTo(
+                  index: value - 1,
+                  duration: duration,
+                  curve: Curves.easeInOut,
+                ),
+                jump: () => _itemScrollController.jumpTo(index: value - 1),
               );
             },
           ),
@@ -2773,10 +2778,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
             return GestureDetector(
               onTap: () {
                 if (!_itemScrollController.isAttached) return;
-                _itemScrollController.scrollTo(
-                  index: i,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
+                AppMotion.scroll(
+                  context,
+                  AppTokens.animPanelSlide,
+                  animate: (duration) => _itemScrollController.scrollTo(
+                    index: i,
+                    duration: duration,
+                    curve: Curves.easeInOut,
+                  ),
+                  jump: () => _itemScrollController.jumpTo(index: i),
                 );
               },
               child: Column(

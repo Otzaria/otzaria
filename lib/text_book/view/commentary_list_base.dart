@@ -93,6 +93,8 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -1346,11 +1348,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       }
     }
     if (pos == null || pos.itemLeadingEdge <= 0.5) return;
-    _itemScrollController.scrollTo(
-      index: headerIndex,
-      alignment: 0.05,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    AppMotion.scroll(
+      context,
+      AppTokens.animNormal,
+      animate: (duration) => _itemScrollController.scrollTo(
+        index: headerIndex,
+        alignment: 0.05,
+        duration: duration,
+        curve: Curves.easeOut,
+      ),
+      jump: () =>
+          _itemScrollController.jumpTo(index: headerIndex, alignment: 0.05),
     );
   }
 

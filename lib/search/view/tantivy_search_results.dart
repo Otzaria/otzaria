@@ -45,6 +45,7 @@ import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/result_card_frame.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SearchResult, TextStatus;
 
@@ -364,10 +365,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     } else {
       return;
     }
-    _scrollController.animateTo(
+    AppMotion.scrollPosition(
+      position,
       target.clamp(position.minScrollExtent, position.maxScrollExtent),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOut,
+      AppTokens.animFast,
     );
   }
 

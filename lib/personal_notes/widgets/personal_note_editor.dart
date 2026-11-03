@@ -16,6 +16,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 // LEFT/RIGHT swapped (flutter_quill doesn't flip them for RTL). UP/DOWN use
 // Quill's adjacentLineAction: Windows input can't find lines across blocks.
@@ -211,7 +212,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
       // לא ה-PageView של כרטיסייה מוסתרת.
       Scrollable.maybeOf(ctx)?.position.ensureVisible(
         ctx.findRenderObject()!,
-        duration: const Duration(milliseconds: 200),
+        duration: AppMotion.duration(ctx, AppTokens.animPanelOpacity),
         curve: Curves.easeInOut,
         alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
       );

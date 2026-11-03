@@ -74,6 +74,8 @@ import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// ברירות מחדל לגודל הטורים, כחלק מהדף
 const double _kCommentaryPaneWidthFactor = 0.17;
@@ -2610,10 +2612,18 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         // סנכרון ראשוני: הרשימה נבנתה מאינדקס 0 וחייבת להגיע למקומה מיד.
         _scrollController.jumpTo(index: targetIndex, alignment: _syncAlignment);
       } else if (state.selectedIndex != null) {
-        _scrollController.scrollTo(
-          index: targetIndex,
-          duration: const Duration(milliseconds: 300),
-          alignment: _syncAlignment,
+        AppMotion.scroll(
+          context,
+          AppTokens.animPanelSlide,
+          animate: (duration) => _scrollController.scrollTo(
+            index: targetIndex,
+            duration: duration,
+            alignment: _syncAlignment,
+          ),
+          jump: () => _scrollController.jumpTo(
+            index: targetIndex,
+            alignment: _syncAlignment,
+          ),
         );
       } else {
         _glideToTarget(targetIndex);

@@ -150,6 +150,7 @@ import 'package:otzaria/utils/navigation/external_book_link_resolver.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:kosher_dart/kosher_dart.dart' show Daf;
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show getDafYomi, formatAmud;
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart'
@@ -2212,10 +2213,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || !pageController.hasClients || !_isCrossSliding) return;
 
-    await pageController.animateToPage(
-      slot,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+    await AppMotion.scroll(
+      context,
+      AppTokens.animPanelSlide,
+      animate: (duration) => pageController.animateToPage(
+        slot,
+        duration: duration,
+        curve: Curves.easeInOut,
+      ),
+      jump: () => pageController.jumpToPage(slot),
     );
     if (!mounted || !pageController.hasClients || !_isCrossSliding) return;
 
@@ -2314,10 +2320,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
             setState(() {
               _currentPageIndex = targetPage;
             });
-            pageController.animateToPage(
-              targetPage,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
+            AppMotion.scroll(
+              context,
+              AppTokens.animPanelSlide,
+              animate: (duration) => pageController.animateToPage(
+                targetPage,
+                duration: duration,
+                curve: Curves.easeInOut,
+              ),
+              jump: () => pageController.jumpToPage(targetPage),
             );
           case PageTransitionKind.crossSlide:
             pageTransition = _slideToDistantPage(currentPage, targetPage);

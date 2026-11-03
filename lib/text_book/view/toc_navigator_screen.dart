@@ -16,6 +16,8 @@ import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class TocViewer extends StatefulWidget {
   const TocViewer({
@@ -291,11 +293,20 @@ class _TocViewerState extends State<TocViewer>
                   positions
                       .map((p) => p.index)
                       .reduce((a, b) => a > b ? a : b));
-    _virtualScrollController.scrollTo(
-      index: flatIndex,
-      alignment: below ? 0.85 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+    final alignment = below ? 0.85 : 0.0;
+    AppMotion.scroll(
+      context,
+      AppTokens.animPanelSlide,
+      animate: (duration) => _virtualScrollController.scrollTo(
+        index: flatIndex,
+        alignment: alignment,
+        duration: duration,
+        curve: Curves.easeInOut,
+      ),
+      jump: () => _virtualScrollController.jumpTo(
+        index: flatIndex,
+        alignment: alignment,
+      ),
     );
     return true;
   }

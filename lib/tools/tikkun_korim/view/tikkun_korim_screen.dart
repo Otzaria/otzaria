@@ -36,6 +36,8 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show showWarningDialog;
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// רוחב בורר בסרגל העליון והריפוד משני צדדיו.
 const double _kSelectorWidth = 150;
@@ -155,10 +157,19 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
         )) {
       return;
     }
-    _scrollController.scrollTo(
-      index: line.clamp(0, (state.currentLines.length - 1).clamp(0, 1 << 30)),
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    final index = line.clamp(
+      0,
+      (state.currentLines.length - 1).clamp(0, 1 << 30),
+    );
+    AppMotion.scroll(
+      context,
+      AppTokens.animNormal,
+      animate: (duration) => _scrollController.scrollTo(
+        index: index,
+        duration: duration,
+        curve: Curves.easeOut,
+      ),
+      jump: () => _scrollController.jumpTo(index: index),
     );
   }
 

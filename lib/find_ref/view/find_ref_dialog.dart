@@ -464,7 +464,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       if (context != null) {
         Scrollable.ensureVisible(
           context,
-          duration: const Duration(milliseconds: 200),
+          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           curve: Curves.easeInOut,
           alignment: 0.5, // מרכז המסך
         );
@@ -513,9 +513,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
               icon: const Icon(FluentIcons.chevron_down_24_regular),
               tooltip: context.settingsText('גלול לסוף הרשימה'),
               onPressed: () {
-                _resultsScrollController.animateTo(
-                  _resultsScrollController.position.maxScrollExtent,
-                  duration: const Duration(milliseconds: 250),
+                final position = _resultsScrollController.position;
+                AppMotion.scrollPosition(
+                  position,
+                  position.maxScrollExtent,
+                  AppTokens.animNormal,
                   curve: Curves.easeOut,
                 );
               },

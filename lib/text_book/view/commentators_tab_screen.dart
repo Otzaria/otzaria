@@ -46,6 +46,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 const _kAllChapter = -1;
 
@@ -662,11 +664,16 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         (it) => it.isChapter && it.chapter == chapter,
       );
       if (idx < 0) return;
-      _navScrollController.scrollTo(
-        index: idx,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+      AppMotion.scroll(
+        context,
+        AppTokens.animPanelSlide,
+        animate: (duration) => _navScrollController.scrollTo(
+          index: idx,
+          alignment: 0.4,
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+        jump: () => _navScrollController.jumpTo(index: idx, alignment: 0.4),
       );
     });
   }
