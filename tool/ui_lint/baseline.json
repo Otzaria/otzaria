@@ -175,10 +175,10 @@
         {"scope":"_TantivyFullTextSearchState._buildResultCounts","fp":"a9c1e30c","n":1}
       ],
       "lib/search/view/tantivy_search_results.dart": [
+        {"scope":"EngineResultCard.build","fp":"a8c1e179","n":1},
+        {"scope":"EngineResultCard.build","fp":"aac1e49f","n":1},
+        {"scope":"EngineResultCard.build","fp":"abc1e632","n":1},
         {"scope":"_MergedSiblingsSectionState.build","fp":"a8c1e179","n":3},
-        {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"a8c1e179","n":1},
-        {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"aac1e49f","n":1},
-        {"scope":"_TantivySearchResultsState._buildEngineListSliver","fp":"abc1e632","n":1},
         {"scope":"_TantivySearchResultsState._buildTruncatedBanner","fp":"a8c1e179","n":1}
       ],
       "lib/semantic_search/view/semantic_search_results_screen.dart": [
