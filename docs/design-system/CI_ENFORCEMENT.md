@@ -71,7 +71,7 @@ test/design_system/
 | UIL-009 | `UiSnack.*` מקבל מחרוזת מקטלוג, גם בארגומנט בשם | ארגומנט ליטרלי | — | 0 | 1 · **חוסם** |
 | UIL-010 | אין `textDirection: TextDirection.rtl` ב־`Text`/`Text.rich`/`SelectableText` | ctor + named arg | חלונות `ContentDirectionality` (פסוקים בעברית במצב אנגלית), עם allow (JX-09) | 0 (5 חריגים ב־allow: ארבעת הציטוטים במסך "אודות" ומסך שגיאת האתחול) | 1 · **חוסם**, נעול (strict) |
 | UIL-011 | אין `TextField(`/`TextFormField(`/`EditableText(` גולמי | ctor | `rtl_text_field.dart` | 0 | 1 · **חוסם** |
-| UIL-012 | אין `Card(` גולמי | ctor | `lib/widgets/layout/**` | 3 | 2 · לא מומש |
+| UIL-012 | אין `Card(` גולמי | ctor | `lib/widgets/layout/**` | 3 (כרטיסי המשטח במסך "אודות", כרטיס הזמן בלוח השנה, כרטיס הארגון בחלון הפרסומת) | 2 · **חוסם** |
 | UIL-013 | אין `CircularProgressIndicator(` מחוץ ל־`lib/widgets/feedback/` | ctor | `ActionButton` | כ־60 | 2 · לא מומש |
 | UIL-014 | אין `PopupMenuButton`/`showMenu(`/`MenuAnchor` מחוץ ל־`lib/widgets/misc/` ולחבילה | ctor/invocation | `lib/widgets/misc/**` (מערכת התפריטים המשותפת) | 5 (שני `MenuAnchor` בדיאלוג החיפוש, סינון המאפיינים, חלון הפרסומת, תפריט ההקשר של `RtlTextField`) | 2 · **חוסם** |
 | UIL-015 | אין `Color(0x…)`/`Color.fromARGB`/`Colors.<hue>` מחוץ ל־`lib/theme/`. ההודעה מפנה לתפקיד: כתום/ענבר → `AppSurfaces.warning*`; ירוק "הצלחה" → `secondaryContainer` (DD-24) | ctor/identifier | רק המקרים של DD-24: תוכן (`CustomPainter` שמצייר תוכן, פלטות, מרקר), ייצוא (`pw.*`, ‏`lib/printing/**`, ‏`**/export/**`), כרום מערכת ההפעלה (`lib/core/windowing/**`); וגם `Colors.transparent`, ו־`Colors.white`/`black` בתוך `BoxShadow` | 3 (ראשון 22) | 3 · **חוסם** (⚠ שלושת הנותרים ממתינים להכרעה, סבב 3.11) |
