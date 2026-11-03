@@ -40,7 +40,7 @@ class LibraryBreadcrumbBar extends StatelessWidget {
         onTap: onNavigateHome,
         child: Icon(
           FluentIcons.home_16_regular,
-          size: 16,
+          size: AppTokens.iconSM,
           color: cs.onSurfaceVariant,
         ),
       ),
