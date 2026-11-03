@@ -78,8 +78,17 @@ class _Visitor extends RecursiveAstVisitor<void> {
   void _check(Expression node) {
     final call = asCtorCall(node);
     if (call != null && _violates(call) && !_excluded(node)) {
-      file.report(rule, node);
+      file.report(rule, node, identity: _identity(call));
     }
+  }
+
+  /// הטביעה של `Positioned` נגזרת מ־left/right בלבד: הילד שלו יכול להיות עץ
+  /// שלם, ושינוי בו לא נוגע בכיוון. ל־`EdgeInsets` הצומת עצמו קטן.
+  static String? _identity(CtorCall call) {
+    if (call.typeName != 'Positioned') return null;
+    final left = call.named('left')?.toSource();
+    final right = call.named('right')?.toSource();
+    return '${call.head}(left: $left, right: $right)';
   }
 
   @override
