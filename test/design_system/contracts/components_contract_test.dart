@@ -6,6 +6,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field_button.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 import 'contract_harness.dart';
@@ -21,6 +22,50 @@ BoxDecoration _decorationIn(WidgetTester tester, Finder of) =>
         as BoxDecoration;
 
 void main() {
+  // DD-04, q9 שאלה 3, q10 שאלה 22: כפתור אייקון שקוף עגול מערכת הנושא, וכפתור
+  // אייקון עם רקע גלוי משלו נשאר בפינות 8.
+  group('צורת כפתורי אייקון', () {
+    testWidgets('שקוף: עיגול מ-iconButtonTheme', (tester) async {
+      await pumpInApp(
+        tester,
+        IconButton(
+          tooltip: 'מחק',
+          icon: const Icon(FluentIcons.delete_24_regular),
+          onPressed: () {},
+        ),
+      );
+      final material = firstMaterialIn(tester, find.byType(IconButton));
+      expect(material.shape, const CircleBorder());
+    });
+
+    for (final (name, button) in <(String, Widget)>[
+      (
+        'SecondaryIconButton',
+        SecondaryIconButton(
+          icon: FluentIcons.edit_24_regular,
+          tooltip: 'עריכה',
+          onPressed: () {},
+        ),
+      ),
+      ('PrimaryIconButton', PrimaryIconButton(onPressed: () {})),
+      (
+        'OtzariaSearchFieldButton נבחר',
+        OtzariaSearchFieldButton(
+          icon: FluentIcons.filter_24_regular,
+          tooltip: 'סינון',
+          selected: true,
+          onPressed: () {},
+        ),
+      ),
+    ]) {
+      testWidgets('עם רקע: $name נשאר בפינות 8', (tester) async {
+        await pumpInApp(tester, button);
+        final material = firstMaterialIn(tester, find.byType(IconButton));
+        expect(material.shape, AppTokens.roundedShape);
+      });
+    }
+  });
+
   group('AppCard', () {
     testWidgets('active: מסגרת הבחירה (primary, 1.5) במקום outlineVariant', (
       tester,
