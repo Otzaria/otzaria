@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024); כללי הטוקנים (MIG-28) ושאר הכללים טרם.
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024). כללי הטוקנים שקיימים במנוע (UIL-015, ‏017, ‏019) חוסמים מ־MIG-28; שאר כללי הטוקנים ושאר הכללים טרם.
 
 ## 1. המצב היום
 
@@ -120,7 +120,7 @@ test/design_system/
 - **רשומה שלא נוצלה** מכשילה את הבדיקה: "baseline מת — הרץ `--update-baseline`". זה ה־ratchet, לפי התקדים של `backup_storage_coverage_test.dart:134`.
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **workflow ‏`ui_baseline_guard.yml`** (בסגנון `lockfile_guard.yml`) מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו תווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope` בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול.
-- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 2: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024). חריגה חדשה בכללי הטוקנים (שלב 3) מופיעה בדוח בלבד עד MIG-28. baseline מת והערת allow פגומה מכשילים בכל כלל.
+- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024, ומ־MIG-28 גם כללי הטוקנים UIL-015, ‏017, ‏019). כלל בשלב 4 מופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
 
 ### 3.5 חריגים מתועדים
 **inline**, על הצומת הבא בלבד:
@@ -145,7 +145,8 @@ const _hebcalBlue = Color(0xFF1565C0);
 | קבצי תוכן הקריאה: `reader_line/**`, `smart_text/**`, `continuous_reading_paragraph.dart`, `commentary_list_base.dart` (חלקי תוכן), `links_list_view.dart` (גדלים יחסיים) | טיפוגרפיה לפי הגדרות המשתמש (DD-02 מתיר `fontSize` רק כאן וב־Theme) |
 | `lib/plugins/utils/fluent_icon_resolver.dart`, `*.g.dart` | קוד שנוצר אוטומטית |
 | `app_seed_colors.dart`, `calendar_event_colors.dart`, מרקר | פלטות תוכן |
-| `lib/core/windowing/**` (כפתורי חלון) | חיקוי של מערכת ההפעלה |
+| `lib/core/windowing/**` (כפתורי חלון, כולל `CaptionButtonColors` של כפתורי הפעולה בשורת הכותרת) | חיקוי של מערכת ההפעלה |
+| `lib/pdf_book/utils/pdf_color_filter.dart`, ‏`lib/widgets/misc/app_cursors.dart` (UIL-015) | נייר ומסנן ההיפוך של עמוד PDF; ציור תמונת סמן העכבר |
 | צבע בתוך `BoxShadow(color:)` | **זמני, עד MIG-08.** אחר כך צל רק ב־`AppShadows` (DD-12) |
 
 אין החרגה ל־`lib/text_book/editing/**`: העורך נמחק (DD-29, MIG-26), וההחרגה הזמנית JX-23 בטלה.
@@ -217,7 +218,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | **0. תיקון התקדים** | תיקון `text_painter_direction_test` (ראו 3.2) ועדכון התיעוד שהתיישן (`AGENTS.md`, `agent_ui_reference.md`, `rtl-text-field-guide.md`, `agent_test_map.md`) | כן (בדיקות קיימות) | MIG-00, MIG-01 |
 | **1. Report** | המנוע עם כל הכללים. ‏job ‏`ui_lint_report` עם `continue-on-error: true`, שכותב טבלה ל־`$GITHUB_STEP_SUMMARY` ומוסיף annotations לחריגות **חדשות** בלבד (GitHub מציג עד ~10 בכל step) | לא | מחזור שחרור אחד |
 | **2. New violations** | ‏`test/design_system/ui_lint_test.dart` חוסם על כללי שלב 1–2 עם baseline, ו־`ui_baseline_guard.yml` | כן, לחריגות חדשות | MIG-27 — **מומש** |
-| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6 | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
+| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6. **מומש חלקית:** UIL-015, ‏017, ‏019 חוסמים | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
 | **4. Strict** | כלל שה־baseline שלו התרוקן עובר ל־`strict: true` בקונפיגורציה. מעתה גם `--allow-growth` לא יכול להוסיף לו | כן | לכל כלל בנפרד, כשהחוב שלו נגמר |
 
 **הבדיקות הקיימות** (`bare_text_field_scan`, ‏`uisnack_literal_scan`, ‏`default_context_menu_scan`, ‏`rtl_icon_registered_usage`, ‏`no_scrollable_markdown`, ‏`pdf_hardcoded_colors`) עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס: ארגומנט בשם, `TextFormField`, ‏`withAlpha`. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.

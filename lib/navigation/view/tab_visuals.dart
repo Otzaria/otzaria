@@ -141,6 +141,7 @@ Widget buildFadedTabTitle(BuildContext context, String title) => LayoutBuilder(
           begin: isLtr ? Alignment.centerLeft : Alignment.centerRight,
           end: isLtr ? Alignment.centerRight : Alignment.centerLeft,
           stops: const [0.0, 0.82, 1.0],
+          // ui-lint: allow UIL-015 — מסכת השקיפות של ShaderMask (dstIn); הצבע עצמו לא מצויר
           colors: const [Colors.white, Colors.white, Colors.transparent],
         ).createShader(rect),
         child: titleBox,
