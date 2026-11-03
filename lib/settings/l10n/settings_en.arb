@@ -183,6 +183,8 @@
   "ספרים מתיקיית היברובוקס יוצגו בתוצאות איתור הספר": "Seforim from the HebrewBooks folder will appear in the sefer search results",
   "ספרים מתיקיית היברובוקס לא יוצגו בתוצאות איתור הספר": "Seforim from the HebrewBooks folder will not appear in the sefer search results",
   "הזן סיסמה": "Enter Password",
+  "הנך במצב סייפר": "You are in Safer Mode",
+  "נדרשת סיסמה כדי לגשת להגדרות": "A password is required to access the settings",
   "הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות": "You are in Safer Mode.\nEnter the password to access the settings",
   "הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו": "You are in Safer Mode.\nEnter the password to perform this action",
   "הסרת מיקום שמור": "Remove Saved Location",
