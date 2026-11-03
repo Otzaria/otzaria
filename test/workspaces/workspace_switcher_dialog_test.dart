@@ -335,6 +335,11 @@ void main() {
       expect(deleteIn(tester, 'פעיל').onPressed, isNull);
       expect(deleteIn(tester, 'אחר').onPressed, isNotNull);
       expect(
+        deleteIn(tester, 'פעיל').tooltip,
+        'לא ניתן למחוק שולחן עבודה פעיל',
+      );
+      expect(deleteIn(tester, 'אחר').tooltip, 'מחק שולחן עבודה');
+      expect(
         find.descendant(
           of: find.byType(AppCard),
           matching: find.byIcon(FluentIcons.dismiss_24_regular),
