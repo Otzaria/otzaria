@@ -23,6 +23,9 @@ class ShamorZachorFocusController {
 }
 
 /// כלי שמור וזכור. ה-providers שלו (נתונים והתקדמות) ברמת האפליקציה.
+///
+/// אין לכלי Navigator משלו (DD-29): הספר נפתח בתוך המסך הראשי (מצב, לא route),
+/// ודיאלוגים, tooltips ואנימציית הסיום עולים בשכבות של החלון.
 class ShamorZachorWidget extends StatefulWidget {
   /// Callback when the screen changes, providing the new title
   final ValueChanged<String>? onTitleChanged;
@@ -47,7 +50,6 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
   @override
   bool get wantKeepAlive => true;
 
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ShamorZachorFocusController _mainScreenFocusController =
       ShamorZachorFocusController();
 
@@ -75,14 +77,7 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
-    return Navigator(
-      key: _navigatorKey,
-      onGenerateRoute: (settings) => MaterialPageRoute(
-        builder: (context) =>
-            ShamorZachorMainScreen(focusController: _mainScreenFocusController),
-        settings: settings,
-      ),
-    );
+    return ShamorZachorMainScreen(focusController: _mainScreenFocusController);
   }
 
   @override
