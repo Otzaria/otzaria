@@ -62,7 +62,10 @@ void main() {
         reason:
             'חריגה חדשה מהתקן (docs/design-system/CI_ENFORCEMENT.md). '
             'לתקן לפי ההצעה, או להוסיף מעליה '
-            '"// ui-lint: allow UIL-xxx — נימוק":\n'
+            '"// ui-lint: allow UIL-xxx — נימוק". '
+            'חריגה ישנה שהביטוי שלה השתנה מופיעה גם כ-baseline מת: '
+            'dart tool/ui_lint_cli.dart --update-baseline --allow-growth '
+            '(ui_baseline_guard בודק שהספירה לא גדלה):\n'
             '${fresh.map(_describe).join('\n')}',
       );
     });
@@ -73,7 +76,9 @@ void main() {
         isEmpty,
         reason:
             'חריגות שתוקנו עדיין רשומות ב-baseline. '
-            'הרץ: dart tool/ui_lint_cli.dart --update-baseline',
+            'הרץ: dart tool/ui_lint_cli.dart --update-baseline. '
+            'אם החריגה לא תוקנה אלא הביטוי שלה השתנה (היא מופיעה גם '
+            'כחריגה חדשה): --update-baseline --allow-growth',
       );
     });
 
@@ -305,6 +310,27 @@ const top = TextStyle(fontSize: 11);
       final edited = before.compare(dialogs("Column(children: [Text('ב')])"));
       expect(edited.newFindings, isEmpty);
       expect(edited.dead, isEmpty);
+    });
+
+    test('שינוי בילד של Positioned לא הופך אותו לחריגה חדשה', () {
+      List<UiLintFinding> positioned(
+        String child, {
+        String left = '4',
+      }) => lintSource(
+        "import 'package:flutter/material.dart';\n"
+        'Widget build() => Positioned(left: $left, top: 0, child: $child);\n',
+        _featurePath,
+        config: _config,
+      ).findings;
+      final before = UiLintBaseline.fromFindings(positioned("Text('א')"));
+      final edited = before.compare(
+        positioned("Column(children: [Text('ב')])"),
+      );
+      expect(edited.newFindings, isEmpty);
+      expect(edited.dead, isEmpty);
+      // שינוי בכיוון עצמו כן נתפס.
+      final moved = before.compare(positioned("Text('א')", left: '8'));
+      expect(moved.newFindings, hasLength(1));
     });
 
     test('הסריאליזציה הפיכה', () {

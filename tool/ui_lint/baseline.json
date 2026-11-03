@@ -876,15 +876,15 @@
     },
     "UIL-021": {
       "lib/core/diagnostics/frame_stats_overlay.dart": [
-        {"scope":"_FrameStatsOverlayState.build","fp":"99cff46a","n":1},
+        {"scope":"_FrameStatsOverlayState.build","fp":"0faa7316","n":1},
         {"scope":"_FrameStatsPanelState.build","fp":"c11fe058","n":1}
       ],
       "lib/library/view/book_preview_panel.dart": [
-        {"scope":"_BookPreviewPanelState.build","fp":"bd6e7737","n":1},
-        {"scope":"_BookPreviewPanelState.build","fp":"dcdae6a4","n":1}
+        {"scope":"_BookPreviewPanelState.build","fp":"1e8a717e","n":1},
+        {"scope":"_BookPreviewPanelState.build","fp":"ad603361","n":1}
       ],
       "lib/library/view/grid_items.dart": [
-        {"scope":"_PersonalSourceBadge.build","fp":"9f6bc06b","n":1}
+        {"scope":"_PersonalSourceBadge.build","fp":"bc0a994d","n":1}
       ],
       "lib/library/view/library_browser.dart": [
         {"scope":"_LibraryBrowserState._buildCategoryHeaderRow","fp":"72751e03","n":1},
@@ -892,24 +892,24 @@
         {"scope":"_LibraryBrowserState._buildShowMoreRow","fp":"ca4f84c4","n":1}
       ],
       "lib/navigation/view/reading_tab_strip.dart": [
-        {"scope":"_InsertIndicator.build","fp":"b7c1c2ec","n":1}
+        {"scope":"_InsertIndicator.build","fp":"5bfd1353","n":1}
       ],
       "lib/navigation/view/tab_visuals.dart": [
         {"scope":"buildFadedTabTitle","fp":"373e4811","n":2},
         {"scope":"buildFadedTabTitle","fp":"d9adeea4","n":2}
       ],
       "lib/pdf_book/view/pdf_book_screen.dart": [
-        {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"592a3f1d","n":1},
-        {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"ed9a519a","n":1},
-        {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"8d6981b7","n":1},
-        {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"ddc2e324","n":1},
-        {"scope":"_PdfBookScreenState._buildReaderMainContent","fp":"85ed7cdf","n":1}
+        {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"957420f7","n":1},
+        {"scope":"_PdfBookScreenState._buildBookViewTurnButtonSlot","fp":"e95ca979","n":1},
+        {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"a4363b37","n":1},
+        {"scope":"_PdfBookScreenState._buildBookViewTurnButtons","fp":"ac14be76","n":1},
+        {"scope":"_PdfBookScreenState._buildReaderMainContent","fp":"271f0eee","n":1}
       ],
       "lib/pdf_book/view/pdf_commentary_panel.dart": [
         {"scope":"_PdfCommentaryLinkItem.build","fp":"1242d491","n":1}
       ],
       "lib/pdf_book/view/pdf_scrollbar.dart": [
-        {"scope":"_PdfHorizontalScrollbarState.build","fp":"c8062a39","n":1},
+        {"scope":"_PdfHorizontalScrollbarState.build","fp":"d9a54e93","n":1},
         {"scope":"_PdfScrollbarState.build","fp":"373e4811","n":1},
         {"scope":"_PdfScrollbarState.build","fp":"d9adeea4","n":1}
       ],
@@ -934,13 +934,13 @@
         {"scope":"_NotesCommentaryWidgetState.build","fp":"4a334ce9","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
-        {"scope":"_AnchoredMenuState._buildOverlay","fp":"ec8a633e","n":1}
+        {"scope":"_AnchoredMenuState._buildOverlay","fp":"b6ab0503","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_events_panel.dart": [
         {"scope":"_CalendarEventsPanelState._buildEventsList","fp":"1994fc68","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
-        {"scope":"_CalendarTopBarState._buildDialogOverlay","fp":"f95508f9","n":1}
+        {"scope":"_CalendarTopBarState._buildDialogOverlay","fp":"d93bf8f3","n":1}
       ],
       "lib/tools/shamor_zachor/screens/book_detail_screen.dart": [
         {"scope":"_BookDetailScreenState._buildFlatItemsSliver","fp":"21394ca9","n":1},
@@ -962,47 +962,47 @@
       ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"d9adeea4","n":1},
-        {"scope":"_AdPopupDialogState.build","fp":"73128c69","n":1}
+        {"scope":"_AdPopupDialogState.build","fp":"0faa7316","n":1}
       ],
       "lib/widgets/dialogs/error_report_sender_email_dialog.dart": [
         {"scope":"_EmailFieldWithAutocompleteState._buildOverlay","fp":"f7030732","n":1},
         {"scope":"_EmailFieldWithAutocompleteState._buildOverlay","fp":"f8d1800a","n":1}
       ],
       "lib/widgets/feedback/scrollbar_target_label.dart": [
-        {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"4ea2f95f","n":1},
-        {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"764857f1","n":1}
+        {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"720d7210","n":1},
+        {"scope":"ScrollbarTargetLabelController._buildLabel","fp":"a336ff9d","n":1}
       ],
       "lib/widgets/layout/adaptive_side_pane.dart": [
-        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"7d9030e0","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"c100927e","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"77810e82","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"ac433986","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildTopCornerFillet","fp":"85d9d3e3","n":1},
-        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"24cfd416","n":1},
+        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"08ed5afb","n":1},
+        {"scope":"_AdaptiveSidePaneState._buildFloatingWideLayout","fp":"30ffc637","n":1},
+        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"2a4d5967","n":1},
+        {"scope":"_AdaptiveSidePaneState._buildNarrowLayout","fp":"bdf971a3","n":1},
+        {"scope":"_AdaptiveSidePaneState._buildTopCornerFillet","fp":"e7b11f33","n":1},
         {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"373e4811","n":2},
-        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"d9adeea4","n":2}
+        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"d9adeea4","n":2},
+        {"scope":"_AdaptiveSidePaneState._buildWideLayout","fp":"eb7548ff","n":1}
       ],
       "lib/widgets/layout/context_overlay_panel.dart": [
-        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"13b8e403","n":1},
-        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"e9807365","n":1},
+        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"18a1e3dd","n":1},
+        {"scope":"_ContextOverlayPanelState._buildPanel","fp":"45f65dc9","n":1},
         {"scope":"_ContextOverlayPanelState._buildScrollableContent","fp":"61810615","n":1},
         {"scope":"_ContextOverlayPanelState._buildTitleBar","fp":"9722555e","n":1},
         {"scope":"_ContextOverlayPanelState._isLeft","fp":"d9adeea4","n":1}
       ],
       "lib/widgets/misc/app_popup_menu.dart": [
-        {"scope":"_AnchoredSearchMenuContentState.build","fp":"5f50b137","n":1}
+        {"scope":"_AnchoredSearchMenuContentState.build","fp":"4252f066","n":1}
       ],
       "lib/widgets/misc/link_context_menu_entry.dart": [
-        {"scope":"_LinkHoverPreviewContentState.build","fp":"a3262a8f","n":1}
+        {"scope":"_LinkHoverPreviewContentState.build","fp":"85fd910e","n":1}
       ],
       "lib/widgets/misc/link_preview_overlay.dart": [
-        {"scope":"_LinkPreviewPanelState.build","fp":"3b767a0b","n":1}
+        {"scope":"_LinkPreviewPanelState.build","fp":"715e0791","n":1}
       ],
       "lib/work_status/work_status_overlay.dart": [
         {"scope":"WorkStatusOverlay.build","fp":"059ca6df","n":1},
-        {"scope":"WorkStatusOverlay.build","fp":"0b2ddebc","n":1},
         {"scope":"WorkStatusOverlay.build","fp":"5228eba9","n":1},
         {"scope":"WorkStatusOverlay.build","fp":"672ef51b","n":1},
+        {"scope":"WorkStatusOverlay.build","fp":"99599c2d","n":1},
         {"scope":"WorkStatusOverlay.build","fp":"a0747f57","n":1},
         {"scope":"WorkStatusOverlay.build","fp":"a7707aa2","n":1},
         {"scope":"WorkStatusOverlay.build","fp":"f8d1800a","n":1}
