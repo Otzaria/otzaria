@@ -83,7 +83,7 @@
    - **הוכרע:** A. גופני מערכת במפורש (כהמלצה).
    - **תשובות:**
      - q1: להסיר את 'Roboto' הקשיח מכל 8 המקומות (בכל אחת מהחלופות)? → **כן**
-   - **מימוש:** מומש — אין 'Roboto' בקוד (9 המופעים: 4 ב־app_theme_data, 2 ב־app_popup_menu, 3 ב־menu_rows). ThemeData בלי fontFamily (ברירת הפלטפורמה: Segoe UI ב־Windows) ועם fontFamilyFallback מהקבוע AppThemeData.uiFontFamilyFallback; סגנונות התפריטים והמדידה משתמשים באותה משפחת פלטפורמה. נשאר: uiFontFamily: 'Rubik' ב־payload של התוספים (DD-25), וגופן הבדיקה של ה־goldens (DD-22).
+   - **מימוש:** מומש — אין 'Roboto' בקוד (9 המופעים: 4 ב־app_theme_data, 2 ב־app_popup_menu, 3 ב־menu_rows). ThemeData בלי fontFamily (ברירת הפלטפורמה: Segoe UI ב־Windows) ועם fontFamilyFallback מהקבוע AppThemeData.uiFontFamilyFallback; סגנונות התפריטים והמדידה משתמשים באותה משפחת פלטפורמה. נשאר: uiFontFamily: 'Rubik' ב־payload של התוספים (DD-25), וגופן הבדיקה של ה־goldens (DD-22). אכיפה: UIL-018 (MIG-28) חוסם `fontFamily:` ליטרלי מחוץ ל־lib/theme; ארבעת ה־'monospace' עברו ל־AppTextStyles.monospaceFamily, וברירות המחדל של גופן הקריאה ב־SettingsState ל־AppFonts.
 
 ### DD-02 · סולם הטיפוגרפיה וגודל גוף הטקסט 🎨
 1. **הבעיה:** `textTheme` דורס רק את `bodyMedium = 18`. כל טקסט שלא קיבל סגנון מפורש, תת־כותרות של `ListTile`, תוכן `AlertDialog` והודעת מצב ריק יוצאים בגודל 18, גדולים יותר מהכותרות (16). בנוסף:
@@ -268,7 +268,7 @@
    - **הוכרע:** A. מסגרת, לא צל (כהמלצה).
    - **תשובות:**
      - q1: עוצמת ה־scrim מאחורי דיאלוגים וחלוניות → **אחידה ועדינה (כמו היום בדיאלוגים)**
-   - **מימוש:** מומש חלקית — AppShadows (צבע צל אחד, shadow@0.22, וצל צף ל-BoxDecoration); הגבהה 0/1/3 בלבד (elevation1=1 סרגל וחלונית מוצמדת, elevation2=3 תפריט, tooltip, חלונית צפה וגרירה) בכ־20 מקומות; AppCard, ExpandableCard ו-cardTheme במסגרת outlineVariant בלי צל; FloatingPanel ברמה 3 עם מסגרת; scrim אחד AppSurfaces.scrim (0x22, כמו הדיאלוגים) לדיאלוג, AdaptiveSidePane ו-ContextOverlayPanel, וסיור ההיכרות ב-spotlightScrim נפרד בלי שינוי; AppSurfaces.subtleDivider במקום 4 עותקים. נשאר: AppCard.sectionDivider/cardRowDivider ו-NavTreeGroupCard (עם CardRow של DD-11, MIG-20); צל כפתורי הדפדוף ב-PDF (MIG-23), כפתור התצוגה בלוח השנה (MIG-22), אנימציות הדגשה וסיום; tooltip עשיר כרכיב (UI-126); שאר ערכות הרכיבים של MIG-08 (switch, slider, checkbox, progress, segmented, scrollbar, listTile) ו-chipTheme (DD-13).
+   - **מימוש:** מומש חלקית — AppShadows (צבע צל אחד, shadow@0.22, וצל צף ל-BoxDecoration); הגבהה 0/1/3 בלבד (elevation1=1 סרגל וחלונית מוצמדת, elevation2=3 תפריט, tooltip, חלונית צפה וגרירה) בכ־20 מקומות; AppCard, ExpandableCard ו-cardTheme במסגרת outlineVariant בלי צל; FloatingPanel ברמה 3 עם מסגרת; scrim אחד AppSurfaces.scrim (0x22, כמו הדיאלוגים) לדיאלוג, AdaptiveSidePane ו-ContextOverlayPanel, וסיור ההיכרות ב-spotlightScrim נפרד בלי שינוי; AppSurfaces.subtleDivider במקום 4 עותקים. נשאר: AppCard.sectionDivider/cardRowDivider ו-NavTreeGroupCard (עם CardRow של DD-11, MIG-20); צל כפתורי הדפדוף ב-PDF (MIG-23), כפתור התצוגה בלוח השנה (MIG-22), אנימציות הדגשה וסיום; tooltip עשיר כרכיב (UI-126); שאר ערכות הרכיבים של MIG-08 (switch, slider, checkbox, progress, segmented, scrollbar, listTile) ו-chipTheme (DD-13). אכיפה: חלק ההגבהה של UIL-030 (MIG-28) חוסם `elevation:` עם ליטרל שאינו 0 (ה־fallback ‏3 בתפריט עבר ל־AppTokens.elevation2); חלק ה־BoxShadow של הכלל טרם, כי 4 צללים מחוץ לנייר עדיין קיימים (שלוש אנימציות הדגשה וחגיגת הסיום).
 
 ---
 

@@ -150,7 +150,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                               'Type: ${error.type}\n\nMessage: ${error.message}\n\nDetails: ${error.details}\n\nStackTrace: ${error.stackTrace ?? 'N/A'}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    fontFamily: 'monospace',
+                                    fontFamily: AppTextStyles.monospaceFamily,
                                   ),
                             ),
                           ),

@@ -5,6 +5,7 @@ import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
@@ -166,8 +167,8 @@ class SettingsState extends Equatable {
       darkSeedColor: AppSeedColors.defaultDark,
       textMaxWidth: 0, // 0 = רוחב מלא; חיובי = רוחב יעד בפיקסלים לוגיים
       fontSize: 16,
-      fontFamily: 'FrankRuhlCLM',
-      commentatorsFontFamily: 'NotoRashiHebrew',
+      fontFamily: AppFonts.defaultFont,
+      commentatorsFontFamily: AppFonts.defaultCommentatorsFont,
       commentatorsFontSize: 22,
       lineHeight: 1.5,
       showOtzarHachochma: false,

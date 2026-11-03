@@ -139,7 +139,7 @@ class _FrameStatsPanelState extends State<FrameStatsPanel> {
     final colors = Theme.of(context).colorScheme;
     final textStyle = TextStyle(
       color: colors.onInverseSurface,
-      fontFamily: 'monospace',
+      fontFamily: AppTextStyles.monospaceFamily,
       fontSize: 11,
       height: 1.3,
     );

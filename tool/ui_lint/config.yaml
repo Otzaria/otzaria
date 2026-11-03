@@ -67,7 +67,19 @@ rules:
       - path: lib/tools/tikkun_korim/export/**
         reason: פלט נייר
 
+  UIL-018:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים (AppThemeData, AppFonts)
+
   UIL-019:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+
+  UIL-030:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים

@@ -102,7 +102,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
                     _prettyJson,
                     textDirection: TextDirection.ltr,
                     style: const TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: AppTextStyles.monospaceFamily,
                       fontSize: AppTokens.fontSM,
                       height: 1.4,
                     ),

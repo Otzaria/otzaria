@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024). כללי הטוקנים שקיימים במנוע (UIL-015, ‏017, ‏019) חוסמים מ־MIG-28; שאר כללי הטוקנים ושאר הכללים טרם.
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024). כללי הטוקנים שקיימים במנוע (UIL-015, ‏017, ‏018, ‏019, וחלק ההגבהה של UIL-030) חוסמים מ־MIG-28; שאר כללי הטוקנים ושאר הכללים טרם.
 
 ## 1. המצב היום
 
@@ -91,7 +91,7 @@ test/design_system/
 | UIL-015 | אין `Color(0x…)`/`Color.fromARGB`/`Colors.<hue>` מחוץ ל־`lib/theme/`. ההודעה מפנה לתפקיד: כתום/ענבר → `AppSurfaces.warning*`; ירוק "הצלחה" → `secondaryContainer` (DD-24) | ctor/identifier | רק המקרים של DD-24: תוכן (`extends CustomPainter` שמצייר תוכן, פלטות `app_seed_colors`/`calendar_event_colors`, מרקר), ייצוא (`pw.*`, ‏`lib/printing/**`, ‏`**/export/**`), כרום מערכת ההפעלה (`lib/core/windowing/**`); וגם `Colors.transparent`, ו־`Colors.white`/`black` בתוך `BoxShadow` (עד MIG-08) | ~40 | 3 |
 | UIL-016 | אין `.withValues(alpha:)`/`.withAlpha(`/`.withOpacity(` על צבע ממשק מחוץ ל־`lib/theme/` | MethodInvocation | `CustomPainter`, ייצוא. `BoxShadow(color:)` מוחרג **רק עד MIG-08**; אחר כך צל רק דרך `AppShadows` (UIL-030) | ~110 | 3 |
 | UIL-017 | **אין `fontSize:` בקוד פיצ'ר (DD-02):** לא ליטרל, ולא `AppTokens.font*` או חשבון עליו (`fontSM - 1`). התחליף: `textTheme.<slot>` | named arg ב־`TextStyle`/`copyWith` | `lib/theme/**`; ‏`pw.TextStyle`; קבצי תוכן הספר (רשימה ב־config, נגזרת מ־UI_AUDIT `justified_exceptions` JX-01, JX-19), שבהם הגודל מחושב מהגדרות הקריאה | ~150 ליטרלים + ~106 `AppTokens.font*` | 3 |
-| UIL-018 | אין `fontFamily:` ליטרלי (כולל `'Roboto'`) מחוץ ל־`lib/theme/`. רשימת ה־fallback של DD-01 חיה רק ב־`AppThemeData` | named arg + string | `AppFonts`, הגדרות קריאה, JSON מונוספייס (JX-21) | ~8 | 2 |
+| UIL-018 | אין `fontFamily:` ליטרלי (כולל `'Roboto'`) מחוץ ל־`lib/theme/`. רשימת ה־fallback של DD-01 חיה רק ב־`AppThemeData` | named arg (`fontFamily:` עם ליטרל מחרוזת, בכל בנאי) | `lib/theme/**`. גופן תוכן דרך `AppFonts.*` (גם ברירות המחדל של הגדרות הקריאה), מונוספייס (JX-21) דרך `AppTextStyles.monospaceFamily` | 0 (מומש) | 2 · **מומש** |
 | UIL-019 | **רדיוס רק מהטוקן היחיד (DD-04):** אין `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי, ואין `StadiumBorder`. מותר `AppTokens.radius`/`borderRadiusAll`/`roundedShape` | ctor + ליטרל | `CustomPainter`, ‏`pw.*`; `CircleBorder`/`BoxShape.circle` לרכיב עגול מטבעו (נקודת סטטוס, אווטאר) ולכפתור אייקון בלבד (DD-04) | ~15 + 2 `StadiumBorder` | 3 |
 | UIL-020 | ריווח ב־`EdgeInsets*`/`SizedBox(width/height)` מהסולם בלבד: 2/4/8/12/16/24/32 (DD-03, אחרי MIG-04). ההודעה מציעה את הערך הבא כלפי מעלה (6→8, 10→12, 14→16) | ctor + ליטרל | 0, ‏`double.infinity`, ביטוי מחושב, `CustomPainter` | ~540 (מתוכם ~150 מחוץ לסולם) | 3 (בהתחלה: off-scale בלבד) |
 | UIL-021 | אין `EdgeInsets.only(left/right)`/`fromLTRB`/`Alignment.centerLeft/Right`/`Positioned(left/right)` | ctor + named arg | גאומטריית ציור, עם allow; ערכים סימטריים (JX-20) | ~110 | 3 |
@@ -103,7 +103,7 @@ test/design_system/
 | UIL-027 | אין `Brightness.dark`/`isDark` מחוץ ל־`lib/theme/` להחלטת צבע | identifier | פלטפורמה (סרגל מערכת), תוספים | ~57 | 4 |
 | UIL-028 | `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם | invocation | `lib/widgets/dialogs/**` | ~90 | 4 |
 | UIL-029 | **גודל אייקון מטוקן (DD-03):** אין `size:` ליטרלי ב־`Icon(`, אין `iconSize:` ליטרלי, ואין `AppTokens.font*` כגודל אייקון. התחליף: `AppTokens.icon*` (אחרי MIG-04) | ctor + named arg | `CustomPainter`, מעבדי תוכן (JX-19) | ~130 | 3 |
-| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` (אחרי MIG-08) | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | ~25 + ~20 | 3 |
+| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` (אחרי MIG-08) | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | **חלק ההגבהה מומש:** `elevation:` שיש בו ליטרל שאינו 0 (גם `?? 3` ובענף תנאי), 0 ב־baseline. חלק ה־`BoxShadow` טרם: 4 מופעים מחוץ לנייר ולהדפסה (אנימציות הדגשה וחגיגת הסיום) | 3 · **מומש חלקית** |
 
 **כלל לא נכנס לשלב 1** אם שיעור ההתראות השגויות שלו בהרצה ראשונה גבוה מ־10%. כלל כזה נשאר בדוח עד שהוא משתפר.
 
@@ -120,7 +120,7 @@ test/design_system/
 - **רשומה שלא נוצלה** מכשילה את הבדיקה: "baseline מת — הרץ `--update-baseline`". זה ה־ratchet, לפי התקדים של `backup_storage_coverage_test.dart:134`.
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
 - **workflow ‏`ui_baseline_guard.yml`** (בסגנון `lockfile_guard.yml`) מכשיל PR שמוסיף מופעים לכלל באותו קובץ ובאותו `scope`, אלא אם יש עליו תווית **`ui-baseline`** (DD-23), שמתחזק מוסיף. ההשוואה היא לפי כלל, קובץ ו־`scope` בלי `fp`, כך ששינוי ביטוי או גרסת מנוע אינם נספרים כגידול.
-- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024, ומ־MIG-28 גם כללי הטוקנים UIL-015, ‏017, ‏019). כלל בשלב 4 מופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
+- **מה חוסם:** הבדיקה `test/design_system/ui_lint_test.dart` מכשילה חריגה חדשה בכלל שהשלב שלו (`UiLintRule.stage`) עד `blockingStage` (היום 3: UIL-001, ‏003, ‏004, ‏005, ‏006, ‏009, ‏011, ‏024, ומ־MIG-28 גם כללי הטוקנים UIL-015, ‏017, ‏018, ‏019, ‏030). כלל בשלב 4 מופיע בדוח בלבד. baseline מת והערת allow פגומה מכשילים בכל כלל.
 
 ### 3.5 חריגים מתועדים
 **inline**, על הצומת הבא בלבד:
@@ -218,7 +218,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | **0. תיקון התקדים** | תיקון `text_painter_direction_test` (ראו 3.2) ועדכון התיעוד שהתיישן (`AGENTS.md`, `agent_ui_reference.md`, `rtl-text-field-guide.md`, `agent_test_map.md`) | כן (בדיקות קיימות) | MIG-00, MIG-01 |
 | **1. Report** | המנוע עם כל הכללים. ‏job ‏`ui_lint_report` עם `continue-on-error: true`, שכותב טבלה ל־`$GITHUB_STEP_SUMMARY` ומוסיף annotations לחריגות **חדשות** בלבד (GitHub מציג עד ~10 בכל step) | לא | מחזור שחרור אחד |
 | **2. New violations** | ‏`test/design_system/ui_lint_test.dart` חוסם על כללי שלב 1–2 עם baseline, ו־`ui_baseline_guard.yml` | כן, לחריגות חדשות | MIG-27 — **מומש** |
-| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6. **מומש חלקית:** UIL-015, ‏017, ‏019 חוסמים | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
+| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6. **מומש חלקית:** UIL-015, ‏017, ‏019 וחלק ההגבהה של UIL-030 חוסמים (UIL-018, שלב 2, חוסם גם הוא) | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
 | **4. Strict** | כלל שה־baseline שלו התרוקן עובר ל־`strict: true` בקונפיגורציה. מעתה גם `--allow-growth` לא יכול להוסיף לו | כן | לכל כלל בנפרד, כשהחוב שלו נגמר |
 
 **הבדיקות הקיימות** (`bare_text_field_scan`, ‏`uisnack_literal_scan`, ‏`default_context_menu_scan`, ‏`rtl_icon_registered_usage`, ‏`no_scrollable_markdown`, ‏`pdf_hardcoded_colors`) עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס: ארגומנט בשם, `TextFormField`, ‏`withAlpha`. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.
