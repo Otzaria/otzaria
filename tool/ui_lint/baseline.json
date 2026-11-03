@@ -200,9 +200,6 @@
       ]
     },
     "UIL-015": {
-      "lib/text_book/view/commentary_list_base.dart": [
-        {"scope":"CommentaryListBaseState.build","fp":"87b7ed1e","n":1}
-      ],
       "lib/tools/shamor_zachor/widgets/error_boundary.dart": [
         {"scope":"_ErrorBoundaryState._buildErrorWidget","fp":"220ea01c","n":1}
       ]

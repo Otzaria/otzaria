@@ -1950,7 +1950,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                         'טוען מפרשים...',
                         style: TextStyle(
                           fontSize: widget.fontSize * 0.7,
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
