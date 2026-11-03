@@ -6013,7 +6013,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   const Spacer(),
                   Icon(
                     FluentIcons.checkmark_24_regular,
-                    size: 16,
+                    size: AppTokens.iconSM,
                     color: primaryColor,
                   ),
                 ],

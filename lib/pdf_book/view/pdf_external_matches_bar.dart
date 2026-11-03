@@ -6,6 +6,7 @@ import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// מיקום העמוד [page] ביחס ל-[pages] הממוינים: [exact] כשהוא עצמו התאמה,
 /// ו-[previous]/[next] — ההתאמות הקרובות לפניו ואחריו (אינדקסים).
@@ -180,7 +181,7 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                             : IconButton(
                                 icon: const Icon(
                                   OtzariaIcons.search_24_regular,
-                                  size: 16,
+                                  size: AppTokens.iconSM,
                                 ),
                                 tooltip: 'חפש',
                                 onPressed: _runProviderSearch,
@@ -233,7 +234,7 @@ class _PdfExternalMatchesBarState extends State<PdfExternalMatchesBar> {
                   Text('אין התאמות', style: theme.textTheme.bodySmall),
                 IconButton(
                   icon: const Icon(FluentIcons.dismiss_24_regular),
-                  iconSize: 16,
+                  iconSize: AppTokens.iconSM,
                   tooltip: 'סגור את סרגל ההתאמות',
                   onPressed: () => widget.tab.externalMatches.value = null,
                 ),

@@ -60,7 +60,10 @@ class PdfZoomBar extends StatelessWidget {
             ),
             // כפתור הגדלה
             IconButton(
-              icon: const Icon(FluentIcons.add_24_regular, size: 20),
+              icon: const Icon(
+                FluentIcons.add_24_regular,
+                size: AppTokens.iconMD,
+              ),
               onPressed: onZoomIn,
               tooltip: 'הגדל את התצוגה',
               padding: const EdgeInsets.all(8),
@@ -77,7 +80,10 @@ class PdfZoomBar extends StatelessWidget {
             ),
             // כפתור הקטנה
             IconButton(
-              icon: const Icon(FluentIcons.subtract_24_regular, size: 20),
+              icon: const Icon(
+                FluentIcons.subtract_24_regular,
+                size: AppTokens.iconMD,
+              ),
               onPressed: onZoomOut,
               tooltip: 'הקטן את התצוגה',
               padding: const EdgeInsets.all(8),
