@@ -14,7 +14,7 @@ InputFileStream openZipInput(String path) =>
 /// פורס את [entry] אל [dest]; none ו-deflate נכתבים אסינכרונית בזיכרון מוגבל.
 ///
 /// מחזיר את מספר הבתים שנכתבו. זורק [ArchiveException] כשהתוכן גדול מהגודל
-/// המוצהר. bzip2 ו-zstd נשארים במסלול הסינכרוני המוגבל של archive.
+/// המוצהר. שאר השיטות משתמשות בפלט הסינכרוני המוגבל של archive.
 Future<int> writeZipEntry(ArchiveFile entry, String dest) async {
   final zip = entry.rawContent;
   if (zip is! ZipFile) {
@@ -22,29 +22,27 @@ Future<int> writeZipEntry(ArchiveFile entry, String dest) async {
   }
   final file = File(dest);
   await file.parent.create(recursive: true);
-  // subset שומר על מיקום התוכן של הרשומה עבור קריאות חוזרות.
-  final stored = zip.getStream(decompress: false).subset();
   // decodeLazy מחזיק בלוק מפוענח שלם; שומרים כאן על הפלט המוגבל של archive.
-  if (zip.compressionMethod == CompressionType.bzip2 ||
-      zip.compressionMethod == CompressionType.zstd) {
+  final asyncWrites = switch (zip.compressionMethod) {
+    CompressionType.none || CompressionType.deflate => true,
+    CompressionType.bzip2 ||
+    CompressionType.zstd ||
+    CompressionType.lzma ||
+    CompressionType.xz => false,
+  };
+  if (!asyncWrites) {
     final output = OutputFileStream(dest);
+    final throwOnError = zip.throwOnError;
+    final verify = zip.verify;
     try {
       try {
-        final valid = zip.compressionMethod == CompressionType.bzip2
-            ? BZip2Decoder().decodeStream(
-                stored,
-                output,
-                maxOutputSize: zip.uncompressedSize,
-              )
-            : ZstdDecoder().decodeStream(
-                stored,
-                output,
-                maxOutputSize: zip.uncompressedSize,
-              );
-        if (!valid) {
-          throw ArchiveException('Invalid ${zip.compressionMethod.name} data');
-        }
+        zip.throwOnError = true;
+        // LZMA עוצר בגודל המוצהר; CRC מזהה גם גודל שקרי שחתך את התוכן.
+        zip.verify = verify || zip.compressionMethod == CompressionType.lzma;
+        zip.decompress(output);
       } finally {
+        zip.throwOnError = throwOnError;
+        zip.verify = verify;
         await output.close();
       }
     } catch (_) {
@@ -53,6 +51,8 @@ Future<int> writeZipEntry(ArchiveFile entry, String dest) async {
     }
     return output.length;
   }
+  // subset שומר על מיקום התוכן של הרשומה עבור קריאות חוזרות.
+  final stored = zip.getStream(decompress: false).subset();
   final output = await file.open(mode: FileMode.write);
   var written = 0;
   try {

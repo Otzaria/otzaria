@@ -11,6 +11,10 @@ import 'package:posix/posix.dart' as posix;
 void main() {
   late Directory temp;
 
+  // Python stdlib: ZIP_LZMA; XZ uses lzma.compress(FORMAT_XZ), ZIP method 95.
+  String compressedFixture(CompressionType compression) =>
+      'test/fixtures/zip/${compression.name}_16mb_zeros.zip';
+
   setUp(() => temp = Directory.systemTemp.createTempSync('zip_entry_io_'));
   tearDown(() => temp.deleteSync(recursive: true));
 
@@ -58,7 +62,12 @@ void main() {
 
     test('פורס פלט דחיס מאוד בשיטת ${compression.name}', () async {
       final data = Uint8List(16 * 1024 * 1024);
-      final input = openZipInput(writeZip(data, compression, level: 9));
+      // XZEncoder stores uncompressed chunks; this fixture uses real LZMA2.
+      final input = openZipInput(
+        compression == CompressionType.xz
+            ? compressedFixture(compression)
+            : writeZip(data, compression, level: 9),
+      );
       try {
         final entry = ZipDecoder().decodeStream(input).single;
         if (compression != CompressionType.none) {
@@ -150,6 +159,80 @@ void main() {
     }
   }
 
+  for (final compression in [CompressionType.lzma, CompressionType.xz]) {
+    test('${compression.name}: תוכן משתנה נשמר עם אימות פעיל וכבוי', () async {
+      final input = openZipInput(
+        'test/fixtures/zip/${compression.name}_3mb_pattern.zip',
+      );
+      try {
+        final entry = ZipDecoder().decodeStream(input).single;
+        final zip = entry.rawContent! as ZipFile;
+        expect(zip.compressionMethod, compression);
+        final expected = Uint8List.fromList(
+          List.generate(3 * 1024 * 1024 + 123, (i) => i % 251),
+        );
+        final dest = p.join(temp.path, 'out.bin');
+        for (final verify in [false, true]) {
+          zip.verify = verify;
+          zip.throwOnError = verify;
+          expect(await writeZipEntry(entry, dest), expected.length);
+          expect(File(dest).readAsBytesSync(), expected);
+          expect(zip.verify, verify);
+          expect(zip.throwOnError, verify);
+        }
+      } finally {
+        input.closeSync();
+      }
+    });
+
+    test(
+      '${compression.name}: רשומה דחוסה אמיתית ניתנת לקריאה חוזרת',
+      () async {
+        final input = openZipInput(compressedFixture(compression));
+        try {
+          final entry = ZipDecoder().decodeStream(input).single;
+          final zip = entry.rawContent! as ZipFile;
+          expect(zip.compressionMethod, compression);
+          expect(zip.compressedSize, lessThan(64 * 1024));
+          final dest = p.join(temp.path, 'out.bin');
+          for (var i = 0; i < 2; i++) {
+            expect(await writeZipEntry(entry, dest), 16 * 1024 * 1024);
+            expect(File(dest).readAsBytesSync(), Uint8List(16 * 1024 * 1024));
+            expect(zip.throwOnError, isFalse);
+            expect(zip.verify, isFalse);
+          }
+          expect(entry.readBytes(), Uint8List(16 * 1024 * 1024));
+        } finally {
+          input.closeSync();
+        }
+      },
+    );
+
+    for (final declaredSize in [0, 1, 1024 * 1024 + 1, 32 * 1024 * 1024]) {
+      test(
+        '${compression.name}: גודל שקרי ברשומה אמיתית ($declaredSize)',
+        () async {
+          final input = openZipInput(compressedFixture(compression));
+          try {
+            final entry = ZipDecoder().decodeStream(input).single;
+            final zip = entry.rawContent! as ZipFile;
+            zip.uncompressedSize = declaredSize;
+            final dest = p.join(temp.path, 'out.bin');
+            await expectLater(
+              writeZipEntry(entry, dest),
+              throwsFormatException,
+            );
+            expect(File(dest).existsSync(), isFalse);
+            expect(zip.throwOnError, isFalse);
+            expect(zip.verify, isFalse);
+          } finally {
+            input.closeSync();
+          }
+        },
+      );
+    }
+  }
+
   test('תוכן גדול מהגודל המוצהר נעצר', () async {
     final input = openZipInput(writeZip(payload(), CompressionType.deflate));
     try {
@@ -164,6 +247,35 @@ void main() {
       input.closeSync();
     }
   });
+
+  for (final compression in [CompressionType.lzma, CompressionType.xz]) {
+    test(
+      '${compression.name}: פענוח רשומה אמיתית פגומה מנקה את היעד',
+      () async {
+        final bytes = File(compressedFixture(compression)).readAsBytesSync();
+        final header = ByteData.sublistView(bytes);
+        final start =
+            30 +
+            header.getUint16(26, Endian.little) +
+            header.getUint16(28, Endian.little);
+        bytes.fillRange(start, start + 4, 0);
+        final path = p.join(temp.path, 'corrupt.zip');
+        File(path).writeAsBytesSync(bytes);
+        final input = openZipInput(path);
+        try {
+          final entry = ZipDecoder().decodeStream(input).single;
+          final zip = entry.rawContent! as ZipFile;
+          final dest = p.join(temp.path, 'out.bin');
+          await expectLater(writeZipEntry(entry, dest), throwsFormatException);
+          expect(File(dest).existsSync(), isFalse);
+          expect(zip.throwOnError, isFalse);
+          expect(zip.verify, isFalse);
+        } finally {
+          input.closeSync();
+        }
+      },
+    );
+  }
 
   for (final compression in CompressionType.values) {
     test(
