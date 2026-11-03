@@ -3,6 +3,7 @@ import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/caption_button_colors.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 
 /// כמו `WindowCaption` של window_manager (בלי כותרת), אבל הכפתורים ומצב
@@ -187,7 +188,11 @@ class _AppCaptionIconButtonState extends State<AppCaptionIconButton> {
             ),
             decoration: BoxDecoration(color: colors.background),
             child: Center(
-              child: Icon(widget.icon, size: 16, color: colors.icon),
+              child: Icon(
+                widget.icon,
+                size: AppTokens.iconSM,
+                color: colors.icon,
+              ),
             ),
           ),
         ),
