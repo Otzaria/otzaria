@@ -475,6 +475,21 @@ void main() {
     expect(store.ledger, [reminderId('a')]);
   });
 
+  test('ניקוי הכפילויות אינו שואל את המערכת שוב בהפעלה הבאה', () async {
+    store.values[CalendarAlertsKeys.events] = jsonEncode([
+      futureEvent('a').toJson(),
+    ]);
+    await owner(dedupe: true).restoreIfNeeded();
+    expect(notifications.pendingQueries, 1);
+
+    // תהליך חדש על אותו מצב שמור: השאילתה הסינכרונית תוקעת את ה-UI (#4027).
+    final next = WindowsLikeNotifications()..counts[reminderId('a')] = 2;
+    await owner(using: next, dedupe: true).restoreIfNeeded();
+
+    expect(next.pendingQueries, 0);
+    expect(next.counts[reminderId('a')], 2);
+  });
+
   test('קריסה באמצע ריצה אינה משאירה התראה שאין לבטל', () async {
     store.values[CalendarAlertsKeys.events] = jsonEncode([
       futureEvent('a').toJson(),

@@ -795,9 +795,12 @@ class CalendarAlertsOwner {
   }
 
   /// ב-Windows תזמון אינו דורס מופע קיים, ולכן גרסאות קודמות השאירו כפילויות.
+  /// פעם אחת בהתקנה: השאילתה למערכת סינכרונית ותוקעת את ה-UI (#4027).
   Future<void> _removeDuplicatesOnce(Set<int> ours) async {
     if (!_dedupeDuplicates || _dedupedPending) return;
     _dedupedPending = true;
+    if (_store.readDuplicatesCleaned()) return;
+    await _store.markDuplicatesCleaned();
     try {
       final counts = <int, int>{};
       for (final id in await _notifications.pendingNotificationIds()) {

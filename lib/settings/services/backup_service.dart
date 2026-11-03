@@ -309,6 +309,7 @@ class BackupService {
     'key-last-auto-backup',
     _kLastPartialAutoBackupKey,
     SettingsRepository.keyCalendarEventNotificationIds,
+    SettingsRepository.keyCalendarEventDuplicatesCleaned,
     SettingsRepository.keyGoogleCalendarLastSync,
     // אסימון גישה חי ליומן Google — אין להטמיע אותו בקובץ גיבוי נייד.
     // ההתחברות נדרשת מחדש ביעד, ושאר הגדרות היומן משוחזרות.
