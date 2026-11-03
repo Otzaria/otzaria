@@ -101,6 +101,7 @@ import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:otzaria/pdf_book/utils/pdfium_preload.dart';
 import 'package:otzaria/tools/calendar/services/calendar_alerts_owner.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
@@ -363,6 +364,7 @@ void main(List<String> args) async {
   // בלי זה חיפוש, העתקה ואינדוקס מקבלים מילים הפוכות או ג'יבריש.
   Pdfrx.normalizeHebrewText = true;
   Pdfrx.decodeLegacyHebrewText = true;
+  installPdfiumPreloadGate();
 
   SentryWidgetsFlutterBinding.ensureInitialized();
   // macOS: המודל נקבע לפני כל קריאה ל-MultiViewMode. סבב ערוץ אחד, עם timeout.
