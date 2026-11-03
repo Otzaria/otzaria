@@ -663,9 +663,6 @@
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"a9c1e30c","n":1},
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"abc1e632","n":1}
       ],
-      "lib/widgets/controls/toggle_pill.dart": [
-        {"scope":"AppTogglePill.build","fp":"a8c1e179","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_ExpandableOrgCardState._buildDetailsText","fp":"a8c1e179","n":1},
         {"scope":"_ExpandableOrgCardState.build","fp":"37c97e5b","n":1},
