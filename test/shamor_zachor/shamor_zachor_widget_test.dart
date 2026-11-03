@@ -38,7 +38,10 @@ void main() {
   setUp(() {
     settingsBloc = SettingsBloc(repository: SettingsRepository())
       ..add(LoadSettings());
-    contentFocusNode = FocusNode(debugLabel: 'tool-content', skipTraversal: true);
+    contentFocusNode = FocusNode(
+      debugLabel: 'tool-content',
+      skipTraversal: true,
+    );
     outsideFocusNode = FocusNode(debugLabel: 'outside');
     progressProvider = _FakeProgressProvider();
   });
@@ -190,9 +193,11 @@ void main() {
     expect(find.text('ספר פעיל'), findsOneWidget);
   });
 
-  testWidgets('אנימציית הסיום במרכז החלון, מעל כל החלון', (tester) async {
+  // q10 שאלה 19 = C: במרכז הכלי, בלי רקע כהה ובלי חסימת לחיצות.
+  testWidgets('אנימציית הסיום במרכז הכלי, בלי שכבה חוסמת', (tester) async {
     await pumpTool(tester);
     await openActiveBook(tester);
+    final toolRect = tester.getRect(find.byType(ShamorZachorWidget));
 
     progressProvider.emit(
       const CompletionEvent(CompletionEventType.bookCompleted, bookId: 1),
@@ -203,12 +208,21 @@ void main() {
     final message = find.text('אשריך! תזכה ללמוד ספרים אחרים ולסיימם!');
     expect(message, findsOneWidget);
     final center = tester.getCenter(message);
-    expect(center.dx, moreOrLessEquals(_windowSize.width / 2, epsilon: 1));
-    expect(center.dy, moreOrLessEquals(_windowSize.height / 2, epsilon: 40));
+    expect(center.dx, moreOrLessEquals(toolRect.center.dx, epsilon: 1));
+    expect(center.dy, moreOrLessEquals(toolRect.center.dy, epsilon: 40));
+    expect(toolRect.center.dx, isNot(moreOrLessEquals(_windowSize.width / 2)));
 
-    // השכבה הכהה מכסה את כל החלון, כולל החלונית שליד הכלי.
-    final scrim = find.ancestor(of: message, matching: find.byType(Material)).last;
-    expect(tester.getRect(scrim), Offset.zero & _windowSize);
+    // אין רקע צבוע מתחת להודעה.
+    for (final material in tester.widgetList<Material>(
+      find.ancestor(of: message, matching: find.byType(Material)),
+    )) {
+      expect(material.type, MaterialType.transparency);
+    }
+
+    // לחיצה בזמן האנימציה עוברת לכלי: "חזרה" סוגר את הספר.
+    await tester.tap(find.byTooltip('חזרה'), warnIfMissed: false);
+    await tester.pump();
+    expect(find.byType(BookDetailScreen), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 1500));
     await tester.pumpAndSettle();
@@ -219,7 +233,10 @@ void main() {
     await pumpTool(tester);
     await openActiveBook(tester);
     progressProvider.emit(
-      const CompletionEvent(CompletionEventType.reviewCycleCompleted, bookId: 1),
+      const CompletionEvent(
+        CompletionEventType.reviewCycleCompleted,
+        bookId: 1,
+      ),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
