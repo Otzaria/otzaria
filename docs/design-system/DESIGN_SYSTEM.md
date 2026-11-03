@@ -233,7 +233,7 @@
 | מונוספייס (נתיב, קיצור מקשים, גרסה) | `AppTextStyles.mono` (יעד). המשפחה קיימת: `AppTextStyles.monospaceFamily` (MIG-28) | גופן `monospace` של המערכת. הגודל מסולם ה־slots, ונקבע ב־commit המיישם | 4 מופעים של `'monospace'` ליטרלי עברו למשפחה |
 
 **[מחייב]**
-- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme. עד MIG-05 קוד חדש בוחר את ה־slot הקרוב, גם אם גודלו היום שונה.
+- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme; UIL-017 חוסם את שניהם. עד MIG-05 קוד חדש בוחר את ה־slot הקרוב, גם אם גודלו היום שונה.
 - `TextStyle(fontFamily: '…')` ליטרלי אסור (UIL-018, חוסם). המשפחה נקבעת ב־`AppThemeData` (גופן ממשק), ב־`AppFonts` (תוכן) או ב־`AppTextStyles.monospaceFamily`.
 - `AppTextStyles.settingTitle/settingSubtitle` שמורים לשורות הגדרה. לא בונים מהם סגנונות לשימושים אחרים: `NavTreeTile` מקטין את `settingTitle` ל־14 (UI-015).
 
