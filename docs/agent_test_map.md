@@ -61,7 +61,6 @@
 | טעינת `line_dh.dhDisplay` (מסד ישן בלי טבלה/עמודה → מפה ריקה) | `test/data_providers/database_library_provider_dibburim_test.dart` |
 | UserBooksDB | `test/data_providers/user_books_database_holder_test.dart` |
 | FileSystemLibraryProvider | `test/data_providers/file_system_library_provider_test.dart` |
-| ExternalCatalogMapper | `test/data_providers/external_catalog_mapper_test.dart` |
 | TantivyDataProvider (search index) | `test/data/data_providers/tantivy_data_provider_test.dart` |
 | External books scanner | `test/data/data_providers/scan_external_books_test.dart` |
 | Library book search (fuzzy + acronyms) | `test/data/repository/book_search_fuzzy_match_test.dart` |
@@ -215,7 +214,7 @@
 | PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
 | צבעי סרגל הזום של ה-PDF נגזרים מערכת הצבעים (issue #1472) | `test/pdf_book/pdf_zoom_bar_colors_test.dart`, `…pdf_zoom_bar_theme_test.dart` |
 | דיאלוג המעבר לכתובת חיצונית מ-PDF (כיוון LTR לכתובת, AppDialog, ActionButton) | `test/pdf_book/open_url_confirmation_test.dart` |
-| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart`, `test/pdf_book/pdf_link_hover_color_test.dart`, `test/pdf_book/pdf_theme_rendering_test.dart` |
+| צבעי מסך ה-PDF נגזרים מערכת הצבעים (issue #1469) | `test/pdf_book/pdf_hardcoded_colors_test.dart`, `test/pdf_book/pdf_link_hover_color_test.dart` |
 | ניתוב החיפוש בתוך PDF (פשוט מול מנוע) | `test/pdf_book/pdf_search_in_book_routing_test.dart` |
 | Printing models | `test/printing/print_content_models_test.dart` |
 | File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
@@ -255,7 +254,6 @@
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
 | Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
 | Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
-| Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
 | Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
 | Focus restore | `test/core/focus_restore_test.dart` |
 | Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |

@@ -2,6 +2,8 @@
 
 קרא את הסעיף הרלוונטי רק בעת שינוי ממשק. כללי החובה המקוצרים נמצאים ב־`AGENTS.md`.
 
+> **התקן המחייב הוא `docs/design-system/DESIGN_SYSTEM.md`.** כשמשהו כאן סותר אותו, או את `docs/design-system/DEVELOPER_GUIDE.md`, התקן גובר. הקובץ הזה עדיין לא נכתב מחדש לפי התקן (UI-039), ולכן חלק מהדוגמאות בו ישנות: למשל רדיוס הכרטיס (8, בלי מסגרת) ושם רכיב הבורר בהגדרות (`SettingsSegmentedTile`).
+
 ## רכיבי ממשק
 
 ### 1. Icons - `otzaria_icons` FIRST, `fluentui_system_icons` for the rest
