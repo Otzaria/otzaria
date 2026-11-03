@@ -6,6 +6,7 @@ import 'literal_font_family_rule.dart';
 import 'literal_font_size_rule.dart';
 import 'literal_radius_rule.dart';
 import 'literal_width_breakpoint_rule.dart';
+import 'local_alpha_rule.dart';
 import 'material_icons_rule.dart';
 import 'primary_color_rule.dart';
 import 'raw_dialog_rule.dart';
@@ -28,6 +29,7 @@ const List<UiLintRule> uiLintRules = [
   RawMenuRule(),
   RawTextFieldRule(),
   HardcodedColorRule(),
+  LocalAlphaRule(),
   LiteralFontSizeRule(),
   LiteralFontFamilyRule(),
   LiteralRadiusRule(),
