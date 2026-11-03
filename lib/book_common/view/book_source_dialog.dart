@@ -366,7 +366,6 @@ class _SourceCredit extends StatelessWidget {
     final label = Text(
       info.text,
       style: TextStyle(
-        fontSize: 14,
         color: hasUrl ? Theme.of(context).colorScheme.primary : null,
         decoration: hasUrl ? TextDecoration.underline : null,
       ),
@@ -548,7 +547,6 @@ class _TashmaCopyrightNoticeState extends State<_TashmaCopyrightNotice> {
   Widget build(BuildContext context) {
     return Text.rich(
       TextSpan(
-        style: const TextStyle(fontSize: 14),
         children: [
           const TextSpan(text: 'כל הזכויות שמורות ל'),
           TextSpan(

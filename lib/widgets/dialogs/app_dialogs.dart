@@ -174,7 +174,9 @@ class _AppDialogState extends State<AppDialog> {
             const SizedBox(height: 8),
             Text(
               widget.subtitle!,
-              style: TextStyle(color: cs.error, fontSize: 13),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.error),
             ),
           ],
         ),

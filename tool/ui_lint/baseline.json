@@ -60,10 +60,6 @@
       ]
     },
     "UIL-017": {
-      "lib/book_common/view/book_source_dialog.dart": [
-        {"scope":"_SourceCredit.build","fp":"a9c1e30c","n":1},
-        {"scope":"_TashmaCopyrightNoticeState.build","fp":"a9c1e30c","n":1}
-      ],
       "lib/core/diagnostics/frame_stats_overlay.dart": [
         {"scope":"_FrameStatsPanelState.build","fp":"a6c1de53","n":1}
       ],
@@ -161,9 +157,6 @@
         {"scope":"SemanticResultCard._buildContent","fp":"aac1e49f","n":1},
         {"scope":"SemanticResultCard._buildContent","fp":"abc1e632","n":1}
       ],
-      "lib/settings/dialogs/offline_donation_dialog.dart": [
-        {"scope":"_DonationInstructions.build","fp":"a9c1e30c","n":1}
-      ],
       "lib/settings/panels/personal_books_import_panel.dart": [
         {"scope":"_PersonalBooksImportPanelState._buildFileItem","fp":"a6c1de53","n":1},
         {"scope":"_PersonalBooksImportPanelState._buildFileItem","fp":"a9c1e30c","n":1}
@@ -218,17 +211,11 @@
         {"scope":"_ExpandableOrgCardState.build","fp":"adc1e958","n":1},
         {"scope":"_OrganizationsList._buildSectionTitle","fp":"37c97e5b","n":1}
       ],
-      "lib/widgets/dialogs/app_dialogs.dart": [
-        {"scope":"_AppDialogState._buildContent","fp":"a8c1e179","n":1}
-      ],
       "lib/widgets/dialogs/zip_extraction_progress_dialog.dart": [
         {"scope":"ZipExtractionProgressDialog.showAndExtract","fp":"adc1e958","n":1}
       ],
       "lib/widgets/lists/items_list_view.dart": [
         {"scope":"_ItemsListViewState._buildInlineSubtitle","fp":"a8c1e179","n":1}
-      ],
-      "lib/widgets/lists/nav_tree_tile.dart": [
-        {"scope":"_ClearFilterButton.build","fp":"a7c1dfe6","n":1}
       ],
       "lib/widgets/navigation/nav_rail_item.dart": [
         {"scope":"NavRailItem.build","fp":"a6c1de53","n":1}

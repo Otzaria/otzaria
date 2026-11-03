@@ -76,7 +76,6 @@ class _DonationInstructions extends StatelessWidget {
             children: [
               Text(
                 context.settingsText('ניתן לתרום מכל מכשיר בנדרים+'),
-                style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: AppTokens.spaceMD),
               DetailsCard(

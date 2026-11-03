@@ -298,7 +298,9 @@ void main() {
       expect(confirm.shape, AppTokens.roundedShape);
     });
 
-    testWidgets('שורת המשנה בצבע error בגודל 13', (tester) async {
+    testWidgets('שורת המשנה ב־bodySmall בצבע error (DESIGN_SYSTEM §2.4.1)', (
+      tester,
+    ) async {
       await showInApp<bool>(
         tester,
         const AppDialog.warning(
@@ -310,7 +312,11 @@ void main() {
       final cs = schemeAt(tester, find.byType(AppDialogFrame));
       final subtitle = tester.widget<Text>(find.text('אי אפשר לבטל'));
       expect(subtitle.style?.color, cs.error);
-      expect(subtitle.style?.fontSize, 13);
+      final bodySmall = Theme.of(
+        tester.element(find.text('אי אפשר לבטל')),
+      ).textTheme.bodySmall!;
+      expect(subtitle.style?.fontSize, bodySmall.fontSize);
+      expect(subtitle.style?.height, bodySmall.height);
     });
 
     testWidgets('showWarningDialog: טקסט האישור כברירת מחדל הוא "איפוס"', (
