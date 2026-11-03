@@ -63,7 +63,7 @@ class OtzariaSearchActionScope extends InheritedWidget {
 ///
 /// [selected] — מצב דלוק של כפתור מתג, באותו רקע כמו [BarButton] נבחר.
 /// [busy] — ספינר במקום האייקון; הכפתור נשאר לחיץ.
-/// [label] — תווית קצרה ליד האייקון, בגלולה (q9 שאלה 14), כשיש לה מקום בשדה.
+/// [label] — תווית קצרה ליד האייקון, בצורת צ'יפ (q9 שאלה 14, q10 שאלה 23), כשיש לה מקום בשדה.
 class OtzariaSearchFieldButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -77,12 +77,13 @@ class OtzariaSearchFieldButton extends StatelessWidget {
   /// [clearIcon] של המידות במקום [icon].
   final bool clearGlyph;
 
-  /// מוצגת רק אם הגלולה נכנסת ב־[OtzariaSearchActionScope.labelBudget];
+  /// מוצגת רק אם הכפתור עם התווית נכנס ב־[OtzariaSearchActionScope.labelBudget];
   /// אחרת הכפתור הוא אייקון בלבד, ו־[tooltip] אומר את אותו הדבר.
   final String? label;
 
-  /// גודל התווית: גופן השדה הצר.
-  static const double labelFontSize = AppInputTokens.compactFontSize;
+  /// סגנון התווית: כמו צ'יפ, labelMedium (12).
+  static TextStyle? labelStyle(BuildContext context) =>
+      Theme.of(context).textTheme.labelMedium;
   static const double _labelPadding = AppTokens.spaceSM;
   static const double _labelGap = AppTokens.spaceXS;
 
@@ -95,9 +96,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
     final painter = TextPainter(
       text: TextSpan(
         text: label,
-        style: DefaultTextStyle.of(
-          context,
-        ).style.merge(const TextStyle(fontSize: labelFontSize)),
+        style: DefaultTextStyle.of(context).style.merge(labelStyle(context)),
       ),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
@@ -159,7 +158,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
     );
   }
 
-  // גלולה, כמו שתוארה האפשרות שנבחרה (DD-31, DD-04).
+  // בצורה ובגודל של צ'יפ: פינות 8 ו-labelMedium (q10 שאלה 23).
   Widget _buildLabeled(
     BuildContext context,
     ColorScheme cs,
@@ -169,7 +168,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
     final fg = selected
         ? cs.onSecondaryContainer
         : (color ?? cs.onSurfaceVariant);
-    const shape = StadiumBorder();
+    const shape = AppTokens.roundedShape;
     return Tooltip(
       message: tooltip,
       child: Semantics(
@@ -198,7 +197,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
                       label,
                       maxLines: 1,
                       softWrap: false,
-                      style: TextStyle(fontSize: labelFontSize, color: fg),
+                      style: labelStyle(context)?.copyWith(color: fg),
                     ),
                   ],
                 ),
