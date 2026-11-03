@@ -17,7 +17,8 @@ enum AppCardTone {
 /// בלי צל (DD-12).
 ///
 /// שני קונסטרקטורים:
-/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap], ב-[selected] וב-[tone].
+/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap], ב-[selected], ב-[active]
+///   וב-[tone].
 /// - [AppCard.section] — מקטע עם מספר שורות; מוסיף אוטומטית רווח 1.5px בין שורות.
 class AppCard extends StatelessWidget {
   /// כרטיס עם ילד יחיד.
@@ -31,6 +32,7 @@ class AppCard extends StatelessWidget {
     this.margin,
     this.padding,
     this.selected = false,
+    this.active = false,
     this.tone = AppCardTone.normal,
   }) : children = null;
 
@@ -44,16 +46,24 @@ class AppCard extends StatelessWidget {
       margin = null,
       padding = null,
       selected = false,
+      active = false,
       tone = AppCardTone.normal;
 
   /// הרווח הקבוע בין שורות במקטע כרטיס.
   static const double sectionSpacing = 1.5;
 
-  /// צורת הכרטיס: פינות 8 ומסגרת `outlineVariant`.
-  static ShapeBorder shape(ColorScheme cs) => RoundedRectangleBorder(
-    borderRadius: AppTokens.borderRadiusAll,
-    side: BorderSide(color: cs.outlineVariant),
-  );
+  /// צורת הכרטיס: פינות 8 ומסגרת `outlineVariant`, וב-[active] מסגרת
+  /// הבחירה ([AppSurfaces.multiSelectedBorder], 1.5).
+  static ShapeBorder shape(ColorScheme cs, {bool active = false}) =>
+      RoundedRectangleBorder(
+        borderRadius: AppTokens.borderRadiusAll,
+        side: active
+            ? BorderSide(
+                color: AppSurfaces.multiSelectedBorder(cs),
+                width: AppTokens.multiSelectedBorderWidth,
+              )
+            : BorderSide(color: cs.outlineVariant),
+      );
 
   final Widget? child;
   final List<Widget>? children;
@@ -68,6 +78,10 @@ class AppCard extends StatelessWidget {
 
   /// מוסיף overlay של secondaryContainer מעל הכרטיס
   final bool selected;
+
+  /// הפריט הפעיל ברשת כרטיסים (למשל שולחן העבודה הנוכחי): מסגרת הבחירה
+  /// במקום `outlineVariant`, כדי ש"פעיל" לא יסומן רק בצבע (DD-06).
+  final bool active;
 
   final AppCardTone tone;
 
@@ -97,7 +111,7 @@ class AppCard extends StatelessWidget {
 
   Widget _buildSingle(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final cardShape = shape(cs);
+    final cardShape = shape(cs, active: active);
     final (Color color, Color? onColor) = switch (tone) {
       AppCardTone.normal => (AppSurfaces.card(context), null),
       AppCardTone.primary => (cs.primaryContainer, cs.onPrimaryContainer),

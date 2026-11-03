@@ -45,7 +45,6 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
       title: 'שולחנות עבודה',
       icon: OtzariaIcons.lectern_24_regular,
       size: AppDialogSize.large,
-      backgroundColor: AppSurfaces.panelBackground(context),
       child: BlocBuilder<WorkspaceBloc, WorkspaceState>(
         builder: (context, state) {
           if (state.isLoading) {
@@ -106,47 +105,43 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
       builder: (context, tabsState) {
         return AppCard(
           margin: const EdgeInsets.all(4),
-          child: InkWell(
-            onTap: () {
-              final workspaceBloc = context.read<WorkspaceBloc>();
-              final newWorkspaceName = uniqueWorkspaceName(
-                workspaceBloc.state.workspaces,
-              );
-              workspaceBloc.add(
-                AddWorkspace(
-                  name: newWorkspaceName,
-                  tabs: const [],
-                  currentTabIndex: 0,
+          onTap: () {
+            final workspaceBloc = context.read<WorkspaceBloc>();
+            final newWorkspaceName = uniqueWorkspaceName(
+              workspaceBloc.state.workspaces,
+            );
+            workspaceBloc.add(
+              AddWorkspace(
+                name: newWorkspaceName,
+                tabs: const [],
+                currentTabIndex: 0,
+              ),
+            );
+          },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: AppTokens.borderRadiusAll,
                 ),
-              );
-            },
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: AppTokens.borderRadiusAll,
-                  ),
-                  child: Icon(
-                    FluentIcons.add_24_regular,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                child: Icon(
+                  FluentIcons.add_24_regular,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'שולחן עבודה חדש',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'שולחן עבודה חדש',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -159,85 +154,79 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     List<OpenedTab> tabs,
     bool isActive,
   ) {
+    final cs = Theme.of(context).colorScheme;
+    // הפעיל: מסגרת הבחירה, ורק אזור התצוגה המקדימה בצבע "נבחר" (q9 שאלה 7).
     return AppCard(
       margin: const EdgeInsets.all(4),
-      child: Stack(
-        children: [
-          InkWell(
-            onTap: () async {
-              if (_switchPending) return;
-              _switchPending = true;
-              // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
-              final tabsBloc = context.read<TabsBloc>();
-              final workspaceBloc = context.read<WorkspaceBloc>();
-              final navigationBloc = context.read<NavigationBloc>();
-              final navigator = Navigator.of(context);
-              final route = ModalRoute.of(context);
-              if (!await confirmCloseTabs(context, tabsBloc.state.tabs)) {
-                _switchPending = false;
+      active: isActive,
+      onTap: () async {
+        if (_switchPending) return;
+        _switchPending = true;
+        // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
+        final tabsBloc = context.read<TabsBloc>();
+        final workspaceBloc = context.read<WorkspaceBloc>();
+        final navigationBloc = context.read<NavigationBloc>();
+        final navigator = Navigator.of(context);
+        final route = ModalRoute.of(context);
+        if (!await confirmCloseTabs(context, tabsBloc.state.tabs)) {
+          _switchPending = false;
+          return;
+        }
+        if (!context.mounted || route?.isCurrent != true) return;
+        final tabsState = tabsBloc.state;
+        workspaceBloc.add(
+          SwitchToWorkspace(
+            targetWorkspaceId: workspace.id,
+            currentTabsToSave: tabsState.tabs,
+            currentTabIndexToSave: tabsState.currentTabIndex,
+            // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
+            // הטאבים, וזהות האובייקט אובדת ממילא.
+            currentActivePaneToSave: tabsState.activePaneSide,
+            onCompleted: (hasTabs) {
+              _switchPending = false;
+              if (hasTabs == null ||
+                  !context.mounted ||
+                  route?.isCurrent != true) {
                 return;
               }
-              if (!context.mounted || route?.isCurrent != true) return;
-              final tabsState = tabsBloc.state;
-              workspaceBloc.add(
-                SwitchToWorkspace(
-                  targetWorkspaceId: workspace.id,
-                  currentTabsToSave: tabsState.tabs,
-                  currentTabIndexToSave: tabsState.currentTabIndex,
-                  // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
-                  // הטאבים, וזהות האובייקט אובדת ממילא.
-                  currentActivePaneToSave: tabsState.activePaneSide,
-                  onCompleted: (hasTabs) {
-                    _switchPending = false;
-                    if (hasTabs == null ||
-                        !context.mounted ||
-                        route?.isCurrent != true) {
-                      return;
-                    }
-                    navigationBloc.add(
-                      NavigateToScreen(
-                        hasTabs ? Screen.reading : Screen.library,
-                      ),
-                    );
-                    navigator.pop();
-                  },
+              navigationBloc.add(
+                NavigateToScreen(
+                  hasTabs ? Screen.reading : Screen.library,
                 ),
               );
+              navigator.pop();
             },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.5)
-                          : Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: AppTokens.borderRadiusAll,
-                    ),
-                    child: _buildWorkspacePreview(context, tabs, isActive),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: _WorkspaceNameField(workspace: workspace),
-                ),
-              ],
-            ),
           ),
-          PositionedDirectional(
-            top: 4,
-            start: 4,
-            child: IconButton(
-              tooltip: 'מחק שולחן עבודה',
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 16),
-              onPressed: () => _deleteWorkspace(context, workspace, isActive),
-            ),
+        );
+      },
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? AppSurfaces.selectedRow(cs)
+                        : cs.surfaceContainerHighest,
+                    borderRadius: AppTokens.borderRadiusAll,
+                  ),
+                  child: _buildWorkspacePreview(context, tabs, isActive),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: _WorkspaceNameField(
+                  workspace: workspace,
+                  // הפעיל לא נמחק: הכפתור מושבת, במקום הודעת שגיאה.
+                  onDelete: isActive
+                      ? null
+                      : () => _deleteWorkspace(context, workspace),
+                ),
+              ),
+            ],
           ),
           PositionedDirectional(
             top: 4,
@@ -274,12 +263,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   Future<void> _deleteWorkspace(
     BuildContext context,
     Workspace workspace,
-    bool isActive,
   ) async {
-    if (isActive) {
-      UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
-      return;
-    }
     final workspaceBloc = context.read<WorkspaceBloc>();
     final confirmed = await showWarningDialog(
       context: context,
@@ -328,7 +312,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     bool isActive,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final color = isActive ? cs.onPrimary : cs.primary;
+    final color = isActive ? AppSurfaces.onSelectedRow(cs) : cs.primary;
     final preview = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -356,9 +340,12 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
 
 /// מצב העריכה נשמר ב-State כדי שפתיחת המקלדת לא תסגור את שדה הקלט.
 class _WorkspaceNameField extends StatefulWidget {
-  const _WorkspaceNameField({required this.workspace});
+  const _WorkspaceNameField({required this.workspace, required this.onDelete});
 
   final Workspace workspace;
+
+  /// null = מושבת (השולחן הפעיל).
+  final VoidCallback? onDelete;
 
   @override
   State<_WorkspaceNameField> createState() => _WorkspaceNameFieldState();
@@ -414,7 +401,7 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
             ),
           ),
           const SizedBox(width: 6),
-          IconButton(
+          AppIconButton(
             tooltip: 'שמור',
             icon: const Icon(FluentIcons.checkmark_24_regular),
             onPressed: _commitRenameAndClose,
@@ -432,10 +419,15 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        IconButton(
+        AppIconButton(
           tooltip: 'שנה שם',
           icon: const Icon(FluentIcons.edit_24_regular),
           onPressed: _startEditing,
+        ),
+        AppIconButton(
+          tooltip: 'מחק שולחן עבודה',
+          icon: const Icon(FluentIcons.delete_24_regular),
+          onPressed: widget.onDelete,
         ),
       ],
     );
