@@ -1213,6 +1213,10 @@ class FindRefRepository {
     // ב-bookQueryTokenCount, ובליעת ה-prefix שלהם חייבת את ה-n שלהם עצמם.
     final secondaryPhraseTokenCount = <ReferenceBookHit, int>{};
 
+    // צירוף-תחילית מ-n שאין בו primary ("רמב"ם מאכלות" ⊂ "רמב"ם מאכלות אסורות"):
+    // ב-n=1 הוא קודם לכל ה-hits, שאחרת היה נחתך בתקרת ה-TOC.
+    final longerPrefixHits = <(int, String), ReferenceBookHit>{};
+
     for (var n = books.maxPhraseTokens; n >= 1; n--) {
       final phrase = queryTokens.take(n).join(' ');
       final hits = books.search(phrase, limit: books.bookSearchLimit);
@@ -1220,7 +1224,11 @@ class FindRefRepository {
 
       // For single-token queries, keep all hits as usual.
       if (n == 1) {
-        bookHits = hits;
+        bookHits = [
+          ...longerPrefixHits.values,
+          for (final hit in hits)
+            if (!longerPrefixHits.containsKey((hit.bookId, hit.filePath))) hit,
+        ];
         bookQueryTokenCount = n;
         break;
       }
@@ -1241,9 +1249,8 @@ class FindRefRepository {
 
       // rank=4 שכל שאר מילות ראש-התיבות שלו הן מילות-כותרת ("רמב"ם תפילה" ⊂
       // "רמב"ם תפילה וברכת כהנים") — השאילתה מזהה את הספר במלואו, ולכן הוא
-      // מצטרף ל-primary. אבל *רק* כשיש primary אחר: אסור שהצירוף עצמו יגרום
-      // ל-break, שאחרת ספרים שנמצאים ב-n קטן יותר ("רש"י בראשית" → "רש"י על
-      // בראשית") ייעלמו.
+      // מצטרף ל-primary. אסור שהצירוף עצמו יגרום ל-break, שאחרת ספרים שנמצאים
+      // ב-n קטן יותר ("רש"י בראשית" → "רש"י על בראשית") ייעלמו.
       final joinablePrefixHits = <ReferenceBookHit>[];
 
       for (final hit in hits) {
@@ -1280,6 +1287,12 @@ class FindRefRepository {
         bookHits = [...primaryHits, ...joinablePrefixHits];
         bookQueryTokenCount = n;
         break;
+      }
+      for (final hit in joinablePrefixHits) {
+        final key = (hit.bookId, hit.filePath);
+        if (longerPrefixHits.containsKey(key)) continue;
+        longerPrefixHits[key] = hit;
+        secondaryPhraseTokenCount[hit] = n;
       }
     }
 
