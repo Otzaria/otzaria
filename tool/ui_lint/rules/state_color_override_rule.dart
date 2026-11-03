@@ -7,7 +7,9 @@ import '../ui_lint.dart';
 /// UIL-007: `hoverColor:`/`splashColor:`/`overlayColor:` מקומי מחוץ ל־lib/theme.
 ///
 /// צבעי המצב באים מערכת הנושא (`_hoverButtonStyle`, DD-06). מותר:
-/// - ערך מ־`AppSurfaces.*` (הבעלים של צבעי המצב, למשל `hoverRow`);
+/// - ערך מ־`AppSurfaces.*` (הבעלים של צבעי המצב, למשל `hoverRow`), גם בענף
+///   של תנאי שהענף השני שלו `null` (ברירת המחדל של ערכת הנושא), למשל ריחוף
+///   רק במצב בחירה;
 /// - `Colors.transparent` (גם בענף של תנאי) ב־`ListTile` שיש לו `onTap:` וגם
 ///   `trailing:`, כדי שהריחוף של השורה לא יתחרה בכפתורים שבתוכה (החריג
 ///   המתועד ב־DESIGN_SYSTEM §2.1 ו־CI_ENFORCEMENT §3.3). ב־`ListTile` בלי
@@ -43,6 +45,14 @@ class _Visitor extends RecursiveAstVisitor<void> {
 
   static bool _isSurfaceToken(Expression e) {
     final x = e.unParenthesized;
+    if (x is ConditionalExpression) {
+      bool tokenOrNull(Expression b) =>
+          b.unParenthesized is NullLiteral || _isSurfaceToken(b);
+      return tokenOrNull(x.thenExpression) &&
+          tokenOrNull(x.elseExpression) &&
+          (_isSurfaceToken(x.thenExpression) ||
+              _isSurfaceToken(x.elseExpression));
+    }
     if (x is MethodInvocation) {
       final target = x.target;
       return target is SimpleIdentifier && target.name == 'AppSurfaces';
