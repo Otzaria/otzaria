@@ -121,6 +121,19 @@ void main() {
       });
     }
 
+    testWidgets('tone inset: רקע surfaceContainerHigh, מסגרת נשארת', (
+      tester,
+    ) async {
+      await pumpInApp(
+        tester,
+        const AppCard(tone: AppCardTone.inset, child: Text('כרטיס')),
+      );
+      final cs = schemeAt(tester, find.byType(AppCard));
+      final material = firstMaterialIn(tester, find.byType(AppCard));
+      expect(material.color, cs.surfaceContainerHigh);
+      expect(material.shape, AppCard.shape(cs));
+    });
+
     for (final brightness in Brightness.values) {
       testWidgets('ב-$brightness: משטח AppSurfaces.card בפינות 8 ובמסגרת', (
         tester,

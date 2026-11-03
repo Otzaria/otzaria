@@ -34,9 +34,6 @@
       ]
     },
     "UIL-012": {
-      "lib/settings/tabs/about_settings_tab.dart": [
-        {"scope":"_SurfaceCard.build","fp":"0855387f","n":1}
-      ],
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
         {"scope":"_ZmanCard.build","fp":"0855387f","n":1}
       ],
@@ -537,10 +534,6 @@
       "lib/settings/panels/user_import_files_dialog.dart": [
         {"scope":"_ImportFileRow.build","fp":"1a491541","n":1},
         {"scope":"_ImportFileRow.build","fp":"4642f6a0","n":1}
-      ],
-      "lib/settings/tabs/about_settings_tab.dart": [
-        {"scope":"_ClosingQuote.build","fp":"a7c1dfe6","n":2},
-        {"scope":"_MemorialCard.build","fp":"a6c1de53","n":1}
       ],
       "lib/shortcuts/view/custom_shortcut_dialog.dart": [
         {"scope":"_CustomShortcutDialogState.build","fp":"1a491541","n":1},
