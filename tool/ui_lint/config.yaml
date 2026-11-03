@@ -190,3 +190,7 @@ rules:
         reason: רכיבי המשוב המשותפים (LoadingIndicator)
       - path: lib/widgets/controls/action_buttons.dart
         reason: מצב הטעינה של ActionButton (isLoading)
+
+
+  UIL-025:
+    strict: true

@@ -18,6 +18,7 @@ import 'raw_menu_rule.dart';
 import 'raw_progress_indicator_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
+import 'shared_density_rule.dart';
 import 'shared_feature_import_rule.dart';
 import 'snack_bar_rule.dart';
 import 'spacing_scale_rule.dart';
@@ -51,5 +52,6 @@ const List<UiLintRule> uiLintRules = [
   LiteralDurationRule(),
   IconSizeRule(),
   SharedFeatureImportRule(),
+  SharedDensityRule(),
   ElevationShadowRule(),
 ];

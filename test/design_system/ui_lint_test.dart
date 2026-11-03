@@ -12,7 +12,10 @@ const _fixtures = 'test/design_system/fixtures';
 const _featurePath = 'lib/feature/view/feature_screen.dart';
 
 /// נתיב לכלל שחל רק על חלק מ-lib.
-const _rulePaths = {'UIL-024': 'lib/widgets/misc/shared_widget.dart'};
+const _rulePaths = {
+  'UIL-024': 'lib/widgets/misc/shared_widget.dart',
+  'UIL-025': 'lib/widgets/misc/shared_widget.dart',
+};
 
 final _config = UiLintConfig.load('.');
 
@@ -168,6 +171,15 @@ import 'package:otzaria/models/books.dart';
     test("קובץ פיצ'ר רשאי לייבא פיצ'ר", () {
       expect(lines(_featurePath), isEmpty);
     });
+  });
+
+  test("UIL-025 חל רק על lib/widgets: קוד פיצ'ר קורא את ההגדרה", () {
+    List<UiLintFinding> found(String path) => [
+      for (final f in _lint('violating_uil_025', path: path).findings)
+        if (f.rule == 'UIL-025') f,
+    ];
+    expect(found('lib/widgets/misc/shared_widget.dart'), hasLength(3));
+    expect(found(_featurePath), isEmpty);
   });
 
   group('ניתוח AST לא מפוענח', () {
