@@ -30,6 +30,7 @@ import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 /// כפתור-שדה אחד המרכז את כל סינון היקף החיפוש: הקלדה מסננת בזמן אמת, ותפריט
 /// עם ניווט drill-down פנימי (עץ הקטגוריות/ספרים, ספרי יסוד, תקופה, מחבר).
@@ -1211,26 +1212,27 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                         size: 14,
                         color: colorScheme.onSurfaceVariant,
                       ),
-                    TextButton(
-                      onPressed: i == trail.length - 1
-                          ? null
-                          : () => _goToDepth(i),
-                      style: TextButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        trail[i],
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: i == trail.length - 1
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
+                    // הקודמים קישורים; המיקום הנוכחי טקסט, לא כפתור.
+                    if (i == trail.length - 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceSM,
+                          vertical: AppTokens.spaceXS,
                         ),
+                        child: Text(
+                          trail[i],
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.onSurface,
+                              ),
+                        ),
+                      )
+                    else
+                      ActionButton.inline(
+                        text: trail[i],
+                        onPressed: () => _goToDepth(i),
                       ),
-                    ),
                   ],
                 ],
               ),
@@ -1371,29 +1373,13 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                     : const SizedBox.shrink(),
                 child: Padding(
                   padding: const EdgeInsetsDirectional.only(start: 4),
-                  child: Tooltip(
-                    message: 'בחר רק את זה',
-                    child: TextButton(
-                      onPressed: () {
-                        item.onOnly!();
-                        widget.onKeepFocus();
-                      },
-                      style: TextButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'רק',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                  child: ActionButton.inline(
+                    text: 'רק',
+                    tooltip: 'בחר רק את זה',
+                    onPressed: () {
+                      item.onOnly!();
+                      widget.onKeepFocus();
+                    },
                   ),
                 ),
               ),

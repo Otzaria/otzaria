@@ -342,9 +342,7 @@
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
-        {"scope":"_ScopeMenuPanelState._buildBreadcrumb","fp":"a8c1e179","n":1},
         {"scope":"_ScopeMenuPanelState._buildRow","fp":"a6c1de53","n":1},
-        {"scope":"_ScopeMenuPanelState._buildRow","fp":"a7c1dfe6","n":1},
         {"scope":"_ScopeMenuPanelState._buildRow","fp":"a9c1e30c","n":1},
         {"scope":"_ScopeMenuPanelState._buildSectionHeader","fp":"a7c1dfe6","n":1},
         {"scope":"_SearchScopeMenuButtonState._buildActiveChips","fp":"a7c1dfe6","n":1},
@@ -667,7 +665,6 @@
         {"scope":"SearchResultSourceTag.build","fp":"9f20568c","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
-        {"scope":"_ScopeMenuPanelState._buildBreadcrumb","fp":"a215a261","n":1},
         {"scope":"_ScopeMenuPanelState._buildRow","fp":"05882f6f","n":1},
         {"scope":"_SearchScopeMenuButtonState._buildActiveChips","fp":"1d673b69","n":1}
       ],

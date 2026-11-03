@@ -8,6 +8,7 @@ import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// מפתח הניווט של החלון הנוכחי ([AppWindowKeys.current]) — חובה לחבר ל-MaterialApp.
@@ -22,7 +23,6 @@ abstract class _ToastTokens {
   static const double padV = AppTokens.spaceSM; // 8
 
   static const double fontMessage = AppTokens.fontXL; // 18 — גדול יותר
-  static const double fontAction = AppTokens.fontMD; // 14
 
   static const double maxWidth = 500;
 
@@ -527,26 +527,13 @@ class _SnackToastState extends State<_SnackToast>
                               if (widget.actionLabel != null &&
                                   widget.onAction != null) ...[
                                 const SizedBox(width: AppTokens.spaceSM),
-                                TextButton(
+                                ActionButton.inline(
+                                  text: widget.actionLabel!,
+                                  color: c.action,
                                   onPressed: () {
                                     widget.onAction!();
                                     _close();
                                   },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: c.action,
-                                    textStyle: const TextStyle(
-                                      fontSize: _ToastTokens.fontAction,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppTokens.spaceSM,
-                                      vertical: 4,
-                                    ),
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(widget.actionLabel!),
                                 ),
                               ],
                               if (widget.showCloseButton) ...[
