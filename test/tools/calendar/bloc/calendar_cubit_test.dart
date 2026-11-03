@@ -1421,6 +1421,59 @@ void main() {
       expect(merged.single.googleEventId, 'g-paged');
     });
 
+    test('אירוע שנמחק בלוח אחד ועדיין פעיל בלוח נבחר אחר נשאר', () {
+      final local = _buildUserEvent().copyWith(googleEventId: 'g-shared');
+      final active = allDayEvent(DateTime(2026, 5, 15), DateTime(2026, 5, 16))
+        ..id = 'g-shared';
+      final cancelled = cal.Event()
+        ..id = 'g-shared'
+        ..status = 'cancelled';
+
+      for (final pages in [
+        [
+          [cancelled],
+          [active],
+        ],
+        [
+          [active],
+          [cancelled],
+        ],
+      ]) {
+        final merged = google.mergeGoogleEventPages([local], pages);
+        expect(merged.map((e) => e.googleEventId), ['g-shared']);
+      }
+      expect(
+        google.mergeGoogleEventPages(
+          [local],
+          [
+            [cancelled],
+          ],
+        ),
+        isEmpty,
+      );
+    });
+
+    test('מופע שבוטל בגוגל אינו מוחק סדרה מקומית ואירוע שלא סונכרן', () {
+      final series = _buildUserEvent(id: 'series').copyWith(
+        recurrenceType: RecurrenceType.annualGregorian,
+        googleEventId: 'g-series_20260515',
+      );
+      final unsynced = _buildUserEvent(id: 'unsynced');
+      final cancelled = cal.Event()
+        ..id = 'g-series_20260515'
+        ..recurringEventId = 'g-series'
+        ..status = 'cancelled';
+
+      final merged = google.mergeGoogleEventPages(
+        [series, unsynced],
+        [
+          [cancelled],
+        ],
+      );
+
+      expect(merged.map((e) => e.id), ['series', 'unsynced']);
+    });
+
     // רגרסיה ל-DST: חשבון Duration של 24ש סביב יום מעבר שעון מזיז יום.
     // במכונה באזור זמן ישראל הבדיקות תופסות את הבאג; באחרות עוברות טריוויאלית.
     test('roundtrip סביב סוף שעון קיץ (אוקטובר)', () {
