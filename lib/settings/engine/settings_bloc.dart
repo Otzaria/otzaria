@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -44,6 +45,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<LoadSettings>(_onLoadSettings);
     on<UpdateDarkMode>(_onUpdateDarkMode);
     on<UpdateFollowSystemTheme>(_onUpdateFollowSystemTheme);
+    on<UpdateThemeMode>(_onUpdateThemeMode);
     on<UpdateSeedColor>(_onUpdateSeedColor);
     on<UpdateDarkSeedColor>(_onUpdateDarkSeedColor);
     on<UpdateTextMaxWidth>(_onUpdateTextMaxWidth);
@@ -531,6 +533,21 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateFollowSystemTheme(event.followSystemTheme);
     emit(state.copyWith(followSystemTheme: event.followSystemTheme));
+  }
+
+  Future<void> _onUpdateThemeMode(
+    UpdateThemeMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    final followSystem = event.mode == ThemeMode.system;
+    await _repository.updateFollowSystemTheme(followSystem);
+    if (followSystem) {
+      emit(state.copyWith(followSystemTheme: true));
+      return;
+    }
+    final isDark = event.mode == ThemeMode.dark;
+    await _repository.updateDarkMode(isDark);
+    emit(state.copyWith(followSystemTheme: false, isDarkMode: isDark));
   }
 
   Future<void> _onUpdateSeedColor(

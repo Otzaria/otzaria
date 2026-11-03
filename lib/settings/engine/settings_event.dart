@@ -30,6 +30,18 @@ class UpdateFollowSystemTheme extends SettingsEvent {
   List<Object?> get props => [followSystemTheme];
 }
 
+/// מצב התצוגה מהבורר "בהיר / לפי המערכת / כהה" באירוע אחד, כדי ש־MaterialApp
+/// ייבנה מחדש פעם אחת ולא פעמיים. ‏[ThemeMode.system] משאיר את [isDarkMode]
+/// כמו שהוא.
+class UpdateThemeMode extends SettingsEvent {
+  final ThemeMode mode;
+
+  const UpdateThemeMode(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
+}
+
 class UpdateSeedColor extends SettingsEvent {
   final Color seedColor;
 
