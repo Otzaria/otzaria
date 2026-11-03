@@ -13,6 +13,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -362,6 +363,63 @@ class TabCloseButton extends StatelessWidget {
         constraints: BoxConstraints.tight(size),
         onPressed: onPressed,
         icon: Icon(FluentIcons.dismiss_24_regular, size: iconSize),
+      ),
+    );
+  }
+}
+
+/// כרטיסיה כפקד נגיש: מקבלת פוקוס מקלדת (טבעת פוקוס רק בניווט מקלדת),
+/// Enter/רווח בוחרים בה, ולקורא מסך היא כפתור עם מצב "נבחר" ופעולת הקשה.
+/// הלחיצה בעכבר נשארת אצל הרצועה ([child]).
+class TabActivationRegion extends StatefulWidget {
+  final bool selected;
+  final VoidCallback onActivate;
+
+  /// השם הנגיש; null = הטקסט שבתוך [child].
+  final String? label;
+  final Widget child;
+
+  const TabActivationRegion({
+    super.key,
+    required this.selected,
+    required this.onActivate,
+    required this.child,
+    this.label,
+  });
+
+  @override
+  State<TabActivationRegion> createState() => _TabActivationRegionState();
+}
+
+class _TabActivationRegionState extends State<TabActivationRegion> {
+  bool _focusHighlight = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return FocusableActionDetector(
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onActivate();
+            return null;
+          },
+        ),
+      },
+      onShowFocusHighlight: (value) => setState(() => _focusHighlight = value),
+      child: Semantics(
+        container: true,
+        button: true,
+        selected: widget.selected,
+        label: widget.label,
+        onTap: widget.onActivate,
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: _focusHighlight
+              ? AppSurfaces.focusRingDecoration(cs)
+              : const BoxDecoration(),
+          child: widget.child,
+        ),
       ),
     );
   }

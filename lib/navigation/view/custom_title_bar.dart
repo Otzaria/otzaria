@@ -1358,8 +1358,24 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           _pendingTabSelection = tab;
         }
       },
-      child: AutoScrollBarrier(child: child),
+      child: AutoScrollBarrier(
+        child: TabActivationRegion(
+          selected: index == state.currentTabIndex,
+          label: tabWidth < _kTabContentMinWidth ? tab.title : null,
+          onActivate: () => _activateTab(context, tab),
+          child: child,
+        ),
+      ),
     );
+  }
+
+  /// בחירה מהמקלדת או מקורא מסך.
+  void _activateTab(BuildContext context, OpenedTab tab) {
+    final bloc = context.read<TabsBloc>();
+    final target = bloc.state.tabs.indexOf(tab);
+    if (target != -1 && target != bloc.state.currentTabIndex) {
+      bloc.add(SetCurrentTab(target));
+    }
   }
 
   /// גרירת כרטיסיה מחוץ לחלון — ראו [CrossWindowTabDrag].

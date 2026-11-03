@@ -1,3 +1,4 @@
+import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -569,6 +570,74 @@ void main() {
 
       expect(find.text('ספר 0'), findsOneWidget);
       expect(find.text('ספר 100'), findsNothing);
+    });
+
+    testWidgets('כרטיסיה נבחרת במקלדת (Enter) ובפעולת ההקשה של קורא מסך', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final tabs = [_makeTextTab('ספר א'), _makeTextTab('ספר ב')];
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // צומת הכרטיסיה הוא ה-Semantics של TabActivationRegion, מעל ה-DecoratedBox.
+      Finder node(String title) => find
+          .descendant(
+            of: find.ancestor(
+              of: find.text(title),
+              matching: find.byType(TabActivationRegion),
+            ),
+            matching: find.byType(DecoratedBox),
+          )
+          .first;
+      final second = node('ספר ב');
+      expect(
+        tester.getSemantics(second),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: false,
+          hasTapAction: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(node('ספר א')),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: true,
+          hasTapAction: true,
+        ),
+      );
+
+      Focus.of(tester.element(second)).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>().map((e) => e.index),
+        [1],
+      );
+
+      semantics.dispose();
     });
 
     testWidgets('לחיצה על כרטיסיה צרה עדיין בוחרת אותה', (tester) async {
