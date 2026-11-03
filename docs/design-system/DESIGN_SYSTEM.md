@@ -96,7 +96,7 @@
 - `Colors.<גוון>` (`red`, `blue`, `grey` וכו').
 - `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק.
 - `Theme.of(context).primaryColor`. זהו באג מוכח: במצב כהה Flutter מחזיר דרכו את `surface` (UI-019).
-- `hoverColor`, `splashColor` ו־`overlayColor`.
+- `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007, חוסם). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה.
 - ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaces`.
 
 `Colors.transparent` מותר. החריגים המותרים מפורטים בסעיף 2.1.3.

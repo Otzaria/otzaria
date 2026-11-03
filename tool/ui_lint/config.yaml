@@ -19,6 +19,11 @@ rules:
       - path: lib/widgets/misc/rtl_icon.dart
         reason: הרכיב עצמו מחזיק את הרשימה ומהפך בה
 
+  UIL-007:
+    exclude:
+      - path: lib/theme/**
+        reason: ערכת הנושא מגדירה את צבעי המצב
+
   UIL-011:
     exclude:
       - path: lib/widgets/text/rtl_text_field.dart

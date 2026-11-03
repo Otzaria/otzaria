@@ -41,7 +41,6 @@ class ColorPickerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      hoverColor: Colors.transparent,
       leading: const Icon(FluentIcons.color_24_regular),
       title: Text(context.settingsText('צבע בסיס')),
       subtitle: Text(
