@@ -19,6 +19,8 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -383,10 +385,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (label: 'מערכת', indices: <int>[5, 6]),
   ];
 
-  TextStyle? _mobileTitleStyle(BuildContext context) => Theme.of(
-    context,
-  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold);
-
   @override
   Widget build(BuildContext context) {
     // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
@@ -479,29 +477,37 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
               onBack: onBack,
               child: Scaffold(
                 backgroundColor: bgColor,
-                appBar: AppBar(
-                  backgroundColor: bgColor,
-                  elevation: 0,
-                  title: Text(
-                    context.settingsText(
-                      isSearching
-                          ? 'תוצאות חיפוש'
-                          : _showMobileMenu
-                          ? 'הגדרות'
-                          : _tabsData[_selectedIndex].label,
-                    ),
-                    style: _mobileTitleStyle(context),
-                  ),
-                  leading: onBack == null
-                      ? null
-                      : IconButton(
-                          tooltip: context.settingsText('חזור (Esc)'),
-                          icon: const Icon(FluentIcons.arrow_left_24_regular),
-                          onPressed: onBack,
-                        ),
-                ),
                 body: Column(
                   children: [
+                    // סרגל הכותרת של הטלפון הוא AppTopBar, כמו בשאר המסכים
+                    // (q10 Q8b A). המעטפת של המחשב לא משתנה.
+                    AppTopBar(
+                      leadingItems: [
+                        if (onBack != null)
+                          AppTopBarItem(
+                            widget: BarButton.icon(
+                              tooltip: context.settingsText('חזור (Esc)'),
+                              icon: FluentIcons.arrow_left_24_regular,
+                              onPressed: onBack,
+                            ),
+                          ),
+                      ],
+                      center: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          context.settingsText(
+                            isSearching
+                                ? 'תוצאות חיפוש'
+                                : _showMobileMenu
+                                ? 'הגדרות'
+                                : _tabsData[_selectedIndex].label,
+                          ),
+                          style: AppTopBar.titleStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                       child: SettingsSearchField(

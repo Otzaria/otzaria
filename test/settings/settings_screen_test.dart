@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -346,23 +347,29 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      FontWeight? appBarTitleWeight() => tester
+      // סרגל הכותרת בטלפון הוא AppTopBar (q10 Q8b), והכותרת בסגנון הכותרת שלו
+      // (titleLarge; בערכת הנושא של האפליקציה w600), כמו בשאר המסכים.
+      int? expectedWeight() => AppTopBar.titleStyle(
+        tester.element(find.byType(AppTopBar)),
+      ).fontWeight?.value;
+      int? appBarTitleWeight() => tester
           .widget<Text>(
             find.descendant(
-              of: find.byType(AppBar),
+              of: find.byType(AppTopBar),
               matching: find.byType(Text),
             ),
           )
           .style
-          ?.fontWeight;
+          ?.fontWeight
+          ?.value;
 
-      expect(appBarTitleWeight(), FontWeight.bold);
+      expect(appBarTitleWeight(), expectedWeight());
 
       await tester.tap(find.widgetWithText(ListTile, 'כתב'));
       await tester.pump();
       await tester.pump();
 
-      expect(appBarTitleWeight(), FontWeight.bold);
+      expect(appBarTitleWeight(), expectedWeight());
     });
 
     // "קיצורי מקשים" זמין רק בדסקטופ (ShortcutsSettingsTab מציג במובייל
