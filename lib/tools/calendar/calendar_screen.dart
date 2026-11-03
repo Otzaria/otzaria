@@ -250,10 +250,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
     });
   }
 
+  /// מהפריסה האחרונה (LayoutBuilder של המסך).
+  bool _hasRoomForSideBySide = true;
+
   void _toggleSettingsPanel() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isNarrowForOverlay =
-        screenWidth < LayoutConstraints.sideBySideMinWidth;
+    // אותה החלטה כמו בפריסה: לפי הרוחב שהמסך קיבל, לא לפי החלון.
+    final isNarrowForOverlay = !_hasRoomForSideBySide;
 
     setState(() {
       final nextOpen = !_isSettingsPanelOpen;
@@ -397,6 +399,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   final hasRoomForSideBySide =
                       constraints.maxWidth >=
                       LayoutConstraints.sideBySideMinWidth;
+                  _hasRoomForSideBySide = hasRoomForSideBySide;
                   _syncSidebarVisibilityForWidth(
                     hasRoomForSideBySide,
                     isMobile: isMobile,
