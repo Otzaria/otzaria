@@ -244,83 +244,92 @@ class NavTreeTile extends StatelessWidget {
     final row = Semantics(
       selected: isSelected,
       expanded: hasChildren ? isExpanded : null,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: AppSurfaces.hoverRow(cs),
-        child: Container(
-          color: isSelected ? AppSurfaces.selectedRow(cs) : null,
-          padding: EdgeInsetsDirectional.only(
-            start: 12 + indent,
-            end: 12,
-            top: 8,
-            bottom: 8,
-          ),
-          // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
-          // אותו קצב רשימה כמו שורה שיש בה קופסה.
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: iconBoxSize),
-            child: Row(
-              children: [
-                if (leadingWidget != null) ...[
-                  leadingWidget,
-                  const SizedBox(width: 9),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      OverflowTooltipText(
-                        text: title,
-                        maxLines: 1,
-                        style: AppTextStyles.settingTitle.copyWith(
-                          fontWeight: isSelected ? FontWeight.w700 : fontWeight,
-                          color: cs.onSurface,
-                          fontSize: AppTokens.fontMD,
-                        ),
-                      ),
-                      if (subtitle != null && subtitle!.isNotEmpty)
+      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+      child: Material(
+        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+        textStyle: DefaultTextStyle.of(context).style,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: AppSurfaces.hoverRow(cs),
+          child: Container(
+            padding: EdgeInsetsDirectional.only(
+              start: 12 + indent,
+              end: 12,
+              top: 8,
+              bottom: 8,
+            ),
+            // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
+            // אותו קצב רשימה כמו שורה שיש בה קופסה.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: iconBoxSize),
+              child: Row(
+                children: [
+                  if (leadingWidget != null) ...[
+                    leadingWidget,
+                    const SizedBox(width: 9),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                         OverflowTooltipText(
-                          text: subtitle!,
+                          text: title,
                           maxLines: 1,
-                          style: AppTextStyles.settingSubtitle.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontSize: AppTokens.fontSM,
+                          style: AppTextStyles.settingTitle.copyWith(
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : fontWeight,
+                            color: cs.onSurface,
+                            fontSize: AppTokens.fontMD,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (trailing != null)
-                  trailing!
-                else if (onClearFilter != null)
-                  _ClearFilterButton(onTap: onClearFilter!)
-                else if (count != null && count! > 0)
-                  Text(
-                    '($count)',
-                    style: TextStyle(
-                      fontSize: AppTokens.fontMD,
-                      color: cs.onSurfaceVariant,
+                        if (subtitle != null && subtitle!.isNotEmpty)
+                          OverflowTooltipText(
+                            text: subtitle!,
+                            maxLines: 1,
+                            style: AppTextStyles.settingSubtitle.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontSize: AppTokens.fontSM,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                if (hasChildren) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: context.settingsText(isExpanded ? 'כווץ' : 'הרחב'),
-                    // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
-                    icon: ExcludeSemantics(
-                      child: ExpandingChevron(
-                        isExpanded: isExpanded,
-                        style: ExpandingChevronStyle.tree,
+                  const SizedBox(width: 8),
+                  if (trailing != null)
+                    trailing!
+                  else if (onClearFilter != null)
+                    _ClearFilterButton(onTap: onClearFilter!)
+                  else if (count != null && count! > 0)
+                    Text(
+                      '($count)',
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD,
                         color: cs.onSurfaceVariant,
-                        size: 18,
                       ),
                     ),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: onToggleExpand,
-                  ),
+                  if (hasChildren) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: context.settingsText(
+                        isExpanded ? 'כווץ' : 'הרחב',
+                      ),
+                      // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
+                      icon: ExcludeSemantics(
+                        child: ExpandingChevron(
+                          isExpanded: isExpanded,
+                          style: ExpandingChevronStyle.tree,
+                          color: cs.onSurfaceVariant,
+                          size: 18,
+                        ),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onToggleExpand,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -435,18 +444,23 @@ class NavTreeContentRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final row = Semantics(
       selected: isSelected,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: AppSurfaces.hoverRow(cs),
-        child: Container(
-          color: isSelected ? AppSurfaces.selectedRow(cs) : null,
-          padding: const EdgeInsetsDirectional.only(
-            start: 12,
-            end: 12,
-            top: 10,
-            bottom: 10,
+      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+      child: Material(
+        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+        textStyle: DefaultTextStyle.of(context).style,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: AppSurfaces.hoverRow(cs),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(
+              start: 12,
+              end: 12,
+              top: 10,
+              bottom: 10,
+            ),
+            child: child,
           ),
-          child: child,
         ),
       ),
     );
