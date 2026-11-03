@@ -3230,7 +3230,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     SeforimRepository repo,
     int bookId,
   ) async {
-    final tocEntries = await repo.getBookTocs(bookId);
+    final tocEntries = await readBookTocEntries(repo, bookId);
     if (tocEntries.isEmpty) return null;
     final idToEntry = <int, TocEntry>{};
     final roots = <TocEntry>[];

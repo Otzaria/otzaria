@@ -1,7 +1,10 @@
+import 'dart:isolate';
+
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../../models/toc_entry.dart';
 import '../sqlite3_utils.dart';
 import '../query_loader.dart';
+import '../untrusted_database.dart';
 import 'database.dart';
 
 class TocDao {
@@ -47,6 +50,14 @@ class TocDao {
     return rows.map((row) => TocEntry.fromMap(row)).toList();
   }
 
+  /// כמו [selectByBookId], בחיבור RO ב-isolate חד-פעמי: TOC גדול בדיסק עמוס
+  /// חוסם את ה-UI לשניות (#4028).
+  Future<List<TocEntry>> selectByBookIdInIsolate(int bookId) async {
+    final sql = (await _resolved())?['selectByBookId'];
+    if (sql == null) return const [];
+    return Isolate.run(_selectOnTarget(_db.readOnlyTarget, sql, bookId));
+  }
+
   Future<int> insertTocEntry(TocEntry entry) async {
     final db = await database;
     return insertTocEntrySync(db, entry);
@@ -67,3 +78,17 @@ class TocDao {
     return db.lastInsertRowId;
   }
 }
+
+// פונקציה נפרדת: סגירה בתוך המתודה הייתה לוכדת את ה-DAO, שאינו נשלח.
+List<TocEntry> Function() _selectOnTarget(
+  ReadOnlyDbTarget target,
+  String sql,
+  int bookId,
+) => () {
+  final db = openReadOnlyTarget(target);
+  try {
+    return db.select(sql, [bookId]).toMapList().map(TocEntry.fromMap).toList();
+  } finally {
+    db.close();
+  }
+};

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -507,19 +508,10 @@ class SqliteDataProvider {
         preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
-      final book = resolvedBook.book;
-
-      // TOC של seforim.db יכול למנות אלפי שורות ולחסום את פתיחת הספר, ולכן
-      // נקרא ב-isolate, שמכיר רק אותו. שאר המסדים נקראים בחיבור המקומי.
-      final List<db_models.TocEntry> migrationTocEntries;
-      if (!resolvedBook.source.isOfficial) {
-        migrationTocEntries = await resolvedBook.repository.getBookTocs(
-          book.id,
-        );
-      } else {
-        final isolate = await FindRefDbIsolate.instance();
-        migrationTocEntries = await isolate.getBookTocEntries(book.id);
-      }
+      final migrationTocEntries = await readBookTocEntries(
+        resolvedBook.repository,
+        resolvedBook.book.id,
+      );
 
       // Convert migration TOC entries to otzaria TOC entries
       final Map<int, TocEntry> idToEntry = {};
@@ -630,4 +622,26 @@ class SqliteDataProvider {
       preferSource: preferSource,
     );
   }
+}
+
+/// ערכי ה-TOC של [bookId]. TOC יכול למנות אלפי שורות, ולכן אינו נקרא ב-UI
+/// isolate: seforim.db ב-[FindRefDbIsolate], שאר המסדים ב-isolate חד-פעמי.
+Future<List<db_models.TocEntry>> readBookTocEntries(
+  SeforimRepository repository,
+  int bookId,
+) async {
+  final database = repository.database;
+  if (database.isOfficial) {
+    return (await FindRefDbIsolate.instance()).getBookTocEntries(bookId);
+  }
+  final userBooks = UserBooksDatabaseHolder.instance;
+  if (!identical(userBooks.repositoryIfInitialized, repository)) {
+    return database.tocDao.selectByBookIdInIsolate(bookId);
+  }
+  // הסגירה של user_books.db ממתינה לקריאה, כדי שהחיבור הזמני לא יחזיק את הקובץ.
+  var entries = const <db_models.TocEntry>[];
+  await userBooks.trackRead(() async {
+    entries = await database.tocDao.selectByBookIdInIsolate(bookId);
+  });
+  return entries;
 }
