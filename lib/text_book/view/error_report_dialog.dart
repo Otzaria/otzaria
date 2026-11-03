@@ -1552,6 +1552,8 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
       onActionSelected: (action, reportData) =>
           _leave(ReportDialogResult(action, reportData)),
       onCancel: _requestLeave,
+      // מעבר לתיקון עצמי באתר שומר טיוטה ונסגר בלי שאלת השלכה.
+      onHandOff: _leave,
       onDirtyChanged: (dirty) => _regularTabDirty.value = dirty,
     );
   }
@@ -1624,6 +1626,10 @@ class RegularReportTab extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onDraftChanged;
   final bool sourceChanged;
 
+  /// סוגר את הטופס אחרי שהמשתמש עבר לתקן בעצמו באתר דיקטה, בלי לשאול על
+  /// טקסט שהוקלד. null: [onCancel].
+  final VoidCallback? onHandOff;
+
   /// מדווח אם יש בטופס טקסט או הצעת תיקון שיאבדו בסגירה.
   final ValueChanged<bool>? onDirtyChanged;
 
@@ -1644,6 +1650,7 @@ class RegularReportTab extends StatefulWidget {
     this.initialForm,
     this.onDraftChanged,
     this.sourceChanged = false,
+    this.onHandOff,
     this.onDirtyChanged,
   });
 
@@ -1833,7 +1840,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
     );
     if (!mounted) return;
     if (opened) {
-      widget.onCancel(); // המשתמש עבר לתקן באתר — אין צורך בטופס הדיווח
+      // המשתמש עבר לתקן באתר — אין צורך בטופס הדיווח.
+      (widget.onHandOff ?? widget.onCancel)();
     } else {
       UiSnack.showError(
         context.settingsText(ReportMessages.cannotOpenEditPage),
