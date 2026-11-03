@@ -425,7 +425,10 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
           onPressed: _startEditing,
         ),
         AppIconButton(
-          tooltip: 'מחק שולחן עבודה',
+          // המושבת (השולחן הפעיל) אומר למה (q10 שאלה 24).
+          tooltip: widget.onDelete == null
+              ? NotesMessages.cannotDeleteActiveWorkspace
+              : 'מחק שולחן עבודה',
           icon: const Icon(FluentIcons.delete_24_regular),
           onPressed: widget.onDelete,
         ),
