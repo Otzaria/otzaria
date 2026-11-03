@@ -4,14 +4,15 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
-/// UIL-030 (חלק ההגבהה): `elevation:` עם ליטרל שאינו 0, גם כ־fallback
-/// (`theme.elevation ?? 3`) או בענף של תנאי.
+/// UIL-030: הגבהה וצל מהטוקנים (DD-12).
 ///
-/// ההגבהה רק 0 או `AppTokens.elevation*` (DD-12). ביטוי מחושב בלי ליטרל
-/// (גובה גאוגרפי, ערך מ־API של תוסף) לא נתפס. חלק ה־`BoxShadow` של הכלל טרם
-/// נכנס.
-class LiteralElevationRule extends UiLintRule {
-  const LiteralElevationRule();
+/// - `elevation:` עם ליטרל שאינו 0, גם כ־fallback (`theme.elevation ?? 3`) או
+///   בענף של תנאי. ההגבהה רק 0 או `AppTokens.elevation*`. ביטוי מחושב בלי
+///   ליטרל (גובה גאוגרפי, ערך מ־API של תוסף) לא נתפס.
+/// - `BoxShadow(...)` מחוץ לשכבת הטוקנים: צל רק דרך `AppShadows`.
+///   `pw.BoxShadow` (נייר) ו־CustomPainter מוחרגים.
+class ElevationShadowRule extends UiLintRule {
+  const ElevationShadowRule();
 
   @override
   String get id => 'UIL-030';
@@ -20,12 +21,13 @@ class LiteralElevationRule extends UiLintRule {
   int get stage => 3;
 
   @override
-  String get title => 'elevation ליטרלי';
+  String get title => 'elevation ליטרלי או BoxShadow מקומי';
 
   @override
   String get hint =>
       '0, או AppTokens.elevation1 (סרגל, חלונית מוצמדת) / AppTokens.elevation2 '
-      '(תפריט, tooltip, חלונית צפה) (DESIGN_SYSTEM.md §2.5.4, DD-12)';
+      '(תפריט, tooltip, חלונית צפה); צל: AppShadows (DESIGN_SYSTEM.md §2.5.4, '
+      'DD-12)';
 
   @override
   void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
@@ -34,7 +36,7 @@ class LiteralElevationRule extends UiLintRule {
 class _Visitor extends RecursiveAstVisitor<void> {
   _Visitor(this.rule, this.file);
 
-  final LiteralElevationRule rule;
+  final ElevationShadowRule rule;
   final UiLintFile file;
 
   @override
@@ -46,6 +48,28 @@ class _Visitor extends RecursiveAstVisitor<void> {
       if (literals.found) file.report(rule, node);
     }
     super.visitNamedArgument(node);
+  }
+
+  void _checkShadow(Expression node) {
+    final call = asCtorCall(node);
+    if (call != null &&
+        call.typeName == 'BoxShadow' &&
+        call.importPrefix == null &&
+        !isInsideClassExtending(node, const {'CustomPainter'})) {
+      file.report(rule, node, identity: call.head);
+    }
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    _checkShadow(node);
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    _checkShadow(node);
+    super.visitMethodInvocation(node);
   }
 }
 
@@ -64,8 +88,7 @@ class _NonZeroLiterals extends RecursiveAstVisitor<void> {
 
   /// `args['elevation']` וכדומה: הליטרל הוא מפתח, לא ערך.
   @override
-  void visitIndexExpression(IndexExpression node) =>
-      node.target?.accept(this);
+  void visitIndexExpression(IndexExpression node) => node.target?.accept(this);
 
   /// ארגומנט של קריאה (`math.max(x, 2)`) הוא חישוב, לא ערך קבוע.
   @override

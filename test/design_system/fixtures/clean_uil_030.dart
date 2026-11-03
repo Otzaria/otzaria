@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class AppTokens {
   static const double elevation1 = 1;
@@ -17,6 +18,16 @@ class Shade extends CustomPainter {
 
   Widget sample() => const Material(elevation: 2);
 
+  BoxShadow paper() => const BoxShadow(blurRadius: 2);
+
   @override
   bool shouldRepaint(Shade oldDelegate) => false;
 }
+
+class AppShadows {
+  static List<BoxShadow> floating(ColorScheme cs) => const [];
+}
+
+BoxDecoration floating(ColorScheme cs) =>
+    BoxDecoration(boxShadow: AppShadows.floating(cs));
+const pw.BoxShadow page = pw.BoxShadow(blurRadius: 4);

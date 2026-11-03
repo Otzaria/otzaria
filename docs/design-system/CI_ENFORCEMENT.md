@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024). כללי הטוקנים שקיימים במנוע (UIL-015, ‏016, ‏017, ‏018, ‏019, ‏020, ‏021, ‏023, ‏029, וחלק ההגבהה של UIL-030) חוסמים מ־MIG-28; שאר כללי הטוקנים ושאר הכללים טרם.
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **מצב המימוש:** המנוע (MIG-01), הבדיקה החוסמת וה־guards (MIG-27) ותשתית ה־golden (MIG-29) מומשו, וגם גבול הייבוא של הרכיבים המשותפים (UIL-024). כללי הטוקנים (UIL-015…021, ‏023, ‏029, ‏030) חוסמים מ־MIG-28, כל אחד עם baseline של החוב הקיים שלו; UIL-022 (ספי רוחב) נכנס עם MIG-21. שאר הכללים טרם.
 
 ## 1. המצב היום
 
@@ -103,7 +103,7 @@ test/design_system/
 | UIL-027 | אין `Brightness.dark`/`isDark` מחוץ ל־`lib/theme/` להחלטת צבע | identifier | פלטפורמה (סרגל מערכת), תוספים | ~57 | 4 |
 | UIL-028 | `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם | invocation | `lib/widgets/dialogs/**` | ~90 | 4 |
 | UIL-029 | **גודל אייקון מטוקן (DD-03):** אין `size:` ליטרלי ב־`Icon(`, אין `iconSize:` ליטרלי, ואין `AppTokens.font*` כגודל אייקון. התחליף: `AppTokens.icon*` (אחרי MIG-04) | ctor + named arg: `size:` ב־`Icon`/`RtlIcon`/`ImageIcon`, ו־`iconSize:` בכל מקום | `CustomPainter`, ‏`pw.*`, ייצוא, מעבדי תוכן (`smart_text`, `reader_line`, JX-19); ביטוי מחושב | 223 ב־baseline ההתחלתי (206 `size`, 17 `iconSize`). 117 מהם כבר בערך של טוקן (16/20/14/24), ו־63 הם 18 | 3 · **מומש, חוסם** |
-| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` (אחרי MIG-08) | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | **חלק ההגבהה מומש:** `elevation:` שיש בו ליטרל שאינו 0 (גם `?? 3` ובענף תנאי), 0 ב־baseline. חלק ה־`BoxShadow` טרם: 4 מופעים מחוץ לנייר ולהדפסה (אנימציות הדגשה וחגיגת הסיום) | 3 · **מומש חלקית** |
+| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` (אחרי MIG-08) | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | `elevation:` שיש בו ליטרל שאינו 0 (גם `?? 3` ובענף תנאי): 0 ב־baseline. `BoxShadow(` מחוץ ל־`lib/theme` (לא `pw.BoxShadow`): 6 ב־baseline ההתחלתי, מהם 2 צללי נייר של עמוד PDF (JX-05, יעברו ל־allow) ו־4 שעוד לא עברו ל־`AppShadows` (אנימציות הדגשה וחגיגת הסיום). שקיפות בתוך `BoxShadow` נספרת כאן ולא ב־UIL-016 | 3 · **מומש, חוסם** |
 
 **כלל לא נכנס לשלב 1** אם שיעור ההתראות השגויות שלו בהרצה ראשונה גבוה מ־10%. כלל כזה נשאר בדוח עד שהוא משתפר.
 
@@ -218,7 +218,7 @@ const _hebcalBlue = Color(0xFF1565C0);
 | **0. תיקון התקדים** | תיקון `text_painter_direction_test` (ראו 3.2) ועדכון התיעוד שהתיישן (`AGENTS.md`, `agent_ui_reference.md`, `rtl-text-field-guide.md`, `agent_test_map.md`) | כן (בדיקות קיימות) | MIG-00, MIG-01 |
 | **1. Report** | המנוע עם כל הכללים. ‏job ‏`ui_lint_report` עם `continue-on-error: true`, שכותב טבלה ל־`$GITHUB_STEP_SUMMARY` ומוסיף annotations לחריגות **חדשות** בלבד (GitHub מציג עד ~10 בכל step) | לא | מחזור שחרור אחד |
 | **2. New violations** | ‏`test/design_system/ui_lint_test.dart` חוסם על כללי שלב 1–2 עם baseline, ו־`ui_baseline_guard.yml` | כן, לחריגות חדשות | MIG-27 — **מומש** |
-| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6. **מומש חלקית:** UIL-015, ‏016, ‏017, ‏019, ‏020, ‏021, ‏023, ‏029 וחלק ההגבהה של UIL-030 חוסמים (UIL-018, שלב 2, חוסם גם הוא) | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
+| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6. **מומש חלקית:** UIL-015…021, ‏023, ‏029, ‏030 חוסמים (UIL-018 בשלב 2), כל אחד עם baseline התחלתי של החוב שלו; UIL-022 טרם (MIG-21) | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
 | **4. Strict** | כלל שה־baseline שלו התרוקן עובר ל־`strict: true` בקונפיגורציה. מעתה גם `--allow-growth` לא יכול להוסיף לו | כן | לכל כלל בנפרד, כשהחוב שלו נגמר |
 
 **הבדיקות הקיימות** (`bare_text_field_scan`, ‏`uisnack_literal_scan`, ‏`default_context_menu_scan`, ‏`rtl_icon_registered_usage`, ‏`no_scrollable_markdown`, ‏`pdf_hardcoded_colors`) עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס: ארגומנט בשם, `TextFormField`, ‏`withAlpha`. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.

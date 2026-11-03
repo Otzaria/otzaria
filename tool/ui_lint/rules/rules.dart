@@ -1,9 +1,9 @@
 import '../ui_lint.dart';
+import 'elevation_shadow_rule.dart';
 import 'hardcoded_color_rule.dart';
 import 'icon_button_tooltip_rule.dart';
 import 'icon_size_rule.dart';
 import 'literal_duration_rule.dart';
-import 'literal_elevation_rule.dart';
 import 'literal_font_family_rule.dart';
 import 'literal_font_size_rule.dart';
 import 'literal_radius_rule.dart';
@@ -43,5 +43,5 @@ const List<UiLintRule> uiLintRules = [
   LiteralDurationRule(),
   IconSizeRule(),
   SharedFeatureImportRule(),
-  LiteralElevationRule(),
+  ElevationShadowRule(),
 ];
