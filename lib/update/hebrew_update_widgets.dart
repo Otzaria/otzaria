@@ -56,9 +56,8 @@ Widget hebrewFlatChip({
   }
 
   if (UpdatStatus.downloading == status) {
-    return StatusChip(
+    return StatusChip.busy(
       tooltip: 'אנא המתן...',
-      onPressed: () {},
       icon: SizedBox(
         width: 15,
         height: 15,

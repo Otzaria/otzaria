@@ -13,18 +13,29 @@ class StatusChip extends StatelessWidget {
     required this.label,
     required this.onPressed,
     required this.tooltip,
-  });
+  }) : busy = false;
+
+  /// מצב פעיל שאינו פעולה (למשל "מוריד..."): אותם צבעים כמו גלולה לחיצה,
+  /// בלי ריחוף ובלי הכרזה ככפתור; קורא מסך קורא את התווית כטקסט.
+  const StatusChip.busy({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+  }) : onPressed = null,
+       busy = true;
 
   final Widget icon;
   final String label;
   final VoidCallback? onPressed;
   final String tooltip;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return Tooltip(
+    final chip = Tooltip(
       message: tooltip,
       child: Material(
         color: cs.primaryContainer,
@@ -40,6 +51,8 @@ class StatusChip extends StatelessWidget {
             textStyle: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w700,
             ),
+            disabledForegroundColor: busy ? cs.onPrimaryContainer : null,
+            disabledIconColor: busy ? cs.onPrimaryContainer : null,
             minimumSize: const Size(0, 32),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -48,6 +61,14 @@ class StatusChip extends StatelessWidget {
           label: Text(label),
         ),
       ),
+    );
+    if (!busy) return chip;
+    return Semantics(
+      container: true,
+      label: label,
+      hint: tooltip,
+      excludeSemantics: true,
+      child: chip,
     );
   }
 }
