@@ -799,9 +799,9 @@ class CalendarAlertsOwner {
   Future<void> _removeDuplicatesOnce(Set<int> ours) async {
     if (!_dedupeDuplicates || _dedupedPending) return;
     _dedupedPending = true;
-    if (_store.readDuplicatesCleaned()) return;
-    await _store.markDuplicatesCleaned();
     try {
+      if (_store.readDuplicatesCleaned()) return;
+      await _store.markDuplicatesCleaned();
       final counts = <int, int>{};
       for (final id in await _notifications.pendingNotificationIds()) {
         counts[id] = (counts[id] ?? 0) + 1;
