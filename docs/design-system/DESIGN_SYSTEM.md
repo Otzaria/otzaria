@@ -416,6 +416,7 @@
 | פעולת סרגל | `BarButton.icon` / `.text` | צפיפות מ־`AppDensity`. צורה 8, בלי גלולה (DD-04, MIG-13) |
 | פעולה מפוצלת | `BarSplitButton` | קיים. צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
 | פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה (UI-052, השלמה 3.11) |
+| גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip` (MIG-19, UI-053) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
 **מצבים [מחייב]:**

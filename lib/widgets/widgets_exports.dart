@@ -22,6 +22,9 @@
 // Segmented control (AppSegmentedControl, SegmentOption):
 //   → lib/widgets/controls/segmented_control.dart
 //
+// גלולת מצב בשורת הכותרת (StatusChip):
+//   → lib/widgets/controls/status_chip.dart
+//
 // SettingsActionTile, SettingsSwitchTile / SettingsDropdownTile /
 // SettingsSegmentedTile / SettingsPathTile:
 //   → lib/settings/widgets/settings_card.dart
@@ -37,6 +40,7 @@ export 'package:otzaria/widgets/controls/bar_split_button.dart';
 export 'package:otzaria/widgets/controls/contained_tooltip.dart';
 export 'package:otzaria/widgets/controls/custom_switch.dart';
 export 'package:otzaria/widgets/controls/segmented_control.dart';
+export 'package:otzaria/widgets/controls/status_chip.dart';
 export 'package:otzaria/widgets/layout/app_card.dart';
 export 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
 export 'package:otzaria/widgets/layout/expandable_card.dart';

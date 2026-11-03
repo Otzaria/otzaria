@@ -118,10 +118,10 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
   Widget _buildHeader(ColorScheme cs) {
     // ברוחב טלפון התאריך והכפתור לא נכנסים בשורה אחת: הכפתור יורד מתחת.
     final narrow = WindowClass.of(context).isCompact;
-    final copyButton = TextButton.icon(
+    final copyButton = ActionButton.ghost(
       onPressed: _copyJson,
-      icon: const Icon(FluentIcons.copy_24_regular, size: 18),
-      label: const Text('העתק JSON'),
+      icon: FluentIcons.copy_24_regular,
+      text: 'העתק JSON',
     );
     final date = Row(
       children: [

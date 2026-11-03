@@ -47,9 +47,9 @@ class ColorPickerTile extends StatelessWidget {
         _colorName(context),
         style: AppTextStyles.settingSubtitle,
       ),
-      trailing: FilledButton(
+      trailing: ActionButton.recommended(
         onPressed: () => _showPicker(context),
-        child: Text(context.settingsText('שינוי צבע')),
+        text: context.settingsText('שינוי צבע'),
       ),
     );
   }
