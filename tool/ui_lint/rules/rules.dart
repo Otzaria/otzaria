@@ -17,6 +17,7 @@ import 'raw_menu_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
 import 'shared_feature_import_rule.dart';
+import 'snack_bar_rule.dart';
 import 'spacing_scale_rule.dart';
 import 'state_color_override_rule.dart';
 import 'ui_snack_literal_rule.dart';
@@ -29,6 +30,7 @@ const List<UiLintRule> uiLintRules = [
   MaterialIconsRule(),
   RtlIconRule(),
   StateColorOverrideRule(),
+  SnackBarRule(),
   UiSnackLiteralRule(),
   RawTextFieldRule(),
   RawMenuRule(),

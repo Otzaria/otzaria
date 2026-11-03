@@ -167,3 +167,9 @@ rules:
         reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
       - path: lib/text_book/view/reader_line/**
         reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
+
+  UIL-008:
+    strict: true
+    exclude:
+      - path: lib/core/ui_snack.dart
+        reason: UiSnack עצמו
