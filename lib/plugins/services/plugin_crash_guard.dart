@@ -9,22 +9,8 @@ import 'package:path/path.dart' as p;
 
 import 'package:otzaria/core/app_paths.dart';
 
-/// שומר על האפליקציה מפני קריסות native חוזרות בעת טעינת תוסף.
-///
-/// הרעיון: לפני יצירת WebView לתוסף רושמים את ה-pluginId לקובץ דיסק.
-/// אם הטעינה הצליחה (`onLoadStop` ירה) — מסירים. אם התהליך מת באמצע
-/// (קריסה native ב-`MSVCP140`/`EmbeddedBrowserWebView` שלא ניתן לתפוס
-/// מ-Dart) — הרישום נשאר. בהפעלה הבאה אנחנו רואים שהתוסף "תקוע במצב
-/// טעינה" מהריצה הקודמת, וזה אינדיקטור חזק שהוא הקריס את התוכנה —
-/// אז לא מנסים לטעון אותו שוב אוטומטית; מציגים מסך הסבר עם אפשרות
-/// לנסות שוב ידנית.
-///
-/// **למה זה עובד גם כשהבאג מתוקן**: ברגע ש-WebView מצליח לטעון תקין
-/// (אצל המשתמש, אחרי שדרוג של WebView2/Flutter/בלי-קשר), הרישום מסיר
-/// את עצמו ב-`onLoadStop` — והתוסף חוזר לעבוד אוטומטית.
-///
-/// **הגנות מפני האשמת-שווא**: [isBlocked] מתעלם מניסיונות של הסשן הנוכחי,
-/// ו-[markCleanShutdown] מנקה canaries בטיסה בסגירה יזומה.
+/// שומר סימון לפני טעינת WebView ומסיר אותו בהצלחה או בסגירה תקינה.
+/// סימון שנותר מהפעלה קודמת חוסם טעינה חוזרת של תוסף שקרס ב-native.
 class PluginCrashGuard {
   static Set<String>? _blocked;
   static String? _currentAppVersion;
@@ -34,13 +20,12 @@ class PluginCrashGuard {
   /// חי של הסשן הזה אינו עדות לקריסה בהפעלה קודמת.
   static final Set<String> _sessionAttempts = <String>{};
 
-  /// טעינות פתוחות לכל תוסף, לפי בעלים (מזהה מופע): ה-canary נמחק רק כשלא
-  /// נותרה אף טעינה — מופע שנסגר לא מנקה סימון של מופע שעדיין נטען.
-  static final Map<String, Set<String>> _loadsInFlight = {};
+  /// בעלות נפרדת לכל ניסיון טעינה: סיום ישן לא מנקה סימון של ניסיון חדש.
+  static final Map<String, Set<Object>> _loadsInFlight = {};
 
   /// מסיר את הטעינה של [owner]; true כשלא נותרה טעינה פתוחה לתוסף
   /// ומותר לנקות את ה-canary.
-  static bool _finishLoad(String pluginId, String owner) {
+  static bool _finishLoad(String pluginId, Object owner) {
     final inFlight = _loadsInFlight[pluginId];
     if (inFlight == null) return true;
     inFlight.remove(owner);
@@ -67,15 +52,8 @@ class PluginCrashGuard {
     }
   }
 
-  /// טוען את מצב הquarantine מ-disk. מומלץ לקרוא פעם אחת באתחול האפליקציה;
-  /// קריאות נוספות הן no-op.
-  ///
-  /// **שחרור אוטומטי בשדרוג גרסה**: הקובץ שומר את גרסת האפליקציה שתחתיה
-  /// ה-canary נכתב. אם הגרסה הנוכחית שונה (כלומר המשתמש שדרג את אוצריא),
-  /// אנחנו מתעלמים מה-canary הישן ומתחילים מ-state ריק. ההנחה: שדרוג של
-  /// אוצריא עשוי לכלול תיקון של flutter_inappwebview שיצור WebView ללא
-  /// קריסה, ולכן ראוי לתת לתוסף הזדמנות נוספת אוטומטית. אם זה עדיין קורס,
-  /// ה-canary יתעדכן בגרסה החדשה.
+  /// טוען פעם אחת את החסימות מהדיסק; שינוי גרסת האפליקציה משחרר אותן
+  /// כדי לאפשר ניסיון חדש אחרי תיקון אפשרי של קריסת native.
   static Future<void> ensureInitialized() async {
     if (_blocked != null) return;
     if (_initFuture != null) return _initFuture!.future;
@@ -115,27 +93,23 @@ class PluginCrashGuard {
     }
   }
 
-  /// `true` אם התוסף נמצא ב-quarantine — כלומר הופיע בקובץ בתחילת ההפעלה
-  /// הזו (= הופיע בריצה הקודמת בלי שהושלם [markLoadSuccess]).
-  ///
-  /// canary שנוסף בסשן הנוכחי אינו נחשב חסימה — אחרת rebuild של הווידג'ט
-  /// באמצע טעינה תקינה היה מציג "התוסף קרס" וקוטע את הטעינה.
+  /// חסימה שנותרה מההפעלה הקודמת; ניסיון בסשן הנוכחי אינו חסימה,
+  /// כדי ש-rebuild במהלך טעינה תקינה לא יקטע אותה.
   static bool isBlocked(String pluginId) {
     if (_sessionAttempts.contains(pluginId)) return false;
     return _blocked?.contains(pluginId) ?? false;
   }
 
-  /// מסמן שמתחילים לטעון את התוסף; ה-Future מסתיים כשהסימון כבר בדיסק.
-  /// אם הקוד יקרוס מכאן והלאה, ההפעלה הבאה תסרב לטעון אותו אוטומטית.
-  /// [owner] מזהה את המופע הטוען — ראו [_loadsInFlight].
+  /// שומר סימון לפני טעינת התוסף. [owner] מזהה את ניסיון הטעינה,
+  /// וה-Future מסתיים כשהסימון בדיסק ויכול להגן מקריסת native.
   static Future<void> markLoadAttempt(
     String pluginId, {
-    String owner = '',
+    Object owner = '',
   }) async {
     // אחרי האתחול העדכון בזיכרון סינכרוני, כדי ש-dispose מיידי ימצא אותו.
     if (_blocked == null) await ensureInitialized();
     _sessionAttempts.add(pluginId);
-    _loadsInFlight.putIfAbsent(pluginId, () => <String>{}).add(owner);
+    _loadsInFlight.putIfAbsent(pluginId, () => <Object>{}).add(owner);
     _blocked!.add(pluginId);
     await _persist();
   }
@@ -144,14 +118,14 @@ class PluginCrashGuard {
   /// אין סימון ואין IO, ומוחזר null.
   static Future<void>? markLoadAttemptIfInitialized(
     String pluginId, {
-    String owner = '',
+    Object owner = '',
   }) => _blocked == null ? null : markLoadAttempt(pluginId, owner: owner);
 
   /// מסמן שסיום הטעינה של [owner] הגיע בעוד התהליך חי. הסימון מוסר מ-disk
   /// רק כשלא נותרה טעינה פתוחה של מופע אחר לאותו תוסף.
   static Future<void> markLoadSuccess(
     String pluginId, {
-    String owner = '',
+    Object owner = '',
   }) async {
     // לפני האתחול ה-pluginId עוד לא נרשם, לא בזיכרון ולא בקובץ.
     final blocked = _blocked;

@@ -184,6 +184,7 @@ InstalledPlugin _plugin() => InstalledPlugin(
 class _FakePlatform extends InAppWebViewPlatform {
   final controller = _FakeController();
   int webViewsCreated = 0;
+  final views = <PlatformInAppWebViewWidgetCreationParams>[];
 
   @override
   PlatformInAppWebViewController createPlatformInAppWebViewControllerStatic() =>
@@ -194,6 +195,7 @@ class _FakePlatform extends InAppWebViewPlatform {
     PlatformInAppWebViewWidgetCreationParams params,
   ) {
     webViewsCreated++;
+    views.add(params);
     return _FakeWebView(params);
   }
 }
@@ -241,7 +243,11 @@ class _FakeWebView extends PlatformInAppWebViewWidget {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Widget _host(InstalledPlugin plugin, _SettingsBloc settings) => MultiProvider(
+Widget _host(
+  InstalledPlugin plugin,
+  _SettingsBloc settings, {
+  List<InstalledPlugin>? pages,
+}) => MultiProvider(
   providers: [
     Provider<PluginSystemBloc>.value(value: _MockPluginSystemBloc()),
     Provider<HistoryBloc>.value(value: _MockHistoryBloc()),
@@ -256,7 +262,16 @@ Widget _host(InstalledPlugin plugin, _SettingsBloc settings) => MultiProvider(
   ],
   child: MaterialApp(
     home: Scaffold(
-      body: PluginTabPage(plugin: plugin, instanceId: 'tab-1'),
+      body: Stack(
+        children: [
+          for (final page in pages ?? [plugin])
+            PluginTabPage(
+              key: ValueKey(page.updatedAt),
+              plugin: page,
+              instanceId: 'tab-1',
+            ),
+        ],
+      ),
     ),
   ),
 );
@@ -266,6 +281,7 @@ Future<void> _run(
   _EntryFileSpy io,
   Future<void> Function(_FakePlatform platform) body, {
   InstalledPlugin? plugin,
+  bool crashGuard = false,
 }) async {
   final previousPlatform = InAppWebViewPlatform.instance ?? _FakePlatform();
   final previousPackageInfo = PluginWebViewHost.cachedPackageInfo;
@@ -282,6 +298,10 @@ Future<void> _run(
     // HttpServer יוצר טיימר idle גם ללא בקשות; הוא שייך לשעון האמיתי.
     await tester.runAsync(() => PluginFileServer.instance.ensurePort());
     await IOOverrides.runWithIOOverrides(() async {
+      if (crashGuard) {
+        PluginCrashGuard.resetForTesting();
+        PluginCrashGuard.setInitialBlockedForTesting({});
+      }
       try {
         await tester.pumpWidget(_host(plugin ?? _plugin(), settings));
         await tester.pump();
@@ -295,6 +315,12 @@ Future<void> _run(
       } finally {
         await tester.pumpWidget(const SizedBox());
         await tester.pump();
+        for (var i = 0; i < io.guardWrites.length; i++) {
+          if (!io.guardWrites[i].done.isCompleted) {
+            io.guardWrites[i].done.complete();
+          }
+          await tester.pump();
+        }
       }
     }, io);
   } finally {
@@ -503,13 +529,110 @@ void main() {
   });
 
   group('סימון הגנת הקריסות (#4008)', () {
-    setUp(() {
-      AppPaths.debugOverrideDataRootPath(_guardRoot);
-      PluginCrashGuard.setInitialBlockedForTesting({});
-    });
+    setUp(() => AppPaths.debugOverrideDataRootPath(_guardRoot));
     tearDown(() {
       AppPaths.debugOverrideDataRootPath(null);
       PluginCrashGuard.resetForTesting();
+    });
+
+    testWidgets('החלפת טאב עם אותו instanceId אינה מנקה את הסימון החדש', (
+      tester,
+    ) async {
+      final plugin = _plugin().copyWith(
+        sourceType: 'localhost_dev',
+        devRootPath: 'http://localhost:5173/',
+      );
+      final io = _EntryFileSpy('/install/');
+      await _run(
+        tester,
+        io,
+        (platform) async {
+          expect(io.guardWrites, hasLength(1));
+          io.guardWrites.single.done.complete();
+          await tester.pump();
+          expect(platform.webViewsCreated, 1);
+          final settings =
+              tester.element(find.byType(PluginTabPage)).read<SettingsBloc>()
+                  as _SettingsBloc;
+          final replacement = plugin.copyWith(updatedAt: DateTime(2026));
+          // ב-Windows החדש מסמן לפני dispose של הישן באותו פריים.
+          // החפיפה משמרת סדר זה גם כשהכנת חוקי WebKit אסינכרונית.
+          await tester.pumpWidget(
+            _host(plugin, settings, pages: [plugin, replacement]),
+          );
+          await tester.runAsync(() async {});
+          await tester.pump();
+          expect(io.guardWrites, hasLength(2));
+          io.guardWrites.last.done.complete();
+          await tester.pump();
+          expect(find.byType(InAppWebView), findsNWidgets(2));
+          await tester.pumpWidget(_host(replacement, settings));
+          for (var i = 2; i < io.guardWrites.length; i++) {
+            io.guardWrites[i].done.complete();
+            await tester.pump();
+          }
+          expect(
+            (jsonDecode(io.guardWrites.last.contents) as Map)['blocked'],
+            contains('test.plugin'),
+          );
+        },
+        plugin: plugin,
+        crashGuard: true,
+      );
+    });
+
+    testWidgets('callback מניסיון קודם אינו מנקה סימון של ניסיון חדש', (
+      tester,
+    ) async {
+      final io = _EntryFileSpy('/install/')
+        ..entrypointResults.add(Future.value(true));
+      await _run(
+        tester,
+        io,
+        (platform) async {
+          io.guardWrites.single.done.complete();
+          await tester.pump();
+          final previous = platform.views.last;
+          final controller = InAppWebViewController.fromPlatform(
+            platform: platform.controller,
+          );
+          final host =
+              tester.state(find.byType(PluginTabPage)) as PluginWebViewHost;
+          host.webViewController = controller;
+          final request = WebResourceRequest(
+            url: WebUri('file:///install/path/index.html'),
+            isForMainFrame: true,
+          );
+          final error = WebResourceError(
+            type: WebResourceErrorType.UNKNOWN,
+            description: 'failed',
+          );
+          previous.onReceivedError!(controller, request, error);
+          await tester.pump();
+          io.guardWrites.last.done.complete();
+          await tester.pump();
+          await _reload();
+          await tester.pump();
+          previous.onWebContentProcessDidTerminate!(controller);
+          await tester.pump();
+          io.guardWrites.last.done.complete();
+          await tester.pump();
+          expect(find.byType(InAppWebView), findsOneWidget);
+          previous.onReceivedError!(controller, request, error);
+          await tester.pump();
+          for (final write in io.guardWrites) {
+            if (!write.done.isCompleted) write.done.complete();
+          }
+          await tester.pump();
+          expect(
+            (jsonDecode(io.guardWrites.last.contents) as Map)['blocked'],
+            contains('test.plugin'),
+          );
+          expect(find.byType(InAppWebView), findsOneWidget);
+        },
+        plugin: _developmentPlugin(),
+        crashGuard: true,
+      );
     });
 
     testWidgets('ה-WebView נוצר רק אחרי שהסימון נשמר בדיסק', (tester) async {
@@ -523,7 +646,7 @@ void main() {
         await tester.pump();
         expect(platform.webViewsCreated, 1);
         expect(find.text('התוסף מוכן'), findsOneWidget);
-      });
+      }, crashGuard: true);
     });
 
     testWidgets('סגירה בזמן השמירה: אין WebView והסימון מנוקה', (tester) async {
@@ -539,7 +662,7 @@ void main() {
         await tester.pump();
         expect(platform.webViewsCreated, 0);
         expect(tester.takeException(), isNull);
-      });
+      }, crashGuard: true);
     });
   });
 }

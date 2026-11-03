@@ -205,6 +205,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// ה-WebView שסימון הטעינה שלו כבר בדיסק; רק הוא נבנה.
   GlobalKey? _crashGuardArmedKey;
   bool _crashGuardArming = false;
+  Object? _crashGuardOwner;
 
   /// ה-WebView שוחרר (פינוי או נפילה) וייווצר מחדש כשהמופע יוצג.
   bool _webViewReleased = false;
@@ -328,7 +329,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         _crashLostUnsavedChanges ||
         PluginUnsavedChangesRegistry.instance.hasUnsavedChanges(key);
     // התהליך של האפליקציה חי — אין כאן קריסה נייטיבית לחסום בהפעלה הבאה.
-    unawaited(PluginCrashGuard.markLoadSuccess(pluginId, owner: instanceId));
+    _finishCrashGuardLoad(_crashGuardOwner);
     final dispatcher = PluginRuntimeDispatcher.instance;
     final shown = dispatcher.isInstanceShown(key);
     dispatcher.markInstanceReleased(
@@ -484,12 +485,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       creationFailure: true,
     );
     // הכשל דווח מ-Dart, כלומר התהליך חי; "נסה שוב" יסמן מחדש.
-    unawaited(
-      PluginCrashGuard.markLoadSuccess(
-        widget.plugin.pluginId,
-        owner: widget.instanceId,
-      ),
-    );
+    _finishCrashGuardLoad(_crashGuardOwner);
     setState(() {
       _creationFailure = failure.error.toString();
       _crashGuardArmedKey = null;
@@ -499,13 +495,22 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// הסימון נשמר לפני יצירת ה-WebView, כך שקריסה native ביצירה או בטעינה
   /// משאירה אותו. false כל עוד השמירה בדרך; בסיומה הטאב נבנה מחדש.
   bool _crashGuardArmed() {
-    final key = _webViewKey;
-    if (_crashGuardArmedKey == key) return true;
+    if (_crashGuardArmedKey == _webViewKey) return true;
     if (_crashGuardArming) return false;
+    final previousOwner = _crashGuardOwner;
+    if (previousOwner != null) {
+      _webViewKey = GlobalKey();
+      webViewController = null;
+      _creationWatchdog?.cancel();
+      _creationWatchdog = null;
+    }
+    final key = _webViewKey;
+    final owner = _crashGuardOwner = Object();
     final persisted = PluginCrashGuard.markLoadAttemptIfInitialized(
       widget.plugin.pluginId,
-      owner: widget.instanceId,
+      owner: owner,
     );
+    _finishCrashGuardLoad(previousOwner);
     if (persisted == null) {
       _crashGuardArmedKey = key;
       return true;
@@ -519,6 +524,13 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       }),
     );
     return false;
+  }
+
+  void _finishCrashGuardLoad(Object? owner) {
+    if (owner == null) return;
+    unawaited(
+      PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId, owner: owner),
+    );
   }
 
   WebUri get _entrypointUri =>
@@ -548,12 +560,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   void dispose() {
     // סגירת טאב אינה קריסה. סגירת האפליקציה לא מריצה dispose; אותה מכסה
     // PluginCrashGuard.markCleanShutdown ב-onWindowClose.
-    unawaited(
-      PluginCrashGuard.markLoadSuccess(
-        widget.plugin.pluginId,
-        owner: widget.instanceId,
-      ),
-    );
+    _finishCrashGuardLoad(_crashGuardOwner);
     _creationWatchdog?.cancel();
     unawaited(_creationFailureSub?.cancel());
     unawaited(_settingsSub?.cancel());
@@ -695,6 +702,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     final contentBlockers = pluginContentBlockers;
     if (contentBlockers == null) return const SizedBox.shrink();
     if (!_crashGuardArmed()) return const LoadingIndicator();
+    final crashGuardOwner = _crashGuardOwner;
+    bool currentAttempt() =>
+        mounted && identical(_crashGuardOwner, crashGuardOwner);
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -740,6 +750,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       ]),
       onShowFileChooser: verifyPluginFileChooser,
       onWebViewCreated: (controller) {
+        if (!currentAttempt()) return;
         _creationWatchdog?.cancel();
         unawaited(_creationFailureSub?.cancel());
         _creationFailureSub = null;
@@ -767,12 +778,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         if (!attached) {
           // bridge.register נכשל — התהליך חי, לא קריסה native. מנקים גם את
           // ה-canary של ה-crash guard.
-          unawaited(
-            PluginCrashGuard.markLoadSuccess(
-              widget.plugin.pluginId,
-              owner: widget.instanceId,
-            ),
-          );
+          _finishCrashGuardLoad(crashGuardOwner);
           if (mounted) setState(() => _hasError = true);
         }
       },
@@ -795,11 +801,15 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           ),
       shouldInterceptRequest: (controller, request) =>
           interceptPluginRequest(request),
-      onLoadStart: (controller, url) => _loadGeneration.invalidate(),
+      onLoadStart: (controller, url) {
+        if (currentAttempt()) _loadGeneration.invalidate();
+      },
       onLoadStop: (controller, url) async {
+        if (!currentAttempt()) return;
         final viewId = View.of(context).viewId;
         final generation = _loadGeneration.begin();
-        bool stale() => !mounted || !_loadGeneration.isCurrent(generation);
+        bool stale() =>
+            !currentAttempt() || !_loadGeneration.isCurrent(generation);
         // טעינה מחדש של הדף מאפסת את מצב ה-JS, ואיתו את הדגל שהוא הרים.
         PluginUnsavedChangesRegistry.instance.removeInstance((
           pluginId: widget.plugin.pluginId,
@@ -863,15 +873,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           await adapter.applyBootEventOptions(booted);
           if (stale()) return;
           await _pushHostShortcuts(controller);
+          if (stale()) return;
           _bootedOnce = true;
           // הטעינה הצליחה עד הסוף (גם ה-stub וגם ה-boot payload הוזרקו).
           // מסירים את התוסף מ-quarantine כדי שהפעלה הבאה תאפשר טעינה רגילה.
-          unawaited(
-            PluginCrashGuard.markLoadSuccess(
-              widget.plugin.pluginId,
-              owner: widget.instanceId,
-            ),
-          );
+          _finishCrashGuardLoad(crashGuardOwner);
           // אם התוסף נטען בזמן שאינו ה-foreground הפעיל — להשהותו מיד, כדי
           // שלא ירוץ ברקע. ההשהיה כאן (אחרי load) ולא ב-registerController
           // כי pause על WebView שעוד לא נטען עלול לקטוע את הטעינה עצמה.
@@ -891,14 +897,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             setState(() => _awaitingFirstBoot = false);
           }
         } catch (e, st) {
+          if (stale()) return;
           // Boot ב-Dart נכשל — התהליך חי, לא קריסה native. מנקים את ה-canary
           // כדי שלא נחסום בהפעלה הבאה תוסף שפשוט החזיר שגיאת אתחול רגילה.
-          unawaited(
-            PluginCrashGuard.markLoadSuccess(
-              widget.plugin.pluginId,
-              owner: widget.instanceId,
-            ),
-          );
+          _finishCrashGuardLoad(crashGuardOwner);
           debugPrint('Plugin [${widget.plugin.pluginId}] boot error: $e\n$st');
           PluginSystemDatabase.instance.writeLog(
             widget.plugin.pluginId,
@@ -915,27 +917,27 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       },
       onProcessFailed: (controller, detail) => logPluginProcessFailed(detail),
       // Windows: ה-renderer של ה-WebView; iOS/macOS: תהליך התוכן.
-      onWebContentProcessDidTerminate: (controller) =>
-          _onWebViewGone(controller, 'renderer'),
+      onWebContentProcessDidTerminate: (controller) {
+        if (currentAttempt()) _onWebViewGone(controller, 'renderer');
+      },
       // Windows: תהליך הדפדפן (כל ה-WebView-ים); Android/Linux: ה-renderer.
-      onRenderProcessGone: (controller, detail) => _onWebViewGone(
-        controller,
-        defaultTargetPlatform == TargetPlatform.windows
-            ? 'browser'
-            : 'renderer',
-      ),
+      onRenderProcessGone: (controller, detail) {
+        if (!currentAttempt()) return;
+        _onWebViewGone(
+          controller,
+          defaultTargetPlatform == TargetPlatform.windows
+              ? 'browser'
+              : 'renderer',
+        );
+      },
       onReceivedError: (controller, request, error) {
+        if (!currentAttempt()) return;
         // only fail the view for the entrypoint file load itself
         if (request.url.scheme == 'file' ||
             request.url.scheme == pluginAssetScheme) {
           // שגיאת רשת/קובץ נתפסה ב-Dart — התהליך חי, לא קריסה native.
           // מנקים את ה-canary כדי שלא נחסום שגיאה רגילה כ"קריסה".
-          unawaited(
-            PluginCrashGuard.markLoadSuccess(
-              widget.plugin.pluginId,
-              owner: widget.instanceId,
-            ),
-          );
+          _finishCrashGuardLoad(crashGuardOwner);
           if (mounted) setState(() => _hasError = true);
           return;
         }
@@ -944,12 +946,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         if (widget.plugin.isLocalhostDev &&
             request.isForMainFrame == true &&
             isPluginDevServerUri(request.url, widget.plugin.devRootPath)) {
-          unawaited(
-            PluginCrashGuard.markLoadSuccess(
-              widget.plugin.pluginId,
-              owner: widget.instanceId,
-            ),
-          );
+          _finishCrashGuardLoad(crashGuardOwner);
           if (mounted) {
             setState(
               () => _devErrorMessage =
