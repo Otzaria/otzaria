@@ -332,7 +332,11 @@ class _GlobalAltTocBook<T> {
   final double orderIndex;
   final List<T> entries;
   final FindRefBookRank? rank;
-  late final ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+  late final ({
+    bool exactMatch,
+    bool startsWithMatch,
+    List<bool> titleWordMatches,
+  })
   titleMatch;
 
   /// שורות הספר אחרי הצמצום, בסדר הדירוג; מחושבות רק כשהגיעו לספר.
@@ -349,7 +353,7 @@ class _GlobalAltTocBook<T> {
     fuzzyBookMatch: false,
     exactMatch: titleMatch.exactMatch,
     startsWithMatch: titleMatch.startsWithMatch,
-    titleTokens: titleMatch.titleTokens,
+    titleWordMatches: titleMatch.titleWordMatches,
     citationMatch: citationMatch,
     bookRank: rank ?? _unrankedBook,
     isOfficial: true,

@@ -105,17 +105,28 @@ class FindRefRankQuery {
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
   /// מפתחות ההתאמה של כותרת מנורמלת לשאילתה — תלויים בספר בלבד.
-  ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+  ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
   titleMatch(String normTitle) {
     final title = bookNameMatchForm(normTitle);
     final query = matchTokens.join(' ');
     return (
       exactMatch: title == query,
       startsWithMatch: title.startsWith(query),
-      titleTokens: needsTokenWiseRanking
-          ? title.split(' ').where((t) => t.isNotEmpty).toList()
-          : const <String>[],
+      titleWordMatches: needsTokenWiseRanking
+          ? _titleWordMatches(
+              title.split(' ').where((t) => t.isNotEmpty).toList(),
+            )
+          : const <bool>[],
     );
+  }
+
+  /// לכל מילת שאילתה: האם המילה שבמקומה בכותרת, מעוגנת למילה הראשונה, פותחת בה.
+  List<bool> _titleWordMatches(List<String> titleTokens) {
+    final start = _titleAnchor(titleTokens, matchTokens.first);
+    return [
+      for (var i = 0; i < matchTokens.length; i++)
+        _titleTokenAt(titleTokens, start + i, matchTokens[i]),
+    ];
   }
 }
 
@@ -127,7 +138,7 @@ class FindRefRankKey<T> {
     required this.fuzzyBookMatch,
     required this.exactMatch,
     required this.startsWithMatch,
-    required this.titleTokens,
+    required this.titleWordMatches,
     required this.citationMatch,
     required this.bookRank,
     required this.isOfficial,
@@ -146,7 +157,9 @@ class FindRefRankKey<T> {
   final bool fuzzyBookMatch;
   final bool exactMatch;
   final bool startsWithMatch;
-  final List<String> titleTokens;
+
+  /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
+  final List<bool> titleWordMatches;
 
   /// true = ה-reference מתאים לסגנון הציון שהוזן (ראו [findRefCitationMatch]).
   final bool citationMatch;
@@ -203,20 +216,15 @@ int compareFindRefRelevance(
   // "ירושלמי מעשר שני" ב"תלמוד ירושלמי מעשר שני". אות בודדת היא מספר מיקום.
   if (query.needsTokenWiseRanking) {
     final queryTokens = query.tokens;
-    final aStart = _titleAnchor(a.titleTokens, query.matchTokens.first);
-    final bStart = _titleAnchor(b.titleTokens, query.matchTokens.first);
     for (int i = 1; i < queryTokens.length; i++) {
       final queryToken = queryTokens[i];
       if (queryToken.length == 1) continue;
-      final matchToken = query.matchTokens[i];
       // התאמת תיקייה מספקת את המילה גם ללא כותרת; המפתח חייב להיות עצמאי
       // לכל תוצאה, אחרת שילוב עם התאמות TOC יוצר מעגל בהשוואה.
       final aHasMatch =
-          a.categoryTokens.contains(queryToken) ||
-          _titleTokenAt(a.titleTokens, aStart + i, matchToken);
+          a.categoryTokens.contains(queryToken) || a.titleWordMatches[i];
       final bHasMatch =
-          b.categoryTokens.contains(queryToken) ||
-          _titleTokenAt(b.titleTokens, bStart + i, matchToken);
+          b.categoryTokens.contains(queryToken) || b.titleWordMatches[i];
       if (aHasMatch != bHasMatch) return aHasMatch ? -1 : 1;
     }
   }

@@ -3173,11 +3173,12 @@ class FindRefRepository {
 
   /// שם שהותאם בקירוב אינו שווה לשאילתה מילולית; משווים מילה מול מילה, כדי
   /// ש"עירובים" יקדים את "עירובין" ל"משנה עירובין" כמו בכתיב הנכון.
-  static ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+  static ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
   _fuzzyTitleMatch(
     FindRefRankQuery query,
     String normTitle,
-    ({bool exactMatch, bool startsWithMatch, List<String> titleTokens}) literal,
+    ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
+    literal,
   ) {
     final titleWords = bookNameMatchForm(
       normTitle,
@@ -3192,7 +3193,7 @@ class FindRefRepository {
     return (
       exactMatch: startsWith && queryWords.length == titleWords.length,
       startsWithMatch: startsWith,
-      titleTokens: literal.titleTokens,
+      titleWordMatches: literal.titleWordMatches,
     );
   }
 
@@ -3228,14 +3229,18 @@ class FindRefRepository {
           String,
           ({
             String normTitle,
-            ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+            ({
+              bool exactMatch,
+              bool startsWithMatch,
+              List<bool> titleWordMatches,
+            })
             match,
           })
         >{};
     final fuzzyTitleKeys =
         <
           String,
-          ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+          ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
         >{};
     final decorated = List<FindRefRankKey<DbReferenceResult>>.generate(
       results.length,
@@ -3283,7 +3288,7 @@ class FindRefRepository {
                 '${r.bookId}|${r.source.wireKey}|${r.title}',
                 () => _spellsQuotedWords(r, quotedWords),
               ),
-          titleTokens: title.match.titleTokens,
+          titleWordMatches: title.match.titleWordMatches,
           citationMatch: findRefCitationMatch(
             query.isDafCitation,
             r.reference,
