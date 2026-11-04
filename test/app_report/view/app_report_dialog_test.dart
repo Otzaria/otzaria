@@ -151,8 +151,7 @@ void main() {
       'Report type',
       'Title',
       'What happened?',
-      'Steps to reproduce',
-      '(optional)',
+      'Steps to reproduce (optional)',
       'Email address for replies',
       PluginFileDropService.isSupported
           ? 'Paste, drop, or click to choose an image'
