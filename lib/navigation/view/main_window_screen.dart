@@ -3797,12 +3797,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
                               Expanded(
                                 child: Builder(
                                   builder: (context) {
-                                    // רוחב החלון כולו, כמו בסרגל הכותרת, ולא
-                                    // הכיוון: חלון נמוך וצר במחשב הוא "לרוחב"
-                                    // אבל אין בו מקום לעמודה (DESIGN_SYSTEM §5.2).
-                                    final wide = !WindowClass.of(
-                                      context,
-                                    ).isCompact;
+                                    // לפי גודל החלון, כמו בסרגל הכותרת, ולא לפי
+                                    // הכיוון (DESIGN_SYSTEM §5.2): עמודה בכל חלון
+                                    // שאינו צר, וגם בחלון צר ונמוך (טלפון קטן
+                                    // לרוחב), שבו הגובה הוא האילוץ (q12 Q8).
+                                    final wide =
+                                        WindowClass.usesSideNavigationOf(
+                                          context,
+                                        );
                                     _handleNavAxisChange(context, wide);
 
                                     final pageView = Stack(

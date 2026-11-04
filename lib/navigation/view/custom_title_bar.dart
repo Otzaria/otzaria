@@ -58,7 +58,8 @@ import 'package:otzaria/widgets/controls/app_icon_button.dart';
 /// שורת הכותרת בסגנון הקריאה, ברקע הקריאה ובלי קו: בעיון עם כרטיסייה פתוחה
 /// ובחיפוש, כשהכרטיסיות ברצועה שבשורה והפעילה מתמזגת עם הקריאה. במצב
 /// "כרטיסיות בצד" אין בשורה כרטיסיות, והיא כרום כמו בכל מסך אחר (DD-18). בחלון
-/// צר הכרטיסיות חוזרות לשורה שנייה, ולכן גם הסגנון.
+/// צר הכרטיסיות חוזרות לשורה שנייה, ולכן גם הסגנון. חלון צר ונמוך (טלפון
+/// לרוחב) נשאר כמו חלון רחב ([WindowClass.usesSideNavigationOf]).
 ///
 /// משותף לשורה עצמה ולצבע שורת הסטטוס ב-Android (`_EdgeToEdgeShell`).
 bool titleBarUsesReaderStyle(
@@ -69,7 +70,8 @@ bool titleBarUsesReaderStyle(
 }) {
   final showsReading =
       screen == Screen.search || (screen == Screen.reading && hasOpenTabs);
-  final sideTabs = readingTabsOnSide && !WindowClass.of(context).isCompact;
+  final sideTabs =
+      readingTabsOnSide && WindowClass.usesSideNavigationOf(context);
   return showsReading && !sideTabs;
 }
 
@@ -236,9 +238,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       navState.currentScreen == Screen.reading ||
       navState.currentScreen == Screen.search;
 
+  /// בחלון צר הכרטיסיות בשורה שנייה. בחלון צר ונמוך (טלפון קטן לרוחב) הן
+  /// נשארות בשורת הכותרת: שורה שנייה שם הייתה עוד 40 מ־320 (q12 Q8).
   bool _useStackedTabs(BuildContext context, NavigationState navState) {
     if (!_isReadingScreen(navState)) return false;
-    return WindowClass.of(context).isCompact;
+    return !WindowClass.usesSideNavigationOf(context);
   }
 
   /// במצב "בצד" הכרטיסיות מוצגות בעמודה אנכית שבמסך הראשי, ולכן הרצועה
@@ -251,7 +255,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     if (!_isReadingScreen(navState) || !settingsState.readingTabsOnSide) {
       return false;
     }
-    return !WindowClass.of(context).isCompact;
+    return WindowClass.usesSideNavigationOf(context);
   }
 
   @override
