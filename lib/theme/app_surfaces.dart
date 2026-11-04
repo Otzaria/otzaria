@@ -73,6 +73,12 @@ class AppSurfaces {
   static Color subtleDivider(ColorScheme cs) =>
       cs.outlineVariant.withValues(alpha: 0.5);
 
+  /// רקע עדין לפריט ברשימה של חלונית: כרטיסי ההערות בחלונית ההערות (#3086,
+  /// review-r5: כל הערה כרטיס, ברווח ביניהם ובלי קווים). 5% surfaceTint,
+  /// קרוב לרקע. לא [panelSectionAccent], שבולט בהרבה.
+  static Color tintedRow(ColorScheme cs) =>
+      cs.surfaceTint.withValues(alpha: 0.05);
+
   /// הקו הכהה הדק שמפריד בין אזורי החלון בערכת "לבן" בבהיר
   /// ([AppSurfaceColors.regionBorder]). `null` בשאר הערכות, ואז האזור שומר על
   /// ההפרדה שלו: `regionBorder(context) ?? <הקו הקיים>`.

@@ -24,6 +24,21 @@ void main() {
     }
   });
 
+  group('AppSurfaces.tintedRow', () {
+    for (final brightness in Brightness.values) {
+      test('ב-$brightness: 5% surfaceTint, כמו לפני שקיבל שם (#3086)', () {
+        final cs = ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: brightness,
+        );
+        expect(
+          AppSurfaces.tintedRow(cs),
+          cs.surfaceTint.withValues(alpha: 0.05),
+        );
+      });
+    }
+  });
+
   group('AppSurfaces.paragraphSelectionBackground', () {
     ThemeData themeFor(Color seed, Brightness brightness) {
       final cs = AppThemeData.createColorScheme(seed, brightness);

@@ -154,84 +154,100 @@ class _NoteTileState extends State<NoteTile> {
       );
     }
 
-    final bgColor =
-        widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
-
-    return Column(
-      children: [
-        InkWell(
+    // כרטיס מעוגל, מוזח פנימה מקצות החלונית, ברקע [backgroundColor] (בלעדיו
+    // שקוף); כותרת ותוכן הם יחידה אחת, והריחוף והלחיצה נצבעים עליו. בין
+    // כרטיסים אין קו: הריפוד האנכי (spaceXS מכל צד) נותן רווח של spaceSM.
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSM,
+        vertical: AppTokens.spaceXS,
+      ),
+      // Material לכל שורה ולא Ink: ה-ink נצבע על ה-Material הקרוב, ובחלונית
+      // זה ה-Material שמחוץ לרשימה, שלא נצבע מחדש כשהשורה זזה.
+      child: Material(
+        type: widget.backgroundColor == null
+            ? MaterialType.transparency
+            : MaterialType.canvas,
+        color: widget.backgroundColor,
+        borderRadius: AppTokens.borderRadiusAll,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: widget.onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
-            ),
-            color: bgColor,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.note.title,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+          borderRadius: AppTokens.borderRadiusAll,
+          child: Column(
+            children: [
+              _buildHeader(context),
+              AnimatedSize(
+                duration: AppMotion.duration(
+                  context,
+                  AppTokens.animPanelOpacity,
+                ),
+                curve: Curves.easeInOut,
+                child: _isExpanded
+                    ? Padding(
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          AppTokens.spaceSM,
+                          0,
+                          AppTokens.spaceSM,
+                          AppTokens.spaceSM,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (widget.subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        widget.subtitle!,
-                      ],
-                    ],
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: PersonalNoteContentView(
+                            note: widget.note,
+                            textStyle: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.copyWith(height: 1.5),
+                            onLinkTap: widget.onLinkTap,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceSM),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.note.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                _NoteActions(
-                  onEdit: _startInlineEdit,
-                  onDelete: widget.onDelete,
-                  isExpanded: _isExpanded,
-                  onToggleExpansion: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                    });
-                  },
-                  extraAction: widget.extraAction,
-                ),
+                if (widget.subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  widget.subtitle!,
+                ],
               ],
             ),
           ),
-        ),
-        AnimatedSize(
-          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-          curve: Curves.easeInOut,
-          child: _isExpanded
-              ? InkWell(
-                  onTap: widget.onTap,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 12.0),
-                    color: bgColor,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: PersonalNoteContentView(
-                        note: widget.note,
-                        textStyle: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(height: 1.5),
-                        onLinkTap: widget.onLinkTap,
-                      ),
-                    ),
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-        Divider(
-          height: 1,
-          thickness: 0.5,
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
-        ),
-      ],
+          _NoteActions(
+            onEdit: _startInlineEdit,
+            onDelete: widget.onDelete,
+            isExpanded: _isExpanded,
+            onToggleExpansion: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            extraAction: widget.extraAction,
+          ),
+        ],
+      ),
     );
   }
 

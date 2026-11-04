@@ -8,6 +8,8 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -65,6 +67,17 @@ void main() {
     return tester.widgetList<NoteTile>(find.byType(NoteTile)).toList();
   }
 
+  /// ה-Material של כל כרטיס: הראשון בתוך כל NoteTile.
+  List<Finder> cards(WidgetTester tester) => [
+    for (var i = 0; i < find.byType(NoteTile).evaluate().length; i++)
+      find
+          .descendant(
+            of: find.byType(NoteTile).at(i),
+            matching: find.byType(Material),
+          )
+          .first,
+  ];
+
   testWidgets('כל הכרטיסים מקבלים את כל הערות הספר לקישור', (tester) async {
     final tiles = await pumpTiles(tester);
 
@@ -72,6 +85,64 @@ void main() {
     for (final tile in tiles) {
       expect(tile.linkableNotes, [...located, ...missing]);
     }
+  });
+
+  testWidgets('כל ההערות כרטיסים על AppSurfaces.tintedRow (#3086, review-r5)', (
+    tester,
+  ) async {
+    final tiles = await pumpTiles(tester);
+    final cs = Theme.of(
+      tester.element(find.byType(NoteTile).first),
+    ).colorScheme;
+
+    for (final tile in tiles) {
+      expect(
+        tile.backgroundColor,
+        AppSurfaces.tintedRow(cs),
+        reason: tile.note.id,
+      );
+    }
+    // הרקע נצבע בפועל על כרטיס מעוגל, לא רק עובר כפרמטר.
+    for (final card in cards(tester)) {
+      final material = tester.widget<Material>(card);
+      expect(material.color, AppSurfaces.tintedRow(cs));
+      expect(material.borderRadius, AppTokens.borderRadiusAll);
+    }
+  });
+
+  testWidgets('בין כרטיסי ההערות רווח spaceSM ואין קווים (review-r5)', (
+    tester,
+  ) async {
+    await pumpTiles(tester);
+
+    expect(
+      find.descendant(
+        of: find.byType(NoteTile),
+        matching: find.byType(Divider),
+      ),
+      findsNothing,
+    );
+    final rects = [for (final card in cards(tester)) tester.getRect(card)]
+      ..sort((a, b) => a.top.compareTo(b.top));
+    expect(rects, hasLength(located.length + missing.length));
+    // אף מפריד של החלונית (למשל מתחת לסרגל) אינו בין הכרטיסים.
+    final dividers = find.byType(Divider);
+    for (var i = 0; i < dividers.evaluate().length; i++) {
+      expect(
+        tester.getRect(dividers.at(i)).bottom,
+        lessThanOrEqualTo(rects.first.top),
+      );
+    }
+    // הממוקמות רצופות; לפני חסרות המיקום באה הכותרת שלהן.
+    for (var i = 1; i < located.length; i++) {
+      expect(rects[i].top - rects[i - 1].bottom, AppTokens.spaceSM);
+    }
+    for (var i = located.length + 1; i < rects.length; i++) {
+      expect(rects[i].top - rects[i - 1].bottom, AppTokens.spaceSM);
+    }
+    final heading = tester.getRect(find.text('הערות חסרות מיקום'));
+    expect(heading.top, greaterThan(rects[located.length - 1].bottom));
+    expect(heading.bottom, lessThan(rects[located.length].top));
   });
 
   testWidgets('רשימת הקישור נבנית פעם אחת לבנייה ולא לכל כרטיס', (

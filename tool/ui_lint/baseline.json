@@ -81,10 +81,6 @@
       "lib/pdf_book/view/pdf_external_matches_bar.dart": [
         {"scope":"_PdfExternalMatchesBarState.build","fp":"8fde4718","n":1}
       ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"8fde4718","n":1},
-        {"scope":"PersonalNotesSidebarState.build","fp":"8fde4718","n":2}
-      ],
       "lib/printing/view/printing_screen.dart": [
         {"scope":"_PrintingScreenState._buildImagePreview","fp":"8fde4718","n":1},
         {"scope":"_PrintingScreenState._buildPrintExportFooter","fp":"8fde4718","n":1},
@@ -221,20 +217,12 @@
       "lib/personal_notes/view/personal_notes_screen.dart": [
         {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"11d75f92","n":1}
       ],
-      "lib/personal_notes/widgets/note_tile.dart": [
-        {"scope":"_NoteTileState.build","fp":"43297a9d","n":1}
-      ],
       "lib/personal_notes/widgets/notes_search_header.dart": [
         {"scope":"_NotesSearchHeaderState.build","fp":"8181d0d8","n":1}
       ],
       "lib/personal_notes/widgets/personal_note_editor.dart": [
         {"scope":"_PersonalNoteEditorBodyState.build","fp":"8983067a","n":1},
         {"scope":"_PersonalNoteEditorBodyState.build","fp":"ea90b069","n":1}
-      ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"017a4b93","n":1},
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"8181d0d8","n":1},
-        {"scope":"PersonalNotesSidebarState._buildContent","fp":"b355fcab","n":1}
       ],
       "lib/search/view/tantivy_full_text_search.dart": [
         {"scope":"_TantivyFullTextSearchState._buildFacetFilterBanner","fp":"70836f0d","n":1},
