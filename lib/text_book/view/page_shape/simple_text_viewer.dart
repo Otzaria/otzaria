@@ -964,6 +964,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return identical(context.read<TabsBloc>().state.activePane, tab);
   }
 
+  bool _isFocusInAnotherRoute() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null || !focusContext.mounted) return false;
+    final route = ModalRoute.of(focusContext);
+    return route != null && route != ModalRoute.of(context);
+  }
+
   void _requestKeyboardFocus(String reason) {
     final focusNode = _resolvedKeyboardFocusNode;
     if (!widget.isMainText || !focusNode.canRequestFocus) {
@@ -971,6 +978,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (!_isTabInForeground()) {
+      return;
+    }
+
+    // דיאלוג שנפתח מעל הקורא מחזיק את הפוקוס: בלעדיו Escape לא סוגר אותו.
+    if (_isFocusInAnotherRoute()) {
       return;
     }
 
