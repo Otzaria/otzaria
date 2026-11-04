@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -156,6 +157,33 @@ void main() {
       db.close();
     });
 
+    // שולחנות (#4082): fromJson נשאר כאן, אבל jsonDecode עצמו לא חוסם את ה-UI.
+    test('בלי decodeInBackground, JSON גדול מפוענח ב-isolate', () async {
+      final db = UserStateDatabase.openAt(dbPath);
+      final store = _TimerAfterReadStore(db);
+      await store.write('history', 'history', entries(2000));
+
+      var timerRanFirst = false;
+      Future<List<int>> load() => UserStateListRepository<int>(
+        boxName: 'history',
+        key: 'history',
+        fromJson: (json) {
+          timerRanFirst = store.timerFired;
+          return json['v'] as int;
+        },
+        toJson: (value) => {'v': value},
+        store: store,
+      ).load();
+
+      expect(await load(), hasLength(2000));
+      expect(timerRanFirst, isTrue);
+
+      await store.write('history', 'history', entries(3));
+      expect(await load(), [0, 1, 2]);
+      expect(timerRanFirst, isFalse);
+      db.close();
+    });
+
     test('רשימה קטנה נשארת בפענוח מקומי', () async {
       final db = UserStateDatabase.openAt(dbPath);
       final store = UserStateListStore(database: db);
@@ -190,4 +218,19 @@ void main() {
       db.close();
     });
   });
+}
+
+/// מתזמן timer מיד אחרי הקריאה: פענוח סינכרוני מסתיים לפניו, isolate — אחריו.
+class _TimerAfterReadStore extends UserStateListStore {
+  _TimerAfterReadStore(UserStateDatabase db) : super(database: db);
+
+  bool timerFired = false;
+
+  @override
+  Future<String?> readPayload(String box, String key) async {
+    final payload = await super.readPayload(box, key);
+    timerFired = false;
+    Timer.run(() => timerFired = true);
+    return payload;
+  }
 }

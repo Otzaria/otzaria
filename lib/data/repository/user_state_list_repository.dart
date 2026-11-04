@@ -27,8 +27,8 @@ class UserStateListRepository<T> {
   final T Function(Map<String, dynamic>) fromJson;
   final Map<String, dynamic> Function(T) toJson;
 
-  /// [load] של רשימה גדולה מפוענח ב-isolate. רק כש-[fromJson] מייצר נתונים
-  /// טהורים — טאב משחזר bloc-ים, ואסור לבנות אותם ב-isolate אחר.
+  /// ה-JSON של רשימה גדולה מפוענח תמיד ב-isolate; כש-true גם [fromJson] רץ שם,
+  /// ולכן רק כשהוא מייצר נתונים טהורים — טאב משחזר bloc-ים, ואסור לבנות אותם ב-isolate אחר.
   final bool decodeInBackground;
   final UserStateListStore _store;
 
@@ -50,13 +50,17 @@ class UserStateListRepository<T> {
   /// שנכתב מרשימה ריקה כזו היה מוחק את הנתונים בשחזור.
   Future<List<T>> load() async {
     final payload = await _store.readPayload(boxName, key);
-    if (!decodeInBackground ||
-        payload == null ||
-        payload.length < _backgroundDecodeMinLength) {
+    if (payload == null || payload.length < _backgroundDecodeMinLength) {
       return _decode(UserStateListStore.decodePayload(payload)).items;
     }
-    return _decodeInIsolate(payload, fromJson, '$boxName/$key');
+    if (decodeInBackground) {
+      return _decodeInIsolate(payload, fromJson, '$boxName/$key');
+    }
+    return _decode(await _parseInIsolate(payload)).items;
   }
+
+  static Future<List<dynamic>> _parseInIsolate(String payload) =>
+      Isolate.run(() => UserStateListStore.decodePayload(payload));
 
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
   static Future<List<T>> _decodeInIsolate<T>(
