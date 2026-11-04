@@ -3106,23 +3106,33 @@ class FindRefRepository {
   }) {
     final seen = <String>{};
     final out = <DbReferenceResult>[];
-    // Reference tokens of TOC results, per book and heading line.
+    final bookKeys = [for (final r in results) _dedupeBookKey(r)];
+    // Reference tokens of TOC results, only on the lines right above AltToc
+    // results: [_restatesHeadingAbove] reads no other line.
+    final headingLines = <String, Set<num>>{};
+    for (var i = 0; i < results.length; i++) {
+      final r = results[i];
+      if (r.isAltToc) (headingLines[bookKeys[i]] ??= {}).add(r.segment - 1);
+    }
     final headings = <String, Map<num, Set<String>>>{};
-    for (final r in results) {
+    for (var i = 0; headingLines.isNotEmpty && i < results.length; i++) {
+      final r = results[i];
       if (r.isAltToc || r.isSourceLine || r.isPdf || r.sourceLineId == 0) {
         continue;
       }
+      if (!(headingLines[bookKeys[i]]?.contains(r.segment) ?? false)) continue;
       headings
-          .putIfAbsent(_dedupeBookKey(r), () => {})
+          .putIfAbsent(bookKeys[i], () => {})
           .putIfAbsent(r.segment, () => {})
           .addAll(_tokenize(_normalizeForMatch(r.reference)));
     }
 
     // המלאות תופסות את המפתחות תחילה, בלי להחליף תוצאה שכבר נשמרה.
     for (final partial in [false, true]) {
-      for (final r in results) {
+      for (var i = 0; i < results.length; i++) {
+        final r = results[i];
         if (r.isPartialTocMatch != partial) continue;
-        final bookKey = _dedupeBookKey(r);
+        final bookKey = bookKeys[i];
         final segmentKey = '$bookKey|${r.segment}';
         final referenceKey = '$bookKey|ref:${r.reference}';
         // גם שורה או כתובת של כפילה נשארות מוכרות לרשומות הבאות.
