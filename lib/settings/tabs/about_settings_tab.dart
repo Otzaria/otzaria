@@ -149,8 +149,10 @@ class AboutSettingsTab extends StatelessWidget {
               ],
             ),
 
-            // לכרטיס בלי כותרת אין את ריפוד הכותרת, שהוא המרווח בין הכרטיסים.
-            const SizedBox(height: AppTokens.spaceLG),
+            // הציטוט הוא קבוצה נפרדת מ"סיוע ללומדי תורה", ולא כרטיס שני תחת
+            // אותה כותרת. לכרטיס בלי כותרת אין את ריפוד הכותרת, ולכן המרווח
+            // כאן הוא כמו מעל כרטיס עם כותרת: 24 + שורת הכותרת + 12 (‏≈56).
+            const SizedBox(height: AppTokens.spaceLG + AppTokens.spaceXL),
 
             // ── ציטוט סיום ──
             SettingsCard(
