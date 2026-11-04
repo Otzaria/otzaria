@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 
@@ -18,6 +19,17 @@ class AppDensity extends ThemeExtension<AppDensity> {
       Theme.of(context).extension<AppDensity>() ?? regular;
 
   final bool isCompact;
+
+  /// חלון קטן לצפיפות ברירת המחדל. שם "צפיפות ממשק" שלא נבחרה מצומצמת
+  /// (`SettingsState.compactMenuModeFor`), ובחירה מפורשת, גם "רגיל", נשמרת.
+  /// - בטלפון ובטאבלט ([DeviceChrome.isMobile]): הצד הקצר מתחת ל-600
+  ///   ([LayoutBreakpoints.compact]) — טלפון לאורך ולרוחב, או חצי מסך של 10".
+  /// - במחשב: רק חלון נמוך ([WindowClass.isShortOf], מתחת ל-480). מחשב נייד
+  ///   1366×768 בהגדלה של 125% מוגדל לכל המסך הוא כ-1093×566, ולפי הצד הקצר
+  ///   כל האפליקציה הייתה מתהפכת למצומצמת, ובחזרה כשהחלון יוצא ממצב מוגדל.
+  static bool isSmallWindow(Size size) => DeviceChrome.isMobile
+      ? size.shortestSide < LayoutBreakpoints.compact
+      : size.height < LayoutBreakpoints.compactHeight;
 
   /// גובה השורה הראשית של הסרגל העליון.
   double get topBarHeight => isCompact ? 44 : 56;
@@ -41,32 +53,78 @@ class AppDensity extends ThemeExtension<AppDensity> {
   int get hashCode => isCompact.hashCode;
 }
 
-/// בחלון נמוך ([WindowClass.isShortOf], טלפון לרוחב) הכרום שמתחת עובר לצפיפות
-/// הקומפקטית, גם כשההגדרה "רגיל": שם הגובה הוא האילוץ. הסרגלים יורדים מ־56
-/// ל־44, ועמודת הניווט מ־74 ל־60 (q12 Q8). בצפיפות קומפקטית אין שינוי.
+/// בונה את [builder] לפי [AppDensity.isSmallWindow] של החלון, ובונה מחדש רק
+/// כשהתשובה מתהפכת, לא בכל שינוי גודל: ב-App נבנית בו ערכת הנושא, ובנייה
+/// שלה בכל פריים של גרירת גודל החלון הייתה בונה מחדש את כל האפליקציה.
 ///
-/// העץ זהה בשני המצבים (Theme תמיד), כדי שסיבוב הטלפון לא יבנה מחדש את
-/// המסכים שמתחת.
-class ShortWindowDensity extends StatelessWidget {
-  const ShortWindowDensity({super.key, required this.child});
+/// [builder] מקבל רק את התשובה, ולא context: תלות אחרת שהייתה נקראת דרכו
+/// לא הייתה מרעננת את התוצאה השמורה.
+class SmallWindowBuilder extends StatefulWidget {
+  const SmallWindowBuilder({super.key, required this.builder});
 
-  final Widget child;
+  final Widget Function(bool isSmallWindow) builder;
+
+  @override
+  State<SmallWindowBuilder> createState() => _SmallWindowBuilderState();
+}
+
+class _SmallWindowBuilderState extends State<SmallWindowBuilder> {
+  bool? _isSmall;
+  Widget? _built;
+
+  @override
+  void didUpdateWidget(SmallWindowBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _built = null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final compact =
-        WindowClass.isShortOf(context) && !AppDensity.of(context).isCompact;
-    return Theme(
-      data: compact
-          ? theme.copyWith(
-              extensions: [
-                ...theme.extensions.values.where((e) => e is! AppDensity),
-                AppDensity.compact,
-              ],
-            )
-          : theme,
-      child: child,
-    );
+    final isSmall = AppDensity.isSmallWindow(MediaQuery.sizeOf(context));
+    if (_built == null || isSmall != _isSmall) {
+      _isSmall = isSmall;
+      _built = widget.builder(isSmall);
+    }
+    return _built!;
   }
+}
+
+/// קורא ל-[onChanged] כשה-[AppDensity] של ה-Theme משתנה, פעם אחת לכל שינוי,
+/// אחרי הפריים: כשהחלון עובר את הסף של [AppDensity.isSmallWindow] והצפיפות
+/// שבפועל מתהפכת בלי שההגדרה השתנתה. בבנייה הראשונה אין קריאה.
+///
+/// ה-Theme משתנה רק כשערכת הנושא נבנית מחדש ([SmallWindowBuilder]), ולא בכל
+/// פריים של שינוי גודל; גם במעבר המונפש בין ערכות הנושא הצפיפות מתהפכת פעם
+/// אחת ([AppDensity.lerp]).
+class AppDensityListener extends StatefulWidget {
+  const AppDensityListener({
+    super.key,
+    required this.onChanged,
+    required this.child,
+  });
+
+  final ValueChanged<AppDensity> onChanged;
+  final Widget child;
+
+  @override
+  State<AppDensityListener> createState() => _AppDensityListenerState();
+}
+
+class _AppDensityListenerState extends State<AppDensityListener> {
+  AppDensity? _density;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final density = AppDensity.of(context);
+    final previous = _density;
+    _density = density;
+    if (previous == null || previous == density) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _density == density) widget.onChanged(density);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

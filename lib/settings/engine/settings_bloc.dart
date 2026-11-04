@@ -229,6 +229,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
+      compactMenuModeIsSet: settings['compactMenuMode'] != null,
       autoSync: settings['autoSync'] ?? true,
       updateCheckFrequency: settings['updateCheckFrequency'] ?? '',
       restoreAllWindows: settings['restoreAllWindows'] ?? false,
@@ -420,7 +421,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     await _repository.updateCompactMenuMode(event.compactMenuMode);
-    emit(state.copyWith(compactMenuMode: event.compactMenuMode));
+    emit(
+      state.copyWith(
+        compactMenuMode: event.compactMenuMode,
+        compactMenuModeIsSet: true,
+      ),
+    );
   }
 
   Future<void> _onUpdateReadingTabsPlacement(

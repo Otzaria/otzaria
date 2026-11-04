@@ -355,11 +355,15 @@ List<SearchResult> smallScreenResults() => [
 ///
 /// בגודל טלפון ([isPhoneSize]) שורת הכותרת נבנית כמו בטלפון, בלי כפתורי
 /// חלון. [pdfPath] נדרש ל-[SmallScreen.pdf].
+///
+/// [compactMenuMode]: "צפיפות ממשק" שהמשתמש בחר. null הוא "לא נבחר", כמו
+/// בהתקנה חדשה.
 Widget Function(Widget app) smallScreenProviders(
   WidgetTester tester, {
   required SmallScreen screen,
   required Size size,
   String? pdfPath,
+  bool? compactMenuMode,
 }) {
   tz.initializeTimeZones();
   final dataRoot = Directory.systemTemp.createTempSync('otzaria-small-screen-');
@@ -441,6 +445,8 @@ Widget Function(Widget app) smallScreenProviders(
     SettingsState.initial().copyWith(
       isOfflineMode: true,
       settingsLanguageCode: 'he',
+      compactMenuMode: compactMenuMode,
+      compactMenuModeIsSet: compactMenuMode != null,
     ),
   );
   final tabsBloc = _TabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));

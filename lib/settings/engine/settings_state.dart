@@ -82,7 +82,13 @@ class SettingsState extends Equatable {
   /// האם הוגדרה סיסמה למצב סייפר. נגזר מה-repository בטעינה ומעודכן בעת שמירה,
   /// כדי שה-UI יתרענן ריאקטיבית גם כשהמצב המוגן עצמו לא מופעל.
   final bool protectedModePasswordSet;
+
+  /// "צפיפות ממשק" שנשמרה. בלי בחירה ([compactMenuModeIsSet] כבוי) זה
+  /// false, והצפיפות בפועל לפי החלון: [compactMenuModeFor].
   final bool compactMenuMode;
+
+  /// האם המשתמש בחר "צפיפות ממשק" (יש ערך שמור, גם "רגיל").
+  final bool compactMenuModeIsSet;
   final bool autoSync;
 
   /// `UpdateCheckFrequency.storageValue`; ריק = ברירת המחדל.
@@ -178,6 +184,7 @@ class SettingsState extends Equatable {
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
+    this.compactMenuModeIsSet = false,
     this.autoSync = true,
     this.updateCheckFrequency = '',
     this.restoreAllWindows = false,
@@ -293,6 +300,7 @@ class SettingsState extends Equatable {
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
+    bool? compactMenuModeIsSet,
     bool? autoSync,
     String? updateCheckFrequency,
     bool? restoreAllWindows,
@@ -386,6 +394,7 @@ class SettingsState extends Equatable {
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
+      compactMenuModeIsSet: compactMenuModeIsSet ?? this.compactMenuModeIsSet,
       autoSync: autoSync ?? this.autoSync,
       updateCheckFrequency: updateCheckFrequency ?? this.updateCheckFrequency,
       restoreAllWindows: restoreAllWindows ?? this.restoreAllWindows,
@@ -415,6 +424,11 @@ class SettingsState extends Equatable {
   }
 
   /// האם כרטיסיות העיון מוצגות כעמודה אנכית בצד ולא ברצועת הכותרת.
+  /// "צפיפות ממשק" בפועל: הבחירה של המשתמש, ובלי בחירה מצומצמת בחלון קטן
+  /// (`AppDensity.isSmallWindow`; הערת בעל הפרויקט ל-q12 Q8, 4.11).
+  bool compactMenuModeFor({required bool isSmallWindow}) =>
+      compactMenuModeIsSet ? compactMenuMode : isSmallWindow;
+
   bool get readingTabsOnSide =>
       readingTabsPlacement == SettingsRepository.readingTabsPlacementSide;
 
@@ -468,6 +482,7 @@ class SettingsState extends Equatable {
     protectedModeEnabled,
     protectedModePasswordSet,
     compactMenuMode,
+    compactMenuModeIsSet,
     autoSync,
     updateCheckFrequency,
     restoreAllWindows,

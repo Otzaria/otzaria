@@ -44,6 +44,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אודות ספריית אוצריא': 'About the Otzaria library',
     'אודות פיתוח התוכנה': 'About Development',
     'אוטומטי': 'Automatic',
+    'אוטומטי, לפי גודל החלון': 'Automatic, by window size',
     'אוצר החכמה בלבד': 'Otzar HaChochma Only',
     'אוצריא': 'Otzaria',
     'אוצריא מגבה אוטומטית את הסימניות, ההיסטוריה וההערות שלך. בהגדרות ← מערכת אפשר לייצא את הגיבוי לקובץ ולשחזר אותו בכל עת — גם לאחר התקנה מחדש.': 'Otzaria automatically backs up your bookmarks, history and notes. In Settings → System you can export the backup to a file and restore it any time.',

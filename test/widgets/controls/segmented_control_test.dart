@@ -171,4 +171,41 @@ void main() {
     expect(find.text('חיפוש חכם'), findsOneWidget);
     expect(find.text('חכם'), findsNothing);
   });
+
+  group('reselectable', () {
+    Future<List<int>> tapSelected(
+      WidgetTester tester,
+      bool reselectable,
+    ) async {
+      final calls = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppSegmentedControl<int>(
+              options: const [
+                SegmentOption(value: 1, label: 'One'),
+                SegmentOption(value: 2, label: 'Two'),
+              ],
+              currentValue: 1,
+              onChanged: calls.add,
+              reselectable: reselectable,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('One'));
+      await tester.pump();
+      await tester.tap(find.text('Two'));
+      await tester.pump();
+      return calls;
+    }
+
+    testWidgets('לחיצה על המקטע הנבחר מדווחת את הערך שלו', (tester) async {
+      expect(await tapSelected(tester, true), [1, 2]);
+    });
+
+    testWidgets('בלי reselectable לחיצה על המקטע הנבחר שקטה', (tester) async {
+      expect(await tapSelected(tester, false), [2]);
+    });
+  });
 }
