@@ -851,7 +851,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   }
 
   /// האם [child] נמצא בתוך היקף ה-facet של [parent] (או שווה לו).
-  @visibleForTesting
   static bool facetContains(String parent, String child) =>
       parent == '/' || child == parent || child.startsWith('$parent/');
 

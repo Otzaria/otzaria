@@ -190,6 +190,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בחר קובצי "דורות.csv", "כותרות.csv", "גרסאות.csv", "<שם הספר>.links.csv" או קובצי קישורים של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים. עמודות "כותרות.csv": ספר, מבנה, רמה, כותרת, שורה או טקסט; "רמה" 2 ומעלה יוצרת כותרות משנה.': 'Select "דורות.csv", "כותרות.csv", "גרסאות.csv", "<sefer name>.links.csv", or Otzaria link files ("<sefer name>_links.json") and they go into the library. Reimporting updates existing entries and adds any new ones. "כותרות.csv" columns: ספר, מבנה, רמה, כותרת, and שורה or טקסט; a רמה of 2 or more creates subheadings.',
     'בחר שאילתה וסוג חיפוש': 'Choose a query and search type',
     'בחר שאילתה, סוג חיפוש והיקף': 'Choose a query, search type and scope',
+    'בחר תוצאה לתצוגה מקדימה': 'Select a result to preview',
     'בחר תיקייה': 'Select Folder',
     'בחר תיקייה המכילה את קבצי הספרייה': 'Select the folder containing Your library files',
     'בחר תיקייה קיימת': 'Select an Existing Folder',

@@ -20,6 +20,7 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/cross_line_result.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
@@ -77,10 +78,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   final Set<String> _bookDisplayLoads = {};
   bool _isAutoLoadInFlight = false;
 
-  /// חתימת החיפוש האחרון (שאילתה + קטגוריות) שעבורו כבר גללנו לראש הרשימה.
-  /// משמשת להבחנה בין חיפוש חדש (חתימה משתנה → גלילה לראש) לבין טעינת המשך
-  /// (אותה חתימה → שימור מיקום הגלילה).
+  /// חתימת החיפוש האחרון, להבחנה בין חיפוש חדש לטעינת המשך ששומרת גלילה.
   String? _lastSearchSignature;
+  String? _lastFacets;
+  late SearchState _previewResultsState;
 
   int _previewRequestId = 0;
 
@@ -182,16 +183,18 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     _scrollController.addListener(_handleScroll);
     // אתחול החתימה מה-state הנוכחי כדי שהשינוי הראשון (למשל טעינת המשך בטאב
     // חיפוש משוחזר) לא ייחשב בטעות ל"חיפוש חדש" ויאפס את הגלילה.
-    _lastSearchSignature = _searchSignature(context.read<SearchBloc>().state);
+    final searchState = context.read<SearchBloc>().state;
+    _previewResultsState = searchState;
+    _lastSearchSignature = _searchSignature(searchState);
+    _lastFacets = searchState.currentFacets.join('|');
   }
 
   /// חתימת חיפוש: זהה בין chunks של אותו חיפוש ובטעינת המשך, ומשתנה בכל
-  /// הגדרה שמריצה חיפוש מחדש.
+  /// הגדרה שמריצה חיפוש מחדש. הסינון בעץ אינו חלק ממנה ונבדק בנפרד.
   String _searchSignature(SearchState state) {
     final config = state.configuration;
-    return '${state.searchQuery} ${state.currentFacets.join('')} '
-        '${config.sortBy} ${config.searchMode} ${config.distance} '
-        '${config.resultGrouping}';
+    return '${state.searchQuery} ${config.sortBy} ${config.searchMode} '
+        '${config.distance} ${config.resultGrouping}';
   }
 
   void _handleScroll() {
@@ -398,6 +401,72 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     );
   }
 
+  /// תוצאת התצוגה המקדימה שאינה ברשימה המסוננת מסומנת ב-
+  /// [SearchingTab.filteredOutPreview]. תוצאה חיצונית נבדקת במדור שלה.
+  void _syncFilteredOutPreview(SearchState state) {
+    final target = widget.tab.previewTarget.value;
+    if (target == null || target.openInReader != null || state.isLoading) {
+      return;
+    }
+    widget.tab.filteredOutPreview.value = _inFilteredResults(state, target)
+        ? null
+        : target;
+  }
+
+  /// התוצאה ברשימה (גם בתוך קבוצה מאוחדת), או בספר שבתוך הסינון כשנותרו
+  /// תוצאות לטעינה.
+  bool _inFilteredResults(SearchState state, SearchPreviewTarget target) {
+    if (_hasLoadedResult(
+      state,
+      filePath: target.filePath,
+      segment: target.segment,
+      isPdf: target.isPdf,
+    )) {
+      return true;
+    }
+    if (!state.isCounting && state.results.length >= state.displayTotal) {
+      return false;
+    }
+    for (final prefix in const ['/author/', '/era/', '/base']) {
+      final selected = state.currentFacets
+          .where(
+            (facet) =>
+                FacetHelper.isDimensionFacet(facet) && facet.startsWith(prefix),
+          )
+          .toSet();
+      final matched = target.matchedDimensionFacets.where(
+        (facet) => facet.startsWith(prefix),
+      );
+      // OR בתוך ממד: רק הסרת הממד או הרחבת בחירתו מוכיחות שהספר עדיין מתאים.
+      if (selected.isNotEmpty &&
+          (matched.isEmpty || !matched.every(selected.contains))) {
+        return false;
+      }
+    }
+    final bookFacet = FacetHelper.buildBookFacet(
+      FacetHelper.resolveCategoryPath(target.book),
+      target.book,
+    );
+    final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
+    return categories.isEmpty ||
+        categories.any((facet) => SearchBloc.facetContains(facet, bookFacet));
+  }
+
+  bool _hasLoadedResult(
+    SearchState state, {
+    required String filePath,
+    required int segment,
+    required bool isPdf,
+  }) {
+    bool matches(String path, BigInt index, bool pdf) =>
+        path == filePath && index.toInt() == segment && pdf == isPdf;
+    return state.results.any(
+      (result) =>
+          matches(result.filePath, result.segment, result.isPdf) ||
+          result.merged.any((s) => matches(s.filePath, s.segment, s.isPdf)),
+    );
+  }
+
   Future<void> _togglePreview({
     required String title,
     required String reference,
@@ -418,6 +487,17 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       return;
     }
 
+    final dimensions =
+        _hasLoadedResult(
+          _previewResultsState,
+          filePath: filePath,
+          segment: segment,
+          isPdf: isPdf,
+        )
+        ? List<String>.unmodifiable(
+            FacetHelper.dimensionFacetsOf(_previewResultsState.currentFacets),
+          )
+        : const <String>[];
     // אותו אימות זהות כמו בפתיחה בעיון — אינדקס לא מסונכרן לא מציג ספר שגוי.
     final resolution = await widget.tab.searchBloc.resolveBookForIndexedPath(
       filePath,
@@ -435,8 +515,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       segment: segment,
       isPdf: isPdf,
       filePath: filePath,
+      matchedDimensionFacets: dimensions,
       continuesToNextLine: continuesToNextLine,
     );
+    _syncFilteredOutPreview(widget.tab.searchBloc.state);
     // לחיצה אינה מעבירה פוקוס ב-Flutter — בלי זה החיצים לא מגיעים לאזור.
     _arrowNavFocusNode.requestFocus();
   }
@@ -538,9 +620,17 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     return BlocBuilder<SettingsBloc, SettingsState>(
       buildWhen: (p, c) => p.searchShowPreview != c.searchShowPreview,
       builder: (context, settings) {
-        return ValueListenableBuilder<SearchPreviewTarget?>(
-          valueListenable: widget.tab.previewTarget,
-          builder: (context, target, _) {
+        return ListenableBuilder(
+          listenable: Listenable.merge([
+            widget.tab.previewTarget,
+            widget.tab.filteredOutPreview,
+          ]),
+          builder: (context, _) {
+            final target = widget.tab.previewTarget.value;
+            // תוצאה שהסינון הסתיר: החלונית נשארת, ובמקום התוכן בקשה לבחור.
+            final shown = identical(target, widget.tab.filteredOutPreview.value)
+                ? null
+                : target;
             final previewQuery = widget.tab.searchBloc.state.searchQuery;
             final previewOptions = widget.tab.effectiveSearchOptions(
               query: previewQuery,
@@ -559,15 +649,16 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               alignment: AlignmentDirectional.centerStart,
               mainContent: mainContent,
               paneContent: BookPreviewPanel(
-                book: target?.book,
-                initialTextIndex: target != null && !target.isPdf
-                    ? target.segment
+                book: shown?.book,
+                initialTextIndex: shown != null && !shown.isPdf
+                    ? shown.segment
                     : null,
                 initialTextContinuesToNextLine:
-                    target?.continuesToNextLine ?? false,
-                initialPdfPage: target != null && target.isPdf
-                    ? target.segment + 1
+                    shown?.continuesToNextLine ?? false,
+                initialPdfPage: shown != null && shown.isPdf
+                    ? shown.segment + 1
                     : null,
+                emptyMessage: context.settingsText('בחר תוצאה לתצוגה מקדימה'),
                 searchText: widget.tab.searchBloc.state.searchQuery,
                 searchOptions: previewOptions,
                 alternativeWords: widget.tab.alternativeWords,
@@ -632,30 +723,43 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         return BlocListener<SearchBloc, SearchState>(
           listenWhen: (previous, current) =>
               previous.isLoading != current.isLoading ||
-              previous.results.length != current.results.length ||
+              previous.isCounting != current.isCounting ||
+              !identical(previous.results, current.results) ||
               previous.totalResults != current.totalResults ||
+              previous.totalGroups != current.totalGroups ||
               previous.searchQuery != current.searchQuery ||
               previous.currentFacets.join('|') !=
                   current.currentFacets.join('|'),
           listener: (context, state) {
+            // שינוי הגדרות עשוי להקדים את החלפת התוצאות; הוא אינו מוכיח התאמה.
+            if (!identical(state.results, _previewResultsState.results)) {
+              _previewResultsState = state;
+            }
             if (!state.isLoading) {
               _isAutoLoadInFlight = false;
             }
 
-            // רק שינוי חתימה מאפס גלילה; מקטעים ועמודי המשך שומרים מיקום.
+            // רק חיפוש חדש או סינון אחר מאפסים גלילה; מקטעים ועמודי המשך
+            // שומרים מיקום.
             final signature = _searchSignature(state);
+            final facets = state.currentFacets.join('|');
             if (signature != _lastSearchSignature) {
-              _lastSearchSignature = signature;
               _previewRequestId++;
-              // חיפוש חדש מחליף את התוצאות — התוצאה שבתצוגה המקדימה כבר
-              // אינה ברשימה, לכן החלונית נסגרת.
+              // חיפוש חדש מחליף את התוצאות ולכן סוגר את התצוגה המקדימה; בסינון
+              // בעץ החלונית נשארת (ראו _syncFilteredOutPreview).
               widget.tab.previewTarget.value = null;
+            }
+            if (signature != _lastSearchSignature || facets != _lastFacets) {
+              _lastSearchSignature = signature;
+              _lastFacets = facets;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted && _scrollController.hasClients) {
                   _scrollController.jumpTo(0);
                 }
               });
             }
+
+            _syncFilteredOutPreview(state);
 
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {

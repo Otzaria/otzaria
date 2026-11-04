@@ -36,6 +36,12 @@ class SearchingTab extends OpenedTab {
   /// מצב זמני של המסך — לא נשמר ב-JSON של הטאב.
   final ValueNotifier<SearchPreviewTarget?> previewTarget = ValueNotifier(null);
 
+  /// [previewTarget] שהסינון בעץ הוציא מהרשימה: החלונית נשארת פתוחה ובמקום
+  /// התוכן מבקשת לבחור תוצאה. בחירה אחרת מחליפה את [previewTarget] ומבטלת זאת.
+  final ValueNotifier<SearchPreviewTarget?> filteredOutPreview = ValueNotifier(
+    null,
+  );
+
   // אפשרויות חיפוש לכל מילה (מילה_אינדקס -> אפשרויות)
   final Map<String, Map<String, bool>> searchOptions = {};
   final Map<String, Map<String, bool>> negativeSearchOptions = {};
@@ -305,6 +311,7 @@ class SearchingTab extends OpenedTab {
     externalSearchSummary.dispose();
     externalSearchStatus.dispose();
     previewTarget.dispose();
+    filteredOutPreview.dispose();
     // סגירת ה-bloc כדי למנוע דליפה
     searchBloc.close();
     super.dispose();
