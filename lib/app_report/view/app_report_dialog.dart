@@ -289,13 +289,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
           enabled: enabled,
           autofocus: true,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('משפט אחד שמתאר את הבעיה'),
             errorText: state.invalidField == 'title'
                 ? context.settingsText('יש למלא כותרת')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportTitleChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -311,14 +309,12 @@ class _AppReportDialogState extends State<AppReportDialog> {
           minLines: 3,
           maxLines: 6,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('מה ציפית שיקרה, ומה קרה בפועל'),
             alignLabelWithHint: true,
             errorText: state.invalidField == 'description'
                 ? context.settingsText('יש לתאר את התקלה')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportDescriptionChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -335,11 +331,9 @@ class _AppReportDialogState extends State<AppReportDialog> {
           minLines: 2,
           maxLines: 5,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('מה עשית לפני שהתקלה הופיעה'),
             alignLabelWithHint: true,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportStepsChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -354,13 +348,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
           enabled: enabled,
           keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: 'name@example.com',
             errorText: state.invalidField == 'reporterEmail'
                 ? context.settingsText('נדרשת כתובת תקינה')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),

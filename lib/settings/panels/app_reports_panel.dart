@@ -12,7 +12,7 @@ import 'package:otzaria/reports/view_scope.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -519,11 +519,9 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           controller: _title,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('כותרת'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -535,12 +533,10 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('תיאור'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -552,12 +548,10 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -566,13 +560,11 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.emailAddress,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             labelText: emailRequired
                 ? context.settingsText('דואר אלקטרוני')
                 : context.settingsText('דואר אלקטרוני (לא חובה)'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         AppReportImagesSection(
