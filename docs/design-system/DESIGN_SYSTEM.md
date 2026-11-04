@@ -112,7 +112,7 @@
 | סרגל עליון | `AppSurfaces.topBarBackground` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים | `AppTopBar` |
 | חלונית ניווט | `AppSurfaces.navPanelBackground` | = topBar | = topBar | קיים (שם נרדף מכוון) | `NavSidePanel`, חלוניות לצד הקריאה (DD-18) |
 | כרטיס | `AppSurfaces.card` | `surface` | `surfaceContainer` | קיים | `AppCard`, `DetailsCard` |
-| גוף דיאלוג שבנוי מכרטיסים | `AppSurfaces.cardDialogBackground` | = רקע לוח | `surface` | קיים. חריג מתועד לגוון הדיאלוג של DD-07, כדי שהכרטיס יהיה בהיר מהגוף בשתי הערכות | היסטוריה, סימניות, "הצגה או הוספה של הקבצים" |
+| גוף דיאלוג שבנוי מכרטיסים | `AppSurfaces.cardDialogBackground` | = רקע לוח | `surface` | קיים. חריג מתועד לגוון הדיאלוג של DD-07, כדי שהכרטיס יהיה בהיר מהגוף בשתי הערכות | היסטוריה, סימניות |
 | מפריד בתוך כרטיס | `AppSurfaces.cardRowDivider` | רווח שקוף בתוך `AppCard.section` (DD-12) | כנ"ל | קיים | `AppCard.section` |
 | מפריד עדין | `AppSurfaces.subtleDivider` | `outlineVariant` בשקיפות 50% | כנ"ל | קיים | רשימות |
 | קו אזורים | `AppSurfaces.regionBorder` (`AppSurfaceColors.regionBorder`) | ב"לבן": אפור בינוני 929292 (`onSurface` ב־48% מעל `surface`, אטום; 3:1 מול FF ו־FC). בשאר הערכות `null` | `null` | קיים | ב"לבן" בבהיר: שורת הכותרת והכרטיסייה הפעילה, עמודת הניווט, עמודת הכרטיסיות, `AppTopBar`, חלונית ניווט צמודה וחלונית צד צפה, `PaneCard`, דיאלוג, תפריטים ו־tooltip (`AppThemeData.raisedShape` / `AppSurfaces.raisedShape`). הקורא כותב `regionBorder(context) ?? <הקו הקיים>` (#2850, #1939) |
@@ -270,7 +270,7 @@
 | שדה חיפוש slim | `AppInputTokens.compactHeight` | `OtzariaSearchField.heightSlim` | קיים |
 | סרגל עליון רגיל / קומפקטי | לפי `AppDensity.topBarHeight` | `AppDensity` | קיים |
 | כפתור סרגל | 40 / 36 | `BarButton` (פרמטר `compact`) | חלקי: הקורא מעביר את הצפיפות מ־`AppDensity` |
-| פריט תפריט | `AppMenuMetrics` | `packages/otzaria_context_menu` | קיים. צפוף יותר במצב הקומפקטי (DD-10) |
+| פריט תפריט | `AppMenuMetrics` | `packages/otzaria_context_menu` | קיים. צפוף יותר במצב הקומפקטי (DD-10). תווית רחבה מהתפריט מתקצרת ב־"…" ולא גולשת (סקירה שנייה של 4.11) |
 | לשונית חלונית | 44 | `AppTokens.panelTabHeight` | קיים |
 
 #### 2.5.3 גבולות
@@ -453,7 +453,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | קבוצת שורות בכרטיס | `AppCard.section(children:)` | מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | חלקי. בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
 | היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9 ⚠): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו. גוף הדיאלוג `AppSurfaces.cardDialogBackground` וריפוד 16, כמו ב־upstream (סקירת 4.11) | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
-| דיאלוג הסבר בכמה נושאים | מקטעים: `AppSectionLabel` ומתחתיו `AppCard.section`, על גוף `AppSurfaces.cardDialogBackground`, כמו קבוצה במסך ההגדרות | "הצגה או הוספה של הקבצים" (סקירת 4.11) |
+| דיאלוג הסבר בכמה נושאים | מקטעים: `AppSectionLabel` ומתחתיו הפריטים ישירות על גוף הדיאלוג, בגוון הדיאלוג, וקו `Divider` דק בין מקטע למקטע. בלי כרטיסים ובלי גוף כהה יותר | "הצגה או הוספה של הקבצים" (סקירת 4.11, ושנייה) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
@@ -550,7 +550,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 **[מחייב] (q12 Q8) · קיים:** סף הגובה הוא `LayoutBreakpoints.compactHeight` (480, ה־compact height של M3), דרך `WindowClass.isShortOf(context)`. חלון נמוך הוא טלפון לרוחב, או חלון שטוח במחשב. בחלון כזה הגובה הוא האילוץ:
 - **ניווט וכרטיסיות:** עמודה בצד, וכרטיסיות בשורת הכותרת ולא בשורה שנייה, גם מתחת ל־600 (`WindowClass.usesSideNavigationOf`).
-- **צפיפות:** הכרום בצפיפות הקומפקטית (`ShortWindowDensity`).
+- **צפיפות:** מצומצמת כשלא נבחרה, כי חלון נמוך הוא גם קטן (`SettingsState.compactMenuModeFor`). "רגיל" מפורש נשמר (סקירה שנייה של 4.11).
 - **דיאלוגים:** ברוחב 600–840, ‏`large`/`full` במסך מלא.
 
 ### 5.2 שני סוגי החלטות [מחייב] (DD-15 A) · קיים
@@ -571,7 +571,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | טלפון (<600) | ניווט תחתון. דיאלוגים לפי גודלם (DD-16, סעיף 3.1). שורות הגדרה בעמודה. כפתור "מסך מלא" בשורת הכותרת משמאל ל"הגדרות תצוגת הספרים", ובלי מקום שם בסרגל הקורא (במחשב: ליד כפתורי החלון ו־F11). "צפיפות ממשק" שלא נבחרה מצומצמת כשהצד הקצר מתחת ל־600 |
 | חלון צר במחשב (420–600) | **כמו טלפון אבל עם עכבר.** שטחי הלחיצה נשארים לפי דסקטופ. החלון המינימלי הוא 420×400 |
 | חלון נמוך (גובה <480: טלפון לרוחב) | עמודה בצד וכרטיסיות בשורת הכותרת, גם מתחת ל־600. כרום בצפיפות קומפקטית. ב־600–840 דיאלוג `large`/`full` במסך מלא (q12 Q8) |
-| חלוניות מפוצלות | כל חלונית מחליטה לפי ה־constraints שלה ולא לפי החלון. ידית הגרירה בסרגל (`AppTopBar`). לחלונית בלי סרגל, כמו תוסף, `FloatingPaneDragHandle`: במחשב רק בריחוף, ובמנוחה שקופה ולא חוסמת. במגע תמיד גלויה, בגרסה הקטנה (#2635) |
+| חלוניות מפוצלות | כל חלונית מחליטה לפי ה־constraints שלה ולא לפי החלון. ידית הגרירה בסרגל (`AppTopBar`). לחלונית בלי סרגל, כמו תוסף, `FloatingPaneDragHandle`: במחשב רק בריחוף על הרצועה העליונה של החלונית (`hoverStripHeight`, ‏44, לכל הרוחב), ובמנוחה שקופה ולא חוסמת. במגע תמיד גלויה, בגרסה הקטנה (#2635) |
 | שינוי גודל בזמן ריצה | אין מצב שמחושב פעם אחת ב־`initState` לפי רוחב. רוחב שמור נשמר **כיחס** ולא בפיקסלים |
 | הגדלת טקסט | ראו 6.3 |
 
