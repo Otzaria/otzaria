@@ -260,6 +260,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'גודל גופן מפרשים (צורת הדף)': 'Meforshim Font Size (Page Layout)',
     'גודל הגופן, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי': 'Font size, nikud and commentators set in a sefer are saved for that sefer. The font itself stays global',
     'גודל ההורדה: {size}': 'Download size: {size}',
+    'גודל טקסט בתוצאות החיפוש': 'Search Results Text Size',
     'גוף הספר': 'Main Text',
     'גופן טקסט': 'Text Font',
     'גופן מפרשים': 'Meforshim font',

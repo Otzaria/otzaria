@@ -59,6 +59,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       _onCommentatorsFontSizeChanged,
       transformer: sequential(),
     );
+    on<UpdateSearchResultsFontSize>(_onUpdateSearchResultsFontSize);
     on<UpdateLineHeight>(_onUpdateLineHeight);
     on<UpdateShowOtzarHachochma>(_onUpdateShowOtzarHachochma);
     on<UpdateShowHebrewBooks>(_onUpdateShowHebrewBooks);
@@ -198,6 +199,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       fontBold: settings['fontBold'] ?? false,
       commentatorsFontBold: settings['commentatorsFontBold'] ?? false,
       commentatorsFontSize: settings['commentatorsFontSize'],
+      searchResultsFontSize: settings['searchResultsFontSize'],
       lineHeight: settings['lineHeight'],
       showOtzarHachochma: settings['showOtzarHachochma'],
       showHebrewBooks: settings['showHebrewBooks'],
@@ -641,6 +643,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     if (next == state.commentatorsFontSize) return;
     await _repository.updateCommentatorsFontSize(next);
     emit(state.copyWith(commentatorsFontSize: next));
+  }
+
+  Future<void> _onUpdateSearchResultsFontSize(
+    UpdateSearchResultsFontSize event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateSearchResultsFontSize(event.searchResultsFontSize);
+    emit(state.copyWith(searchResultsFontSize: event.searchResultsFontSize));
   }
 
   Future<void> _onUpdateLineHeight(

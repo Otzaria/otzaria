@@ -19,11 +19,32 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 
+/// אילו הגדרות [TextSettingsTab] מציג.
+///
+/// מסך ההגדרות מציג את כולן. כפתור ההגדרות שבשורת הכותרת פותח את אותו
+/// רכיב, ושם מוצג רק מה שחל על הכרטיסייה הפעילה (#2826).
+enum TextSettingsScope {
+  /// מסך ההגדרות: כל ההגדרות.
+  all,
+
+  /// כרטיסיית ספר: הכל חוץ מגודל הטקסט בתוצאות החיפוש.
+  book,
+
+  /// כרטיסיית תוצאות חיפוש: מה שחל על רשימת התוצאות או על התצוגה המקדימה.
+  /// מוסתרים גודל וגופן המפרשים (התצוגה המקדימה נטענת בלי מפרשים) ורוחב
+  /// הטקסט (בתצוגה המקדימה הוא תמיד מלא). גודל הספר נשאר: התצוגה המקדימה
+  /// נפתחת בו.
+  searchResults,
+}
+
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות
 class TextSettingsTab extends StatelessWidget {
   /// האם להציג כדיאלוג (עם כפתור סגירה) או כטאב (ללא)
   final bool isDialog;
+
+  /// אילו הגדרות מוצגות; ראו [TextSettingsScope].
+  final TextSettingsScope scope;
 
   /// במצב צורת הדף גודל גופן המפרשים הוא הגדרה נפרדת של צורת הדף. כש-true
   /// מוצג במקום המחוון הכללי המחוון של צורת הדף, באותה שורה (#3244).
@@ -33,6 +54,7 @@ class TextSettingsTab extends StatelessWidget {
     super.key,
     this.isDialog = false,
     this.pageShapeCommentaryFontSize = false,
+    this.scope = TextSettingsScope.all,
   });
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
@@ -52,6 +74,14 @@ class TextSettingsTab extends StatelessWidget {
       tab: SettingsTab.text,
       cardId: 'text.font',
       keywords: ['פונט', 'אות'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.search_results_size',
+      title: 'גודל טקסט בתוצאות החיפוש',
+      subtitle: 'גודל הקטעים ברשימת תוצאות החיפוש, בנפרד מגודל הספר',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['גודל אות', 'פונט', 'חיפוש', 'תוצאות'],
     ),
     SettingsSearchEntry(
       id: 'text.font.commentators_size',
@@ -239,55 +269,75 @@ class TextSettingsTab extends StatelessWidget {
   }
 
   Widget _buildFontSection(BuildContext context, SettingsState state) {
-    return SettingsCard(
-      cardId: 'text.font',
-      title: context.settingsText('הגדרות גופן ועיצוב'),
-      children: [
-        // שורה 1: גודל גופן הספר + גופן טקסט
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: AdaptiveRow(
-            children: [
-              _FontSizeSlider(
-                applyWhileDragging: isDialog,
-                icon: OtzariaIcons.alef_near_alef_24_filled,
-                label: context.settingsText('גודל גופן הספר'),
-                value: state.fontSize.clamp(15, 60),
-                min: 15,
-                max: 60,
-                onChanged: (value) {
-                  context.read<SettingsBloc>().add(UpdateFontSize(value));
-                },
-              ),
-              _FontDropdown(
-                icon: OtzariaIcons.alef_alef_24_filled,
-                label: context.settingsText('גופן טקסט'),
-                value: state.fontFamily,
-                onChanged: (value) {
-                  if (value != null) {
-                    context.read<SettingsBloc>().add(UpdateFontFamily(value));
-                  }
-                },
-                bold: state.fontBold,
-                onBoldChanged: (value) {
-                  context.read<SettingsBloc>().add(UpdateFontBold(value));
-                },
-              ),
-            ],
-          ),
-        ),
+    final bookFontSize = _FontSizeSlider(
+      applyWhileDragging: isDialog,
+      icon: OtzariaIcons.alef_near_alef_24_filled,
+      label: context.settingsText('גודל גופן הספר'),
+      value: state.fontSize.clamp(15, 60),
+      min: 15,
+      max: 60,
+      onChanged: (value) {
+        context.read<SettingsBloc>().add(UpdateFontSize(value));
+      },
+    );
+    final fontFamily = _FontDropdown(
+      icon: OtzariaIcons.alef_alef_24_filled,
+      label: context.settingsText('גופן טקסט'),
+      value: state.fontFamily,
+      onChanged: (value) {
+        if (value != null) {
+          context.read<SettingsBloc>().add(UpdateFontFamily(value));
+        }
+      },
+      bold: state.fontBold,
+      onBoldChanged: (value) {
+        context.read<SettingsBloc>().add(UpdateFontBold(value));
+      },
+    );
+    final lineHeight = _FontSizeSlider(
+      applyWhileDragging: isDialog,
+      icon: FluentIcons.text_align_distributed_vertical_24_regular,
+      label: context.settingsText('מרווח בין שורות'),
+      value: state.lineHeight.clamp(1.0, 3.0),
+      min: 1.0,
+      max: 3.0,
+      divisions: 20,
+      onChanged: (value) {
+        context.read<SettingsBloc>().add(UpdateLineHeight(value));
+      },
+    );
+    final resultsFontSize = _FontSizeSlider(
+      applyWhileDragging: isDialog,
+      icon: OtzariaIcons.alef_search_24_filled,
+      label: context.settingsText('גודל טקסט בתוצאות החיפוש'),
+      value: state.searchResultsFontSize.clamp(10, 60),
+      min: 10,
+      max: 60,
+      onChanged: (value) {
+        context.read<SettingsBloc>().add(UpdateSearchResultsFontSize(value));
+      },
+    );
 
+    final List<Widget> rows;
+    if (scope == TextSettingsScope.searchResults) {
+      // באותו סדר כמו בספר, בלי המפרשים ורוחב הטקסט. גודל התוצאות בשורה של
+      // מרווח השורות, כמו במסך ההגדרות, ממש מעל "מצב קריאה" (הערת בעל הפרויקט
+      // 4.11).
+      rows = [
+        _pairRow(bookFontSize, fontFamily),
+        _pairRow(lineHeight, resultsFontSize),
+      ];
+    } else {
+      rows = [
+        // שורה 1: גודל גופן הספר + גופן טקסט
+        _pairRow(bookFontSize, fontFamily),
         // שורה 2: גודל גופן מפרשים + גופן מפרשים
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: AdaptiveRow(
-            children: [
-              if (pageShapeCommentaryFontSize)
-                PageShapeCommentaryFontSizeSlider(
+        _pairRow(
+          pageShapeCommentaryFontSize
+              ? PageShapeCommentaryFontSizeSlider(
                   title: context.settingsText('גודל גופן מפרשים (צורת הדף)'),
                 )
-              else
-                _FontSizeSlider(
+              : _FontSizeSlider(
                   applyWhileDragging: isDialog,
                   icon: OtzariaIcons.beit_near_alef_24_filled,
                   label: context.settingsText('גודל גופן מפרשים'),
@@ -300,82 +350,39 @@ class TextSettingsTab extends StatelessWidget {
                     );
                   },
                 ),
-              _FontDropdown(
-                icon: OtzariaIcons.beit_behind_alef_24_filled,
-                label: context.settingsText('גופן מפרשים'),
-                value: state.commentatorsFontFamily,
-                onChanged: (value) {
-                  if (value != null) {
-                    context.read<SettingsBloc>().add(
-                      UpdateCommentatorsFontFamily(value),
-                    );
-                  }
-                },
-                bold: state.commentatorsFontBold,
-                onBoldChanged: (value) {
-                  context.read<SettingsBloc>().add(
-                    UpdateCommentatorsFontBold(value),
-                  );
-                },
-              ),
-            ],
+          _FontDropdown(
+            icon: OtzariaIcons.beit_behind_alef_24_filled,
+            label: context.settingsText('גופן מפרשים'),
+            value: state.commentatorsFontFamily,
+            onChanged: (value) {
+              if (value != null) {
+                context.read<SettingsBloc>().add(
+                  UpdateCommentatorsFontFamily(value),
+                );
+              }
+            },
+            bold: state.commentatorsFontBold,
+            onBoldChanged: (value) {
+              context.read<SettingsBloc>().add(
+                UpdateCommentatorsFontBold(value),
+              );
+            },
           ),
         ),
-
-        // שורה 3: מרווח בין שורות
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: isNarrow
-                  ? _FontSizeSlider(
-                      applyWhileDragging: isDialog,
-                      icon: FluentIcons
-                          .text_align_distributed_vertical_24_regular,
-                      label: context.settingsText('מרווח בין שורות'),
-                      value: state.lineHeight.clamp(1.0, 3.0),
-                      min: 1.0,
-                      max: 3.0,
-                      divisions: 20,
-                      onChanged: (value) {
-                        context.read<SettingsBloc>().add(
-                          UpdateLineHeight(value),
-                        );
-                      },
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _FontSizeSlider(
-                            applyWhileDragging: isDialog,
-                            icon: FluentIcons
-                                .text_align_distributed_vertical_24_regular,
-                            label: context.settingsText('מרווח בין שורות'),
-                            value: state.lineHeight.clamp(1.0, 3.0),
-                            min: 1.0,
-                            max: 3.0,
-                            divisions: 20,
-                            onChanged: (value) {
-                              context.read<SettingsBloc>().add(
-                                UpdateLineHeight(value),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        const Expanded(child: SizedBox()),
-                      ],
-                    ),
-            );
-          },
+        // שורה 3: מרווח בין שורות, ובמסך ההגדרות גם גודל התוצאות
+        _pairRow(
+          lineHeight,
+          scope == TextSettingsScope.all ? resultsFontSize : null,
         ),
-
         _TextWidthSlider(state: state, applyWhileDragging: isDialog),
+      ];
+    }
+
+    return SettingsCard(
+      cardId: 'text.font',
+      title: context.settingsText('הגדרות גופן ועיצוב'),
+      children: [
+        ...rows,
         SettingsSegmentedTile<bool>(
           icon: FluentIcons.text_align_justify_24_regular,
           title: context.settingsText('מצב קריאה בתנ"ך ובתלמוד'),
@@ -399,6 +406,36 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+
+  /// שתי הגדרות זו לצד זו, ובחלון צר זו מתחת לזו. בלי [second] הראשונה
+  /// תופסת חצי שורה ברוחב, כמו בשורות המלאות.
+  static Widget _pairRow(Widget first, Widget? second) {
+    const padding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
+    if (second != null) {
+      return Padding(
+        padding: padding,
+        child: AdaptiveRow(children: [first, second]),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
+        return Padding(
+          padding: padding,
+          child: isNarrow
+              ? first
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: first),
+                    const SizedBox(width: 16),
+                    const Expanded(child: SizedBox()),
+                  ],
+                ),
+        );
+      },
     );
   }
 

@@ -26,6 +26,9 @@ class SettingsRepository {
   static const String keyFontBold = 'key-font-bold';
   static const String keyCommentatorsFontBold = 'key-commentators-font-bold';
   static const String keyCommentatorsFontSize = 'key-commentators-font-size';
+
+  /// גודל הטקסט בקטעי תוצאות החיפוש (#2826). עד שנשמר ערך — גודל הספר.
+  static const String keySearchResultsFontSize = 'key-search-results-font-size';
   static const String keyLineHeight = 'key-line-height';
   static const String keyShowOtzarHachochma = 'key-show-otzar-hachochma';
   static const String keyShowHebrewBooks = 'key-show-hebrew-books';
@@ -283,6 +286,7 @@ class SettingsRepository {
     keyFontBold,
     keyCommentatorsFontBold,
     keyCommentatorsFontSize,
+    keySearchResultsFontSize,
     keyLineHeight,
     keyShowOtzarHachochma,
     keyShowHebrewBooks,
@@ -404,6 +408,7 @@ class SettingsRepository {
   Future<Map<String, dynamic>> loadSettings() async {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
+    await _migrateSearchResultsFontSize();
     await removeUnrecognizedShortcuts();
     return readSettings();
   }
@@ -411,6 +416,7 @@ class SettingsRepository {
   /// קריאה סינכרונית של ההגדרות השמורות — למצב ההתחלתי של ה-bloc, כדי
   /// שהמסך הראשון לא ייבנה מברירות מחדל ויקפוץ אחרי הטעינה (issue #1280).
   Map<String, dynamic> readSettings() {
+    final fontSize = _settings.getValue<double>(keyFontSize, defaultValue: 25);
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
       'followSystemTheme': _settings.getValue<bool>(
@@ -433,7 +439,11 @@ class SettingsRepository {
         keyTextColumnWidth,
         defaultValue: 0,
       ),
-      'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
+      'fontSize': fontSize,
+      'searchResultsFontSize': _settings.getValue<double>(
+        keySearchResultsFontSize,
+        defaultValue: fontSize,
+      ),
       'fontFamily': _settings.getValue<String>(
         keyFontFamily,
         defaultValue: AppFonts.defaultFont,
@@ -789,6 +799,10 @@ class SettingsRepository {
 
   Future<void> updateCommentatorsFontSize(double value) async {
     await _settings.setValue(keyCommentatorsFontSize, value);
+  }
+
+  Future<void> updateSearchResultsFontSize(double value) async {
+    await _settings.setValue(keySearchResultsFontSize, value);
   }
 
   Future<void> updateLineHeight(double value) async {
@@ -1321,6 +1335,21 @@ class SettingsRepository {
     }
   }
 
+  /// גודל התוצאות נפרד מגודל הספר מאז #2826. משתמש קיים מקבל פעם אחת את
+  /// גודל הספר שלו, כך שהתוצאות נשארות כמו שהיו עד שישנה אותן; משם והלאה
+  /// הגדלת הספר כבר לא מגדילה אותן.
+  Future<void> _migrateSearchResultsFontSize() async {
+    final saved = _settings.getValue<double?>(
+      keySearchResultsFontSize,
+      defaultValue: null,
+    );
+    if (saved != null) return;
+    await _settings.setValue(
+      keySearchResultsFontSize,
+      _settings.getValue<double>(keyFontSize, defaultValue: 25),
+    );
+  }
+
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
@@ -1342,6 +1371,7 @@ class SettingsRepository {
     await _settings.setValue(keyFontBold, false);
     await _settings.setValue(keyCommentatorsFontBold, false);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);
+    await _settings.setValue(keySearchResultsFontSize, 25.0);
     await _settings.setValue(keyLineHeight, 1.5);
     await _settings.setValue(keyShowOtzarHachochma, false);
     await _settings.setValue(keyShowHebrewBooks, false);

@@ -27,6 +27,10 @@ class SettingsState extends Equatable {
   /// הצגת גופן המפרשים במשקל מודגש (בולד).
   final bool commentatorsFontBold;
   final double commentatorsFontSize;
+
+  /// גודל הטקסט בקטעי תוצאות החיפוש, נפרד מגודל הספר (#2826). כשלא נשמר
+  /// ערך, שווה ל-[fontSize]: כך התוצאות נראו לפני ההפרדה.
+  final double searchResultsFontSize;
   final double
   lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
   final bool showOtzarHachochma;
@@ -145,6 +149,7 @@ class SettingsState extends Equatable {
     this.fontBold = false,
     this.commentatorsFontBold = false,
     required this.commentatorsFontSize,
+    double? searchResultsFontSize,
     required this.lineHeight,
     required this.showOtzarHachochma,
     required this.showHebrewBooks,
@@ -196,7 +201,8 @@ class SettingsState extends Equatable {
     this.builtInToolsOrder = const <String>[],
     this.settingsLanguageCode = kDefaultSettingsLanguageCode,
     this._softwareAndBookUpdatesEnabled,
-  }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty;
+  }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty,
+       searchResultsFontSize = searchResultsFontSize ?? fontSize;
 
   factory SettingsState.initial() {
     return SettingsState(
@@ -253,6 +259,7 @@ class SettingsState extends Equatable {
     bool? fontBold,
     bool? commentatorsFontBold,
     double? commentatorsFontSize,
+    double? searchResultsFontSize,
     double? lineHeight,
     bool? showOtzarHachochma,
     bool? showHebrewBooks,
@@ -345,6 +352,8 @@ class SettingsState extends Equatable {
       fontBold: fontBold ?? this.fontBold,
       commentatorsFontBold: commentatorsFontBold ?? this.commentatorsFontBold,
       commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
+      searchResultsFontSize:
+          searchResultsFontSize ?? this.searchResultsFontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
       showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
@@ -433,6 +442,7 @@ class SettingsState extends Equatable {
     fontBold,
     commentatorsFontBold,
     commentatorsFontSize,
+    searchResultsFontSize,
     lineHeight,
     showOtzarHachochma,
     showHebrewBooks,

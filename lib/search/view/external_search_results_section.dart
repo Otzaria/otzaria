@@ -842,7 +842,7 @@ class _ExternalSearchResultsSectionState
                               plainText: result.snippet!,
                               query: state.searchQuery.trim(),
                               defaultStyle: TextStyle(
-                                fontSize: settings.fontSize,
+                                fontSize: settings.searchResultsFontSize,
                                 fontFamily: AppFonts.renderFontFamily(
                                   settings.fontFamily,
                                 ),
@@ -852,7 +852,7 @@ class _ExternalSearchResultsSectionState
                               // אותה הדגשה כמו בגזירי המנוע המובנה: מילה
                               // אדומה ומודגשת, ולא צביעת רקע.
                               highlightStyle: TextStyle(
-                                fontSize: settings.fontSize + 2,
+                                fontSize: settings.searchResultsFontSize + 2,
                                 fontFamily: AppFonts.renderFontFamily(
                                   settings.fontFamily,
                                 ),
