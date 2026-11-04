@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -10,6 +9,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
 import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
@@ -393,7 +393,8 @@ class _TocViewerState extends State<TocViewer>
     );
   }
 
-  /// כותרת העץ עם כפתור "כווץ/הרחב הכל", שמוצג רק כשיש מה לכווץ.
+  /// כותרת העץ עם הכפתור המשותף "הרחב הכל / כווץ הכל"
+  /// ([NavTreeCollapseAllButton]), שמוצג רק כשיש בעץ ענף שאפשר לכווץ.
   Widget _buildTreeHeader(String title, _TocDisplayData display) {
     Widget? toggle;
     if (!display.isSearching) {
@@ -402,36 +403,22 @@ class _TocViewerState extends State<TocViewer>
         _collapsedExpansion = collapsedTocExpansion(display.entries);
       }
       if (_collapsedExpansion.containsValue(false)) {
-        final collapsed = isTocCollapsed(
-          _flatItemsFor(display),
-          _collapsedExpansion,
-        );
-        toggle = SizedBox.square(
-          dimension: 28,
-          child: IconButton(
-            tooltip: collapsed ? 'הרחב הכל' : 'כווץ הכל',
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              collapsed
-                  ? FluentIcons.arrow_expand_all_24_regular
-                  : FluentIcons.arrow_collapse_all_24_regular,
-              size: AppTokens.iconSM,
-            ),
-            onPressed: () => setState(() {
-              if (_virtualScrollController.isAttached) {
-                _virtualScrollController.jumpTo(index: 0);
-              }
-              _expanded
-                ..clear()
-                ..addAll(
-                  collapsed
-                      ? expandedTocExpansion(display.entries)
-                      : _collapsedExpansion,
-                );
-              _expandedRevision++;
-            }),
+        void apply(Map<int, bool> expansion) => setState(() {
+          if (_virtualScrollController.isAttached) {
+            _virtualScrollController.jumpTo(index: 0);
+          }
+          _expanded
+            ..clear()
+            ..addAll(expansion);
+          _expandedRevision++;
+        });
+        toggle = NavTreeCollapseAllButton(
+          isCollapsed: isTocCollapsed(
+            _flatItemsFor(display),
+            _collapsedExpansion,
           ),
+          onCollapseAll: () => apply(_collapsedExpansion),
+          onExpandAll: () => apply(expandedTocExpansion(display.entries)),
         );
       }
     }

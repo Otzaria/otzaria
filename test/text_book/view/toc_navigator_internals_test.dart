@@ -423,6 +423,26 @@ void main() {
       final expanded = expandedTocExpansion(entries);
       expect(flattenVisibleToc(entries, expanded).length, 4);
     });
+
+    // #3103: שורש שהמצב המכווץ משאיר פתוח ונסגר ביד — הכל סגור, ולכן "הרחב
+    // הכל" ולא "כווץ הכל".
+    test('שורש יחיד שנסגר ביד נחשב מכווץ', () {
+      final entries = [
+        _e(
+          'ספר',
+          0,
+          0,
+          children: [
+            _e('שער א', 1, 1, children: [_e('פרק א', 2, 2)]),
+            _e('שער ב', 3, 1, children: [_e('פרק א', 4, 2)]),
+          ],
+        ),
+      ];
+      final collapsed = collapsedTocExpansion(entries);
+      final visible = flattenVisibleToc(entries, const {0: false});
+      expect(visible.map((i) => i.entry.text), ['ספר']);
+      expect(isTocCollapsed(visible, collapsed), isTrue);
+    });
   });
 
   group('tocRootsBelowTitle', () {
