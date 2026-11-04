@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
@@ -33,9 +34,10 @@ void main() {
 
   Future<void> openMenu(
     WidgetTester tester, {
+    List<String> openTitles = const ['בראשית', 'שמות', 'ויקרא'],
     List<String> closedTitles = const ['במדבר'],
   }) async {
-    tabs = [_StubTab('בראשית'), _StubTab('שמות'), _StubTab('ויקרא')];
+    tabs = openTitles.map(_StubTab.new).toList();
     closedTabs = closedTitles.map(_StubTab.new).toList();
     tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0))
       ..closedTabs = closedTabs;
@@ -279,6 +281,109 @@ void main() {
     expect(panelIn(b), findsNothing);
     expect(panelIn(a), findsOneWidget);
   });
+
+  group('ניווט בחיצים מהשדה אל הרשימה (issue #3485)', () {
+    final windows = TargetPlatformVariant.only(TargetPlatform.windows);
+    const arrowDown = LogicalKeyboardKey.arrowDown;
+    const arrowUp = LogicalKeyboardKey.arrowUp;
+    const enter = LogicalKeyboardKey.enter;
+
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pumpAndSettle();
+    }
+
+    Iterable<int> selectedIndexes() =>
+        tabsBloc.addedEvents.whereType<SetCurrentTab>().map((e) => e.index);
+
+    testWidgets(
+      '↓ עובר לרשומות, ↑ מהראשונה חוזר לשדה, ו-Enter ממקד את המסומנת',
+      (tester) async {
+        await openMenu(tester);
+
+        for (final key in [arrowDown, arrowDown, arrowUp, arrowUp, enter]) {
+          await press(tester, key);
+        }
+        expect(tabsBloc.addedEvents, isEmpty);
+        expect(find.byType(TabSearchPanel), findsOneWidget);
+
+        for (final key in [arrowDown, arrowDown, enter]) {
+          await press(tester, key);
+        }
+        expect(selectedIndexes(), [1]);
+        expect(find.byType(TabSearchPanel), findsNothing);
+      },
+      variant: windows,
+    );
+
+    testWidgets(
+      'סינון מאפס את הסימון; ברשימה ריקה אין מה לבחור, ובמסוננת משחזרים',
+      (tester) async {
+        await openMenu(tester);
+        for (final key in [arrowDown, arrowDown, arrowDown]) {
+          await press(tester, key);
+        }
+
+        await tester.enterText(find.byType(TextField), 'איןכזה');
+        await tester.pumpAndSettle();
+        await press(tester, arrowDown);
+        await press(tester, enter);
+        expect(tabsBloc.addedEvents, isEmpty);
+        expect(find.byType(TabSearchPanel), findsOneWidget);
+
+        // "מ": "שמות" הפתוחה ו"במדבר" שנסגרה; החץ השלישי נשאר באחרונה.
+        await tester.enterText(find.byType(TextField), 'מ');
+        await tester.pumpAndSettle();
+        for (final key in [arrowDown, arrowDown, arrowDown, enter]) {
+          await press(tester, key);
+        }
+        final restored = tabsBloc.addedEvents.whereType<RestoreClosedTab>();
+        expect(restored.single.tab, same(closedTabs.single));
+        expect(selectedIndexes(), isEmpty);
+      },
+      variant: windows,
+    );
+
+    testWidgets(
+      'סגירת הכרטיסיה המסומנת ב-X מעבירה את הסימון לזו שבאה במקומה',
+      (tester) async {
+        await openMenu(tester);
+
+        await press(tester, arrowDown);
+        await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+        await tester.pumpAndSettle();
+        expect(find.text('בראשית'), findsNothing);
+
+        await press(tester, enter);
+
+        // אחרי הסגירה "שמות" היא הראשונה ברשימה.
+        expect(selectedIndexes(), [0]);
+        expect(find.byType(TabSearchPanel), findsNothing);
+      },
+      variant: windows,
+    );
+
+    testWidgets(
+      'הרשומה המסומנת נגללת לתצוגה',
+      (tester) async {
+        await openMenu(
+          tester,
+          openTitles: [for (var i = 0; i < 30; i++) 'כרטיסיה $i'],
+          closedTitles: const [],
+        );
+        expect(find.text('כרטיסיה 29').hitTestable(), findsNothing);
+
+        for (var i = 0; i < 30; i++) {
+          await press(tester, arrowDown);
+        }
+
+        expect(find.text('כרטיסיה 29').hitTestable(), findsOneWidget);
+        await press(tester, enter);
+        expect(selectedIndexes(), [29]);
+      },
+      variant: windows,
+    );
+  });
 }
 
 class _FakeWindow extends Fake
@@ -301,6 +406,14 @@ class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
     if (event is ClearRecentlyClosedTabs) {
       closedTabs = const [];
       emit(state.copyWith(forceUpdate: true));
+    }
+    if (event is RemoveTab) {
+      emit(
+        state.copyWith(
+          tabs: state.tabs.where((t) => !identical(t, event.tab)).toList(),
+          currentTabIndex: 0,
+        ),
+      );
     }
   }
 
