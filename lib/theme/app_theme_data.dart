@@ -4,6 +4,7 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuMetrics;
 
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_focus_ring.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
@@ -159,17 +160,18 @@ class AppThemeData {
       // ונשאר 8 (q10 שאלה 22). components_contract_test בודק את שניהם.
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(
+          cs,
           cs.primary,
         ).copyWith(shape: const WidgetStatePropertyAll(CircleBorder())),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: _hoverButtonStyle(cs.onPrimary),
+        style: _hoverButtonStyle(cs, cs.onPrimary),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: _hoverButtonStyle(cs.primary),
+        style: _hoverButtonStyle(cs, cs.primary),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: _hoverButtonStyle(cs.primary),
+        style: _hoverButtonStyle(cs, cs.primary),
       ),
       tabBarTheme: _tabBarTheme(cs),
       tooltipTheme: _tooltipTheme(cs),
@@ -355,8 +357,13 @@ class AppThemeData {
   //  צבע: primary (לא אפור) — מתאים לפלטת הצבעים החמה של האפליקציה
   // ──────────────────────────────────────────────────────────────────────────
 
-  static ButtonStyle _hoverButtonStyle(Color color) => ButtonStyle(
+  /// הריחוף והלחיצה של כל הכפתורים, וטבעת פוקוס המקלדת ([AppFocusRing]).
+  static ButtonStyle _hoverButtonStyle(
+    ColorScheme cs,
+    Color color,
+  ) => ButtonStyle(
     shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
+    side: AppFocusRing.buttonSide(cs),
     overlayColor: WidgetStateProperty.resolveWith((s) {
       if (s.contains(WidgetState.hovered)) return color.withValues(alpha: 0.08);
       if (s.contains(WidgetState.pressed) || s.contains(WidgetState.focused)) {
