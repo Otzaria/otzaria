@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/text/rtl_hard_break_workaround.dart';
@@ -518,57 +519,176 @@ class _RtlTextFieldState extends State<RtlTextField> {
     );
   }
 
-  /// מטפל בלחיצת חץ ב-RTL: מאציל ל-Actions המובנים עם כיוון מהופך
-  /// (ויזואלית-שמאל = forward), מה שמתקן את באג הכיווניות של Flutter.
+  /// מטפל בלחיצת חץ ב-RTL לפי הסדר החזותי של מיקומי הסמן: החץ חוצה את
+  /// הגרפמה שלידו בצד החץ, גם בגבול בין קטע עברי ללטיני (issue #3445).
   void _handleArrowKey({
     required bool isVisualRight,
     required bool extendSelection,
     bool byWord = false,
   }) {
     final focusContext = FocusManager.instance.primaryFocus?.context;
-    if (focusContext == null) return;
-
+    final editable = _editable;
     final selection = _boundController.selection;
-    final forward = _isRtlAtCaret(focusContext, selection)
-        ? !isVisualRight
-        : isVisualRight;
+    if (focusContext == null || editable == null || !selection.isValid) return;
+    final render = editable.renderEditable;
 
-    if (byWord) {
-      Actions.invoke(
-        focusContext,
-        ExtendSelectionToNextWordBoundaryIntent(
-          forward: forward,
-          collapseSelection: !extendSelection,
-        ),
+    final TextPosition target;
+    if (!extendSelection && !byWord && !selection.isCollapsed) {
+      // כמו ב-Flutter: חץ בלי Shift מכווץ את הבחירה, כאן לקצה שבכיוון החץ.
+      final start = TextPosition(offset: selection.start);
+      final end = TextPosition(
+        offset: selection.end,
+        affinity: TextAffinity.upstream,
       );
+      final s = _caretPoint(render, start);
+      final e = _caretPoint(render, end);
+      final toEnd = (e.dy - s.dy).abs() > 0.5
+          ? !isVisualRight
+          : (e.dx < s.dx) != isVisualRight;
+      target = toEnd ? end : start;
     } else {
-      Actions.invoke(
-        focusContext,
-        ExtendSelectionByCharacterIntent(
-          forward: forward,
-          collapseSelection: !extendSelection,
-        ),
+      // ה-affinity השמור, לא זה של extent: בבחירה פתוחה extent נצמד תמיד
+      // לטקסט הנבחר, ובגבול בין קטעים זה מיקום חזותי אחר.
+      final caret = TextPosition(
+        offset: selection.extentOffset,
+        affinity: selection.affinity,
       );
+      var step = _crossAdjacentGrapheme(render, caret, isVisualRight);
+      late final words = render.wordBoundaries.moveByWordBoundary;
+      while (step != null) {
+        final (:position, :grapheme) = step;
+        // בבחירה פתוחה Flutter מתעלם משינוי affinity בלבד, ולכן ממשיכים.
+        final sameOffset = extendSelection && position.offset == caret.offset;
+        // מילה: עד גבול שבו גם Flutter עוצר בתנועה לוגית באותו קטע.
+        final atWordEdge =
+            !byWord ||
+            (position.offset == grapheme.end
+                ? words.getTrailingTextBoundaryAt(grapheme.start) ==
+                      grapheme.end
+                : words.getLeadingTextBoundaryAt(grapheme.end - 1) ==
+                      grapheme.start);
+        if (atWordEdge && !sameOffset) break;
+        final next = _crossAdjacentGrapheme(render, position, isVisualRight);
+        if (next == null && !sameOffset) break;
+        step = next;
+      }
+      // גם בלי תזוזה, כמו ב-Flutter: מיקום הסמן מנורמל (ראו למטה).
+      target =
+          step?.position ??
+          _adjacentLineEdge(render, caret, isVisualRight) ??
+          caret;
     }
+    // כמו בתנועה הלוגית: downstream, אלא אם הוא מצויר במקום אחר (גבול קטעים).
+    final downstream = TextPosition(offset: target.offset);
+    final position =
+        (_caretPoint(render, downstream) - _caretPoint(render, target))
+                .distance <
+            0.5
+        ? downstream
+        : target;
+
+    Actions.invoke(
+      focusContext,
+      UpdateSelectionIntent(
+        editable.textEditingValue,
+        extendSelection
+            ? TextSelection(
+                baseOffset: selection.baseOffset,
+                extentOffset: position.offset,
+                affinity: position.affinity,
+              )
+            : TextSelection.fromPosition(position),
+        SelectionChangedCause.keyboard,
+      ),
+    );
   }
 
-  bool _isRtlAtCaret(BuildContext context, TextSelection selection) {
-    final length = _boundController.text.length;
-    if (!selection.isValid || length == 0) return true;
-    final index =
-        (selection.affinity == TextAffinity.downstream
-                ? selection.extentOffset
-                : selection.extentOffset - 1)
-            .clamp(0, length - 1);
-    // כיוון התו המעוצב כולל גם ספרות ופיסוק, בלי סריקה חוזרת של הטקסט.
-    final boxes = context
-        .findAncestorStateOfType<EditableTextState>()
-        ?.renderEditable
+  /// הגרפמה שצמודה לסמן מצד [toRight] באותה שורה, והמיקום בקצה הרחוק שלה.
+  /// null בקצה השורה.
+  ({TextPosition position, TextRange grapheme})? _crossAdjacentGrapheme(
+    RenderEditable render,
+    TextPosition caret,
+    bool toRight,
+  ) {
+    final text = _boundController.text;
+    final from = _caretPoint(render, caret);
+    // נקודה בתוך הגרפמה הסמוכה; המיקום שחוזר צמוד לאחד מקצותיה.
+    final hit = render.getPositionForPoint(
+      render.localToGlobal(
+        Offset(
+          toRight ? from.dx + render.cursorWidth + 1.5 : from.dx - 1.5,
+          from.dy,
+        ),
+      ),
+    );
+    final chars = CharacterBoundary(text);
+    final after =
+        hit.affinity == TextAffinity.downstream && hit.offset < text.length;
+    if (!after && hit.offset == 0) return null;
+    final grapheme = after
+        ? TextRange(
+            start: hit.offset,
+            end: chars.getTrailingTextBoundaryAt(hit.offset)!,
+          )
+        : TextRange(
+            start: chars.getLeadingTextBoundaryAt(hit.offset - 1)!,
+            end: hit.offset,
+          );
+    final box = render
         .getBoxesForSelection(
-          TextSelection(baseOffset: index, extentOffset: index + 1),
-        );
-    return boxes?.firstOrNull?.direction != TextDirection.ltr;
+          TextSelection(baseOffset: grapheme.start, extentOffset: grapheme.end),
+        )
+        .firstOrNull;
+    if (box == null) return null;
+    // הקצה השמאלי של גרפמה LTR הוא תחילתה, ושל RTL — סופה.
+    final position = (box.direction == TextDirection.ltr) != toRight
+        ? TextPosition(offset: grapheme.start)
+        : TextPosition(offset: grapheme.end, affinity: TextAffinity.upstream);
+    final moved = _caretPoint(render, position) - from;
+    if (moved.dy.abs() > 0.5) return null;
+    if (toRight ? moved.dx <= 0.5 : moved.dx >= -0.5) return null;
+    return (position: position, grapheme: grapheme);
   }
+
+  /// בקצה השורה החץ עובר לשורה הסמוכה בסדר הקריאה (שמאלה = הבאה), אל הקצה
+  /// שממנו ממשיכים לקרוא. null כשאין שורה כזו.
+  TextPosition? _adjacentLineEdge(
+    RenderEditable render,
+    TextPosition caret,
+    bool toRight,
+  ) {
+    final from = _caretPoint(render, caret);
+    final lineHeight = render.preferredLineHeight;
+    final hit = render.getPositionForPoint(
+      render.localToGlobal(
+        from.translate(0, toRight ? -lineHeight : lineHeight),
+      ),
+    );
+    // בעוקף שבירת השורה המיקום עשוי ליפול בין \r ל-\n — חוזרים לתחילת הגרפמה.
+    var edge = TextPosition(
+      offset: CharacterBoundary(
+        _boundController.text,
+      ).getLeadingTextBoundaryAt(hit.offset)!,
+      affinity: hit.affinity,
+    );
+    if ((_caretPoint(render, edge).dy - from.dy).abs() < 0.5) return null;
+    // נקודה מחוץ לטקסט השורה מחזירה מיקום שרירותי, ולכן חוצים עד הקצה.
+    for (
+      var step = _crossAdjacentGrapheme(render, edge, !toRight);
+      step != null;
+      step = _crossAdjacentGrapheme(render, edge, !toRight)
+    ) {
+      edge = step.position;
+    }
+    return edge;
+  }
+
+  /// מרכז הסמן ב-[position] בקואורדינטות של [render], כולל הגלילה.
+  Offset _caretPoint(RenderEditable render, TextPosition position) => render
+      .getEndpointsForSelection(TextSelection.fromPosition(position))
+      .first
+      .point
+      .translate(0, -render.preferredLineHeight / 2);
 
   void _showContextMenu(
     BuildContext context,
