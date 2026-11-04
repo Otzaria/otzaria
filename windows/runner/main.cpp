@@ -416,14 +416,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     jump_list::AddUserTasksAsync();
   }
 
-  // Show the native floating-icon splash as early as possible (it needs COM
-  // for WIC PNG decoding). It is an independent, top-most, click-through
-  // layered window centered on the primary monitor — decoupled from the main
-  // Flutter window, which stays hidden until its content is ready. This gives
-  // immediate visual feedback during heavy init without any window resize,
-  // jump, or blank gap. Dart closes it via the "otzaria/splash" channel when
-  // the main window is revealed (see FlutterWindow method-call handler).
-  // Skipped for CLI invocations (no UI).
+  // Show the independent, non-activating splash before loading the engine.
+  // Dart closes it via "otzaria/splash" when the main window is revealed.
   if (!is_cli_invocation) {
     splash::Show();
     // ⚠️ לפני יצירת המנוע: ה-UI isolate של Dart רץ על ה-thread הזה, וקוד
