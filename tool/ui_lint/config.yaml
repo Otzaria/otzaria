@@ -112,6 +112,12 @@ rules:
       - path: lib/printing/**
         reason: פלט נייר
 
+  UIL-031:
+    strict: true
+    exclude:
+      - path: lib/widgets/feedback/app_scrollbar.dart
+        reason: AppScrollbar עצמו, שבונה את הפס בצד הקבוע ואת הרצועה
+
   UIL-030:
     exclude:
       - path: lib/theme/**

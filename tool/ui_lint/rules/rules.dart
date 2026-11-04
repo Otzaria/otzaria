@@ -16,6 +16,7 @@ import 'raw_card_rule.dart';
 import 'raw_dialog_rule.dart';
 import 'raw_menu_rule.dart';
 import 'raw_progress_indicator_rule.dart';
+import 'raw_scrollbar_rule.dart';
 import 'raw_show_dialog_rule.dart';
 import 'raw_text_field_rule.dart';
 import 'rtl_icon_rule.dart';
@@ -58,4 +59,5 @@ const List<UiLintRule> uiLintRules = [
   TextScalingRule(),
   RawShowDialogRule(),
   ElevationShadowRule(),
+  RawScrollbarRule(),
 ];

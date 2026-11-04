@@ -205,6 +205,7 @@ class _ReaderPageState extends State<ReaderPage> {
         );
         // עמוד רחב מהחלון נגלל לרוחב, כמו הגדלה בדפדפן. העטיפה קבועה גם כשאין
         // מה לגלול: עטיפה מותנית בונה את הרשימה מחדש ומאבדת את מיקום הקריאה.
+        // ui-lint: allow UIL-031 — פס אופקי; הכלל עוסק בצד וברצועה של פס אנכי
         final scrolled = Scrollbar(
           controller: _horizontal,
           thumbVisibility: true,

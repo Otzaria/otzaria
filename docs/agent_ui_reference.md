@@ -280,6 +280,7 @@ return switch (state) {
 
 - Window-level decisions (dialog size, navigation style, column count) use `WindowClass.of(context)` (`lib/theme/layout_tokens.dart`). A decision about the space a widget got uses `LayoutBuilder` and a named `static const` threshold in that widget. Never orientation or `Platform.isX` for a width question, never a bare width literal (UIL-022).
 - Use `EdgeInsetsDirectional`, `AlignmentDirectional` and `start`/`end` (UIL-021).
+- Scrollbars sit on the physical right in every direction, in their own 12px lane when the content scrolls (`EdgeScrollbarBehavior.right()` on the `MaterialApp`). Do not add padding for the scrollbar. An explicit bar (fixed thumb, own controller) is `AppScrollbar(controller:, thumbVisibility:, contentInset:)` from `lib/widgets/feedback/app_scrollbar.dart`; raw `Scrollbar`/`RawScrollbar` fails UIL-031. `side: ScrollbarOrientation.left` only for a pane on the left of the content.
 - A widget that fits only one feature stays in that feature's `view/widgets/` folder, built from these components (`DESIGN_SYSTEM.md` §8.5).
 
 ## 10. Tokens
