@@ -215,6 +215,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       copyHeaderFormat: settings['copyHeaderFormat'],
       libraryViewMode: settings['libraryViewMode'],
       libraryShowPreview: settings['libraryShowPreview'],
+      libraryShowPreviewShortWindow: settings['libraryShowPreviewShortWindow'],
       searchShowPreview: settings['searchShowPreview'] ?? true,
       shortcuts: Map<String, String>.unmodifiable(
         Map<String, String>.from(settings['shortcuts'] as Map),
@@ -801,6 +802,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     UpdateLibraryShowPreview event,
     Emitter<SettingsState> emit,
   ) async {
+    if (event.shortWindow) {
+      await _repository.updateLibraryShowPreviewShortWindow(
+        event.libraryShowPreview,
+      );
+      emit(
+        state.copyWith(libraryShowPreviewShortWindow: event.libraryShowPreview),
+      );
+      return;
+    }
     await _repository.updateLibraryShowPreview(event.libraryShowPreview);
     emit(state.copyWith(libraryShowPreview: event.libraryShowPreview));
   }

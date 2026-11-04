@@ -69,6 +69,10 @@ class SettingsState extends Equatable {
   final String copyHeaderFormat;
   final String libraryViewMode;
   final bool libraryShowPreview;
+
+  /// "תצוגה מקדימה" בספרייה בחלון נמוך (טלפון לרוחב), כשהמשתמש פתח או סגר
+  /// אותה שם. null: לא בחר, והיא סגורה ([libraryShowPreviewFor]).
+  final bool? libraryShowPreviewShortWindow;
   final bool searchShowPreview;
   final Map<String, String> shortcuts;
   final bool enablePerBookSettings;
@@ -173,6 +177,7 @@ class SettingsState extends Equatable {
     required this.copyHeaderFormat,
     required this.libraryViewMode,
     required this.libraryShowPreview,
+    this.libraryShowPreviewShortWindow,
     required this.searchShowPreview,
     required this.shortcuts,
     required this.enablePerBookSettings,
@@ -289,6 +294,7 @@ class SettingsState extends Equatable {
     String? copyHeaderFormat,
     String? libraryViewMode,
     bool? libraryShowPreview,
+    bool? libraryShowPreviewShortWindow,
     bool? searchShowPreview,
     Map<String, String>? shortcuts,
     bool? enablePerBookSettings,
@@ -378,6 +384,8 @@ class SettingsState extends Equatable {
       copyHeaderFormat: copyHeaderFormat ?? this.copyHeaderFormat,
       libraryViewMode: libraryViewMode ?? this.libraryViewMode,
       libraryShowPreview: libraryShowPreview ?? this.libraryShowPreview,
+      libraryShowPreviewShortWindow:
+          libraryShowPreviewShortWindow ?? this.libraryShowPreviewShortWindow,
       searchShowPreview: searchShowPreview ?? this.searchShowPreview,
       shortcuts: shortcuts ?? this.shortcuts,
       enablePerBookSettings:
@@ -429,6 +437,13 @@ class SettingsState extends Equatable {
   bool compactMenuModeFor({required bool isSmallWindow}) =>
       compactMenuModeIsSet ? compactMenuMode : isSmallWindow;
 
+  /// "תצוגה מקדימה" בספרייה בפועל. בחלון נמוך (`WindowClass.isShortOf`,
+  /// טלפון לרוחב) היא סגורה, אלא אם המשתמש פתח אותה שם; בחירה שם לא משנה את
+  /// ההעדפה בחלון רגיל (q12 Q8, ss5).
+  bool libraryShowPreviewFor({required bool isShortWindow}) => isShortWindow
+      ? (libraryShowPreviewShortWindow ?? false)
+      : libraryShowPreview;
+
   bool get readingTabsOnSide =>
       readingTabsPlacement == SettingsRepository.readingTabsPlacementSide;
 
@@ -471,6 +486,7 @@ class SettingsState extends Equatable {
     copyHeaderFormat,
     libraryViewMode,
     libraryShowPreview,
+    libraryShowPreviewShortWindow,
     searchShowPreview,
     shortcuts,
     enablePerBookSettings,

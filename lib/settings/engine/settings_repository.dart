@@ -74,6 +74,10 @@ class SettingsRepository {
   static const String keyRestoreAllWindows = 'key-restore-all-windows';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
+
+  /// "תצוגה מקדימה" בספרייה בחלון נמוך. בלי ערך: לא נבחר, וסגורה (ss5).
+  static const String keyLibraryShowPreviewShortWindow =
+      'key-library-show-preview-short-window';
   static const String keySearchShowPreview = 'key-search-show-preview';
   static const String keyEnablePerBookSettings = 'key-enable-per-book-settings';
   static const String keyPdfBookViewByDefault = 'key-pdf-book-view-by-default';
@@ -319,6 +323,7 @@ class SettingsRepository {
     keyRestoreAllWindows,
     keyLibraryViewMode,
     keyLibraryShowPreview,
+    keyLibraryShowPreviewShortWindow,
     keySearchShowPreview,
     keyEnablePerBookSettings,
     keyPdfBookViewByDefault,
@@ -560,6 +565,11 @@ class SettingsRepository {
       'libraryShowPreview': _settings.getValue<bool>(
         keyLibraryShowPreview,
         defaultValue: true,
+      ),
+      // null: המשתמש לא בחר בחלון נמוך (SettingsState.libraryShowPreviewFor).
+      'libraryShowPreviewShortWindow': _settings.getValue<bool?>(
+        keyLibraryShowPreviewShortWindow,
+        defaultValue: null,
       ),
       'searchShowPreview': _settings.getValue<bool>(
         keySearchShowPreview,
@@ -946,6 +956,10 @@ class SettingsRepository {
 
   Future<void> updateLibraryShowPreview(bool value) async {
     await _settings.setValue(keyLibraryShowPreview, value);
+  }
+
+  Future<void> updateLibraryShowPreviewShortWindow(bool value) async {
+    await _settings.setValue(keyLibraryShowPreviewShortWindow, value);
   }
 
   Future<void> updateSearchShowPreview(bool value) async {

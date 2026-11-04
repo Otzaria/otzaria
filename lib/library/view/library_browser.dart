@@ -373,28 +373,31 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   // רק המצב הריק מציג את טקסט החיפוש; בלעדיו הקלדה לא בונה מחדש את התוכן.
   bool _showsEmptyState = false;
 
+  /// חלון נמוך (טלפון לרוחב): שם התצוגה המקדימה סגורה עד שהמשתמש פותח אותה,
+  /// ובחירה שם נשמרת בנפרד (ss5).
+  bool get _isShortWindow => WindowClass.isShortOf(context);
+
   bool _isPreviewPanelVisible(SettingsState s) => libraryPreviewPaneEnabled(
     screenWidth: MediaQuery.sizeOf(context).width,
-    preferenceEnabled: s.libraryShowPreview,
+    preferenceEnabled: s.libraryShowPreviewFor(isShortWindow: _isShortWindow),
   );
 
   void _openSettingsPanel() => _settingsPanelOpen.value = true;
 
   void _closeSettingsPanel() => _settingsPanelOpen.value = false;
 
-  void _showPreviewPanel(SettingsState s) {
-    context.read<SettingsBloc>().add(const UpdateLibraryShowPreview(true));
-  }
-
-  void _hidePreviewPanel(SettingsState s) {
-    context.read<SettingsBloc>().add(const UpdateLibraryShowPreview(false));
-  }
-
-  void _togglePreviewPanel(SettingsState s) {
+  void _setPreviewPanel(bool show) {
     context.read<SettingsBloc>().add(
-      UpdateLibraryShowPreview(!s.libraryShowPreview),
+      UpdateLibraryShowPreview(show, shortWindow: _isShortWindow),
     );
   }
+
+  void _showPreviewPanel(SettingsState s) => _setPreviewPanel(true);
+
+  void _hidePreviewPanel(SettingsState s) => _setPreviewPanel(false);
+
+  void _togglePreviewPanel(SettingsState s) =>
+      _setPreviewPanel(!s.libraryShowPreviewFor(isShortWindow: _isShortWindow));
 
   @override
   void initState() {
@@ -1624,7 +1627,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
@@ -1773,7 +1778,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     builder,
   ) {
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
@@ -2393,7 +2400,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
