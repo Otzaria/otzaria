@@ -486,7 +486,8 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | מעטפת כלי חיפוש | `ToolScaffold` (`lib/widgets/layout`): סרגל עם שדה החיפוש, מסננים, גוף ושורת תחתית; הסרגל נשאר בטעינה ובשגיאת טעינה (`loading`, `loadError` + `onRetry`); קיצור "חפש בחלון" | קיים בחמשת כלי החיפוש |
 | אזור תוכן | `PanelScrollableContent` / `CenteredScrollableState` | |
 | כותרת מסך | `AppTopBar(center:)` עם `AppTopBar.titleStyle(context)` (`titleLarge`) / `subtitleStyle(context)` (`bodySmall`) | |
-| סרגל פעולות | `ResponsiveActionBar` + `ActionButtonData` | פריטים דרך `BarButton` בלבד |
+| סרגל פעולות | `ResponsiveActionBar` + `ActionButtonData` | פריטים דרך `BarButton` בלבד. תמיד שורה אחת: מה שלא נכנס עובר ל"עוד פעולות" לפי `toolbarOverflowOrder`, מהנדיר לנפוץ. גם סרגל העיצוב בעורך ההערות (q12 Q6): ברוחב הדיאלוג 10 כלים ו"עוד", בצפיפות קומפקטית כל 12 |
+| כמה הגדרות לכמה יעדים בחלונית צפה | `TextDisplayProfileTable` (חלונית "תצוגת הטקסט" בסרגל הקורא) | טבלה: שורה לכל הגדרה ועמודה לכל יעד, אייקון ושם בעמודה הראשונה, וההסבר ב־tooltip על השם (q12 Q7). בלי מקום לטבלה השם עולה מעל, ושורה לכל יעד. מסך ההגדרות נשאר בשורות `SettingsCard` |
 | חלונית ניווט | `NavSidePanel` | אזור "חלוניות לצד הקריאה" (DD-18). נסגרת אחרי מעבר רק כשהיא מכסה את התוכן (DD-26) |
 | חלונית משנית או צפה | `AdaptiveSidePane` / `ContextOverlayPanel` | DD-28 A: רוחב 340 מ־`LayoutConstraints.sidePaneWidth`, הגבהה לפי DD-12, רקע לפי DD-18 |
 | ידית פתיחה של חלונית | `PositionedPanelOpenHandle` | ממוקמת לפי המכל שלה ולא לפי החלון |
