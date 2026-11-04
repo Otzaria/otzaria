@@ -262,6 +262,256 @@ void main() {
     expect(harness.tabsBloc.openedTabs, hasLength(1));
   });
 
+  testWidgets('תצוגה שבפתיחה נבדקת מול הסינון שהסתיים בזמן הפענוח', (
+    tester,
+  ) async {
+    final searchBloc = _DeferredResolutionSearchBloc(_searchState());
+    await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, find.text('בראשית, פרק טו').first);
+    searchBloc.updateState(
+      _searchState(facets: const ['/יהושע'], results: [_joshua]),
+    );
+    await tester.pump();
+    searchBloc.completeResolution();
+    await tester.pump();
+    expectChoosePrompt(tester);
+  });
+
+  for (final dimension in const ['/author/אחר', '/era/אחר', '/base']) {
+    testWidgets('ממד חדש $dimension מסתיר תוצאה שטרם נטענה ושומר אותה לחזרה', (
+      tester,
+    ) async {
+      final searchBloc = _StaticSearchBloc(_searchState());
+      final harness = await pumpResults(
+        tester,
+        showPreviewPane: true,
+        providedSearchBloc: searchBloc,
+      );
+      await singleTap(tester, harness.resultFinder);
+      final target = harness.tab.previewTarget.value;
+      searchBloc.updateState(
+        _searchState(
+          facets: ['/', dimension],
+          results: [_joshua],
+        ).copyWith(totalResults: 2),
+      );
+      await tester.pump();
+      expectChoosePrompt(tester);
+      expect(harness.tab.previewTarget.value, same(target));
+      searchBloc.updateState(
+        _searchState(results: [_joshua]).copyWith(totalResults: 2),
+      );
+      await tester.pump();
+      expect(previewPanel(tester).book?.title, 'בראשית');
+    });
+  }
+
+  testWidgets('הרחבת OR שומרת התאמה, צמצום OR והוספת ממד דורשים הוכחה', (
+    tester,
+  ) async {
+    const original = ['/', '/author/א', '/author/ב', '/era/תקופה', '/base'];
+    final searchBloc = _StaticSearchBloc(_searchState(facets: original));
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    searchBloc.updateState(
+      _searchState(
+        facets: const [...original, '/author/ג'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/', '/author/א'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    expectChoosePrompt(tester);
+    searchBloc.updateState(
+      _searchState(
+        facets: original,
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+  });
+
+  testWidgets('הגדרות חדשות עם אותה רשימת תוצאות אינן תעודת התאמה לממד', (
+    tester,
+  ) async {
+    final original = _searchState();
+    final searchBloc = _DeferredResolutionSearchBloc(original);
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    searchBloc.updateState(
+      original.copyWith(
+        configuration: original.configuration.copyWith(
+          currentFacets: const ['/', '/author/חדש'],
+        ),
+      ),
+    );
+    await tester.pump();
+    await singleTap(tester, harness.resultFinder);
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/', '/author/חדש'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    searchBloc.completeResolution();
+    await tester.pump();
+    expectChoosePrompt(tester);
+    expect(harness.tab.previewTarget.value!.matchedDimensionFacets, isEmpty);
+  });
+
+  testWidgets('החלפת תוצאות באותו אורך ומונה מסנכרנת את התצוגה', (
+    tester,
+  ) async {
+    final searchBloc = _StaticSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    searchBloc.updateState(_searchState(results: [_joshua]));
+    await tester.pump();
+    expectChoosePrompt(tester);
+    searchBloc.updateState(_searchState());
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+  });
+
+  testWidgets('לחיצה מכרטיס קודם אינה מקבלת את ממדי רשימת התוצאות החדשה', (
+    tester,
+  ) async {
+    final searchBloc = _DeferredResolutionSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    final oldTap = tester
+        .widget<InkWell>(
+          find
+              .ancestor(
+                of: harness.resultFinder,
+                matching: find.byType(InkWell),
+              )
+              .first,
+        )
+        .onTap!;
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/', '/author/חדש'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    oldTap();
+    searchBloc.completeResolution();
+    await tester.pump();
+    expectChoosePrompt(tester);
+    expect(harness.tab.previewTarget.value!.matchedDimensionFacets, isEmpty);
+  });
+
+  testWidgets('ספירה לא סופית אינה הוכחה שהתוצאה אינה בעמודים הבאים', (
+    tester,
+  ) async {
+    final searchBloc = _StaticSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    final counting = _searchState(
+      results: [_joshua],
+    ).copyWith(isCounting: true);
+    searchBloc.updateState(counting);
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+    searchBloc.updateState(counting.copyWith(isCounting: false));
+    await tester.pump();
+    expectChoosePrompt(tester);
+  });
+
+  testWidgets('עדכון מספר הקבוצות בלבד מסנכרן תצוגה מאוחדת', (tester) async {
+    final searchBloc = _StaticSearchBloc(_searchState());
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    final grouped = _searchState(results: [_joshua]).copyWith(
+      totalResults: 10,
+      totalGroups: 2,
+    );
+    searchBloc.updateState(grouped);
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+    searchBloc.updateState(grouped.copyWith(totalGroups: 1));
+    await tester.pump();
+    expectChoosePrompt(tester);
+  });
+
+  testWidgets('הרכבת המסך מחדש שומרת את הראיה מהממדים המקוריים', (
+    tester,
+  ) async {
+    final searchBloc = _StaticSearchBloc(
+      _searchState(facets: const ['/', '/author/א']),
+    );
+    final harness = await pumpResults(
+      tester,
+      showPreviewPane: true,
+      providedSearchBloc: searchBloc,
+    );
+    await singleTap(tester, harness.resultFinder);
+    final target = harness.tab.previewTarget.value;
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/', '/author/ב'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    expectChoosePrompt(tester);
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(app);
+    await tester.pump();
+    expectChoosePrompt(tester);
+    expect(harness.tab.previewTarget.value, same(target));
+    searchBloc.updateState(
+      _searchState(
+        facets: const ['/', '/author/א'],
+        results: [_joshua],
+      ).copyWith(totalResults: 2),
+    );
+    await tester.pump();
+    expect(harness.tab.previewTarget.value, same(target));
+    expect(target!.matchedDimensionFacets, ['/author/א']);
+    expect(harness.tab.filteredOutPreview.value, isNull);
+    await tester.pump();
+    expect(previewPanel(tester).book?.title, 'בראשית');
+  });
+
   testWidgets('כשהתצוגה המקדימה כבויה בהגדרה — לחיצה אחת פותחת בעיון', (
     tester,
   ) async {

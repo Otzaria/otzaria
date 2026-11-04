@@ -12,6 +12,9 @@ class SearchPreviewTarget {
   final bool isPdf;
   final String filePath;
 
+  /// ממדי החיפוש שבהם התוצאה נמצאה; משמשים להוכחת התאמה לפני טעינת כל העמודים.
+  final List<String> matchedDimensionFacets;
+
   /// פתיחה בעיון עבור תוצאה שאינה מהמנוע המובנה (מקור חיצוני של תוסף):
   /// המסלול הרגיל מאמת את הנתיב מול האינדקס, ושם אין רשומה כזו.
   final VoidCallback? openInReader;
@@ -26,6 +29,7 @@ class SearchPreviewTarget {
     required this.segment,
     required this.isPdf,
     required this.filePath,
+    this.matchedDimensionFacets = const [],
     this.openInReader,
     this.continuesToNextLine = false,
   });

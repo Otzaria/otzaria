@@ -78,11 +78,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   final Set<String> _bookDisplayLoads = {};
   bool _isAutoLoadInFlight = false;
 
-  /// חתימת החיפוש האחרון (שאילתה + קטגוריות) שעבורו כבר גללנו לראש הרשימה.
-  /// משמשת להבחנה בין חיפוש חדש (חתימה משתנה → גלילה לראש) לבין טעינת המשך
-  /// (אותה חתימה → שימור מיקום הגלילה).
+  /// חתימת החיפוש האחרון, להבחנה בין חיפוש חדש לטעינת המשך ששומרת גלילה.
   String? _lastSearchSignature;
   String? _lastFacets;
+  late SearchState _previewResultsState;
 
   int _previewRequestId = 0;
 
@@ -185,6 +184,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     // אתחול החתימה מה-state הנוכחי כדי שהשינוי הראשון (למשל טעינת המשך בטאב
     // חיפוש משוחזר) לא ייחשב בטעות ל"חיפוש חדש" ויאפס את הגלילה.
     final searchState = context.read<SearchBloc>().state;
+    _previewResultsState = searchState;
     _lastSearchSignature = _searchSignature(searchState);
     _lastFacets = searchState.currentFacets.join('|');
   }
@@ -416,19 +416,33 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   /// התוצאה ברשימה (גם בתוך קבוצה מאוחדת), או בספר שבתוך הסינון כשנותרו
   /// תוצאות לטעינה.
   bool _inFilteredResults(SearchState state, SearchPreviewTarget target) {
-    bool matches(String filePath, BigInt segment, bool isPdf) =>
-        target.matchesResult(
-          filePath: filePath,
-          segment: segment.toInt(),
-          isPdf: isPdf,
-        );
-    for (final result in state.results) {
-      if (matches(result.filePath, result.segment, result.isPdf) ||
-          result.merged.any((s) => matches(s.filePath, s.segment, s.isPdf))) {
-        return true;
+    if (_hasLoadedResult(
+      state,
+      filePath: target.filePath,
+      segment: target.segment,
+      isPdf: target.isPdf,
+    )) {
+      return true;
+    }
+    if (!state.isCounting && state.results.length >= state.displayTotal) {
+      return false;
+    }
+    for (final prefix in const ['/author/', '/era/', '/base']) {
+      final selected = state.currentFacets
+          .where(
+            (facet) =>
+                FacetHelper.isDimensionFacet(facet) && facet.startsWith(prefix),
+          )
+          .toSet();
+      final matched = target.matchedDimensionFacets.where(
+        (facet) => facet.startsWith(prefix),
+      );
+      // OR בתוך ממד: רק הסרת הממד או הרחבת בחירתו מוכיחות שהספר עדיין מתאים.
+      if (selected.isNotEmpty &&
+          (matched.isEmpty || !matched.every(selected.contains))) {
+        return false;
       }
     }
-    if (state.results.length >= state.displayTotal) return false;
     final bookFacet = FacetHelper.buildBookFacet(
       FacetHelper.resolveCategoryPath(target.book),
       target.book,
@@ -436,6 +450,21 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
     return categories.isEmpty ||
         categories.any((facet) => SearchBloc.facetContains(facet, bookFacet));
+  }
+
+  bool _hasLoadedResult(
+    SearchState state, {
+    required String filePath,
+    required int segment,
+    required bool isPdf,
+  }) {
+    bool matches(String path, BigInt index, bool pdf) =>
+        path == filePath && index.toInt() == segment && pdf == isPdf;
+    return state.results.any(
+      (result) =>
+          matches(result.filePath, result.segment, result.isPdf) ||
+          result.merged.any((s) => matches(s.filePath, s.segment, s.isPdf)),
+    );
   }
 
   Future<void> _togglePreview({
@@ -458,6 +487,17 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       return;
     }
 
+    final dimensions =
+        _hasLoadedResult(
+          _previewResultsState,
+          filePath: filePath,
+          segment: segment,
+          isPdf: isPdf,
+        )
+        ? List<String>.unmodifiable(
+            FacetHelper.dimensionFacetsOf(_previewResultsState.currentFacets),
+          )
+        : const <String>[];
     // אותו אימות זהות כמו בפתיחה בעיון — אינדקס לא מסונכרן לא מציג ספר שגוי.
     final resolution = await widget.tab.searchBloc.resolveBookForIndexedPath(
       filePath,
@@ -475,8 +515,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       segment: segment,
       isPdf: isPdf,
       filePath: filePath,
+      matchedDimensionFacets: dimensions,
       continuesToNextLine: continuesToNextLine,
     );
+    _syncFilteredOutPreview(widget.tab.searchBloc.state);
     // לחיצה אינה מעבירה פוקוס ב-Flutter — בלי זה החיצים לא מגיעים לאזור.
     _arrowNavFocusNode.requestFocus();
   }
@@ -681,12 +723,18 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         return BlocListener<SearchBloc, SearchState>(
           listenWhen: (previous, current) =>
               previous.isLoading != current.isLoading ||
-              previous.results.length != current.results.length ||
+              previous.isCounting != current.isCounting ||
+              !identical(previous.results, current.results) ||
               previous.totalResults != current.totalResults ||
+              previous.totalGroups != current.totalGroups ||
               previous.searchQuery != current.searchQuery ||
               previous.currentFacets.join('|') !=
                   current.currentFacets.join('|'),
           listener: (context, state) {
+            // שינוי הגדרות עשוי להקדים את החלפת התוצאות; הוא אינו מוכיח התאמה.
+            if (!identical(state.results, _previewResultsState.results)) {
+              _previewResultsState = state;
+            }
             if (!state.isLoading) {
               _isAutoLoadInFlight = false;
             }

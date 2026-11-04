@@ -625,6 +625,7 @@ class _ExternalSearchResultsSectionState
           _openResult(result, widget.tab.searchBloc.state),
         ),
       );
+      _syncFilteredOutPreview();
     } finally {
       if (mounted) setState(() => _openingId = null);
     }
