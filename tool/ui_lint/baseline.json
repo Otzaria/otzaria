@@ -207,9 +207,6 @@
         {"scope":"_LibraryBrowserState._buildLoadingOverlay","fp":"6aca16f2","n":1},
         {"scope":"_LibraryBrowserState._buildSecondaryRow","fp":"6abc73dc","n":1}
       ],
-      "lib/navigation/view/custom_title_bar.dart": [
-        {"scope":"_CustomTitleBarState.build","fp":"c495b3f9","n":1}
-      ],
       "lib/pdf_book/view/pdf_book_screen.dart": [
         {"scope":"_PdfBookScreenState._buildBookViewStackDecoration","fp":"cc860c0d","n":1},
         {"scope":"_PdfBookScreenState._buildBookViewStackDecoration","fp":"f4aa9ec0","n":1},

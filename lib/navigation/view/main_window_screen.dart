@@ -3727,14 +3727,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
             // צביעה מפורשת מתגלה מאחוריהן רקע החלון הנייטיב (שחור ב-night
             // theme). _EdgeToEdgeShell צובע כל אזור inset בצבע הסרגל הצמוד
             // אליו וקובע את ניגודיות אייקוני המערכת. שורת הסטטוס נצבעת כצבע
-            // ה-CustomTitleBar (reader/panel לפי המסך — ראה custom_title_bar)
+            // ה-CustomTitleBar (titleBarUsesReaderStyle)
             // ואזור הניווט התחתון כצבע ה-NavigationBar, כדי שלא ייווצר תפר.
             final hasOpenTabs = context.select(
               (TabsBloc bloc) => bloc.state.hasOpenTabs,
             );
-            final useReaderStyle =
-                state.currentScreen == Screen.search ||
-                (state.currentScreen == Screen.reading && hasOpenTabs);
+            final useReaderStyle = titleBarUsesReaderStyle(
+              context,
+              screen: state.currentScreen,
+              hasOpenTabs: hasOpenTabs,
+              readingTabsOnSide: context.select(
+                (SettingsBloc bloc) => bloc.state.readingTabsOnSide,
+              ),
+            );
             final isImmersive = FullscreenHelper.shouldUseImmersiveLayout(
               platform: defaultTargetPlatform,
               isFullscreen: context.select(

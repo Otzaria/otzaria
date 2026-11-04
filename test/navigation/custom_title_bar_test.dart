@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -351,8 +352,9 @@ void main() {
     /// שורת כותרת עם כרטיסיה אחת, במיקום הכרטיסיות הנתון.
     Future<void> pumpWithPlacement(
       WidgetTester tester,
-      String placement,
-    ) async {
+      String placement, {
+      ThemeData? theme,
+    }) async {
       final tab = _makeTextTab('ספר א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -377,6 +379,7 @@ void main() {
         tabsBloc: tabsBloc,
         navigationBloc: navigationBloc,
         settingsBloc: settingsBloc,
+        theme: theme,
       );
       await tester.pumpAndSettle();
     }
@@ -401,6 +404,64 @@ void main() {
 
       expect(find.byType(ReadingTabStrip), findsOneWidget);
       expect(find.text('ספר א'), findsOneWidget);
+    });
+
+    BoxDecoration barDecoration(WidgetTester tester) => tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byType(CustomTitleBar),
+            matching: find.byType(Container),
+          ),
+        )
+        .map((c) => c.decoration)
+        .whereType<BoxDecoration>()
+        .first;
+
+    testWidgets('במצב "בצד" השורה ברקע הלוח ועם קו, כמו בספרייה (#1939)', (
+      tester,
+    ) async {
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementSide,
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.panelBackground(context));
+      expect(
+        (decoration.border! as Border).bottom.color,
+        AppSurfaces.subtleDivider(Theme.of(context).colorScheme),
+      );
+    });
+
+    testWidgets('בערכת "לבן" הקו של השורה במצב "בצד" כהה (#1939)', (
+      tester,
+    ) async {
+      ThemeData theme(Color seed) => AppThemeData.light(
+        AppThemeData.createColorScheme(seed, Brightness.light),
+        compactMenuMode: false,
+        variant: AppThemeVariant.ofSeed(seed),
+      );
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementSide,
+        theme: theme(AppSeedColors.white),
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final line = (barDecoration(tester).border! as Border).bottom;
+      expect(line.color, AppSurfaces.regionBorder(context));
+      expect(line.color, Theme.of(context).colorScheme.onSurface);
+      expect(line.width, 1);
+    });
+
+    testWidgets('במצב "למעלה" השורה ברקע הקריאה ובלי קו', (tester) async {
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementTop,
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.readerBackground(context));
+      expect(decoration.border, isNull);
     });
   });
 
@@ -3293,6 +3354,7 @@ Future<void> _pumpTitleBar(
   required TabsBloc tabsBloc,
   required NavigationBloc navigationBloc,
   required SettingsBloc settingsBloc,
+  ThemeData? theme,
   HistoryBloc? historyBloc,
   WorkspaceBloc? workspaceBloc,
   WindowFullscreenCubit? fullscreenCubit,
@@ -3339,6 +3401,7 @@ Future<void> _pumpTitleBar(
               ),
             ),
           ),
+          theme: theme,
         ),
       ),
     ),

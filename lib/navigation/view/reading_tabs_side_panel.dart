@@ -233,7 +233,9 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
         decoration: BoxDecoration(
           border: BorderDirectional(
             end: BorderSide(
-              color: Theme.of(context).colorScheme.outlineVariant,
+              color:
+                  AppSurfaces.regionBorder(context) ??
+                  Theme.of(context).colorScheme.outlineVariant,
             ),
           ),
         ),

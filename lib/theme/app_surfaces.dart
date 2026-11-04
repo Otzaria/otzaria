@@ -73,6 +73,11 @@ class AppSurfaces {
   static Color subtleDivider(ColorScheme cs) =>
       cs.outlineVariant.withValues(alpha: 0.5);
 
+  /// הקו הכהה הדק שמפריד בין אזורי החלון בערכת "לבן" בבהיר
+  /// ([AppSurfaceColors.regionBorder]). `null` בשאר הערכות, ואז האזור שומר על
+  /// ההפרדה שלו: `regionBorder(context) ?? <הקו הקיים>`.
+  static Color? regionBorder(BuildContext context) => _s(context).regionBorder;
+
   /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12): אחת, עדינה.
   static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);
 
