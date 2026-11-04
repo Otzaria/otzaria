@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -205,6 +206,45 @@ void main() {
     );
 
     testWidgets(
+      'במגע, לחיצה ארוכה על הידית בסרגל מתחילה גרירה ולא הסבר (#2635)',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        addTearDown(settingsBloc.close);
+        final pane = _pane();
+
+        await tester.pumpWidget(
+          _buildBar(
+            settingsBloc: settingsBloc,
+            center: const SizedBox(width: 100, height: 8),
+            platform: TargetPlatform.android,
+            wrap: (bar) =>
+                PaneDragHandleScope(pane: pane, enabled: true, child: bar),
+          ),
+        );
+        final handle = find.byType(PaneDragHandleButton);
+        expect(
+          find.semantics.byPredicate((n) => n.tooltip == _handleTooltip),
+          findsOne,
+          reason: 'השם הנגיש של הידית נשאר גם במגע',
+        );
+
+        expect(find.text('ספר'), findsNothing);
+        final drag = await tester.startGesture(tester.getCenter(handle));
+        await tester.pump(
+          kLongPressTimeout + const Duration(milliseconds: 100),
+        );
+        await drag.moveBy(const Offset(40, 120));
+        await tester.pump();
+        expect(find.text('ספר'), findsOneWidget, reason: 'הגרירה התחילה');
+        expect(find.text(_handleTooltip, findRichText: true), findsNothing);
+        await drag.up();
+        await tester.pumpAndSettle();
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
       'scope כבוי (טאב שאינו מפוצל) אינו מזריק ידית',
       (tester) async {
         final settingsBloc = _TestSettingsBloc(SettingsState.initial());
@@ -274,6 +314,8 @@ void main() {
   });
 }
 
+const _handleTooltip = 'גרור אל שורת הכרטיסיות כדי להחזיר לכרטיסייה נפרדת';
+
 PdfBookTab _pane() => PdfBookTab(
   book: PdfBook(title: 'ספר', path: '/tmp/ספר.pdf'),
   pageNumber: 1,
@@ -286,6 +328,7 @@ Widget _buildBar({
   List<AppTopBarItem> trailingItems = const [],
   Widget Function(Widget bar)? wrap,
   bool isFullscreen = false,
+  TargetPlatform? platform,
 }) {
   final bar = AppTopBar(
     leadingItems: leadingItems,
@@ -293,6 +336,7 @@ Widget _buildBar({
     trailingItems: trailingItems,
   );
   return MaterialApp(
+    theme: platform == null ? null : ThemeData(platform: platform),
     home: Scaffold(
       body: MultiBlocProvider(
         providers: [

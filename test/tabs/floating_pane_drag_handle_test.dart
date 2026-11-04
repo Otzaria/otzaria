@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 
@@ -198,30 +197,45 @@ void main() {
     await tester.pump();
     expect(opacity(tester), 1);
 
-    // הקריאות של הגרירה מחוברות ל־LongPressDraggable של הידית. הן נקראות
-    // כאן ישירות: במגע ה־Tooltip של הידית זוכה בלחיצה הארוכה לפני
-    // ה־LongPressDraggable (כך גם ב־dev), ולכן אי אפשר להתחיל גרירה במגע
-    // מדומה.
-    final button = tester.widget<PaneDragHandleButton>(handle);
-    final draggable = tester.widget<LongPressDraggable<OpenedTab>>(
-      find.byType(LongPressDraggable<OpenedTab>),
+    // לחיצה ארוכה במגע על הידית והזזה: גרירה אמיתית, לא ההסבר (Tooltip).
+    expect(find.text('מקבילות'), findsNothing);
+    final drag = await tester.startGesture(tester.getCenter(handle));
+    await tester.pump(kLongPressTimeout + tick);
+    await drag.moveBy(const Offset(-60, 120));
+    await tester.pump();
+    expect(find.text('מקבילות'), findsOneWidget, reason: 'הגרירה התחילה');
+    expect(
+      find.text(_tooltip, findRichText: true),
+      findsNothing,
+      reason: 'ההסבר לא קופץ במגע',
     );
-    expect(draggable.onDragStarted, same(button.onDragStarted));
-    expect(draggable.onDragEnd, isNotNull);
 
-    button.onDragStarted!();
     await tester.pump(reveal * 2);
     expect(opacity(tester), 1, reason: 'בזמן גרירה הידית נשארת');
     expect(ignoring(tester), isFalse);
 
-    draggable.onDragEnd!(
-      DraggableDetails(velocity: Velocity.zero, offset: Offset.zero),
-    );
+    await drag.up();
     await tester.pump(reveal - tick);
     expect(opacity(tester), 1, reason: 'הספירה התחילה מחדש בסוף הגרירה');
     await tester.pump(tick * 2);
     await tester.pumpAndSettle();
     expect(opacity(tester), 0);
+  });
+
+  testWidgets('במחשב, ריחוף על הידית מציג את ההסבר', (tester) async {
+    await tester.pumpWidget(app());
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(400, 400));
+    await tester.pump();
+    final pageRect = tester.getRect(find.byType(_CountBuilds));
+    await mouse.moveTo(pageRect.topRight + const Offset(-20, 20));
+    await tester.pumpAndSettle();
+    await mouse.moveTo(tester.getCenter(handle));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text(_tooltip, findRichText: true), findsOneWidget);
+    await mouse.moveTo(const Offset(-10, -10));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('במחשב, נגיעה ברצועה לא מציגה (רק ריחוף)', (tester) async {
@@ -249,6 +263,8 @@ void main() {
     expect(contentBuilds, 1);
   });
 }
+
+const _tooltip = 'גרור אל שורת הכרטיסיות כדי להחזיר לכרטיסייה נפרדת';
 
 class _CountBuilds extends StatefulWidget {
   const _CountBuilds({required this.onInit});
