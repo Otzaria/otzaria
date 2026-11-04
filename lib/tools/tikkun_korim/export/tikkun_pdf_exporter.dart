@@ -484,17 +484,26 @@ class TikkunPdfExporter {
     // שורת דף רחב נכנסת ברוחב הדף הרגיל בכתב מוקטן באותו יחס.
     TikkunRenderMetrics lineMetrics(double factor) =>
         factor == 1 ? metrics : metrics.withFontScale(1 / factor);
-    final gaps = {
-      for (final factor in {for (final l in lines) l.widthFactor})
-        factor: _gapsFor(
-          [
-            for (final l in lines)
-              if (l.widthFactor == factor) l,
-          ],
-          lineMetrics(factor),
-          _pageWidth,
-        ),
-    };
+    // באותם מקטעים של כל טור כמו בתצוגה, כדי שההדפסה והמסך יסכימו.
+    final gaps = <TikkunGapAverages>[];
+    for (final column in columns) {
+      for (var s = 0; s < tikkunGapSegmentCount(column.length); s++) {
+        final (start, end) = tikkunGapSegmentRange(s, column.length);
+        final segment = column.sublist(start, end);
+        final byFactor = {
+          for (final factor in {for (final l in segment) l.widthFactor})
+            factor: _gapsFor(
+              [
+                for (final l in segment)
+                  if (l.widthFactor == factor) l,
+              ],
+              lineMetrics(factor),
+              _pageWidth,
+            ),
+        };
+        gaps.addAll(segment.map((l) => byFactor[l.widthFactor]!));
+      }
+    }
     // הכותרת היא הפריט הראשון — כך העימוד מתחשב בגובהה בדף הראשון.
     final items = <Widget>[
       _header(),
@@ -502,7 +511,7 @@ class TikkunPdfExporter {
         _lineWidget(
           lines[i],
           markers[i],
-          gaps[lines[i].widthFactor]!,
+          gaps[i],
           lineMetrics(lines[i].widthFactor),
         ),
     ];
