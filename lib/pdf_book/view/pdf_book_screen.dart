@@ -648,6 +648,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   AppLifecycleState? _appLifecycleState;
   final _snapshotBudgetEntries = <ui.Image, PdfImageCacheEntry>{};
   final _bookViewLayoutMemo = BookViewLayoutMemo();
+
+  /// האם חיצי הניווט נכנסו לסרגל בפריסה האחרונה. כשלא, הם בראש "עוד".
+  final _navPlacement = ReaderNavPlacement();
   final _thumbnailCache = createPdfThumbnailCache();
   static const int _defaultPdfLineRange = 50;
 
@@ -5624,9 +5627,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             pluginContext: 'reader-pdf',
           ),
         ),
-        menuHeaderActions: widget.isInCombinedView
-            ? _buildNavigationActions()
-            : null,
+        // בתצוגה משולבת תמיד; אחרת רק כשארבעת החיצים לא נכנסו לסרגל.
+        menuHeaderActions: _buildNavigationActions(),
+        menuHeaderActionsVisible: widget.isInCombinedView
+            ? null
+            : () => !_navPlacement.arrowsInBar,
       ),
     );
   }
@@ -5894,8 +5899,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     ];
   }
 
-  /// פעולות הניווט לשורה שבראש תפריט ה-"..." — בתצוגה מפוצלת בלבד.
-  /// בתצוגה רגילה הניווט מוצג במרכז הסרגל דרך [_buildPdfCenter].
+  /// פעולות הניווט לשורה שבראש תפריט ה-"..." — בתצוגה מפוצלת, וכשארבעת
+  /// החיצים לא נכנסים במרכז הסרגל ([_buildPdfCenter], [ReaderNavPlacement]).
   List<ActionButtonData> _buildNavigationActions() {
     return buildBookViewNavigationActions(
       firstAction: buildBookViewFirstNavigationAction(
@@ -5949,6 +5954,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     return ReaderNavCenter(
+      placement: _navPlacement,
       title: title,
       prevMajorTooltip:
           'תחילת הספר (${ShortcutHelper.formatShortcutForDisplay('ctrl+home')})',

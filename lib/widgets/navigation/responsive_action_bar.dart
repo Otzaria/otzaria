@@ -154,6 +154,11 @@ class ResponsiveActionBar extends StatefulWidget {
   /// לחיצה עליהן משאירה את התפריט פתוח; לכל פעולה נדרש [ActionButtonData.icon].
   final List<ActionButtonData>? menuHeaderActions;
 
+  /// נקרא כשהתפריט נפתח: false — בלי שורת [menuHeaderActions] הפעם. כך סרגל
+  /// שמחליט בזמן הפריסה איפה החיצים (`ReaderNavPlacement`) מציג אותם בתפריט
+  /// רק כשהם לא בסרגל. null — השורה תמיד מוצגת.
+  final ValueGetter<bool>? menuHeaderActionsVisible;
+
   /// מספר מקסימלי של כפתורים להציג לפני מעבר לתפריט "..."
   final int? maxVisibleButtons;
 
@@ -172,6 +177,7 @@ class ResponsiveActionBar extends StatefulWidget {
     this.alwaysInMenu,
     this.originalOrder,
     this.menuHeaderActions,
+    this.menuHeaderActionsVisible,
     this.maxVisibleButtons,
     this.overflowOnRight = false,
     this.overflowMenuOffset = const Offset(0, 4),
@@ -527,7 +533,10 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
             action.onPressed?.call();
           },
           itemBuilder: (context) {
-            final headerActions = _headerActions;
+            final headerActions =
+                widget.menuHeaderActionsVisible?.call() ?? true
+                ? _headerActions
+                : const <ActionButtonData>[];
             final items = <PopupMenuEntry<ActionButtonData>>[];
 
             if (headerActions.isNotEmpty) {
