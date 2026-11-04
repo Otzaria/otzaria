@@ -10,6 +10,9 @@ import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 
 class _FakeRepo extends Mock implements PluginRegistryRepository {
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async => [];
   @override
   Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];

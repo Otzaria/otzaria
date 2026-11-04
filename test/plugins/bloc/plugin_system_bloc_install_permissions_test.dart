@@ -15,6 +15,9 @@ import 'package:path/path.dart' as path;
 
 class _FakeRepo extends Mock implements PluginRegistryRepository {
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async => [];
   @override
   Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];

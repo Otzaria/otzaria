@@ -36,6 +36,9 @@ class _CountingRepo implements PluginRegistryRepository {
   _CountingRepo(this.plugins);
 
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async {
     fullReads++;
     return List.of(plugins);
