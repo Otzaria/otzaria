@@ -9,6 +9,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/widgets/note_delta_preview.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -186,24 +187,28 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
           platform == TargetPlatform.android || platform == TargetPlatform.iOS;
       final useOwnMenu =
           widget.interactive && !hostHasOwnMenu && !useNativeTouchMenu;
-      Widget editor = quill.QuillEditor(
-        key: _editorKey,
-        controller: controller,
-        focusNode: _focusNode!,
-        scrollController: _scrollController!,
-        config: quill.QuillEditorConfig(
-          contextMenuBuilder: hostHasOwnMenu || useOwnMenu
-              ? (context, _) => const SizedBox.shrink()
-              : null,
-          autoFocus: false,
-          expands: false,
-          padding: EdgeInsets.zero,
-          showCursor: false,
-          enableInteractiveSelection: widget.interactive,
-          scrollable: false,
-          // בלי הרישום, Quill מוסיף https:// לפני otzaria:// בעת לחיצה.
-          customLinkPrefixes: const ['otzaria://', 'zayit://'],
-          onLaunchUrl: widget.onLinkTap,
+      // הסגנונות נגזרים מ-DefaultTextStyle של _withLinks, כמו ב-NoteDeltaPreview.
+      Widget editor = Builder(
+        builder: (styleContext) => quill.QuillEditor(
+          key: _editorKey,
+          controller: controller,
+          focusNode: _focusNode!,
+          scrollController: _scrollController!,
+          config: quill.QuillEditorConfig(
+            customStyles: personalNoteStyles(styleContext),
+            contextMenuBuilder: hostHasOwnMenu || useOwnMenu
+                ? (context, _) => const SizedBox.shrink()
+                : null,
+            autoFocus: false,
+            expands: false,
+            padding: EdgeInsets.zero,
+            showCursor: false,
+            enableInteractiveSelection: widget.interactive,
+            scrollable: false,
+            // בלי הרישום, Quill מוסיף https:// לפני otzaria:// בעת לחיצה.
+            customLinkPrefixes: const ['otzaria://', 'zayit://'],
+            onLaunchUrl: widget.onLinkTap,
+          ),
         ),
       );
 

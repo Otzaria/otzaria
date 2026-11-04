@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -337,9 +339,16 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
               ),
             ),
           ),
+        // אזור הכתיבה במילוי של שדה בדיאלוג (כמו filledOnDialog), וסרגל הכלים
+        // כהה ממנו. המסגרת מצוירת מעל, כדי ששני המילויים לא יכסו אותה.
         Container(
           key: _editorAreaKey,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
+            color: AppSurfaces.card(context),
+            borderRadius: AppTokens.borderRadiusAll,
+          ),
+          foregroundDecoration: BoxDecoration(
             border: Border.all(
               color: colorScheme.outline.withValues(alpha: 0.6),
               width: 1.2,
@@ -348,10 +357,13 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
           ),
           child: Column(
             children: [
-              _PersonalNoteToolbar(
-                controller: widget.controller.quillController,
-                editorFocusNode: widget.focusNode,
-                onInsertLink: _insertLink,
+              ColoredBox(
+                color: colorScheme.surfaceContainerHighest,
+                child: _PersonalNoteToolbar(
+                  controller: widget.controller.quillController,
+                  editorFocusNode: widget.focusNode,
+                  onInsertLink: _insertLink,
+                ),
               ),
               const Divider(height: 1),
               SizedBox(
@@ -414,9 +426,10 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                           focusNode: widget.focusNode,
                           scrollController: widget.scrollController,
                           config: quill.QuillEditorConfig(
+                            customStyles: personalNoteStyles(context),
                             autoFocus: widget.autofocus,
                             expands: false,
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(AppTokens.spaceSMD),
                             placeholder:
                                 widget.hintText ??
                                 'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
