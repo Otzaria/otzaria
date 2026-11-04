@@ -323,10 +323,17 @@ class UpdateLibraryViewMode extends SettingsEvent {
 class UpdateLibraryShowPreview extends SettingsEvent {
   final bool libraryShowPreview;
 
-  const UpdateLibraryShowPreview(this.libraryShowPreview);
+  /// הבחירה נעשתה בחלון נמוך: נשמרת בנפרד
+  /// (`SettingsState.libraryShowPreviewShortWindow`).
+  final bool shortWindow;
+
+  const UpdateLibraryShowPreview(
+    this.libraryShowPreview, {
+    this.shortWindow = false,
+  });
 
   @override
-  List<Object?> get props => [libraryShowPreview];
+  List<Object?> get props => [libraryShowPreview, shortWindow];
 }
 
 class UpdateSearchShowPreview extends SettingsEvent {
