@@ -30,6 +30,39 @@ void main() {
       expect(windowClass, WindowClass.compact);
       expect(windowClass.isCompact, isTrue);
     });
+
+    // q12 Q8: בחלון נמוך הגובה הוא האילוץ — עמודה בצד ולא סרגל תחתון.
+    for (final (size, short, side) in [
+      (const Size(360, 640), false, false),
+      (const Size(320, 568), false, false),
+      (const Size(568, 320), true, true),
+      (const Size(640, 360), true, true),
+      (const Size(1024, 600), false, true),
+      (const Size(420, 479), true, true),
+      (const Size(420, 480), false, false),
+    ]) {
+      testWidgets(
+        'חלון ${size.width.toInt()}×${size.height.toInt()}: '
+        'נמוך=$short, ניווט בצד=$side',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          late bool isShort, usesSide;
+          await tester.pumpWidget(
+            Builder(
+              builder: (context) {
+                isShort = WindowClass.isShortOf(context);
+                usesSide = WindowClass.usesSideNavigationOf(context);
+                return const SizedBox();
+              },
+            ),
+          );
+          expect(isShort, short);
+          expect(usesSide, side);
+        },
+      );
+    }
   });
 
   // DD-15: סף "דיאלוג צר" הוא LayoutBreakpoints.compact (600), לא 520.

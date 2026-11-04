@@ -4,6 +4,10 @@ class LayoutBreakpoints {
   static const double compact = 600; // mobile
   static const double medium = 840; // tablet
   static const double expanded = 1200; // desktop
+
+  /// גובה חלון "נמוך" (compact height של M3): טלפון לרוחב, או חלון שטוח
+  /// במחשב. מתחתיו הגובה הוא האילוץ, ולא הרוחב (q12 Q8).
+  static const double compactHeight = 480;
 }
 
 /// סוג החלון לפי רוחבו, להחלטות ברמת החלון בלבד: דיאלוג צר מול רחב, ניווט,
@@ -27,6 +31,17 @@ enum WindowClass {
 
   /// מתחת ל-[LayoutBreakpoints.compact]: טלפון או חלון צר במחשב.
   bool get isCompact => this == compact;
+
+  /// חלון נמוך: גובהו מתחת ל-[LayoutBreakpoints.compactHeight] (טלפון
+  /// לרוחב). שם הכרום מצטמצם: צפיפות קומפקטית, וסרגל אחד ולא שניים.
+  static bool isShortOf(BuildContext context) =>
+      MediaQuery.sizeOf(context).height < LayoutBreakpoints.compactHeight;
+
+  /// ניווט בעמודה שבצד, וכרטיסיות בשורת הכותרת ולא בשורה שנייה: בכל חלון
+  /// שאינו צר, וגם בחלון צר ונמוך (טלפון קטן לרוחב, 568×320), כי שם סרגל
+  /// תחתון ושורת כרטיסיות שנייה היו לוקחים יותר ממחצית הגובה.
+  static bool usesSideNavigationOf(BuildContext context) =>
+      !of(context).isCompact || isShortOf(context);
 }
 
 class LayoutPadding {
