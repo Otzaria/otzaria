@@ -228,8 +228,13 @@ class _BookmarkViewState extends State<BookmarkView> {
         ),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 180),
+          // כרטיס בהיר, כמו קבוצות הסימניות שמתחת (q12, DD-11).
           child: Material(
-            type: MaterialType.transparency,
+            color: AppSurfaces.card(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: AppTokens.borderRadiusAll,
+            ),
+            clipBehavior: Clip.antiAlias,
             child: ListView.separated(
               shrinkWrap: true,
               padding: EdgeInsets.zero,
