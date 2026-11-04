@@ -713,9 +713,6 @@ class SettingsSegmentedTile<T> extends StatefulWidget {
   final T currentValue;
   final ValueChanged<T> onChanged;
 
-  /// ראה [AppSegmentedControl.reselectable].
-  final bool reselectable;
-
   const SettingsSegmentedTile({
     super.key,
     this.icon,
@@ -726,7 +723,6 @@ class SettingsSegmentedTile<T> extends StatefulWidget {
     required this.options,
     required this.currentValue,
     required this.onChanged,
-    this.reselectable = false,
   });
 
   @override
@@ -844,7 +840,6 @@ class _SettingsSegmentedTileState<T> extends State<SettingsSegmentedTile<T>> {
             options: widget.options,
             currentValue: widget.currentValue,
             onChanged: widget.onChanged,
-            reselectable: widget.reselectable,
             expandToFillWidth: isNarrow,
             showSelectedIcon: false,
             height: 40,

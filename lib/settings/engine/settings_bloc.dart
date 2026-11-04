@@ -421,11 +421,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     UpdateCompactMenuMode event,
     Emitter<SettingsState> emit,
   ) async {
-    await _repository.updateCompactMenuMode(event.compactMenuMode);
+    final value = event.compactMenuMode;
+    await _repository.updateCompactMenuMode(value);
     emit(
       state.copyWith(
-        compactMenuMode: event.compactMenuMode,
-        compactMenuModeIsSet: true,
+        compactMenuMode: value ?? false,
+        compactMenuModeIsSet: value != null,
       ),
     );
   }

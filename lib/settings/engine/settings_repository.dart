@@ -1027,8 +1027,13 @@ class SettingsRepository {
     await _settings.setValue(keySplitedView, value);
   }
 
-  Future<void> updateCompactMenuMode(bool value) async {
-    await _settings.setValue(keyCompactMenuMode, value);
+  /// null ("אוטומטי") מוחק את המפתח: בלי מפתח הצפיפות לפי גודל החלון.
+  Future<void> updateCompactMenuMode(bool? value) async {
+    if (value == null) {
+      await _settings.remove(keyCompactMenuMode);
+    } else {
+      await _settings.setValue(keyCompactMenuMode, value);
+    }
   }
 
   Future<void> updateReadingTabsPlacement(String value) async {

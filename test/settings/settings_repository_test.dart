@@ -1182,5 +1182,35 @@ void main() {
         ).called(1);
       });
     });
+
+    // "צפיפות ממשק": null ("אוטומטי") מוחק את המפתח, ובלי מפתח הצפיפות לפי
+    // גודל החלון. "רגיל"/"מצומצם" נשמרים כמו קודם.
+    group('updateCompactMenuMode', () {
+      test('null מוחק את המפתח', () async {
+        await repository.updateCompactMenuMode(null);
+        verify(
+          mockSettingsWrapper.remove(SettingsRepository.keyCompactMenuMode),
+        ).called(1);
+        verifyNever(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyCompactMenuMode,
+            any,
+          ),
+        );
+      });
+
+      test('ערך מפורש נשמר', () async {
+        await repository.updateCompactMenuMode(true);
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyCompactMenuMode,
+            true,
+          ),
+        ).called(1);
+        verifyNever(
+          mockSettingsWrapper.remove(SettingsRepository.keyCompactMenuMode),
+        );
+      });
+    });
   });
 }

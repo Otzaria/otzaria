@@ -497,7 +497,9 @@ class ExternalSettingChanged extends SettingsEvent {
 }
 
 class UpdateCompactMenuMode extends SettingsEvent {
-  final bool compactMenuMode;
+  /// null: "אוטומטי" — מוחק את הבחירה, והצפיפות שוב לפי גודל החלון
+  /// (`SettingsState.compactMenuModeFor`).
+  final bool? compactMenuMode;
 
   const UpdateCompactMenuMode(this.compactMenuMode);
 

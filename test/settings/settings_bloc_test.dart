@@ -336,6 +336,28 @@ void main() {
           verify(mockRepository.updateCompactMenuMode(false)).called(1);
         },
       );
+
+      // סקירת 4.11 r4, q-density-auto (B): מקטע שלישי "אוטומטי".
+      blocTest<SettingsBloc, SettingsState>(
+        '"אוטומטי" מוחק את הבחירה, והצפיפות שוב לפי החלון',
+        build: () => settingsBloc,
+        seed: () => SettingsState.initial().copyWith(
+          compactMenuMode: true,
+          compactMenuModeIsSet: true,
+        ),
+        act: (bloc) => bloc.add(const UpdateCompactMenuMode(null)),
+        expect: () => [
+          SettingsState.initial().copyWith(
+            compactMenuMode: false,
+            compactMenuModeIsSet: false,
+          ),
+        ],
+        verify: (bloc) {
+          verify(mockRepository.updateCompactMenuMode(null)).called(1);
+          expect(bloc.state.compactMenuModeFor(isSmallWindow: true), isTrue);
+          expect(bloc.state.compactMenuModeFor(isSmallWindow: false), isFalse);
+        },
+      );
     });
 
     // q12 Q8, ss5: בחלון נמוך התצוגה המקדימה בספרייה סגורה עד שהמשתמש פותח
