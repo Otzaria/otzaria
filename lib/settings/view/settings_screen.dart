@@ -488,10 +488,12 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                 body: Column(
                   children: [
                     // סרגל הכותרת של הטלפון הוא AppTopBar, כמו בשאר המסכים
-                    // (q10 Q8b A). המעטפת של המחשב לא משתנה.
-                    AppTopBar(
-                      leadingItems: [
-                        if (onBack != null)
+                    // (q10 Q8b A). בתפריט הוא היה רק "הגדרות" שוב, מתחת
+                    // לשורת הכותרת של החלון שכבר אומרת את זה, ולכן הוא מוצג
+                    // רק כשיש לאן לחזור: בלשונית ובתוצאות החיפוש.
+                    if (onBack != null)
+                      AppTopBar(
+                        leadingItems: [
                           AppTopBarItem(
                             widget: BarButton.icon(
                               tooltip: context.settingsText('חזור (Esc)'),
@@ -499,23 +501,21 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                               onPressed: onBack,
                             ),
                           ),
-                      ],
-                      center: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          context.settingsText(
-                            isSearching
-                                ? 'תוצאות חיפוש'
-                                : _showMobileMenu
-                                ? 'הגדרות'
-                                : _tabsData[_selectedIndex].label,
+                        ],
+                        center: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            context.settingsText(
+                              isSearching
+                                  ? 'תוצאות חיפוש'
+                                  : _tabsData[_selectedIndex].label,
+                            ),
+                            style: AppTopBar.titleStyle(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          style: AppTopBar.titleStyle(context),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                       child: SettingsSearchField(
@@ -577,18 +577,23 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: 12,
-                                left: 12,
-                                bottom: 20,
+                            // בחלון נמוך (טלפון לרוחב) הכותרת רק חוזרת על שורת
+                            // הכותרת של החלון, ולוקחת מהגובה של הרשימה.
+                            if (!WindowClass.isShortOf(context))
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  right: 12,
+                                  left: 12,
+                                  bottom: 20,
+                                ),
+                                child: Text(
+                                  context.settingsText('הגדרות'),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
                               ),
-                              child: Text(
-                                context.settingsText('הגדרות'),
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                            ),
                             Expanded(
                               child: ListView.builder(
                                 itemCount: availableTabIndexes.length,

@@ -392,13 +392,66 @@ void main() {
           ?.fontWeight
           ?.value;
 
-      expect(appBarTitleWeight(), expectedWeight());
-
       await tester.tap(find.widgetWithText(ListTile, 'כתב'));
       await tester.pump();
       await tester.pump();
 
       expect(appBarTitleWeight(), expectedWeight());
+    });
+
+    // סקירת 4.11 (ss3): בתפריט הסרגל היה רק "הגדרות", שוב, מתחת לשורת הכותרת
+    // של החלון. הוא מוצג רק כשיש בו "חזור".
+    testWidgets('מובייל: בתפריט אין סרגל כותרת, בלשונית יש, עם "חזור"', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildScreen());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(AppTopBar), findsNothing);
+      expect(find.text('הגדרות'), findsNothing);
+
+      await tester.tap(find.widgetWithText(ListTile, 'כתב'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(AppTopBar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppTopBar),
+          matching: find.byTooltip('חזור (Esc)'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byType(AppTopBar), matching: find.text('כתב')),
+        findsOneWidget,
+      );
+    });
+
+    // בחלון נמוך (טלפון לרוחב) כותרת "הגדרות" מעל הרשימה בצד רק חוזרת על
+    // שורת הכותרת של החלון. ב־1024×600 היא נשארת.
+    testWidgets('חלון נמוך: בלי כותרת "הגדרות" מעל הרשימה בצד', (
+      tester,
+    ) async {
+      Future<void> at(Size size) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(buildScreen());
+        await tester.pump();
+        await tester.pump();
+      }
+
+      addTearDown(tester.view.reset);
+      await at(const Size(844, 390));
+      expect(find.byType(SidebarNavItem), findsWidgets);
+      expect(find.text('הגדרות'), findsNothing);
+
+      await at(const Size(1024, 600));
+      expect(find.text('הגדרות'), findsOneWidget);
     });
 
     // "קיצורי מקשים" זמין רק בדסקטופ (ShortcutsSettingsTab מציג במובייל
