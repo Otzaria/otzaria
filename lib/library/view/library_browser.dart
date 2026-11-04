@@ -1599,6 +1599,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return MyGridView(
       key: PageStorageKey(category),
       items: allItems,
+      // בחלון קטן (טלפון, AppDensity.isSmallWindow) כרטיסי התיקייה נמוכים
+      // מכרטיסי הספר (q12 Q8, ss4). במחשב הרשת לא משתנה.
+      leadingCategoryCount: AppDensity.isSmallWindow(MediaQuery.sizeOf(context))
+          ? filteredSubCategories.length
+          : 0,
       onExitTop: () => _refocusSearchBar(selectAll: true),
       scrollable: true,
       controller: _categoryGridController,
