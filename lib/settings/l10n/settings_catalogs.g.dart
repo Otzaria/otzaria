@@ -610,6 +610,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הקשר': 'Context',
     'הרחב': 'Expand',
     'הרחב את עמודת הכרטיסיות': 'Expand the tab column',
+    'הרחב הכל': 'Expand all',
     'הרחבת המילה בתרגומיה מהמילון הארמי-עברי, בשני הכיוונים (איתא↔יש).': 'Expands the word with its translations from the Aramaic-Hebrew dictionary, in both directions (איתא↔יש).',
     'הרשימה מציגה בחירות ישירות. להסרת הסתרה בירושה, בטלו את הסתרת קטגוריית האב.': 'This list shows direct selections. To undo inherited hiding, unhide the parent category.',
     'השאר אצל {plugin}': 'Keep with {plugin}',

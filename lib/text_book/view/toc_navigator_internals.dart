@@ -109,13 +109,13 @@ Map<int, bool> expandedTocExpansion(List<TocEntry> entries) {
   return result;
 }
 
-/// האם העץ הגלוי [visible] כבר במצב [collapsed] (של [collapsedTocExpansion]).
+/// האם אין בעץ הגלוי [visible] ענף פתוח מעבר למצב [collapsed] (של
+/// [collapsedTocExpansion]). ענף שנסגר ביד, גם שורש שהמצב המכווץ משאיר פתוח,
+/// נחשב מכווץ: אחרת הכפתור היה מציע "כווץ הכל" כשהכל כבר סגור (#3103).
 bool isTocCollapsed(List<TocFlatItem> visible, Map<int, bool> collapsed) {
   for (final item in visible) {
-    if (item.entry.children.isEmpty) continue;
-    if (item.isExpanded != (collapsed[item.entry.index] ?? false)) {
-      return false;
-    }
+    if (item.entry.children.isEmpty || !item.isExpanded) continue;
+    if (collapsed[item.entry.index] != true) return false;
   }
   return true;
 }
