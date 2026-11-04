@@ -132,4 +132,146 @@ void main() {
     await tester.pump();
     expect(controller.selection.extentOffset, 10001);
   });
+
+  group('לחיצות חוזרות במעבר בין עברית ללטינית (issue #3445)', () {
+    Future<EditableTextState> fieldAtStart(
+      WidgetTester tester,
+      String value, {
+      required bool multiline,
+    }) async {
+      final controller = TextEditingController(text: value);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: RtlTextField(
+                controller: controller,
+                maxLines: multiline ? null : 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(RtlTextField));
+      await tester.pump();
+      controller.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+      return tester.state<EditableTextState>(find.byType(EditableText));
+    }
+
+    // המקום החזותי של קצה הבחירה. עם Shift משתמשים ב-affinity השמור, כי
+    // `selection.extent` של בחירה פתוחה נצמד תמיד לטקסט הנבחר.
+    Offset caretSpot(EditableTextState editable) {
+      final selection = editable.textEditingValue.selection;
+      final rect = editable.renderEditable.getLocalRectForCaret(
+        TextPosition(
+          offset: selection.extentOffset,
+          affinity: selection.affinity,
+        ),
+      );
+      return Offset(rect.left.roundToDouble(), rect.top.roundToDouble());
+    }
+
+    /// לוחץ על [key] עד שהסמן נעצר ומחזיר את מספר הצעדים. כל לחיצה חייבת
+    /// להזיז את הסמן לכיוון החץ (באותה שורה) ולמקום שלא היה בו קודם.
+    Future<int> walk(
+      WidgetTester tester,
+      EditableTextState editable,
+      LogicalKeyboardKey key,
+      List<LogicalKeyboardKey> modifiers,
+    ) async {
+      final toLeft = key == LogicalKeyboardKey.arrowLeft;
+      final visited = [caretSpot(editable)];
+      final limit = 2 * editable.textEditingValue.text.length + 2;
+      for (var press = 1; press <= limit; press++) {
+        for (final modifier in modifiers) {
+          await tester.sendKeyDownEvent(modifier);
+        }
+        await tester.sendKeyEvent(key);
+        for (final modifier in modifiers.reversed) {
+          await tester.sendKeyUpEvent(modifier);
+        }
+        await tester.pump();
+        final spot = caretSpot(editable);
+        final last = visited.last;
+        if (spot == last) return press - 1;
+        expect(
+          visited,
+          isNot(contains(spot)),
+          reason: 'לחיצה $press החזירה את הסמן למקום שכבר עבר בו',
+        );
+        if (spot.dy == last.dy) {
+          expect(
+            toLeft ? spot.dx < last.dx : spot.dx > last.dx,
+            isTrue,
+            reason: 'לחיצה $press הזיזה את הסמן הפוך לכיוון החץ',
+          );
+        }
+        visited.add(spot);
+      }
+      fail('הסמן לא נעצר אחרי $limit לחיצות');
+    }
+
+    for (final (name, value, multiline) in <(String, String, bool)>[
+      ('תג לטיני בטקסט עברי', 'אב <b>גד</b>', false),
+      ('מילה באנגלית בטקסט עברי', 'אב hello גד', false),
+      ('שדה רב-שורתי', 'אב hello גד\nשלום <b>עולם</b>', true),
+      ('שורה ריקה ושורה שמתחילה בלטינית', 'אבג\n\nhello דה', true),
+    ]) {
+      testWidgets(
+        '$name: חצים, Shift ומילה עוברים את הטקסט בשני הכיוונים בלי להיתקע',
+        (tester) async {
+          final editable = await fieldAtStart(
+            tester,
+            value,
+            multiline: multiline,
+          );
+          final length = editable.textEditingValue.text.length;
+          final graphemes = editable.textEditingValue.text.characters.length;
+          final word = usesAltForWordNavigation()
+              ? LogicalKeyboardKey.altLeft
+              : LogicalKeyboardKey.controlLeft;
+
+          for (final modifiers in [
+            <LogicalKeyboardKey>[],
+            [LogicalKeyboardKey.shiftLeft],
+            [word],
+          ]) {
+            final leftMoves = await walk(
+              tester,
+              editable,
+              LogicalKeyboardKey.arrowLeft,
+              modifiers,
+            );
+            final selection = editable.textEditingValue.selection;
+            final shift = modifiers.contains(LogicalKeyboardKey.shiftLeft);
+            expect(selection.extentOffset, length, reason: '$modifiers');
+            expect(selection.baseOffset, shift ? 0 : length);
+
+            final rightMoves = await walk(
+              tester,
+              editable,
+              LogicalKeyboardKey.arrowRight,
+              modifiers,
+            );
+            expect(
+              editable.textEditingValue.selection,
+              const TextSelection.collapsed(offset: 0),
+              reason: '$modifiers',
+            );
+            // חץ בלי מקש נוסף נעצר בכל מיקום חזותי, בלי לדלג על קטע.
+            if (modifiers.isEmpty) {
+              expect([leftMoves, rightMoves], [graphemes, graphemes]);
+            }
+          }
+        },
+        variant: TargetPlatformVariant({
+          TargetPlatform.windows,
+          TargetPlatform.macOS,
+        }),
+      );
+    }
+  });
 }
