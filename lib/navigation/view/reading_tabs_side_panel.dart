@@ -126,40 +126,58 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
   }) {
     return SizedBox(
       width: width,
-      child: ColoredBox(
-        color: AppSurfaces.panelBackground(context),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  _buildHeader(context, collapsed: collapsed),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: KeyedSubtree(
-                      key: TourTargetKeys.of(context).readingTabsSide,
-                      child: VerticalReadingTabStrip(
-                        collapsed: collapsed,
-                        width: width,
+      // קו דק בקצה הפנימי מפריד בין העמודה לתוכן: שניהם ברקע הקריאה. מצויר
+      // מעל ידית שינוי הרוחב, שיושבת באותו קצה.
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: BorderDirectional(
+            end: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+        ),
+        // רקע הקריאה, כמו מאחורי הרצועה האופקית: הריחוף (8% onSurface) יוצא
+        // אפור ונבדל מהכרטיסיה הפעילה שבצבע הסרגל (DD-06).
+        child: ColoredBox(
+          color: AppSurfaces.readerBackground(context),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildHeader(context, collapsed: collapsed),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: TourTargetKeys.of(context).readingTabsSide,
+                        child: VerticalReadingTabStrip(
+                          collapsed: collapsed,
+                          width: width,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // ידית שינוי הרוחב יושבת בקצה הפנימי (שמאל ב-RTL). במצב מכווץ
-            // הרוחב קבוע, ולכן הידית אינה נבנית כלל — אחרת היא גוזלת מרוחב
-            // העמודה הצרה ומזיזה את האייקונים מהמרכז.
-            if (!collapsed)
-              ResizableDragHandle(
-                isVertical: true,
-                showDivider: true,
-                onDragStart: () => _onDragStart(width),
-                onDragDelta: _onDragDelta,
-                onDragEnd: _onDragEnd,
-              ),
-          ],
+              // ידית שינוי הרוחב יושבת בקצה הפנימי (שמאל ב-RTL). במצב מכווץ
+              // הרוחב קבוע, ולכן הידית אינה נבנית כלל — אחרת היא גוזלת מרוחב
+              // העמודה הצרה ומזיזה את האייקונים מהמרכז.
+              // הקו שבמנוחה הוא קו ההפרדה של העמודה, ולכן לידית אין קו משלה,
+              // אבל הידית הקטנה גלויה גם במנוחה: מסמנת שאפשר לגרור ולשנות
+              // את רוחב העמודה (סקירת 4.11).
+              if (!collapsed)
+                ResizableDragHandle(
+                  isVertical: true,
+                  showDivider: false,
+                  showIdleGrip: true,
+                  onDragStart: () => _onDragStart(width),
+                  onDragDelta: _onDragDelta,
+                  onDragEnd: _onDragEnd,
+                ),
+            ],
+          ),
         ),
       ),
     );

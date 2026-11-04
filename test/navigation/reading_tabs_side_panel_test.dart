@@ -241,6 +241,52 @@ void main() {
     expect(find.byType(ResizableDragHandle), findsOneWidget);
   });
 
+  testWidgets('קו דק בקצה הפנימי מפריד בין העמודה לתוכן (q11 Q1)', (
+    tester,
+  ) async {
+    BorderSide edge() {
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(ReadingTabsSidePanel),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(box.position, DecorationPosition.foreground);
+      final border = (box.decoration as BoxDecoration).border!;
+      return (border as BorderDirectional).end;
+    }
+
+    for (final collapsed in [false, true]) {
+      await pumpPanel(tester, collapsed: collapsed);
+      final cs = Theme.of(
+        tester.element(find.byType(ReadingTabsSidePanel)),
+      ).colorScheme;
+      expect(edge().color, cs.outlineVariant, reason: 'collapsed=$collapsed');
+      expect(edge().width, 1);
+    }
+    // הקו במנוחה הוא של העמודה; לידית אין קו שני לצדו.
+    await pumpPanel(tester);
+    expect(
+      tester
+          .widget<ResizableDragHandle>(find.byType(ResizableDragHandle))
+          .showDivider,
+      isFalse,
+    );
+  });
+
+  testWidgets('ידית שינוי הרוחב גלויה במנוחה, בלי קו שני (סקירת 4.11)', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    final handle = tester.widget<ResizableDragHandle>(
+      find.byType(ResizableDragHandle),
+    );
+    expect(handle.showDivider, isFalse);
+    expect(handle.showIdleGrip, isTrue);
+  });
+
   testWidgets('במצב מכווץ האייקונים ממורכזים ברוחב העמודה', (tester) async {
     await pumpPanel(tester, collapsed: true);
 
@@ -914,6 +960,20 @@ void main() {
       rowColor('ספר ב'),
       AppSurfaces.topBarBackground(tester.element(row('ספר ב'))),
       reason: 'הפעילה בצבע הסרגל, כמו ברצועה האופקית (DD-06)',
+    );
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find
+                .descendant(
+                  of: find.byType(ReadingTabsSidePanel),
+                  matching: find.byType(ColoredBox),
+                )
+                .first,
+          )
+          .color,
+      AppSurfaces.readerBackground(tester.element(row('ספר ב'))),
+      reason: 'רקע העמודה כרקע הרצועה האופקית, כדי שהריחוף ייראה אפור (q11 Q1)',
     );
 
     tabsBloc.emitState(tabsBloc.state.copyWith(selectedTabs: [second]));
