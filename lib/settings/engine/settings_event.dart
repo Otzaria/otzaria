@@ -114,6 +114,16 @@ class UpdateCommentatorsFontBold extends SettingsEvent {
   List<Object?> get props => [commentatorsFontBold];
 }
 
+/// גודל הטקסט בקטעי תוצאות החיפוש (#2826).
+class UpdateSearchResultsFontSize extends SettingsEvent {
+  final double searchResultsFontSize;
+
+  const UpdateSearchResultsFontSize(this.searchResultsFontSize);
+
+  @override
+  List<Object?> get props => [searchResultsFontSize];
+}
+
 sealed class CommentatorsFontSizeEvent extends SettingsEvent {
   const CommentatorsFontSizeEvent();
 }

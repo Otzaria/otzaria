@@ -1067,7 +1067,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 result.id,
                 result.segment,
                 rawHtml.hashCode,
-                settingsState.fontSize,
+                settingsState.searchResultsFontSize,
                 settingsState.fontFamily,
                 settingsState.replaceHolyNames,
                 colorScheme.onSurface.toARGB32(),
@@ -1083,7 +1083,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                   return SnippetBuilder.fromHighlightedHtml(
                     html: rawHtml,
                     defaultStyle: TextStyle(
-                      fontSize: settingsState.fontSize,
+                      fontSize: settingsState.searchResultsFontSize,
                       fontFamily: AppFonts.renderFontFamily(
                         settingsState.fontFamily,
                       ),
@@ -1092,7 +1092,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     ),
                     highlightStyle: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: settingsState.fontSize + 2,
+                      fontSize: settingsState.searchResultsFontSize + 2,
                       fontFamily: AppFonts.renderFontFamily(
                         settingsState.fontFamily,
                       ),
