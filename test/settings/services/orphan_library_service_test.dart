@@ -144,6 +144,13 @@ void main() {
     });
   });
 
+  test('בדיקת רישום ההסרה רצה ב-isolate עזר ומחזירה תשובה', () async {
+    expect(
+      await OrphanLibraryService.machineWideInstallRegistered(),
+      isA<bool>(),
+    );
+  }, skip: Platform.isWindows ? false : 'רישום Windows בלבד');
+
   group('formatBytes', () {
     test('מציג GB מעל ג\'יגה ו-MB מתחת', () {
       expect(

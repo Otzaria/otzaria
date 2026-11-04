@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -74,7 +75,7 @@ class SystemAccountProbe {
   }
 
   static Future<SystemAccountInfo> detect({ProcessRunner? runProcess}) async {
-    final run = runProcess ?? _defaultRunner;
+    final run = runProcess ?? runOffMainIsolate;
     try {
       if (Platform.isWindows) return await detectWindows(run);
       if (Platform.isLinux || Platform.isMacOS) return await detectPosix(run);
@@ -138,8 +139,11 @@ class SystemAccountProbe {
     );
   }
 
-  static Future<ProcessResult> _defaultRunner(
+  /// ב-Windows Process.run קורא ל-CreateProcess סינכרונית ב-thread של ה-isolate
+  /// הקורא; ב-isolate הראשי זה ה-thread של הממשק.
+  @visibleForTesting
+  static Future<ProcessResult> runOffMainIsolate(
     String executable,
     List<String> arguments,
-  ) => Process.run(executable, arguments);
+  ) => Isolate.run(() => Process.run(executable, arguments));
 }

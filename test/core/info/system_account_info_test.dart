@@ -137,4 +137,36 @@ void main() {
       expect(info.accountType, UserAccountType.unknown);
     });
   });
+
+  group('SystemAccountProbe.runOffMainIsolate', () {
+    final skip = Platform.isWindows || Platform.isLinux || Platform.isMacOS
+        ? false
+        : 'אין whoami/id בפלטפורמה';
+
+    test('מחזיר את תוצאת התהליך מה-isolate העזר', () async {
+      final result = Platform.isWindows
+          ? await SystemAccountProbe.runOffMainIsolate(
+              SystemAccountProbe.whoamiExecutable,
+              ['/groups', '/fo', 'csv', '/nh'],
+            )
+          : await SystemAccountProbe.runOffMainIsolate(
+              SystemAccountProbe.idExecutable,
+              ['-u'],
+            );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, isA<String>());
+      expect((result.stdout as String).trim(), isNotEmpty);
+    }, skip: skip);
+
+    test('קובץ הרצה חסר זורק ולא מחזיר תוצאה', () async {
+      await expectLater(
+        SystemAccountProbe.runOffMainIsolate(
+          p.join(Directory.systemTemp.path, 'otzaria_missing_probe_exe'),
+          const [],
+        ),
+        throwsA(anything),
+      );
+    });
+  });
 }
