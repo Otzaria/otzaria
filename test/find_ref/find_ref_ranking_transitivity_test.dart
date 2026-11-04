@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 
 FindRefRankKey<String> _key(
@@ -16,7 +17,7 @@ FindRefRankKey<String> _key(
     fuzzyBookMatch: false,
     exactMatch: match.exactMatch,
     startsWithMatch: match.startsWithMatch,
-    titleTokens: match.titleTokens,
+    titleWordMatches: match.titleWordMatches,
     citationMatch: true,
     bookRank: (foundationalTier: tier, eraOrder: 10),
     isOfficial: true,
@@ -27,6 +28,20 @@ FindRefRankKey<String> _key(
     bookId: order.toInt(),
     categoryTokens: categoryTokens,
   );
+}
+
+/// מילת השאילתה ה-[i] מול הכותרת, בלי [FindRefRankQuery.titleMatch].
+bool _titleWordAtPerCompare(FindRefRankQuery query, String title, int i) {
+  final tokens = bookNameMatchForm(
+    title,
+  ).split(' ').where((t) => t.isNotEmpty).toList();
+  final first = query.matchTokens.first;
+  final at = first.length < 2
+      ? 0
+      : tokens.indexWhere((t) => t.startsWith(first));
+  final index = (at < 0 ? 0 : at) + i;
+  return index < tokens.length &&
+      tokens[index].startsWith(query.matchTokens[i]);
 }
 
 void main() {
@@ -93,5 +108,47 @@ void main() {
       order: 0,
     );
     expect(compareFindRefRelevance(c, foundation, query), lessThan(0));
+  });
+
+  test('מילות הכותרת שנקבעות פעם אחת זהות לבדיקה בכל השוואה', () {
+    const queries = [
+      ['רמבם', 'ספר', 'זמנים'],
+      ['ירושלמי', 'מעשר', 'שני'],
+      ['א', 'הלכות', 'שבת'],
+      ['שוע', 'אוח', 'א'],
+      ['הרמבם', 'הלכות', 'תפלה', 'ד'],
+      ['בבא', 'קמא'],
+      ['קיצור', 'שולחן', 'ערוך', 'סימן', 'א'],
+    ];
+    const titles = [
+      'משנה תורה הלכות שבת',
+      'תלמוד ירושלמי מעשר שני',
+      'קרית ספר על משנה תורה הלכות שבת',
+      'רמבם הלכות תפילה',
+      'פני יהושע על בבא קמא',
+      'בבא',
+      'שולחן ערוך אורח חיים',
+      'קיצור שולחן ערוך',
+      'ספר ספר זמנים',
+      '',
+    ];
+    for (final tokens in queries) {
+      final query = FindRefRankQuery(tokens);
+      for (final title in titles) {
+        final matches = query.titleMatch(title).titleWordMatches;
+        expect(matches, hasLength(tokens.length), reason: title);
+        for (var i = 1; i < tokens.length; i++) {
+          expect(
+            matches[i],
+            _titleWordAtPerCompare(query, title, i),
+            reason: '$tokens / $title / $i',
+          );
+        }
+      }
+    }
+    expect(
+      FindRefRankQuery(['רמבם']).titleMatch('רמבם').titleWordMatches,
+      isEmpty,
+    );
   });
 }
