@@ -15,6 +15,10 @@ int? firstIntValue(ResultSet result) {
   return value as int;
 }
 
+/// מסמן את התווים המיוחדים של LIKE כמילוליים, לשימוש עם `ESCAPE '\'`.
+String escapeLike(String text) =>
+    text.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+
 /// Runs [fn] inside an explicit SQLite transaction.
 /// Commits on success, rolls back on error.
 void withTransaction(Database db, void Function() fn) {
