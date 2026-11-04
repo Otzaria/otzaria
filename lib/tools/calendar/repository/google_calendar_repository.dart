@@ -94,6 +94,7 @@ class GoogleCalendarRepository {
       );
 
       // Fetch events from all selected calendars with pagination.
+      var allCalendarsLoaded = true;
       for (final calendarId in calendarIds()) {
         try {
           String? pageToken;
@@ -102,6 +103,8 @@ class GoogleCalendarRepository {
                 .list(
                   calendarId,
                   singleEvents: true,
+                  // בלעדיו אירוע שנמחק בגוגל פשוט חסר, והעותק המקומי נשאר.
+                  showDeleted: true,
                   orderBy: 'startTime',
                   timeMin: timeMin.toUtc(),
                   timeMax: timeMax.toUtc(),
@@ -111,16 +114,31 @@ class GoogleCalendarRepository {
                 .timeout(_apiTimeout);
             merger.mergePage(
               result.items ?? const [],
+              calendarId: calendarId,
               inheritedColorIndex: calendarColorIndices[calendarId],
             );
             pageToken = result.nextPageToken;
           } while (pageToken != null);
         } catch (e) {
+          allCalendarsLoaded = false;
           // Continue with other calendars if one fails
           debugPrint('Failed to sync calendar $calendarId: $e');
         }
       }
-      return merger.events;
+      // עותק פעיל עשוי להיות בלוח או בדף שנכשל; דוחים רק את המחיקות.
+      if (!allCalendarsLoaded) return merger.events;
+      for (final MapEntry(key: series, value: calendarId)
+          in merger.seriesToCheck.entries) {
+        try {
+          final master = await apiClient.api.events
+              .get(calendarId, series)
+              .timeout(_apiTimeout);
+          if (master.status == 'cancelled') merger.deletedSeries.add(series);
+        } catch (e) {
+          debugPrint('Failed to check Google series $series: $e');
+        }
+      }
+      return merger.merged;
     } catch (e) {
       throw GoogleCalendarSyncException(e);
     } finally {
@@ -213,9 +231,13 @@ class GoogleCalendarRepository {
       mapper: fromGoogleEvent,
     );
     for (final page in pages) {
-      merger.mergePage(page, inheritedColorIndex: inheritedColorIndex);
+      merger.mergePage(
+        page,
+        calendarId: _primaryGoogleCalendarId,
+        inheritedColorIndex: inheritedColorIndex,
+      );
     }
-    return merger.events;
+    return merger.merged;
   }
 
   @visibleForTesting
@@ -493,13 +515,61 @@ class _GoogleEventsMerger {
   final List<CustomEvent> events;
   final Map<String, int> _byGoogleId = {};
   final Map<String, int> _byLocalId = {};
+  final Set<String> _cancelledGoogleIds = {};
+  final Set<String> _activeGoogleIds = {};
+  final Map<String, String> _seriesOfCancelled = {};
+  final Map<String, String> _calendarOfCancelledSeries = {};
+  final Set<String> _activeSeries = {};
+
+  /// סדרות שאירוע האב שלהן מבוטל בגוגל.
+  final Set<String> deletedSeries = {};
+
+  /// [events] בלי מה שנמחק בגוגל — אלא אם הוא עדיין קיים בלוח נבחר אחר.
+  List<CustomEvent> get merged {
+    final deleted = _cancelledGoogleIds.difference(_activeGoogleIds);
+    if (deleted.isEmpty && deletedSeries.isEmpty) return events;
+    return [
+      for (final event in events)
+        if (event.recurrenceType == RecurrenceType.none
+            ? !deleted.contains(event.googleEventId)
+            : !deletedSeries.contains(_cancelledSeriesOf(event)))
+          event,
+    ];
+  }
+
+  /// סדרה → לוח, לכל סדרה מקומית שכל מופעיה בטווח בוטלו: מופע מבוטל נראה
+  /// אותו דבר כשנמחק מופע אחד וכשנמחקה הסדרה, ורק אירוע האב מכריע.
+  Map<String, String> get seriesToCheck => {
+    for (final series in events.map(_cancelledSeriesOf).nonNulls)
+      series: _calendarOfCancelledSeries[series]!,
+  };
+
+  String? _cancelledSeriesOf(CustomEvent event) {
+    if (event.recurrenceType == RecurrenceType.none) return null;
+    final googleId = event.googleEventId;
+    final series = _seriesOfCancelled[googleId] ?? googleId;
+    if (series == null || _activeSeries.contains(series)) return null;
+    return _calendarOfCancelledSeries.containsKey(series) ? series : null;
+  }
 
   void mergePage(
     List<cal.Event> googleEvents, {
+    required String calendarId,
     int? inheritedColorIndex,
   }) {
     for (final googleEvent in googleEvents) {
-      if (googleEvent.status == 'cancelled') continue;
+      final googleId = googleEvent.id ?? '';
+      final series = googleEvent.recurringEventId;
+      if (googleEvent.status == 'cancelled') {
+        if (googleId.isNotEmpty) _cancelledGoogleIds.add(googleId);
+        if (series != null) {
+          _seriesOfCancelled[googleId] = series;
+          _calendarOfCancelledSeries[series] = calendarId;
+        }
+        continue;
+      }
+      _activeGoogleIds.add(googleId);
+      if (series != null) _activeSeries.add(series);
 
       final mapped = mapper(
         googleEvent,
@@ -507,7 +577,6 @@ class _GoogleEventsMerger {
       );
       if (mapped == null) continue;
 
-      final googleId = googleEvent.id ?? '';
       final localId =
           googleEvent.extendedProperties?.private?['otzaria_event_id'];
       final matchedIndex =
