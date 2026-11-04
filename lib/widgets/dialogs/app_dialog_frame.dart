@@ -16,7 +16,9 @@ import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 /// את החלון פחות הריפוד החיצוני.
 ///
 /// בחלון צר ([WindowClass.isCompact], DD-16): [small] ו-[medium] ברוחב החלון
-/// פחות 16, ו-[large] ו-[full] במסך מלא.
+/// פחות 16, ו-[large] ו-[full] במסך מלא. גם בחלון נמוך ([WindowClass.isShortOf],
+/// טלפון לרוחב או חלון שטוח), בכל רוחב, [large] ו-[full] במסך מלא: שם הגובה
+/// הוא האילוץ, והשוליים והפינות לוקחים ממנו (q12 Q8).
 enum AppDialogSize {
   /// אישור, אזהרה, קלט, בחירה, התקדמות. בלי X: סוגרים בביטול או ב-Escape.
   small(400),
@@ -164,8 +166,11 @@ class AppDialogFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = WindowClass.of(context).isCompact;
-    final fullscreen = compact && size.index >= AppDialogSize.large.index;
+    final windowClass = WindowClass.of(context);
+    final compact = windowClass.isCompact;
+    final fullscreen =
+        (compact || WindowClass.isShortOf(context)) &&
+        size.index >= AppDialogSize.large.index;
     final fills = fullscreen || size == AppDialogSize.full;
     final fixedHeight = fills || height != null;
     final body = scrollable
@@ -235,7 +240,9 @@ class AppDialogFrame extends StatelessWidget {
         child: ConstrainedBox(
           key: surfaceKey,
           constraints: BoxConstraints(
-            maxWidth: compact ? double.infinity : size.width ?? double.infinity,
+            maxWidth: compact || fullscreen
+                ? double.infinity
+                : size.width ?? double.infinity,
             maxHeight: maxHeight,
           ),
           // SizedBox ו-SafeArea תמיד, כדי שמעבר מעל 600 (סיבוב טלפון, גרירת
