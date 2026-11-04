@@ -7,6 +7,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show FrameCallback;
@@ -304,10 +305,7 @@ void _logNonFatalInitializationError(
     title: 'Initialization Warning',
     error: error,
     stackTrace: stackTrace,
-    details: {
-      'Phase': 'initialize',
-      'Component': component,
-    },
+    details: {'Phase': 'initialize', 'Component': component},
   );
 }
 
@@ -467,10 +465,7 @@ void _installGlobalErrorHandlers() {
     // Log all other errors normally
     if (kDebugMode) {
       FlutterError.dumpErrorToConsole(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stack,
-        ),
+        FlutterErrorDetails(exception: error, stack: stack),
       );
     } else {
       _appendUnhandledErrorToLocalLog(
@@ -503,35 +498,32 @@ Future<void> _initializeSentry() async {
     StartupTimeline.instance.mark('sentry:init');
     final currentBuild = int.tryParse(info.buildNumber.trim()) ?? 0;
 
-    await SentryFlutter.init(
-      (options) {
-        // Use environment variable for DSN, with fallback to default
-        options.dsn = const String.fromEnvironment(
-          'SENTRY_DSN',
-          defaultValue:
-              'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
-        );
-        options.release =
-            '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
-        options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();
-        // Privacy: Do not collect IP addresses and request headers
-        options.sendDefaultPii = false;
-        // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
-        options.tracesSampleRate = 0.0;
+    await SentryFlutter.init((options) {
+      // Use environment variable for DSN, with fallback to default
+      options.dsn = const String.fromEnvironment(
+        'SENTRY_DSN',
+        defaultValue: 'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
+      );
+      options.release =
+          '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
+      options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();
+      // Privacy: Do not collect IP addresses and request headers
+      options.sendDefaultPii = false;
+      // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
+      options.tracesSampleRate = 0.0;
 
-        options.beforeSend = (event, hint) {
-          // כל החלונות ב-isolate אחד; החלון הפעיל האחרון מקרב את המקור.
-          event.tags = {...?event.tags, 'window': LastActiveWindow.id.value};
-          return shouldReportSentryEvent(
-                event: event,
-                currentBuild: currentBuild,
-                latestReleasedBuildNumber: _latestReleasedBuildNumber,
-              )
-              ? event
-              : null;
-        };
-      },
-    );
+      options.beforeSend = (event, hint) {
+        // כל החלונות ב-isolate אחד; החלון הפעיל האחרון מקרב את המקור.
+        event.tags = {...?event.tags, 'window': LastActiveWindow.id.value};
+        return shouldReportSentryEvent(
+              event: event,
+              currentBuild: currentBuild,
+              latestReleasedBuildNumber: _latestReleasedBuildNumber,
+            )
+            ? event
+            : null;
+      };
+    });
     StartupTimeline.instance.mark('sentry:initDone');
   } catch (error, stackTrace) {
     if (kDebugMode) {
@@ -594,10 +586,7 @@ Future<void> _runAppBootstrap() async {
     WindowPersistence.splashMode = true;
     // WindowPersistence היא static ואין לה BuildContext — היא מקבלת את
     // אותו מופע שנכנס ל-AppWindowScope, כדי שיהיה מקור אמת אחד.
-    WindowPersistence.bindWindow(
-      controller: _appWindow,
-      geometry: _appWindow,
-    );
+    WindowPersistence.bindWindow(controller: _appWindow, geometry: _appWindow);
 
     await StartupTimeline.instance.phase(
       'windowCloseHandling',
@@ -618,11 +607,7 @@ Future<void> _runAppBootstrap() async {
       controller: _appWindow,
       geometry: _appWindow,
       keys: AppWindowKeys.current,
-      child: SentryWidget(
-        child: RestartWidget(
-          child: const AppBootstrap(),
-        ),
-      ),
+      child: SentryWidget(child: RestartWidget(child: const AppBootstrap())),
     ),
   );
 }
@@ -765,9 +750,9 @@ Future<void> _runDeferredInputFocusHistory() async {
   InputFocusDiagnostics.instance.install();
 }
 
-/// טוען את WebView2 ב-thread רקע, כדי שהתוסף הראשון שנפתח לא יקפיא את ה-UI (#3375).
+/// מחמם WebView ברקע אחרי חשיפת האפליקציה, ב-Windows וב-Android.
 Future<void> _runDeferredWebViewPrewarm() async {
-  if (kIsWeb || !Platform.isWindows) return;
+  if (!WebViewEnvironmentHolder.supportsPrewarm) return;
   try {
     await _mainWindowRevealedCompleter.future.timeout(
       const Duration(seconds: 20),
@@ -780,7 +765,7 @@ Future<void> _runDeferredWebViewPrewarm() async {
       hasEnabledPlugin: PluginRegistryRepository().hasEnabledPlugin,
     );
   } catch (error, stackTrace) {
-    _logNonFatalInitializationError('WebView2 prewarm', error, stackTrace);
+    _logNonFatalInitializationError('WebView prewarm', error, stackTrace);
   }
 }
 
@@ -1463,9 +1448,7 @@ Future<void> _enqueueExternalActivationArgs(List<String> args) async {
         title: 'External Activation Queue Error',
         error: error,
         stackTrace: stackTrace,
-        details: {
-          'Uri': uriString,
-        },
+        details: {'Uri': uriString},
       );
     }
   }

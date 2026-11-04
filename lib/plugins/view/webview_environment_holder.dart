@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart'
@@ -248,9 +249,8 @@ class WebViewEnvironmentHolder {
           : WebViewEnvironmentSettings();
       final result =
           await (_prewarmOverride ??
-              (settings) => WebViewEnvironment.prewarm(settings: settings))(
-            settings,
-          );
+              (settings) =>
+                  WebViewEnvironment.prewarm(settings: settings))(settings);
       _recordPrewarm(result?.toString() ?? 'unsupported');
       return true;
     } catch (error) {

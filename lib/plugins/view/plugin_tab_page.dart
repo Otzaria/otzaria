@@ -9,10 +9,12 @@ import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:collection';
+
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -627,9 +629,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           if (snapshot.hasError) {
             debugPrint('WebView prerequisites init error: ${snapshot.error}');
             return Center(
-              child: Text(
-                'שגיאה באתחול סביבת הדפדפן: ${snapshot.error}',
-              ),
+              child: Text('שגיאה באתחול סביבת הדפדפן: ${snapshot.error}'),
             );
           }
           if (snapshot.data == _WebViewPrereqStatus.dataFolderNotWritable) {
@@ -671,11 +671,8 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       navigationAction,
     );
     if (target == null) return;
-    await AppWindowKeys.of(
-      context,
-    ).mainWindowScreen.currentState?.handleInternalDeepLink(
-      target.toString(),
-    );
+    await AppWindowKeys.of(context).mainWindowScreen.currentState
+        ?.handleInternalDeepLink(target.toString());
   }
 
   Widget _buildWebView() {
@@ -996,6 +993,8 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// שהמשתמש יראה מסך הכוונה להתקנה ולא שגיאה טכנית גולמית.
   static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {
     if (Platform.isAndroid) {
+      // גם הגדרת debugging יכולה לאתחל את המנוע — ממתינים לחימום לפניה.
+      await WebViewEnvironmentHolder.initialize();
       await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
       return _WebViewPrereqStatus.ready;
     }

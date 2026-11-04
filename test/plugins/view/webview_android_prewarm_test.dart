@@ -47,12 +47,15 @@ void main() {
     WebView2CreationDiagnostics.debugReset();
   });
 
-  test('Android does not receive WebView2 profile or custom-scheme settings', () async {
-    expect(await startPrewarm(), isTrue);
-    expect(calls, hasLength(1));
-    expect(calls.single.toMap(), WebViewEnvironmentSettings().toMap());
-    expect(WebViewEnvironmentHolder.environment, isNull);
-  });
+  test(
+    'Android does not receive WebView2 profile or custom-scheme settings',
+    () async {
+      expect(await startPrewarm(), isTrue);
+      expect(calls, hasLength(1));
+      expect(calls.single.toMap(), WebViewEnvironmentSettings().toMap());
+      expect(WebViewEnvironmentHolder.environment, isNull);
+    },
+  );
 
   test('no enabled plugin means no Android startup work', () async {
     expect(await startPrewarm(enabled: false), isFalse);
@@ -60,46 +63,52 @@ void main() {
     expect(WebViewEnvironmentHolder.environment, isNull);
   });
 
-  test('Android creation waits asynchronously for an in-flight prewarm', () async {
-    pending = Completer();
-    final prewarm = startPrewarm();
-    await pumpEventQueue();
-    expect(calls, hasLength(1));
+  test(
+    'Android creation waits asynchronously for an in-flight prewarm',
+    () async {
+      pending = Completer();
+      final prewarm = startPrewarm();
+      await pumpEventQueue();
+      expect(calls, hasLength(1));
 
-    var firstReady = false;
-    var secondReady = false;
-    final first = WebViewEnvironmentHolder.initialize().then((_) {
-      firstReady = true;
-    });
-    final second = WebViewEnvironmentHolder.initialize().then((_) {
-      secondReady = true;
-    });
-    await pumpEventQueue();
-    expect(firstReady, isFalse);
-    expect(secondReady, isFalse);
+      var firstReady = false;
+      var secondReady = false;
+      final first = WebViewEnvironmentHolder.initialize().then((_) {
+        firstReady = true;
+      });
+      final second = WebViewEnvironmentHolder.initialize().then((_) {
+        secondReady = true;
+      });
+      await pumpEventQueue();
+      expect(firstReady, isFalse);
+      expect(secondReady, isFalse);
 
-    pending!.complete(_ok);
-    await prewarm;
-    await Future.wait([first, second]);
-    expect(firstReady, isTrue);
-    expect(secondReady, isTrue);
-    expect(calls, hasLength(1));
-    expect(WebViewEnvironmentHolder.environment, isNull);
-  });
+      pending!.complete(_ok);
+      await prewarm;
+      await Future.wait([first, second]);
+      expect(firstReady, isTrue);
+      expect(secondReady, isTrue);
+      expect(calls, hasLength(1));
+      expect(WebViewEnvironmentHolder.environment, isNull);
+    },
+  );
 
-  test('a failed prewarm releases Android creation without an environment', () async {
-    pending = Completer();
-    final prewarm = startPrewarm();
-    final errorObserved = expectLater(prewarm, throwsStateError);
-    await pumpEventQueue();
-    expect(calls, hasLength(1));
-    final creation = WebViewEnvironmentHolder.initialize();
+  test(
+    'a failed prewarm releases Android creation without an environment',
+    () async {
+      pending = Completer();
+      final prewarm = startPrewarm();
+      final errorObserved = expectLater(prewarm, throwsStateError);
+      await pumpEventQueue();
+      expect(calls, hasLength(1));
+      final creation = WebViewEnvironmentHolder.initialize();
 
-    pending!.completeError(StateError('provider unavailable'));
-    await errorObserved;
-    await expectLater(creation, completes);
-    expect(WebViewEnvironmentHolder.environment, isNull);
-  });
+      pending!.completeError(StateError('provider unavailable'));
+      await errorObserved;
+      await expectLater(creation, completes);
+      expect(WebViewEnvironmentHolder.environment, isNull);
+    },
+  );
 
   test('a null native result is nonfatal for Android creation', () async {
     pending = Completer();
