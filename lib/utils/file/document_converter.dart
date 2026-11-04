@@ -265,18 +265,22 @@ Future<DocumentFormat?> _sniffFormat(File file) async {
       (isBinaryContainerHeader(window) ? null : DocumentFormat.txt);
 }
 
-/// קריאות txt פעילות לפי נתיב: כל קישור מפרש לספר אישי קורא את הקובץ כולו,
-/// ובלי צירוף כל פריט גלוי פותח isolate משלו לאותו קובץ.
-final Map<String, Future<String>> _plainTextReadsInFlight = {};
+/// קריאות txt פעילות לפי נתיב וחותמת הקובץ: כל קישור קורא את הקובץ כולו,
+/// ולכן קישורים לאותה גרסה חולקים קריאה ופענוח.
+final Map<(String, int, DateTime, DateTime), Future<String>>
+_plainTextReadsInFlight = {};
 
-Future<String> _readPlainTextFile(File file) {
-  final path = file.path;
+Future<String> _readPlainTextFile(File file) async {
+  final path = await file.resolveSymbolicLinks();
+  final resolvedFile = File(path);
+  final stat = await resolvedFile.stat();
+  final key = (path, stat.size, stat.modified, stat.changed);
   // גוף בלוק: remove מחזיר את ה-Future עצמו, ו-whenComplete היה ממתין לו.
-  return _plainTextReadsInFlight[path] ??=
+  return _plainTextReadsInFlight[key] ??=
       _readPlainTextFileOnce(
-        file,
+        resolvedFile,
       ).whenComplete(() {
-        _plainTextReadsInFlight.remove(path);
+        _plainTextReadsInFlight.remove(key);
       });
 }
 
