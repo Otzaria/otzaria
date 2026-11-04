@@ -403,4 +403,81 @@ void main() {
       });
     }
   });
+
+  // q12 Q8: בחלון נמוך (טלפון לרוחב, חלון שטוח) הגובה הוא האילוץ, בכל רוחב.
+  group('חלון נמוך', () {
+    Future<Size> surfaceOf(
+      WidgetTester tester,
+      Size window,
+      AppDialogSize size,
+    ) async {
+      tester.view.physicalSize = window;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const surface = Key('surface');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: AppDialogFrame(
+              title: 'חיפוש בספרייה',
+              icon: FluentIcons.search_24_regular,
+              size: size,
+              surfaceKey: surface,
+              child: const SizedBox(height: 800),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      return tester.getSize(find.byKey(surface));
+    }
+
+    testWidgets('640×360: large במסך מלא', (tester) async {
+      expect(
+        await surfaceOf(tester, const Size(640, 360), AppDialogSize.large),
+        const Size(640, 360),
+      );
+    });
+
+    testWidgets('640×360: medium נשאר צף', (tester) async {
+      final size = await surfaceOf(
+        tester,
+        const Size(640, 360),
+        AppDialogSize.medium,
+      );
+      expect(size.width, AppDialogSize.medium.width);
+      expect(size.height, lessThan(360));
+    });
+
+    // ב־844×390 (טלפון לרוחב, מעל 840) דיאלוג צף נחתך בתחתית.
+    for (final window in const [Size(844, 390), Size(1280, 440)]) {
+      testWidgets('${window.width.toInt()}×${window.height.toInt()}: large '
+          'ו-full במסך מלא', (tester) async {
+        for (final size in const [AppDialogSize.large, AppDialogSize.full]) {
+          expect(await surfaceOf(tester, window, size), window);
+        }
+      });
+    }
+
+    testWidgets('844×390: medium נשאר צף', (tester) async {
+      final size = await surfaceOf(
+        tester,
+        const Size(844, 390),
+        AppDialogSize.medium,
+      );
+      expect(size.width, AppDialogSize.medium.width);
+      expect(size.height, lessThan(390));
+    });
+
+    testWidgets('1024×600 (לא נמוך): large נשאר צף', (tester) async {
+      final size = await surfaceOf(
+        tester,
+        const Size(1024, 600),
+        AppDialogSize.large,
+      );
+      expect(size.width, AppDialogSize.large.width);
+      expect(size.height, lessThan(600));
+    });
+  });
 }
