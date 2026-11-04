@@ -11,6 +11,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -493,7 +494,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           decoration: InputDecoration(
             labelText: context.settingsText('כותרת'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -508,7 +509,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
             labelText: context.settingsText('תיאור'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -523,7 +524,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -536,7 +537,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
                 ? context.settingsText('דואר אלקטרוני')
                 : context.settingsText('דואר אלקטרוני (לא חובה)'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         AppReportImagesSection(
