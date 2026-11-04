@@ -182,7 +182,7 @@ class ContextMenuUtils {
           showCopyWithoutNikud(savedSelectedText))
         AppContextMenuEntry(
           label: 'העתק בלי ניקוד',
-          icon: FluentIcons.text_clear_formatting_24_regular,
+          icon: OtzariaIcons.alef_eraser_24_filled,
           onTap: onCopySelectedWithoutNikud,
         ),
       AppContextMenuEntry(

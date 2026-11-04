@@ -3038,7 +3038,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                   if (showCopyWithoutNikud(_selectedText))
                     AppContextMenuEntry(
                       label: 'העתק בלי ניקוד',
-                      icon: FluentIcons.text_clear_formatting_24_regular,
+                      icon: OtzariaIcons.alef_eraser_24_filled,
                       onTap: () => ContextMenuUtils.copyFormattedText(
                         context: menuCtx,
                         savedSelectedText: _selectedText,
