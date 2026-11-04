@@ -59,6 +59,39 @@ void main() {
     );
   });
 
+  // q12 Q8: בטלפון הרמז המלא נחתך ל"הקלד מילות חיפוש · ל...".
+  testWidgets('בשדה צר הרמז קצר, ודרך הצמצום בשורת העזר', (tester) async {
+    final tab = SearchingTab('חיפוש', 'בדיקה');
+    addTearDown(tab.dispose);
+    Future<InputDecoration?> decorationAt(double width) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider.value(
+            value: tab.searchBloc,
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: width,
+                  child: EnhancedSearchField(tab: tab, onSubmit: () {}),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return tester.widget<TextField>(find.byType(TextField)).decoration;
+    }
+
+    final narrow = await decorationAt(330);
+    expect(narrow?.hintText, 'הקלד מילות חיפוש');
+    expect(narrow?.helperText, 'לצמצום: מצה@רשי/פסחים');
+    expect(tester.takeException(), isNull);
+
+    final wide = await decorationAt(700);
+    expect(wide?.hintText, 'הקלד מילות חיפוש · לצמצום: מצה@רשי/פסחים');
+    expect(wide?.helperText, isNull);
+  });
+
   testWidgets('כפתור הניקוי בשדה הראשי תמיד מוצג ומאפס גם כשהשדה ריק', (
     tester,
   ) async {
