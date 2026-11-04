@@ -702,6 +702,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חיפוש רק בחמישה חומשי תורה': 'Search Chumash Only',
     'חיפוש רק בפסוקים שלמים': 'Only searching whole pesukim',
     'חיפוש...': 'Search...',
+    'חכם': 'Smart',
     'חל על הבדיקה האוטומטית של עדכוני התוכנה והספרייה בעליית התוכנה': 'Applies to the automatic check for system and library updates at startup',
     'חלון': 'Window',
     'חלון חדש': 'New window',
