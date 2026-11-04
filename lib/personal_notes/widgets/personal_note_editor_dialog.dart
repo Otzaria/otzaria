@@ -304,6 +304,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
               linkableNotes: widget.linkableNotes,
               onSaveShortcut: _submit,
               onCancelShortcut: _handleCancel,
+              escapeDismisses: true,
             ),
           ),
         ),
