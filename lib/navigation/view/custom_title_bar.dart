@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:otzaria/theme/layout_tokens.dart';
@@ -7,6 +6,7 @@ import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -330,10 +330,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                         ),
 
                         // כפתורי חלון (רק בדסקטופ)
-                        if (!kIsWeb &&
-                            (Platform.isWindows ||
-                                Platform.isLinux ||
-                                Platform.isMacOS))
+                        if (DeviceChrome.hasWindowCaption)
                           SizedBox(
                             height: _kTopBarHeight,
                             child: Row(
