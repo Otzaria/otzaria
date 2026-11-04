@@ -436,6 +436,29 @@ Future<void> main() async {
     );
 
     testWidgets(
+      'מצב מתקדם שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #4078)',
+      (tester) async {
+        SearchDefaults.saveModeDefault(SearchMode.advanced);
+        SearchDefaults.saveDistanceDefault(10);
+        addTearDown(() => SearchDefaults.saveModeDefault(SearchMode.exact));
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+          content: const ['ההכנה לשבת'],
+        );
+
+        await harness.type('הכנ');
+        await harness.settle();
+
+        expect(repository.requests, isEmpty);
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+        expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
       'מרווח ו"בכל סדר" שמורים: החזרת מצב ה-bloc אינה מחזירה מילה אחת למנוע',
       (tester) async {
         SearchDefaults.saveDistanceDefault(3);

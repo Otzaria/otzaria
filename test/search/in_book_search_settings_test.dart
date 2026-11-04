@@ -41,12 +41,13 @@ Future<void> main() async {
       );
     });
 
-    test('advanced and fuzzy modes do not run as a simple search', () {
+    test('advanced mode without additions runs as a simple search, fuzzy does '
+        'not (issue #4078)', () {
       expect(
         const InBookSearchSettings(
           searchMode: SearchMode.advanced,
         ).isSimpleSearch,
-        isFalse,
+        isTrue,
       );
       expect(
         const InBookSearchSettings(searchMode: SearchMode.fuzzy).requiresEngine,
