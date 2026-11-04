@@ -57,17 +57,24 @@ class AppCard extends StatelessWidget {
   static const double sectionSpacing = 1.5;
 
   /// צורת הכרטיס: פינות 8 ומסגרת `outlineVariant`, וב-[active] מסגרת
-  /// הבחירה ([AppSurfaces.multiSelectedBorder], 1.5).
-  static ShapeBorder shape(ColorScheme cs, {bool active = false}) =>
-      RoundedRectangleBorder(
-        borderRadius: AppTokens.borderRadiusAll,
-        side: active
-            ? BorderSide(
-                color: AppSurfaces.multiSelectedBorder(cs),
-                width: AppTokens.multiSelectedBorderWidth,
-              )
-            : BorderSide(color: cs.outlineVariant),
-      );
+  /// הבחירה ([AppSurfaces.multiSelectedBorder], 1.5). [selectedBorder] —
+  /// המסגרת של כרטיס נבחר ([AppSurfaces.selectedBorder], רק ב"לבן" בבהיר).
+  static ShapeBorder shape(
+    ColorScheme cs, {
+    bool active = false,
+    Color? selectedBorder,
+  }) => RoundedRectangleBorder(
+    borderRadius: AppTokens.borderRadiusAll,
+    side: active
+        ? BorderSide(
+            color: AppSurfaces.multiSelectedBorder(cs),
+            width: AppTokens.multiSelectedBorderWidth,
+          )
+        : BorderSide(
+            color: selectedBorder ?? cs.outlineVariant,
+            width: AppTokens.borderThin,
+          ),
+  );
 
   final Widget? child;
   final List<Widget>? children;
@@ -81,7 +88,8 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   /// רקע [AppSurfaces.selectedRow] במקום רקע הטון. נצבע על ה-Material, כדי
-  /// שהריחוף והלחיצה של הכרטיס יצוירו מעליו.
+  /// שהריחוף והלחיצה של הכרטיס יצוירו מעליו. ב"לבן" בבהיר גם המסגרת
+  /// מתחלפת לקו הבחירה ([AppSurfaces.selectedBorder]).
   final bool selected;
 
   /// הפריט הפעיל ברשת כרטיסים (למשל שולחן העבודה הנוכחי): מסגרת הבחירה
@@ -116,7 +124,11 @@ class AppCard extends StatelessWidget {
 
   Widget _buildSingle(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final cardShape = shape(cs, active: active);
+    final cardShape = shape(
+      cs,
+      active: active,
+      selectedBorder: selected ? AppSurfaces.selectedBorder(context) : null,
+    );
     final (Color toneColor, Color? onColor) = switch (tone) {
       AppCardTone.normal => (AppSurfaces.card(context), null),
       AppCardTone.primary => (cs.primaryContainer, cs.onPrimaryContainer),

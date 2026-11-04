@@ -488,6 +488,23 @@ class _AnchoredMenu<T> extends StatelessWidget {
     final menuTheme = PopupMenuTheme.of(context);
     final count = route.items.length;
     final unit = 1.0 / (count + 1.5);
+    // ב"לבן" בבהיר הפריט הנבחר מסומן גם בקו למעלה ולמטה. בצדדים הוא נוגע
+    // במסגרת התפריט, ולכן שם אין קו שני.
+    final selectedBorder = AppSurfaces.selectedBorder(context);
+    Widget selected(Widget item) => selectedBorder == null
+        ? ColoredBox(color: theme.highlightColor, child: item)
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.highlightColor,
+              border: Border.symmetric(
+                horizontal: BorderSide(
+                  color: selectedBorder,
+                  width: AppTokens.borderThin,
+                ),
+              ),
+            ),
+            child: item,
+          );
     final width = CurveTween(curve: Interval(0.0, unit));
     final height = CurveTween(curve: Interval(0.0, unit * count));
 
@@ -497,9 +514,7 @@ class _AnchoredMenu<T> extends StatelessWidget {
       return FadeTransition(
         key: route.itemKeys[i],
         opacity: animation.drive(CurveTween(curve: opacity)),
-        child: i == selectedIndex
-            ? ColoredBox(color: theme.highlightColor, child: route.items[i])
-            : route.items[i],
+        child: i == selectedIndex ? selected(route.items[i]) : route.items[i],
       );
     }
 

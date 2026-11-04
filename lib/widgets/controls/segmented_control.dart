@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui' show clampDouble, lerpDouble;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
@@ -215,6 +217,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
   List<ButtonSegment<T>> _segments(
     List<SegmentOption<T>> shown, {
     required bool narrow,
+    bool markSelected = false,
   }) {
     final hasIcons =
         !narrow && options.any((o) => o.icon != null || o.rtlIcon != null);
@@ -224,12 +227,15 @@ class AppSegmentedControl<T> extends StatelessWidget {
             value: o.value,
             // בלי FittedBox: בתוך לחצן הוא פורס את הטקסט ברוחב מילה אחת,
             // ואז maxLines חותך אותו למילה הראשונה.
-            label: Text(
-              narrow ? o.shortLabel ?? o.label : o.label,
-              key: o.labelKey,
-              maxLines: maxLabelLines,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
+            label: _markIf(
+              markSelected && o.value == currentValue,
+              Text(
+                narrow ? o.shortLabel ?? o.label : o.label,
+                key: o.labelKey,
+                maxLines: maxLabelLines,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
             // תווית ארוכה נחתכת ב-ellipsis; הטולטיפ מציג אותה במלואה.
@@ -238,6 +244,9 @@ class AppSegmentedControl<T> extends StatelessWidget {
         )
         .toList();
   }
+
+  static Widget _markIf(bool mark, Widget label) =>
+      mark ? _SelectedSegmentMarker(child: label) : label;
 
   Widget _buildOptionIcon(SegmentOption<T> o) {
     if (o.rtlIcon != null) return RtlIcon(o.rtlIcon!, size: AppTokens.iconSM);
@@ -337,8 +346,27 @@ class AppSegmentedControl<T> extends StatelessWidget {
     required bool narrow,
   }) {
     final split = shown.length != options.length;
-    return SegmentedButton<T>(
-      segments: _segments(shown, narrow: narrow),
+    // "לבן" בבהיר: המקטע הנבחר מסומן גם בקו דק סביבו (q-white-selected).
+    final selectedBorder = AppSurfaces.selectedBorder(context);
+    final style = isFixed
+        ? _buttonStyle(context, cs).copyWith(
+            minimumSize: WidgetStateProperty.all(Size(0, height!)),
+            maximumSize: WidgetStateProperty.all(
+              Size(
+                double.infinity,
+                maxLabelLines > 1 ? double.infinity : height!,
+              ),
+            ),
+          )
+        : _buttonStyle(context, cs).copyWith(
+            visualDensity: VisualDensity.compact,
+          );
+    final button = SegmentedButton<T>(
+      segments: _segments(
+        shown,
+        narrow: narrow,
+        markSelected: selectedBorder != null,
+      ),
       // בשתי שורות הנבחר נמצא רק באחת מהן, והשנייה בלי בחירה.
       selected: {
         if (!split || shown.any((o) => o.value == currentValue)) currentValue,
@@ -355,19 +383,176 @@ class AppSegmentedControl<T> extends StatelessWidget {
         FluentIcons.checkmark_24_regular,
         size: AppTokens.iconSM,
       ),
-      style: isFixed
-          ? _buttonStyle(context, cs).copyWith(
-              minimumSize: WidgetStateProperty.all(Size(0, height!)),
-              maximumSize: WidgetStateProperty.all(
-                Size(
-                  double.infinity,
-                  maxLabelLines > 1 ? double.infinity : height!,
-                ),
-              ),
-            )
-          : _buttonStyle(context, cs).copyWith(
-              visualDensity: VisualDensity.compact,
-            ),
+      style: style,
     );
+    if (selectedBorder == null) return button;
+    return _SelectedSegmentFrame(
+      color: selectedBorder,
+      verticalInset: _tapTargetVerticalPadding(context, style) / 2,
+      child: button,
+    );
+  }
+
+  /// הריווח האנכי שה-SegmentedButton מוסיף לאזור המגע (MaterialTapTargetSize
+  /// .padded, ברירת המחדל בטלפון ובטאבלט): המקטעים ממלאים אותו, אבל המסגרת
+  /// שלו מצוירת בלעדיו. אותו חישוב כמו ב-_SegmentedButtonState.build של
+  /// Flutter. במחשב (shrinkWrap) הוא 0.
+  static double _tapTargetVerticalPadding(
+    BuildContext context,
+    ButtonStyle style,
+  ) {
+    final theme = Theme.of(context);
+    final themeStyle = theme.segmentedButtonTheme.style;
+    final tapTarget =
+        style.tapTargetSize ??
+        themeStyle?.tapTargetSize ??
+        theme.materialTapTargetSize;
+    if (tapTarget == MaterialTapTargetSize.shrinkWrap) return 0;
+    final dy =
+        (style.visualDensity ?? themeStyle?.visualDensity ?? theme.visualDensity)
+            .baseSizeAdjustment
+            .dy;
+    final padding =
+        (style.padding ?? themeStyle?.padding)?.resolve(const {}) ??
+        EdgeInsets.zero;
+    final fontSize =
+        (style.textStyle ?? themeStyle?.textStyle)
+            ?.resolve(const {})
+            ?.fontSize ??
+        theme.textTheme.labelLarge?.fontSize ??
+        20;
+    final buttonHeight = math.max(
+      fontSize + padding.vertical + dy * 2,
+      40 + dy,
+    );
+    return math.max(0, kMinInteractiveDimension + dy - buttonHeight);
+  }
+}
+
+/// מסמן את התווית של המקטע הנבחר, כדי ש-[_SelectedSegmentFrame] ימצא אותו.
+class _SelectedSegmentMarker extends SingleChildRenderObjectWidget {
+  const _SelectedSegmentMarker({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSelectedSegmentMarker();
+}
+
+class _RenderSelectedSegmentMarker extends RenderProxyBox {}
+
+/// קו דק סביב המקטע הנבחר, מעל המסגרת והמפרידים של SegmentedButton (שאינו
+/// מצייר מסגרת למקטע בודד). המקטע הוא ה-Material של הלחצן שמכיל את התווית
+/// המסומנת. הקו העליון והתחתון הם המסגרת המעוגלת של הבורר כולו, חתוכה
+/// לרוחב המקטע, ולכן במקטע שבקצה הפינות מעוגלות כמו הבורר. הצדדים הפנימיים
+/// על קו המפריד. [verticalInset]: ריווח אזור המגע מעל המסגרת ומתחתיה, שהמקטע
+/// ממלא והמסגרת לא.
+class _SelectedSegmentFrame extends SingleChildRenderObjectWidget {
+  const _SelectedSegmentFrame({
+    required this.color,
+    required this.verticalInset,
+    required super.child,
+  });
+
+  final Color color;
+  final double verticalInset;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSelectedSegmentFrame(color, verticalInset);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSelectedSegmentFrame renderObject,
+  ) {
+    renderObject
+      ..color = color
+      ..verticalInset = verticalInset;
+  }
+}
+
+class _RenderSelectedSegmentFrame extends RenderProxyBox {
+  _RenderSelectedSegmentFrame(this._color, this._verticalInset);
+
+  Color _color;
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  double _verticalInset;
+  set verticalInset(double value) {
+    if (value == _verticalInset) return;
+    _verticalInset = value;
+    markNeedsPaint();
+  }
+
+  RenderObject? _findMarker(RenderObject node) {
+    if (node is _RenderSelectedSegmentMarker) return node;
+    RenderObject? found;
+    node.visitChildren((c) => found ??= _findMarker(c));
+    return found;
+  }
+
+  /// המלבן של המקטע הנבחר, בקואורדינטות של הבורר.
+  Rect? _segmentRect() {
+    final marker = child == null ? null : _findMarker(child!);
+    RenderObject? node = marker?.parent;
+    while (node != null && node != this && node is! RenderPhysicalShape) {
+      node = node.parent;
+    }
+    if (node is! RenderPhysicalShape || !node.hasSize) return null;
+    return MatrixUtils.transformRect(
+      node.getTransformTo(this),
+      Offset.zero & node.size,
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final seg = _segmentRect();
+    if (seg == null) return;
+    const w = AppTokens.borderThin;
+    final r = Rect.fromLTRB(
+      seg.left,
+      seg.top + _verticalInset,
+      seg.right,
+      seg.bottom - _verticalInset,
+    ).shift(offset);
+    final control = Rect.fromLTRB(
+      offset.dx,
+      r.top,
+      offset.dx + size.width,
+      r.bottom,
+    );
+    final paint = Paint()
+      ..color = _color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w;
+    final atLeft = r.left <= control.left + w;
+    final atRight = r.right >= control.right - w;
+    final canvas = context.canvas
+      ..save()
+      ..clipRect(
+        Rect.fromLTRB(
+          atLeft ? control.left : r.left - w / 2,
+          control.top,
+          atRight ? control.right : r.right + w / 2,
+          control.bottom,
+        ),
+      )
+      ..drawRRect(
+        AppTokens.borderRadiusAll.toRRect(control.deflate(w / 2)),
+        paint,
+      );
+    if (!atLeft) {
+      canvas.drawLine(Offset(r.left, r.top), Offset(r.left, r.bottom), paint);
+    }
+    if (!atRight) {
+      canvas.drawLine(Offset(r.right, r.top), Offset(r.right, r.bottom), paint);
+    }
+    canvas.restore();
   }
 }
