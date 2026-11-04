@@ -263,8 +263,13 @@ class AboutSettingsTab extends StatelessWidget {
 
             const SizedBox(height: AppTokens.spaceMD),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // הקרדיט במסגרת שקטה: כרטיס פנימי וטקסט קטן, בלי למשוך את העין.
+            const AppCard(
+              tone: AppCardTone.inset,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceMD,
+                vertical: AppTokens.spaceSM,
+              ),
               child: _ZayitCredit(),
             ),
           ],
@@ -665,10 +670,13 @@ class _ZayitCreditState extends State<_ZayitCredit> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Text.rich(
       TextSpan(
-        style: AppTextStyles.settingSubtitle,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
         children: [
           const TextSpan(
             text:
