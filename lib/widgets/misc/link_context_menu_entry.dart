@@ -83,6 +83,21 @@ double previewFontSize(SettingsState settingsState, double? maxFontSize) =>
     ? settingsState.commentatorsFontSize
     : math.min(settingsState.commentatorsFontSize, maxFontSize);
 
+/// אורך הקידומת שנמדדת לבדיקת החיתוך — פי כמה ממה שנכנס בשורות החלונית.
+@visibleForTesting
+const int previewMeasurePrefixLength = 3000;
+
+/// קידומת [text] באורך [previewMeasurePrefixLength] לכל היותר, בלי לחתוך זוג
+/// surrogate.
+@visibleForTesting
+String previewMeasurePrefix(String text) {
+  if (text.length <= previewMeasurePrefixLength) return text;
+  var end = previewMeasurePrefixLength;
+  final last = text.codeUnitAt(end - 1);
+  if (last >= 0xD800 && last <= 0xDBFF) end--;
+  return text.substring(0, end);
+}
+
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
 /// מעוצב לפי הגדרות תצוגת המפרשים (גופן, ניקוד, טעמים).
 class LinkHoverPreviewContent extends StatefulWidget {
@@ -358,20 +373,32 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                                     : null,
                               ),
                             );
-                        final measureSpan = TextSpan(
-                          text: measureText,
-                          style: measureStyle,
-                        );
-                        final painter = TextPainter(
-                          text: measureSpan,
-                          strutStyle: exactLineHeightStrut(
-                            measureStyle,
-                            measureSpan,
-                          ),
-                          textDirection: TextDirection.rtl,
-                          textScaler: MediaQuery.textScalerOf(context),
-                          maxLines: maxContentLines,
-                        )..layout(maxWidth: constraints.maxWidth);
+                        TextPainter layoutMeasure(String text) {
+                          final span = TextSpan(
+                            text: text,
+                            style: measureStyle,
+                          );
+                          return TextPainter(
+                            text: span,
+                            strutStyle: exactLineHeightStrut(
+                              measureStyle,
+                              span,
+                            ),
+                            textDirection: TextDirection.rtl,
+                            textScaler: MediaQuery.textScalerOf(context),
+                            maxLines: maxContentLines,
+                          )..layout(maxWidth: constraints.maxWidth);
+                        }
+
+                        // Skia מעצב את כל הטקסט גם עם maxLines; קידומת שכבר חורגת
+                        // מספיקה, ורק אם היא לא חורגת מודדים את הטקסט המלא.
+                        final prefix = previewMeasurePrefix(measureText);
+                        var painter = layoutMeasure(prefix);
+                        if (!painter.didExceedMaxLines &&
+                            prefix.length < measureText.length) {
+                          painter.dispose();
+                          painter = layoutMeasure(measureText);
+                        }
                         // הפריסה מעגלת כל שורה לפיקסל שלם, ולכן הגובה והחיתוך
                         // נמדדים בשורות הפרוסות ולא ב-fontSize×height.
                         final truncated = painter.didExceedMaxLines;

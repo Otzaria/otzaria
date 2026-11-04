@@ -137,6 +137,7 @@ void main() {
     required String path2,
     double? maxFontSize,
     double? letterSpacing,
+    double width = 240,
   }) async {
     LibraryProviderManager.instance.seedMappingsForTesting(
       mapping: const {},
@@ -149,7 +150,7 @@ void main() {
           child: Scaffold(
             body: Center(
               child: SizedBox(
-                width: 240,
+                width: width,
                 child: DefaultTextStyle.merge(
                   style: TextStyle(letterSpacing: letterSpacing),
                   child: LinkHoverPreviewContent(
@@ -302,6 +303,62 @@ void main() {
       );
 
       expect(find.text('…'), findsOneWidget);
+    });
+  });
+
+  group('מדידת החיתוך על קידומת (issue #4158)', () {
+    testWidgets('שורה ארוכה מאוד מציגה "…"', (tester) async {
+      await pumpPreviewWithContent(
+        tester,
+        List.filled(4000, 'מילה').join(' '),
+        path2: 'מפרש ט',
+      );
+
+      expect(find.text('…'), findsOneWidget);
+    });
+
+    // ב-2 פיקסלים וברוחב 2000 נכנסות 200 מילים (1000 תווים) בשורה, כך שהקידומת
+    // כולה נכנסת בארבע שורות וההחלטה נופלת למדידת הטקסט המלא.
+    for (final sample in [
+      (words: 700, path2: 'מפרש י', truncated: false),
+      (words: 1000, path2: 'מפרש יא', truncated: true),
+    ]) {
+      testWidgets('קידומת שאינה חורגת — מודדים את המלא: $sample', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(2200, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final content = List.filled(sample.words, 'מילה').join(' ');
+        expect(content.length, greaterThan(previewMeasurePrefixLength));
+
+        await pumpPreviewWithContent(
+          tester,
+          content,
+          path2: sample.path2,
+          maxFontSize: 2,
+          width: 2000,
+        );
+
+        expect(
+          find.text('…'),
+          sample.truncated ? findsOneWidget : findsNothing,
+        );
+      });
+    }
+
+    test('previewMeasurePrefix אינו חוצה זוג surrogate', () {
+      final short = 'א' * previewMeasurePrefixLength;
+      expect(identical(previewMeasurePrefix(short), short), isTrue);
+
+      final split = '${'א' * (previewMeasurePrefixLength - 1)}😀תתת';
+      final prefix = previewMeasurePrefix(split);
+      expect(prefix.length, previewMeasurePrefixLength - 1);
+      expect(prefix.codeUnitAt(prefix.length - 1), 'א'.codeUnitAt(0));
+
+      final plain = 'א' * (previewMeasurePrefixLength + 10);
+      expect(previewMeasurePrefix(plain).length, previewMeasurePrefixLength);
     });
   });
 
