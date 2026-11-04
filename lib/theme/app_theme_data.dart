@@ -190,7 +190,7 @@ class AppThemeData {
       extensions: [
         menuMetrics,
         AppThemeVariantTheme(variant),
-        AppSurfaceColors.fromScheme(cs),
+        AppSurfaceColors.fromScheme(cs, variant: variant),
         AppDensity(isCompact: compactMenuMode),
       ],
     );

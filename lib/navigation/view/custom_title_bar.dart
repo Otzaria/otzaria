@@ -54,6 +54,24 @@ import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
+/// שורת הכותרת בסגנון הקריאה, ברקע הקריאה ובלי קו: בעיון עם כרטיסייה פתוחה
+/// ובחיפוש, כשהכרטיסיות ברצועה שבשורה והפעילה מתמזגת עם הקריאה. במצב
+/// "כרטיסיות בצד" אין בשורה כרטיסיות, והיא כרום כמו בכל מסך אחר (DD-18). בחלון
+/// צר הכרטיסיות חוזרות לשורה שנייה, ולכן גם הסגנון.
+///
+/// משותף לשורה עצמה ולצבע שורת הסטטוס ב-Android (`_EdgeToEdgeShell`).
+bool titleBarUsesReaderStyle(
+  BuildContext context, {
+  required Screen screen,
+  required bool hasOpenTabs,
+  required bool readingTabsOnSide,
+}) {
+  final showsReading =
+      screen == Screen.search || (screen == Screen.reading && hasOpenTabs);
+  final sideTabs = readingTabsOnSide && !WindowClass.of(context).isCompact;
+  return showsReading && !sideTabs;
+}
+
 class CustomTitleBar extends StatefulWidget {
   final VoidCallback? onReadingSettingsPressed;
   final bool isReadingSettingsPanelOpen;
@@ -250,15 +268,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
               (WindowFullscreenCubit cubit) => cubit.state,
             );
             final stackedTabs = _useStackedTabs(context, navState);
-            // במסך עיון ללא טאבים פתוחים אין תוכן קריאה אמיתי, ולכן המסגרת
-            // העליונה נצבעת כשאר מסכי הלוח (רקע לוח + גבול תחתון) במקום ברקע
-            // מסך העיון. בחיפוש תמיד קיים טאב, לכן נשאר בסגנון הקריאה.
-            final useReaderStyle =
-                navState.currentScreen == Screen.search ||
-                (navState.currentScreen == Screen.reading &&
-                    context.select(
-                      (TabsBloc bloc) => bloc.state.hasOpenTabs,
-                    ));
+            final useReaderStyle = titleBarUsesReaderStyle(
+              context,
+              screen: navState.currentScreen,
+              hasOpenTabs: context.select(
+                (TabsBloc bloc) => bloc.state.hasOpenTabs,
+              ),
+              readingTabsOnSide: settingsState.readingTabsOnSide,
+            );
             // ⚠️ **גובה אחד, בלי "גשר".** גרסה קודמת הוסיפה כאן חמשה
             // פיקסלים כדי שהכרטיסיה תוכל לצייר מתחת לעצמה, והתוצאה הייתה
             // ההפוכה: הסרגל התארך, התוכן נדחף למטה, והרצועה שבין הכרטיסיות
@@ -283,11 +300,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                           ? null
                           : Border(
                               bottom: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant
-                                    .withValues(alpha: 0.6),
-                                width: 1,
+                                color:
+                                    AppSurfaces.regionBorder(context) ??
+                                    AppSurfaces.subtleDivider(
+                                      Theme.of(context).colorScheme,
+                                    ),
                               ),
                             ),
                     ),

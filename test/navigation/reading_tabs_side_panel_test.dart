@@ -30,7 +30,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import '../helpers/memory_settings_cache.dart';
@@ -64,6 +64,7 @@ void main() {
     double width = 220,
     double textScale = 1.0,
     List<OpenedTab>? withTabs,
+    ThemeData? theme,
   }) async {
     tabs =
         withTabs ?? [_StubTab('ספר א'), _StubTab('ספר ב'), _StubTab('ספר ג')];
@@ -94,6 +95,7 @@ void main() {
           BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
         ],
         child: MaterialApp(
+          theme: theme,
           home: Builder(
             builder: (context) => MediaQuery(
               data: MediaQuery.of(
@@ -266,6 +268,19 @@ void main() {
       expect(edge().color, cs.outlineVariant, reason: 'collapsed=$collapsed');
       expect(edge().width, 1);
     }
+    // בערכת "לבן" בבהיר הקו כהה, כמו שאר קווי האזורים (#1939).
+    const white = AppSeedColors.white;
+    await pumpPanel(
+      tester,
+      theme: AppThemeData.light(
+        AppThemeData.createColorScheme(white, Brightness.light),
+        compactMenuMode: false,
+        variant: AppThemeVariant.ofSeed(white),
+      ),
+    );
+    final context = tester.element(find.byType(ReadingTabsSidePanel));
+    expect(edge().color, AppSurfaces.regionBorder(context));
+    expect(edge().color, Theme.of(context).colorScheme.onSurface);
     // הקו במנוחה הוא של העמודה; לידית אין קו שני לצדו.
     await pumpPanel(tester);
     expect(

@@ -39,11 +39,39 @@ void main() {
           final theme = _theme(seed, brightness);
           expect(
             theme.extension<AppSurfaceColors>(),
-            AppSurfaceColors.fromScheme(theme.colorScheme),
+            AppSurfaceColors.fromScheme(
+              theme.colorScheme,
+              variant: AppThemeVariant.ofSeed(seed),
+            ),
           );
         });
       }
     }
+
+    test('קו האזורים: כהה בערכת "לבן" בבהיר, ובשאר הערכות אין (#1939)', () {
+      for (final seed in [
+        AppSeedColors.defaultLight,
+        AppSeedColors.white,
+        AppSeedColors.grey,
+        AppSeedColors.parchment,
+        AppSeedColors.blue,
+      ]) {
+        for (final brightness in Brightness.values) {
+          final theme = _theme(seed, brightness);
+          final s = theme.extension<AppSurfaceColors>()!;
+          if (seed == AppSeedColors.white && brightness == Brightness.light) {
+            expect(s.regionBorder, theme.colorScheme.onSurface);
+            // כהה ונייטרלי: "שחור" ולא אפור.
+            final c = s.regionBorder!;
+            expect((c.r * 255).round(), lessThan(0x40));
+            expect(c.r, c.g);
+            expect(c.g, c.b);
+          } else {
+            expect(s.regionBorder, isNull, reason: '$seed $brightness');
+          }
+        }
+      }
+    });
 
     testWidgets('העטיפות ב-AppSurfaces קוראות את ההרחבה', (tester) async {
       for (final brightness in Brightness.values) {

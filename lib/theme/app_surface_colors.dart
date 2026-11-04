@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 
 /// רקעי המשטחים של ערכת הנושא, מחושבים פעם אחת מתוך [ColorScheme].
 ///
@@ -24,9 +25,14 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     required this.onWarning,
     required this.warningContainer,
     required this.onWarningContainer,
+    this.regionBorder,
   });
 
-  factory AppSurfaceColors.fromScheme(ColorScheme cs) {
+  /// [variant] — הערכה של הזרע שממנו נבנתה [cs] ([AppThemeVariant.ofSeed]).
+  factory AppSurfaceColors.fromScheme(
+    ColorScheme cs, {
+    AppThemeVariant variant = AppThemeVariant.standard,
+  }) {
     final isDark = cs.brightness == Brightness.dark;
     // בכהה הקריאה נייטרלית ולא נגזרת מהזרע, והלוחות בסולם ה-surface שלו
     // (DD-05).
@@ -69,6 +75,11 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       onWarning: tone(100, 20),
       warningContainer: tone(90, 30),
       onWarningContainer: tone(10, 90),
+      // "לבן" בבהיר: האזורים כמעט באותו לבן, ולכן קו כהה דק ביניהם, בסגנון
+      // Windows הקלאסי (#1939, ‏#2850).
+      regionBorder: variant == AppThemeVariant.white && !isDark
+          ? cs.onSurface
+          : null,
     );
   }
 
@@ -125,6 +136,12 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
   /// טקסט ואייקון על [warningContainer].
   final Color onWarningContainer;
 
+  /// הקו הדק (1) שמפריד בין אזורי החלון: שורת הכותרת ועמודת הכרטיסיות.
+  /// קיים רק בערכת "לבן" בבהיר, שבה
+  /// האזורים כמעט באותו צבע. `null` בכל ערכה אחרת: שם כל אזור שומר על
+  /// ההפרדה שלו (גוון, צל או קו בהיר), ולכן קוראים כותבים `regionBorder ??`.
+  final Color? regionBorder;
+
   @override
   AppSurfaceColors copyWith({
     Color? readerBackground,
@@ -142,6 +159,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     Color? onWarning,
     Color? warningContainer,
     Color? onWarningContainer,
+    Color? regionBorder,
   }) => AppSurfaceColors(
     readerBackground: readerBackground ?? this.readerBackground,
     panelBackground: panelBackground ?? this.panelBackground,
@@ -159,6 +177,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     onWarning: onWarning ?? this.onWarning,
     warningContainer: warningContainer ?? this.warningContainer,
     onWarningContainer: onWarningContainer ?? this.onWarningContainer,
+    regionBorder: regionBorder ?? this.regionBorder,
   );
 
   @override
@@ -184,6 +203,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       onWarning: l(onWarning, other.onWarning),
       warningContainer: l(warningContainer, other.warningContainer),
       onWarningContainer: l(onWarningContainer, other.onWarningContainer),
+      regionBorder: Color.lerp(regionBorder, other.regionBorder, t),
     );
   }
 
@@ -204,7 +224,8 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       other.warning == warning &&
       other.onWarning == onWarning &&
       other.warningContainer == warningContainer &&
-      other.onWarningContainer == onWarningContainer;
+      other.onWarningContainer == onWarningContainer &&
+      other.regionBorder == regionBorder;
 
   @override
   int get hashCode => Object.hash(
@@ -223,6 +244,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     onWarning,
     warningContainer,
     onWarningContainer,
+    regionBorder,
   );
 }
 
