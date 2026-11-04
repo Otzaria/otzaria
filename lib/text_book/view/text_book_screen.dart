@@ -144,6 +144,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   @override
   TextBookTab get readerTab => widget.tab;
+
+  /// האם חיצי הניווט נכנסו לסרגל בפריסה האחרונה. כשלא, הם בראש "עוד".
+  final _navPlacement = ReaderNavPlacement();
   final FocusNode textSearchFocusNode = FocusNode();
   final FocusNode navigationSearchFocusNode = FocusNode();
   final FocusNode altTitlesSearchFocusNode = FocusNode();
@@ -1056,6 +1059,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       center: widget.isInCombinedView
           ? _buildTitle(state, textAlign: TextAlign.center)
           : ReaderNavCenter(
+              placement: _navPlacement,
               title: _buildTitle(state, textAlign: TextAlign.center),
               prevMajorTooltip: 'הדף/פרק הקודם',
               prevMinorTooltip: 'הקטע הקודם',
@@ -1252,9 +1256,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               pluginContext: 'reader-text',
             ),
           ),
-          menuHeaderActions: widget.isInCombinedView
-              ? _buildNavigationActions()
-              : null,
+          // בתצוגה משולבת תמיד; אחרת רק כשארבעת החיצים לא נכנסו לסרגל.
+          menuHeaderActions: _buildNavigationActions(),
+          menuHeaderActionsVisible: widget.isInCombinedView
+              ? null
+              : () => !_navPlacement.arrowsInBar,
         ),
       ),
     );
