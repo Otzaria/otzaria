@@ -273,19 +273,24 @@ class PersonalNotesImportExportService {
     final raw = await file.readAsString();
     final decoded = jsonDecode(raw) as Map<String, dynamic>;
     final version = decoded['version'] as String? ?? '1.0';
-    if (!version.startsWith('2')) {
+    // קובץ גיבוי של האפליקציה (includes, 1.0 או 2.0) מקבץ הערות לפי ספר;
+    // קובץ ייצוא 1.0 שייך למערכת ההערות הקודמת.
+    if (!version.startsWith('2') && decoded['includes'] == null) {
       throw Exception('גרסת ייצוא לא נתמכת: $version');
     }
 
-    final notesJson = decoded['notes'] as List<dynamic>? ?? const [];
+    final notes = [
+      for (final item in decoded['notes'] as List<dynamic>? ?? const [])
+        if (item is Map<String, dynamic>)
+          for (final json in item['notes'] as List<dynamic>? ?? [item])
+            PersonalNote.fromJson(json as Map<String, dynamic>),
+    ];
     int inserted = 0;
     int updated = 0;
     int skipped = 0;
     int duplicated = 0;
 
-    for (final item in notesJson) {
-      if (item is! Map<String, dynamic>) continue;
-      final note = PersonalNote.fromJson(item);
+    for (final note in notes) {
       final existing = await _database.getNote(note.id);
 
       if (existing == null) {

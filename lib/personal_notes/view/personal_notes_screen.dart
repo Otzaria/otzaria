@@ -665,10 +665,16 @@ class _PersonalNotesManagerScreenState
     if (!mounted) return;
     if (strategy == null) return;
 
-    final summary = await _importExportService.importFromFile(
-      path: pickedPath,
-      strategy: strategy,
-    );
+    final NotesImportSummary summary;
+    try {
+      summary = await _importExportService.importFromFile(
+        path: pickedPath,
+        strategy: strategy,
+      );
+    } catch (e) {
+      UiSnack.showError(NotesMessages.importFailed(e));
+      return;
+    }
 
     if (!mounted) return;
     final libraryState = context.read<LibraryBloc>().state;
