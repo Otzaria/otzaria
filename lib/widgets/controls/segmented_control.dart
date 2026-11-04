@@ -76,10 +76,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
   /// [height] is a minimum and the control grows when a label wraps.
   final int maxLabelLines;
 
-  /// לחיצה על המקטע הנבחר קוראת ל-[onChanged] עם הערך שלו. לבורר שמסמן ערך
-  /// שנקבע אוטומטית, כדי שאפשר יהיה לקבוע אותו בלחיצה אחת.
-  final bool reselectable;
-
   /// הבורר בוחר במדידה את הפריסה הראשונה שבה כל התוויות נכנסות: שורה עם
   /// אייקונים ותוויות מלאות; שורה בלי אייקונים בתוויות הקצרות
   /// ([SegmentOption.shortLabel]); ורק כשגם זו נחתכת — שתי שורות (בארבעה:
@@ -98,7 +94,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
     this.showSelectedIcon = false,
     this.height,
     this.maxLabelLines = 1,
-    this.reselectable = false,
     this.twoRowsWhenClipped = false,
   });
 
@@ -348,18 +343,12 @@ class AppSegmentedControl<T> extends StatelessWidget {
       selected: {
         if (!split || shown.any((o) => o.value == currentValue)) currentValue,
       },
-      // SegmentedButton מדווח על לחיצה במקטע הנבחר רק כשמותרת בחירה ריקה, ואז
-      // כבחירה ריקה; הבורר נשאר מסומן, והלחיצה היא הערך הנוכחי. בשתי שורות
-      // בחירה ריקה מגיעה רק מלחיצה על הנבחר (בשורה השנייה אין נבחר), ולכן
-      // [reselectable] פועל שם כמו בשורה אחת.
-      emptySelectionAllowed: reselectable || split,
+      // בשתי שורות השורה בלי הנבחר היא בלי בחירה. בחירה ריקה מגיעה אז רק
+      // מלחיצה על הנבחר, והיא לא משנה דבר.
+      emptySelectionAllowed: split,
       expandedInsets: expandToFillWidth || split ? EdgeInsets.zero : null,
       onSelectionChanged: (Set<T> selection) {
-        if (selection.isNotEmpty) {
-          onChanged(selection.first);
-        } else if (reselectable) {
-          onChanged(currentValue);
-        }
+        if (selection.isNotEmpty) onChanged(selection.first);
       },
       showSelectedIcon: showSelectedIcon,
       selectedIcon: const Icon(

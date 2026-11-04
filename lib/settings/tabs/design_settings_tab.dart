@@ -294,7 +294,9 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.display',
                   title: context.settingsText('תצוגה'),
                   children: [
-                    SettingsSegmentedTile<bool>(
+                    // null: "אוטומטי", אין בחירה שמורה והצפיפות לפי החלון.
+                    // באמצע, כמו "מערכת" ו"אוטומטי" בשאר הבוררים במסך.
+                    SettingsSegmentedTile<bool?>(
                       icon: FluentIcons.column_triple_24_regular,
                       title: context.settingsText('צפיפות ממשק'),
                       options: [
@@ -306,6 +308,19 @@ class DesignSettingsTab extends StatelessWidget {
                           ),
                         ),
                         SegmentOption(
+                          value: null,
+                          label: context.settingsText('אוטומטי'),
+                          subtitle: context.settingsText(
+                            state.compactMenuModeFor(
+                                  isSmallWindow: AppDensity.isSmallWindow(
+                                    MediaQuery.sizeOf(context),
+                                  ),
+                                )
+                                ? 'כרגע מצומצם, לפי גודל החלון'
+                                : 'כרגע רגיל, לפי גודל החלון',
+                          ),
+                        ),
+                        SegmentOption(
                           value: true,
                           label: context.settingsText('מצומצם'),
                           subtitle: context.settingsText(
@@ -313,17 +328,9 @@ class DesignSettingsTab extends StatelessWidget {
                           ),
                         ),
                       ],
-                      // בלי בחירה: הצפיפות שבפועל, מצומצמת בחלון קטן.
-                      currentValue: state.compactMenuModeFor(
-                        isSmallWindow: AppDensity.isSmallWindow(
-                          MediaQuery.sizeOf(context),
-                        ),
-                      ),
-                      // בלי בחירה, לחיצה על המקטע המסומן קובעת אותו.
-                      subtitle: state.compactMenuModeIsSet
-                          ? null
-                          : context.settingsText('אוטומטי, לפי גודל החלון'),
-                      reselectable: !state.compactMenuModeIsSet,
+                      currentValue: state.compactMenuModeIsSet
+                          ? state.compactMenuMode
+                          : null,
                       onChanged: (value) {
                         context.read<SettingsBloc>().add(
                           UpdateCompactMenuMode(value),

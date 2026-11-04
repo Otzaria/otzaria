@@ -175,43 +175,6 @@ void main() {
     expect(find.text('חכם'), findsNothing);
   });
 
-  group('reselectable', () {
-    Future<List<int>> tapSelected(
-      WidgetTester tester,
-      bool reselectable,
-    ) async {
-      final calls = <int>[];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppSegmentedControl<int>(
-              options: const [
-                SegmentOption(value: 1, label: 'One'),
-                SegmentOption(value: 2, label: 'Two'),
-              ],
-              currentValue: 1,
-              onChanged: calls.add,
-              reselectable: reselectable,
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('One'));
-      await tester.pump();
-      await tester.tap(find.text('Two'));
-      await tester.pump();
-      return calls;
-    }
-
-    testWidgets('לחיצה על המקטע הנבחר מדווחת את הערך שלו', (tester) async {
-      expect(await tapSelected(tester, true), [1, 2]);
-    });
-
-    testWidgets('בלי reselectable לחיצה על המקטע הנבחר שקטה', (tester) async {
-      expect(await tapSelected(tester, false), [2]);
-    });
-  });
-
   // סקירה שלישית 4.11, q-ss7: 2×2 "רק כשממש קטן ויחתך חלק מהטקסט בכפתור".
   // בגופן הבדיקות כל אות ברוחב 14, והריווח 12 מכל צד: "Three" (70) נכנס
   // במקטע של 94 ומעלה.
@@ -366,11 +329,9 @@ void main() {
       semantics.dispose();
     });
 
-    testWidgets('reselectable ב-2×2: לחיצה על הנבחר מדווחת אותו, כמו בשורה', (
-      tester,
-    ) async {
+    testWidgets('ב-2×2 לחיצה על הנבחר שקטה, כמו בשורה', (tester) async {
       final calls = <int>[];
-      Widget control({required bool reselectable}) => MaterialApp(
+      Widget control() => MaterialApp(
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -378,7 +339,6 @@ void main() {
               child: AppSegmentedControl<int>(
                 expandToFillWidth: true,
                 twoRowsWhenClipped: true,
-                reselectable: reselectable,
                 options: [
                   for (final (i, label) in [
                     'One',
@@ -396,17 +356,10 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(control(reselectable: true));
+      await tester.pumpWidget(control());
       expect(rows, findsNWidgets(2));
-      // הנבחר בשורה השנייה; מקטע בשורה בלי בחירה מדווח את הערך שלו.
-      await tester.tap(find.text('Four'));
-      await tester.pump();
-      await tester.tap(find.text('One'));
-      await tester.pump();
-      expect(calls, [4, 1]);
-
-      calls.clear();
-      await tester.pumpWidget(control(reselectable: false));
+      // הנבחר בשורה השנייה, והשורה שלו מתירה בחירה ריקה: הלחיצה עליו לא
+      // מדווחת, ומקטע בשורה בלי בחירה מדווח את הערך שלו.
       await tester.tap(find.text('Four'));
       await tester.pump();
       await tester.tap(find.text('Two'));
