@@ -378,7 +378,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | **פוקוס פותח** | השדה הראשון. בדיאלוג אזהרה: כפתור הביטול. |
 | **פוקוס בסגירה** | חוזר לרכיב שפתח את הדיאלוג (`showDialogUntilTornDown` / `registerDialogFocusRestorer`). |
 | **Semantics** | ל־route יש `label` עם כותרת הדיאלוג. `AppDialogFrame` מספק אותו, ו־`Dialog` גולמי לא. |
-| **מובייל (<600, DD-16)** | `small`/`medium` ברוחב החלון פחות 16, ו־`large`/`full` במסך מלא עם X. הרצועה נשארת. ב־`small` אין X, ומ־`medium` ומעלה ה־X הוא שטח מגע של 48. |
+| **מובייל (<600, DD-16)** | `small`/`medium` ברוחב החלון פחות 16, ו־`large`/`full` במסך מלא עם X (בדסקטופ: מתחת לשורת הכותרת של החלון). הרצועה נשארת. ב־`small` אין X, ומ־`medium` ומעלה ה־X הוא שטח מגע של 48. |
 | **פתיחה** | תמיד דרך `showDialogUntilTornDown` (או העזרים שעוטפים אותו, כמו `showTwoActionsDialog`), כדי לשמור על הכיווניות של הפותח ועל ניקוי מסודר בסגירה. בהגדרות: `settingsDialogBuilder`. |
 
 **[אסור]** בקוד חדש:
