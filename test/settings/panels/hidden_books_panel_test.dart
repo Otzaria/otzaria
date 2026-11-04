@@ -418,6 +418,40 @@ void main() {
     );
   });
 
+  testWidgets('מעבר בין ספרים לקטגוריות מסנן את הרשימה שנפתחת', (
+    tester,
+  ) async {
+    await pump(tester, libraryLoader: () async => _nestedLibrary());
+    await tester.tap(find.text('פתח רשימה'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('הצג רק מוסתרים'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxListTile), findsNothing);
+    await tester.tap(find.text('קטגוריות'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxListTile), findsNothing);
+
+    await tester.tap(find.text('הצג את כל הקטגוריות'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.ancestor(
+        of: find.text('/תורה/פרשות'),
+        matching: find.byType(CheckboxListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('הצג רק מוסתרים'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxListTile), findsOneWidget);
+
+    await tester.tap(find.text('ספרים'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxListTile), findsOneWidget);
+    expect(find.text('ויקרא'), findsOneWidget);
+    expect(find.text('מוסתר דרך /תורה/פרשות'), findsOneWidget);
+  });
+
   testWidgets('הרשימה אינה מוצגת בגוף מסך ההגדרות (issue #1448)', (
     tester,
   ) async {
