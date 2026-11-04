@@ -3010,6 +3010,37 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return null;
   }
 
+  /// הצפיפות שנשלחה לתוספים ב-theme.changed האחרון; null לפני הראשון.
+  AppDensity? _pluginThemeDensity;
+
+  /// theme.changed לתוספים. ה-MaterialApp מתעדכן רק ב-frame הבא, כך
+  /// ש-Theme.of(context) עדיין מחזיר את הצבעים הישנים. לכן ה-payload נבנה
+  /// דטרמיניסטית מתוך [settings] (שכבר עדכני) ולא מ-Theme.
+  void _dispatchThemeChanged(SettingsState settings, AppDensity density) {
+    _pluginThemeDensity = density;
+    final brightness = settings.followSystemTheme
+        ? WidgetsBinding.instance.platformDispatcher.platformBrightness
+        : (settings.isDarkMode ? Brightness.dark : Brightness.light);
+    final isDark = brightness == Brightness.dark;
+    final seed = isDark ? settings.darkSeedColor : settings.seedColor;
+    PluginRuntimeDispatcher.instance.dispatchEvent(
+      'theme.changed',
+      buildThemePayloadFromScheme(
+        AppThemeData.createColorScheme(seed, brightness),
+        isDark: isDark,
+        density: density,
+      ),
+    );
+  }
+
+  /// הצפיפות שבפועל התהפכה: החלון עבר את הסף של [AppDensity.isSmallWindow],
+  /// או שההגדרה השתנתה. במקרה השני theme.changed כבר נשלח עם הצפיפות החדשה,
+  /// ולא נשלח שוב.
+  void _onEffectiveDensityChanged(AppDensity density) {
+    if (density == _pluginThemeDensity) return;
+    _dispatchThemeChanged(context.read<SettingsBloc>().state, density);
+  }
+
   @override
   Widget build(BuildContext context) {
     final Widget content = MultiBlocProvider(
@@ -3433,31 +3464,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       current.commentatorsFontFamily ||
                   previous.commentatorsFontSize !=
                       current.commentatorsFontSize ||
-                  previous.compactMenuMode != current.compactMenuMode;
+                  previous.compactMenuMode != current.compactMenuMode ||
+                  previous.compactMenuModeIsSet != current.compactMenuModeIsSet;
               if (isThemeChange) {
-                // ה-MaterialApp מתעדכן רק ב-frame הבא, כך ש-Theme.of(context)
-                // כאן עדיין מחזיר את הצבעים הישנים. לכן בונים את ה-payload
-                // דטרמיניסטית מתוך ה-state (שכבר עדכני) ולא מ-Theme.
-                final brightness = current.followSystemTheme
-                    ? WidgetsBinding
-                          .instance
-                          .platformDispatcher
-                          .platformBrightness
-                    : (current.isDarkMode ? Brightness.dark : Brightness.light);
-                final isDark = brightness == Brightness.dark;
-                final seed = isDark ? current.darkSeedColor : current.seedColor;
-                final colorScheme = AppThemeData.createColorScheme(
-                  seed,
-                  brightness,
-                );
-                final themePayload = buildThemePayloadFromScheme(
-                  colorScheme,
-                  isDark: isDark,
-                  density: AppDensity(isCompact: current.compactMenuMode),
-                );
-                PluginRuntimeDispatcher.instance.dispatchEvent(
-                  'theme.changed',
-                  themePayload,
+                _dispatchThemeChanged(
+                  current,
+                  AppDensity(
+                    isCompact: current.compactMenuModeFor(
+                      isSmallWindow: AppDensity.isSmallWindow(
+                        View.of(context).physicalSize /
+                            View.of(context).devicePixelRatio,
+                      ),
+                    ),
+                  ),
                 );
               }
             },
@@ -3989,8 +4008,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
           opacity: _initialContentReady ? 1.0 : 0.0,
           child: IgnorePointer(
             ignoring: !_initialContentReady,
-            // בחלון נמוך (טלפון לרוחב) הכרום בצפיפות קומפקטית (q12 Q8).
-            child: ShortWindowDensity(child: content),
+            // theme.changed גם כשהצפיפות מתהפכת עם גודל החלון, בלי שינוי
+            // בהגדרות.
+            child: AppDensityListener(
+              onChanged: _onEffectiveDensityChanged,
+              child: content,
+            ),
           ),
         ),
         if (_splashOverlayVisible)

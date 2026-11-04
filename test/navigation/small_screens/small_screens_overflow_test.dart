@@ -1,6 +1,7 @@
 // מסכים קטנים (q12 Q8, "מאמץ סביר"): המסכים העיקריים בחלון הראשי האמיתי,
 // בטלפון לאורך (320×568), בטלפון לרוחב (640×360) ובמחשב 10" (1024×600), בלי
-// גלישת RenderFlex ובלי חריגה אחרת.
+// גלישת RenderFlex ובלי חריגה אחרת. "צפיפות ממשק" נבחרה במפורש כ"רגיל", המצב
+// הצפוף ביותר: הבחירה נשמרת גם בחלון קטן ונמוך.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -13,6 +14,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/golden_fonts.dart';
@@ -37,7 +39,12 @@ Future<void> _pump(WidgetTester tester, SmallScreen screen, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final wrap = smallScreenProviders(tester, screen: screen, size: size);
+  final wrap = smallScreenProviders(
+    tester,
+    screen: screen,
+    size: size,
+    compactMenuMode: false,
+  );
   final cs = AppThemeData.createColorScheme(
     AppSeedColors.defaultLight,
     Brightness.light,
@@ -82,6 +89,14 @@ void main() {
           await _pump(tester, screen, size);
           expect(tester.takeException(), isNull);
           expect(find.byType(MainWindowScreen), findsOneWidget);
+          final topBar = find.byType(AppTopBar);
+          if (topBar.evaluate().isNotEmpty) {
+            expect(
+              AppDensity.of(tester.element(topBar.first)).isCompact,
+              isFalse,
+              reason: '"רגיל" מפורש נשמר גם בחלון נמוך',
+            );
+          }
         });
       }
 

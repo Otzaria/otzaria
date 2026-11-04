@@ -600,9 +600,11 @@ class SettingsRepository {
         keyPersonalNotesCollapsedByDefault,
         defaultValue: true,
       ),
-      'compactMenuMode': _settings.getValue<bool>(
+      // null: המשתמש לא בחר, והצפיפות לפי גודל החלון
+      // (SettingsState.compactMenuModeFor).
+      'compactMenuMode': _settings.getValue<bool?>(
         keyCompactMenuMode,
-        defaultValue: false,
+        defaultValue: null,
       ),
       'autoSync': _settings.getValue<bool>(keyAutoSync, defaultValue: true),
       'updateCheckFrequency': _settings.getValue<String>(

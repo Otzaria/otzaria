@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -288,38 +288,49 @@ class DesignSettingsTab extends StatelessWidget {
                   ],
                 ),
 
-                // צפיפות תצוגה (רק בדסקטופ)
-                if (!Platform.isAndroid && !Platform.isIOS) ...[
-                  SettingsCard(
-                    cardId: 'design.display',
-                    title: context.settingsText('תצוגה'),
-                    children: [
-                      SettingsSegmentedTile<bool>(
-                        icon: FluentIcons.column_triple_24_regular,
-                        title: context.settingsText('צפיפות ממשק'),
-                        options: [
-                          SegmentOption(
-                            value: false,
-                            label: context.settingsText('רגיל'),
-                            subtitle: context.settingsText(
-                              'הצג פריטים במרווחים נוחים ללחיצה',
-                            ),
+                // "צפיפות ממשק" גם בטלפון: שם היא מצומצמת כברירת מחדל, והבחירה
+                // ב"רגיל" נשמרת (DD-15). "מיקום הכרטיסיות" רק במחשב.
+                SettingsCard(
+                  cardId: 'design.display',
+                  title: context.settingsText('תצוגה'),
+                  children: [
+                    SettingsSegmentedTile<bool>(
+                      icon: FluentIcons.column_triple_24_regular,
+                      title: context.settingsText('צפיפות ממשק'),
+                      options: [
+                        SegmentOption(
+                          value: false,
+                          label: context.settingsText('רגיל'),
+                          subtitle: context.settingsText(
+                            'הצג פריטים במרווחים נוחים ללחיצה',
                           ),
-                          SegmentOption(
-                            value: true,
-                            label: context.settingsText('מצומצם'),
-                            subtitle: context.settingsText(
-                              'הצג יותר תוכן על ידי הקטנת המרווחים',
-                            ),
+                        ),
+                        SegmentOption(
+                          value: true,
+                          label: context.settingsText('מצומצם'),
+                          subtitle: context.settingsText(
+                            'הצג יותר תוכן על ידי הקטנת המרווחים',
                           ),
-                        ],
-                        currentValue: state.compactMenuMode,
-                        onChanged: (value) {
-                          context.read<SettingsBloc>().add(
-                            UpdateCompactMenuMode(value),
-                          );
-                        },
+                        ),
+                      ],
+                      // בלי בחירה: הצפיפות שבפועל, מצומצמת בחלון קטן.
+                      currentValue: state.compactMenuModeFor(
+                        isSmallWindow: AppDensity.isSmallWindow(
+                          MediaQuery.sizeOf(context),
+                        ),
                       ),
+                      // בלי בחירה, לחיצה על המקטע המסומן קובעת אותו.
+                      subtitle: state.compactMenuModeIsSet
+                          ? null
+                          : context.settingsText('אוטומטי, לפי גודל החלון'),
+                      reselectable: !state.compactMenuModeIsSet,
+                      onChanged: (value) {
+                        context.read<SettingsBloc>().add(
+                          UpdateCompactMenuMode(value),
+                        );
+                      },
+                    ),
+                    if (!DeviceChrome.isMobile)
                       SettingsSegmentedTile<String>(
                         rtlIcon: FluentIcons.panel_left_24_regular,
                         title: context.settingsText('מיקום הכרטיסיות'),
@@ -346,9 +357,8 @@ class DesignSettingsTab extends StatelessWidget {
                           );
                         },
                       ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
 
                 SettingsCard(
                   cardId: 'design.pdf',

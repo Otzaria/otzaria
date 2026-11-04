@@ -290,6 +290,54 @@ void main() {
       });
     });
 
+    // q12 Q8 (4.11): "לא נבחר" נבדל מ"רגיל", כדי שבמסך קטן ברירת המחדל
+    // תהיה מצומצמת ובחירה מפורשת תישמר.
+    group('צפיפות ממשק: בחירה מפורשת', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'בלי מפתח שמור אין בחירה; ערך שמור (גם "רגיל") הוא בחירה',
+        build: () {
+          when(mockRepository.loadSettings()).thenAnswer(
+            (_) async => {...mockSettings, 'compactMenuMode': false},
+          );
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) {
+          expect(bloc.state.compactMenuMode, isFalse);
+          expect(bloc.state.compactMenuModeIsSet, isTrue);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בטעינה בלי מפתח: compactMenuModeIsSet כבוי',
+        build: () {
+          when(
+            mockRepository.loadSettings(),
+          ).thenAnswer((_) async => mockSettings);
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) => expect(bloc.state.compactMenuModeIsSet, isFalse),
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בחירה ב"רגיל" נשמרת ומסומנת כבחירה',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateCompactMenuMode(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            compactMenuMode: false,
+            compactMenuModeIsSet: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateCompactMenuMode(false)).called(1);
+        },
+      );
+    });
+
     group('UpdateDarkMode', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateDarkMode is added',

@@ -71,6 +71,10 @@ class AppSegmentedControl<T> extends StatelessWidget {
   /// [height] is a minimum and the control grows when a label wraps.
   final int maxLabelLines;
 
+  /// לחיצה על המקטע הנבחר קוראת ל-[onChanged] עם הערך שלו. לבורר שמסמן ערך
+  /// שנקבע אוטומטית, כדי שאפשר יהיה לקבוע אותו בלחיצה אחת.
+  final bool reselectable;
+
   const AppSegmentedControl({
     super.key,
     required this.options,
@@ -80,6 +84,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
     this.showSelectedIcon = false,
     this.height,
     this.maxLabelLines = 1,
+    this.reselectable = false,
   });
 
   /// מתחת לרוחב הזה למקטע (רוחב הבורר חלקי מספר המקטעים) המקטע צר: האייקונים
@@ -160,8 +165,15 @@ class AppSegmentedControl<T> extends StatelessWidget {
       segments: _segments(narrow: narrow),
       selected: {currentValue},
       expandedInsets: expandToFillWidth ? EdgeInsets.zero : null,
+      // SegmentedButton מדווח על לחיצה במקטע הנבחר רק כשמותרת בחירה ריקה, ואז
+      // כבחירה ריקה; הבורר נשאר מסומן, והלחיצה היא הערך הנוכחי.
+      emptySelectionAllowed: reselectable,
       onSelectionChanged: (Set<T> selection) {
-        if (selection.isNotEmpty) onChanged(selection.first);
+        if (selection.isNotEmpty) {
+          onChanged(selection.first);
+        } else if (reselectable) {
+          onChanged(currentValue);
+        }
       },
       showSelectedIcon: showSelectedIcon,
       selectedIcon: const Icon(
