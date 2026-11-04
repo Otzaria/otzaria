@@ -94,6 +94,7 @@ class GoogleCalendarRepository {
       );
 
       // Fetch events from all selected calendars with pagination.
+      var allCalendarsLoaded = true;
       for (final calendarId in calendarIds()) {
         try {
           String? pageToken;
@@ -119,10 +120,13 @@ class GoogleCalendarRepository {
             pageToken = result.nextPageToken;
           } while (pageToken != null);
         } catch (e) {
+          allCalendarsLoaded = false;
           // Continue with other calendars if one fails
           debugPrint('Failed to sync calendar $calendarId: $e');
         }
       }
+      // עותק פעיל עשוי להיות בלוח או בדף שנכשל; דוחים רק את המחיקות.
+      if (!allCalendarsLoaded) return merger.events;
       for (final MapEntry(key: series, value: calendarId)
           in merger.seriesToCheck.entries) {
         try {
