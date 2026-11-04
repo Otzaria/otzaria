@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
 import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
+import 'package:otzaria/utils/text/numeral_formats.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -221,7 +222,7 @@ class TextRendererService {
       if (_digitsOnlyRegex.hasMatch(trimmedInner)) {
         final subscript = innerHtml.trim().replaceAllMapped(
           _subscriptTextTokens,
-          (m) => _subscriptDigits[m[0]] ?? m[0]!,
+          (m) => subscriptDigits[m[0]] ?? m[0]!,
         );
         return _wrapWithBidiIsolate(subscript);
       }
@@ -231,20 +232,6 @@ class TextRendererService {
   }
 
   static final RegExp _subscriptTextTokens = RegExp(r'<[^>]*>|[0-9]');
-
-  /// מיפוי ספרה רגילה → ספרת-תחתית יוניקוד (U+2080–U+2089).
-  static const Map<String, String> _subscriptDigits = {
-    '0': '₀',
-    '1': '₁',
-    '2': '₂',
-    '3': '₃',
-    '4': '₄',
-    '5': '₅',
-    '6': '₆',
-    '7': '₇',
-    '8': '₈',
-    '9': '₉',
-  };
 
   static final RegExp _digitsOnlyRegex = RegExp(r'^[0-9]+$');
 
