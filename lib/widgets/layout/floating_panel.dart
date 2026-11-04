@@ -36,9 +36,12 @@ class FloatingPanel extends StatelessWidget {
       elevation: AppTokens.elevation2,
       shadowColor: AppShadows.color(cs),
       surfaceTintColor: Colors.transparent,
+      // "לבן": המסגרת בקו האזורים (#2850).
       shape: RoundedRectangleBorder(
         borderRadius: AppTokens.borderRadiusAll,
-        side: BorderSide(color: cs.outlineVariant),
+        side: BorderSide(
+          color: AppSurfaces.regionBorder(context) ?? cs.outlineVariant,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: content,

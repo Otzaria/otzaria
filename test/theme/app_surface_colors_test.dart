@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -48,7 +50,7 @@ void main() {
       }
     }
 
-    test('קו האזורים: כהה בערכת "לבן" בבהיר, ובשאר הערכות אין (#1939)', () {
+    test('קו האזורים: אפור בינוני בערכת "לבן" בבהיר, ובשאר הערכות אין', () {
       for (final seed in [
         AppSeedColors.defaultLight,
         AppSeedColors.white,
@@ -60,12 +62,28 @@ void main() {
           final theme = _theme(seed, brightness);
           final s = theme.extension<AppSurfaceColors>()!;
           if (seed == AppSeedColors.white && brightness == Brightness.light) {
-            expect(s.regionBorder, theme.colorScheme.onSurface);
-            // כהה ונייטרלי: "שחור" ולא אפור.
+            // 9F9F9F, אטום ונייטרלי (סקירת 4.11: "פחות כהים"; סבב שלישי:
+            // "9F, בהיר יותר").
             final c = s.regionBorder!;
-            expect((c.r * 255).round(), lessThan(0x40));
+            expect((c.r * 255).round(), 0x9F);
+            expect(c.a, 1);
             expect(c.r, c.g);
             expect(c.g, c.b);
+            // עדיין גלוי: ניגודיות 2.5:1 לפחות מול הסרגלים (FC) והקריאה.
+            // מתחת ל־3:1 בכוונה (הכרעת בעל הפרויקט): 2.58 ו־2.65.
+            double contrast(Color a, Color b) {
+              final la = a.computeLuminance(), lb = b.computeLuminance();
+              return (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
+            }
+
+            expect(
+              contrast(c, theme.colorScheme.surfaceContainerHigh),
+              greaterThanOrEqualTo(2.5),
+            );
+            expect(
+              contrast(c, s.readerBackground),
+              greaterThanOrEqualTo(2.5),
+            );
           } else {
             expect(s.regionBorder, isNull, reason: '$seed $brightness');
           }

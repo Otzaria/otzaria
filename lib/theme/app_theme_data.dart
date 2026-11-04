@@ -66,13 +66,16 @@ class AppThemeData {
   }
 
   static const Map<AppThemeVariant, List<Color>> _lightSurfaces = {
+    // "לבן" בסגנון Windows הקלאסי (#2850): הקריאה לבנה, והסרגלים, החלוניות
+    // והדיאלוגים כמעט לבנים (FC, לוח FA) במקום אפור (F1, לוח F5). ההפרדה
+    // בין האזורים היא קו כהה דק (AppSurfaceColors.regionBorder), לא הגוון.
     AppThemeVariant.white: [
       Colors.white,
       Colors.white,
-      Color(0xFFFAFAFA),
-      Color(0xFFF6F6F6),
-      Color(0xFFF1F1F1),
-      Color(0xFFECECEC),
+      Color(0xFFFEFEFE),
+      Color(0xFFFDFDFD),
+      Color(0xFFFCFCFC),
+      Color(0xFFF5F5F5),
     ],
     AppThemeVariant.parchment: [
       Color(0xFFF5EDDC),
@@ -140,6 +143,8 @@ class AppThemeData {
     final compactMenus = _usesCompactMenus(compactMenuMode);
     final menuBackground = _menuBackground(cs);
     final menuMetrics = AppMenuMetrics.create(compactMenus: compactMenus);
+    final surfaces = AppSurfaceColors.fromScheme(cs, variant: variant);
+    final regionBorder = surfaces.regionBorder;
 
     final theme = ThemeData(
       useMaterial3: true,
@@ -174,7 +179,7 @@ class AppThemeData {
         style: _hoverButtonStyle(cs, cs.primary),
       ),
       tabBarTheme: _tabBarTheme(cs),
-      tooltipTheme: _tooltipTheme(cs),
+      tooltipTheme: _tooltipTheme(cs, regionBorder: regionBorder),
       // פס גלילה: עובי קבוע גם בריחוף, כדי שהרצועה של AppScrollbar תכיל
       // אותו תמיד, ופינות בחצי העובי (q10 Q10).
       scrollbarTheme: const ScrollbarThemeData(
@@ -182,22 +187,28 @@ class AppThemeData {
         radius: Radius.circular(AppTokens.scrollbarThickness / 2),
         crossAxisMargin: AppTokens.scrollbarMargin,
       ),
-      dropdownMenuTheme: _dropdownMenuTheme(cs, menuMetrics),
+      dropdownMenuTheme: _dropdownMenuTheme(
+        cs,
+        menuMetrics,
+        regionBorder: regionBorder,
+      ),
       menuButtonTheme: _menuButtonTheme(cs, menuMetrics),
       popupMenuTheme: _popupMenuTheme(
         cs,
         backgroundColor: menuBackground,
         metrics: menuMetrics,
+        regionBorder: regionBorder,
       ),
       menuTheme: _menuTheme(
         cs,
         backgroundColor: menuBackground,
         metrics: menuMetrics,
+        regionBorder: regionBorder,
       ),
       extensions: [
         menuMetrics,
         AppThemeVariantTheme(variant),
-        AppSurfaceColors.fromScheme(cs, variant: variant),
+        surfaces,
         AppDensity(isCompact: compactMenuMode),
       ],
     );
@@ -205,7 +216,8 @@ class AppThemeData {
       dialogTheme: DialogThemeData(
         barrierColor: AppSurfaces.scrim(cs),
         backgroundColor: cs.surfaceContainerHigh,
-        shape: AppTokens.roundedShape,
+        // "לבן": מסגרת דקה סביב הדיאלוג (#2850).
+        shape: raisedShape(regionBorder),
         // כותרת דיאלוג היא titleLarge, כמו ב-AppDialogHeader (M3: headlineSmall).
         // גובה השורה בא מה-geometry, ש-Theme.of ממזג רק לתוך textTheme.
         titleTextStyle: theme.typography.englishLike.titleLarge
@@ -245,17 +257,29 @@ class AppThemeData {
     AppThemeVariant variant = AppThemeVariant.standard,
   }) => light(cs, compactMenuMode: compactMenuMode, variant: variant);
 
+  /// צורת משטח מוגבה (דיאלוג, תפריט): פינות 8, וב"לבן" בבהיר מסגרת בקו
+  /// האזורים ([AppSurfaceColors.regionBorder], ‏#2850). [regionBorder] null —
+  /// בלי מסגרת, כמו שהיה.
+  static RoundedRectangleBorder raisedShape(Color? regionBorder) =>
+      regionBorder == null
+      ? AppTokens.roundedShape
+      : RoundedRectangleBorder(
+          borderRadius: AppTokens.borderRadiusAll,
+          side: BorderSide(color: regionBorder, width: AppTokens.borderThin),
+        );
+
   static PopupMenuThemeData _popupMenuTheme(
     ColorScheme cs, {
     required Color backgroundColor,
     required AppMenuMetrics metrics,
+    required Color? regionBorder,
   }) {
     return PopupMenuThemeData(
       color: backgroundColor,
       surfaceTintColor: Colors.transparent,
       shadowColor: AppShadows.color(cs),
       elevation: AppTokens.elevation2,
-      shape: AppTokens.roundedShape,
+      shape: raisedShape(regionBorder),
       menuPadding: metrics.menuPadding,
       textStyle: TextStyle(
         fontFamily: uiFontFamily,
@@ -267,12 +291,19 @@ class AppThemeData {
     );
   }
 
-  static TooltipThemeData _tooltipTheme(ColorScheme cs) {
+  static TooltipThemeData _tooltipTheme(
+    ColorScheme cs, {
+    required Color? regionBorder,
+  }) {
     return TooltipThemeData(
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh,
         borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: cs.outlineVariant),
+        // "לבן": המסגרת בקו האזורים (#2850).
+        border: Border.all(
+          color: regionBorder ?? cs.outlineVariant,
+          width: AppTokens.borderThin,
+        ),
         boxShadow: AppShadows.floating(cs),
       ),
       textStyle: TextStyle(color: cs.onSurface),
@@ -282,13 +313,14 @@ class AppThemeData {
   static MenuStyle _menuStyle(
     ColorScheme cs,
     Color backgroundColor,
-    AppMenuMetrics metrics,
-  ) => MenuStyle(
+    AppMenuMetrics metrics, {
+    required Color? regionBorder,
+  }) => MenuStyle(
     backgroundColor: WidgetStatePropertyAll(backgroundColor),
     surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
     shadowColor: WidgetStatePropertyAll(AppShadows.color(cs)),
     elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
-    shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
+    shape: WidgetStatePropertyAll(raisedShape(regionBorder)),
     padding: WidgetStatePropertyAll(metrics.menuPadding),
     visualDensity: metrics.visualDensity,
   );
@@ -297,16 +329,23 @@ class AppThemeData {
     ColorScheme cs, {
     required Color backgroundColor,
     required AppMenuMetrics metrics,
+    required Color? regionBorder,
   }) {
     return MenuThemeData(
-      style: _menuStyle(cs, backgroundColor, metrics),
+      style: _menuStyle(
+        cs,
+        backgroundColor,
+        metrics,
+        regionBorder: regionBorder,
+      ),
     );
   }
 
   static DropdownMenuThemeData _dropdownMenuTheme(
     ColorScheme cs,
-    AppMenuMetrics metrics,
-  ) {
+    AppMenuMetrics metrics, {
+    required Color? regionBorder,
+  }) {
     return DropdownMenuThemeData(
       textStyle: TextStyle(
         fontFamily: uiFontFamily,
@@ -319,7 +358,12 @@ class AppThemeData {
         border: OutlineInputBorder(borderRadius: AppTokens.borderRadiusAll),
         isDense: true,
       ),
-      menuStyle: _menuStyle(cs, _menuBackground(cs), metrics),
+      menuStyle: _menuStyle(
+        cs,
+        _menuBackground(cs),
+        metrics,
+        regionBorder: regionBorder,
+      ),
     );
   }
 

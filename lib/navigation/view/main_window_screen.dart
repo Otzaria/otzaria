@@ -3887,9 +3887,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                   width: showRail ? 1 : 0,
                                                   child: !showRail
                                                       ? null
-                                                      : const VerticalDivider(
+                                                      // "לבן": קו האזורים (#2850).
+                                                      : VerticalDivider(
                                                           thickness: 1,
                                                           width: 1,
+                                                          color:
+                                                              AppSurfaces.regionBorder(
+                                                                context,
+                                                              ),
                                                         ),
                                                 ),
                                                 Expanded(

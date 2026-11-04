@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
@@ -138,6 +139,35 @@ void main() {
       }
       expect(white.surfaceContainerLow.r, lessThan(white.surface.r));
     });
+
+    test(
+      'הסרגלים, החלוניות והדיאלוגים לבנים כמעט, ועדיין נבדלים מהקריאה (#2850)',
+      () {
+        final cs = AppThemeData.createColorScheme(
+          AppSeedColors.white,
+          Brightness.light,
+        );
+        final s = AppSurfaceColors.fromScheme(cs);
+        int level(Color c) => (c.r * 255).round();
+        // סרגל עליון, חלונית הניווט, דיאלוג ותפריט (surfaceContainerHigh).
+        for (final (name, color) in [
+          ('topBar', s.topBarBackground),
+          ('navPanel', s.navPanelBackground),
+          ('surfaceContainerHigh', cs.surfaceContainerHigh),
+          ('panel', s.panelBackground),
+        ]) {
+          expect(level(color), greaterThanOrEqualTo(0xF6), reason: name);
+          expect(level(color), lessThan(0xFF), reason: '$name נבדל מהקריאה');
+        }
+        expect(level(cs.surfaceContainerHighest), greaterThanOrEqualTo(0xF0));
+        expect(s.readerBackground, Colors.white);
+        // נייטרלי: בלי גוון.
+        for (final c in [s.topBarBackground, s.panelBackground]) {
+          expect(c.r, c.g);
+          expect(c.g, c.b);
+        }
+      },
+    );
 
     test('במצב כהה הרקע נשאר כהה', () {
       final cs = AppThemeData.createColorScheme(

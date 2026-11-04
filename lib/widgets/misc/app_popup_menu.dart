@@ -862,7 +862,7 @@ class _AnchoredSearchMenuContentState<T>
             child: Material(
               elevation: AppTokens.elevation2,
               shadowColor: AppShadows.color(cs),
-              borderRadius: AppTokens.borderRadiusAll,
+              shape: AppSurfaces.raisedShape(context),
               color: menuColor,
               clipBehavior: Clip.antiAlias,
               child: Column(

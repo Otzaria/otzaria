@@ -52,6 +52,9 @@ class AppTokens {
   /// מסגרת כרטיסייה בבחירה מרובה.
   static const double multiSelectedBorderWidth = 1.5;
 
+  /// קו דק: מסגרת ומפריד, וקו האזורים של "לבן" (`AppSurfaceColors.regionBorder`).
+  static const double borderThin = 1;
+
   // ── Scrollbar — פס אנכי בימין הפיזי, ברצועה משלו (AppScrollbar) ——————
   /// עובי האגודל. הפינות חצי ממנו (q10 Q10).
   static const double scrollbarThickness = 8;
