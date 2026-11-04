@@ -333,13 +333,13 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
       right: resolved.right,
     );
 
-    // פאנל בשמאל → ידית בקצה ימין, פס גלילה נשאר בשמאל (ללא חפיפה).
-    // פאנל בימין → ידית בקצה שמאל; פס הגלילה חייב לעבור לימין.
-    final isLeft = _isLeft(context);
-
+    // הפס בקצה החיצוני, הרחק מהידית שבקצה הפנימי: פאנל בשמאל → פס בשמאל
+    // (חריג מתועד מהימין הקבוע, q10 Q17), פאנל בימין → פס בימין.
     final scrollableChild = PanelScrollableContent(
       padding: horizontalPadding,
-      scrollbarOnOppositeSide: !isLeft,
+      scrollbarSide: _isLeft(context)
+          ? ScrollbarOrientation.left
+          : ScrollbarOrientation.right,
       child: widget.child,
     );
 

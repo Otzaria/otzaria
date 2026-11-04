@@ -1,11 +1,12 @@
 // lib/widgets/layout/panel_scrollable_content.dart
 //
-// [PanelScrollableContent] — אזור תוכן גלילה עם Scrollbar מצמוד לקצה.
+// [PanelScrollableContent] — אזור תוכן גלילה עם פס גלילה צמוד לקצה.
 //
 // פטרן משותף לדיאלוגים ופאנלים:
-//  • Scrollbar מתפרס עד לגבול ה-widget (הקורא לא מוסיף padding אופקי כלפי חוץ)
-//  • crossAxisMargin: 2 — זהה ל-adaptive_side_pane, מרחק מקסימלי מהתוכן
-//  • [padding] מוחל בתוך ה-SingleChildScrollView — כולל המרווח לצד הגלילה
+//  • הפס ([AppScrollbar]) מתפרס עד לגבול ה-widget (הקורא לא מוסיף padding
+//    אופקי כלפי חוץ), בימין הפיזי או בצד [scrollbarSide]
+//  • [padding] מוחל בתוך ה-SingleChildScrollView, והרצועה של הפס מצטמצמת
+//    בריווח שכבר יש בצד שלו
 //
 // **שימוש:**
 // ```dart
@@ -19,6 +20,7 @@
 // ```
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 class PanelScrollableContent extends StatefulWidget {
   /// תוכן הגלילה.
@@ -28,9 +30,9 @@ class PanelScrollableContent extends StatefulWidget {
   /// ברירת מחדל: 16px אופקי — שמרחק זה הוא גם המרווח שמפריד בין הגלילה לתוכן.
   final EdgeInsetsGeometry padding;
 
-  /// מציג את פס הגלילה בצד ההפוך לכיוון הקריאה (ימין ב-RTL).
-  /// נדרש כשהקצה הטבעי של הגלילה מתנגש עם ידית שינוי-גודל של הפאנל.
-  final bool scrollbarOnOppositeSide;
+  /// הצד הפיזי של הפס. שמאל רק בחלונית שמשמאל לתוכן, שהידית שלה בקצה
+  /// הימני (ContextOverlayPanel).
+  final ScrollbarOrientation scrollbarSide;
 
   /// משאיר את פס הגלילה גלוי כל עוד יש תוכן לגלול, בלי להמתין לגרירה.
   /// נדרש היכן שהתוכן החתוך אינו נראה לעין (דיאלוג בחלון נמוך).
@@ -40,7 +42,7 @@ class PanelScrollableContent extends StatefulWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
-    this.scrollbarOnOppositeSide = false,
+    this.scrollbarSide = ScrollbarOrientation.right,
     this.thumbVisibility = false,
   });
 
@@ -59,45 +61,18 @@ class _PanelScrollableContentState extends State<PanelScrollableContent> {
 
   @override
   Widget build(BuildContext context) {
-    // מכבים את ה-Scrollbar האוטומטי של ScrollBehavior כדי שיישאר רק המפורש,
-    // אחרת בהיפוך הצד מתקבל פס כפול (מפורש בצד אחד, אוטומטי בשני).
-    final scrollView = ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+    final padding = widget.padding.resolve(Directionality.of(context));
+    return AppScrollbar(
+      controller: _scrollController,
+      side: widget.scrollbarSide,
+      thumbVisibility: widget.thumbVisibility,
+      contentInset: widget.scrollbarSide == ScrollbarOrientation.right
+          ? padding.right
+          : padding.left,
       child: SingleChildScrollView(
         controller: _scrollController,
         padding: widget.padding,
         child: widget.child,
-      ),
-    );
-
-    // crossAxisMargin:2 — זהה ל-adaptive_side_pane; צמוד לגבול עם רווח קל.
-    return ScrollbarTheme(
-      data: const ScrollbarThemeData(crossAxisMargin: 2),
-      child: widget.scrollbarOnOppositeSide
-          ? _buildOppositeSideScrollbar(context, scrollView)
-          : Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: widget.thumbVisibility,
-              child: scrollView,
-            ),
-    );
-  }
-
-  /// היפוך כיוון ה-Scrollbar בלבד כדי להצמידו לצד השני, תוך שמירת כיוון התוכן.
-  Widget _buildOppositeSideScrollbar(BuildContext context, Widget scrollView) {
-    final contentDirection = Directionality.of(context);
-    final scrollbarDirection = contentDirection == TextDirection.rtl
-        ? TextDirection.ltr
-        : TextDirection.rtl;
-    return Directionality(
-      textDirection: scrollbarDirection,
-      child: Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: widget.thumbVisibility,
-        child: Directionality(
-          textDirection: contentDirection,
-          child: scrollView,
-        ),
       ),
     );
   }

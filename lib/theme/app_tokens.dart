@@ -52,6 +52,20 @@ class AppTokens {
   /// מסגרת כרטיסייה בבחירה מרובה.
   static const double multiSelectedBorderWidth = 1.5;
 
+  // ── Scrollbar — פס אנכי בימין הפיזי, ברצועה משלו (AppScrollbar) ——————
+  /// עובי האגודל. הפינות חצי ממנו (q10 Q10).
+  static const double scrollbarThickness = 8;
+
+  /// המרחק בין האגודל לקצה של אזור הגלילה.
+  static const double scrollbarMargin = 2;
+
+  /// המרווח בין האגודל לתוכן.
+  static const double scrollbarContentGap = 2;
+
+  /// הרצועה שהפס שומר לעצמו כשיש מה לגלול.
+  static const double scrollbarGutter =
+      scrollbarMargin + scrollbarThickness + scrollbarContentGap;
+
   // ── Elevation (DD-12): 0 / 1 / 3 בלבד, הצל מ-AppShadows ——————————
   // כרטיס ומשטח רגיל: 0, עם מסגרת outlineVariant.
   /// סרגל עליון וחלונית מוצמדת.

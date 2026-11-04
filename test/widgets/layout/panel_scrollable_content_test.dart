@@ -37,17 +37,31 @@ void main() {
       expect(_scrollbar(tester).thumbVisibility, isTrue);
     });
 
-    testWidgets('גם בפס בצד ההפוך thumbVisibility נשמר', (tester) async {
+    testWidgets('גם בפס בצד שמאל thumbVisibility נשמר', (tester) async {
       await tester.pumpWidget(
         _wrap(
           const PanelScrollableContent(
-            scrollbarOnOppositeSide: true,
+            scrollbarSide: ScrollbarOrientation.left,
             thumbVisibility: true,
             child: SizedBox(height: 900),
           ),
         ),
       );
       expect(_scrollbar(tester).thumbVisibility, isTrue);
+      expect(
+        _scrollbar(tester).scrollbarOrientation,
+        ScrollbarOrientation.left,
+      );
+    });
+
+    testWidgets('ברירת מחדל: הפס בימין הפיזי', (tester) async {
+      await tester.pumpWidget(
+        _wrap(const PanelScrollableContent(child: SizedBox(height: 900))),
+      );
+      expect(
+        _scrollbar(tester).scrollbarOrientation,
+        ScrollbarOrientation.right,
+      );
     });
 
     testWidgets('התוכן נשאר גליל', (tester) async {

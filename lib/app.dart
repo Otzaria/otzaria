@@ -20,6 +20,7 @@ import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -69,6 +70,8 @@ class App extends StatelessWidget {
             ],
             locale: const Locale("he", "IL"),
             title: 'אוצריא',
+            // פס הגלילה בימין הפיזי, ברצועה משלו, בכל האפליקציה (AppScrollbar).
+            scrollBehavior: const EdgeScrollbarBehavior.right(),
             theme: AppThemeData.light(
               lightColorScheme,
               compactMenuMode: state.compactMenuMode,

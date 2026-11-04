@@ -811,8 +811,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
             onMove: (details) => _updateDragAutoScroll(details.offset),
             onLeave: (_) => _onDragEnded(),
             onAcceptWithDetails: (details) => _dropAtEndOfGroup(details.data),
+            // הרשת שומרת לפס רצועה קבועה משלה (kToolGridScrollbarGutter).
             builder: (context, _, _) => ScrollConfiguration(
-              behavior: const EdgeScrollbarBehavior.right(),
+              behavior: const EdgeScrollbarBehavior.right(reserveGutter: false),
               child: CustomScrollView(
                 controller: _gridScrollController,
                 slivers: _buildGridSlivers(
