@@ -1,22 +1,31 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
-/// ריווח משותף לעריכה ולתצוגה, בלי לשנות את העיצוב השמור בהערה.
+/// גובה השורה של הערה אישית, כמו בהערה בטקסט רגיל בכרטיס.
+const double personalNoteLineHeight = 1.5;
+
+/// סגנונות Quill של הערה אישית, מקור אחד לעורך, לתצוגה בכרטיס ולתצוגה
+/// המקדימה, כדי שההערה תיראה בעריכה כמו אחריה.
+///
+/// ברירת המחדל של Quill היא שורה 1.15, צפופה לטקסט עברי מנוקד. הכותרות וגובה
+/// שורה שהמשתמש בחר (`line-height`) נשארים של Quill.
 quill.DefaultStyles personalNoteStyles(BuildContext context) {
-  final styles = quill.DefaultStyles.getInstance(context);
-  return styles.merge(
+  final base = quill.DefaultStyles.getInstance(context);
+  final paragraph = base.paragraph!;
+  final lists = base.lists!;
+  return base.merge(
     quill.DefaultStyles(
-      paragraph: styles.paragraph!.copyWith(
-        style: styles.paragraph!.style.copyWith(height: 1.5),
+      paragraph: paragraph.copyWith(
+        style: paragraph.style.copyWith(height: personalNoteLineHeight),
       ),
-      lists: styles.lists!.copyWith(
-        style: styles.lists!.style.copyWith(height: 1.5),
+      lists: lists.copyWith(
+        style: lists.style.copyWith(height: personalNoteLineHeight),
       ),
-      quote: styles.quote!.copyWith(
-        style: styles.quote!.style.copyWith(height: 1.5),
+      quote: base.quote!.copyWith(
+        style: base.quote!.style.copyWith(height: personalNoteLineHeight),
       ),
-      placeHolder: styles.placeHolder!.copyWith(
-        style: styles.placeHolder!.style.copyWith(height: 1.5),
+      placeHolder: base.placeHolder!.copyWith(
+        style: base.placeHolder!.style.copyWith(height: personalNoteLineHeight),
       ),
     ),
   );

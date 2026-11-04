@@ -188,14 +188,15 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
           platform == TargetPlatform.android || platform == TargetPlatform.iOS;
       final useOwnMenu =
           widget.interactive && !hostHasOwnMenu && !useNativeTouchMenu;
+      // הסגנונות נגזרים מ-DefaultTextStyle של _withLinks, כמו ב-NoteDeltaPreview.
       Widget editor = Builder(
-        builder: (context) => quill.QuillEditor(
+        builder: (styleContext) => quill.QuillEditor(
           key: _editorKey,
           controller: controller,
           focusNode: _focusNode!,
           scrollController: _scrollController!,
           config: quill.QuillEditorConfig(
-            customStyles: personalNoteStyles(context),
+            customStyles: personalNoteStyles(styleContext),
             contextMenuBuilder: hostHasOwnMenu || useOwnMenu
                 ? (context, _) => const SizedBox.shrink()
                 : null,
