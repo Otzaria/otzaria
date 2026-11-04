@@ -32,6 +32,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
@@ -96,6 +97,8 @@ void main() {
     String query = 'כבוד אב',
     bool runOnFirstShow = true,
     bool preview = false,
+    bool? replaceHolyNames,
+    utils.HolyNameStyle? holyNameStyle,
     FakeResultsSource? injectedSource,
     double? paneWidth,
     bool platformSupported = true,
@@ -122,6 +125,8 @@ void main() {
       const Stream<SettingsState>.empty(),
       initialState: SettingsState.initial().copyWith(
         searchShowPreview: preview,
+        replaceHolyNames: replaceHolyNames,
+        holyNameStyle: holyNameStyle,
       ),
     );
     final navigation = _MockNavigationBloc();
@@ -343,6 +348,81 @@ void main() {
     expect(copied, contains('לפני הקטע הקרוב 2 אחרי'));
     expect(copied, isNot(contains('בלי סימון')));
     await tester.pump(const Duration(seconds: 7));
+  });
+
+  group('העתקה מחליפה שמות קודש לפי ההגדרה (issue #3954)', () {
+    // השם בן ארבע האותיות נבנה מקודי תווים, כדי שלא ייכתב בקובץ.
+    final name = String.fromCharCodes(const [0x05D9, 0x05D4, 0x05D5, 0x05D4]);
+    final vocalized = String.fromCharCodes(const [
+      0x05D9, 0x05B0, 0x05D4, 0x05D5, 0x05B8, 0x05D4, //
+    ]);
+    final split =
+        '<font color="red">${name.substring(0, 2)}</font>${name.substring(2)}';
+
+    for (final (style, expected) in <(utils.HolyNameStyle?, String)>[
+      (null, name),
+      (utils.HolyNameStyle.kufKuf, 'יקוק'),
+      (utils.HolyNameStyle.hehApostrophe, "ה'"),
+      (utils.HolyNameStyle.doubleYod, 'יי'),
+      (utils.HolyNameStyle.daletDalet, 'ידוד'),
+    ]) {
+      testWidgets(style?.name ?? 'החלפה כבויה', (tester) async {
+        final copied = <String?>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied.add((call.arguments as Map)['text'] as String?);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        final items = [
+          resultItem(1, html: 'ברוך $name לעולם'),
+          resultItem(2, html: 'ברוך $vocalized לעולם'),
+          resultItem(3, html: 'ברוך $split לעולם'),
+          resultItem(4, source: SemanticResultSource.semantic, html: 'בלי'),
+        ];
+        // הרביעי מוצג מהקטע שסומן לפי עניין, לא מהגזיר.
+        final source = FakeResultsSource(items: items)
+          ..highlighter = (items, _) async => markAll(
+            [
+              for (final item in items)
+                if (item.segment == 4) item,
+            ],
+            clause: name,
+          );
+        await pumpScreen(
+          tester,
+          injectedSource: source,
+          replaceHolyNames: style != null,
+          holyNameStyle: style,
+        );
+
+        for (var index = 0; index < items.length; index++) {
+          tester
+              .widget<SemanticResultCard>(
+                find.byKey(ValueKey('semantic-result-$index')),
+              )
+              .onCopy();
+          await settle(tester);
+        }
+
+        expect(copied, hasLength(items.length));
+        for (final text in copied) {
+          final letters = utils.removeVolwels(text!);
+          expect(letters, contains(expected));
+          if (style != null) expect(letters, isNot(contains(name)));
+        }
+        await tester.pump(const Duration(seconds: 7));
+      });
+    }
   });
 
   testWidgets('אהבתי, לחיצה חוזרת מבטלת; לא אהבתי', (tester) async {

@@ -390,7 +390,11 @@ class _SemanticSearchResultsScreenState
     SettingsState settings,
     String ref,
   ) {
-    final plainText = utils.stripHtmlIfNeeded(snippetHtml);
+    final plainText = CopyUtils.applyCopyPreferences(
+      text: utils.stripHtmlIfNeeded(snippetHtml),
+      replaceHolyNames: settings.replaceHolyNames,
+      holyNameStyle: settings.holyNameStyle,
+    );
     final bookName = settings.replaceHolyNames
         ? utils.replaceHolyNames(item.title, style: settings.holyNameStyle)
         : item.title;
