@@ -1483,7 +1483,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       canCopySelection: hasTextSelection && _isPdfCopyAllowed(),
       onSearchInBook: _ensureSearchTabIsActive,
       onSearchAllBooks: () => _searchAllBooksFromSelection(selection),
-      onCopySelection: _copyPdfTextSelection,
+      onCopySelection: () => unawaited(_copyPdfTextSelection()),
       onAddBookmark: () => _handleBookmarkPress(menuContext),
       onAddNote: () => _handleAddNotePress(menuContext),
     )..addAll(
@@ -1550,12 +1550,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
-  /// העתקת הטקסט המסומן דרך pdfrx — אותו מסלול שמפעיל Ctrl+C, והוא זה
-  /// שמכבד את הרשאת ההעתקה של המסמך.
-  void _copyPdfTextSelection() {
+  /// העתקת הטקסט המסומן, מהתפריט ומ-Ctrl+C. שני המסלולים מכבדים את הרשאת
+  /// ההעתקה של המסמך, ומציגים חיווי רק כשמשהו הועתק בפועל.
+  /// [keepSelection] — Ctrl+C משאיר את הבחירה, כמו בכל עורך; התפריט מנקה
+  /// אותה, כמו pdfrx.
+  Future<void> _copyPdfTextSelection({bool keepSelection = false}) async {
     final controller = widget.tab.pdfViewerController;
     if (!controller.isReady) return;
-    controller.textSelectionDelegate.copyTextSelection();
+    final selection = controller.textSelectionDelegate;
+    // בלי בחירה pdfrx היה כותב ללוח מחרוזת ריקה ודורס את תוכנו.
+    if (!selection.hasSelectedText) return;
+    if (keepSelection) {
+      if (!selection.isCopyAllowed) return;
+      final text = await selection.getSelectedText();
+      await Clipboard.setData(ClipboardData(text: text));
+    } else if (!await selection.copyTextSelection()) {
+      return;
+    }
+    UiSnack.show(CommonMessages.textCopied);
   }
 
   /// פתיחת יעד קישור מתפריט ההקשר. יעד השייך לתלמוד בבלי נפתח כ-PDF
@@ -1729,6 +1741,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           return false;
         }
         final keyboard = HardwareKeyboard.instance;
+        // צירופי Ctrl, כולל Ctrl+C ו-Ctrl+A, מטופלים בפוקוס החיצוני.
         if (keyboard.isAltPressed ||
             keyboard.isControlPressed ||
             keyboard.isMetaPressed) {
@@ -2055,6 +2068,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       source: widget.tab.book.source,
                     ),
                   );
+                }
+                return KeyEventResult.handled;
+              }
+              // Ctrl+C ו-Ctrl+A של הבחירה ב-PDF (#3776). כאן ולא ב-onKey של
+              // pdfrx: הוא מחזיר false לכל צירוף Ctrl כדי שיגיע לכאן, ו-pdfrx
+              // אינו רואה מקשים כלל כשהפוקוס על הצפיין ולא בתוכו.
+              if (ShortcutHelper.matchesShortcut(event, 'ctrl+c')) {
+                unawaited(_copyPdfTextSelection(keepSelection: true));
+                return KeyEventResult.handled;
+              }
+              if (ShortcutHelper.matchesShortcut(event, 'ctrl+a')) {
+                final controller = widget.tab.pdfViewerController;
+                if (controller.isReady) {
+                  unawaited(controller.textSelectionDelegate.selectAllText());
                 }
                 return KeyEventResult.handled;
               }
