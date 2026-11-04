@@ -16,6 +16,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
@@ -58,6 +61,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(identical(list(tester), before), isFalse);
+  });
+
+  // #2519: אין חסימה. הריחוף מציג את ההערה תמיד, גם כשלשונית ההערות פתוחה
+  // בחלונית הצד (התצוגה כבר לא יודעת אם היא פתוחה).
+  testWidgets('ריחוף על סימון הערה מציג את ההערה בחלונית צפה', (tester) async {
+    addTearDown(LinkPreviewOverlay.dismiss);
+    await _pumpView(tester, _notesState([_note()]));
+    await tester.pumpAndSettle();
+
+    tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((w) => w.onAnchorHover != null)
+        .onAnchorHover!('otzaria://note?line=0', const Offset(400, 100));
+    await tester.pump(AppTokens.hoverPreviewDelay);
+    await tester.pump();
+
+    expect(find.text('תוכן'), findsOneWidget);
   });
 }
 

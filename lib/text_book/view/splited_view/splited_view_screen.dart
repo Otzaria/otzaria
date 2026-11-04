@@ -586,8 +586,6 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                                 _currentTabIndex == kCommentaryTabIndex,
                             isLinksTabActive: () =>
                                 _paneOpen && _currentTabIndex == kLinksTabIndex,
-                            isPersonalNotesTabActive: () =>
-                                _paneOpen && _currentTabIndex == kNotesTabIndex,
                           ),
                         ),
                       ),

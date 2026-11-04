@@ -1167,8 +1167,6 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       openBookCallback: widget.openBookCallback,
       lines: widget.tab?.lines,
       isMainText: true,
-      isPersonalNotesTabActive:
-          _isLeftSidebarOpen && _leftSidebarTabIndex == kNotesTabIndex,
       isCommentatorsTabActive:
           _isLeftSidebarOpen && _leftSidebarTabIndex == kCommentaryTabIndex,
       isLinksTabActive:

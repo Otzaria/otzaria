@@ -122,7 +122,6 @@ class CombinedView extends StatefulWidget {
     this.onOpenLinksPane,
     this.isCommentatorsTabActive,
     this.isLinksTabActive,
-    this.isPersonalNotesTabActive,
     this.selectionSyncController,
   });
 
@@ -147,7 +146,6 @@ class CombinedView extends StatefulWidget {
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isCommentatorsTabActive;
   final bool Function()? isLinksTabActive;
-  final bool Function()? isPersonalNotesTabActive;
   final SelectionSyncController? selectionSyncController;
 
   @override
@@ -180,10 +178,6 @@ List<Link> buildCombinedViewContextMenuLinksForParagraph({
   paragraphIndex: paragraphIndex,
   queriedLinks: queriedLinks,
 );
-
-@visibleForTesting
-bool shouldShowPersonalNotePreview({required bool isPersonalNotesTabActive}) =>
-    !isPersonalNotesTabActive;
 
 /// מחזירה האם לשורה [index] יש מפרשים להצגה במצב "מפרשים מתחת".
 ///
@@ -641,13 +635,6 @@ class _CombinedViewState extends State<CombinedView> {
   void _handleAnchorHover(String url, Offset globalPosition) {
     if (url.startsWith('otzaria://note-marker')) {
       _handleNumberedNoteMarkerHover(url, globalPosition);
-      return;
-    }
-    if (url.startsWith('otzaria://note') &&
-        !shouldShowPersonalNotePreview(
-          isPersonalNotesTabActive:
-              widget.isPersonalNotesTabActive?.call() ?? false,
-        )) {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));

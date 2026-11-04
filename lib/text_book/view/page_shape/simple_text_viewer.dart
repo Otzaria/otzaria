@@ -428,7 +428,6 @@ class SimpleTextViewer extends StatefulWidget {
 
   /// repository לשמירת הערות מפרשים. ניתן להזרקה בבדיקות; בייצור נוצר ברירת מחדל.
   final PersonalNotesRepository? notesRepository;
-  final bool isPersonalNotesTabActive;
   final void Function(String bookId, int? categoryId, int lineNumber)?
   onOpenCommentaryPersonalNote;
 
@@ -480,7 +479,6 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenCommentaryPersonalNote,
     this.labelForIndex,
     this.notesRepository,
-    this.isPersonalNotesTabActive = false,
     this.isCommentatorsTabActive = false,
     this.isLinksTabActive = false,
     this.onOpenCommentatorsPane,
@@ -782,9 +780,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   void _handlePreviewHover(String url, Offset globalPosition) {
     if (url.startsWith('otzaria://note-marker')) {
       _handleNumberedNoteMarkerHover(url, globalPosition);
-      return;
-    }
-    if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
