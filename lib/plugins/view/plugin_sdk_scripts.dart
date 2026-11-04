@@ -85,14 +85,15 @@ const String _hostShortcutsJs = r'''
       window.flutter_inappwebview.callHandler('otzaria_escape_pressed');
     }
   }, true);
-  // שלב bubble: קיצור שהתוסף טיפל בו (preventDefault) נשאר שלו. בשדה עריכה
-  // מועברים רק הקיצורים הקבועים, כדי לא לגנוב קיצורי עריכה (Ctrl+K, Ctrl+H).
+  // שלב bubble שומר על preventDefault של התוסף. בשדה עריכה מועברים רק
+  // קיצורים קבועים וסגירת כרטיסייה, כדי לא לגנוב קיצורי עריכה (Ctrl+K, Ctrl+H).
   window.addEventListener('keydown', function (e) {
     if (!window.flutter_inappwebview || e.key === 'Escape') return;
     if (e.repeat || e.defaultPrevented) return;
     var match = window.__otzariaMatchHostShortcut(e, window.__otzariaHostShortcuts);
     if (!match) return;
-    if (match.id.indexOf('fixed:') !== 0 && window.__otzariaIsEditableTarget(e)) {
+    if (match.id.indexOf('fixed:') !== 0 &&
+        match.id !== 'key-shortcut-close-tab' && window.__otzariaIsEditableTarget(e)) {
       return;
     }
     e.preventDefault();

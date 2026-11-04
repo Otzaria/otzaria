@@ -106,7 +106,7 @@ void main() {
     },
   );
 
-  test('בשדה עריכה רק הקיצורים הקבועים מועברים (issue #1336)', () async {
+  test('קיצורי עריכה נשארים לתוסף וניווט קבוע מועבר (issue #1336)', () async {
     final shortcuts = PluginHostShortcuts.build({});
     final out = await runStub(shortcuts, [
       // Ctrl+K בעורך — קיצור עריכה של התוסף, לא החלפת שולחן עבודה.
@@ -152,6 +152,56 @@ void main() {
       'fixed:ctrl+tab',
     ]);
   });
+
+  for (final (label, shortcut, code, shift, isMac) in [
+    ('ברירת מחדל', 'ctrl+w', 'KeyW', false, false),
+    ('מותאם אישית', 'ctrl+shift+q', 'KeyQ', true, false),
+    ('Mac', 'ctrl+w', 'KeyW', false, true),
+  ]) {
+    test('סגירת כרטיסייה משדות עריכה — $label (issue #3942)', () async {
+      PluginHostShortcuts.isMacForTesting = isMac;
+      final shortcuts = PluginHostShortcuts.build({
+        'key-shortcut-close-tab': shortcut,
+      });
+      const targets = [
+        {'tagName': 'INPUT', 'type': 'text'},
+        {'tagName': 'TEXTAREA'},
+        {'tagName': 'DIV', 'isContentEditable': true},
+      ];
+      final out = await runStub(shortcuts, [
+        for (final target in targets)
+          for (final guard in const [
+            <String, Object>{},
+            {'pagePrevented': true},
+            {'repeat': true},
+          ])
+            {
+              'code': code,
+              'key': code == 'KeyW' ? 'w' : 'Q',
+              'ctrlKey': !isMac,
+              'metaKey': isMac,
+              'shiftKey': shift,
+              'target': target,
+              ...guard,
+            },
+      ]);
+      if (out == null) {
+        markTestSkipped('node אינו מותקן');
+        return;
+      }
+      expect(out['calls'], [
+        for (final _ in targets)
+          {'name': 'otzaria_host_shortcut', 'arg': 'key-shortcut-close-tab'},
+      ]);
+      expect(out['results'], [
+        for (final _ in targets) ...[
+          {'prevented': true, 'stopped': true},
+          {'prevented': false, 'stopped': false},
+          {'prevented': false, 'stopped': false},
+        ],
+      ]);
+    });
+  }
 
   test('קיצור שהתוסף טיפל בו בעצמו נשאר שלו (issue #1336)', () async {
     final shortcuts = PluginHostShortcuts.build({});
