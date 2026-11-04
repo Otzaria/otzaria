@@ -225,12 +225,12 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     // ממקם את פסי הגלילה בקצה החיצוני של הפאנל (הצמוד לדופן החלון) ולא בקצה
     // הפנימי, שם יושבת ידית הגרירה (ResizableDragHandle) וחוסמת את הלחיצה על
-    // הפס. בצד ימין של המסך הקצה החיצוני הוא ימין, ולהיפך.
+    // הפס. בצד ימין של המסך הקצה החיצוני הוא ימין, ולהיפך: פס בשמאל בחלונית
+    // שמשמאל לתוכן הוא חריג מתועד מהימין הקבוע (q10 Q17).
     final scrollbarWrapped = ScrollbarTheme(
-      data: ScrollbarThemeData(
-        crossAxisMargin: 2,
-        mainAxisMargin: widget.scrollbarTopMargin ?? _kWideTopGap,
-      ),
+      data: ScrollbarTheme.of(
+        context,
+      ).copyWith(mainAxisMargin: widget.scrollbarTopMargin ?? _kWideTopGap),
       child: ScrollConfiguration(
         behavior: EdgeScrollbarBehavior(
           paneOnRight ? ScrollbarOrientation.right : ScrollbarOrientation.left,

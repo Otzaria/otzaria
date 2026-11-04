@@ -51,10 +51,9 @@ class ScrollablePositionedListScrollbar extends StatefulWidget {
 
 class _ScrollablePositionedListScrollbarState
     extends State<ScrollablePositionedListScrollbar> {
-  static const double _edgeGap = 2;
-  static const double _thumbThickness = 8;
-  static const double _contentGap = 2;
-  static const double _trackWidth = _edgeGap + _thumbThickness + _contentGap;
+  static const double _edgeGap = AppTokens.scrollbarMargin;
+  static const double _contentGap = AppTokens.scrollbarContentGap;
+  static const double _trackWidth = AppTokens.scrollbarGutter;
 
   ScrollMetrics? _metrics;
   double _thumbPosition = 0;

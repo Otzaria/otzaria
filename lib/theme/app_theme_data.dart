@@ -175,6 +175,13 @@ class AppThemeData {
       ),
       tabBarTheme: _tabBarTheme(cs),
       tooltipTheme: _tooltipTheme(cs),
+      // פס גלילה: עובי קבוע גם בריחוף, כדי שהרצועה של AppScrollbar תכיל
+      // אותו תמיד, ופינות בחצי העובי (q10 Q10).
+      scrollbarTheme: const ScrollbarThemeData(
+        thickness: WidgetStatePropertyAll(AppTokens.scrollbarThickness),
+        radius: Radius.circular(AppTokens.scrollbarThickness / 2),
+        crossAxisMargin: AppTokens.scrollbarMargin,
+      ),
       dropdownMenuTheme: _dropdownMenuTheme(cs, menuMetrics),
       menuButtonTheme: _menuButtonTheme(cs, menuMetrics),
       popupMenuTheme: _popupMenuTheme(
