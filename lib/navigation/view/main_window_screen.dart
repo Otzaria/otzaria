@@ -3987,7 +3987,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
       children: [
         Opacity(
           opacity: _initialContentReady ? 1.0 : 0.0,
-          child: IgnorePointer(ignoring: !_initialContentReady, child: content),
+          child: IgnorePointer(
+            ignoring: !_initialContentReady,
+            // בחלון נמוך (טלפון לרוחב) הכרום בצפיפות קומפקטית (q12 Q8).
+            child: ShortWindowDensity(child: content),
+          ),
         ),
         if (_splashOverlayVisible)
           const Positioned.fill(child: _StartupSplashOverlay()),
