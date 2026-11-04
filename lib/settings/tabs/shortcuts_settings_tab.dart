@@ -1008,7 +1008,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
                     text: context.settingsText('ערוך'),
                     onPressed: () => _editDynamicShortcut(context, shortcut),
                   ),
-                  ActionButton.warning(
+                  ActionButton.warningSoft(
                     text: context.settingsText('מחק'),
                     onPressed: () =>
                         DynamicShortcutRegistry.instance.remove(shortcut.id),

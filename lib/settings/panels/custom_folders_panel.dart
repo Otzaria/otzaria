@@ -716,7 +716,7 @@ class UserContentImportTile extends StatelessWidget {
             'כותרות משנה.',
           ),
           actions: [
-            ActionButton.warning(
+            ActionButton.warningSoft(
               text: context.settingsText('נקה הכל'),
               onPressed: isSyncing ? null : () => _clear(context),
             ),

@@ -9,13 +9,16 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
 
-enum _Variant { recommended, neutral, ghost, warning, inline }
+enum _Variant { recommended, neutral, ghost, warning, warningSoft, inline }
 
 /// כפתור פעולה גנרי בסגנון M3. השתמש בבנאים הממוינים:
 /// - [ActionButton.recommended] — FilledButton (Primary) לפעולה מומלצת
 /// - [ActionButton.neutral] — FilledButton.tonal לפעולה ניטרלית
 /// - [ActionButton.ghost] — TextButton שקוף וניטרלי
-/// - [ActionButton.warning] — FilledButton ברקע cs.error לפעולות מסוכנות
+/// - [ActionButton.warning] — FilledButton ברקע cs.error לפעולות מסוכנות,
+///   בדיאלוג (אישור מחיקה)
+/// - [ActionButton.warningSoft] — אותה פעולה מסוכנת על מסך הגדרות (לא בדיאלוג),
+///   ברקע cs.errorContainer
 /// - [ActionButton.inline] — ghost צפוף לפעולה בתוך שורה, הודעה או פירורי לחם
 class ActionButton extends StatelessWidget {
   final String text;
@@ -109,6 +112,26 @@ class ActionButton extends StatelessWidget {
        color = null,
        _variant = _Variant.warning;
 
+  /// פעולה מסוכנת שיושבת על מסך הגדרות ולא בדיאלוג ("נקה הכל", "הסר"):
+  /// רקע errorContainer וטקסט onErrorContainer, אדום רך שלא מושך את העין
+  /// מכל שאר המסך. האדום המלא ([ActionButton.warning]) שמור לכפתור האישור
+  /// שבדיאלוג שהפעולה פותחת.
+  const ActionButton.warningSoft({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.isLoading = false,
+    this.icon,
+    this.iconWidget,
+    this.textAlign = TextAlign.start,
+    this.focusNode,
+    this.autofocus = false,
+    this.tooltip,
+    this.iconAlignment = IconAlignment.start,
+  }) : errorText = false,
+       color = null,
+       _variant = _Variant.warningSoft;
+
   /// ghost צפוף: בלי גודל מינימלי, ריפוד 8×4, אזור מגע בגודל הכפתור, וטקסט
   /// 14 מודגש. לפעולה שיושבת בתוך שורה, הודעה צפה או פירורי לחם, שבהן כפתור
   /// בגובה 40 היה מגביה אותן.
@@ -133,6 +156,7 @@ class ActionButton extends StatelessWidget {
     _Variant.neutral => cs.onSecondaryContainer,
     _Variant.ghost => cs.primary,
     _Variant.warning => cs.onError,
+    _Variant.warningSoft => cs.onErrorContainer,
     _Variant.inline => color ?? cs.primary,
   };
 
@@ -142,6 +166,10 @@ class ActionButton extends StatelessWidget {
       _Variant.warning => FilledButton.styleFrom(
         backgroundColor: cs.error,
         foregroundColor: cs.onError,
+      ),
+      _Variant.warningSoft => FilledButton.styleFrom(
+        backgroundColor: cs.errorContainer,
+        foregroundColor: cs.onErrorContainer,
       ),
       _Variant.neutral when errorText => FilledButton.styleFrom(
         foregroundColor: cs.error,
@@ -167,7 +195,9 @@ class ActionButton extends StatelessWidget {
     required Widget child,
     required ButtonStyle? style,
   }) => switch (_variant) {
-    _Variant.recommended || _Variant.warning => FilledButton(
+    _Variant.recommended ||
+    _Variant.warning ||
+    _Variant.warningSoft => FilledButton(
       onPressed: onPressed,
       style: style,
       focusNode: focusNode,
@@ -193,7 +223,9 @@ class ActionButton extends StatelessWidget {
   Widget _withIcon({required Widget leading, required ButtonStyle? style}) {
     final label = Text(text, textAlign: textAlign);
     return switch (_variant) {
-      _Variant.recommended || _Variant.warning => FilledButton.icon(
+      _Variant.recommended ||
+      _Variant.warning ||
+      _Variant.warningSoft => FilledButton.icon(
         onPressed: onPressed,
         style: style,
         focusNode: focusNode,

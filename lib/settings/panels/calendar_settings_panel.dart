@@ -549,7 +549,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                           );
                         },
                       ),
-                      ActionButton.warning(
+                      ActionButton.warningSoft(
                         text: context.settingsText('הסר'),
                         onPressed: () async {
                           await context
