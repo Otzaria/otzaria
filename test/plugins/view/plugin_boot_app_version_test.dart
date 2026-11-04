@@ -1,12 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -100,5 +106,80 @@ void main() {
 
     expect(bootFor('99801'), contains('"app":{"version":"0.9.98.1"'));
     expect(bootFor('99800'), contains('"app":{"version":"0.9.98"'));
+  });
+
+  group('מדיניות רמות ה-console של תוסף (issue #4118)', () {
+    final db = PluginSystemDatabase.instance;
+    final printed = <String?>[];
+
+    setUp(() async {
+      final dir = await Directory.systemTemp.createTemp('plugin_console_');
+      AppPaths.debugOverrideDataRootPath(dir.path);
+      db.resetForTests();
+      printed.clear();
+      final original = debugPrint;
+      debugPrint = (message, {wrapWidth}) => printed.add(message);
+      addTearDown(() async {
+        debugPrint = original;
+        db.resetForTests();
+        AppPaths.debugOverrideDataRootPath(null);
+        await dir.delete(recursive: true);
+      });
+    });
+
+    /// 300 הודעות info/log/debug ואחריהן WARNING (מהרקע) ו-ERROR;
+    /// מחזיר את מה שנכתב ליומן התוסף במסד.
+    Future<List<String>> feed() async {
+      final host = _Host();
+      for (final level in [
+        ConsoleMessageLevel.TIP,
+        ConsoleMessageLevel.LOG,
+        ConsoleMessageLevel.DEBUG,
+      ]) {
+        for (var i = 0; i < 100; i++) {
+          host.logPluginConsole(
+            ConsoleMessage(message: 'info $i', messageLevel: level),
+          );
+        }
+      }
+      host
+        ..logPluginConsole(
+          ConsoleMessage(
+            message: 'w',
+            messageLevel: ConsoleMessageLevel.WARNING,
+          ),
+          prefix: '[background] ',
+        )
+        ..logPluginConsole(
+          ConsoleMessage(message: 'e', messageLevel: ConsoleMessageLevel.ERROR),
+        );
+      await db.close();
+      final file = sqlite3.open(await AppPaths.resolvePluginsDbPath());
+      addTearDown(file.close);
+      return [
+        for (final row in file.select(
+          'SELECT level, message FROM plugin_runtime_log ORDER BY id',
+        ))
+          '${row['level']} ${row['message']}',
+      ];
+    }
+
+    const kept = [
+      'WARNING [background] w',
+      'ERROR e',
+    ];
+
+    test('ב-release רגיל info/log/debug נזרקות לפני debugPrint', () async {
+      PluginWebViewHost.debugVerboseConsoleOverride = false;
+      addTearDown(() => PluginWebViewHost.debugVerboseConsoleOverride = null);
+      expect(await feed(), kept);
+      expect(printed, ['Plugin [test.plugin]: w', 'Plugin [test.plugin]: e']);
+    });
+
+    test('ב-debug כל ההודעות מודפסות, ולמסד רק WARNING/ERROR', () async {
+      expect(await feed(), kept);
+      expect(printed, hasLength(302));
+      expect(printed.first, 'Plugin [test.plugin]: info 0');
+    });
   });
 }
