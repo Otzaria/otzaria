@@ -31,6 +31,19 @@ enum ToolbarActionId {
   navigateHome,
   sync,
   refresh,
+  // סרגל העיצוב בעורך ההערות
+  noteBold,
+  noteItalic,
+  noteUnderline,
+  noteStrikethrough,
+  noteHighlight,
+  noteFontIncrease,
+  noteFontDecrease,
+  noteHeader,
+  noteBulletList,
+  noteNumberList,
+  noteQuote,
+  noteLink,
 }
 
 /// סדר ההעברה לתפריט overflow.
@@ -64,6 +77,20 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.navigateHome,
   ToolbarActionId.sync,
   ToolbarActionId.refresh,
+  // עורך ההערות — מהנדיר לנפוץ. ברוחב הדיאלוג (560) עוברים לתפריט רק
+  // "ציטוט" ו"כותרת" (q12 Q6).
+  ToolbarActionId.noteQuote,
+  ToolbarActionId.noteHeader,
+  ToolbarActionId.noteStrikethrough,
+  ToolbarActionId.noteFontIncrease,
+  ToolbarActionId.noteFontDecrease,
+  ToolbarActionId.noteNumberList,
+  ToolbarActionId.noteItalic,
+  ToolbarActionId.noteUnderline,
+  ToolbarActionId.noteBulletList,
+  ToolbarActionId.noteLink,
+  ToolbarActionId.noteHighlight,
+  ToolbarActionId.noteBold,
 ];
 
 final Map<ToolbarActionId, int> toolbarOverflowRank = {
@@ -89,6 +116,7 @@ int toolbarOverflowRankOf(ToolbarActionId id) {
 /// אין צורך לשנות ActionButtonData.
 const List<Set<ToolbarActionId>> toolbarAtomicOverflowGroups = [
   {ToolbarActionId.zoomOut, ToolbarActionId.zoomIn},
+  {ToolbarActionId.noteFontIncrease, ToolbarActionId.noteFontDecrease},
 ];
 
 /// מחזיר את קבוצת ה-IDs שאליה שייך [id], כולל עצמו.
