@@ -1,0 +1,28 @@
+name: WebView hosting probe unit tests
+on:
+  pull_request:
+    paths:
+      - 'tool/perf_probe/*webview_hosting*'
+      - '.github/workflows/webview-hosting-probe-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Parse collector and test pure sampling helpers
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem tool/perf_probe/*webview_hosting* -File | Where-Object { $_.Extension -in '.ps1', '.psm1' }
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -ne 0) { throw ($errors | Out-String) }
+          }
+          & ./tool/perf_probe/test_webview_hosting_probe.ps1
