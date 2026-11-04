@@ -319,8 +319,10 @@ void main() {
     // כיוון הפוך (לפי tab.showLeftPane) והחלונית לא נסגרה.
     blocTest<PdfBookBloc, PdfBookState>(
       'פתיחה אוטומטית של חלונית הניווט מסנכרנת את tab.showLeftPane',
+      setUp: () => Settings.setValue<bool>('key-pin-sidebar', true),
+      tearDown: () => Settings.setValue<bool>('key-pin-sidebar', false),
       build: () => _makeBloc(_tab()),
-      seed: () => PdfBookLoading(book: _book(), searchText: 'תורה'),
+      seed: () => PdfBookLoading(book: _book()),
       act: (b) =>
           b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 5)),
       verify: (b) {

@@ -28,7 +28,6 @@ void main() {
       expect(
         resolveInitialReadingLeftPaneVisibility(
           explicitOpen: false,
-          hasSearchText: false,
           screenWidth: 411,
         ),
         isFalse,
@@ -36,7 +35,6 @@ void main() {
       expect(
         resolveInitialReadingLeftPaneVisibility(
           explicitOpen: false,
-          hasSearchText: false,
           screenWidth: 1400,
         ),
         isTrue,
@@ -47,7 +45,6 @@ void main() {
       expect(
         resolveInitialReadingLeftPaneVisibility(
           explicitOpen: true,
-          hasSearchText: false,
           screenWidth: 411,
         ),
         isTrue,

@@ -1029,7 +1029,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           ? false
           : resolveInitialReadingLeftPaneVisibility(
               explicitOpen: showLeftPane,
-              hasSearchText: searchText.isNotEmpty,
               screenWidth: event.screenWidth,
             );
       _hiddenCommentatorTitlesCache = await currentHiddenBookTitles();

@@ -16,6 +16,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
+import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 /// ספר העיון של תוצאת חיפוש: [resolvedBook] כשפוענח, ואחרת לפי הכותרת והנתיב.
 Book searchResultBook(
@@ -58,7 +59,11 @@ Future<OpenedTab?> openSearchResultInReader(
   final tabsBloc = context.read<TabsBloc>();
   final openLeftPane =
       (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-      (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
+      (Settings.getValue<bool>('key-default-sidebar-open') ?? false) ||
+      shouldAutoOpenReadingLeftPane(
+        screenWidth: readingLayoutWidthOf(context),
+        hasSearchText: searchText.isNotEmpty,
+      );
   // filePath הוא מפתח האינדקס היציב — בלעדיו תוצאה מספר אישי הייתה מתמקדת
   // בטאב פתוח של ספר רשמי באותה כותרת.
   final dedupeKey =

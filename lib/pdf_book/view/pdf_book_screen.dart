@@ -1976,7 +1976,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         final shouldShowLeftPane = resolveInitialReadingLeftPaneVisibility(
           explicitOpen: widget.tab.showLeftPane.value,
-          hasSearchText: widget.tab.searchText.isNotEmpty,
           screenWidth: mounted ? readingLayoutWidthOf(context) : null,
         );
         if (!shouldShowLeftPane) _runInitialSearchIfNeeded();

@@ -155,6 +155,7 @@ class BookOpenCoordinator {
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane(
       screenWidth: layoutWidth?.call(),
+      hasSearchText: searchQuery.isNotEmpty,
     );
     final savedViewMode = PageShapeSettingsManager.getViewModePreference(
       book.title,
