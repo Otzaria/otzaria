@@ -9,6 +9,7 @@ import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -805,24 +806,48 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildReadingSettingsButton(BuildContext context) {
+    final settings = AppIconButton(
+      key: TourTargetKeys.of(context).readingSettingsButton,
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: Icon(
+        widget.isReadingSettingsPanelOpen
+            ? FluentIcons.settings_24_filled
+            : FluentIcons.settings_24_regular,
+      ),
+      tooltip: context.settingsText('הגדרות תצוגת הספרים'),
+      onPressed: widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
+    );
+    final fullscreen = _buildMobileFullscreenButton(context);
     return AppDragToMoveArea(
       aboveDialogs: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: AppIconButton(
-          key: TourTargetKeys.of(context).readingSettingsButton,
-          size: AppIconButtonSize.small,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          icon: Icon(
-            widget.isReadingSettingsPanelOpen
-                ? FluentIcons.settings_24_filled
-                : FluentIcons.settings_24_regular,
-          ),
-          tooltip: context.settingsText('הגדרות תצוגת הספרים'),
-          onPressed:
-              widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
-        ),
+        child: fullscreen == null
+            ? settings
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [settings, fullscreen],
+              ),
       ),
+    );
+  }
+
+  /// בטלפון: כניסה למסך מלא בפינה, משמאל ל"הגדרות תצוגת הספרים", כשיש
+  /// בשורה מקום ([mobileFullscreenInTitleBar]). במחשב הכפתור ליד כפתורי
+  /// החלון ([_buildFullscreenCaptionButton]).
+  Widget? _buildMobileFullscreenButton(BuildContext context) {
+    if (!mobileFullscreenInTitleBar(context)) return null;
+    if (context.select((WindowFullscreenCubit cubit) => cubit.state)) {
+      return null;
+    }
+    if (!FullscreenHelper.isAllowedInContext(context)) return null;
+    return AppIconButton(
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: const Icon(FluentIcons.full_screen_maximize_24_regular),
+      tooltip: context.settingsText('מסך מלא'),
+      onPressed: () => FullscreenHelper.toggleFullscreen(context, true),
     );
   }
 

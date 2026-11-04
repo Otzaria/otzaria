@@ -18,6 +18,8 @@ enum ToolbarActionId {
   fitMode,
   continuousReading,
   textDisplay,
+  // מסך מלא בקורא, בטלפון בלבד (q12 Q8)
+  fullscreen,
   viewMode,
   openCommentatorsTab,
   parallelEdition,
@@ -64,6 +66,8 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.fitMode,
   ToolbarActionId.continuousReading,
   ToolbarActionId.textDisplay,
+  // בטלפון זה החיסכון הגדול בגובה, ולכן נשאר בסרגל אחרי החיפוש והזום.
+  ToolbarActionId.fullscreen,
   ToolbarActionId.viewMode,
   ToolbarActionId.openCommentatorsTab,
   ToolbarActionId.parallelEdition,

@@ -15,6 +15,7 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/multiview/host_window_app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
@@ -736,6 +737,87 @@ void main() {
       final selection = tabsBloc.addedEvents.whereType<SetCurrentTab>();
       expect(selection, isNotEmpty);
       expect(selection.last.index, greaterThan(0));
+    });
+  });
+
+  // הערת בעל הפרויקט (4.11): בטלפון "מסך מלא" למעלה בשמאל, ליד ההגדרות,
+  // כשיש בשורת הכותרת מקום; אחרת בסרגל הקורא.
+  group('מסך מלא בטלפון בשורת הכותרת', () {
+    Future<WindowFullscreenCubit> pumpPhone(
+      WidgetTester tester,
+      Size size, {
+      bool fullscreen = false,
+    }) async {
+      DeviceChrome.debugMobileOverride = true;
+      addTearDown(() => DeviceChrome.debugMobileOverride = null);
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final cubit = WindowFullscreenCubit(
+        initial: fullscreen,
+        persist: (_) async {},
+      );
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await cubit.close();
+      });
+      await _setSurfaceSize(tester, size);
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        fullscreenCubit: cubit,
+      );
+      await tester.pumpAndSettle();
+      return cubit;
+    }
+
+    for (final size in const [Size(360, 640), Size(844, 390)]) {
+      testWidgets('${size.width.toInt()}×${size.height.toInt()}: הכפתור משמאל '
+          'להגדרות, ונכנס למסך מלא', (tester) async {
+        final cubit = await pumpPhone(tester, size);
+        final button = find.byTooltip('מסך מלא');
+        expect(button, findsOneWidget);
+        final settings = find.byTooltip('הגדרות תצוגת הספרים');
+        // סוף השורה, אחרי ההגדרות: באפליקציה (RTL) זו הפינה השמאלית.
+        final settingsX = tester.getCenter(settings).dx;
+        expect(
+          tester.getCenter(button).dx,
+          Directionality.of(tester.element(settings)) == TextDirection.rtl
+              ? lessThan(settingsX)
+              : greaterThan(settingsX),
+        );
+        expect(
+          tester.getCenter(button).dy,
+          tester.getCenter(settings).dy,
+        );
+        await tester.tap(button);
+        // אזור הגרירה מזהה גם לחיצה כפולה: הלחיצה הבודדת מוכרעת אחריה.
+        await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+        expect(cubit.state, isTrue);
+      });
+    }
+
+    testWidgets('בלי מקום (420×390, הכרטיסיות בשורה) אין כפתור בכותרת', (
+      tester,
+    ) async {
+      await pumpPhone(tester, const Size(420, 390));
+      expect(find.byTooltip('הגדרות תצוגת הספרים'), findsOneWidget);
+      expect(find.byTooltip('מסך מלא'), findsNothing);
+    });
+
+    testWidgets('במסך מלא אין כפתור כניסה', (tester) async {
+      await pumpPhone(tester, const Size(360, 640), fullscreen: true);
+      expect(find.byTooltip('מסך מלא'), findsNothing);
     });
   });
 

@@ -7,6 +7,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'dart:io';
 
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
@@ -1378,6 +1379,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         tooltip: 'הקטן את גודל הטקסט',
         actionId: ToolbarActionId.zoomOut,
         onPressed: () => _stepFontSize(context, state, larger: false),
+      ),
+
+      // 7) מסך מלא — בטלפון בלבד. גם בכרטיסייה מפוצלת: לכל חלונית סרגל
+      // משלה, ואין סרגל משותף שיציע אותה במקומן.
+      ?buildMobileFullscreenAction(
+        context,
+        compact: AppDensity.of(context).isCompact,
       ),
     ];
   }

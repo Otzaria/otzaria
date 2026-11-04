@@ -1,4 +1,5 @@
 import 'package:otzaria/pdf_book/view/book_view_turn_button.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'dart:io';
 
@@ -5558,6 +5559,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         actionId: ToolbarActionId.zoomOut,
       ),
       _buildFitModeAction(isCompact),
+      // מסך מלא — בטלפון בלבד (q12 Q8). גם בכרטיסייה מפוצלת: לכל חלונית
+      // סרגל משלה, ואין סרגל משותף שיציע אותה במקומן.
+      ?buildMobileFullscreenAction(context, compact: isCompact),
     ];
   }
 
