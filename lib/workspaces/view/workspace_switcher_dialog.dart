@@ -17,6 +17,8 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -38,6 +40,8 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   static const double _newTileIconBox = 100;
 
   bool _switchPending = false;
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -46,11 +50,23 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   }
 
   @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// בלי ניקוד ובלי הבדל אותיות גדולות, כמו בשאר שדות הסינון.
+  static String _normalize(String text) =>
+      removeVolwels(text).toLowerCase().trim();
+
+  @override
   Widget build(BuildContext context) {
     return AppDialogFrame(
       title: 'שולחנות עבודה',
       icon: OtzariaIcons.lectern_24_regular,
       size: AppDialogSize.large,
+      // גובה קבוע, כדי ששדה החיפוש לא יזוז בזמן ההקלדה (§3.1).
+      height: MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor,
       child: BlocBuilder<WorkspaceBloc, WorkspaceState>(
         builder: (context, state) {
           if (state.isLoading) {
@@ -67,7 +83,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           final liveTabs = context.select(
             (TabsBloc bloc) => bloc.state.tabs,
           );
-          return LayoutBuilder(
+          final query = _normalize(_query);
+          final workspaces = query.isEmpty
+              ? state.workspaces
+              : state.workspaces
+                    .where((w) => _normalize(w.name).contains(query))
+                    .toList();
+          final grid = LayoutBuilder(
             builder: (context, constraints) {
               // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
               final crossAxisCount = (constraints.maxWidth / _minTileWidth)
@@ -80,14 +102,24 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   mainAxisSpacing: AppTokens.spaceMD,
                   childAspectRatio: 1.2,
                 ),
-                itemCount: state.workspaces.length + 1,
+                // אריח "חדש" תמיד בסוף, גם כשהחיפוש לא מצא דבר.
+                itemCount: workspaces.length + 1,
+                // אריח לפי מזהה השולחן: כשהסינון משתנה, מצב העריכה של השם
+                // עובר עם השולחן למקומו החדש, ולא נשאר באינדקס של שולחן אחר.
+                findChildIndexCallback: (key) {
+                  if (key is! ValueKey<String>) return null;
+                  final index = workspaces.indexWhere(
+                    (w) => w.id == key.value,
+                  );
+                  return index < 0 ? null : index;
+                },
                 itemBuilder: (context, index) {
-                  if (index == state.workspaces.length) {
+                  if (index == workspaces.length) {
                     // "New Workspace" tile
                     return _buildNewWorkspaceTile(context);
                   } else {
                     // Workspace tile
-                    final workspace = state.workspaces[index];
+                    final workspace = workspaces[index];
                     final isActive = state.activeWorkspaceId == workspace.id;
                     return _buildWorkspaceTile(
                       context,
@@ -99,6 +131,26 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                 },
               );
             },
+          );
+          // שדה החיפוש תמיד, כמו בתוספים, בהגדרות ובהיסטוריה (#2841).
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OtzariaSearchField(
+                controller: _search,
+                hintText: 'חיפוש שולחן עבודה',
+                onChanged: (value) => setState(() => _query = value),
+                onClear: () => setState(() => _query = ''),
+              ),
+              const SizedBox(height: AppTokens.spaceSM),
+              if (workspaces.isEmpty)
+                const OtzariaEmptyState(
+                  isCompact: true,
+                  icon: OtzariaIcons.search_24_regular,
+                  title: 'לא נמצאו שולחנות עבודה',
+                ),
+              Expanded(child: grid),
+            ],
           );
         },
       ),
@@ -162,6 +214,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     final cs = Theme.of(context).colorScheme;
     // הפעיל: מסגרת הבחירה, ורק אזור התצוגה המקדימה בצבע "נבחר" (q9 שאלה 7).
     return AppCard(
+      key: ValueKey<String>(workspace.id),
       margin: const EdgeInsets.all(4),
       active: isActive,
       onTap: () async {
