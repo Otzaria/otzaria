@@ -265,9 +265,28 @@ Future<DocumentFormat?> _sniffFormat(File file) async {
       (isBinaryContainerHeader(window) ? null : DocumentFormat.txt);
 }
 
+/// קריאות txt פעילות לפי נתיב וחותמת הקובץ: כל קישור קורא את הקובץ כולו,
+/// ולכן קישורים לאותה גרסה חולקים קריאה ופענוח.
+final Map<(String, int, DateTime, DateTime), Future<String>>
+_plainTextReadsInFlight = {};
+
+Future<String> _readPlainTextFile(File file) async {
+  final path = await file.resolveSymbolicLinks();
+  final resolvedFile = File(path);
+  final stat = await resolvedFile.stat();
+  final key = (path, stat.size, stat.modified, stat.changed);
+  // גוף בלוק: remove מחזיר את ה-Future עצמו, ו-whenComplete היה ממתין לו.
+  return _plainTextReadsInFlight[key] ??=
+      _readPlainTextFileOnce(
+        resolvedFile,
+      ).whenComplete(() {
+        _plainTextReadsInFlight.remove(key);
+      });
+}
+
 /// קורא קובץ טקסט, אחרי שאימת שאינו מכולה בינארית. נקראים 8 בתים בלבד,
 /// כדי לא לטעון קובץ שלם רק לצורך הבדיקה.
-Future<String> _readPlainTextFile(File file) async {
+Future<String> _readPlainTextFileOnce(File file) async {
   _assertNotBinaryContainer(await _readFileHead(file, 8), file.path);
   final path = file.path;
   // פענוח ספר של כמה MB חוסם את ה-UI למאות ms; התוצאה חוזרת בלי העתקה.
