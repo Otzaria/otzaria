@@ -83,7 +83,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('ציוני המפרשים'), findsNWidgets(2));
+    // טבלה: שם השורה פעם אחת, ותא לכל מקטע (q12 Q7).
+    expect(find.text('ציוני המפרשים'), findsOneWidget);
 
     // "הסתר" האחרון בפאנל שייך לשורת הציונים של מקטע המפרשים.
     final hide = find.text('הסתר').last;
