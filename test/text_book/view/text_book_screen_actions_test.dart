@@ -33,6 +33,8 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -66,6 +68,8 @@ import 'package:otzaria/text_book/view/splited_view/splited_view_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart'
     show isTextInputFocusNode;
+import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
+import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -243,6 +247,122 @@ void main() {
   }
 
   group('TextBookViewerBloc actions', () {
+    testWidgets(
+      'שמור וזכור מסמן רק את ההלכה הפתוחה ומציג את הנתיב המלא',
+      (tester) async {
+        final book = _TrackedBook();
+        final details = book.details;
+        shamorZachorDataProvider.bookDetails = details;
+        final bloc = _TestTextBookBloc(
+          _loadedState(
+            book,
+            content: List.generate(15, (index) => 'שורת לימוד $index'),
+          ),
+        );
+        final tab = TextBookTab(book: book, index: 9, blocOverride: bloc);
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final keys = AppWindowKeys(id: const AppWindowId('shamor-3369'));
+        AppWindowKeys.register(keys);
+        AppWindowKeys.activateWindow(keys.id);
+        addTearDown(() async {
+          UiSnack.hide(window: keys);
+          await tester.pumpAndSettle();
+          await tester.pumpWidget(const SizedBox.shrink());
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+          AppWindowKeys.resetForTest();
+        });
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+          textDirection: TextDirection.rtl,
+          windowKeys: keys,
+        );
+        Future<void> markCurrentSection() async {
+          await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('סמן קטע פתוח כנלמד בשמור וזכור'));
+          await tester.pumpAndSettle();
+        }
+
+        for (final (line, itemIndex, path) in [
+          (9, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+          (8, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+          (10, 3, 'ירושלמי יבמות, פרק י, הלכה ג'),
+          (3, 1, 'ירושלמי יבמות, פרק ט, הלכה ג'),
+          (12, 4, 'ירושלמי יבמות, פרק יא, הלכה א'),
+        ]) {
+          shamorZachorProgressProvider.markedItems.clear();
+          tab.lines.reportExternalLine(line);
+          expect(tab.index, line);
+          await markCurrentSection();
+          expect(
+            shamorZachorProgressProvider.markedItems.keys,
+            [(book.id!, itemIndex)],
+          );
+          expect(
+            shamorZachorProgressProvider.markedItems.values.single.toJson(),
+            {'learn': true},
+          );
+          expect(
+            find.text(TextBookMessages.chapterMarked(path, 'נלמד')),
+            findsOneWidget,
+          );
+          UiSnack.hide(window: keys);
+          await tester.pumpAndSettle();
+        }
+
+        // כותרת האב נמצאת לפני ההלכה הראשונה ואינה יחידת לימוד בעצמה.
+        shamorZachorProgressProvider.markedItems.clear();
+        tab.lines.reportExternalLine(11);
+        await markCurrentSection();
+        expect(shamorZachorProgressProvider.markedItems, isEmpty);
+        expect(find.textContaining('לא נמצא בשמור וזכור'), findsOneWidget);
+        UiSnack.hide(window: keys);
+        await tester.pumpAndSettle();
+
+        tab.lines.reportExternalLine(9);
+        for (var mark = 0; mark < 5; mark++) {
+          await markCurrentSection();
+        }
+        expect(shamorZachorProgressProvider.markedItems.keys, [(book.id!, 3)]);
+        expect(
+          shamorZachorProgressProvider.markedItems.values.single.toJson(),
+          {
+            'learn': true,
+            'review1': true,
+            'review2': true,
+            'review3': true,
+          },
+        );
+        expect(
+          find.text(
+            TextBookMessages.noFreeSlotInChapter(
+              'ירושלמי יבמות, פרק י, הלכה ג',
+            ),
+          ),
+          findsOneWidget,
+        );
+        UiSnack.hide(window: keys);
+        await tester.pumpAndSettle();
+      },
+    );
     testWidgets(
       'next TOC toolbar command preserves the source line for an external reader',
       (tester) async {
@@ -2222,6 +2342,7 @@ Future<void> _pumpTextBookScreen(
             BlocProvider<WindowFullscreenCubit>.value(value: fullscreenCubit),
         ],
         child: MaterialApp(
+          navigatorKey: windowKeys?.navigator,
           builder: (context, child) =>
               Directionality(textDirection: textDirection, child: child!),
           home: windowKeys == null
@@ -2418,7 +2539,15 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
   _FakeShamorZachorDataProvider();
 
   @override
-  bool get hasData => false;
+  bool get hasData => bookDetails != null;
+
+  BookDetails? bookDetails;
+
+  @override
+  (BookDetails, String, String)? getBookById(int bookId) =>
+      bookDetails?.id == bookId
+      ? (bookDetails!, 'ירושלמי יבמות', 'תלמוד ירושלמי')
+      : null;
 
   @override
   Future<void> ensureLoaded() async {}
@@ -2427,8 +2556,97 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
 class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {
   _FakeShamorZachorProgressProvider();
 
+  final Map<(int, int), PageProgress> markedItems = {};
+
+  @override
+  PageProgress getProgressForItemById(int bookId, int absoluteIndex) =>
+      markedItems[(bookId, absoluteIndex)] ?? PageProgress();
+
+  @override
+  Future<void> updateProgressById(
+    int bookId,
+    int absoluteIndex,
+    String columnName,
+    bool value,
+    BookDetails bookDetails, {
+    bool isBulkUpdate = false,
+  }) async {
+    (markedItems[(bookId, absoluteIndex)] ??= PageProgress()).setProperty(
+      columnName,
+      value,
+    );
+  }
+
   @override
   Future<void> ensureLoaded() async {}
+}
+
+class _TrackedBook extends TextBook {
+  _TrackedBook() : super(title: 'ירושלמי יבמות', id: 3369);
+
+  final details = BookDetails(
+    id: 3369,
+    contentType: 'הלכה',
+    parts: const [],
+    sections: [
+      BookSection(
+        id: 'book',
+        title: 'ירושלמי יבמות',
+        level: 1,
+        startPage: 0,
+        endPage: 14,
+        children: [
+          for (final (chapter, start, end) in [
+            ('ט', 1, 4),
+            ('י', 5, 10),
+            ('יא', 11, 14),
+          ])
+            BookSection(
+              id: chapter,
+              title: 'פרק $chapter',
+              level: 2,
+              startPage: start,
+              endPage: end,
+              children: [
+                BookSection(
+                  id: '$chapter:א',
+                  title: 'הלכה א',
+                  level: 3,
+                  startPage: start + 1,
+                  endPage: chapter == 'יא' ? end : (start + end) ~/ 2,
+                ),
+                if (chapter != 'יא')
+                  BookSection(
+                    id: '$chapter:ג',
+                    title: 'הלכה ג',
+                    level: 3,
+                    startPage: (start + end) ~/ 2 + 1,
+                    endPage: end,
+                  ),
+              ],
+            ),
+        ],
+      ),
+    ],
+  );
+
+  @override
+  Future<List<TocEntry>> get tableOfContents async {
+    TocEntry convert(BookSection section, [TocEntry? parent]) {
+      final entry = TocEntry(
+        text: section.title,
+        index: section.startPage,
+        level: section.level,
+        parent: parent,
+      );
+      entry.children = [
+        for (final child in section.children) convert(child, entry),
+      ];
+      return entry;
+    }
+
+    return [for (final section in details.sections!) convert(section)];
+  }
 }
 
 class _MemoryCacheProvider extends CacheProvider {
