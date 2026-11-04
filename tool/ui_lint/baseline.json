@@ -671,9 +671,6 @@
       ],
       "lib/widgets/text/rtl_text_field.dart": [
         {"scope":"_RtlTextFieldState._buildMenuItem","fp":"a9c1e30c","n":1}
-      ],
-      "lib/workspaces/view/workspace_switcher_dialog.dart": [
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"1a491541","n":1}
       ]
     },
     "UIL-020": {
@@ -1489,9 +1486,7 @@
         {"scope":"_WorkItemRowState.build","fp":"89f0467d","n":1}
       ],
       "lib/workspaces/view/workspace_switcher_dialog.dart": [
-        {"scope":"_WorkspaceSwitcherDialogState._buildNewWorkspaceTile","fp":"fdf7b8de","n":1},
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"f9f7b292","n":1},
-        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspaceTile","fp":"89f0467d","n":3}
+        {"scope":"_WorkspaceSwitcherDialogState._buildWorkspacePreview","fp":"f9f7b292","n":1}
       ]
     },
     "UIL-030": {

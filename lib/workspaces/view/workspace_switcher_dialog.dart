@@ -31,6 +31,12 @@ class WorkspaceSwitcherDialog extends StatefulWidget {
 }
 
 class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
+  /// הרוחב המזערי של אריח: ב־720 של דיאלוג גדול נכנסות 3 עמודות.
+  static const double _minTileWidth = 200;
+
+  /// הריבוע שסביב ה־+ באריח "שולחן עבודה חדש".
+  static const double _newTileIconBox = 100;
+
   bool _switchPending = false;
 
   @override
@@ -64,15 +70,14 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           return LayoutBuilder(
             builder: (context, constraints) {
               // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
-              final crossAxisCount = (constraints.maxWidth / 200).floor().clamp(
-                1,
-                3,
-              );
+              final crossAxisCount = (constraints.maxWidth / _minTileWidth)
+                  .floor()
+                  .clamp(1, 3);
               return GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  crossAxisSpacing: AppTokens.spaceMD,
+                  mainAxisSpacing: AppTokens.spaceMD,
                   childAspectRatio: 1.2,
                 ),
                 itemCount: state.workspaces.length + 1,
@@ -122,15 +127,15 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 100,
-                height: 100,
+                width: _newTileIconBox,
+                height: _newTileIconBox,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: AppTokens.borderRadiusAll,
                 ),
                 child: Icon(
                   FluentIcons.add_24_regular,
-                  size: 48,
+                  size: AppTokens.iconXL,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -237,7 +242,10 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                 if (isActive && workspace.isPinned)
                   IconButton(
                     tooltip: 'שמור את הספרים הפתוחים כעת בשולחן המקובע',
-                    icon: const Icon(FluentIcons.save_24_regular, size: 16),
+                    icon: const Icon(
+                      FluentIcons.save_24_regular,
+                      size: AppTokens.iconSM,
+                    ),
                     onPressed: () => _saveSnapshot(context),
                   ),
                 IconButton(
@@ -245,10 +253,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                       ? 'בטל קיבוע'
                       : 'קבע: בכל כניסה ייפתחו רק הספרים שנשמרו',
                   isSelected: workspace.isPinned,
-                  icon: const Icon(FluentIcons.pin_24_regular, size: 16),
+                  icon: const Icon(
+                    FluentIcons.pin_24_regular,
+                    size: AppTokens.iconSM,
+                  ),
                   selectedIcon: const Icon(
                     FluentIcons.pin_24_filled,
-                    size: 16,
+                    size: AppTokens.iconSM,
                   ),
                   onPressed: () => _togglePinned(context, workspace, isActive),
                 ),
@@ -321,7 +332,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           const SizedBox(height: AppTokens.spaceXS),
           Text(
             tabs.length == 1 ? 'כרטיסייה אחת' : '${tabs.length} כרטיסיות',
-            style: TextStyle(fontSize: AppTokens.fontSM, color: color),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: color),
           ),
         ],
       ],

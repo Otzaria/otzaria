@@ -266,6 +266,89 @@ void main() {
 
   // q9 שאלה 7: פח בשורת השם, מושבת בפעיל; מסגרת הבחירה ורק התצוגה המקדימה
   // בצבע "נבחר" בפעיל; הלא פעילים על רקע נייטרלי; הגוף בצבע הדיאלוג.
+  group('גודל הבורר (#3627)', () {
+    Future<void> pumpAt(WidgetTester tester, Size window, int count) async {
+      final workspaces = [
+        for (var i = 0; i < count; i++)
+          Workspace(name: 'שולחן $i', tabs: const []),
+      ];
+      final workspaceBloc = _TestWorkspaceBloc(
+        WorkspaceState(
+          workspaces: workspaces,
+          isLoading: false,
+          activeWorkspaceId: workspaces.first.id,
+        ),
+      );
+      final tabsBloc = _TestTabsBloc(TabsState.initial());
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await workspaceBloc.close();
+        await tabsBloc.close();
+        await navigationBloc.close();
+      });
+      tester.view.physicalSize = window;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          ],
+          child: MaterialApp(
+            locale: const Locale('he', 'IL'),
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const WorkspaceSwitcherDialog(),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('בחלון 1366x768 שישה אריחים שלמים, בשלוש עמודות', (
+      tester,
+    ) async {
+      await pumpAt(tester, const Size(1366, 768), 5);
+      final grid = tester.getRect(find.byType(GridView));
+      final cards = find.descendant(
+        of: find.byType(GridView),
+        matching: find.byType(AppCard),
+      );
+      expect(cards, findsNWidgets(6));
+      final rects = [
+        for (final e in cards.evaluate())
+          tester.getRect(find.byWidget(e.widget)),
+      ];
+      for (final r in rects) {
+        expect(
+          r.top >= grid.top && r.bottom <= grid.bottom,
+          isTrue,
+          reason: '$r חתוך בתוך $grid',
+        );
+      }
+      expect(rects.map((r) => r.left.round()).toSet(), hasLength(3));
+      // הדיאלוג ברוחב large הקבוע, ולא 80% מהחלון.
+      expect(grid.width, lessThanOrEqualTo(720));
+    });
+  });
+
   group('כרטיס שולחן העבודה', () {
     Future<_TestWorkspaceBloc> pumpDialog(
       WidgetTester tester,
