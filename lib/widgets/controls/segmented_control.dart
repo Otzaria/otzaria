@@ -1,3 +1,5 @@
+import 'dart:ui' show clampDouble, lerpDouble;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -43,6 +45,9 @@ class SegmentOption<T> {
        );
 }
 
+/// הפריסה שנמדדה ל-[AppSegmentedControl.twoRowsWhenClipped].
+enum _Fit { full, narrow, clipped }
+
 /// פקד סגמנטד גנרי לשימוש בסרגלי כלים ובהגדרות.
 ///
 /// [height] — גובה קבוע בפיקסלים (ברירת מחדל: null = compact density לסרגלי כלים).
@@ -75,6 +80,15 @@ class AppSegmentedControl<T> extends StatelessWidget {
   /// שנקבע אוטומטית, כדי שאפשר יהיה לקבוע אותו בלחיצה אחת.
   final bool reselectable;
 
+  /// הבורר בוחר במדידה את הפריסה הראשונה שבה כל התוויות נכנסות: שורה עם
+  /// אייקונים ותוויות מלאות; שורה בלי אייקונים בתוויות הקצרות
+  /// ([SegmentOption.shortLabel]); ורק כשגם זו נחתכת — שתי שורות (בארבעה:
+  /// 2×2), ובהן אותו סדר בחירה ברוחב הכפול של המקטע. המדידה ב-[TextPainter]
+  /// בסגנון התווית ובהגדלת הטקסט, מול רוחב המקטע פחות הריווח שלו
+  /// ([segmentPadding]) והאייקון. בלי ההגדרה המקטעים צרים לפי
+  /// [narrowBelowSegmentWidth] בלבד, ותווית ארוכה נחתכת ב-ellipsis.
+  final bool twoRowsWhenClipped;
+
   const AppSegmentedControl({
     super.key,
     required this.options,
@@ -85,18 +99,131 @@ class AppSegmentedControl<T> extends StatelessWidget {
     this.height,
     this.maxLabelLines = 1,
     this.reselectable = false,
+    this.twoRowsWhenClipped = false,
   });
 
-  /// מתחת לרוחב הזה למקטע (רוחב הבורר חלקי מספר המקטעים) המקטע צר: האייקונים
-  /// יורדים, ו-[SegmentOption.shortLabel] במקום התווית, כדי שהתווית תיכנס.
-  /// בטלפון (320–360) נשארו מ"מדויק" שתי אותיות, ו"חיפוש חכם" נחתך ל"חיפוש
-  /// ..." (q12 Q8).
+  /// בלי [twoRowsWhenClipped]: מתחת לרוחב הזה למקטע (רוחב הבורר חלקי מספר
+  /// המקטעים) המקטע צר: האייקונים יורדים, ו-[SegmentOption.shortLabel] במקום
+  /// התווית, כדי שהתווית תיכנס. בטלפון (320–360) נשארו מ"מדויק" שתי אותיות,
+  /// ו"חיפוש חכם" נחתך ל"חיפוש ..." (q12 Q8).
   static const double narrowBelowSegmentWidth = 96;
 
-  List<ButtonSegment<T>> _segments({required bool narrow}) {
+  /// הריווח האופקי של מקטע עם תווית בלבד — גם בציור ([_buttonStyle]) וגם
+  /// במדידה של [twoRowsWhenClipped]. אותם ערכים כמו ברירת המחדל של
+  /// TextButton, ובהגדלת טקסט הם קטנים כמו שם (×2: ‏8, ‏×3: ‏4).
+  static EdgeInsetsGeometry segmentPadding(BuildContext context) {
+    final fontSize = _labelStyle(context)?.fontSize ?? 14;
+    return ButtonStyleButton.scaledPadding(
+      const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSMD,
+        vertical: AppTokens.spaceSM,
+      ),
+      const EdgeInsets.symmetric(horizontal: AppTokens.spaceSM),
+      const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
+      MediaQuery.textScalerOf(context).scale(fontSize) / 14,
+    );
+  }
+
+  /// סגנון התווית במקטע: כמו ב-SegmentedButton, מה-theme ואחרת labelLarge.
+  static TextStyle? _labelStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.segmentedButtonTheme.style?.textStyle?.resolve(
+          const <WidgetState>{},
+        ) ??
+        theme.textTheme.labelLarge;
+  }
+
+  /// הריווח האופקי של מקטע עם אייקון: SegmentedButton קובע אותו בעצמו, כמו
+  /// ב-TextButton.icon (‏12 ו-16, ובהגדלת טקסט 4 מכל צד), והרווח בין
+  /// האייקון לתווית 8, ובהגדלה ×2 ומעלה 4.
+  static double _iconSegmentExtra(BuildContext context) {
+    final fontSize = _labelStyle(context)?.fontSize ?? 14;
+    final scale = MediaQuery.textScalerOf(context).scale(fontSize) / 14;
+    final padding = ButtonStyleButton.scaledPadding(
+      const EdgeInsetsDirectional.fromSTEB(
+        AppTokens.spaceSMD,
+        AppTokens.spaceSM,
+        AppTokens.spaceMD,
+        AppTokens.spaceSM,
+      ),
+      const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
+      const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
+      scale,
+    );
+    final gap = lerpDouble(
+      AppTokens.spaceSM,
+      AppTokens.spaceXS,
+      clampDouble(scale, 1, 2) - 1,
+    )!;
+    return padding.resolve(Directionality.of(context)).horizontal + gap;
+  }
+
+  /// רוחב האייקון של [o] במקטע: כמו ב-[_buildOptionIcon].
+  static double _iconWidth(SegmentOption<Object?> o) =>
+      o.icon != null || o.rtlIcon != null
+      ? AppTokens.iconSM
+      : _missingIconWidth;
+
+  /// מקום ריק לאפשרות בלי אייקון, כשלאחרות יש.
+  static const double _missingIconWidth = 18;
+
+  /// הפריסה של [shown] במקטע ברוחב [segmentWidth] ([twoRowsWhenClipped]):
+  /// [_Fit.full] כשהתוויות המלאות נכנסות עם האייקונים, [_Fit.narrow] כשרק
+  /// הקצרות נכנסות בלי אייקונים, ואחרת [_Fit.clipped].
+  _Fit _fitOf(
+    BuildContext context,
+    List<SegmentOption<T>> shown,
+    double segmentWidth,
+  ) {
+    final hasIcons = options.any((o) => o.icon != null || o.rtlIcon != null);
+    final labelOnly = segmentPadding(
+      context,
+    ).resolve(Directionality.of(context)).horizontal;
+    final iconExtra = _iconSegmentExtra(context);
+    // הלחצן נותן לתווית DefaultTextStyle חדש מהסגנון הזה, בלי הסגנון שמסביב.
+    final style = _labelStyle(context);
+    bool fits(String label, double available) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: maxLabelLines,
+      )..layout(maxWidth: available < 0 ? 0 : available);
+      final clipped =
+          painter.didExceedMaxLines ||
+          (maxLabelLines == 1 && painter.maxIntrinsicWidth > available);
+      painter.dispose();
+      return !clipped;
+    }
+
+    if (shown.every(
+      (o) => fits(
+        o.label,
+        segmentWidth -
+            (hasIcons || showSelectedIcon
+                ? iconExtra + _iconWidth(o)
+                : labelOnly),
+      ),
+    )) {
+      return _Fit.full;
+    }
+    // סימן הבחירה (showSelectedIcon) מוצג גם במקטע צר, במקום האייקון.
+    final narrow =
+        segmentWidth -
+        (showSelectedIcon ? iconExtra + AppTokens.iconSM : labelOnly);
+    if (shown.every((o) => fits(o.shortLabel ?? o.label, narrow))) {
+      return _Fit.narrow;
+    }
+    return _Fit.clipped;
+  }
+
+  List<ButtonSegment<T>> _segments(
+    List<SegmentOption<T>> shown, {
+    required bool narrow,
+  }) {
     final hasIcons =
         !narrow && options.any((o) => o.icon != null || o.rtlIcon != null);
-    return options
+    return shown
         .map(
           (o) => ButtonSegment<T>(
             value: o.value,
@@ -120,28 +247,30 @@ class AppSegmentedControl<T> extends StatelessWidget {
   Widget _buildOptionIcon(SegmentOption<T> o) {
     if (o.rtlIcon != null) return RtlIcon(o.rtlIcon!, size: AppTokens.iconSM);
     if (o.icon != null) return Icon(o.icon, size: AppTokens.iconSM);
-    return const SizedBox(width: 18);
+    return const SizedBox(width: _missingIconWidth);
   }
 
-  static ButtonStyle _buttonStyle(ColorScheme cs) => ButtonStyle(
-    foregroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) {
-        return cs.onSecondaryContainer;
-      }
-      return cs.onSurfaceVariant;
-    }),
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) {
-        return cs.secondaryContainer;
-      }
-      return cs.surface;
-    }),
-    shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-    ),
-  );
+  static ButtonStyle _buttonStyle(BuildContext context, ColorScheme cs) =>
+      ButtonStyle(
+        padding: WidgetStatePropertyAll(segmentPadding(context)),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return cs.onSecondaryContainer;
+          }
+          return cs.onSurfaceVariant;
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return cs.secondaryContainer;
+          }
+          return cs.surface;
+        }),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: AppTokens.borderRadiusAll,
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -149,25 +278,82 @@ class AppSegmentedControl<T> extends StatelessWidget {
     final isFixed = height != null;
 
     return LayoutBuilder(
-      builder: (context, constraints) => _build(
-        cs,
-        isFixed,
+      builder: (context, constraints) {
         // ברוחב לא חסום (בתוך Row) הבורר ברוחבו הטבעי, ואינו צר.
-        narrow:
-            constraints.hasBoundedWidth &&
-            constraints.maxWidth / options.length < narrowBelowSegmentWidth,
+        if (!constraints.hasBoundedWidth) {
+          return _build(context, cs, isFixed, options, narrow: false);
+        }
+        final segmentWidth = constraints.maxWidth / options.length;
+        if (!twoRowsWhenClipped || options.length <= 2) {
+          return _build(
+            context,
+            cs,
+            isFixed,
+            options,
+            narrow: segmentWidth < narrowBelowSegmentWidth,
+          );
+        }
+        final fit = _fitOf(context, options, segmentWidth);
+        if (fit != _Fit.clipped) {
+          return _build(
+            context,
+            cs,
+            isFixed,
+            options,
+            narrow: fit == _Fit.narrow,
+          );
+        }
+        return _buildTwoRows(context, cs, isFixed, constraints.maxWidth);
+      },
+    );
+  }
+
+  /// [twoRowsWhenClipped]: שני בוררים זה מעל זה, באותו סגנון. הנבחר מסומן
+  /// בשורה שלו, והשורה השנייה בלי בחירה. החצים עוברים בין המקטעים כמו
+  /// בשורה אחת (ובין השורות למעלה ולמטה), ו-Tab בסדר הקריאה.
+  Widget _buildTwoRows(
+    BuildContext context,
+    ColorScheme cs,
+    bool isFixed,
+    double width,
+  ) {
+    final perRow = (options.length + 1) ~/ 2;
+    final rows = [options.sublist(0, perRow), options.sublist(perRow)];
+    // באותה פריסה בשתי השורות: אם צריך, גם כאן התוויות הקצרות בלי אייקונים.
+    final narrow = _fitOf(context, options, width / perRow) != _Fit.full;
+    return FocusTraversalGroup(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: AppTokens.spaceSM,
+        children: [
+          for (final row in rows)
+            _build(context, cs, isFixed, row, narrow: narrow),
+        ],
       ),
     );
   }
 
-  Widget _build(ColorScheme cs, bool isFixed, {required bool narrow}) {
+  Widget _build(
+    BuildContext context,
+    ColorScheme cs,
+    bool isFixed,
+    List<SegmentOption<T>> shown, {
+    required bool narrow,
+  }) {
+    final split = shown.length != options.length;
     return SegmentedButton<T>(
-      segments: _segments(narrow: narrow),
-      selected: {currentValue},
-      expandedInsets: expandToFillWidth ? EdgeInsets.zero : null,
+      segments: _segments(shown, narrow: narrow),
+      // בשתי שורות הנבחר נמצא רק באחת מהן, והשנייה בלי בחירה.
+      selected: {
+        if (!split || shown.any((o) => o.value == currentValue)) currentValue,
+      },
       // SegmentedButton מדווח על לחיצה במקטע הנבחר רק כשמותרת בחירה ריקה, ואז
-      // כבחירה ריקה; הבורר נשאר מסומן, והלחיצה היא הערך הנוכחי.
-      emptySelectionAllowed: reselectable,
+      // כבחירה ריקה; הבורר נשאר מסומן, והלחיצה היא הערך הנוכחי. בשתי שורות
+      // בחירה ריקה מגיעה רק מלחיצה על הנבחר (בשורה השנייה אין נבחר), ולכן
+      // [reselectable] פועל שם כמו בשורה אחת.
+      emptySelectionAllowed: reselectable || split,
+      expandedInsets: expandToFillWidth || split ? EdgeInsets.zero : null,
       onSelectionChanged: (Set<T> selection) {
         if (selection.isNotEmpty) {
           onChanged(selection.first);
@@ -181,7 +367,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
         size: AppTokens.iconSM,
       ),
       style: isFixed
-          ? _buttonStyle(cs).copyWith(
+          ? _buttonStyle(context, cs).copyWith(
               minimumSize: WidgetStateProperty.all(Size(0, height!)),
               maximumSize: WidgetStateProperty.all(
                 Size(
@@ -190,7 +376,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
                 ),
               ),
             )
-          : _buttonStyle(cs).copyWith(
+          : _buttonStyle(context, cs).copyWith(
               visualDensity: VisualDensity.compact,
             ),
     );

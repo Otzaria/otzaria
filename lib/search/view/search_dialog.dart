@@ -1402,6 +1402,9 @@ class _SearchDialogState extends State<SearchDialog> {
       : context.settingsText('חיפוש בספרייה');
 
   /// בורר מצב החיפוש — מקטעים ברוחב מלא; ההסבר של כל מצב ב-tooltip.
+  /// במדידה: האייקונים יורדים והתוויות מתקצרות כשאין להן מקום, ורק כשגם אז
+  /// תווית נחתכת (באנגלית ב-320–360, או בטקסט מוגדל) — 2×2 עם התוויות המלאות
+  /// (סקירה שלישית של 4.11, q-ss7).
   Widget _buildModeSelector(
     BuildContext context,
     SearchState state,
@@ -1414,6 +1417,7 @@ class _SearchDialogState extends State<SearchDialog> {
 
     return AppSegmentedControl<_ModeChoice>(
       expandToFillWidth: true,
+      twoRowsWhenClipped: true,
       currentValue: current,
       options: [
         for (final choice in _ModeChoice.values)

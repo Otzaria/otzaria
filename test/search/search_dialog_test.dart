@@ -1546,6 +1546,69 @@ Future<void> main() async {
     expect(find.text('בחר שאילתה, סוג חיפוש והיקף'), findsOneWidget);
   });
 
+  // סקירה שלישית של 4.11, q-ss7: 2×2 רק כשתווית נחתכת גם בלי אייקונים.
+  testWidgets('בורר המצבים בשתי שורות רק כשתווית נחתכת, והבחירה עובדת בהן', (
+    WidgetTester tester,
+  ) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final tab = SearchingTab('חיפוש', '');
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() async {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tab.dispose();
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+    final modeRows = find.descendant(
+      of: find.byType(SearchDialog),
+      matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+    );
+    Future<void> pump(Size size) async {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(existingTab: tab),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pump(const Size(1400, 900));
+    expect(modeRows, findsOneWidget);
+
+    // בגופן הבדיקות כל אות 14: ב-300 "מתקדם" (70) לא נכנס גם בלי אייקון.
+    await pump(const Size(300, 640));
+    expect(modeRows, findsNWidgets(2));
+    // ב-300 בגופן הבדיקות שורה אחרת בדיאלוג גולשת, גם בלי השינוי הזה.
+    tester.takeException();
+    await tester.tap(find.text('מקורב'));
+    await tester.pumpAndSettle();
+    expect(tab.searchBloc.state.configuration.searchMode, SearchMode.fuzzy);
+  });
+
   testWidgets('כותרת החיפוש בתוך ספר לא מבטיחה היקף', (
     WidgetTester tester,
   ) async {

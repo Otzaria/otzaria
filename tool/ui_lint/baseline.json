@@ -884,9 +884,6 @@
         {"scope":"BarButton._buildIcon","fp":"2ca16502","n":1},
         {"scope":"BarButton._buildIcon","fp":"46578ede","n":1}
       ],
-      "lib/widgets/controls/segmented_control.dart": [
-        {"scope":"AppSegmentedControl._buildOptionIcon","fp":"306405ea","n":1}
-      ],
       "lib/widgets/controls/status_chip.dart": [
         {"scope":"StatusChip.build","fp":"ebe52bba","n":1}
       ],
