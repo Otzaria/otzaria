@@ -374,7 +374,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _startupFullReindexPending = false;
   bool _startupIndexingBeforeUpdate = false;
   // מסך הפתיחה (סמל צף) מוצג עד שתוכן הטאב הפעיל נטען, ואז החלון הקטן/השקוף
-  // מתרחב לחלון המלא. ראה _scheduleSplashReveal / _revealNow.
+  // מתרחב לחלון המלא. ראה _scheduleSplashReveal / _revealMainWindowOnce.
   bool _initialContentReady = false;
   // אוברליי הסמל הצף מוסר רק *אחרי* שהתוכן צויר בפועל — כך הסמל גלוי ברצף
   // (בלי רגע ריק) וגם "מגשר" על זמן הציור הקר של ה-UI. נפרד מ-_initialContentReady
@@ -3645,14 +3645,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
         ],
         child: BlocBuilder<NavigationBloc, NavigationState>(
           builder: (context, state) {
-            // נבנה את הדפים רק פעם אחת ונשמור אותם.
-            //
-            // אופטימיזציית bootstrap: LibraryBrowser הוא widget כבד עם BlocBuilder<LibraryBloc>
-            // ו-context גלובלי. כש-PageView (ב-index 1=Reading) דורש את שכניו (index 0=Library),
-            // הקונסטרקטור והקריאות הראשוניות חוסמות את ה-UI thread. עד שהמשתמש לא ביקש לפתוח
-            // את הספרייה, מציגים placeholder ריק; כשהוא יבחר 'ספרייה', ה-BlocBuilder ירוץ שוב
-            // ויחליף ל-LibraryBrowser האמיתי. כשאין ספרייה, LibraryBrowser עצמו מציג את
-            // מסך ההגדרה בתוך אזור התוכן — אין מסך נפרד.
+            // הדפים נבנים פעם אחת ונשמרים. LibraryBrowser כבד ו-PageView בונה גם את
+            // שכני העמוד, ולכן הוא נבנה רק כשמבקשים את הספרייה; עד אז placeholder.
             final libraryBuildDecision = resolveLibraryPageBuildDecision(
               hasBuiltRealPage: _hasBuiltRealLibraryPage,
               currentScreen: state.currentScreen,
@@ -3667,9 +3661,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _hasBuiltRealLibraryPage = true;
             } else if (libraryBuildDecision ==
                 LibraryPageBuildDecision.usePlaceholder) {
-              // המשתמש עדיין ב-Reading/Tools/Settings ולא ביקש את הספרייה —
-              // מציגים placeholder זול. הוא יוחלף ל-LibraryBrowser בפעם הראשונה
-              // שהמשתמש ינווט ל-Screen.library.
               _cachedLibraryPage = const SizedBox.shrink();
             }
 
