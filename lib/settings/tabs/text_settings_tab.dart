@@ -17,6 +17,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות
@@ -24,14 +25,14 @@ class TextSettingsTab extends StatelessWidget {
   /// האם להציג כדיאלוג (עם כפתור סגירה) או כטאב (ללא)
   final bool isDialog;
 
-  /// כאשר true, מוסתר סליידר "גודל גופן מפרשים". משמש במצב צורת הדף, שבו
-  /// גודל גופן המפרשים נשלט על-ידי הגדרה ייעודית נפרדת בדיאלוג צורת הדף.
-  final bool hideCommentaryFontSize;
+  /// במצב צורת הדף גודל גופן המפרשים הוא הגדרה נפרדת של צורת הדף. כש-true
+  /// מוצג במקום המחוון הכללי המחוון של צורת הדף, באותה שורה (#3244).
+  final bool pageShapeCommentaryFontSize;
 
   const TextSettingsTab({
     super.key,
     this.isDialog = false,
-    this.hideCommentaryFontSize = false,
+    this.pageShapeCommentaryFontSize = false,
   });
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
@@ -281,7 +282,11 @@ class TextSettingsTab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: AdaptiveRow(
             children: [
-              if (!hideCommentaryFontSize)
+              if (pageShapeCommentaryFontSize)
+                PageShapeCommentaryFontSizeSlider(
+                  title: context.settingsText('גודל גופן מפרשים (צורת הדף)'),
+                )
+              else
                 _FontSizeSlider(
                   applyWhileDragging: isDialog,
                   icon: OtzariaIcons.beit_near_alef_24_filled,

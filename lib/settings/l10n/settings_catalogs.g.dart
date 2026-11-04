@@ -241,6 +241,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'גבה הכל': 'Everything',
     'גודל גופן הספר': 'Sefer Font Size',
     'גודל גופן מפרשים': 'Meforshim Font Size',
+    'גודל גופן מפרשים (צורת הדף)': 'Meforshim Font Size (Page Layout)',
     'גודל הגופן, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי': 'Font size, nikud and commentators set in a sefer are saved for that sefer. The font itself stays global',
     'גודל ההורדה: {size}': 'Download size: {size}',
     'גוף הספר': 'Main Text',

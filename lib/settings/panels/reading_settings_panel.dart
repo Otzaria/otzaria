@@ -14,9 +14,8 @@ import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 /// פאנל הגדרות תצוגת הספרים — משמש גם כ-overlay צף וגם כתוכן הדיאלוג
 /// ([showReadingSettingsDialog]). הגלילה מטופלת בתוך [TextSettingsTab].
 ///
-/// מזהה אם הטאב הפעיל מוצג במצב "צורת הדף" — ובמקרה זה מסתיר את סליידר
-/// "גודל גופן מפרשים", שכן בצורת הדף גודל גופן המפרשים נשלט בהגדרה ייעודית
-/// נפרדת (בדיאלוג צורת הדף) ולא בהגדרה הכללית.
+/// מזהה אם הטאב הפעיל מוצג במצב "צורת הדף" — ובמקרה זה מחוון "גודל גופן
+/// מפרשים" הוא של צורת הדף, כי שם הגודל הוא הגדרה ייעודית נפרדת.
 class ReadingSettingsPanel extends StatelessWidget {
   const ReadingSettingsPanel({super.key});
 
@@ -39,7 +38,7 @@ class ReadingSettingsPanel extends StatelessWidget {
             builder: (context, textState) => _isPageShape(textState)
                 ? const TextSettingsTab(
                     isDialog: true,
-                    hideCommentaryFontSize: true,
+                    pageShapeCommentaryFontSize: true,
                   )
                 : const TextSettingsTab(isDialog: true),
           );
