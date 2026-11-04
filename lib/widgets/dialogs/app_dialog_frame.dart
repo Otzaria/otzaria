@@ -140,7 +140,7 @@ class AppDialogFrame extends StatelessWidget {
 
   /// במקום [isDirty], לטופס ששואל שאלת סגירה משלו: X, Escape, לחיצה בחוץ
   /// וחזרה קוראים לו, והדיאלוג נסגר רק כשהקורא סוגר אותו.
-  final VoidCallback? onDismissRequest;
+  final DialogDismissRequest? onDismissRequest;
 
   /// הפעולה הראשית: Enter בשדה חד־שורתי, או כשאין רכיב ממוקד שמגיב ל-Enter.
   final VoidCallback? onConfirm;
