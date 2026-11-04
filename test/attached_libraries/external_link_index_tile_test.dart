@@ -11,6 +11,12 @@ class _FakeLinks extends ExternalLinkRepository {
   void cancelBuild() => calls.add('cancel');
 
   @override
+  void resumeBuild() {
+    calls.add('resumeBuild');
+    buildPaused.value = false;
+  }
+
+  @override
   void requestResume(String slug) => calls.add('resume:$slug');
 
   @override
@@ -121,6 +127,38 @@ void main() {
     await tester.tap(find.text('עצור').last);
     await tester.pumpAndSettle();
     expect(links.calls, ['cancel']);
+  });
+
+  testWidgets('השהיה מחלונית החיווי מוצגת בשורה (issue #3243)', (
+    tester,
+  ) async {
+    await pump(tester);
+    links.buildProgress.value = const {
+      'dbA': ExternalLinkBuildProgress(done: 1, total: 2),
+    };
+    await tester.pump();
+
+    // לחצן "השהה" בחלונית החיווי (pauseBuild).
+    links.buildPaused.value = true;
+    await tester.pump();
+    expect(find.text('התקדמות האינדקס: 1/2'), findsNothing);
+    expect(find.text('האינדוקס מושהה: 1/2'), findsOneWidget);
+    expect(find.text('עצור'), findsOneWidget);
+
+    await tester.tap(find.text('המשך'));
+    await tester.pump();
+    expect(links.calls, ['resumeBuild']);
+    expect(find.text('התקדמות האינדקס: 1/2'), findsOneWidget);
+    expect(find.text('המשך'), findsNothing);
+
+    // "עצור" בזמן השהיה מבטל את הבנייה.
+    links.buildPaused.value = true;
+    await tester.pump();
+    await tester.tap(find.text('עצור'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('עצור').last);
+    await tester.pumpAndSettle();
+    expect(links.calls, ['resumeBuild', 'cancel']);
   });
 
   testWidgets('מסד שעבר את התקרה: הודעה בלי איפוס', (tester) async {

@@ -850,6 +850,8 @@
   "נדרש איפוס ואינדוקס מחדש באישור המשתמש": "A reset and re-index is needed — waiting for user approval",
   "התקדמות האינדקס: {processed}/{total}": "Indexing: {processed}/{total}",
   "בודק אילו ספרים דורשים עדכון: {processed}/{total}": "Checking which seforim need updating: {processed}/{total}",
+  "בדיקת הספרים מושהית: {processed}/{total}": "Seforim check paused: {processed}/{total}",
+  "האינדוקס מושהה: {processed}/{total}": "Indexing paused: {processed}/{total}",
   "מסיים ומאחד את קבצי האינדקס": "Finishing up and merging the index files",
   "האינדוקס הושלם עם {count} בעיות; הפרטים נשמרו ביומן השגיאות": "Indexing finished with {count} issues; details were saved to the error log",
   "האינדוקס הושלם; ב-{count} ספרי PDF נשמטו עמודים בודדים מהחיפוש": "Indexing finished; in {count} PDF books a few pages were left out of the search",

@@ -62,6 +62,7 @@ class _ExternalLinkIndexTileState extends State<ExternalLinkIndexTile> {
   late final Listenable _state = Listenable.merge([
     _repository.buildProgress,
     _repository.buildingSlugs,
+    _repository.buildPaused,
     _repository.incompleteSlugs,
     _repository.tooLargeSlugs,
   ]);
@@ -100,16 +101,23 @@ class _ExternalLinkIndexTileState extends State<ExternalLinkIndexTile> {
     final progress = _repository.buildProgress.value;
     final isBuilding =
         progress.isNotEmpty || _repository.buildingSlugs.value.isNotEmpty;
+    final isPaused = isBuilding && _repository.buildPaused.value;
     final incomplete = _repository.incompleteSlugs.value;
     final tooLarge = _repository.tooLargeSlugs.value.isNotEmpty;
     final (:done, :total) = sumLinkBuildProgress(progress);
-    final subtitle = isBuilding
+    final counts = {
+      'processed': formatLinkCount(done),
+      'total': formatLinkCount(total),
+    };
+    final subtitle = isPaused
+        ? context.settingsText(
+            'האינדוקס מושהה: {processed}/{total}',
+            args: counts,
+          )
+        : isBuilding
         ? context.settingsText(
             'התקדמות האינדקס: {processed}/{total}',
-            args: {
-              'processed': formatLinkCount(done),
-              'total': formatLinkCount(total),
-            },
+            args: counts,
           )
         : incomplete.isNotEmpty
         ? context.settingsText('אינדקס הקישורים לא הושלם')
@@ -121,6 +129,11 @@ class _ExternalLinkIndexTileState extends State<ExternalLinkIndexTile> {
       title: context.settingsText('אינדקס קישורים'),
       subtitle: subtitle,
       actions: [
+        if (isPaused)
+          ActionButton.recommended(
+            text: context.settingsText('המשך'),
+            onPressed: _repository.resumeBuild,
+          ),
         if (isBuilding)
           ActionButton.neutral(
             text: context.settingsText('עצור'),
