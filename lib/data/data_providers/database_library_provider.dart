@@ -5253,7 +5253,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
     return _dbOperation<List<Link>>(
       (db) async {
-        // תחילת כותרת-אב עשויה להיות ממופה לילד, ולכן העוגן המפורש קודם למיפוי.
+        // עוגן האב קודם למיפוי רק כשאינו מדלג על פתיחת הבן הראשון.
+        // בלי עוגן בן תקף נשמר מסלול המיפוי והירידה בעץ של הסרגל.
         var results = db
             .select(
               '''
@@ -5261,7 +5262,18 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           FROM alt_toc_entry e
           JOIN line l ON e.lineId = l.id
           JOIN book b ON l.bookId = b.id
+          LEFT JOIN alt_toc_entry child ON child.id = (
+            SELECT id FROM alt_toc_entry
+            WHERE structureId = e.structureId AND parentId = e.id
+            ORDER BY id LIMIT 1
+          )
+          LEFT JOIN line childLine ON child.lineId = childLine.id
           WHERE e.structureId = ? AND e.id = ?
+            AND (child.id IS NULL OR (
+              childLine.id IS NOT NULL AND (
+                childLine.bookId != l.bookId OR childLine.lineIndex >= l.lineIndex
+              )
+            ))
         ''',
               [structureId, altTocEntryId],
             )
