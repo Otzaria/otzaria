@@ -213,6 +213,8 @@ class WebViewEnvironmentHolder {
   static bool get supportsPrewarm => !kIsWeb && (_isWindows || _isAndroid);
 
   static Future<void>? _prewarmInFlight;
+  static Future<void>? _waitedPrewarm;
+  static Future<void>? _prewarmWait;
   @visibleForTesting
   static Duration prewarmWaitLimit = const Duration(seconds: 30);
 
@@ -271,9 +273,17 @@ class WebViewEnvironmentHolder {
 
   // יצירה ב-thread ה-UI בזמן שהחימום עוד טוען הייתה נחסמת בטעינת ה-DLL;
   // ההמתנה כאן אסינכרונית ומוגבלת.
-  static Future<void> _awaitPrewarm() async {
+  static Future<void> _awaitPrewarm() {
     final prewarm = _prewarmInFlight;
-    if (prewarm == null) return;
+    if (prewarm == null) return Future<void>.value();
+    // Every consumer of this operation shares the same bounded wait.
+    // A later consumer must not keep waiting after the first timeout.
+    if (identical(_waitedPrewarm, prewarm)) return _prewarmWait!;
+    _waitedPrewarm = prewarm;
+    return _prewarmWait = _waitForPrewarm(prewarm);
+  }
+
+  static Future<void> _waitForPrewarm(Future<void> prewarm) async {
     final waited = Stopwatch()..start();
     await prewarm.timeout(
       prewarmWaitLimit,

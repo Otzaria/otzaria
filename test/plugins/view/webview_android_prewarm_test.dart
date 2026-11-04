@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,6 +118,46 @@ void main() {
       expect(await first, true);
     },
   );
+
+  test('a timeout releases an existing late consumer too', () {
+    fakeAsync((time) {
+      pending = Completer<WebViewEnvironmentPrewarmResult?>();
+      startPrewarm();
+      time.flushMicrotasks();
+      var firstReady = false;
+      var secondReady = false;
+      try {
+        WebViewEnvironmentHolder.initialize().then((_) => firstReady = true);
+        time.flushMicrotasks();
+        time.elapse(const Duration(seconds: 29));
+        WebViewEnvironmentHolder.initialize().then((_) => secondReady = true);
+        time.flushMicrotasks();
+        expect(firstReady, false);
+        expect(secondReady, false);
+        time.elapse(const Duration(seconds: 1));
+        time.flushMicrotasks();
+        expect(firstReady, true);
+        expect(secondReady, true);
+      } finally {
+        if (!pending!.isCompleted) pending!.complete(_ok);
+        time.flushMicrotasks();
+      }
+    });
+  });
+
+  test('the supported platform set is explicit', () {
+    for (final platform in TargetPlatform.values) {
+      debugDefaultTargetPlatformOverride = platform;
+      WebViewEnvironmentHolder.debugIsWindowsOverride =
+          platform == TargetPlatform.windows;
+      expect(
+        WebViewEnvironmentHolder.supportsPrewarm,
+        platform == TargetPlatform.windows ||
+            platform == TargetPlatform.android,
+        reason: platform.name,
+      );
+    }
+  });
 
   test('no enabled plugin means no Android startup work', () async {
     expect(await startPrewarm(enabled: false), isFalse);
