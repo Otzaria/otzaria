@@ -35,8 +35,9 @@ void main() {
   });
 
   tearDown(() async {
-    if (eligibility != null && !eligibility!.isCompleted)
+    if (eligibility != null && !eligibility!.isCompleted) {
       eligibility!.complete(true);
+    }
     final outstanding = pending;
     if (outstanding != null && !outstanding.isCompleted) {
       outstanding.complete(_ok);
