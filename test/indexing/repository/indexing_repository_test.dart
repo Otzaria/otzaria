@@ -4367,14 +4367,21 @@ void main() {
         source: BookSource.attached('lib'),
       );
 
+      final attachedPdf = PdfBook(
+        id: 2,
+        title: 'מצורף סרוק',
+        path: '/attached/scanned.pdf',
+        source: attached.source,
+      );
+
       expect(
         IndexingRepository.booksForIndexing(
-          [official, personal, attached],
+          [official, personal, attached, attachedPdf],
           includePdfBooks: true,
           hidden: const HiddenLibrarySelection(),
           mode: IndexUpdateMode.libraryOnly,
         ),
-        [official, attached],
+        [official],
       );
     });
 
@@ -4390,11 +4397,18 @@ void main() {
           title: 'אישי',
           source: BookSource.user,
         );
-        library.books.add(personal);
+        library.books.addAll([
+          personal,
+          TextBook(
+            id: 3,
+            title: 'מצורף',
+            source: BookSource.attached('lib'),
+          ),
+        ]);
         provider.indexedFilePaths.addAll(
           library
               .getAllBooks()
-              .where((book) => !book.source.isUser)
+              .where((book) => book.source.isOfficial)
               .where(IndexingRepository.isIndexableBook)
               .map(BookIdentity.indexedFilePath),
         );

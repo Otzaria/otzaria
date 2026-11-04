@@ -22,7 +22,7 @@ enum IndexUpdateMode {
   bool get indexesPersonalBooks => this != libraryOnly;
 
   /// האם [book] נכנס לאינדקס במצב זה.
-  bool admits(Book book) => indexesPersonalBooks || !book.source.isUser;
+  bool admits(Book book) => indexesPersonalBooks || !book.isPersonalBook;
 
   /// המפתח הבוליאני הישן קובע הפעלה/כיבוי, כדי שגרסה ישנה שמשנה רק אותו
   /// תיקרא נכון; [stored] רק מבחין בין "כל הספרים" ל"בלי ספרים אישיים".

@@ -17,7 +17,12 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/book_toc_loader.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/navigation/utils/refresh_indexing_plan.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -221,6 +226,55 @@ void main() {
     );
     expect(_child(catalog, _personalRoot), isNull);
   });
+
+  for (final placement in AttachedLibraryPlacement.values) {
+    test('מצב האינדקס מכבד מקור של מסד מצורף: ${placement.name}', () async {
+      final library = await attach(
+        attachedFixture('אישי', SeforimFixtureVariant.full),
+      );
+      await attached.setPlacement(library, placement);
+      final catalog = await buildCatalog();
+      final books = catalog.getIndexableBooks();
+      final officialBooks = books
+          .where((book) => book.source.isOfficial)
+          .toList();
+      final attachedBooks = books
+          .where((book) => book.source.isAttached)
+          .toList();
+      expect(officialBooks, isNotEmpty);
+      expect(attachedBooks, isNotEmpty);
+
+      for (final mode in [IndexUpdateMode.all, IndexUpdateMode.libraryOnly]) {
+        expect(
+          IndexingRepository.booksForIndexing(
+            books,
+            includePdfBooks: true,
+            hidden: const HiddenLibrarySelection(),
+            library: catalog,
+            mode: mode,
+          ),
+          mode == IndexUpdateMode.all ? books : officialBooks,
+          reason: mode.name,
+        );
+        final events = buildRefreshIndexingPlan(
+          library: catalog,
+          newBooks: attachedBooks,
+          changedBooks: attachedBooks,
+          indexWholeLibrary: false,
+          reconcile: false,
+          indexUpdateMode: mode,
+        );
+        if (mode == IndexUpdateMode.libraryOnly) {
+          expect(events, isEmpty);
+        } else {
+          final run = events.single as RunIndexing;
+          expect(run.books, attachedBooks);
+          expect(run.check.books, attachedBooks);
+          expect(run.changedBooks, isEmpty);
+        }
+      }
+    });
+  }
 
   test('מסד מוסתר או לא נגיש — ספריו אינם בעץ', () async {
     final hidden = await attach(
