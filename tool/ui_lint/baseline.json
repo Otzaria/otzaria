@@ -171,9 +171,6 @@
       "lib/widgets/dialogs/zip_extraction_progress_dialog.dart": [
         {"scope":"ZipExtractionProgressDialog.showAndExtract","fp":"8fde4718","n":2}
       ],
-      "lib/widgets/misc/link_context_menu_entry.dart": [
-        {"scope":"_LinkHoverPreviewContentState.build","fp":"8fde4718","n":1}
-      ],
       "lib/widgets/text/otzaria_search_field_button.dart": [
         {"scope":"OtzariaSearchFieldButton.build","fp":"8fde4718","n":1}
       ],
@@ -948,12 +945,6 @@
       ],
       "lib/widgets/misc/font_dropdown_field.dart": [
         {"scope":"_FontEntryLabel.build","fp":"d1a84c0b","n":1}
-      ],
-      "lib/widgets/misc/link_context_menu_entry.dart": [
-        {"scope":"_LinkHoverPreviewContentState.build","fp":"d1a84c0b","n":1}
-      ],
-      "lib/widgets/misc/link_preview_overlay.dart": [
-        {"scope":"_PanelStyle.floating","fp":"ab929327","n":1}
       ],
       "lib/widgets/misc/phone_report_tab.dart": [
         {"scope":"_PhoneReportTabState._buildValidationErrors","fp":"8b836092","n":1}

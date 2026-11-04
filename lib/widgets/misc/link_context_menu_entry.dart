@@ -2,6 +2,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'dart:math' as math;
 
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
@@ -82,6 +84,13 @@ double previewFontSize(SettingsState settingsState, double? maxFontSize) =>
     maxFontSize == null
     ? settingsState.commentatorsFontSize
     : math.min(settingsState.commentatorsFontSize, maxFontSize);
+
+/// גודל הכותרת (שם הספר והמקום) בחלונית הקומפקטית: ×0.85 מגודל התוכן, כמו
+/// כותרת מפרש (DESIGN_SYSTEM §2.4.2), כך שהיא גדלה עם גודל הקריאה. התקרה 14
+/// (titleSmall, כותרת כרטיס) כדי שהכותרת לא תתחרה בתוכן בגדלים גדולים, והרצפה
+/// 11 (labelSmall, הגודל הקודם) כדי שלא תקטן ממנו.
+double compactPreviewTitleFontSize(double contentFontSize) =>
+    (contentFontSize * 0.85).clamp(11.0, 14.0);
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
 /// מעוצב לפי הגדרות תצוגת המפרשים (גופן, ניקוד, טעמים).
@@ -198,7 +207,9 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final textTheme = theme.textTheme;
         final profile = _profileFor(settingsState);
         final fontSize = previewFontSize(settingsState, widget.maxFontSize);
         final title = FutureBuilder<String>(
@@ -216,7 +227,9 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
               maxLines: compact ? 1 : null,
               overflow: compact ? TextOverflow.ellipsis : null,
               style: TextStyle(
-                fontSize: compact ? 11 : fontSize - 2,
+                fontSize: compact
+                    ? compactPreviewTitleFontSize(fontSize)
+                    : fontSize - 2,
                 fontWeight: FontWeight.bold,
                 fontFamily: AppFonts.renderFontFamily(
                   settingsState.commentatorsFontFamily,
@@ -230,10 +243,10 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
               child: Row(
                 children: [
                   Expanded(child: titleText),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppTokens.spaceSM),
                   Icon(
                     FluentIcons.open_24_regular,
-                    size: compact ? 13 : 16,
+                    size: compact ? AppTokens.iconXS : AppTokens.iconSM,
                     color: colorScheme.primary,
                   ),
                 ],
@@ -255,17 +268,19 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                 )
               else
                 title,
-              Divider(height: compact ? 8 : 16),
+              Divider(
+                height: compact ? AppTokens.spaceSM : AppTokens.spaceMD,
+              ),
               Flexible(
                 child: FutureBuilder<String>(
                   future: link.content,
                   builder: (context, snapshot) {
+                    // הודעות ממשק בתוך אזור התוכן: textTheme, לא גודל הקריאה.
                     if (snapshot.hasError) {
                       return Text(
                         'שגיאה בטעינת התוכן',
-                        style: TextStyle(
+                        style: textTheme.bodyMedium?.copyWith(
                           color: colorScheme.error,
-                          fontSize: fontSize - 2,
                         ),
                       );
                     }
@@ -277,13 +292,7 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                           : 72.0;
                       return SizedBox(
                         height: placeholderHeight,
-                        child: const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
+                        child: const Center(child: LoadingIndicator.inline()),
                       );
                     }
 
@@ -300,9 +309,8 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                     if (cleanContent.isEmpty) {
                       return Text(
                         'אין תוכן זמין',
-                        style: TextStyle(
+                        style: textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurfaceVariant,
-                          fontSize: fontSize - 2,
                         ),
                       );
                     }
@@ -432,8 +440,12 @@ class _ExpandContentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // הלחצן מסתיר את סוף השורה החתוכה, ולכן הוא בצבע המשטח שהוא יושב עליו.
+    final surface =
+        context.findAncestorWidgetOfExactType<Material>()?.color ??
+        colorScheme.surfaceContainerHigh;
     return Material(
-      color: colorScheme.surface,
+      color: surface,
       child: Tooltip(
         message: 'הצגת כל התוכן',
         child: InkWell(
