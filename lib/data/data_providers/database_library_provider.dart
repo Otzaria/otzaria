@@ -5253,33 +5253,29 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
     return _dbOperation<List<Link>>(
       (db) async {
-        // Join line_alt_toc -> line -> book
+        // תחילת כותרת-אב עשויה להיות ממופה לילד, ולכן העוגן המפורש קודם למיפוי.
         var results = db
             .select(
               '''
-          SELECT
-            b.title as bookTitle,
-            l.lineIndex,
-            l.heRef
-          FROM line_alt_toc lat
-          JOIN line l ON lat.lineId = l.id
+          SELECT b.title as bookTitle, l.lineIndex, l.heRef
+          FROM alt_toc_entry e
+          JOIN line l ON e.lineId = l.id
           JOIN book b ON l.bookId = b.id
-          WHERE lat.structureId = ? AND lat.altTocEntryId = ?
-          ORDER BY b.title, l.lineIndex
+          WHERE e.structureId = ? AND e.id = ?
         ''',
               [structureId, altTocEntryId],
             )
             .toMapList();
-        // עלה שאחיו הבא נפתח באותה שורה (דפים בפסקה אחת) אינו ממופה ב-line_alt_toc.
         if (results.isEmpty) {
           results = db
               .select(
                 '''
           SELECT b.title as bookTitle, l.lineIndex, l.heRef
-          FROM alt_toc_entry e
-          JOIN line l ON e.lineId = l.id
+          FROM line_alt_toc lat
+          JOIN line l ON lat.lineId = l.id
           JOIN book b ON l.bookId = b.id
-          WHERE e.structureId = ? AND e.id = ? AND e.hasChildren = 0
+          WHERE lat.structureId = ? AND lat.altTocEntryId = ?
+          ORDER BY b.title, l.lineIndex
         ''',
                 [structureId, altTocEntryId],
               )
