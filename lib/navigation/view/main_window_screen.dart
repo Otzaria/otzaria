@@ -2004,6 +2004,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// מקש Back באנדרואיד: סוגר פאנל פתוח, חוזר לספרייה, ורק לחיצה
   /// כפולה בספרייה יוצאת מהאפליקציה.
   void _handleAndroidBackPress() {
+    // מסך מלא נכנס מכפתור בסרגל הקורא (q12 Q8); "חזור" יוצא ממנו קודם.
+    if (context.read<WindowFullscreenCubit>().state) {
+      FullscreenHelper.toggleFullscreen(context, false);
+      return;
+    }
     if (_isToolsLauncherOpen) {
       _closeToolsLauncher();
       return;

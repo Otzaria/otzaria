@@ -16,6 +16,7 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
@@ -1369,6 +1370,58 @@ void main() {
         lessThan(tester.getCenter(find.text('סימניות בספר זה')).dy),
       );
     });
+
+    testWidgets(
+      'בטלפון בחצי מסך לרוחב, גם בכרטיסייה מפוצלת יש "מסך מלא" (בסרגל או ב"עוד")',
+      (tester) async {
+        // 420×390: הכרטיסיות בשורת הכותרת ואין בה מקום לכפתור, ולכן הוא
+        // בסרגל הקורא. לכל חלונית בפיצול סרגל משלה (reading_screen).
+        DeviceChrome.debugMobileOverride = true;
+        addTearDown(() => DeviceChrome.debugMobileOverride = null);
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(420, 390));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: true,
+        );
+
+        if (find.byTooltip('מסך מלא').evaluate().isEmpty) {
+          await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.byTooltip('מסך מלא').evaluate().isNotEmpty ||
+              find.text('מסך מלא').evaluate().isNotEmpty,
+          isTrue,
+        );
+      },
+    );
 
     testWidgets('במצב משולב לחיצה על "הקטע הבא" משאירה את התפריט פתוח', (
       tester,
