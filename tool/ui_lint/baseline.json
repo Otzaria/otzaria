@@ -1387,8 +1387,7 @@
         {"scope":"_ComponentRow.build","fp":"f1e89b70","n":1}
       ],
       "lib/settings/panels/custom_folders_panel.dart": [
-        {"scope":"_CustomFoldersPanelState._showFolderMenu","fp":"89f0467d","n":1},
-        {"scope":"_CustomFoldersPanelState._showStorageInfoDialog","fp":"f3e89e96","n":1}
+        {"scope":"_CustomFoldersPanelState._showFolderMenu","fp":"89f0467d","n":1}
       ],
       "lib/settings/panels/personal_books_import_panel.dart": [
         {"scope":"_PersonalBooksImportPanelState._buildFileItem","fp":"f1e89b70","n":1}

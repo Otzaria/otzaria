@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 import 'contract_harness.dart';
@@ -380,6 +381,48 @@ void main() {
       expect(outcome.closed, isFalse);
       expect(find.byType(AppDialogFrame), findsOneWidget);
     });
+
+    testWidgets(
+      'scrollable: הגוף גולל בתוך ריפוד הדיאלוג, ופס הגלילה בשוליים',
+      (
+        tester,
+      ) async {
+        await showInApp<bool>(
+          tester,
+          AppDialog.singleAction(
+            title: 'הסבר',
+            size: AppDialogSize.medium,
+            scrollable: true,
+            customContent: Column(
+              children: [for (var i = 0; i < 60; i++) Text('שורה $i')],
+            ),
+          ),
+        );
+        final frame = tester.widget<AppDialogFrame>(
+          find.byType(AppDialogFrame),
+        );
+        expect(frame.scrollable, isTrue);
+        final body = find.byType(PanelScrollableContent);
+        expect(body, findsOneWidget);
+        expect(
+          tester.widget<PanelScrollableContent>(body).padding,
+          AppTokens.dialogPadding,
+        );
+        // ריפוד הדיאלוג בתוך הגלילה: הטקסט רחוק מקצות הגוף, שם יושב הפס.
+        final bodyRect = tester.getRect(body);
+        final lineRect = tester.getRect(
+          find.descendant(of: body, matching: find.byType(Column)).first,
+        );
+        expect(
+          lineRect.left - bodyRect.left,
+          AppTokens.dialogPadding.horizontal / 2,
+        );
+        expect(
+          bodyRect.right - lineRect.right,
+          AppTokens.dialogPadding.horizontal / 2,
+        );
+      },
+    );
   });
 
   group('AppDialogFrame', () {

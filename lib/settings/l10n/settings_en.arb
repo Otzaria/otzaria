@@ -791,6 +791,8 @@
   "הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.": "The seforim are read straight from the files. Do not move them, or they will not open. To delete: delete the file from the computer and rescan.",
   "התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי עריכת קובץ לחץ \"סרוק מחדש\" לעדכון; מחיקה רק דרך הספרייה.": "Content kept inside the database will still work if the original files are removed. After editing a file, click \"Rescan\" to update; deletion only through the library.",
   "קבצים שאינם טקסט": "Non-text files",
+  "הספרים שבתיקייה": "Seforim in the Folder",
+  "נתונים נוספים": "Additional Data",
   "אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.": "These cannot be imported to the database — they are read directly from the file.",
   "דורות, קישורים, כותרות וגרסאות": "Seder Hadoros, Links, Headings and Versions",
   "קובץ \"דורות.csv\", וקבצים שמחוץ לתיקיית הספרים, מייבאים בכפתור \"ייבוא נתונים\" שבהמשך.": "Import a \"דורות.csv\" file, or files outside the seforim folder, with the \"Import Data\" button below.",
