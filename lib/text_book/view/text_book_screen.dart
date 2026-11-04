@@ -754,12 +754,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     // טעינת הגדרות פר-ספר
     _loadPerBookSettings();
 
-    // איתור ה-PDF המלווה (getCompanionBook) דורש את כל קטלוג הספרייה
-    // (~300ms CPU על ה-main thread). קריאתו כאן ב-initState הייתה חונקת את
-    // שאילתת תוכן הספר ומעכבת את הצגתו ב-~600ms. הוא משפיע רק על נראות כפתור
-    // ה-PDF (_hasPdfBook), לא על התוכן — לכן נדחה ל-_resolveCompanionPdf
-    // שנקרא ברגע שהספר נטען (ראו ה-listener של ה-BlocConsumer).
-
     // רענון ספרייה (למשל אחרי התקנת קבצי התלמוד) עשוי להוסיף מהדורות
     // מקבילות — מאתרים מחדש כדי שהכפתור יופיע בלי לפתוח את הטאב מחדש.
     // עץ בלי LibraryBloc (בדיקות widget) פשוט מוותר על הרענון.
