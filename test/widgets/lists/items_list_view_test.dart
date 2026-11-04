@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 
 class _Book {
@@ -56,9 +57,15 @@ void main() {
     );
   }
 
-  /// הקווים בין השורות. ברשימה הפשוטה (DD-11) יש קו בין שורות של אותה קבוצה
-  /// ואין קו בין קבוצות, ולכן מספר הקווים = מספר הפריטים פחות מספר הקבוצות.
-  Finder rowDividers() => find.byType(Divider);
+  /// שורת "תחילת קבוצה" — ClipRRect עם פינות עליונות מעוגלות שעוטף Material
+  /// של שורת כרטיס. שקול לספירת כרטיסי קבוצה במבנה הווירטואלי.
+  Finder groupStarts() => find.byWidgetPredicate(
+    (w) =>
+        w is ClipRRect &&
+        w.borderRadius is BorderRadius &&
+        (w.borderRadius as BorderRadius).topLeft != Radius.zero &&
+        w.child is Material,
+  );
 
   group('ItemsListView', () {
     testWidgets('מציג את כל הפריטים כשאין additionalFilter', (tester) async {
@@ -234,7 +241,7 @@ void main() {
         );
       }
 
-      testWidgets('groupKeyBuilder מקבץ פריטים בקבוצות נפרדות לפי מפתח', (
+      testWidgets('groupKeyBuilder מקבץ פריטים בכרטיסים נפרדים לפי מפתח', (
         tester,
       ) async {
         await tester.binding.setSurfaceSize(const Size(800, 600));
@@ -248,8 +255,8 @@ void main() {
         );
         await tester.pump();
 
-        // גמרא (2) + הלכה (1) = 2 קבוצות → קו אחד, בתוך קבוצת גמרא
-        expect(rowDividers(), findsOneWidget);
+        // גמרא + הלכה = 2 קבוצות → 2 תחילות-כרטיס
+        expect(groupStarts(), findsNWidgets(2));
         expect(find.text('שבת עד:'), findsOneWidget);
         expect(find.text('ברכות ב.'), findsOneWidget);
         expect(find.text('הלכות שבת'), findsOneWidget);
@@ -287,16 +294,16 @@ void main() {
         );
         await tester.pump();
 
-        expect(rowDividers(), findsOneWidget);
+        expect(groupStarts(), findsNWidgets(2));
         expect(find.text('גמרא'), findsNothing);
         expect(find.text('הלכה'), findsNothing);
       });
 
-      testWidgets('פריטים עם אותו groupKey מקובצים לקבוצה אחת', (tester) async {
+      testWidgets('פריטים עם אותו groupKey מקובצים לכרטיס אחד', (tester) async {
         await tester.binding.setSurfaceSize(const Size(800, 600));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
-        // 3 פריטים לאותה קבוצה → קבוצה אחת, קו בין כל שתי שורות
+        // 3 פריטים לאותה קבוצה → כרטיס אחד
         const allGemara = [
           _Item('שבת עד:', workspaceName: 'גמרא'),
           _Item('ברכות ב.', workspaceName: 'גמרא'),
@@ -311,8 +318,68 @@ void main() {
         );
         await tester.pump();
 
-        expect(rowDividers(), findsNWidgets(2));
+        expect(groupStarts(), findsOneWidget);
       });
+
+      // q12 שאלה 9 C (DD-11): כרטיס בהיר לכל קבוצה, כמו ב-upstream. השורות על
+      // רקע AppSurfaces.card, והרווח ביניהן מראה את המשטח שמתחת (בלי קו).
+      testWidgets('כל שורה על רקע הכרטיס, בלי קו בין השורות', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          buildGrouped(
+            testItems: items,
+            groupKeyBuilder: (item) => (item as _Item).workspaceName,
+          ),
+        );
+        await tester.pump();
+
+        final card = AppSurfaces.card(
+          tester.element(find.byType(ItemsListView)),
+        );
+        for (final title in ['שבת עד:', 'ברכות ב.', 'הלכות שבת']) {
+          final row = tester.widget<Material>(
+            find
+                .ancestor(of: find.text(title), matching: find.byType(Material))
+                .first,
+          );
+          expect(row.color, card, reason: title);
+        }
+        expect(find.byType(Divider), findsNothing);
+      });
+
+      // הכרטיס בהיר מגוף דיאלוג ההיסטוריה והסימניות בשתי הערכות, כמו ב-upstream
+      // (הערת בעל הפרויקט 4.11).
+      for (final brightness in Brightness.values) {
+        testWidgets('הכרטיס בהיר מגוף הדיאלוג: ${brightness.name}', (
+          tester,
+        ) async {
+          late Color card;
+          late Color body;
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.brown,
+                  brightness: brightness,
+                ),
+              ),
+              home: Builder(
+                builder: (context) {
+                  card = AppSurfaces.card(context);
+                  body = AppSurfaces.cardDialogBackground(context);
+                  return const SizedBox();
+                },
+              ),
+            ),
+          );
+          expect(
+            card.computeLuminance(),
+            greaterThan(body.computeLuminance()),
+          );
+        });
+      }
     });
 
     group('itemSortComparator', () {
