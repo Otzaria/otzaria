@@ -353,7 +353,7 @@ void main(List<String> args) async {
     onTimeout: () {},
   );
   NotificationService.startupGate = () => notificationGate;
-  // אבחון שמריץ Process.start (סינכרוני) — רק אחרי החשיפה, בלי timeout.
+  // סריקת PowerShell כבדה — רק אחרי החשיפה, בלי timeout.
   WebView2CreationDiagnostics.startupGate = () => _mainWindowRevealedCompleter
       .future
       .then((_) => Future<void>.delayed(const Duration(seconds: 5)));

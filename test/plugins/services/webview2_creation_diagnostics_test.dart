@@ -245,9 +245,8 @@ void main() {
     String redacted(String text) =>
         AppReportRedactor.fromPlatform().redactText(text);
 
-    Future<void> settle() => Future<void>.delayed(
-      const Duration(milliseconds: 50),
-    );
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 50));
 
     test('non-Windows does not run', () {
       WebView2CreationDiagnostics.debugIsWindowsOverride = false;
@@ -528,5 +527,33 @@ $script
       expect(content, contains('Exception: FAILED'));
       expect(content, contains('ProcessId: 40'));
     });
+  });
+
+  group('runProcessOffMainIsolate', () {
+    Future<String?> run(String command, Duration timeout) =>
+        WebView2CreationDiagnostics.runProcessOffMainIsolate(powerShell, [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          command,
+        ], timeout);
+    final skip = !hasPowerShell ? 'PowerShell is not installed' : false;
+
+    test('returns stdout of a successful run', () async {
+      expect(
+        (await run("Write-Output 'ok'", const Duration(seconds: 20)))?.trim(),
+        'ok',
+      );
+    }, skip: skip);
+
+    test('failed exit and timeout yield null', () async {
+      expect(await run('exit 3', const Duration(seconds: 20)), isNull);
+      final stopwatch = Stopwatch()..start();
+      expect(
+        await run('Start-Sleep -Seconds 30', const Duration(seconds: 2)),
+        isNull,
+      );
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 20)));
+    }, skip: skip);
   });
 }
