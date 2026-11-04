@@ -84,6 +84,11 @@ class AppSurfaces {
   /// ההפרדה שלו: `regionBorder(context) ?? <הקו הקיים>`.
   static Color? regionBorder(BuildContext context) => _s(context).regionBorder;
 
+  /// הקו הדק סביב פריט נבחר ([AppSurfaceColors.selectedBorder]): רק בערכת
+  /// "לבן" בבהיר, `null` בשאר הערכות.
+  static Color? selectedBorder(BuildContext context) =>
+      _s(context).selectedBorder;
+
   /// צורת משטח מוגבה שנבנה ידנית (תפריט עם שדה חיפוש וכדומה), כמו ב־Theme:
   /// פינות 8, וב"לבן" בבהיר מסגרת ב־[regionBorder].
   static RoundedRectangleBorder raisedShape(BuildContext context) =>

@@ -26,6 +26,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     required this.warningContainer,
     required this.onWarningContainer,
     this.regionBorder,
+    this.selectedBorder,
   });
 
   /// השקיפות של `onSurface` מעל `surface` בקו האזורים של "לבן": 1B1B1B מעל
@@ -48,6 +49,12 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
             cs.surface,
           );
     final topBar = cs.surfaceContainerHigh;
+    final regionBorder = variant == AppThemeVariant.white && !isDark
+        ? Color.alphaBlend(
+            cs.onSurface.withValues(alpha: _regionBorderAlpha),
+            cs.surface,
+          )
+        : null;
     // אזהרה: גוון קבוע שמתקרב לזרע (עד 15°), בטונים של M3 (DD-24).
     final warningTones = TonalPalette.of(
       Hct.fromInt(
@@ -84,12 +91,11 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       // שחור, בהכרעת בעל הפרויקט (סקירת 4.11, סבב שלישי). ניגודיות 2.65 מול
       // FF ו־2.58 מול FC, מתחת ל־3:1 בכוונה: קו מפריד בין אזורים, לא הגבול
       // היחיד שמזהה רכיב. אטום, כדי שקווים שנפגשים לא יחשיכו זה את זה.
-      regionBorder: variant == AppThemeVariant.white && !isDark
-          ? Color.alphaBlend(
-              cs.onSurface.withValues(alpha: _regionBorderAlpha),
-              cs.surface,
-            )
-          : null,
+      regionBorder: regionBorder,
+      // "לבן" בבהיר: מילוי הבחירה בהיר (E0, ‏AppThemeData.whiteSelectedFill)
+      // וקרוב לריחוף, ולכן הנבחר מסומן גם בקו דק, באותו אפור של קו האזורים
+      // (סקירה רביעית 4.11, q-white-selected).
+      selectedBorder: regionBorder,
     );
   }
 
@@ -154,6 +160,12 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
   /// ההפרדה שלו (גוון, צל או קו בהיר), ולכן קוראים כותבים `regionBorder ??`.
   final Color? regionBorder;
 
+  /// הקו הדק (`AppTokens.borderThin`) סביב פריט נבחר: כרטיס בספרייה, שורה
+  /// ברשימת הספרייה, המקטע הנבחר בבורר והפריט הנבחר בתפריט נפתח. קיים רק
+  /// בערכת "לבן" בבהיר, שבה מילוי הבחירה קרוב לריחוף. `null` בכל ערכה
+  /// אחרת: שם "נבחר" מסומן כמו שהיה.
+  final Color? selectedBorder;
+
   @override
   AppSurfaceColors copyWith({
     Color? readerBackground,
@@ -172,6 +184,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     Color? warningContainer,
     Color? onWarningContainer,
     Color? regionBorder,
+    Color? selectedBorder,
   }) => AppSurfaceColors(
     readerBackground: readerBackground ?? this.readerBackground,
     panelBackground: panelBackground ?? this.panelBackground,
@@ -190,6 +203,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     warningContainer: warningContainer ?? this.warningContainer,
     onWarningContainer: onWarningContainer ?? this.onWarningContainer,
     regionBorder: regionBorder ?? this.regionBorder,
+    selectedBorder: selectedBorder ?? this.selectedBorder,
   );
 
   @override
@@ -216,6 +230,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       warningContainer: l(warningContainer, other.warningContainer),
       onWarningContainer: l(onWarningContainer, other.onWarningContainer),
       regionBorder: Color.lerp(regionBorder, other.regionBorder, t),
+      selectedBorder: Color.lerp(selectedBorder, other.selectedBorder, t),
     );
   }
 
@@ -237,7 +252,8 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       other.onWarning == onWarning &&
       other.warningContainer == warningContainer &&
       other.onWarningContainer == onWarningContainer &&
-      other.regionBorder == regionBorder;
+      other.regionBorder == regionBorder &&
+      other.selectedBorder == selectedBorder;
 
   @override
   int get hashCode => Object.hash(
@@ -257,6 +273,7 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     warningContainer,
     onWarningContainer,
     regionBorder,
+    selectedBorder,
   );
 }
 

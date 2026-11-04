@@ -2185,9 +2185,26 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
 
     // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
-    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium. ב"לבן" בבהיר הנבחרת
+    // גם בקו דק ([AppSurfaces.selectedBorder]), כי המילוי קרוב לריחוף:
+    // - שורה עצמאית: מסגרת ה-AppCard שלה (selected), כי מסגרת הכרטיס מצוירת
+    //   מעל התוכן ומסתירה קו פנימי באותו מקום.
+    // - שורה מקובצת: קו למעלה ולמטה בלבד, כמו הפריט הנבחר בתפריט. בצדדים היא
+    //   נוגעת בגבול הקבוצה, ובקצה קבוצה בעץ המשוטח מסגרת ישרה הייתה נחתכת
+    //   בפינה המעוגלת.
+    final groupedSelectedBorder = isSelected && isGrouped
+        ? AppSurfaces.selectedBorder(context)
+        : null;
     final row = Material(
       color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+      shape: groupedSelectedBorder == null
+          ? null
+          : Border.symmetric(
+              horizontal: BorderSide(
+                color: groupedSelectedBorder,
+                width: AppTokens.borderThin,
+              ),
+            ),
       textStyle: DefaultTextStyle.of(context).style,
       child: InkWell(
         focusNode: focusNode,
@@ -2247,6 +2264,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     return AppCard(
       margin: const EdgeInsets.symmetric(vertical: 2),
+      selected: isSelected,
       child: row,
     );
   }

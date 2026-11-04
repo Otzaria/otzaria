@@ -50,8 +50,9 @@ class AppThemeData {
     // ולכן גם ה-surface וגם סולם ה-surfaceContainer נדרסים — בלעדיו הסרגל,
     // חלונית הניווט ורקע הלוח נשארים אפורים כמו בערכת "אפור" (issue #1221).
     // "פרגמנט": tonalSpot שומר רק את גוון הזרע, והערכה יצאה זהה ל"חום".
+    final variant = AppThemeVariant.ofSeed(seedColor);
     final surfaces = brightness == Brightness.light
-        ? _lightSurfaces[AppThemeVariant.ofSeed(seedColor)]
+        ? _lightSurfaces[variant]
         : null;
     if (surfaces != null) {
       return scheme.copyWith(
@@ -61,10 +62,19 @@ class AppThemeData {
         surfaceContainer: surfaces[3],
         surfaceContainerHigh: surfaces[4],
         surfaceContainerHighest: surfaces[5],
+        secondaryContainer: variant == AppThemeVariant.white
+            ? whiteSelectedFill
+            : null,
       );
     }
     return scheme;
   }
+
+  /// צבע הבחירה (secondaryContainer) של "לבן" בבהיר: E0 במקום D4 של
+  /// monochrome, כדי שיתאים למשטחים הלבנים. באמצע בין D4 לריחוף (onSurface
+  /// ‏8% מעל לבן, ED), כדי ש"נבחר" ו"בריחוף" לא יתמזגו, ובכל מקום שבו
+  /// "נבחר" נשען רק על הצבע הוא מסומן גם בקו ([AppSurfaceColors.selectedBorder]).
+  static const Color whiteSelectedFill = Color(0xFFE0E0E0);
 
   static const Map<AppThemeVariant, List<Color>> _lightSurfaces = {
     // "לבן" בסגנון Windows הקלאסי (#2850): הקריאה לבנה, והסרגלים, החלוניות
@@ -184,6 +194,7 @@ class AppThemeData {
         style: _hoverButtonStyle(cs, cs.primary),
       ),
       tabBarTheme: _tabBarTheme(cs),
+      segmentedButtonTheme: _segmentedButtonTheme(cs, surfaces.selectedBorder),
       tooltipTheme: _tooltipTheme(cs, regionBorder: regionBorder),
       // פס גלילה: עובי קבוע גם בריחוף, כדי שהרצועה של AppScrollbar תכיל
       // אותו תמיד, ופינות בחצי העובי (q10 Q10).
@@ -271,6 +282,28 @@ class AppThemeData {
       : RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,
           side: BorderSide(color: regionBorder, width: AppTokens.borderThin),
+        );
+
+  /// בורר מקטעים. ב"לבן" בבהיר ([selectedBorder] לא null) המסגרת והמפרידים
+  /// בהירים (outlineVariant, כמו מסגרת כרטיס), והמקטע הנבחר מוקף בקו
+  /// [selectedBorder] כהה מהם (AppSegmentedControl). בשאר הערכות ברירת המחדל
+  /// של M3 (outline).
+  static SegmentedButtonThemeData _segmentedButtonTheme(
+    ColorScheme cs,
+    Color? selectedBorder,
+  ) => selectedBorder == null
+      ? const SegmentedButtonThemeData()
+      : SegmentedButtonThemeData(
+          style: ButtonStyle(
+            side: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.disabled)
+                  ? null
+                  : BorderSide(
+                      color: cs.outlineVariant,
+                      width: AppTokens.borderThin,
+                    ),
+            ),
+          ),
         );
 
   static PopupMenuThemeData _popupMenuTheme(
