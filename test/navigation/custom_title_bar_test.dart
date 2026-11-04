@@ -449,8 +449,30 @@ void main() {
       final context = tester.element(find.byType(CustomTitleBar));
       final line = (barDecoration(tester).border! as Border).bottom;
       expect(line.color, AppSurfaces.regionBorder(context));
-      expect(line.color, Theme.of(context).colorScheme.onSurface);
+      expect(line.color, isNotNull);
       expect(line.width, 1);
+    });
+
+    testWidgets('בערכת "לבן" גם במצב "למעלה" יש קו כהה בתחתית השורה (#2850)', (
+      tester,
+    ) async {
+      const white = AppSeedColors.white;
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementTop,
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(white, Brightness.light),
+          compactMenuMode: false,
+          variant: AppThemeVariant.ofSeed(white),
+        ),
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.readerBackground(context));
+      expect(
+        (decoration.border! as Border).bottom.color,
+        AppSurfaces.regionBorder(context),
+      );
     });
 
     testWidgets('במצב "למעלה" השורה ברקע הקריאה ובלי קו', (tester) async {

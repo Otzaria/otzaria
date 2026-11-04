@@ -276,7 +276,7 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
     return Material(
       elevation: AppTokens.elevation2,
       shadowColor: AppShadows.color(cs),
-      borderRadius: AppTokens.borderRadiusAll,
+      shape: AppSurfaces.raisedShape(context),
       color: Theme.of(context).popupMenuTheme.color ?? cs.surface,
       clipBehavior: Clip.antiAlias,
       child: BlocBuilder<TabsBloc, TabsState>(

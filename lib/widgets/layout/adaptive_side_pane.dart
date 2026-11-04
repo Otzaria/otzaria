@@ -242,11 +242,25 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     if (attached) {
       // מעטפת ריבועית צמודה לכל הקצוות; העיגול הקעור בפינה הפנימית-עליונה
       // מצויר בנפרד כטלאי (_buildTopCornerFillet) באזור התוכן.
+      // "לבן" (#2850): קו כהה דק בקצה הפנימי, בין החלונית לתוכן.
+      final regionBorder = AppSurfaces.regionBorder(context);
+      final innerEdge = regionBorder == null
+          ? null
+          : BorderSide(
+              color: regionBorder,
+              width: AppTokens.borderThin,
+            );
       return Material(
         color: paneColor,
         elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
+        // הקצה הפנימי: הצד הפיזי של החלונית כבר נקבע ב-paneOnRight.
+        shape: innerEdge == null
+            ? null
+            : paneOnRight
+            ? Border(left: innerEdge)
+            : Border(right: innerEdge),
         child: scrollbarWrapped,
       );
     }
@@ -255,12 +269,14 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       return FloatingPanel(color: paneColor, child: scrollbarWrapped);
     }
 
+    // חלונית צפה (לא צמודה, למשל התצוגה המקדימה בספרייה). "לבן": מסגרת
+    // בקו האזורים, כמו תפריט ודיאלוג (#2850).
     return Material(
       color: paneColor,
       elevation: AppTokens.elevation2,
       shadowColor: shadowColor,
       surfaceTintColor: Colors.transparent,
-      borderRadius: AppTokens.borderRadiusAll,
+      shape: AppSurfaces.raisedShape(context),
       clipBehavior: Clip.hardEdge,
       child: scrollbarWrapped,
     );
@@ -521,7 +537,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ValueListenableBuilder<double>(
       valueListenable: _livePaneWidth,
       builder: (context, liveWidth, _) {
-        if (!widget.isOpen) return const SizedBox.shrink();
+        // "לבן": הפינה ישרה, והקווים של הסרגל ושל החלונית נפגשים בה (#2850).
+        if (!widget.isOpen || AppSurfaces.regionBorder(context) != null) {
+          return const SizedBox.shrink();
+        }
         final occupied = liveWidth + _wideOuterSideGap + _wideInnerSideGap;
         // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
         return Positioned(

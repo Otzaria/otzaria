@@ -504,7 +504,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
+            side: BorderSide(
+              color:
+                  AppSurfaces.regionBorder(context) ??
+                  colorScheme.outlineVariant,
+            ),
           ),
           // הפוקוס נשמר בשדה לאחר כל פעולה (onKeepFocus) כדי לאפשר הקלדה
           // וניווט מקלדת רציפים גם אחרי לחיצה בעכבר על פריט בתפריט.

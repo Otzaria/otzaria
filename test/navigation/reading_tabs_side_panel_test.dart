@@ -268,7 +268,7 @@ void main() {
       expect(edge().color, cs.outlineVariant, reason: 'collapsed=$collapsed');
       expect(edge().width, 1);
     }
-    // בערכת "לבן" בבהיר הקו כהה, כמו שאר קווי האזורים (#1939).
+    // בערכת "לבן" בבהיר הקו הוא קו האזורים, כמו בשאר האזורים (#1939).
     const white = AppSeedColors.white;
     await pumpPanel(
       tester,
@@ -280,7 +280,6 @@ void main() {
     );
     final context = tester.element(find.byType(ReadingTabsSidePanel));
     expect(edge().color, AppSurfaces.regionBorder(context));
-    expect(edge().color, Theme.of(context).colorScheme.onSurface);
     // הקו במנוחה הוא של העמודה; לידית אין קו שני לצדו.
     await pumpPanel(tester);
     expect(

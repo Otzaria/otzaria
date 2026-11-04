@@ -285,6 +285,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // וזה בתוך הגבולות
             // הקיימים — ולכן שום דבר אינו צריך להזמין מקום, ושום דבר אינו
             // נצבע מעליה.
+            // "לבן" (#2850): קו כהה דק בתחתית השורה גם בסגנון הקריאה. הכרטיסיה
+            // הפעילה מכסה אותו מתחתיה ומוקפת באותו קו (_TabBackgroundPainter),
+            // ולכן היא ממשיכה לתוך סרגל הספר כמו לשונית.
+            final regionBorder = AppSurfaces.regionBorder(context);
             final topBar = SizedBox(
               height: _kTopBarHeight,
               child: Stack(
@@ -296,12 +300,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                       color: useReaderStyle
                           ? AppSurfaces.readerBackground(context)
                           : AppSurfaces.panelBackground(context),
-                      border: useReaderStyle
+                      border: useReaderStyle && regionBorder == null
                           ? null
                           : Border(
                               bottom: BorderSide(
                                 color:
-                                    AppSurfaces.regionBorder(context) ??
+                                    regionBorder ??
                                     AppSurfaces.subtleDivider(
                                       Theme.of(context).colorScheme,
                                     ),
@@ -964,6 +968,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     return _TabBackgroundPainter(
       color,
       borderColor: TabStateColors.border(context, inSelection: inSelection),
+      // "לבן" (#2850): הפעילה מוקפת בקו האזורים, שממשיך את הקו של השורה.
+      flareOutline: isSelected && !inSelection
+          ? AppSurfaces.regionBorder(context)
+          : null,
     );
   }
 
@@ -1500,7 +1508,10 @@ class _TabBackgroundPainter extends CustomPainter {
   /// מסגרת סביב גוף הכרטיסיה (בלי הכנפיים התחתונות), לבחירה מרובה.
   final Color? borderColor;
 
-  _TabBackgroundPainter(this.color, {this.borderColor});
+  /// קו סביב הכרטיסיה כולה, כולל הכנפיים, שנפגש בקו התחתון של השורה.
+  final Color? flareOutline;
+
+  _TabBackgroundPainter(this.color, {this.borderColor, this.flareOutline});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1553,6 +1564,44 @@ class _TabBackgroundPainter extends CustomPainter {
     path.close();
     canvas.drawPath(path, paint);
 
+    final flare = flareOutline;
+    if (flare != null) {
+      // אותה צורה בלי הבסיס, חצי קו פנימה. הקו של השורה הוא מסגרת ה-Container
+      // שמכווצת את התוכן, ולכן הוא יושב מיד מתחת לצייר: הכנפיים נגמרות בתוכו.
+      const i = AppTokens.borderThin / 2;
+      final h = size.height;
+      final outline = Path()
+        ..moveTo(-bottomRadius, h + i)
+        ..arcToPoint(
+          Offset(i, h - bottomRadius),
+          radius: const Radius.circular(bottomRadius),
+          clockwise: false,
+        )
+        ..lineTo(i, topInset + topRadius)
+        ..arcToPoint(
+          Offset(topRadius, topInset + i),
+          radius: const Radius.circular(topRadius - i),
+        )
+        ..lineTo(size.width - topRadius, topInset + i)
+        ..arcToPoint(
+          Offset(size.width - i, topInset + topRadius),
+          radius: const Radius.circular(topRadius - i),
+        )
+        ..lineTo(size.width - i, h - bottomRadius)
+        ..arcToPoint(
+          Offset(size.width + bottomRadius, h + i),
+          radius: const Radius.circular(bottomRadius),
+          clockwise: false,
+        );
+      canvas.drawPath(
+        outline,
+        Paint()
+          ..color = flare
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = AppTokens.borderThin,
+      );
+    }
+
     final border = borderColor;
     if (border == null) return;
     const inset = AppTokens.multiSelectedBorderWidth / 2;
@@ -1580,7 +1629,9 @@ class _TabBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TabBackgroundPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.borderColor != borderColor;
+      oldDelegate.color != color ||
+      oldDelegate.borderColor != borderColor ||
+      oldDelegate.flareOutline != flareOutline;
 }
 
 /// מזהה לחיצה כפולה לאזור הריק של שורת הטאבים בלבד. הדחייה חייבת להיות

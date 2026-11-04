@@ -79,10 +79,15 @@ class AppSurfaces {
   static Color tintedRow(ColorScheme cs) =>
       cs.surfaceTint.withValues(alpha: 0.05);
 
-  /// הקו הכהה הדק שמפריד בין אזורי החלון בערכת "לבן" בבהיר
+  /// הקו הדק (אפור בינוני) שמפריד בין אזורי החלון בערכת "לבן" בבהיר
   /// ([AppSurfaceColors.regionBorder]). `null` בשאר הערכות, ואז האזור שומר על
   /// ההפרדה שלו: `regionBorder(context) ?? <הקו הקיים>`.
   static Color? regionBorder(BuildContext context) => _s(context).regionBorder;
+
+  /// צורת משטח מוגבה שנבנה ידנית (תפריט עם שדה חיפוש וכדומה), כמו ב־Theme:
+  /// פינות 8, וב"לבן" בבהיר מסגרת ב־[regionBorder].
+  static RoundedRectangleBorder raisedShape(BuildContext context) =>
+      AppThemeData.raisedShape(regionBorder(context));
 
   /// ההחשכה מאחורי דיאלוג וחלונית צפה (DD-12): אחת, עדינה.
   static Color scrim(ColorScheme cs) => cs.scrim.withAlpha(0x22);

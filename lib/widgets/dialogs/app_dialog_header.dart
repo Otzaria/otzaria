@@ -4,6 +4,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -83,7 +84,11 @@ class AppDialogHeader extends StatelessWidget {
       // קו עדין בתחתית הרצועה: מפריד בינה לבין גוף הדיאלוג.
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        border: Border(
+          bottom: BorderSide(
+            color: AppSurfaces.regionBorder(context) ?? cs.outlineVariant,
+          ),
+        ),
       ),
       padding: EdgeInsetsDirectional.fromSTEB(
         AppTokens.spaceLG,

@@ -28,6 +28,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
     this.regionBorder,
   });
 
+  /// השקיפות של `onSurface` מעל `surface` בקו האזורים של "לבן": 1B1B1B מעל
+  /// FFFFFF יוצא 9F9F9F.
+  static const double _regionBorderAlpha = 0.42;
+
   /// [variant] — הערכה של הזרע שממנו נבנתה [cs] ([AppThemeVariant.ofSeed]).
   factory AppSurfaceColors.fromScheme(
     ColorScheme cs, {
@@ -75,10 +79,16 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
       onWarning: tone(100, 20),
       warningContainer: tone(90, 30),
       onWarningContainer: tone(10, 90),
-      // "לבן" בבהיר: האזורים כמעט באותו לבן, ולכן קו כהה דק ביניהם, בסגנון
-      // Windows הקלאסי (#1939, ‏#2850).
+      // "לבן" בבהיר: האזורים כמעט באותו לבן, ולכן קו דק ביניהם, בסגנון
+      // Windows הקלאסי (#1939, ‏#2850). אפור בינוני־בהיר (9F9F9F) ולא כמעט
+      // שחור, בהכרעת בעל הפרויקט (סקירת 4.11, סבב שלישי). ניגודיות 2.65 מול
+      // FF ו־2.58 מול FC, מתחת ל־3:1 בכוונה: קו מפריד בין אזורים, לא הגבול
+      // היחיד שמזהה רכיב. אטום, כדי שקווים שנפגשים לא יחשיכו זה את זה.
       regionBorder: variant == AppThemeVariant.white && !isDark
-          ? cs.onSurface
+          ? Color.alphaBlend(
+              cs.onSurface.withValues(alpha: _regionBorderAlpha),
+              cs.surface,
+            )
           : null,
     );
   }
@@ -136,8 +146,10 @@ class AppSurfaceColors extends ThemeExtension<AppSurfaceColors> {
   /// טקסט ואייקון על [warningContainer].
   final Color onWarningContainer;
 
-  /// הקו הדק (1) שמפריד בין אזורי החלון: שורת הכותרת ועמודת הכרטיסיות.
-  /// קיים רק בערכת "לבן" בבהיר, שבה
+  /// הקו הדק (`AppTokens.borderThin`), אפור בינוני, שמפריד בין אזורי
+  /// החלון: שורת הכותרת והכרטיסייה הפעילה, עמודת הניווט, עמודת הכרטיסיות,
+  /// סרגל הספר, חלונית הניווט וחלונית צד צפה, החלוניות בטאב מפוצל,
+  /// הדיאלוגים, התפריטים וה־tooltip. קיים רק בערכת "לבן" בבהיר, שבה
   /// האזורים כמעט באותו צבע. `null` בכל ערכה אחרת: שם כל אזור שומר על
   /// ההפרדה שלו (גוון, צל או קו בהיר), ולכן קוראים כותבים `regionBorder ??`.
   final Color? regionBorder;

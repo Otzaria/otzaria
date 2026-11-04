@@ -1473,7 +1473,11 @@ class _SearchDialogState extends State<SearchDialog> {
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
+            side: BorderSide(
+              color:
+                  AppSurfaces.regionBorder(context) ??
+                  colorScheme.outlineVariant,
+            ),
           ),
         ),
       ),

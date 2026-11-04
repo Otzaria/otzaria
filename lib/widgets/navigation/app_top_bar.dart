@@ -366,6 +366,16 @@ class _AppTopBarState extends State<AppTopBar>
     final barColor =
         widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
     final shadowColor = AppShadows.color(cs);
+    // "לבן" (#2850): קו כהה דק בתחתית הסרגל, בין הסרגל לתוכן.
+    final regionBorder = AppSurfaces.regionBorder(context);
+    final barShape = regionBorder == null
+        ? null
+        : Border(
+            bottom: BorderSide(
+              color: regionBorder,
+              width: AppTokens.borderThin,
+            ),
+          );
     final barH = density.topBarHeight;
     final hPad = AppTopBar.horizontalPadding(isCompact);
     final vPad = isCompact ? 4.0 : 8.0;
@@ -422,6 +432,7 @@ class _AppTopBarState extends State<AppTopBar>
         elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
+        shape: barShape,
         child: SizedBox(
           height: barH,
           child: Padding(
@@ -455,6 +466,7 @@ class _AppTopBarState extends State<AppTopBar>
                   elevation: AppTokens.elevation1,
                   shadowColor: shadowColor,
                   surfaceTintColor: Colors.transparent,
+                  shape: barShape,
                   child: widget.secondaryRow!,
                 ),
               ),
