@@ -112,6 +112,7 @@
 | סרגל עליון | `AppSurfaces.topBarBackground` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים | `AppTopBar` |
 | חלונית ניווט | `AppSurfaces.navPanelBackground` | = topBar | = topBar | קיים (שם נרדף מכוון) | `NavSidePanel`, חלוניות לצד הקריאה (DD-18) |
 | כרטיס | `AppSurfaces.card` | `surface` | `surfaceContainer` | קיים | `AppCard`, `DetailsCard` |
+| גוף דיאלוג שבנוי מכרטיסים | `AppSurfaces.cardDialogBackground` | = רקע לוח | `surface` | קיים. חריג מתועד לגוון הדיאלוג של DD-07, כדי שהכרטיס יהיה בהיר מהגוף בשתי הערכות | היסטוריה, סימניות, "הצגה או הוספה של הקבצים" |
 | מפריד בתוך כרטיס | `AppSurfaces.cardRowDivider` | רווח שקוף בתוך `AppCard.section` (DD-12) | כנ"ל | קיים | `AppCard.section` |
 | מפריד עדין | `AppSurfaces.subtleDivider` | `outlineVariant` בשקיפות 50% | כנ"ל | קיים | רשימות |
 | מקטע ניטרלי בחלונית | `AppSurfaces.panelSection` | `surfaceContainerHighest` בשקיפות 50% | כנ"ל | קיים | חלוניות הגדרות |
@@ -236,7 +237,7 @@
 
 **[מחייב] · קיים** קטעי תוצאות החיפוש (המנוע, המנועים החיצוניים והחיפוש הסמנטי) לוקחים את הגופן ואת `TextDisplayProfile` מהגדרות הקריאה, ואת הגודל מהגדרה נפרדת: `SettingsState.searchResultsFontSize`, "גודל טקסט בתוצאות החיפוש" (q12 Q2, #2826). גודל הספר לא משנה אותו. בשדרוג הוא מקבל פעם אחת את גודל הספר, ולכן אצל משתמש קיים לא משתנה דבר. התצוגה המקדימה של תוצאה היא טקסט ספר, ולכן בגודל הספר.
 
-**[מחייב] · קיים** חלונית הגדרות התצוגה (הכפתור בשורת הכותרת) מציגה רק את מה שחל על הכרטיסייה הפעילה: רכיב אחד, `TextSettingsTab(scope:)`, ולא עותק. ‏`all` במסך ההגדרות; ‏`book` בכרטיסיית ספר (בלי גודל התוצאות); ‏`searchResults` בכרטיסיית חיפוש: גודל התוצאות, הגופן, גודל הספר ומרווח השורות (של התצוגה המקדימה), הקריאה הרציפה, "תצוגת הטקסט", העתקת כותרות והגדרות לפי ספר. בלי גודל וגופן המפרשים ורוחב הטקסט, שלא חלים על התוצאות ועל התצוגה המקדימה. הגדרה חדשה בכרטיס נכנסת ל־scope שבו היא חלה.
+**[מחייב] · קיים** חלונית הגדרות התצוגה (הכפתור בשורת הכותרת) מציגה רק את מה שחל על הכרטיסייה הפעילה: רכיב אחד, `TextSettingsTab(scope:)`, ולא עותק. ‏`all` במסך ההגדרות; ‏`book` בכרטיסיית ספר (בלי גודל התוצאות); ‏`searchResults` בכרטיסיית חיפוש: גודל הספר והגופן, מרווח השורות (של התצוגה המקדימה) וגודל התוצאות, ממש מעל הקריאה הרציפה, "תצוגת הטקסט", העתקת כותרות והגדרות לפי ספר. בלי גודל וגופן המפרשים ורוחב הטקסט, שלא חלים על התוצאות ועל התצוגה המקדימה. הגדרה חדשה בכרטיס נכנסת ל־scope שבו היא חלה.
 
 הכללים:
 - גדלים יחסיים בתוך תוכן (×0.85 לכותרת מפרש, ‎sup/small ב־HTML) הם חלק מהתוכן ומותרים.
@@ -406,7 +407,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
 | פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה, ליד הספר ובמסך הניהול (השלמה 3.11, q10 Q25) |
-| "הרחב הכל / כווץ הכל" בכותרת עץ ניווט | `NavTreeCollapseAllButton(isCollapsed:, onCollapseAll:, onExpandAll:)` על `AppIconButton(small)` (DD-27, q12 Q4, #3103) | **[מחייב]** כלל אחד בתוכן העניינים ובעץ החיפוש: כשהכל מכווץ "הרחב הכל", כשמשהו פתוח "כווץ הכל". אין כפתור כשאין ענף שאפשר לפתוח |
+| "הרחב הכל / כווץ הכל" בכותרת עץ ניווט | `NavTreeCollapseAllButton(isCollapsed:, onCollapseAll:, onExpandAll:)` על `AppIconButton(small)` (DD-27, q12 Q4, #3103) | **[מחייב]** כלל אחד בתוכן העניינים ובעץ החיפוש: כשהכל מכווץ "הרחב הכל", כשמשהו פתוח "כווץ הכל". "מכווץ" = אין ענף גלוי פתוח מעבר למצב המכווץ, גם כשענף (או השורש) נסגר ביד. אין כפתור כשאין ענף שאפשר לפתוח |
 | גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
@@ -450,7 +451,8 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | כרטיס מידע | `AppCard(tone: normal\|primary\|error\|inset)` | `Card(` גולמי אסור (UIL-012; נשארו 2: כרטיס הזמן בלוח השנה, כרטיס הארגון בחלון הגיוס). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on. `inset` לכרטיס בתוך כרטיס, על `surfaceContainerHigh` (q10 Q8a) |
 | קבוצת שורות בכרטיס | `AppCard.section(children:)` | מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | חלקי. בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
-| היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9 ⚠): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
+| היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9 ⚠): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו. גוף הדיאלוג `AppSurfaces.cardDialogBackground` וריפוד 16, כמו ב־upstream (סקירת 4.11) | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
+| דיאלוג הסבר בכמה נושאים | מקטעים: `AppSectionLabel` ומתחתיו `AppCard.section`, על גוף `AppSurfaces.cardDialogBackground`, כמו קבוצה במסך ההגדרות | "הצגה או הוספה של הקבצים" (סקירת 4.11) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
