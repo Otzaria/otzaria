@@ -17,6 +17,7 @@ import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// פותח דיאלוג עם רשימות הספרים — ספרי הספרייה והספרים האישיים — חיפוש,
 /// וייצוא ל-CSV.
@@ -168,7 +169,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
                     title: context.settingsText('לא נמצאו ספרים'),
                   )
                 : AppCard(
-                    child: Scrollbar(
+                    child: AppScrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,
                       // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה

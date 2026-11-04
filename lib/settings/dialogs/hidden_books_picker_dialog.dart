@@ -11,6 +11,7 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// בוחר ספרים וקטגוריות להסתרה מתוך הספרייה.
 Future<HiddenLibrarySelection?> showHiddenBooksPickerDialog({
@@ -252,7 +253,7 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                         : context.settingsText('לא נמצאו ספרים'),
                   )
                 : AppCard(
-                    child: Scrollbar(
+                    child: AppScrollbar(
                       controller: _scroll,
                       thumbVisibility: true,
                       // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה

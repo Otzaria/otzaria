@@ -6,6 +6,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// מציג את כל פרטי הקטגוריה הזמינים.
 Future<void> showCategoryDetailsDialog(
@@ -34,9 +35,6 @@ class _CategoryDetailsDialogContent extends StatefulWidget {
 
 class _CategoryDetailsDialogContentState
     extends State<_CategoryDetailsDialogContent> {
-  /// עובי פס הגלילה; הקצוות עגולים לגמרי (חצי העובי).
-  static const _scrollbarThickness = 6.0;
-
   final _scroll = ScrollController();
 
   @override
@@ -62,15 +60,11 @@ class _CategoryDetailsDialogContentState
     // שיש המשך.
     return SizedBox(
       width: 500,
-      child: RawScrollbar(
+      child: AppScrollbar(
         controller: _scroll,
         thumbVisibility: true,
-        thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: _scrollbarThickness,
-        radius: const Radius.circular(_scrollbarThickness / 2),
         child: SingleChildScrollView(
           controller: _scroll,
-          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
           child: AppSelectionArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
