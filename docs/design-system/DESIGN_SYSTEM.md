@@ -402,6 +402,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
 | פעולה מפוצלת | `BarSplitButton` | צורה: גלולה, חריג מאושר ל־״8 בלבד״ (DD-04, השלמה 2.11) |
 | פעולת רשימה / שורה | `AppIconButton(size: small)`. בשורת הגדרה: `SettingsActionTile` actions | אין hover כפול על השורה. גם כפתורי הפעולה בכרטיס הערה, ליד הספר ובמסך הניהול (השלמה 3.11, q10 Q25) |
+| "הרחב הכל / כווץ הכל" בכותרת עץ ניווט | `NavTreeCollapseAllButton(isCollapsed:, onCollapseAll:, onExpandAll:)` על `AppIconButton(small)` (DD-27, q12 Q4, #3103) | **[מחייב]** כלל אחד בתוכן העניינים ובעץ החיפוש: כשהכל מכווץ "הרחב הכל", כשמשהו פתוח "כווץ הכל". אין כפתור כשאין ענף שאפשר לפתוח |
 | גלולת מצב בשורת הכותרת (עדכון זמין, מוריד, מוכן להתקנה) | `StatusChip`. מצב פעיל שאינו פעולה ("מוריד…"): `StatusChip.busy(icon:, label:, tooltip:)` (q10 Q6) | משטח `primaryContainer` עם מסגרת `primary`, אייקון ותווית `labelLarge` w700. `onPressed: null` מושבת. `busy` באותם צבעים כמו הלחיץ, בלי ריחוף, וקורא מסך קורא אותו כטקסט |
 | קומפקטי | אותם רכיבים עם `AppDensity` | אין רכיב "קומפקטי" נפרד |
 
@@ -445,7 +446,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | כרטיס מידע | `AppCard(tone: normal\|primary\|error\|inset)` | `Card(` גולמי אסור (UIL-012; נשארו 2: כרטיס הזמן בלוח השנה, כרטיס הארגון בחלון הגיוס). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on. `inset` לכרטיס בתוך כרטיס, על `surfaceContainerHigh` (q10 Q8a) |
 | קבוצת שורות בכרטיס | `AppCard.section(children:)` | מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | חלקי. בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
-| היסטוריה, סימניות ונתונים חוזרים קצרים | רשימה פשוטה, **בלי כרטיס** (DD-11): `ItemsListView` — שורות על רקע המשטח וקו `subtleDivider` בין שורות של אותה קבוצה | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
+| היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9 ⚠): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
 | כרטיס מתרחב | `ExpandableCard`. בהגדרות: `ExpandableSection` | חץ: `ExpandingChevron(style: accordion\|tree)` עם `Semantics(expanded:)` מובנה (DD-27 A). עץ (`NavTreeTile`, כותרות המפרשים, רשימת הקישורים): חץ לכיוון הקריאה, למטה כשפתוח. אקורדיון (`ExpandableSection`): חץ למטה, למעלה כשפתוח. כרטיסי התיקיות בספרייה (`ExpandableCard`) הם אקורדיון (השלמה 2.11) |
