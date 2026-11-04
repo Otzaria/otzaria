@@ -1,0 +1,152 @@
+name: Apply prewarm QA fix (temporary)
+on:
+  push:
+    branches: [codex/webview-4114-android-prewarm]
+    paths: [.github/workflows/codex-webview-4114-qa-fix.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'Otzaria/otzaria'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply exact edits and remove unrelated formatter changes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          def checked(name, sha):
+              if subprocess.check_output(['git', 'hash-object', name], text=True).strip() != sha:
+                  raise SystemExit('Refusing concurrent change: ' + name)
+              return Path(name).read_text(encoding='utf-8')
+          def one(text, before, after):
+              if text.count(before) != 1:
+                  raise SystemExit('Replacement not unique: ' + before[:80])
+              return text.replace(before, after, 1)
+          path = 'lib/plugins/view/webview_environment_holder.dart'
+          source = checked(path, '31e2cb20faacf67f57c80f49bf6250398cb69ab6')
+          before = '''    if (!await hasEnabledPlugin()) {
+                _recordPrewarm('skipped: no enabled plugin');
+                return false;
+              }
+              if (_environment != null || _initializeFuture != null) {
+                _recordPrewarm('skipped: environment exists');
+                return false;
+              }
+              final done = Completer<void>();
+              _prewarmInFlight = done.future;
+              try {
+          '''
+          # Embedded strings use extra indentation only for the YAML block.
+          import textwrap
+          before = textwrap.dedent('          ' + before).lstrip()
+          before = '    ' + before
+          after = '''    // Publish the gate before eligibility awaits: Android creation must
+              // not slip through while the enabled-plugin lookup is still pending.
+              if (_prewarmInFlight != null) return false;
+              final done = Completer<void>();
+              _prewarmInFlight = done.future;
+              try {
+                if (!await hasEnabledPlugin()) {
+                  _recordPrewarm('skipped: no enabled plugin');
+                  return false;
+                }
+                // Creation may have timed out and proceeded. Never start a late
+                // native prewarm after this operation lost its gate.
+                if (!identical(_prewarmInFlight, done.future)) return false;
+                if (_environment != null || _initializeFuture != null) {
+                  _recordPrewarm('skipped: environment exists');
+                  return false;
+                }
+          '''
+          after = '    ' + textwrap.dedent('          ' + after).lstrip()
+          source = one(source, before, after)
+          source = one(source, '          : WebViewEnvironmentSettings();\n      final result =',
+              '          : WebViewEnvironmentSettings();\n      if (!identical(_prewarmInFlight, done.future)) return false;\n      final result =')
+          Path(path).write_text(source, encoding='utf-8')
+          test = Path('test/plugins/view/webview_android_prewarm_test.dart')
+          source = test.read_text(encoding='utf-8')
+          source = one(source, '  Future<bool>? warming;\n', '  Future<bool>? warming;\n  Completer<bool>? eligibility;\n')
+          source = one(source, '    warming = null;\n', '    warming = null;\n    eligibility = null;\n')
+          source = one(source, '  tearDown(() async {\n', '  tearDown(() async {\n    if (eligibility != null && !eligibility!.isCompleted) eligibility!.complete(true);\n')
+          tests = '''
+            test('creation also waits while eligibility is pending', () async {
+              eligibility = Completer<bool>();
+              pending = Completer<WebViewEnvironmentPrewarmResult?>();
+              final prewarm = warming = WebViewEnvironmentHolder.prewarm(
+                hasEnabledPlugin: () => eligibility!.future,
+              );
+              var ready = false;
+              final creation = WebViewEnvironmentHolder.initialize().then((_) => ready = true);
+              await pumpEventQueue();
+              expect(ready, false);
+              expect(calls, isEmpty);
+              eligibility!.complete(true);
+              await pumpEventQueue();
+              expect(calls, hasLength(1));
+              expect(ready, false);
+              pending!.complete(_ok);
+              await prewarm;
+              await creation;
+              expect(ready, true);
+            });
+
+            test('eligibility completing after a timeout cannot start a late prewarm', () async {
+              eligibility = Completer<bool>();
+              WebViewEnvironmentHolder.prewarmWaitLimit = Duration.zero;
+              final prewarm = warming = WebViewEnvironmentHolder.prewarm(
+                hasEnabledPlugin: () => eligibility!.future,
+              );
+              await WebViewEnvironmentHolder.initialize();
+              eligibility!.complete(true);
+              expect(await prewarm, false);
+              expect(calls, isEmpty);
+            });
+
+            test('concurrent prewarm requests share the gate, not native startup', () async {
+              pending = Completer<WebViewEnvironmentPrewarmResult?>();
+              final first = startPrewarm();
+              expect(await WebViewEnvironmentHolder.prewarm(
+                hasEnabledPlugin: () async => true,
+              ), false);
+              await pumpEventQueue();
+              expect(calls, hasLength(1));
+              pending!.complete(_ok);
+              expect(await first, true);
+            });
+          '''
+          source = one(source, "  test('no enabled plugin means no Android startup work', () async {", tests + "\n  test('no enabled plugin means no Android startup work', () async {")
+          test.write_text(source, encoding='utf-8')
+          base = '782f24b7899240f815cefc7bcccc423b20352c30'
+          for name, sha, edits in [
+              ('lib/main.dart', 'f65ec8442a15dd57a7cac684fcf4e148fe9cc3fa', [
+                  ('/// טוען את WebView2 ב-thread רקע, כדי שהתוסף הראשון שנפתח לא יקפיא את ה-UI (#3375).', '/// מחמם WebView ברקע אחרי חשיפת האפליקציה, ב-Windows וב-Android.'),
+                  ('Future<void> _runDeferredWebViewPrewarm() async {\n  if (kIsWeb || !Platform.isWindows) return;', 'Future<void> _runDeferredWebViewPrewarm() async {\n  if (!WebViewEnvironmentHolder.supportsPrewarm) return;'),
+                  ("_logNonFatalInitializationError('WebView2 prewarm', error, stackTrace);", "_logNonFatalInitializationError('WebView prewarm', error, stackTrace);")]),
+              ('lib/plugins/view/plugin_tab_page.dart', '07bf2dd477d0f8d6b2845e8ef5a86a0f752e4ae1', [
+                  ('  static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {\n    if (Platform.isAndroid) {\n      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);', '  static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {\n    if (Platform.isAndroid) {\n      // גם הגדרת debugging יכולה לאתחל את המנוע — ממתינים לחימום לפניה.\n      await WebViewEnvironmentHolder.initialize();\n      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);')]),
+          ]:
+              checked(name, sha)
+              source = subprocess.check_output(['git', 'show', f'{base}:{name}'], text=True)
+              for before, after in edits: source = one(source, before, after)
+              Path(name).write_text(source, encoding='utf-8')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Format only the holder and its new tests
+        run: dart format lib/plugins/view/webview_environment_holder.dart test/plugins/view/webview_android_prewarm_test.dart
+      - name: Commit reviewed edits on the same branch
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- lib/main.dart lib/plugins/view/plugin_tab_page.dart lib/plugins/view/webview_environment_holder.dart test/plugins/view/webview_android_prewarm_test.dart
+          git commit -m 'fix(webview): gate Android creation during prewarm eligibility checks'
+          git push origin HEAD:refs/heads/codex/webview-4114-android-prewarm
