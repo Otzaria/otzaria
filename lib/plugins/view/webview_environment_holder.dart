@@ -229,17 +229,23 @@ class WebViewEnvironmentHolder {
       _recordPrewarm('skipped: environment exists');
       return false;
     }
-    if (!await hasEnabledPlugin()) {
-      _recordPrewarm('skipped: no enabled plugin');
-      return false;
-    }
-    if (_environment != null || _initializeFuture != null) {
-      _recordPrewarm('skipped: environment exists');
-      return false;
-    }
+    // Publish the gate before eligibility awaits: Android creation must
+    // not slip through while the enabled-plugin lookup is still pending.
+    if (_prewarmInFlight != null) return false;
     final done = Completer<void>();
     _prewarmInFlight = done.future;
     try {
+      if (!await hasEnabledPlugin()) {
+        _recordPrewarm('skipped: no enabled plugin');
+        return false;
+      }
+      // Creation may have timed out and proceeded. Never start a late
+      // native prewarm after this operation lost its gate.
+      if (!identical(_prewarmInFlight, done.future)) return false;
+      if (_environment != null || _initializeFuture != null) {
+        _recordPrewarm('skipped: environment exists');
+        return false;
+      }
       // Android מנהל את הפרופיל בעצמו. אין גישה ל-AppPaths או להגדרות
       // UDF/custom schemes של WebView2 במסלול הזה.
       final settings = _isWindows
@@ -247,6 +253,7 @@ class WebViewEnvironmentHolder {
               p.join(await AppPaths.getDataRootPath(), 'webview2'),
             )
           : WebViewEnvironmentSettings();
+      if (!identical(_prewarmInFlight, done.future)) return false;
       final result =
           await (_prewarmOverride ??
               (settings) =>

@@ -12,6 +12,7 @@ void main() {
   late List<WebViewEnvironmentSettings> calls;
   Completer<WebViewEnvironmentPrewarmResult?>? pending;
   Future<bool>? warming;
+  Completer<bool>? eligibility;
 
   Future<bool> startPrewarm({bool enabled = true}) => warming =
       WebViewEnvironmentHolder.prewarm(hasEnabledPlugin: () async => enabled);
@@ -20,6 +21,7 @@ void main() {
     calls = [];
     pending = null;
     warming = null;
+    eligibility = null;
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     WebViewEnvironmentHolder.debugIsWindowsOverride = false;
     WebViewEnvironmentHolder.debugOverrideInitialize(null);
@@ -31,6 +33,8 @@ void main() {
   });
 
   tearDown(() async {
+    if (eligibility != null && !eligibility!.isCompleted)
+      eligibility!.complete(true);
     final outstanding = pending;
     if (outstanding != null && !outstanding.isCompleted) {
       outstanding.complete(_ok);
@@ -54,6 +58,62 @@ void main() {
       expect(calls, hasLength(1));
       expect(calls.single.toMap(), WebViewEnvironmentSettings().toMap());
       expect(WebViewEnvironmentHolder.environment, isNull);
+    },
+  );
+
+  test('creation also waits while eligibility is pending', () async {
+    eligibility = Completer<bool>();
+    pending = Completer<WebViewEnvironmentPrewarmResult?>();
+    final prewarm = warming = WebViewEnvironmentHolder.prewarm(
+      hasEnabledPlugin: () => eligibility!.future,
+    );
+    var ready = false;
+    final creation = WebViewEnvironmentHolder.initialize().then(
+      (_) => ready = true,
+    );
+    await pumpEventQueue();
+    expect(ready, false);
+    expect(calls, isEmpty);
+    eligibility!.complete(true);
+    await pumpEventQueue();
+    expect(calls, hasLength(1));
+    expect(ready, false);
+    pending!.complete(_ok);
+    await prewarm;
+    await creation;
+    expect(ready, true);
+  });
+
+  test(
+    'eligibility completing after a timeout cannot start a late prewarm',
+    () async {
+      eligibility = Completer<bool>();
+      WebViewEnvironmentHolder.prewarmWaitLimit = Duration.zero;
+      final prewarm = warming = WebViewEnvironmentHolder.prewarm(
+        hasEnabledPlugin: () => eligibility!.future,
+      );
+      await WebViewEnvironmentHolder.initialize();
+      eligibility!.complete(true);
+      expect(await prewarm, false);
+      expect(calls, isEmpty);
+    },
+  );
+
+  test(
+    'concurrent prewarm requests share the gate, not native startup',
+    () async {
+      pending = Completer<WebViewEnvironmentPrewarmResult?>();
+      final first = startPrewarm();
+      expect(
+        await WebViewEnvironmentHolder.prewarm(
+          hasEnabledPlugin: () async => true,
+        ),
+        false,
+      );
+      await pumpEventQueue();
+      expect(calls, hasLength(1));
+      pending!.complete(_ok);
+      expect(await first, true);
     },
   );
 
