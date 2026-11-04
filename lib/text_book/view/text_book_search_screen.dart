@@ -1216,7 +1216,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final settings = InBookSearchSettings.fromDialogResult(result);
         // הניתוב החדש נקבע לפני ה-setState, כדי שההדגשה שנשלחת ל-bloc תתאים
         // למסלול שירוץ בפועל ולא למסלול הקודם.
-        final willRunSimpleSearch = !settings.requiresEngine;
+        final willRunSimpleSearch = settings.isSimpleSearch;
         applyInBookSearchQuery(
           controller: searchTextController,
           query: result.query,

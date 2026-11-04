@@ -13,9 +13,7 @@ Future<void> main() async {
 
   group('InBookSearchSettings', () {
     test('the default settings run as a simple search', () {
-      const settings = InBookSearchSettings();
-      expect(settings.requiresEngine, isFalse);
-      expect(settings.isSimpleSearch, isTrue);
+      expect(const InBookSearchSettings().isSimpleSearch, isTrue);
     });
 
     test('a distance or a per-word option needs the engine', () {
@@ -28,16 +26,16 @@ Future<void> main() async {
           searchOptions: {
             'שלום_0': {'קידומות': true},
           },
-        ).requiresEngine,
-        isTrue,
+        ).isSimpleSearch,
+        isFalse,
       );
       expect(
         const InBookSearchSettings(
           alternativeWords: {
             0: ['שלם'],
           },
-        ).requiresEngine,
-        isTrue,
+        ).isSimpleSearch,
+        isFalse,
       );
     });
 
@@ -50,8 +48,8 @@ Future<void> main() async {
         isTrue,
       );
       expect(
-        const InBookSearchSettings(searchMode: SearchMode.fuzzy).requiresEngine,
-        isTrue,
+        const InBookSearchSettings(searchMode: SearchMode.fuzzy).isSimpleSearch,
+        isFalse,
       );
     });
 
@@ -65,7 +63,7 @@ Future<void> main() async {
           );
           final multi = settings.forQuery('שלום עולם');
           expect(multi.matchPolicy.anyOrder, isTrue);
-          expect(multi.requiresEngine, isTrue);
+          expect(multi.isSimpleSearch, isFalse);
 
           final single = settings.forQuery('שלום');
           expect(single.matchPolicy.anyOrder, isFalse);
@@ -91,7 +89,7 @@ Future<void> main() async {
           );
           expect(settings.forQuery('שמים').isSimpleSearch, isTrue);
           expect(settings.forQuery('שמים').distance, 3);
-          expect(settings.forQuery('שמים וארץ').requiresEngine, isTrue);
+          expect(settings.forQuery('שמים וארץ').isSimpleSearch, isFalse);
         }
       },
       skip: !engineReady,
