@@ -724,6 +724,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
                     child: LayoutBuilder(
                       builder: (context, _) {
                         // וידוא שה-ScrollController מחובר לפני הצגת Scrollbar
+                        // ui-lint: allow UIL-031 — פס אופקי; הכלל עוסק בצד וברצועה של פס אנכי
                         return Scrollbar(
                           controller: _scrollController,
                           thumbVisibility: true,
