@@ -214,22 +214,26 @@ extension on AppWindowKeys {
   _PreviewSlot get _previewSlot => _previewSlots[this] ??= _PreviewSlot();
 }
 
-/// עיצוב ומידות של חלונית התצוגה המקדימה: חלונית צפה ליד מילה, או חלונית
-/// צמודה לפריט בתפריט הקשר — בגוון התפריט ועם מסגרת, כהמשך שלו.
+/// עיצוב ומידות של חלונית התצוגה המקדימה: חלונית צפה ליד מילה, על משטח
+/// מוגבה כמו תפריט ו-tooltip, או חלונית צמודה לפריט בתפריט הקשר — עם מסגרת,
+/// כהמשך שלו.
 class _PanelStyle {
   const _PanelStyle.floating()
     : maxWidth = 420,
       maxHeight = null,
       minWidth = 0,
       anchorGap = 10,
-      padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding = const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMD,
+        vertical: AppTokens.spaceSMD,
+      ),
       _inMenu = false;
 
   const _PanelStyle.besideMenuItem({required this.minWidth})
     : maxWidth = 380,
       maxHeight = 360,
       anchorGap = 0,
-      padding = const EdgeInsets.all(12),
+      padding = const EdgeInsets.all(AppTokens.spaceSMD),
       _inMenu = true;
 
   final double maxWidth;
@@ -242,7 +246,7 @@ class _PanelStyle {
   final bool _inMenu;
 
   Color color(ColorScheme colorScheme) =>
-      _inMenu ? colorScheme.surfaceContainer : colorScheme.surface;
+      _inMenu ? colorScheme.surfaceContainer : colorScheme.surfaceContainerHigh;
 
   ShapeBorder shape(ColorScheme colorScheme) => RoundedRectangleBorder(
     borderRadius: AppTokens.borderRadiusAll,

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/misc/overlay_scroll_anchor.dart';
 
@@ -351,6 +352,59 @@ void main() {
       LinkPreviewOverlay.scheduleHide();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('שנייה'), findsNothing);
+    });
+  });
+
+  group('משטח החלונית', () {
+    Material surfaceOf(WidgetTester tester, String text) => tester
+        .widgetList<Material>(
+          find.ancestor(of: find.text(text), matching: find.byType(Material)),
+        )
+        .last;
+
+    testWidgets('חלונית צפה: משטח מוגבה, פינות 8, הגבהה 3 וריפוד 16/12', (
+      tester,
+    ) async {
+      final hostContext = await pumpListHost(tester);
+      LinkPreviewOverlay.showContent(
+        hostContext,
+        contentBuilder: (_) => const Text('תוכן הערה'),
+        globalPosition: const Offset(600, 300),
+      );
+      await pumpPanel(tester);
+
+      final cs = Theme.of(hostContext).colorScheme;
+      final surface = surfaceOf(tester, 'תוכן הערה');
+      // אותו משטח מוגבה כמו תפריט, tooltip ודיאלוג (DESIGN_SYSTEM §2.1.1).
+      expect(surface.color, cs.surfaceContainerHigh);
+      expect(surface.elevation, AppTokens.elevation2);
+      expect(
+        surface.shape,
+        const RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
+      );
+      final panel = tester.getRect(find.byWidget(surface));
+      final text = tester.getRect(find.text('תוכן הערה'));
+      expect(text.top - panel.top, AppTokens.spaceSMD);
+      expect(panel.right - text.right, AppTokens.spaceMD);
+    });
+
+    testWidgets('חלונית ליד פריט תפריט: מסגרת וריפוד 12, בלי שינוי', (
+      tester,
+    ) async {
+      final hostContext = await pumpListHost(tester);
+      showBesideItem(hostContext);
+      await pumpPanel(tester);
+
+      final cs = Theme.of(hostContext).colorScheme;
+      final surface = surfaceOf(tester, 'תוכן חלונית');
+      expect(surface.color, cs.surfaceContainer);
+      expect(
+        (surface.shape! as RoundedRectangleBorder).side.color,
+        cs.outlineVariant,
+      );
+      final panel = tester.getRect(find.byWidget(surface));
+      final text = tester.getRect(find.text('תוכן חלונית'));
+      expect(text.top - panel.top, AppTokens.spaceSMD);
     });
   });
 
