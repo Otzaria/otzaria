@@ -17,6 +17,10 @@ class SegmentOption<T> {
   /// הסבר שמוצג בריחוף; ברירת המחדל היא התווית המלאה.
   final String? tooltip;
 
+  /// התווית במקטע צר ([AppSegmentedControl.narrowBelowSegmentWidth]), כשהמלאה
+  /// לא נכנסת. המלאה נשארת ב-tooltip.
+  final String? shortLabel;
+
   /// מפתח לתווית — נקודת האחיזה של בדיקות, כי מקטע אינו מקבל מפתח.
   final Key? labelKey;
 
@@ -30,6 +34,7 @@ class SegmentOption<T> {
     this.icon,
     this.rtlIcon,
     this.tooltip,
+    this.shortLabel,
     this.labelKey,
     this.subtitle,
   }) : assert(
@@ -77,8 +82,15 @@ class AppSegmentedControl<T> extends StatelessWidget {
     this.maxLabelLines = 1,
   });
 
-  List<ButtonSegment<T>> _segments() {
-    final hasIcons = options.any((o) => o.icon != null || o.rtlIcon != null);
+  /// מתחת לרוחב הזה למקטע (רוחב הבורר חלקי מספר המקטעים) המקטע צר: האייקונים
+  /// יורדים, ו-[SegmentOption.shortLabel] במקום התווית, כדי שהתווית תיכנס.
+  /// בטלפון (320–360) נשארו מ"מדויק" שתי אותיות, ו"חיפוש חכם" נחתך ל"חיפוש
+  /// ..." (q12 Q8).
+  static const double narrowBelowSegmentWidth = 96;
+
+  List<ButtonSegment<T>> _segments({required bool narrow}) {
+    final hasIcons =
+        !narrow && options.any((o) => o.icon != null || o.rtlIcon != null);
     return options
         .map(
           (o) => ButtonSegment<T>(
@@ -86,7 +98,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
             // בלי FittedBox: בתוך לחצן הוא פורס את הטקסט ברוחב מילה אחת,
             // ואז maxLines חותך אותו למילה הראשונה.
             label: Text(
-              o.label,
+              narrow ? o.shortLabel ?? o.label : o.label,
               key: o.labelKey,
               maxLines: maxLabelLines,
               textAlign: TextAlign.center,
@@ -131,15 +143,31 @@ class AppSegmentedControl<T> extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isFixed = height != null;
 
+    return LayoutBuilder(
+      builder: (context, constraints) => _build(
+        cs,
+        isFixed,
+        // ברוחב לא חסום (בתוך Row) הבורר ברוחבו הטבעי, ואינו צר.
+        narrow:
+            constraints.hasBoundedWidth &&
+            constraints.maxWidth / options.length < narrowBelowSegmentWidth,
+      ),
+    );
+  }
+
+  Widget _build(ColorScheme cs, bool isFixed, {required bool narrow}) {
     return SegmentedButton<T>(
-      segments: _segments(),
+      segments: _segments(narrow: narrow),
       selected: {currentValue},
       expandedInsets: expandToFillWidth ? EdgeInsets.zero : null,
       onSelectionChanged: (Set<T> selection) {
         if (selection.isNotEmpty) onChanged(selection.first);
       },
       showSelectedIcon: showSelectedIcon,
-      selectedIcon: const Icon(FluentIcons.checkmark_24_regular, size: 16),
+      selectedIcon: const Icon(
+        FluentIcons.checkmark_24_regular,
+        size: AppTokens.iconSM,
+      ),
       style: isFixed
           ? _buttonStyle(cs).copyWith(
               minimumSize: WidgetStateProperty.all(Size(0, height!)),

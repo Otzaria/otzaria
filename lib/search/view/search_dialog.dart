@@ -189,6 +189,9 @@ enum _ModeChoice {
       values.firstWhere((choice) => choice.mode == mode);
 
   String get label => mode?.shortLabel ?? kSemanticSearchModeName;
+
+  /// במקטע צר: "חכם", כמו "מדויק" ו"מקורב" בלי "חיפוש". השם המלא ב-tooltip.
+  String? get narrowLabel => mode == null ? 'חכם' : null;
 }
 
 class _SearchDialogState extends State<SearchDialog> {
@@ -1418,6 +1421,10 @@ class _SearchDialogState extends State<SearchDialog> {
             SegmentOption(
               value: choice,
               label: context.settingsText(choice.label),
+              shortLabel: switch (choice.narrowLabel) {
+                final short? => context.settingsText(short),
+                null => null,
+              },
               icon: choice.icon,
               tooltip: _modeTooltip(choice),
               labelKey: choice == _ModeChoice.semantic

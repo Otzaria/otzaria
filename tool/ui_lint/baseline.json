@@ -1422,9 +1422,6 @@
         {"scope":"_BarSplitButtonState.build","fp":"87f04357","n":1},
         {"scope":"_BarSplitButtonState.build","fp":"f1e89b70","n":1}
       ],
-      "lib/widgets/controls/segmented_control.dart": [
-        {"scope":"AppSegmentedControl.build","fp":"89f0467d","n":1}
-      ],
       "lib/widgets/dialogs/ad_popup_dialog.dart": [
         {"scope":"_AdPopupDialogState._buildBottomButtons","fp":"f1e89b70","n":3},
         {"scope":"_ExpandableOrgCardState.build","fp":"89f0467d","n":1},
