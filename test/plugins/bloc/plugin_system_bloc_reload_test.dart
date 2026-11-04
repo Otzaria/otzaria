@@ -160,6 +160,7 @@ void main() {
       });
       expect(a.devWatchService, same(b.devWatchService));
       a.devWatchService.syncWatchers([plugin]);
+      await a.devWatchService.watching(plugin.pluginId);
       await script.writeAsString('changed');
       await reloaded.future.timeout(const Duration(seconds: 5));
       await Future<void>.delayed(const Duration(milliseconds: 400));
