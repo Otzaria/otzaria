@@ -2400,8 +2400,8 @@ class IndexingRepository {
     final attached = attachedLibraries ?? _registeredAttachedLibraries();
     final isAttachedOrphan = _attachedOrphanRule(books, attached);
 
-    // ספרי תיקייה מוסתרת אינם בעץ ומזוהים לפי שורשה; ספרייה או מסד מצורף
-    // שבתוכה אינם אישיים. null — לא ידוע מה מוגן, ולא מוחקים.
+    // תיקייה מוסתרת מזוהה לפי שורשה; ספרים ממסדים מזוהים בנפרד לפי מקורם.
+    // null — השורשים המוגנים אינם ידועים, ולכן לא מוחקים לפי מיקום בתיקייה.
     final hiddenFolderNames = CustomFoldersManager.hiddenFolderNames(folders);
     final hiddenPersonalRoots = [
       for (final folder in folders)
@@ -2427,7 +2427,9 @@ class IndexingRepository {
           orphans.add(key);
         }
       } else if (key.startsWith('db:')) {
-        if (isAttachedOrphan(key)) orphans.add(key);
+        if (!mode.indexesPersonalBooks || isAttachedOrphan(key)) {
+          orphans.add(key);
+        }
       } else if (p.isAbsolute(key) &&
           protectedRoots != null &&
           hiddenPersonalRoots.any((root) => p.isWithin(root, key)) &&
@@ -2467,7 +2469,7 @@ class IndexingRepository {
     return [root, for (final library in attached) p.dirname(library.path)];
   }
 
-  /// null — הרשימה לא נקראה, ואז אף מפתח `db:` אינו נמחק.
+  /// null — הרשימה לא נקראה, ולכן אי אפשר לזהות מסד שהוסר.
   static List<AttachedLibrary>? _registeredAttachedLibraries() {
     try {
       return AttachedLibraryRegistry.instance.librariesIfKnown;

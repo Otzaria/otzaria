@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -205,6 +206,7 @@ void main() {
     Future<Set<String>> run({
       required List<AttachedLibrary> libraries,
       bool attachedInTree = true,
+      IndexUpdateMode mode = IndexUpdateMode.all,
     }) async {
       final engine = _Engine();
       final provider = _Provider(engine);
@@ -213,13 +215,40 @@ void main() {
         'db:$_slug:1', // בעץ
         'db:$_slug:99', // נמחק מהמסד
         'db:gone:5', // מסד שהוסר מהרשימה
+        'id:1',
+        'id:99', // ספר רשמי שעדיין לא נטען
+        'ext:official',
       });
-      await IndexingRepository(provider).dropOrphanedIndexEntries(
+      await IndexingRepository(
+        provider,
+        indexUpdateMode: () => mode,
+      ).dropOrphanedIndexEntries(
         library,
         customFolders: const [],
         attachedLibraries: libraries,
       );
+      expect(
+        provider.indexedFilePaths,
+        containsAll({'id:1', 'id:99', 'ext:official'}),
+      );
       return engine.removed.toSet();
+    }
+
+    for (final (name, library, inTree) in [
+      ('זמין', _lib(), true),
+      ('מוסתר', _lib(hidden: true), false),
+      ('לא נגיש', _lib(status: AttachedLibraryStatus.unreachable), false),
+    ]) {
+      test('בלי ספרים אישיים: מסד $name מוסר מהאינדקס', () async {
+        expect(
+          await run(
+            libraries: [library],
+            attachedInTree: inTree,
+            mode: IndexUpdateMode.libraryOnly,
+          ),
+          {'db:$_slug:1', 'db:$_slug:99', 'db:gone:5'},
+        );
+      });
     }
 
     test('מסד שהוסר — המפתחות שלו נמחקים', () async {
