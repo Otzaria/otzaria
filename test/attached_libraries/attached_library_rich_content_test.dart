@@ -18,6 +18,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -270,6 +271,38 @@ void main() {
         ]);
       },
     );
+
+    test("'כותרות': עוגן מאוחר נבדק מול הבן במסד המצורף", () async {
+      final path = fullAttached('עוגן מאוחר');
+      final db = sqlite3.sqlite3.open(path);
+      db.execute('UPDATE alt_toc_entry SET lineId = 3, hasChildren = 1');
+      db.execute('INSERT INTO tocText VALUES (3, ?)', ['בן מצורף']);
+      db.execute(
+        'INSERT INTO alt_toc_entry (id, structureId, parentId, textId, level, '
+        'lineId) VALUES (2, 1, 1, 3, 2, 2)',
+      );
+      db.execute('DELETE FROM line_alt_toc');
+      db.execute('INSERT INTO line_alt_toc VALUES (2, 1, 2)');
+      db.close();
+      final library = await attach(path);
+      final source = library.source!;
+
+      expect(
+        await provider.getLinksForAltTocEntry(1, 1, source: source),
+        isEmpty,
+      );
+      final child = await provider.getLinksForAltTocEntry(
+        1,
+        2,
+        source: source,
+      );
+      expect(child.single.index2, 2);
+      expect(child.single.targetSource, source);
+      await provider.initialize();
+      final official = await provider.getLinksForAltTocEntry(1, 1);
+      expect(official.single.index2, 1);
+      expect(official.single.targetSource, BookSource.official);
+    });
 
     test("'כותרות': מבנים, ערכים, קישורי ערך וערך לשורה", () async {
       final library = await attach(fullAttached('כותרות'));
