@@ -131,6 +131,9 @@ class PersonalNoteEditorBody extends StatefulWidget {
   final String? bookId;
   final VoidCallback? onSaveShortcut;
 
+  /// בדיאלוג: Escape בשדה סוגר את הדיאלוג, כמו מחוץ לשדה.
+  final bool escapeDismisses;
+
   const PersonalNoteEditorBody({
     super.key,
     required this.controller,
@@ -142,6 +145,7 @@ class PersonalNoteEditorBody extends StatefulWidget {
     this.hintText,
     this.bookId,
     this.onSaveShortcut,
+    this.escapeDismisses = false,
   });
 
   @override
@@ -167,6 +171,16 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
     _settleTimer?.cancel();
     widget.focusNode.removeListener(_handleFocusChange);
     super.dispose();
+  }
+
+  /// Quill בולע Escape (הסתרת סרגל הבחירה); בדיאלוג הוא מגיע לסגירה (DD-08).
+  KeyEventResult? _dismissOnEscape(KeyEvent event, quill.Node? node) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return null;
+    }
+    Actions.maybeInvoke(context, const DismissIntent());
+    return KeyEventResult.handled;
   }
 
   void _handleFocusChange() {
@@ -407,6 +421,10 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                                 widget.hintText ??
                                 'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
                             customShortcuts: _rtlArrowShortcuts,
+                            // ignore: experimental_member_use
+                            onKeyPressed: widget.escapeDismisses
+                                ? _dismissOnEscape
+                                : null,
                             contextMenuBuilder: _touchContextMenu,
                           ),
                         ),

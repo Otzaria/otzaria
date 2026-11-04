@@ -164,6 +164,42 @@ void main() {
     expect(find.byType(PersonalNoteEditorDialog), findsOneWidget);
   });
 
+  testWidgets('Escape בעורך בלי שינויים סוגר את הדיאלוג (DD-08)', (
+    tester,
+  ) async {
+    await open(tester);
+    final editor = tester.widget<quill.QuillEditor>(
+      find.byType(quill.QuillEditor),
+    );
+    expect(editor.focusNode.hasFocus, isTrue);
+    await press(tester, LogicalKeyboardKey.escape);
+    expect(result, isNull);
+    expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+  });
+
+  testWidgets('Escape בעורך עם שינויים שואל על הטיוטה (DD-08)', (
+    tester,
+  ) async {
+    await open(tester);
+    final editor = tester.widget<quill.QuillEditor>(
+      find.byType(quill.QuillEditor),
+    );
+    editor.controller.replaceText(
+      0,
+      0,
+      'טיוטה ',
+      const TextSelection.collapsed(offset: 6),
+    );
+    await tester.pump();
+    expect(editor.focusNode.hasFocus, isTrue);
+    await press(tester, LogicalKeyboardKey.escape);
+    expect(result, 'pending');
+    expect(find.text('שמור טיוטה'), findsOneWidget);
+    await tester.tap(find.text('סגור בלי לשמור'));
+    await tester.pumpAndSettle();
+    expect(result, isNull);
+  });
+
   testWidgets('Escape מהכותרת מבטל', (tester) async {
     await open(tester);
     closeFocus(tester).requestFocus();
