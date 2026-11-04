@@ -1,0 +1,71 @@
+name: Apply Android prewarm wiring (temporary)
+on:
+  push:
+    branches: [codex/webview-4114-android-prewarm]
+    paths: [.github/workflows/codex-webview-4114-edit.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'Otzaria/otzaria'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - name: Apply two exact, preconditioned source edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          changes = {
+              'lib/main.dart': (
+                  'e411ef029c0d196c2bfce20534551971e8c13263',
+                  [
+                      ('/// טוען את WebView2 ב-thread רקע, כדי שהתוסף הראשון שנפתח לא יקפיא את ה-UI (#3375).',
+                       '/// מחמם WebView ברקע אחרי חשיפת האפליקציה, ב-Windows וב-Android.'),
+                      ('Future<void> _runDeferredWebViewPrewarm() async {\n  if (kIsWeb || !Platform.isWindows) return;',
+                       'Future<void> _runDeferredWebViewPrewarm() async {\n  if (!WebViewEnvironmentHolder.supportsPrewarm) return;'),
+                      ("_logNonFatalInitializationError('WebView2 prewarm', error, stackTrace);",
+                       "_logNonFatalInitializationError('WebView prewarm', error, stackTrace);"),
+                  ],
+              ),
+              'lib/plugins/view/plugin_tab_page.dart': (
+                  'ca1226e10a424698af232bd2509ed81532182917',
+                  [
+                      ('  static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {\n    if (Platform.isAndroid) {\n      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);',
+                       '  static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {\n    if (Platform.isAndroid) {\n      // גם הגדרת debugging יכולה לאתחל את המנוע — ממתינים לחימום לפניה.\n      await WebViewEnvironmentHolder.initialize();\n      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);'),
+                  ],
+              ),
+          }
+          replacements = {}
+          for name, (expected_sha, edits) in changes.items():
+              actual_sha = subprocess.check_output(['git', 'hash-object', name], text=True).strip()
+              if actual_sha != expected_sha:
+                  raise SystemExit(f'Refusing to modify changed file: {name}')
+              text = Path(name).read_text(encoding='utf-8')
+              for before, after in edits:
+                  if text.count(before) != 1:
+                      raise SystemExit(f'Expected exactly one matching source block in {name}')
+                  text = text.replace(before, after, 1)
+              replacements[name] = text
+          for name, text in replacements.items():
+              Path(name).write_text(text, encoding='utf-8')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Format changed Dart files
+        run: dart format lib/main.dart lib/plugins/view/plugin_tab_page.dart lib/plugins/view/webview_environment_holder.dart test/plugins/view/webview_android_prewarm_test.dart
+      - name: Commit only the four scoped Dart files
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- lib/main.dart lib/plugins/view/plugin_tab_page.dart lib/plugins/view/webview_environment_holder.dart test/plugins/view/webview_android_prewarm_test.dart
+          git commit -m 'fix(webview): wire deferred Android prewarm before first engine access'
+          git push origin HEAD:refs/heads/codex/webview-4114-android-prewarm
