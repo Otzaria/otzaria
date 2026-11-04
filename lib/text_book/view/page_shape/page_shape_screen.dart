@@ -691,29 +691,34 @@ class _PageShapeScreenState extends State<PageShapeScreen>
 
     final commentators = _selectedRightPaneCommentators(state);
 
-    return CommentaryListBase(
+    // הגודל נשמר ב-Settings ולא ב-SettingsBloc, ולכן מאזינים לשמירה: גם
+    // המחוון שבהגדרות התצוגה הכלליות משנה אותו, בלי לבנות את המסך מחדש.
+    return ValueListenableBuilder<int>(
       // מפתח יציב כדי שלא נאבד את מצב מסך בחירת המפרשים בכל סימון
       key: const ValueKey('page_shape_commentary_list'),
-      openBookCallback: (tab) => widget.openBookCallback(tab),
-      fontSize: PageShapeSettingsManager.getCommentaryFontSize(),
-      showSearch: true,
-      selectionSyncController: _selectionSyncController,
-      shrinkWrap: false,
-      selectedCommentatorsOverride: commentators,
-      hiddenCommentators: _hiddenRightPaneCommentators(state),
-      commentatorGroupsOverride: _rightPaneCommentatorGroups(state),
-      bookTitleOverride: state.book.title,
-      personalNotesLoader: loadStoredPersonalNotes,
-      onSelectedCommentatorsOverrideChanged: (selected) =>
-          _saveRightPaneCommentators(state, selected),
-      onOpenInNewTab: widget.tab == null
-          ? null
-          : () => context.read<TabsBloc>().add(
-              AddTab(
-                CommentatorsTab(sourceTab: widget.tab!),
-                insertAdjacent: true,
+      valueListenable: PageShapeSettingsManager.commentaryFontSizeChanges,
+      builder: (context, _, _) => CommentaryListBase(
+        openBookCallback: (tab) => widget.openBookCallback(tab),
+        fontSize: PageShapeSettingsManager.getCommentaryFontSize(),
+        showSearch: true,
+        selectionSyncController: _selectionSyncController,
+        shrinkWrap: false,
+        selectedCommentatorsOverride: commentators,
+        hiddenCommentators: _hiddenRightPaneCommentators(state),
+        commentatorGroupsOverride: _rightPaneCommentatorGroups(state),
+        bookTitleOverride: state.book.title,
+        personalNotesLoader: loadStoredPersonalNotes,
+        onSelectedCommentatorsOverrideChanged: (selected) =>
+            _saveRightPaneCommentators(state, selected),
+        onOpenInNewTab: widget.tab == null
+            ? null
+            : () => context.read<TabsBloc>().add(
+                AddTab(
+                  CommentatorsTab(sourceTab: widget.tab!),
+                  insertAdjacent: true,
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -2714,34 +2719,37 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
             final fontFamily = widget.isBottom
                 ? bottomFont
                 : settingsState.commentatorsFontFamily;
-            final commentaryFontSize =
-                PageShapeSettingsManager.getCommentaryFontSize();
-            return SimpleTextViewer(
-              content: _content!,
-              fontSize: commentaryFontSize,
-              fontFamily: fontFamily,
-              selectionSyncController: widget.selectionSyncController,
-              openBookCallback: widget.openBookCallback,
-              scrollController: _scrollController,
-              positionsListener: _positionsListener,
-              scrollOffsetController: _scrollOffsetController,
-              isMainText: false,
-              bookTitle: widget.commentatorName, // לפתיחה בטאב נפרד
-              labelForIndex: _commentaryToc == null
-                  ? null
-                  : _commentaryLabelForIndex,
-              reportBook: _reportBook,
-              highlightedIndices: _highlightedIndices, // הדגשות מקומיות
-              onSwitchCommentator: _switchCommentator,
-              onOpenCommentaryPersonalNote: widget.onOpenPersonalNote,
-              anchorLinksByLine: _anchorLinksByLine.isEmpty
-                  ? null
-                  : _anchorLinksByLine,
-              anchorBookNotes: _anchorBookNotes,
-              isBookNotesColumn: _isNotesColumn,
-              sourceIndexForIndex: _isNotesColumn
-                  ? (index) => _relevantLinks[index].index1 - 1
-                  : null,
+            // הגודל נשמר ב-Settings ולא ב-SettingsBloc, ולכן מאזינים לשמירה.
+            return ValueListenableBuilder<int>(
+              valueListenable:
+                  PageShapeSettingsManager.commentaryFontSizeChanges,
+              builder: (context, _, _) => SimpleTextViewer(
+                content: _content!,
+                fontSize: PageShapeSettingsManager.getCommentaryFontSize(),
+                fontFamily: fontFamily,
+                selectionSyncController: widget.selectionSyncController,
+                openBookCallback: widget.openBookCallback,
+                scrollController: _scrollController,
+                positionsListener: _positionsListener,
+                scrollOffsetController: _scrollOffsetController,
+                isMainText: false,
+                bookTitle: widget.commentatorName, // לפתיחה בטאב נפרד
+                labelForIndex: _commentaryToc == null
+                    ? null
+                    : _commentaryLabelForIndex,
+                reportBook: _reportBook,
+                highlightedIndices: _highlightedIndices, // הדגשות מקומיות
+                onSwitchCommentator: _switchCommentator,
+                onOpenCommentaryPersonalNote: widget.onOpenPersonalNote,
+                anchorLinksByLine: _anchorLinksByLine.isEmpty
+                    ? null
+                    : _anchorLinksByLine,
+                anchorBookNotes: _anchorBookNotes,
+                isBookNotesColumn: _isNotesColumn,
+                sourceIndexForIndex: _isNotesColumn
+                    ? (index) => _relevantLinks[index].index1 - 1
+                    : null,
+              ),
             );
           },
         );

@@ -537,8 +537,7 @@
       "lib/text_book/view/page_shape/page_shape_settings_panel.dart": [
         {"scope":"_PageShapeSettingsPanelState._buildCommentatorDropdown","fp":"aac1e49f","n":1},
         {"scope":"_PageShapeSettingsPanelState.build","fp":"a7c1dfe6","n":1},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"aac1e49f","n":2},
-        {"scope":"_PageShapeSettingsPanelState.build","fp":"abc1e632","n":1}
+        {"scope":"_PageShapeSettingsPanelState.build","fp":"aac1e49f","n":1}
       ],
       "lib/text_book/view/page_shape/simple_text_viewer.dart": [
         {"scope":"_SimpleTextViewerState.build","fp":"a9c1e30c","n":1}

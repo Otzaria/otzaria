@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart'
@@ -79,9 +80,17 @@ class PageShapeSettingsManager {
 
   // ==================== גודל גופן (גלובלי בלבד) ====================
 
+  static const double minCommentaryFontSize = 10;
+  static const double maxCommentaryFontSize = 30;
+
+  /// מתקדם אחרי כל שמירה של גודל גופן המפרשים. מאזינים לו מסך צורת הדף,
+  /// החלונית שלו והחלונית הכללית, כדי ששינוי באחד יופיע בכולם.
+  static final ValueNotifier<int> commentaryFontSizeChanges = ValueNotifier(0);
+
   /// שמירת גודל גופן המפרשים (הגדרה גלובלית)
   static Future<void> saveCommentaryFontSize(double size) async {
     await Settings.setValue<double>(_commentaryFontSizeKey, size);
+    commentaryFontSizeChanges.value++;
   }
 
   /// טעינת גודל גופן המפרשים
