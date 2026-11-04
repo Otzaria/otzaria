@@ -55,7 +55,7 @@
 
 ההעדפות שהסבבים הקודמים (#3322, #3539, #3794) הנהיגו הן עכשיו תקן **[מחייב]**:
 - רצועת כותרת (`AppDialogHeader`) ותג אייקון **בכל** דיאלוג, כולל `small` (DD-07 B). ב־`small` אין X (השלמה 2.11).
-- כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A). פעולה מסוכנת: `ActionButton.warning`, כפתור מלא ברקע `error` (השלמה 3.11).
+- כפתור ביטול בסגנון `neutral` (tonal) (DD-09 A). פעולה מסוכנת: `ActionButton.warning`, כפתור מלא ברקע `error` (השלמה 3.11), ועל מסך הגדרות `ActionButton.warningSoft` (4.11).
 - כותרות מקטע בצבע `primary`, דרך `AppSectionLabel` (DD-14 A). חריג: בדיאלוג החיפוש ובאיתור המקורות נשארות הכותרות הקטנות שלהם, 13 (השלמה 2.11).
 - מסגרת `outlineVariant` ולא צל לכרטיסים (DD-12 A).
 - רדיוס אחד, 8, לכל רכיב מלבני, כולל צ'יפים, כפתור סרגל עם תווית ותג אייקון (DD-04 A). שני חריגים: כפתור אייקון בלבד נשאר עגול, ו־`BarSplitButton` (אייקון וחץ) נשאר גלולה (השלמה 2.11). גם הריחוף של `IconButton` גולמי עגול, דרך ערכת הנושא (השלמה 3.11). כפתור אייקון עם רקע משלו נשאר 8 (q10 Q22).
@@ -396,6 +396,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | פעולה צפופה בתוך הודעה, שורה או פירורי לחם | `ActionButton.inline(text:, onPressed:, color:, tooltip:)`: ghost בלי גודל מינימלי, ריפוד 8×4 ושטח מגע בגודל הכפתור (q10 Q7.1, Q7.8, Q7.9) | פעולת `UiSnack`, פירורי הלחם ו"רק" בתפריט ההיקף. `color` רק כשההקשר קובע אותו, למשל טון ההודעה |
 | אייקון אחרי הטקסט ("הבא", "הצג עוד") | `iconAlignment: IconAlignment.end` בכל וריאנט חוץ מ־`inline` (q10 Q7.4, Q7.6) | ברירת המחדל `start` |
 | מסוכן (אישור מחיקה) | `ActionButton.warning`: כפתור מלא, רקע `error` וטקסט `onError` (DD-09, השלמה 3.11) | רק בתוך דיאלוג אזהרה או אחרי אישור. כפתור "מחק" ראשוני ברשימה הוא `neutral` או אייקון. גם ״דרוס״ בייבוא ההערות, ליד שלושה כפתורי `neutral` (השלמה 3.11) |
+| מסוכן על מסך הגדרות (לא בדיאלוג): "נקה הכל", "הסר", "מחק" | `ActionButton.warningSoft`: רקע `errorContainer` וטקסט `onErrorContainer` (DD-09, הערה 4.11) | **[מחייב]** אדום מלא רק בדיאלוג. על מסך או חלונית הגדרות הכפתור ההרסני רך, וכפתור האישור בדיאלוג שהוא פותח הוא `ActionButton.warning`. נאכף ב־`destructive_button_contract_test` (‏`lib/settings/tabs`, ‏`lib/settings/panels`) |
 | אייקון בלבד, כללי | `AppIconButton(size: small\|medium\|large)`: עטיפה דקה על `IconButton` שמחייבת `tooltip`. אייקון 16/20/24 מ־`AppTokens.icon*`, ריבוע האייקון ועוד 16 (ועוד 12 בצפיפות קומפקטית), עגול (DD-04). `isSelected` צובע ב־`primary`. ‏`small`: אייקון 16 בריבוע 32 (השלמה 3.11) | חלקי: השכבה המשותפת, שורת הכותרת ועמודת הכרטיסיות הוסבו. בפיצ'רים נשארו כ־90 `IconButton` גולמיים |
 | אייקון בתוך שדה / בסרגל צר | `SquareIconButton.field` / `.toolbar` | קיים |
 | פעולת סרגל | `BarButton.icon` / `.text` | צורה 8, בלי גלולה (DD-04) |
@@ -406,6 +407,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 **מצבים [מחייב]:**
 - **hover/pressed/focus:** מגיעים מערכת הנושא (`_hoverButtonStyle`). לא מגדירים אותם מקומית. ב־`IconButton` הצורה עגולה גם היא מערכת הנושא (DD-04, השלמה 3.11).
+- **פוקוס מקלדת:** טבעת `primary` בעובי `focusRingWidth`, במרחק 2 מחוץ לכפתור (`AppFocusRing`, q11 Q2). רק כשהפוקוס הגיע מהמקלדת, לא בעכבר ולא במגע. היא ה־`side` שבערכת הנושא, ולכן כפתור לא קובע `side` משלו (זה דורס את הטבעת).
 - **disabled:** `onPressed: null`.
 - **loading:** `ActionButton(isLoading:)`. יעד: לשמור על רוחב הכפתור ולהוסיף `Semantics(liveRegion)` "טוען".
 
