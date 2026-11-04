@@ -77,6 +77,11 @@ class PaneDragHandleButton extends StatelessWidget {
     final isDesktop = _isDesktop(context);
 
     final handle = Tooltip(
+      // במגע ה־Tooltip היה זוכה בלחיצה הארוכה לפני ה־LongPressDraggable (הוא
+      // עמוק יותר בעץ, והטיימר שלו קודם), ולכן לחיצה ארוכה הציגה את ההסבר
+      // ולא התחילה גרירה. manual: במגע ההסבר לא מופיע, אבל נשאר השם הנגיש
+      // של הידית. במחשב (עכבר) ההסבר מופיע בריחוף כמו קודם.
+      triggerMode: isDesktop ? null : TooltipTriggerMode.manual,
       message: context.settingsText(
         'גרור אל שורת הכרטיסיות כדי להחזיר לכרטיסייה נפרדת',
       ),
