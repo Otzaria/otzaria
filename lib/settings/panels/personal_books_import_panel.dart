@@ -306,7 +306,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
                 isLoading: isBusy,
               ),
               if (_isCopyingFolder)
-                ActionButton.warning(
+                ActionButton.warningSoft(
                   text: context.settingsText('בטל ייבוא'),
                   icon: FluentIcons.dismiss_24_regular,
                   onPressed: _folderImport.cancelCopy,

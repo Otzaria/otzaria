@@ -1120,7 +1120,7 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
                     text: context.settingsText('ערוך'),
                     onPressed: () => _editDynamicShortcut(context, shortcut),
                   ),
-                  ActionButton.warning(
+                  ActionButton.warningSoft(
                     text: context.settingsText('מחק'),
                     onPressed: () =>
                         DynamicShortcutRegistry.instance.remove(shortcut.id),

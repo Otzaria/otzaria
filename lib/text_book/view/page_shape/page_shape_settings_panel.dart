@@ -810,7 +810,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: ActionButton.warning(
+          child: ActionButton.warningSoft(
             onPressed: _resetCommentators,
             icon: FluentIcons.arrow_reset_24_regular,
             text: 'איפוס מפרשים',
