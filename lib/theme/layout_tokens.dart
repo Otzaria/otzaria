@@ -69,4 +69,9 @@ class LayoutConstraints {
 
   /// גובה שורת הכותרת של החלון בדסקטופ: הכרטיסיות וכפתורי החלון.
   static const double windowCaptionHeight = 40.0;
+
+  /// גובה סרגל הניווט התחתון (טלפון לאורך): 64, כמו "flexible navigation
+  /// bar" של M3 Expressive, עם תווית לכל יעד. ברירת המחדל של M3 הייתה 80
+  /// (q12 Q8, ss6).
+  static const double bottomNavigationBarHeight = 64.0;
 }

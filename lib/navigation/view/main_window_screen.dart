@@ -78,6 +78,7 @@ import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/main.dart'
     show appWindowListener, presentMainWindow, startupRecoveryVerified;
 import 'package:otzaria/core/splash_screen.dart' show SplashIcon;
+import 'package:otzaria/navigation/view/bottom_nav_labels.dart';
 import 'package:otzaria/navigation/view/custom_title_bar.dart';
 import 'package:otzaria/navigation/view/reading_tabs_side_panel.dart';
 import 'package:otzaria/migration/sync/background_sync_initializer.dart';
@@ -4395,31 +4396,41 @@ class MainWindowScreenState extends State<MainWindowScreen>
               final activeToolId = _activeToolIdOf(
                 tabsState,
               );
-              return NavigationBar(
-                // צבע הסרגל, כמו עמודת הניווט במחשב (q10 Q18 A).
-                backgroundColor: AppSurfaces.navPanelBackground(
-                  context,
-                ),
-                surfaceTintColor: Colors.transparent,
-                destinations: _buildBarDestinations(
-                  pinnedItems,
-                  hideTools: hideTools,
-                ),
-                selectedIndex: _getBarSelectedIndex(
-                  state.currentScreen,
-                  pinnedItems,
-                  activeToolId,
-                  hideTools: hideTools,
-                ),
-                onDestinationSelected: (index) async {
-                  await _onBarNavTap(
+              final destinations = _buildBarDestinations(
+                pinnedItems,
+                hideTools: hideTools,
+              );
+              return LayoutBuilder(
+                builder: (context, constraints) => NavigationBar(
+                  // צבע הסרגל, כמו עמודת הניווט במחשב (q10 Q18 A).
+                  backgroundColor: AppSurfaces.navPanelBackground(
                     context,
-                    index,
+                  ),
+                  surfaceTintColor: Colors.transparent,
+                  // תווית לכל יעד; רק כשהתווית הארוכה לא נכנסת ברוחב של יעד,
+                  // תווית רק לנבחר (review-r3, q-bottom-bar).
+                  labelBehavior: BottomNavLabels.behaviorFor(
+                    context,
+                    barWidth: constraints.maxWidth,
+                    labels: [for (final d in destinations) d.label],
+                  ),
+                  destinations: destinations,
+                  selectedIndex: _getBarSelectedIndex(
                     state.currentScreen,
                     pinnedItems,
+                    activeToolId,
                     hideTools: hideTools,
-                  );
-                },
+                  ),
+                  onDestinationSelected: (index) async {
+                    await _onBarNavTap(
+                      context,
+                      index,
+                      state.currentScreen,
+                      pinnedItems,
+                      hideTools: hideTools,
+                    );
+                  },
+                ),
               );
             },
           );

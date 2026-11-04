@@ -8,6 +8,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// ניגודיות WCAG בין שני צבעים (יחס בהירות).
 double _contrastRatio(Color a, Color b) {
@@ -65,6 +66,40 @@ void main() {
 
     expect(theme.datePickerTheme.shape, AppTokens.roundedShape);
     expect(theme.datePickerTheme.rangePickerShape, AppTokens.roundedShape);
+  });
+
+  // q12 Q8, ss6: הסרגל התחתון בטלפון 64 ולא 80, ותווית לכל יעד.
+  testWidgets('סרגל הניווט התחתון בגובה 64, עם תווית לכל יעד', (
+    tester,
+  ) async {
+    final theme = AppThemeData.light(
+      AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
+      compactMenuMode: true,
+    );
+    expect(
+      theme.navigationBarTheme.height,
+      LayoutConstraints.bottomNavigationBarHeight,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          bottomNavigationBar: NavigationBar(
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.abc), label: 'ספרייה'),
+              NavigationDestination(icon: Icon(Icons.abc), label: 'עיון'),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.getSize(find.byType(NavigationBar)).height,
+      LayoutConstraints.bottomNavigationBarHeight,
+    );
+    // תווית גם ליעד שלא נבחר.
+    expect(find.text('עיון').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   test('הערכה נגזרת מהזרע ונישאת ב-ThemeData', () {
