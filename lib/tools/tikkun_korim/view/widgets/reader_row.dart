@@ -215,6 +215,42 @@ TikkunGapAverages computeTikkunGapAverages({
   return TikkunGapAverages(stam: averageFor(true), nikud: averageFor(false));
 }
 
+/// מספר השורות במקטע של הרווח הממוצע — כטור של ספר תורה.
+const int kTikkunGapSegmentLines = kTikkunDefaultLinesPerPage;
+
+/// מספר המקטעים ב-[lineCount] שורות. השארית מצטרפת למקטע האחרון, כך שעמוד
+/// של שיטה (עד 83 שורות) הוא מקטע אחד ואין מקטע קצר מכדי למצע.
+int tikkunGapSegmentCount(int lineCount) =>
+    math.max(1, lineCount ~/ kTikkunGapSegmentLines);
+
+/// טווח השורות [start, end) של מקטע [segment].
+(int, int) tikkunGapSegmentRange(int segment, int lineCount) {
+  final start = segment * kTikkunGapSegmentLines;
+  final isLast = segment == tikkunGapSegmentCount(lineCount) - 1;
+  return (start, isLast ? lineCount : start + kTikkunGapSegmentLines);
+}
+
+/// הרווח הממוצע לפי מקטעים, מחושב בעצלות רק למקטעים של שורות שנבנות —
+/// ספר שלם אינו נמדד כולו בכל זום.
+class TikkunSegmentGapAverages {
+  final List<TikkunLine> lines;
+  final TikkunGapAverages Function(List<TikkunLine> segment) _compute;
+  final Map<int, TikkunGapAverages> _bySegment = {};
+
+  TikkunSegmentGapAverages(this.lines, this._compute);
+
+  TikkunGapAverages forLine(int index) {
+    final segment = math.min(
+      index ~/ kTikkunGapSegmentLines,
+      tikkunGapSegmentCount(lines.length) - 1,
+    );
+    return _bySegment.putIfAbsent(segment, () {
+      final (start, end) = tikkunGapSegmentRange(segment, lines.length);
+      return _compute(lines.sublist(start, end));
+    });
+  }
+}
+
 /// המעטפת המשותפת לכל שורה — מיקום הטורים, הסתרה, מירכוז וגבולות.
 class TikkunRowShell extends StatelessWidget {
   final TikkunRenderMetrics metrics;

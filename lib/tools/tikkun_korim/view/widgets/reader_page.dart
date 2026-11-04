@@ -85,7 +85,7 @@ class ReaderPage extends StatefulWidget {
 
 class _ReaderPageState extends State<ReaderPage> {
   late List<TikkunLineMarkers> _markers;
-  TikkunGapAverages _gaps = TikkunGapAverages.none;
+  TikkunSegmentGapAverages? _gaps;
   double? _gapsRowWidth;
   TikkunSettings? _gapsSettings;
   List<TikkunLine>? _gapsLines;
@@ -131,28 +131,37 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
-  /// הרווח הממוצע נמדד פעם אחת לעמוד — מדידת TextPainter לכל מילה יקרה מדי
-  /// לביצוע בכל build.
-  TikkunGapAverages _gapsFor(double rowWidth, TikkunRenderMetrics metrics) {
-    if (_gapsRowWidth == rowWidth &&
+  /// הרווח הממוצע נמדד פעם אחת לכל מקטע שנבנה — מדידת TextPainter לכל מילה
+  /// יקרה מדי לביצוע בכל build.
+  TikkunSegmentGapAverages _gapsFor(
+    double rowWidth,
+    TikkunRenderMetrics metrics,
+  ) {
+    final cached = _gaps;
+    if (cached != null &&
+        _gapsRowWidth == rowWidth &&
         _gapsSettings == widget.settings &&
         identical(_gapsLines, widget.lines) &&
         _gapsHideNikud == widget.hideNikud) {
-      return _gaps;
+      return cached;
     }
     _gapsRowWidth = rowWidth;
     _gapsSettings = widget.settings;
     _gapsLines = widget.lines;
     _gapsHideNikud = widget.hideNikud;
-    _gaps = computeTikkunGapAverages(
-      lines: widget.lines,
-      metrics: metrics,
-      settings: widget.settings,
-      rowWidth: rowWidth,
-      hideNikud: widget.hideNikud,
-      maskDivineName: widget.settings.hideDivineName,
+    final settings = widget.settings;
+    final hideNikud = widget.hideNikud;
+    return _gaps = TikkunSegmentGapAverages(
+      widget.lines,
+      (segment) => computeTikkunGapAverages(
+        lines: segment,
+        metrics: metrics,
+        settings: settings,
+        rowWidth: rowWidth,
+        hideNikud: hideNikud,
+        maskDivineName: settings.hideDivineName,
+      ),
     );
-    return _gaps;
   }
 
   @override
@@ -281,7 +290,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 settings: widget.settings,
                 hideStam: widget.hideStam,
                 hideNikud: widget.hideNikud,
-                gaps: gaps,
+                gaps: gaps.forLine(index),
               ),
             ),
           ),
