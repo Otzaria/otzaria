@@ -588,7 +588,7 @@ class SeforimRepository {
     return result.map((row) => PubDate.fromJson(row)).toList();
   }
 
-  /// חיפוש קל-משקל של שמות מחברים לפי מחרוזת חלקית — להשלמה אוטומטית
+  /// שמות המחברים שמכילים כל אחת ממילות השאילתה, בכל סדר — להשלמה אוטומטית
   /// בסינון "לפי ממדים" של החיפוש. מחזיר שמות בלבד, בלי לטעון ספרים.
   Future<List<String>> searchAuthorNames(
     String prefix, {
@@ -599,13 +599,12 @@ class SeforimRepository {
       return const [];
     }
     final db = await _database.database;
-    final escaped = trimmed
-        .replaceAll('\\', '\\\\')
-        .replaceAll('%', '\\%')
-        .replaceAll('_', '\\_');
+    final words = trimmed.split(RegExp(r'\s+'));
     final result = db.select(
-      "SELECT name FROM author WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
-      ['%$escaped%', limit],
+      'SELECT name FROM author WHERE '
+      '${words.map((_) => "name LIKE ? ESCAPE '\\'").join(' AND ')} '
+      'ORDER BY name LIMIT ?',
+      [for (final word in words) '%${escapeLike(word)}%', limit],
     ).toMapList();
     return [
       for (final row in result)
