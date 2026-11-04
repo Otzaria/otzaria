@@ -79,10 +79,22 @@ Widget buildAppMenuRowContent(
         softWrap: false,
       );
 
+  final styledLabel = DefaultTextStyle.merge(
+    style: labelTextStyle,
+    child: labelMaxWidth == null
+        ? labelChild
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: labelMaxWidth),
+            child: labelChild,
+          ),
+  );
+  final hasTrailing = isSelected || trailing != null;
+
+  // התווית מתכווצת כשהשורה רחבה מהתפריט, למשל בחלון צר או בהגדלת טקסט
+  // של המערכת: קיצור ב־"…" ולא גלישה. כשיש סימון או trailing היא תופסת את
+  // המקום שבין האייקון לסוף השורה (כמו Spacer), ונצמדת להתחלה.
   final row = Row(
-    mainAxisSize: (isSelected || trailing != null)
-        ? MainAxisSize.max
-        : MainAxisSize.min,
+    mainAxisSize: hasTrailing ? MainAxisSize.max : MainAxisSize.min,
     children: [
       if (icon != null) ...[
         presentation.iconBuilder(
@@ -94,17 +106,17 @@ Widget buildAppMenuRowContent(
         ),
         const SizedBox(width: 8),
       ],
-      DefaultTextStyle.merge(
-        style: labelTextStyle,
-        child: labelMaxWidth == null
-            ? labelChild
-            : ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: labelMaxWidth),
-                child: labelChild,
-              ),
-      ),
+      if (hasTrailing)
+        Expanded(
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            heightFactor: 1,
+            child: styledLabel,
+          ),
+        )
+      else
+        Flexible(child: styledLabel),
       if (isSelected && trailing != null) ...[
-        const Spacer(),
         IconTheme.merge(
           data: IconThemeData(
             size: metrics.iconSize,
@@ -122,7 +134,6 @@ Widget buildAppMenuRowContent(
           foregroundColor,
         ),
       ] else if (isSelected) ...[
-        const Spacer(),
         const SizedBox(width: _kCheckmarkGap),
         presentation.selectedMarkBuilder(
           context,
@@ -130,7 +141,6 @@ Widget buildAppMenuRowContent(
           foregroundColor,
         ),
       ] else if (trailing != null) ...[
-        const Spacer(),
         IconTheme.merge(
           data: IconThemeData(
             size: metrics.iconSize,
