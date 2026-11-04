@@ -26,6 +26,8 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
+import 'package:otzaria/settings/widgets/settings_scrollbar.dart';
 
 /// מייצג את לשוניות מסך ההגדרות שניתן לנווט אליהן בקוד.
 enum SettingsTab { design, text, library, tools, shortcuts, system, about }
@@ -360,9 +362,15 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
         final language = resolveSettingsLanguage(languageCode);
         return Directionality(
           textDirection: language.textDirection,
-          child: SettingsTextScope(
-            language: language,
-            child: Builder(builder: _buildContent),
+          // פסי הגלילה בהגדרות בקצה ה-end, ולא בימין הקבוע (חריג מתועד).
+          child: Builder(
+            builder: (context) => SettingsScrollbar.scope(
+              context,
+              child: SettingsTextScope(
+                language: language,
+                child: Builder(builder: _buildContent),
+              ),
+            ),
           ),
         );
       },
@@ -701,16 +709,14 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                   crossAxisMargin: 6,
                   mainAxisMargin: 0,
                 ),
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: Scrollbar(
-                    controller: widget.scrollController,
-                    thumbVisibility: true,
-                    interactive: true,
-                    child: widget.overrideContent ?? widget.child,
-                  ),
+                // התוכן בריווח 16 משלו (SettingsTabScrollView), והפס יושב בתוכו.
+                child: AppScrollbar(
+                  controller: widget.scrollController,
+                  side: SettingsScrollbar.sideOf(context),
+                  thumbVisibility: true,
+                  interactive: true,
+                  contentInset: AppTokens.spaceMD,
+                  child: widget.overrideContent ?? widget.child,
                 ),
               ),
             ),

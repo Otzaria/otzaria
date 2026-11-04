@@ -12,6 +12,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 import 'library_changes_store.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 enum LibraryChangesLineKind { title, subtitle, section, item, text }
 
@@ -240,8 +241,9 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
                     )
                   : ContentDirectionality(
                       child: AppCard(
-                        child: Scrollbar(
+                        child: AppScrollbar(
                           controller: _scroll,
+                          contentInset: AppTokens.spaceMD,
                           // גבהי שורות משתנים דורשים SuperListView בקפיצת גלילה;
                           // המפתח מונע העברת גבהים שנמדדו בין סינונים.
                           child: SuperListView.builder(

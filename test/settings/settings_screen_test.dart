@@ -86,6 +86,34 @@ void main() {
       );
     }
 
+    // חריג מתועד מהימין הקבוע (הערת בעל הפרויקט, 4.11): בהגדרות הפס בקצה
+    // ה-end של שפת ההגדרות, כמו לפני הכלל.
+    for (final language in SettingsLanguage.values) {
+      testWidgets('פס הגלילה בהגדרות בקצה ה-end (${language.code})', (
+        tester,
+      ) async {
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial().copyWith(
+            settingsLanguageCode: language.code,
+          ),
+        );
+        await tester.binding.setSurfaceSize(const Size(1400, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(buildScreen());
+        await tester.pumpAndSettle();
+        final expected = language.textDirection == TextDirection.rtl
+            ? ScrollbarOrientation.left
+            : ScrollbarOrientation.right;
+        final bars = tester.widgetList<Scrollbar>(find.byType(Scrollbar));
+        expect(bars, isNotEmpty);
+        for (final bar in bars) {
+          expect(bar.scrollbarOrientation, expected);
+        }
+      }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+    }
+
     testWidgets('דסקטופ: ESC חוזר למסך הקודם', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -143,7 +171,8 @@ void main() {
         await tester.pump();
         expect(position.pixels, 300, reason: 'גלגלת מעל הסרגל');
 
-        // פס הגלילה בצד שמאל (RTL); לחיצה על המסילה מתחת לסמן מדפדפת.
+        // פס הגלילה בצד שמאל (RTL, חריג ההגדרות); לחיצה על המסילה מתחת
+        // לסמן מדפדפת.
         final bar = tester.getRect(
           find.ancestor(of: results, matching: find.byType(Scrollbar)),
         );

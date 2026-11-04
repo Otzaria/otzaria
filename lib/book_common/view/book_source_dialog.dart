@@ -12,6 +12,7 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 // ביטוי רגולרי להסרת תווים מפרידים (מקפים, קווים תחתונים, רווחים)
 final _sourceNormalizationRegex = RegExp(r'[-_\s]');
@@ -146,9 +147,6 @@ class _BookDetailsDialogContent extends StatefulWidget {
 }
 
 class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
-  /// עובי פס הגלילה; הקצוות עגולים לגמרי (חצי העובי).
-  static const _scrollbarThickness = 6.0;
-
   late final Future<BookInformation> _informationFuture;
   final _scroll = ScrollController();
 
@@ -174,15 +172,11 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
     // חותך את הכרטיסים שמתחתיו ובלי פס אין סימן לכך שיש המשך.
     return SizedBox(
       width: 500,
-      child: RawScrollbar(
+      child: AppScrollbar(
         controller: _scroll,
         thumbVisibility: true,
-        thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: _scrollbarThickness,
-        radius: const Radius.circular(_scrollbarThickness / 2),
         child: SingleChildScrollView(
           controller: _scroll,
-          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
           child: FutureBuilder<BookInformation>(
             future: _informationFuture,
             builder: (context, snapshot) {

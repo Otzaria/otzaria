@@ -823,7 +823,6 @@
         {"scope":"_InlineTimeEditorState._segment","fp":"66ff54ff","n":1}
       ],
       "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
-        {"scope":"ZmanimSettingsContent.build","fp":"e2f0c54c","n":1},
         {"scope":"_CategoryHeader.build","fp":"ee455faf","n":1},
         {"scope":"_ZmanInfoButton.build","fp":"05d6e3d9","n":1},
         {"scope":"_ZmanTableRow.build","fp":"fefc72b0","n":1}

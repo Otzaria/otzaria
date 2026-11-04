@@ -12,6 +12,7 @@ import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// תוכן דיאלוג "זמנים נוספים" — טבלה קומפקטית מקובצת לפי קטגוריות של כל
 /// הזמנים הזמינים. כל שורה מציגה את שם הזמן ואת זמנו ביום הנוכחי;
@@ -86,18 +87,17 @@ class ZmanimSettingsContent extends StatelessWidget {
               const _SourceCredit(),
               Expanded(
                 child: AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _TableHeader(),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: Scrollbar(
+                  // הפס עוטף גם את הכותרת, כדי שהרצועה שלו תזיז את הכותרת ואת
+                  // השורות יחד והעמודות יישארו מיושרות.
+                  child: AppScrollbar(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _TableHeader(),
+                        const Divider(height: 1),
+                        Expanded(
                           child: ListView(
                             primary: true,
-                            // מרווח בקצה (שמאל ב-RTL) כדי שסרגל הגלילה לא יכסה
-                            // את אייקוני המידע.
-                            padding: const EdgeInsetsDirectional.only(end: 14),
                             children: [
                               for (final entry in categories.entries) ...[
                                 _CategoryHeader(title: entry.key),
@@ -119,8 +119,8 @@ class ZmanimSettingsContent extends StatelessWidget {
                             ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

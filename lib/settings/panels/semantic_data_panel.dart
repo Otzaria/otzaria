@@ -15,6 +15,7 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// כרטיס נתוני החיפוש הסמנטי: מצב ההורדה, בחירת המודל ומחיקת הנתונים.
 /// מוסתר כשהפלטפורמה או המנוע אינם תומכים בחיפוש סמנטי.
@@ -338,8 +339,9 @@ class _LicenseContentState extends State<_LicenseContent> {
                   borderRadius: AppTokens.borderRadiusAll,
                   border: Border.all(color: cs.outlineVariant),
                 ),
-                child: Scrollbar(
+                child: AppScrollbar(
                   controller: _scroll,
+                  contentInset: AppTokens.spaceMD,
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _scroll,
