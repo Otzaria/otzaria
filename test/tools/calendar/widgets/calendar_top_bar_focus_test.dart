@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,8 @@ import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_top_bar.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
 
 import '../../../test_helpers/memory_cache_provider.dart';
 
@@ -21,6 +24,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    tz_data.initializeTimeZones();
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
@@ -132,5 +136,33 @@ void main() {
         ?.fontWeight;
     expect(weightOf(today), FontWeight.bold);
     expect(weightOf(other), FontWeight.normal);
+  });
+
+  testWidgets('השנה העברית בסרגל וברמז "מעבר לתאריך" (calendar top bar year)', (
+    tester,
+  ) async {
+    final date = DateTime(2026, 11, 4); // חשון ה׳תשפ״ז
+    final initial = CalendarState.initial().copyWith(
+      selectedGregorianDate: date,
+      selectedJewishDate: JewishDate.fromDateTime(date),
+    );
+    for (final view in CalendarView.values) {
+      final state = initial.copyWith(calendarView: view);
+      await pumpAndDispatch(tester, state: state, open: false);
+      final shown = tester
+          .widget<RichText>(
+            find.byWidgetPredicate(
+              (w) => w is RichText && w.text.toPlainText().contains('  •  '),
+            ),
+          )
+          .text
+          .toPlainText();
+      await pumpAndDispatch(tester, state: state);
+      final hint = tester
+          .widget<OtzariaSearchField>(find.byType(OtzariaSearchField))
+          .hintText;
+      expect(shown, contains('חשון ה׳תשפ״ז'), reason: '$view');
+      expect(hint, contains('חשון ה׳תשפ״ז'), reason: '$view');
+    }
   });
 }
