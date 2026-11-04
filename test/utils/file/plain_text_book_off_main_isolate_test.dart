@@ -94,6 +94,24 @@ void main() {
     }
   });
 
+  // כל קישור מפרש גלוי קרא את הקובץ כולו ב-isolate משלו, במקביל.
+  test('קריאות מקבילות של אותו txt חולקות קריאה אחת', () async {
+    final file = File(p.join(tempDir.path, 'מפרש.txt'))
+      ..writeAsBytesSync(legacyHebrewBytes(1 << 20));
+
+    final texts = await Future.wait([
+      for (var i = 0; i < 12; i++) readFileBackedBookText(file, 'txt', 'מפרש'),
+    ]);
+
+    expect(texts.first, decodeTextBytesSmart(file.readAsBytesSync()));
+    for (final text in texts) {
+      expect(identical(text, texts.first), isTrue);
+    }
+
+    final later = await readFileBackedBookText(file, 'txt', 'מפרש');
+    expect(identical(later, texts.first), isFalse, reason: 'אין מטמון קבוע');
+  });
+
   test('מכולה בינארית גדולה בסיומת txt עדיין נדחית', () async {
     final zip = Uint8List(2 << 20)..setAll(0, [0x50, 0x4B, 0x03, 0x04]);
     final file = File(p.join(tempDir.path, 'מוסווה.txt'))
