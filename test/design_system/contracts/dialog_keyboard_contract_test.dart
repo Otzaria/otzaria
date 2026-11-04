@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/windowing/app_window_id.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -442,6 +446,144 @@ void main() {
       await tester.pumpAndSettle();
       expect(outcome.closed, isTrue);
     });
+  });
+
+  group('סגירת החלון: confirmWindowClose (q11 Q3)', () {
+    late ValueNotifier<bool> dirty;
+
+    setUp(() => dirty = ValueNotifier(true));
+    tearDown(() => dirty.dispose());
+
+    Future<DialogOutcome<bool>> open(WidgetTester tester) => openDialog<bool>(
+      tester,
+      (context) => showTwoActionsDialog(
+        context: context,
+        title: 'עריכה',
+        content: 'תוכן',
+        isDirty: dirty,
+      ),
+    );
+
+    /// מבקש סגירת חלון ומחזיר את התשובה, אחרי שהשאלה (אם יש) נענתה.
+    Future<bool?> closeWindow(
+      WidgetTester tester, {
+      String? answer,
+      AppWindowKeys? window,
+    }) async {
+      bool? allowed;
+      unawaited(
+        DialogDismissGuard.confirmWindowClose(
+          window: window,
+        ).then((value) => allowed = value),
+      );
+      await tester.pumpAndSettle();
+      if (answer != null) {
+        expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+        await tester.tap(find.text(answer));
+        await tester.pumpAndSettle();
+      } else {
+        expect(find.text('לסגור בלי לשמור?'), findsNothing);
+      }
+      return allowed;
+    }
+
+    testWidgets('שינויים: "המשך לערוך" עוצר את הסגירה ומשאיר את הדיאלוג', (
+      tester,
+    ) async {
+      final outcome = await open(tester);
+      expect(await closeWindow(tester, answer: 'המשך לערוך'), isFalse);
+      expect(outcome.closed, isFalse);
+      expect(find.text('עריכה'), findsOneWidget);
+    });
+
+    testWidgets('שינויים: "סגור בלי לשמור" סוגר את הדיאלוג ומתיר', (
+      tester,
+    ) async {
+      final outcome = await open(tester);
+      expect(await closeWindow(tester, answer: 'סגור בלי לשמור'), isTrue);
+      expect(outcome.closed, isTrue);
+      expect(outcome.value, isNot(isTrue));
+    });
+
+    testWidgets('בלי שינויים: מתיר בלי לשאול, והדיאלוג לא נוגע', (
+      tester,
+    ) async {
+      dirty.value = false;
+      final outcome = await open(tester);
+      expect(await closeWindow(tester), isTrue);
+      expect(outcome.closed, isFalse);
+    });
+
+    testWidgets('דיאלוג בחלון אחר אינו נשאל בסגירת החלון הזה', (tester) async {
+      await open(tester);
+      final other = AppWindowKeys(id: const AppWindowId('window-view-9'));
+      expect(await closeWindow(tester, window: other), isTrue);
+      expect(find.text('עריכה'), findsOneWidget);
+    });
+
+    testWidgets('תפריט מעל הדיאלוג נסגר, והשאלה נפתחת מעל הדיאלוג', (
+      tester,
+    ) async {
+      final outcome = await open(tester);
+      final context = tester.element(find.text('תוכן'));
+      unawaited(
+        showMenu<void>(
+          context: context,
+          position: const RelativeRect.fromLTRB(10, 10, 10, 10),
+          items: const [PopupMenuItem(child: Text('פריט'))],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('פריט'), findsOneWidget);
+      expect(await closeWindow(tester, answer: 'סגור בלי לשמור'), isTrue);
+      expect(find.text('פריט'), findsNothing);
+      expect(outcome.closed, isTrue);
+    });
+
+    testWidgets('Escape שכבר שואל: סגירת החלון מחכה לאותה שאלה', (
+      tester,
+    ) async {
+      final outcome = await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(await closeWindow(tester, answer: 'סגור בלי לשמור'), isTrue);
+      expect(outcome.closed, isTrue);
+    });
+
+    for (final closes in [true, false]) {
+      testWidgets(
+        'onDismissRequest: סגירת החלון ממתינה לשאלת הטופס '
+        '(${closes ? 'נסגר' : 'נשאר'})',
+        (tester) async {
+          var requests = 0;
+          late BuildContext dialogContext;
+          final outcome = await openDialog<void>(
+            tester,
+            (context) => showDialog<void>(
+              context: context,
+              builder: (context) {
+                dialogContext = context;
+                return AppDialogFrame(
+                  title: 'עורך',
+                  icon: Icons.edit,
+                  onDismissRequest: () async {
+                    requests++;
+                    await Future<void>.delayed(Duration.zero);
+                    if (closes && dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                  child: const Text('גוף'),
+                );
+              },
+            ),
+          );
+          expect(await closeWindow(tester), closes);
+          expect(requests, 1);
+          expect(outcome.closed, closes);
+        },
+      );
+    }
   });
 
   group('AppDialogFrame — מקלדת', () {

@@ -7,6 +7,7 @@ import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
@@ -161,6 +162,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   // הטאב שהעכבר מעליו. שדה ולא משתנה מקומי ב-_buildTab: rebuild של ההורה היה
   // מאפס אותו, וה-X שמוצג רק בריחוף היה נמחק מתחת לסמן לפני שהלחיצה נורית.
   final _hoveredTab = ValueNotifier<OpenedTab?>(null);
+
+  // רצועת הכרטיסיות, לבדיקה ישירה אם נקודה מעל כרטיסיה כשדיאלוג פתוח.
+  final _tabStripKey = GlobalKey();
 
   // רוחב אזור הטאבים שנמדד בפריים הקודם (ע"י LayoutBuilder נפרד). הרשימה
   // נבנית עם הערך הזה ולא תחת ה-LayoutBuilder — אחרת Tooltip/OverlayPortal
@@ -707,13 +711,66 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   recognizer.onDoubleTap = _onTabsAreaDoubleTap;
                 }),
           },
-          child: KeyedSubtree(
-            key: TourTargetKeys.of(context).readingTabs,
-            child: tabStrip,
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(child: _buildTabStripDragAreaAboveDialogs()),
+              KeyedSubtree(
+                key: TourTargetKeys.of(context).readingTabs,
+                child: KeyedSubtree(key: _tabStripKey, child: tabStrip),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  /// גרירת החלון והגדלה בלחיצה כפולה מהאזור הריק שברצועה גם כשדיאלוג פתוח
+  /// (DD-16). מאחורי הרצועה, ופעיל רק מעל דיאלוג: בלי דיאלוג הרצועה מטפלת
+  /// בזה בעצמה, למעלה. הכרטיסיות עצמן לא נכללות, והן נשארות חסומות מאחורי
+  /// הדיאלוג. לחיצה פשוטה כאן מגיעה לשכבת ההחשכה (isDragArea).
+  Widget _buildTabStripDragAreaAboveDialogs() {
+    return WindowCaptionRegion(
+      isDragArea: true,
+      onlyAboveDialogs: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onPanStart: (details) {
+          if (_isOverTabBehindDialog(details.globalPosition)) return;
+          AppWindowScope.controllerOf(context).startDragging();
+        },
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          gestures: {
+            _EmptyAreaDoubleTapRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _EmptyAreaDoubleTapRecognizer
+                >(() => _EmptyAreaDoubleTapRecognizer(debugOwner: this), (
+                  recognizer,
+                ) {
+                  recognizer.isPointerOnTab = _isOverTabBehindDialog;
+                  recognizer.onDoubleTap = _onTabsAreaDoubleTap;
+                }),
+          },
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+
+  /// האם הנקודה מעל כרטיסיה, כשדיאלוג פתוח. בדיקת הפגיעה הרגילה נעצרת
+  /// בשכבת ההחשכה, ולכן הרצועה נבדקת ישירות.
+  bool _isOverTabBehindDialog(Offset globalPosition) {
+    final strip = _tabStripKey.currentContext?.findRenderObject();
+    if (strip is! RenderBox || !strip.attached || !strip.hasSize) return false;
+    final result = BoxHitTestResult();
+    strip.hitTest(result, position: strip.globalToLocal(globalPosition));
+    return result.path
+        .map((entry) => entry.target)
+        .whereType<RenderMetaData>()
+        .any((target) => target.metaData == _kTabHitMarker);
   }
 
   Widget _buildOpenLibraryButton(BuildContext context) {
@@ -731,6 +788,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   Widget _buildReadingSettingsButton(BuildContext context) {
     return AppDragToMoveArea(
+      aboveDialogs: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
         child: AppIconButton(

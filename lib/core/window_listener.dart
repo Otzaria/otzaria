@@ -35,6 +35,7 @@ import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/printing/print_work_status.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Callback type for fullscreen state changes
@@ -353,6 +354,12 @@ class AppWindowListener extends WindowListener {
       if (canClose != null && !canClose()) return;
       // יציאה מחלון Dart האחרון שואלת בו (הוא הופעל); סגירה רגילה — בחלון הזה.
       final closing = quit ? null : AppWindowKeys.byId(windowId);
+      // קודם הדיאלוג שמעל הכול: מה שהוקלד בו ולא נשמר (DD-08).
+      if (!await DialogDismissGuard.confirmWindowClose(
+        window: quit ? null : closing ?? AppWindowKeys.current,
+      )) {
+        return;
+      }
       if (!await confirmAppCloseWithUnsavedChanges(
         allWindows: quit,
         window: closing,

@@ -16,6 +16,7 @@ import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/mac_menu_bar.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -85,12 +86,18 @@ class App extends StatelessWidget {
               // שפת הממשק זמינה לכל האפליקציה, גם לדיאלוגים שמעל ה-Navigator.
               // הכיווניות נשארת RTL; כרום הממשק (DESIGN_SYSTEM.md, DD-20) עובר
               // ל-LTR ב-ChromeDirectionality ובמסך ההגדרות.
+              Widget navigator = child ?? const SizedBox.shrink();
+              // בדסקטופ כפתורי החלון ואזורי הגרירה נשארים פעילים מעל שכבת
+              // ההחשכה של דיאלוג (DD-16).
+              if (useVirtualWindowFrame) {
+                navigator = WindowCaptionHitTestScope(child: navigator);
+              }
               Widget content =
                   BlocSelector<SettingsBloc, SettingsState, String>(
                     selector: (state) => state.settingsLanguageCode,
                     builder: (context, languageCode) => SettingsTextScope(
                       language: resolveSettingsLanguage(languageCode),
-                      child: child ?? const SizedBox.shrink(),
+                      child: navigator,
                     ),
                   );
 
