@@ -258,6 +258,26 @@ double pdfPreviewRenderingScaleFor(
 bool pdfNextFitIsPage({required double zoom, required double widthZoom}) =>
     (zoom - widthZoom).abs() <= widthZoom * 0.01;
 
+/// הסמל והכיתוב של כפתור ההתאמה: הפעולה שלחיצה תבצע, והקיצור אם הוגדר
+/// (§3.2).
+@visibleForTesting
+({IconData icon, String tooltip}) pdfFitButtonVisual({
+  required bool nextIsPage,
+}) {
+  final label = nextIsPage ? 'התאם לעמוד שלם' : 'התאם לרוחב';
+  final shortcut = ShortcutValidator.getShortcutValue(
+    ShortcutValidator.fitPdfViewKey,
+  );
+  return (
+    icon: nextIsPage
+        ? FluentIcons.arrow_autofit_height_24_regular
+        : FluentIcons.arrow_autofit_width_24_regular,
+    tooltip: shortcut == null || shortcut.isEmpty
+        ? label
+        : '$label (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
+  );
+}
+
 @visibleForTesting
 PdfViewerSizeDelegateProvider pdfSizeDelegateProviderForLayoutMode(
   PdfLayoutMode layoutMode,
@@ -730,6 +750,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // הרוחב החי מצויר בחלונית עצמה; ה-bloc מתעדכן רק בסוף הגרירה.
   double? _draggedLeftPaneWidth;
   double? _draggedRightPaneWidth;
+
+  /// מה לחיצה על כפתור ההתאמה תעשה: true = עמוד שלם, false = לרוחב. רק
+  /// הכפתור מאזין, ורק כשהערך מתחלף.
+  final ValueNotifier<bool> _nextFitIsPage = ValueNotifier(false);
 
   /// מצב יד — גרירת עכבר גוללת את הדף במקום לסמן טקסט (issue #916).
   bool _isHandMode =
@@ -1739,6 +1763,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         // שהזום החדש מקבל ממנה translation שגוי (issue #1258).
         _scrollPhysicsProvider.stop();
         _restoreViewportTopAnchor(controller, oldViewSize);
+        _updateNextFit();
       },
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
@@ -4232,6 +4257,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    _nextFitIsPage.dispose();
     _pageTurnController.stop(canceled: false);
     _stopContinuousScroll();
     _disposePageTurnSnapshot();
@@ -4354,6 +4380,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
     _refreshVisiblePersonalNotePages();
+    _updateNextFit();
 
     // Keep adjacent-spread pre-renders warm so page-turn animations can
     // open the cached snapshot instantly without waiting on goToPage + tile
@@ -5278,9 +5305,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _bloc.add(const pdf_events.ResetZoom());
   }
 
-  void _toggleFitMode() {
+  /// העמוד (או הכפולה) המוצג, והזום שמתאים אותו לרוחב ולעמוד שלם.
+  ({Rect shown, ({double width, double page}) fits, bool toPage})?
+  _fitTargets() {
     final controller = widget.tab.pdfViewerController;
-    if (!controller.isReady) return;
+    if (!controller.isReady) return null;
     final page = controller.pageNumber ?? widget.tab.pageNumber;
     final layout = controller.layout;
     final shown = _isBookViewModeActive()
@@ -5288,18 +5317,34 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         : (page >= 1 && page <= layout.pageLayouts.length
               ? layout.pageLayouts[page - 1]
               : null);
-    if (shown == null || shown.isEmpty) return;
+    if (shown == null || shown.isEmpty) return null;
 
     final fits = pdfFitZooms(
       shown: shown,
       viewSize: controller.viewSize,
       margin: controller.params.margin,
     );
-    // לרוחב שומרים את גובה הקריאה; עמוד שלם ממורכז.
-    final toPage = pdfNextFitIsPage(
-      zoom: controller.currentZoom,
-      widthZoom: fits.width,
+    return (
+      shown: shown,
+      fits: fits,
+      toPage: pdfNextFitIsPage(
+        zoom: controller.currentZoom,
+        widthZoom: fits.width,
+      ),
     );
+  }
+
+  void _updateNextFit() {
+    final targets = _fitTargets();
+    if (targets != null) _nextFitIsPage.value = targets.toPage;
+  }
+
+  void _toggleFitMode() {
+    final targets = _fitTargets();
+    if (targets == null) return;
+    final controller = widget.tab.pdfViewerController;
+    final (:shown, :fits, :toPage) = targets;
+    // לרוחב שומרים את גובה הקריאה; עמוד שלם ממורכז.
     _bloc.add(
       pdf_events.FitZoom(
         zoom: toPage ? fits.page : fits.width,
@@ -5543,7 +5588,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildPdfActions(BuildContext context) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: readerPluginToolbarListenable(context),
+      // גם [_nextFitIsPage]: בחלון צר "התאם" נמצא בתפריט "עוד", ופריט התפריט
+      // הוא נתון קבוע. הוא מתחלף רק כשההתאמה הבאה מתחלפת, לא בכל פריים זום.
+      listenable: Listenable.merge([
+        readerPluginToolbarListenable(context),
+        _nextFitIsPage,
+      ]),
       builder: (context, _) => ResponsiveActionBar(
         key: const ValueKey('pdf_actions'),
         overflowMenuOffset: const Offset(0, 8),
@@ -5652,14 +5702,34 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: isCompact,
         actionId: ToolbarActionId.zoomOut,
       ),
-      ActionButtonData.simple(
-        icon: FluentIcons.page_fit_24_regular,
-        tooltip: 'התאם לרוחב / לעמוד שלם',
-        onPressed: _toggleFitMode,
-        compact: isCompact,
-        actionId: ToolbarActionId.fitMode,
-      ),
+      _buildFitModeAction(isCompact),
     ];
+  }
+
+  /// כפתור ההתאמה מציג את ההתאמה שלחיצה תבצע (#2988). הסרגל אינו נבנה מחדש
+  /// בכל שינוי זום: הכפתור מאזין ל-[_nextFitIsPage] בעצמו, והסרגל נבנה מחדש
+  /// רק כשההתאמה הבאה מתחלפת (בשביל הפריט בתפריט "עוד").
+  ActionButtonData _buildFitModeAction(bool isCompact) {
+    final current = pdfFitButtonVisual(nextIsPage: _nextFitIsPage.value);
+    return ActionButtonData(
+      widget: ValueListenableBuilder<bool>(
+        valueListenable: _nextFitIsPage,
+        builder: (context, nextIsPage, _) {
+          final visual = pdfFitButtonVisual(nextIsPage: nextIsPage);
+          return BarButton.icon(
+            compact: isCompact,
+            tooltip: visual.tooltip,
+            icon: visual.icon,
+            onPressed: _toggleFitMode,
+          );
+        },
+      ),
+      icon: current.icon,
+      tooltip: current.tooltip,
+      onPressed: _toggleFitMode,
+      toolbarWidth: BarButton.toolbarWidth(isCompact),
+      actionId: ToolbarActionId.fitMode,
+    );
   }
 
   /// פריטי תפריט "עוד פעולות" עם משקל מיון קבוע לכל פריט, כדי שפריטי
