@@ -12,6 +12,17 @@ import 'package:otzaria/user_content_import/services/user_content_importer.dart'
 import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 
+/// שינוי בספרייה, מוחל ב-isolate על חיבור משלו. נבנה בפונקציה סטטית: סגירה
+/// שלוכדת את המופע אינה נשלחת בין isolates.
+typedef _Change = Future<void> Function(MyDatabase userDb);
+
+typedef _ReadFile = ({
+  String name,
+  String path,
+  UserImportKind kind,
+  String content,
+});
+
 /// קובץ ייבוא ששמור בספרייה, כפי שהוא מוצג בהגדרות.
 @immutable
 class UserImportFile {
@@ -127,40 +138,38 @@ class UserImportLibrary {
             errors: errors,
           );
         }
-        return _changeAndRebuild(() async {
-          final db = await _db.database;
-          if (db.select('SELECT 1 FROM user_import_file LIMIT 1').isEmpty) {
-            await UserContentRepository(_db).captureManualBaseline();
-          }
-          for (final file in files) {
-            db.execute(
-              'INSERT INTO user_import_file '
-              '(name, originPath, kind, content, enabled, importedAt) '
-              'VALUES (?, ?, ?, ?, 1, ?) '
-              'ON CONFLICT(name, originPath) DO UPDATE SET '
-              'kind = excluded.kind, content = excluded.content, '
-              'enabled = 1, importedAt = excluded.importedAt',
-              [
-                file.name,
-                file.path,
-                file.kind.name,
-                file.content,
-                DateTime.now().millisecondsSinceEpoch,
-              ],
-            );
-          }
-        });
+        return _changeAndRebuild(_insertFiles(files));
       });
 
-  Future<
-    List<({String name, String path, UserImportKind kind, String content})>
-  >
-  _readFiles(
+  static _Change _insertFiles(List<_ReadFile> files) => (userDb) async {
+    final db = await userDb.database;
+    if (db.select('SELECT 1 FROM user_import_file LIMIT 1').isEmpty) {
+      await UserContentRepository(userDb).captureManualBaseline();
+    }
+    for (final file in files) {
+      db.execute(
+        'INSERT INTO user_import_file '
+        '(name, originPath, kind, content, enabled, importedAt) '
+        'VALUES (?, ?, ?, ?, 1, ?) '
+        'ON CONFLICT(name, originPath) DO UPDATE SET '
+        'kind = excluded.kind, content = excluded.content, '
+        'enabled = 1, importedAt = excluded.importedAt',
+        [
+          file.name,
+          file.path,
+          file.kind.name,
+          file.content,
+          DateTime.now().millisecondsSinceEpoch,
+        ],
+      );
+    }
+  };
+
+  Future<List<_ReadFile>> _readFiles(
     Iterable<String> filePaths,
     List<String> errors,
   ) async {
-    final files =
-        <({String name, String path, UserImportKind kind, String content})>[];
+    final files = <_ReadFile>[];
     for (final path in filePaths) {
       final file = File(path);
       final name = _baseName(path);
@@ -187,14 +196,8 @@ class UserImportLibrary {
 
   /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני. הפענוח ארוך ורץ
   /// בלי טרנזקציה פתוחה, ולכן השינוי מוחל פעם כדי לדעת מה ייבנה ופעם לכתיבה.
-  Future<UserImportLibraryResult> _changeAndRebuild(
-    Future<void> Function() change,
-  ) async {
-    final db = await _db.database;
-    final files = await _inSavepoint(db, () async {
-      await change();
-      return _enabledFiles(db);
-    }, commit: false);
+  Future<UserImportLibraryResult> _changeAndRebuild(_Change change) async {
+    final files = await _onOwnConnection(_enabledFilesAfter(change));
     final ingest = files.isEmpty ? null : await _ingest(files);
     if (ingest != null && ingest.errors.isNotEmpty) {
       return UserImportLibraryResult(
@@ -202,84 +205,114 @@ class UserImportLibrary {
         errors: ingest.errors,
       );
     }
-    final rebuild = await _inSavepoint(db, () async {
-      await change();
-      final repo = UserContentRepository(_db);
-      await repo.clearAllUserContent();
-      await repo.restoreManualBaseline();
-      return ingest == null
-          ? const UserImportResult()
-          : await UserContentImporter.applyIngest(ingest, _db);
-    }, commit: true);
+    final rebuild = await _onOwnConnection(_rebuildWith(change, ingest));
     return UserImportLibraryResult(rebuild: rebuild);
   }
 
-  static Future<T> _inSavepoint<T>(
-    sqlite3.Database db,
+  static Future<List<ImportedFile>> Function(MyDatabase) _enabledFilesAfter(
+    _Change change,
+  ) =>
+      (userDb) => _inTransaction(userDb, () async {
+        await change(userDb);
+        return _enabledFiles(await userDb.database);
+      }, commit: false);
+
+  static Future<UserImportResult> Function(MyDatabase) _rebuildWith(
+    _Change change,
+    UserImportIngest? ingest,
+  ) =>
+      (userDb) => _inTransaction(userDb, () async {
+        await change(userDb);
+        final repo = UserContentRepository(userDb);
+        await repo.clearAllUserContent();
+        await repo.restoreManualBaseline();
+        return ingest == null
+            ? const UserImportResult()
+            : await UserContentImporter.applyIngest(ingest, userDb);
+      }, commit: true);
+
+  /// כתיבה ב-isolate על חיבור משלה: על החיבור הראשי, המתנה לנעילה שמחזיק
+  /// חיבור אחר תוקעת את התוכנה עד busy_timeout בכל פקודה (#4106, #4152).
+  Future<T> _onOwnConnection<T>(Future<T> Function(MyDatabase) action) async {
+    await QueryLoader.initialize();
+    return compute(_runOnConnection<T>, (
+      dbPath: _db.path,
+      queries: QueryLoader.cacheSnapshot,
+      action: action,
+    ), debugLabel: 'UserImportLibraryWrite');
+  }
+
+  static Future<T> _runOnConnection<T>(
+    ({
+      String dbPath,
+      Map<String, Map<String, String>> queries,
+      Future<T> Function(MyDatabase) action,
+    })
+    args,
+  ) async {
+    QueryLoader.seedCache(args.queries);
+    final userDb = MyDatabase.withPath(args.dbPath);
+    try {
+      return await args.action(userDb);
+    } finally {
+      userDb.close();
+    }
+  }
+
+  /// ⚠️ IMMEDIATE: טרנזקציה שקראה לפני שכתבה נכשלת מיד על נעילה של חיבור
+  /// אחר, בלי busy_timeout.
+  static Future<T> _inTransaction<T>(
+    MyDatabase userDb,
     Future<T> Function() action, {
     required bool commit,
   }) async {
-    db.execute('SAVEPOINT user_import_library_change');
+    final db = await userDb.database;
+    db.execute('BEGIN IMMEDIATE');
     try {
       final result = await action();
-      if (!commit) db.execute('ROLLBACK TO user_import_library_change');
-      db.execute('RELEASE user_import_library_change');
+      db.execute(commit ? 'COMMIT' : 'ROLLBACK');
       return result;
     } catch (_) {
-      db.execute('ROLLBACK TO user_import_library_change');
-      db.execute('RELEASE user_import_library_change');
+      db.execute('ROLLBACK');
       rethrow;
     }
   }
 
   /// משהה או מחזיר קובץ. השהיה אינה מוחקת אותו — התוכן נשאר לייצוא ולהחזרה.
-  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) => _serial(
-    () => _changeAndRebuild(() async {
-      final db = await _db.database;
-      db.execute('UPDATE user_import_file SET enabled = ? WHERE id = ?', [
-        enabled ? 1 : 0,
-        id,
-      ]);
-    }),
-  );
+  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) =>
+      _serial(() => _changeAndRebuild(_setFileEnabled(id, enabled)));
+
+  static _Change _setFileEnabled(int id, bool enabled) => (userDb) async {
+    (await userDb.database).execute(
+      'UPDATE user_import_file SET enabled = ? WHERE id = ?',
+      [enabled ? 1 : 0, id],
+    );
+  };
 
   /// מסיר קובץ מהספרייה לצמיתות, והנתונים שלו יורדים איתו בבנייה מחדש.
-  Future<UserImportLibraryResult> remove(int id) => _serial(
-    () => _changeAndRebuild(() async {
-      final db = await _db.database;
-      db.execute('DELETE FROM user_import_file WHERE id = ?', [id]);
-    }),
-  );
+  Future<UserImportLibraryResult> remove(int id) =>
+      _serial(() => _changeAndRebuild(_deleteFile(id)));
+
+  static _Change _deleteFile(int id) => (userDb) async {
+    (await userDb.database).execute(
+      'DELETE FROM user_import_file WHERE id = ?',
+      [id],
+    );
+  };
 
   /// מסיר את כל הקבצים ומנקה את כל הנתונים הידניים, גם אלה שקדמו לספרייה.
-  /// רץ ב-isolate על חיבור משלו: אצל ספרייה גדולה המחיקה והמתנה לנעילה
-  /// נמשכות דקות, ועל החיבור הראשי הן תוקעות את התוכנה (#4106).
   Future<UserImportLibraryResult> removeAll() => _serial(() async {
-    await QueryLoader.initialize();
-    await compute(_removeAllInBackground, (
-      dbPath: _db.path,
-      queries: QueryLoader.cacheSnapshot,
-    ), debugLabel: 'UserImportRemoveAll');
+    await _onOwnConnection(_removeAllFiles);
     return const UserImportLibraryResult(rebuild: UserImportResult());
   });
 
-  static Future<void> _removeAllInBackground(
-    ({String dbPath, Map<String, Map<String, String>> queries}) args,
-  ) async {
-    QueryLoader.seedCache(args.queries);
-    final userDb = MyDatabase.withPath(args.dbPath);
-    try {
-      final repo = UserContentRepository(userDb);
-      final db = await userDb.database;
-      await _inSavepoint(db, () async {
-        db.execute('DELETE FROM user_import_file');
+  static Future<void> _removeAllFiles(MyDatabase userDb) =>
+      _inTransaction(userDb, () async {
+        (await userDb.database).execute('DELETE FROM user_import_file');
+        final repo = UserContentRepository(userDb);
         await repo.dropManualBaseline();
         await repo.clearAllUserContent();
       }, commit: true);
-    } finally {
-      userDb.close();
-    }
-  }
 
   static List<ImportedFile> _enabledFiles(sqlite3.Database db) => [
     for (final row in db.select(

@@ -55,7 +55,11 @@ void main() {
   blocTest<CustomFoldersBloc, CustomFoldersState>(
     'SetUserImportFileEnabled משהה ומרענן את הרשימה',
     build: build,
-    act: (bloc) => bloc.add(SetUserImportFileEnabled(fileId, enabled: false)),
+    // הכתיבה רצה ב-isolate, ולכן ממתינים לסיום ולא רק לתור האירועים.
+    act: (bloc) async {
+      bloc.add(SetUserImportFileEnabled(fileId, enabled: false));
+      await bloc.stream.firstWhere((state) => !state.isSyncing);
+    },
     verify: (bloc) {
       expect(bloc.state.isSyncing, isFalse);
       expect(bloc.state.error, isNull);
@@ -66,7 +70,10 @@ void main() {
   blocTest<CustomFoldersBloc, CustomFoldersState>(
     'RemoveUserImportFile מסיר את הקובץ מהרשימה',
     build: build,
-    act: (bloc) => bloc.add(RemoveUserImportFile(fileId)),
+    act: (bloc) async {
+      bloc.add(RemoveUserImportFile(fileId));
+      await bloc.stream.firstWhere((state) => !state.isSyncing);
+    },
     verify: (bloc) {
       expect(bloc.state.isSyncing, isFalse);
       expect(bloc.state.error, isNull);

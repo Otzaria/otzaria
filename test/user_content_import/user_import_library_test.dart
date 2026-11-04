@@ -211,20 +211,59 @@ void main() {
 
     // #4106: כשחיבור אחר מחזיק את נעילת הכתיבה, המחיקה ממתינה לה ב-isolate
     // משלה, וה-isolate הראשי ממשיך לרוץ — כאן הוא זה שמשחרר את הנעילה.
-    test('removeAll ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
-      await library.addFiles([linksFile('קישורים.csv')]);
+    Future<UserImportLibraryResult> whileLocked(
+      Future<UserImportLibraryResult> Function() action,
+    ) async {
       final writer = sqlite3.open(db.path)..execute('BEGIN IMMEDIATE');
       Timer(const Duration(milliseconds: 300), () {
         writer.execute('COMMIT');
         writer.close();
       });
       final stopwatch = Stopwatch()..start();
-
-      expect((await library.removeAll()).ok, isTrue);
-
+      final outcome = await action();
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 3)));
+      return outcome;
+    }
+
+    test('removeAll ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
+      await library.addFiles([linksFile('קישורים.csv')]);
+
+      expect((await whileLocked(library.removeAll)).ok, isTrue);
+
       expect(await library.list(), isEmpty);
       expect(await storedLinks(), isEmpty);
+    });
+
+    // #4152: גם שינוי של קובץ בודד ובנייה מחדש כותבים על חיבור משלהם.
+    test('remove ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
+      await library.addFiles([linksFile('קישורים.csv')]);
+      final id = (await library.list()).single.id;
+
+      expect((await whileLocked(() => library.remove(id))).ok, isTrue);
+
+      expect(await library.list(), isEmpty);
+      expect(await storedLinks(), isEmpty);
+    });
+
+    test('setEnabled ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
+      await library.addFiles([linksFile('קישורים.csv')]);
+      final id = (await library.list()).single.id;
+
+      final outcome = await whileLocked(() => library.setEnabled(id, false));
+
+      expect(outcome.ok, isTrue);
+      expect((await library.list()).single.enabled, isFalse);
+      expect(await storedLinks(), isEmpty);
+    });
+
+    test('addFiles ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
+      final path = linksFile('קישורים.csv');
+
+      final outcome = await whileLocked(() => library.addFiles([path]));
+
+      expect(outcome.allErrors, isEmpty);
+      expect(await library.list(), hasLength(1));
+      expect(await storedLinks(), hasLength(1));
     });
 
     /// קובץ קישורים פגום — שורה בלי "מיקום_יעד" נכשלת בפענוח.
