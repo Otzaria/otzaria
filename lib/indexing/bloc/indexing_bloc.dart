@@ -92,6 +92,15 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     IndexingWorkEvent event,
     Emitter<IndexingState> emit,
   ) async {
+    if (event is DeferIndexing) {
+      await _repository.rememberChangedBooks(
+        event.changedBooks,
+        checkLibrary: event.checkLibrary,
+      );
+      await _onCheckIndexStatus(CheckIndexStatus(event.library), emit);
+      return;
+    }
+
     // בלי קטלוג תקין אין לאנדקס או לסמן שחזור הסתרות כהצלחה.
     final schemaCheck = SqliteDataProvider.instance.checkUnsupportedDbSchema();
     final schemaBlocked = schemaCheck is bool ? schemaCheck : await schemaCheck;
@@ -195,12 +204,10 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
           throw StateError('מחיקת ספרים מוסתרים מהאינדקס נכשלה');
         }
         if (event.newlyVisible.isNotEmpty) {
-          await _onRunIndexing(
+          success = await _onRunIndexing(
             RunIndexing(event.library, books: event.newlyVisible),
             emit,
           );
-          success =
-              state is IndexingComplete && (state as IndexingComplete).isClean;
         } else {
           success = true;
         }
@@ -234,9 +241,9 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     }
   }
 
-  /// ריצת אינדוקס אחת. המצב InProgress נפלט רק כשיש עבודה: בשלב הבדיקה
-  /// עם isScanning, ובלולאה עם מספר הספרים לעבודה — לא כל הספרייה.
-  Future<void> _onRunIndexing(
+  /// מחזיר הצלחה של הריצה גם כשנותרה עבודה בספרייה. InProgress נפלט רק
+  /// כשיש עבודה, עם מספר הספרים לבדיקה או לאינדוקס.
+  Future<bool> _onRunIndexing(
     RunIndexing event,
     Emitter<IndexingState> emit,
   ) async {
@@ -244,7 +251,8 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     final runClock = Stopwatch()..start();
     _activeWorkId = workId;
 
-    await _runIndexing(
+    return _runIndexing(
+      event,
       emit,
       workId,
       runClock,
@@ -321,8 +329,9 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     );
   }
 
-  /// מריץ את [run] ומסיים את המצב — רק אם [workId] עדיין הריצה הפעילה.
-  Future<void> _runIndexing(
+  /// מסיים חיווי ומחזיר הצלחה של הריצה, כל עוד [workId] עדיין פעיל.
+  Future<bool> _runIndexing(
+    RunIndexing event,
     Emitter<IndexingState> emit,
     int workId,
     Stopwatch runClock,
@@ -331,18 +340,24 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     try {
       final result = await run();
       if (_activeWorkId != workId) {
-        return;
+        return false;
       }
+      final hasPendingWork =
+          result.isClean &&
+          event.books != null &&
+          await _repository.hasUnindexedBooks(event.library);
+      if (_activeWorkId != workId) return false;
       _activeWorkId = null;
       _reportRunFailures(result, runClock.elapsed);
-      if (result.completed) {
+      if (result.completed && !hasPendingWork) {
         emit(IndexingComplete(failures: result.failures));
       } else {
         emit(IndexingInitial());
       }
+      return result.isClean;
     } catch (e) {
       if (_activeWorkId != workId) {
-        return;
+        return false;
       }
       _activeWorkId = null;
       emit(
@@ -352,6 +367,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
           totalBooks: state.totalBooks,
         ),
       );
+      return false;
     }
   }
 

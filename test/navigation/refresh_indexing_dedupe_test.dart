@@ -1,9 +1,4 @@
-// Regression test: אחרי עדכון ספרייה שדורש reconcile רצו שני מסלולי אינדוקס
-// חופפים על אותו רענון, כ-12,000 פעולות במקום ~6,000. כעת כל רענון מייצר
-// לכל היותר ריצת אינדוקס אחת.
-//
-// הטסט מייבא ומריץ את הקוד האמיתי מ-lib/navigation/utils/refresh_indexing_plan
-// .dart — אותן פונקציות שה-listener ב-main_window_screen.dart קורא להן.
+// מריץ את תוכנית הרענון שבה משתמש MainWindowScreen.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -152,21 +147,60 @@ void main() {
       expect(run.check, IndexCheckScope.none);
     });
 
-    test('אינדוקס אוטומטי כבוי — אין עבודת אינדוקס, רק CheckIndexStatus', () {
+    test('אינדוקס כבוי — שומר שינויים ובדיקה מלאה בלי להתחיל ריצה', () {
       final events = plan(
         indexWholeLibrary: true,
         reconcile: true,
         indexUpdateMode: IndexUpdateMode.off,
       );
 
-      expect(events.whereType<IndexingWorkEvent>(), isEmpty);
-      expect(events, hasLength(1));
+      expect(events.whereType<RunIndexing>(), isEmpty);
+      final deferred = events.single as DeferIndexing;
+      expect(deferred.library, same(library));
+      expect(deferred.changedBooks, changedBooks);
+      expect(deferred.checkLibrary, isTrue);
+    });
+
+    test('אינדוקס כבוי — שומר שינויים גם בלי ספרים חדשים', () {
+      final deferred =
+          plan(indexUpdateMode: IndexUpdateMode.off, withNew: false).single
+              as DeferIndexing;
+
+      expect(deferred.changedBooks, changedBooks);
+      expect(deferred.checkLibrary, isFalse);
+    });
+
+    test('אינדוקס כבוי — שומר בדיקה מלאה גם בלי רשימת שינויים', () {
+      final deferred =
+          plan(
+                indexWholeLibrary: true,
+                reconcile: true,
+                indexUpdateMode: IndexUpdateMode.off,
+                withNew: false,
+                withChanged: false,
+              ).single
+              as DeferIndexing;
+
+      expect(deferred.changedBooks, isEmpty);
+      expect(deferred.checkLibrary, isTrue);
+    });
+
+    test('אינדוקס כבוי — ספרים חדשים בלבד מרעננים את החיווי', () {
+      final events = plan(
+        indexUpdateMode: IndexUpdateMode.off,
+        withChanged: false,
+      );
+
       expect(events.single, isA<CheckIndexStatus>());
     });
 
-    test('אינדוקס אוטומטי כבוי בלי ספרים חדשים — אין אירוע כלל', () {
+    test('אינדוקס כבוי בלי שינויים — אין אירוע כלל', () {
       expect(
-        plan(indexUpdateMode: IndexUpdateMode.off, withNew: false),
+        plan(
+          indexUpdateMode: IndexUpdateMode.off,
+          withNew: false,
+          withChanged: false,
+        ),
         isEmpty,
       );
     });

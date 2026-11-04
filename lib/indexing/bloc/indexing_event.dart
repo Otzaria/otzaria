@@ -46,6 +46,22 @@ class RunIndexing extends IndexingWorkEvent {
   List<Object?> get props => [library, books, changedBooks, check];
 }
 
+/// שומר שינויים לריצה הבאה ומרענן חיווי, בלי לאנדקס כשהעדכון האוטומטי כבוי.
+class DeferIndexing extends IndexingWorkEvent {
+  final Library library;
+  final List<Book> changedBooks;
+  final bool checkLibrary;
+
+  const DeferIndexing(
+    this.library, {
+    required this.changedBooks,
+    this.checkLibrary = false,
+  });
+
+  @override
+  List<Object?> get props => [library, changedBooks, checkLibrary];
+}
+
 /// אינדוקס כל הספרייה בבקשת המשתמש או בעלייה.
 class StartIndexing extends RunIndexing {
   const StartIndexing(super.library, {super.onSettled});
