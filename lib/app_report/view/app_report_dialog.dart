@@ -11,10 +11,12 @@ import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart'
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -136,6 +138,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
         builder: (context, state) {
           if (state is AppReportEditing) _syncControllers(state);
           final dialog = Dialog(
+            insetPadding: isNarrow ? AppDialogSize.compactInset : null,
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -153,7 +156,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
                         padding: EdgeInsets.all(AppTokens.spaceXL),
                         child: Center(child: CircularProgressIndicator()),
                       ),
-                      AppReportEditing() => SingleChildScrollView(
+                      // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש
+                      // עוד שדות מתחת.
+                      AppReportEditing() => PanelScrollableContent(
+                        thumbVisibility: true,
                         padding: const EdgeInsets.fromLTRB(
                           AppTokens.spaceLG,
                           AppTokens.spaceMD,
@@ -215,21 +221,26 @@ class _AppReportDialogState extends State<AppReportDialog> {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppTokens.spaceSM),
-          Text(
-            label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (hint != null) ...[
-            const SizedBox(width: AppTokens.spaceXS),
-            Text(
-              hint,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          // בטלפון התווית וההערה יורדות שורה, ולא גולשות.
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                text: label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  if (hint != null)
+                    TextSpan(
+                      text: ' $hint',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -284,8 +295,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
           key: const ValueKey('app-report-description'),
           controller: _description,
           enabled: enabled,
+          // השדה גדל עם הטקסט, והטופס הוא אזור הגלילה היחיד: שדה שגולל בעצמו
+          // לוכד את הגלגלת ואת הגרירה, ובחלון נמוך הוא כמעט כל הגובה.
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           decoration: InputDecoration(
             hintText: 'מה ציפית שיקרה, ומה קרה בפועל',
             alignLabelWithHint: true,
@@ -307,7 +320,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
           controller: _steps,
           enabled: enabled,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           decoration: InputDecoration(
             hintText: 'מה עשית לפני שהתקלה הופיעה',
             alignLabelWithHint: true,
@@ -394,8 +407,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
     final isSending = editing?.isSending ?? false;
     return Padding(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // בטלפון הכפתורים יורדים שורה, ולא יוצאים מהמסך.
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: AppTokens.spaceSM,
+        runSpacing: AppTokens.spaceSM,
         children: [
           ActionButton.ghost(
             text: 'ביטול',
@@ -403,8 +419,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
                 ? null
                 : () => Navigator.of(context).maybePop(),
           ),
-          if (_bloc.supportsDraft) ...[
-            const SizedBox(width: 8),
+          if (_bloc.supportsDraft)
             ActionButton.neutral(
               key: const ValueKey('app-report-save-draft'),
               text: 'שמור טיוטה',
@@ -413,8 +428,6 @@ class _AppReportDialogState extends State<AppReportDialog> {
                   ? null
                   : () => _bloc.add(const AppReportDraftSaved()),
             ),
-          ],
-          const SizedBox(width: 8),
           ActionButton.recommended(
             key: const ValueKey('app-report-send'),
             text: 'שלח',

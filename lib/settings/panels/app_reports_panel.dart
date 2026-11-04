@@ -304,39 +304,12 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
   }
 
   Future<void> _editPending(AppReport report) async {
-    var edited = report;
-    final hasChanges = ValueNotifier(false);
-    final confirmed = await showTwoActionsDialog(
-      context: context,
-      title: context.settingsText('עריכת דיווח שמור'),
-      icon: FluentIcons.edit_24_regular,
-      size: AppDialogSize.medium,
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('שמור'),
-      handleEnterKey: false,
-      customContent: SingleChildScrollView(
-        child: SizedBox(
-          width: 560,
-          child: AppReportEditFields(
-            report: report,
-            typeLabel: (type) => _typeLabel(context, type),
-            onChanged: (value) {
-              edited = value;
-              hasChanges.value =
-                  value.type != report.type ||
-                  value.title != report.title ||
-                  value.description != report.description ||
-                  value.stepsToReproduce != report.stepsToReproduce ||
-                  value.reporterEmail != report.reporterEmail ||
-                  !listEquals(value.images, report.images);
-            },
-          ),
-        ),
-      ),
-      isDirty: hasChanges,
+    final edited = await showAppReportEditDialog(
+      context,
+      report,
+      typeLabel: (type) => _typeLabel(context, type),
     );
-    hasChanges.dispose();
-    if (confirmed != true) return;
+    if (edited == null) return;
 
     // טקסט שהוקלד בעריכה עובר אותה הסתרה כמו בטופס המקורי.
     final redacted = edited.redactedWith(AppReportRedactor.fromPlatform());
@@ -416,6 +389,46 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
         _service.buildOfflineSendScript(reports, target: target),
     setBusy: (busy) => setState(() => _isExporting = busy),
   );
+}
+
+/// "עריכת דיווח שמור": השדות של [AppReportEditFields] בדיאלוג שהגוף שלו גולל,
+/// עם פס גלוי, והכפתורים קבועים בתחתית. מחזיר את הדיווח הערוך, או null
+/// בביטול.
+@visibleForTesting
+Future<AppReport?> showAppReportEditDialog(
+  BuildContext context,
+  AppReport report, {
+  required String Function(AppReportType type) typeLabel,
+}) async {
+  var edited = report;
+  final hasChanges = ValueNotifier(false);
+  final confirmed = await showTwoActionsDialog(
+    context: context,
+    title: context.settingsText('עריכת דיווח שמור'),
+    icon: FluentIcons.edit_24_regular,
+    size: AppDialogSize.medium,
+    cancelText: context.settingsText('ביטול'),
+    confirmText: context.settingsText('שמור'),
+    handleEnterKey: false,
+    scrollable: true,
+    customContent: AppReportEditFields(
+      report: report,
+      typeLabel: typeLabel,
+      onChanged: (value) {
+        edited = value;
+        hasChanges.value =
+            value.type != report.type ||
+            value.title != report.title ||
+            value.description != report.description ||
+            value.stepsToReproduce != report.stepsToReproduce ||
+            value.reporterEmail != report.reporterEmail ||
+            !listEquals(value.images, report.images);
+      },
+    ),
+    isDirty: hasChanges,
+  );
+  hasChanges.dispose();
+  return confirmed == true ? edited : null;
 }
 
 /// שדות העריכה של דיווח תוכנה שמור בתור; מדווח על כל שינוי כדיווח מעודכן.
@@ -502,8 +515,9 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           controller: _description,
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
+          // גדל עם הטקסט, כמו בטופס הדיווח: הגוף של הדיאלוג גולל.
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
             labelText: context.settingsText('תיאור'),
@@ -518,7 +532,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),

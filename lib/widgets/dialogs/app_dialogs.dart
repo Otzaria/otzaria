@@ -96,14 +96,14 @@ class AppDialog extends StatefulWidget {
     this.icon,
     this.headerTrailing,
     this.size = AppDialogSize.small,
+    this.scrollable = false,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
        ),
        _variant = _DialogVariant.twoActions,
        subtitle = null,
-       onConfirm = null,
-       scrollable = false;
+       onConfirm = null;
 
   const AppDialog.warning({
     super.key,
@@ -285,6 +285,7 @@ Future<bool?> showTwoActionsDialog({
   ValueListenable<bool>? isDirty,
   IconData? icon,
   AppDialogSize size = AppDialogSize.small,
+  bool scrollable = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -300,6 +301,7 @@ Future<bool?> showTwoActionsDialog({
       isDirty: isDirty,
       icon: icon,
       size: size,
+      scrollable: scrollable,
     ),
   ),
 );
