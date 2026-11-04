@@ -59,6 +59,7 @@ void main() {
     final provider = ShamorZachorDataProvider(
       sqliteDataProvider: SqliteDataProvider.instance,
     );
+    addTearDown(provider.dispose);
     final bookId = fixtureBookIds['בראשית']!;
 
     addTearDown(() async {
@@ -124,6 +125,7 @@ void main() {
             };
           },
     );
+    addTearDown(provider.dispose);
 
     await provider.loadAllData();
 
@@ -157,6 +159,7 @@ void main() {
               throw Exception('worker failed');
             },
       );
+      addTearDown(provider.dispose);
 
       await provider.loadAllData();
 
@@ -191,6 +194,7 @@ void main() {
 
     test('מזהה לפי id מול המסד הרשמי גם כשהשם לא קיים', () async {
       final provider = buildProvider();
+      addTearDown(provider.dispose);
       await provider.loadAllData();
 
       final result = await provider.addCustomBooks([
@@ -208,6 +212,7 @@ void main() {
 
     test('נופל לזיהוי לפי כותרת כאשר אין id', () async {
       final provider = buildProvider();
+      addTearDown(provider.dispose);
       await provider.loadAllData();
 
       final result = await provider.addCustomBooks([
@@ -220,6 +225,7 @@ void main() {
 
     test('ספר שלא נמצא נספר ככישלון', () async {
       final provider = buildProvider();
+      addTearDown(provider.dispose);
       await provider.loadAllData();
 
       final result = await provider.addCustomBooks([

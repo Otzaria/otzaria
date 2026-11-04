@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
@@ -35,6 +36,11 @@ class SqliteDataProvider {
   String _dbPath = '';
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
+  final _repositoryChanges = ValueNotifier<SeforimRepository?>(null);
+
+  /// המאגר הפעיל; משתנה גם כשהחיבור נסגר לצורך החלפת הספרייה.
+  ValueListenable<SeforimRepository?> get repositoryChanges =>
+      _repositoryChanges;
   int? _unsupportedDbSchemaVersion;
 
   /// Singleton instance
@@ -53,6 +59,7 @@ class SqliteDataProvider {
     final provider = SqliteDataProvider._();
     provider._repository = repository;
     provider._isInitialized = true;
+    provider._repositoryChanges.value = repository;
     return provider;
   }
 
@@ -142,6 +149,9 @@ class SqliteDataProvider {
       _canReopenAfterClose = true;
       DbReadWorker.allowReopen();
       unawaited(LibraryLineSource.configure(_dbPath));
+      if (_externalWriteGate == null) {
+        _repositoryChanges.value = _repository;
+      }
     } on SqliteException catch (e) {
       // SQLITE_CANTOPEN (code 14) on Android: clear a stale keyDbEffectivePath
       // so the library path is re-resolved on the next check.
@@ -186,6 +196,7 @@ class SqliteDataProvider {
     if (_isInitialized) {
       _repository.database.close();
       _isInitialized = false;
+      _repositoryChanges.value = null;
     }
     // ה-worker פותח לפי הנתיב של החיבור הזה, ולכן לא יחזיק את הקובץ אחריו.
     await DbReadWorker.closeConnectionIfRunning(wait: waitForWorker);
@@ -296,6 +307,7 @@ class SqliteDataProvider {
       await FindRefDbIsolate.resumeAfterExternalWrite();
       await DbReadWorker.resumeAfterExternalWrite();
       await LibraryLineSource.releaseExternalWriteHold();
+      _repositoryChanges.value = repository;
       // משחררים את הקוראים הממתינים. ה-finally מבטיח שחרור גם אם הפתיחה-מחדש
       // נכשלה (אחרת היו נתקעים לנצח).
       final gate = _externalWriteGate;

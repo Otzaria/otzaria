@@ -46,6 +46,23 @@ class _MemoryProgressService extends ProgressService {
 }
 
 class _ReadyDataProvider extends ShamorZachorDataProvider {
+  BookDetails? book;
+
+  _ReadyDataProvider(this.book);
+
+  void replaceBook(BookDetails? book) {
+    this.book = book;
+    notifyListeners();
+  }
+
+  @override
+  (BookDetails, String, String)? getBookById(int bookId) =>
+      book?.id == bookId ? (book!, 'ספר', 'הלכה') : null;
+
+  @override
+  BookDetails? getBookDetails(String categoryName, String bookName) =>
+      categoryName == 'הלכה' && bookName == 'ספר' ? book : null;
+
   @override
   bool get isLoading => false;
 }
@@ -80,9 +97,156 @@ BookDetails _manyHeadingsBook() {
   );
 }
 
+BookDetails _oneItemBook({
+  String title = 'הקדמה',
+  int? id = 7,
+  bool nested = false,
+}) {
+  final leaf = BookSection(
+    id: 'a',
+    title: title,
+    level: 1,
+    startPage: 0,
+    endPage: 0,
+    children: const [],
+  );
+  return BookDetails(
+    id: id,
+    contentType: 'text',
+    parts: const [],
+    sections: [
+      if (nested)
+        BookSection(
+          id: 'root',
+          title: 'ספר',
+          level: 0,
+          startPage: 0,
+          endPage: 0,
+          children: [leaf],
+        )
+      else
+        leaf,
+    ],
+  );
+}
+
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+  });
+
+  testWidgets('פרטי ספר ללא מזהה נשארים זמינים לתצוגה', (tester) async {
+    final data = _ReadyDataProvider(null);
+    final progress = ShamorZachorProgressProvider(
+      progressService: _MemoryProgressService(),
+    );
+    addTearDown(data.dispose);
+    addTearDown(progress.dispose);
+    await progress.ensureLoaded();
+    expect(data.getBookDetails('הלכה', 'ספר'), isNull);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShamorZachorDataProvider>.value(value: data),
+          ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+            value: progress,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: BookDetailScreen(
+              topLevelCategoryKey: 'הלכה',
+              bookName: 'ספר',
+              bookDetails: _oneItemBook(
+                title: 'פריט ללא מזהה',
+                id: null,
+                nested: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('פריט ללא מזהה'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final sameNameBook = _oneItemBook(title: 'פריט מהמאגר', nested: true);
+    data.replaceBook(sameNameBook);
+    expect(data.getBookDetails('הלכה', 'ספר'), same(sameNameBook));
+    await tester.pumpAndSettle();
+    expect(find.text('פריט ללא מזהה'), findsOneWidget);
+    expect(find.text('פריט מהמאגר'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ספר פתוח משתמש בפרטים החדשים ושומר את ההתקדמות', (tester) async {
+    final oldBook = _oneItemBook(title: 'כותרת ישנה', nested: true);
+    final data = _ReadyDataProvider(oldBook);
+    final service = _MemoryProgressService()
+      ..saved = {
+        7: {'0': PageProgress(review1: true)},
+      };
+    final progress = ShamorZachorProgressProvider(progressService: service);
+    addTearDown(data.dispose);
+    addTearDown(progress.dispose);
+    await progress.ensureLoaded();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShamorZachorDataProvider>.value(value: data),
+          ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+            value: progress,
+          ),
+        ],
+        child: MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: BookDetailScreen(
+                topLevelCategoryKey: 'הלכה',
+                bookName: 'ספר',
+                bookId: 7,
+                bookDetails: oldBook,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder itemCheckbox(String title, String columnLabel) {
+      final row = find
+          .ancestor(of: find.text(title), matching: find.byType(Row))
+          .first;
+      final tooltip = find.descendant(
+        of: row,
+        matching: find.byTooltip(columnLabel),
+      );
+      return find.descendant(of: tooltip, matching: find.byType(Checkbox));
+    }
+
+    final oldLearn = itemCheckbox('כותרת ישנה', 'לימוד');
+    expect(oldLearn, findsOneWidget);
+    final oldCheckbox = tester.widget<Checkbox>(oldLearn);
+    expect(oldCheckbox.value, isFalse);
+    expect(
+      tester.widget<Checkbox>(itemCheckbox('כותרת ישנה', 'חזרה 1')).value,
+      isTrue,
+    );
+    data.replaceBook(_oneItemBook(title: 'כותרת חדשה', nested: true));
+    oldCheckbox.onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(service.saved[7]!['0']!.learn, isFalse);
+    expect(find.text('כותרת ישנה'), findsNothing);
+    expect(find.text('כותרת חדשה'), findsOneWidget);
+    await tester.tap(itemCheckbox('כותרת חדשה', 'לימוד'));
+    await tester.pump();
+    expect(service.saved[7]!['0']!.learn, isTrue);
+    expect(service.saved[7]!['0']!.review1, isTrue);
+    data.replaceBook(null);
+    await tester.pumpAndSettle();
+    expect(find.text('פרטי הספר "ספר" לא נמצאו'), findsOneWidget);
   });
 
   testWidgets(
@@ -98,7 +262,7 @@ void main() {
         MultiProvider(
           providers: [
             ChangeNotifierProvider<ShamorZachorDataProvider>(
-              create: (_) => _ReadyDataProvider(),
+              create: (_) => _ReadyDataProvider(book),
             ),
             ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
               value: progress,
@@ -168,7 +332,7 @@ void main() {
           MultiProvider(
             providers: [
               ChangeNotifierProvider<ShamorZachorDataProvider>(
-                create: (_) => _ReadyDataProvider(),
+                create: (_) => _ReadyDataProvider(book),
               ),
               ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
                 value: progress,
@@ -214,7 +378,7 @@ void main() {
         MultiProvider(
           providers: [
             ChangeNotifierProvider<ShamorZachorDataProvider>(
-              create: (_) => _ReadyDataProvider(),
+              create: (_) => _ReadyDataProvider(_oneItemBook()),
             ),
             ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
               value: progress,
@@ -273,7 +437,7 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<ShamorZachorDataProvider>(
-            create: (_) => _ReadyDataProvider(),
+            create: (_) => _ReadyDataProvider(_oneItemBook()),
           ),
           ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
             value: progress,
@@ -319,22 +483,6 @@ void main() {
   group('column completion dates in the header', () {
     String hebrew(String iso) => HebrewUtils.hebrewDate(DateTime.parse(iso));
 
-    BookDetails oneItemBook() => BookDetails(
-      id: 7,
-      contentType: 'text',
-      parts: const [],
-      sections: [
-        BookSection(
-          id: 'a',
-          title: 'הקדמה',
-          level: 1,
-          startPage: 0,
-          endPage: 0,
-          children: const [],
-        ),
-      ],
-    );
-
     Future<void> pumpScreen(
       WidgetTester tester,
       _MemoryProgressService service,
@@ -346,7 +494,7 @@ void main() {
         MultiProvider(
           providers: [
             ChangeNotifierProvider<ShamorZachorDataProvider>(
-              create: (_) => _ReadyDataProvider(),
+              create: (_) => _ReadyDataProvider(_oneItemBook()),
             ),
             ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
               value: progress,
@@ -360,7 +508,7 @@ void main() {
                   topLevelCategoryKey: 'הלכה',
                   bookName: 'ספר',
                   bookId: 7,
-                  bookDetails: oneItemBook(),
+                  bookDetails: _oneItemBook(),
                 ),
               ),
             ),

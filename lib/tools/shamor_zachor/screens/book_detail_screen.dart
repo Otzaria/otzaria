@@ -27,16 +27,15 @@ import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 class BookDetailScreen extends StatefulWidget {
   final String topLevelCategoryKey;
   final String bookName;
-  final int? bookId; // NEW: Book ID from DB
-  final BookDetails?
-  bookDetails; // Optional: if provided, use it instead of fetching
+  final int? bookId;
+  final BookDetails? bookDetails;
   final VoidCallback? onBack;
 
   const BookDetailScreen({
     super.key,
     required this.topLevelCategoryKey,
     required this.bookName,
-    this.bookId, // NEW
+    this.bookId,
     this.bookDetails,
     this.onBack,
   });
@@ -139,6 +138,24 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return PageProgress();
   }
 
+  BookDetails? _currentBookDetails(ShamorZachorDataProvider provider) {
+    final bookId = widget.bookId ?? widget.bookDetails?.id;
+    return bookId != null
+        ? provider.getBookById(bookId)?.$1
+        : widget.bookDetails ??
+              provider.getBookDetails(
+                widget.topLevelCategoryKey,
+                widget.bookName,
+              );
+  }
+
+  bool _isCurrentBook(BookDetails bookDetails) =>
+      mounted &&
+      identical(
+        bookDetails,
+        _currentBookDetails(context.read<ShamorZachorDataProvider>()),
+      );
+
   Future<void> _updateProgress(
     ShamorZachorProgressProvider provider,
     int absoluteIndex,
@@ -146,7 +163,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     bool value,
     BookDetails bookDetails,
   ) async {
-    // Debug log
+    if (!_isCurrentBook(bookDetails)) return;
     _logger.info(
       '_updateProgress called: bookId=${widget.bookId}, bookName=${widget.bookName}, absoluteIndex=$absoluteIndex',
     );
@@ -196,12 +213,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             );
           }
 
-          final bookDetails =
-              widget.bookDetails ??
-              dataProvider.getBookDetails(
-                widget.topLevelCategoryKey,
-                widget.bookName,
-              );
+          final bookDetails = _currentBookDetails(dataProvider);
 
           if (bookDetails == null) {
             _logger.warning(
@@ -519,7 +531,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         onChanged: (bool? newValue) async {
                           final bool selectAction = newValue == true;
                           final confirmed = await _showWarningDialog();
-                          if (confirmed && mounted && widget.bookId != null) {
+                          if (confirmed &&
+                              _isCurrentBook(bookDetails) &&
+                              widget.bookId != null) {
                             await progressProvider.toggleSelectAllForColumnById(
                               widget.bookId!,
                               bookDetails,
@@ -683,7 +697,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       bookDetails: bookDetails,
       columnLabel: column.label,
     );
-    if (selection == null) return;
+    if (selection == null || !_isCurrentBook(bookDetails)) return;
     await progressProvider.toggleRangeForColumnById(
       widget.bookId!,
       bookDetails,
@@ -1040,7 +1054,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               value: state,
                               tristate: true,
                               onChanged: (value) async {
-                                if (widget.bookId != null) {
+                                if (_isCurrentBook(bookDetails) &&
+                                    widget.bookId != null) {
                                   await progressProvider
                                       .toggleSectionColumnById(
                                         widget.bookId!,

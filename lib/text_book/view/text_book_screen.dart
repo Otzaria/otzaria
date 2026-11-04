@@ -297,7 +297,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     try {
       final dataProvider = context.read<ShamorZachorDataProvider>();
       final progressProvider = context.read<ShamorZachorProgressProvider>();
-      final state = context.read<TextBookBloc>().state as TextBookLoaded;
+      await dataProvider.ensureLoaded();
+      if (!mounted) return;
+      final state = context.read<TextBookBloc>().state;
+      if (state is! TextBookLoaded) return;
 
       if (!dataProvider.hasData) {
         UiSnack.showError(TextBookMessages.shamorZachorDataNotLoaded);
