@@ -303,7 +303,8 @@ void main() {
       final parsed = parseCategoryQuery('מילה@נתיבות המשפט/סימנים', library);
 
       expect(parsed.categoryFound, isTrue);
-      expect(parsed.facets, [child.path]);
+      // כמו באינדקס: הפסיק בשם התיקייה הוא מפריד ב-facet.
+      expect(parsed.facets, ['/נתיבות המשפט/ביאורים/סימנים']);
     });
 
     group('נתיב (issue #2842)', () {

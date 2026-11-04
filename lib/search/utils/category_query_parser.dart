@@ -202,7 +202,7 @@ List<String> _facetsForName(
     final tier = tiers[0].isNotEmpty && title == normalizedName
         ? 0
         : tierOf([title]);
-    if (tier != null) tiers[tier].add(category.path);
+    if (tier != null) tiers[tier].add(FacetHelper.categoryFacet(category));
   }
 
   for (final tier in tiers) {

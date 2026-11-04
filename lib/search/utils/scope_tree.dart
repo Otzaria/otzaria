@@ -524,7 +524,7 @@ abstract class ScopeNode {
 class CategoryScopeNode extends ScopeNode {
   CategoryScopeNode({required Category category, required super.children})
     : super(
-        facet: category.path,
+        facet: FacetHelper.categoryFacet(category),
         title: category.title,
         subtitle: category.path == '/' ? '' : category.path.substring(1),
       );
