@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -204,6 +205,24 @@ void main() {
     test('removeAll מרוקן את הספרייה ואת הנתונים', () async {
       await library.addFiles([linksFile('קישורים.csv')]);
       await library.removeAll();
+      expect(await library.list(), isEmpty);
+      expect(await storedLinks(), isEmpty);
+    });
+
+    // #4106: כשחיבור אחר מחזיק את נעילת הכתיבה, המחיקה ממתינה לה ב-isolate
+    // משלה, וה-isolate הראשי ממשיך לרוץ — כאן הוא זה שמשחרר את הנעילה.
+    test('removeAll ממתין לנעילה בלי לחסום את ה-isolate הראשי', () async {
+      await library.addFiles([linksFile('קישורים.csv')]);
+      final writer = sqlite3.open(db.path)..execute('BEGIN IMMEDIATE');
+      Timer(const Duration(milliseconds: 300), () {
+        writer.execute('COMMIT');
+        writer.close();
+      });
+      final stopwatch = Stopwatch()..start();
+
+      expect((await library.removeAll()).ok, isTrue);
+
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 3)));
       expect(await library.list(), isEmpty);
       expect(await storedLinks(), isEmpty);
     });

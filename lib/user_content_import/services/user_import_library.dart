@@ -5,6 +5,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
@@ -251,13 +252,34 @@ class UserImportLibrary {
   );
 
   /// מסיר את כל הקבצים ומנקה את כל הנתונים הידניים, גם אלה שקדמו לספרייה.
-  Future<UserImportLibraryResult> removeAll() => _serial(
-    () => _changeAndRebuild(() async {
-      final db = await _db.database;
-      db.execute('DELETE FROM user_import_file');
-      await UserContentRepository(_db).dropManualBaseline();
-    }),
-  );
+  /// רץ ב-isolate על חיבור משלו: אצל ספרייה גדולה המחיקה והמתנה לנעילה
+  /// נמשכות דקות, ועל החיבור הראשי הן תוקעות את התוכנה (#4106).
+  Future<UserImportLibraryResult> removeAll() => _serial(() async {
+    await QueryLoader.initialize();
+    await compute(_removeAllInBackground, (
+      dbPath: _db.path,
+      queries: QueryLoader.cacheSnapshot,
+    ), debugLabel: 'UserImportRemoveAll');
+    return const UserImportLibraryResult(rebuild: UserImportResult());
+  });
+
+  static Future<void> _removeAllInBackground(
+    ({String dbPath, Map<String, Map<String, String>> queries}) args,
+  ) async {
+    QueryLoader.seedCache(args.queries);
+    final userDb = MyDatabase.withPath(args.dbPath);
+    try {
+      final repo = UserContentRepository(userDb);
+      final db = await userDb.database;
+      await _inSavepoint(db, () async {
+        db.execute('DELETE FROM user_import_file');
+        await repo.dropManualBaseline();
+        await repo.clearAllUserContent();
+      }, commit: true);
+    } finally {
+      userDb.close();
+    }
+  }
 
   static List<ImportedFile> _enabledFiles(sqlite3.Database db) => [
     for (final row in db.select(
