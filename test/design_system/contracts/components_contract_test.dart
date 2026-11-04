@@ -1,4 +1,5 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
@@ -6,7 +7,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
-import 'package:otzaria/widgets/text/otzaria_search_field_button.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 import 'contract_harness.dart';
@@ -971,6 +972,50 @@ void main() {
         ),
       );
       expect(delete.onPressed, isNull);
+    });
+  });
+
+  // review-r5, q-search-22: גם בשדה החיפוש אין 22 — הכול iconMD (DD-03).
+  group('OtzariaSearchField: אייקונים ב־iconMD', () {
+    for (final slim in [false, true]) {
+      testWidgets('אייקון החיפוש ${slim ? 'בשדה צר' : 'בשדה רחב'}', (
+        tester,
+      ) async {
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpInApp(
+          tester,
+          Center(
+            child: SizedBox(
+              width: 300,
+              child: OtzariaSearchField(
+                controller: controller,
+                hintText: 'חיפוש',
+                slim: slim,
+              ),
+            ),
+          ),
+        );
+        expect(
+          tester.widget<Icon>(find.byIcon(OtzariaIcons.search_24_regular)).size,
+          AppTokens.iconMD,
+        );
+      });
+    }
+
+    testWidgets('OtzariaSearchDisplayBar רחב', (tester) async {
+      await pumpInApp(
+        tester,
+        const Center(
+          child: OtzariaSearchDisplayBar(slim: false, child: Text('בראשית')),
+        ),
+      );
+      expect(tester.widget<Icon>(find.byType(Icon)).size, AppTokens.iconMD);
+    });
+
+    test('כפתורים בשדה טופס: אייקון ו־X ב־iconMD', () {
+      expect(OtzariaSearchActionSize.form.icon, AppTokens.iconMD);
+      expect(OtzariaSearchActionSize.form.clearIcon, AppTokens.iconMD);
     });
   });
 

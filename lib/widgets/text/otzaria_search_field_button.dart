@@ -22,8 +22,13 @@ class OtzariaSearchActionSize {
   /// [OtzariaSearchField] רגיל (48).
   static const regular = OtzariaSearchActionSize._(32, 20, 18);
 
-  /// שדה טקסט עם עיטור ערכת הנושא ותווית.
-  static const form = OtzariaSearchActionSize._(40, 22, 22);
+  /// שדה טקסט עם עיטור ערכת הנושא ותווית. האייקון בגודל ממשק רגיל (DD-03),
+  /// וה-X כמוהו: בריבוע 40 אין צורך להקטין אותו.
+  static const form = OtzariaSearchActionSize._(
+    40,
+    AppTokens.iconMD,
+    AppTokens.iconMD,
+  );
 
   static OtzariaSearchActionSize of(BuildContext context) =>
       context

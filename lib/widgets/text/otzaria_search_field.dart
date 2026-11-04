@@ -153,7 +153,7 @@ class OtzariaSearchDisplayBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: isSlim ? 20 : 22, color: cs.onSurfaceVariant),
+          Icon(icon, size: AppTokens.iconMD, color: cs.onSurfaceVariant),
           const SizedBox(width: AppTokens.spaceSM),
           Flexible(child: child),
         ],
@@ -376,7 +376,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         visualDensity: VisualDensity.compact,
         icon: Icon(
           widget.icon,
-          size: 20,
+          size: AppTokens.iconMD,
           color: cs.onSurfaceVariant,
         ),
         onPressed: widget.onExpand,
@@ -415,9 +415,9 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     // גובה וגופן — slim (desktop) לעומת touch
     final double effectiveHeight = isSlim ? _ST.heightSlim : _ST.height;
     final double effectiveFontSize = isSlim ? _ST.fontSizeSlim : _ST.fontSize;
-    // גדול ב-2 מאייקון ממשק רגיל: אייקוני `search_in_*` נושאים פרט בתוך
-    // העדשה, והם המקרה הנפוץ כאן. בעדשה החלקה ההפרש אינו מורגש.
-    final double prefixIconSize = isSlim ? 20.0 : 22.0;
+    // אייקון ממשק רגיל (DD-03) גם בשדה הרחב, כמו בצר; לא 22 (review-r5,
+    // q-search-22).
+    const double prefixIconSize = AppTokens.iconMD;
 
     // Fill
     final fillColor = _hasFocus && widget.enabled
