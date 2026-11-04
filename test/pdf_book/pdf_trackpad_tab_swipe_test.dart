@@ -448,35 +448,21 @@ void main() {
     );
     expect(inline, findsNothing, reason: 'הכפתור עוד בסרגל, לא בתפריט');
 
-    // ⚠ ברוחב 320 שורות התפריט רחבות מהחלון וגולשות (RenderFlex overflowed
-    // ב-menu_rows.dart), גם בלי התיקון. זו בעיה נפרדת, ולכן רק היא מסוננת
-    // כאן.
-    final onError = FlutterError.onError;
-    FlutterError.onError = (details) {
-      if (details.exceptionAsString().contains('A RenderFlex overflowed')) {
-        return;
-      }
-      onError?.call(details);
-    };
-    try {
-      Future<String?> openMenuItem() async {
-        await tester.tap(find.byTooltip('עוד פעולות').first);
-        await frames(tester);
-        final item = find.textContaining('התאם ל');
-        expect(item, findsOneWidget);
-        return tester.widget<Text>(item).data;
-      }
-
-      final before = await openMenuItem();
-      await tester.tap(find.textContaining('התאם ל'));
+    Future<String?> openMenuItem() async {
+      await tester.tap(find.byTooltip('עוד פעולות').first);
       await frames(tester);
-      final after = await openMenuItem();
-      expect(after, isNot(before), reason: 'הפריט מציע את מה שכבר נעשה');
-      await tester.tapAt(const Offset(5, 890));
-      await frames(tester);
-    } finally {
-      FlutterError.onError = onError;
+      final item = find.textContaining('התאם ל');
+      expect(item, findsOneWidget);
+      return tester.widget<Text>(item).data;
     }
+
+    final before = await openMenuItem();
+    await tester.tap(find.textContaining('התאם ל'));
+    await frames(tester);
+    final after = await openMenuItem();
+    expect(after, isNot(before), reason: 'הפריט מציע את מה שכבר נעשה');
+    await tester.tapAt(const Offset(5, 890));
+    await frames(tester);
   });
 }
 
