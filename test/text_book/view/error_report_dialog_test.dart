@@ -203,27 +203,15 @@ void main() {
       );
     });
 
-    test('only sources that reach the Otzaria inbox allow a correction', () {
-      for (final folder in ['sefaria', 'SefariaToOtzaria', 'my-sefaria-x']) {
-        expect(ErrorReportHelper.reportReachesOtzaria(folder), isFalse);
-      }
-      for (final folder in [
-        'wikiJewishBooksToOtzaria',
-        'wikiSource',
-        'Pninim',
-        'Tashma',
-        'Ben-Yehuda',
-        'yam-HaHachmaToOtzaria',
-        'local',
-        '',
-        null,
-      ]) {
-        expect(
-          ErrorReportHelper.reportReachesOtzaria(folder),
-          isTrue,
-          reason: '$folder',
-        );
-      }
+    test('Sefaria link uses the exact heRef of the line', () {
+      expect(
+        Uri.decodeComponent(
+          ErrorReportHelper.sefariaUrlFor('בית יוסף, אורח חיים,  שיח, טו, א')!,
+        ),
+        'https://www.sefaria.org/בית יוסף, אורח חיים, שיח, טו, א',
+      );
+      expect(ErrorReportHelper.sefariaUrlFor(null), isNull);
+      expect(ErrorReportHelper.sefariaUrlFor('  '), isNull);
     });
 
     test('identifies dicta source folder', () {
@@ -687,6 +675,77 @@ void main() {
     });
   });
 
+  group('ErrorReportHelper.correctionSnippets', () {
+    const line =
+        '<b>ומ"ש</b> בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד ועוד שתי מילים';
+    final start = line.indexOf('כרא"ש');
+    TextCorrection correction(String? proposed) => TextCorrection.selection(
+      originalLine: line,
+      start: start,
+      end: start + 'כרא"ש'.length,
+      proposedText: proposed,
+    );
+
+    test('ארבע מילים לפני ואחרי השינוי, והשינוי מסומן', () {
+      final snippets = ErrorReportHelper.correctionSnippets(
+        correction('הרא"ש'),
+      )!;
+      expect(
+        snippets.wrong,
+        'בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד',
+      );
+      expect(
+        snippets.fixed,
+        'בכרמלית הסמוך לו וכתב *הרא"ש* הרמב"ם בפי"ז השוה יחד',
+      );
+    });
+
+    test('מחיקה, בלי הצעה ובלי שינוי נראה', () {
+      expect(
+        ErrorReportHelper.correctionSnippets(correction(''))!.fixed,
+        'בכרמלית הסמוך לו וכתב *(נמחק: כרא"ש)* הרמב"ם בפי"ז השוה יחד',
+      );
+      expect(ErrorReportHelper.correctionSnippets(correction(null)), isNull);
+      expect(
+        ErrorReportHelper.correctionSnippets(
+          const TextCorrection.wholeLine(
+            originalLine: 'א <b>ב</b>',
+            proposedText: 'א ב',
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('הטקסט כפי שהוא מוצג: <br> מפריד מילים וישויות מפוענחות', () {
+      final snippets = ErrorReportHelper.correctionSnippets(
+        const TextCorrection.wholeLine(
+          originalLine: 'זאת<br>יהי &quot;רצון&quot;&thinsp;שגוי',
+          proposedText: 'זאת<br/>יהי &quot;רצון&quot;&thinsp;נכון',
+        ),
+      )!;
+      expect(snippets.wrong, 'זאת יהי "רצון" שגוי');
+      expect(snippets.fixed, 'זאת יהי "רצון" *נכון*');
+    });
+
+    test('גוף המייל: טקסט שגוי ומתוקן במקום בלוק ההצעה', () {
+      final details = ErrorReportHelper.sefariaErrorDetails(
+        ReportedErrorData(
+          selectedText: 'כרא"ש',
+          errorDetails: 'טעות הקלדה',
+          correction: correction('הרא"ש'),
+        ),
+      );
+      expect(
+        details,
+        'טעות הקלדה\n\nהטקסט השגוי:\n'
+        'בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד\n\n'
+        'הטקסט המתוקן:\n'
+        'בכרמלית הסמוך לו וכתב *הרא"ש* הרמב"ם בפי"ז השוה יחד',
+      );
+    });
+  });
+
   group('ErrorReportHelper.resolveSelectionContext', () {
     test('should resolve to preferred line occurrence when unique in line', () {
       final content = [
@@ -918,6 +977,43 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('ספריא: הנחיות דיווח ובלי דיווח חופשי כשיש עורך תיקון', (
+      tester,
+    ) async {
+      Widget tab({
+        required bool isSefariaSource,
+        String line = 'שורה לבדיקה',
+      }) => MaterialApp(
+        home: Scaffold(
+          body: RegularReportTab(
+            selectedText: 'לבדיקה',
+            fontSize: 18,
+            directReportTargetLabel: isSefariaSource ? 'ספריא' : 'אוצריא',
+            isSefariaSource: isSefariaSource,
+            correctionTemplate: buildCorrectionTemplate(line, 'לבדיקה'),
+            onActionSelected: (_, _) {},
+            onCancel: () {},
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(tab(isSefariaSource: true));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('הדיווח יישלח לספריא'), findsOneWidget);
+      expect(find.text('דיווח חופשי'), findsNothing);
+
+      await tester.pumpWidget(tab(isSefariaSource: false));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('הדיווח יישלח לספריא'), findsNothing);
+      expect(find.text('דיווח חופשי'), findsOneWidget);
+
+      // שורה ארוכה מהתקרה חוסמת הצעת תיקון; בלי דיווח חופשי לא היה מסלול שליחה.
+      final longLine = '${'א' * TextCorrection.maxTextLength} לבדיקה';
+      await tester.pumpWidget(tab(isSefariaSource: true, line: longLine));
+      await tester.pumpAndSettle();
+      expect(find.text('דיווח חופשי'), findsOneWidget);
     });
 
     testWidgets('details field receives focus automatically on open', (

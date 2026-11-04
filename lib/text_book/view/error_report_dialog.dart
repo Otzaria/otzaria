@@ -380,10 +380,75 @@ class ErrorReportHelper {
         _fallbackMail;
   }
 
-  /// האם דיווח על ספר מהמקור הזה מגיע לתיבת אוצריא. רק דיווח כזה נכנס
-  /// למערכת התיקונים באתר, ולכן רק לו מוצע מסלול "הצעת תיקון".
-  static bool reportReachesOtzaria(String? sourceFolder) =>
-      emailRecipientsFor(sourceFolder).split(',').contains(_fallbackMail);
+  /// קישור לסגמנט המדויק בספריא. [heRef] של שורה בספר מספריא הוא מראה המקום
+  /// של ספריא עצמה; נתיב תוכן העניינים ("סימן שיח") נופל אצלם לתחילת הספר.
+  static String? sefariaUrlFor(String? heRef) {
+    final ref = heRef?.replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
+    return ref.isEmpty
+        ? null
+        : 'https://www.sefaria.org/${Uri.encodeComponent(ref)}';
+  }
+
+  static const int _wordsAroundChange = 4;
+
+  /// כמה מילים סביב השינוי כפי שהן בספר, ושוב אחרי התיקון (השינוי בכוכביות),
+  /// לאיתור בחיפוש באתר המקור. תואם ל-buildCorrectionSnippets באתר.
+  static ({String wrong, String fixed})? correctionSnippets(
+    TextCorrection correction,
+  ) {
+    final proposed = correction.proposedText;
+    if (proposed == null) return null;
+    // <br> מפריד בין מילים בתצוגה; בלי רווח במקומו המילים היו מתחברות.
+    List<String> words(String line) => sanitizeReportText(
+      line.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' '),
+    ).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final oldWords = words(correction.originalLine);
+    final newWords = words(
+      correction.hasSelection
+          ? correction.contextBefore + proposed + correction.contextAfter
+          : proposed,
+    );
+    var prefix = 0;
+    while (prefix < oldWords.length &&
+        prefix < newWords.length &&
+        oldWords[prefix] == newWords[prefix]) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < oldWords.length - prefix &&
+        suffix < newWords.length - prefix &&
+        oldWords[oldWords.length - 1 - suffix] ==
+            newWords[newWords.length - 1 - suffix]) {
+      suffix++;
+    }
+    if (prefix == oldWords.length && prefix == newWords.length) return null;
+
+    final from = math.max(0, prefix - _wordsAroundChange);
+    final changed = newWords.sublist(prefix, newWords.length - suffix);
+    final deleted = oldWords.sublist(prefix, oldWords.length - suffix);
+    final newTail = newWords.length - suffix;
+    return (
+      wrong: oldWords
+          .sublist(
+            from,
+            math.min(
+              oldWords.length,
+              oldWords.length - suffix + _wordsAroundChange,
+            ),
+          )
+          .join(' '),
+      fixed: [
+        ...newWords.sublist(from, prefix),
+        changed.isNotEmpty
+            ? '*${changed.join(' ')}*'
+            : '*(נמחק: ${deleted.join(' ')})*',
+        ...newWords.sublist(
+          newTail,
+          math.min(newWords.length, newTail + _wordsAroundChange),
+        ),
+      ].join(' '),
+    );
+  }
 
   static bool isDictaSourceFolder(String? sourceFolder) {
     final normalizedSource = sourceFolder?.trim().toLowerCase() ?? '';
@@ -642,8 +707,10 @@ class ErrorReportHelper {
     int lineNumber,
     String contextText,
     String libraryVersion,
-    String? senderEmail,
-  ) {
+    String? senderEmail, {
+    String? directLink,
+  }) {
+    final linkLine = directLink == null ? '' : '\nקישור ישיר: $directLink';
     final senderSection = (senderEmail == null || senderEmail.isEmpty)
         ? ''
         : '\nכתובת ליצירת קשר: $senderEmail\n';
@@ -661,7 +728,7 @@ class ErrorReportHelper {
 
     return '''
 שם הספר: $bookTitle
-מיקום: $currentRef
+מיקום: $currentRef$linkLine
 גרסת ספרייה: $libraryVersion
 שם הקובץ: ${bookDetails['שם הקובץ']}
 נתיב הקובץ: ${bookDetails['נתיב הקובץ']}
@@ -850,6 +917,18 @@ $detailsSection
     }
   }
 
+  /// פירוט הטעות למייל לספריא: הסבר המשתמש, ואחריו הצעת התיקון כטקסט שגוי ומתוקן.
+  static String sefariaErrorDetails(ReportedErrorData reportData) {
+    final correction = reportData.correction;
+    final details = reportData.errorDetails;
+    if (correction == null) return details;
+    final snippets = correctionSnippets(correction);
+    if (snippets == null) return correction.appendFallbackTo(details);
+    final block =
+        'הטקסט השגוי:\n${snippets.wrong}\n\nהטקסט המתוקן:\n${snippets.fixed}';
+    return details.isEmpty ? block : '$details\n\n$block';
+  }
+
   /// Handle regular report action (email or save)
   static Future<void> handleRegularReportAction(
     BuildContext context,
@@ -868,12 +947,17 @@ $detailsSection
       currentRef,
       bookDetails,
       reportData.selectedText,
-      reportData.correction?.appendFallbackTo(reportData.errorDetails) ??
-          reportData.errorDetails,
+      isSefariaSourceFolder(bookDetails['תיקיית המקור'])
+          ? sefariaErrorDetails(reportData)
+          : reportData.correction?.appendFallbackTo(reportData.errorDetails) ??
+                reportData.errorDetails,
       lineNumber,
       contextText,
       libraryVersion,
       null,
+      directLink: isSefariaSourceFolder(bookDetails['תיקיית המקור'])
+          ? sefariaUrlFor(source?.heRef)
+          : null,
     );
 
     if (action == ErrorReportAction.sendEmail) {
@@ -992,15 +1076,14 @@ $detailsSection
       bookDetails['תיקיית המקור'],
     );
     final isDictaSource = isDictaSourceFolder(bookDetails['תיקיית המקור']);
+    final isSefariaSource = isSefariaSourceFolder(bookDetails['תיקיית המקור']);
     // הצעת תיקון נבנית רק על השורה הגולמית מה-DB, לא על הטקסט המעובד שהוצג.
-    final source = reportReachesOtzaria(bookDetails['תיקיית המקור'])
-        ? await resolveReportSource(
-            book: effectiveBook,
-            lineIndex: currentLineNumber,
-            content: effectiveContent,
-            reportLine: reportLine,
-          )
-        : null;
+    final source = await resolveReportSource(
+      book: effectiveBook,
+      lineIndex: currentLineNumber,
+      content: effectiveContent,
+      reportLine: reportLine,
+    );
     final correctionTemplate = source == null
         ? null
         : buildCorrectionTemplate(source.originalLine, selectedText);
@@ -1058,6 +1141,7 @@ $detailsSection
           currentLineNumber: lineIndex + 1, // +1 כי השורות מתחילות מ-1
           directReportTargetLabel: directReportTargetLabel,
           isDictaSource: isDictaSource,
+          isSefariaSource: isSefariaSource,
           correctionTemplate: correctionTemplate,
           validateBeforeSubmit: (data) async {
             final report = buildFor(
@@ -1133,6 +1217,7 @@ class TabbedReportDialog extends StatefulWidget {
   final int currentLineNumber;
   final String directReportTargetLabel;
   final bool isDictaSource;
+  final bool isSefariaSource;
   final TextCorrection? correctionTemplate;
   final Future<String?> Function(ReportedErrorData data)? validateBeforeSubmit;
 
@@ -1144,6 +1229,7 @@ class TabbedReportDialog extends StatefulWidget {
     required this.currentLineNumber,
     required this.directReportTargetLabel,
     this.isDictaSource = false,
+    this.isSefariaSource = false,
     this.correctionTemplate,
     this.validateBeforeSubmit,
   });
@@ -1293,6 +1379,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
       directReportTargetLabel: widget.directReportTargetLabel,
       bookTitle: widget.bookTitle,
       isDictaSource: widget.isDictaSource,
+      isSefariaSource: widget.isSefariaSource,
       correctionTemplate: widget.correctionTemplate,
       validateBeforeSubmit: widget.validateBeforeSubmit,
       onActionSelected: (action, reportData) {
@@ -1371,6 +1458,9 @@ class RegularReportTab extends StatefulWidget {
   final String bookTitle;
   final bool isDictaSource;
 
+  /// ספריא מבקשת טקסט שגוי ומתוקן בלבד, ולכן אין לה דיווח חופשי כשיש עורך תיקון.
+  final bool isSefariaSource;
+
   /// השורה הגולמית (ובחירה אם אותרה). null = אין מקור מוסמך — רק דיווח חופשי.
   final TextCorrection? correctionTemplate;
 
@@ -1386,6 +1476,7 @@ class RegularReportTab extends StatefulWidget {
     required this.directReportTargetLabel,
     this.bookTitle = '',
     this.isDictaSource = false,
+    this.isSefariaSource = false,
     this.correctionTemplate,
     this.validateBeforeSubmit,
     required this.onActionSelected,
@@ -1411,6 +1502,15 @@ class _RegularReportTabState extends State<RegularReportTab> {
   TextCorrectionDraft? _draft;
 
   bool get _isCorrection => _mode == _ReportMode.correction;
+
+  /// לספריא אין דיווח חופשי, אלא אם השורה עצמה חוסמת הצעת תיקון.
+  bool get _offersFreeText {
+    final line = widget.correctionTemplate?.originalLine;
+    return !widget.isSefariaSource ||
+        line == null ||
+        hasLoneSurrogate(line) ||
+        line.length > TextCorrection.maxTextLength;
+  }
 
   bool get _hasDetails => _detailsController.text.trim().isNotEmpty;
 
@@ -1540,7 +1640,18 @@ class _RegularReportTabState extends State<RegularReportTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (widget.correctionTemplate != null) ...[
+                  if (widget.isSefariaSource) ...[
+                    Text(
+                      'הדיווח יישלח לספריא. דווחו רק על טעות בטקסט עצמו '
+                      '(כתיב, הקלדה, מילה חסרה או מיותרת) — לא על פתיחת '
+                      'ראשי תיבות, מראי מקומות חסרים או עיצוב.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (widget.correctionTemplate != null && _offersFreeText) ...[
                     AppSegmentedControl<_ReportMode>(
                       options: const [
                         SegmentOption(
@@ -1634,7 +1745,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       labelText: _isCorrection
                           ? 'הסבר לתיקון (רשות)'
                           : 'פירוט הטעות (חובה)',
-                      hintText: 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל',
+                      hintText: widget.isSefariaSource && !_isCorrection
+                          ? 'העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות'
+                          : 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל',
                     ),
                   ),
                 ],
