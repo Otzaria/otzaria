@@ -26,6 +26,7 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -1358,8 +1359,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                   if (item.subtitle.isNotEmpty)
                     Text(
                       item.subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                       maxLines: 1,
@@ -1390,13 +1390,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                 ),
               ),
             if (item.onDelete != null)
-              IconButton(
-                icon: const Icon(
-                  FluentIcons.delete_24_regular,
-                  size: AppTokens.iconSM,
-                ),
+              AppIconButton(
+                size: AppIconButtonSize.small,
+                // בגובה השורה (_rowHeight), כמו שאר השורות בתפריט.
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                icon: const Icon(FluentIcons.delete_24_regular),
                 tooltip: context.settingsText('מחק היקף שמור'),
-                visualDensity: VisualDensity.compact,
                 onPressed: () {
                   item.onDelete!();
                   widget.onKeepFocus();

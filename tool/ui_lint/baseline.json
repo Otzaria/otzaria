@@ -457,7 +457,6 @@
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
-        {"scope":"_ScopeMenuPanelState._buildRow","fp":"a6c1de53","n":1},
         {"scope":"_ScopeMenuPanelState._buildRow","fp":"a9c1e30c","n":1},
         {"scope":"_ScopeMenuPanelState._buildSectionHeader","fp":"a7c1dfe6","n":1},
         {"scope":"_SearchScopeMenuButtonState._buildActiveChips","fp":"a7c1dfe6","n":1},
