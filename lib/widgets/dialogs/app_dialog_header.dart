@@ -208,7 +208,7 @@ class AppDialogIconBadge extends StatelessWidget {
       ),
       child: Icon(
         icon,
-        size: 22,
+        size: AppTokens.iconMD,
         color: isError ? cs.onErrorContainer : cs.onPrimaryContainer,
       ),
     );

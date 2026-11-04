@@ -518,7 +518,7 @@ class _MeasurementConverterScreenState
                     children: [
                       Icon(
                         _getCategoryIcon(_selectedCategory),
-                        size: 22,
+                        size: AppTokens.iconMD,
                         color: cs.primary,
                       ),
                       const SizedBox(width: AppTokens.spaceSM),

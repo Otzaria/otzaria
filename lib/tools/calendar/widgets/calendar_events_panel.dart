@@ -102,7 +102,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 icon: widget.state.searchInDescriptions
                     ? OtzariaIcons.search_in_text_24_regular
                     : OtzariaIcons.search_in_document_24_regular,
-                iconSize: 22,
                 onPressed: () =>
                     context.read<CalendarCubit>().toggleSearchInDescriptions(
                       !widget.state.searchInDescriptions,

@@ -171,7 +171,7 @@ void main() {
       );
     });
 
-    testWidgets('תג האייקון: ריבוע מעוגל 40 ב-primaryContainer, אייקון 22', (
+    testWidgets('תג האייקון: ריבוע מעוגל 40 ב-primaryContainer, אייקון 20', (
       tester,
     ) async {
       await showInApp<bool>(
@@ -205,7 +205,7 @@ void main() {
           matching: find.byType(Icon),
         ),
       );
-      expect(icon.size, 22);
+      expect(icon.size, AppTokens.iconMD);
       expect(icon.color, cs.onPrimaryContainer);
     });
 

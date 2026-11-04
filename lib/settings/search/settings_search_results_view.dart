@@ -100,7 +100,7 @@ class _SearchResultTile extends StatelessWidget {
             children: [
               Icon(
                 _iconForTab(entry.tab),
-                size: 22,
+                size: AppTokens.iconMD,
                 color: colorScheme.primary,
               ),
               const SizedBox(width: 14),
