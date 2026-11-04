@@ -794,9 +794,6 @@
         {"scope":"_MySettingsScreenState._buildContent","fp":"c913ce2e","n":1},
         {"scope":"_SettingsContentPaneState.build","fp":"6cb1f15f","n":1}
       ],
-      "lib/tabs/view/pane_drag_handle.dart": [
-        {"scope":"PaneDragHandleButton.build","fp":"c9f95081","n":1}
-      ],
       "lib/text_book/view/error_report_dialog.dart": [
         {"scope":"_RegularReportTabState._buildDictaSelfEditBanner","fp":"2797d389","n":1},
         {"scope":"_RegularReportTabState.build","fp":"3bee9d82","n":1}
