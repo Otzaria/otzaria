@@ -53,6 +53,10 @@ class AppDialog extends StatefulWidget {
   /// small לאישור ולהודעה; medium/large לתוכן מותאם רחב.
   final AppDialogSize size;
 
+  /// הגוף גולל בתוך ריפוד הדיאלוג ([AppDialogFrame.scrollable]), כך שפס
+  /// הגלילה יושב בשוליים ולא מעל הטקסט. להודעה ארוכה ב-[customContent].
+  final bool scrollable;
+
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
 
@@ -69,6 +73,7 @@ class AppDialog extends StatefulWidget {
     this.icon,
     this.headerTrailing,
     this.size = AppDialogSize.small,
+    this.scrollable = false,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
@@ -97,7 +102,8 @@ class AppDialog extends StatefulWidget {
        ),
        _variant = _DialogVariant.twoActions,
        subtitle = null,
-       onConfirm = null;
+       onConfirm = null,
+       scrollable = false;
 
   const AppDialog.warning({
     super.key,
@@ -113,7 +119,8 @@ class AppDialog extends StatefulWidget {
        size = AppDialogSize.small,
        handleEnterKey = true,
        onConfirm = null,
-       isDirty = null;
+       isDirty = null,
+       scrollable = false;
 
   @override
   State<AppDialog> createState() => _AppDialogState();
@@ -143,6 +150,7 @@ class _AppDialogState extends State<AppDialog> {
       tone: isWarning ? AppDialogHeaderTone.error : AppDialogHeaderTone.primary,
       trailing: widget.headerTrailing,
       size: widget.size,
+      scrollable: widget.scrollable,
       isDirty: widget.isDirty,
       onClose: _cancel,
       onConfirm: _handleConfirm,
@@ -246,6 +254,7 @@ Future<bool?> showSingleActionDialog({
   bool Function()? onConfirm,
   IconData? icon,
   AppDialogSize size = AppDialogSize.small,
+  bool scrollable = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -259,6 +268,7 @@ Future<bool?> showSingleActionDialog({
       onConfirm: onConfirm,
       icon: icon,
       size: size,
+      scrollable: scrollable,
     ),
   ),
 );

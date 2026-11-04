@@ -8,6 +8,12 @@ import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/panels/custom_folders_panel.dart';
+import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
 
 import '../../../helpers/memory_settings_cache.dart';
 
@@ -158,5 +164,127 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('הסרת תיקייה'), findsOneWidget);
+  });
+
+  group('דיאלוג "הצגה או הוספה של הקבצים"', () {
+    Future<void> openInfo(WidgetTester tester) async {
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      await pumpTile(tester, bloc);
+      await tester.tap(find.byTooltip('מידע נוסף'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('מסגרת medium שגוללת בתוך ריפוד הדיאלוג', (tester) async {
+      await openInfo(tester);
+
+      final frame = tester.widget<AppDialogFrame>(find.byType(AppDialogFrame));
+      expect(frame.title, 'הצגה או הוספה של הקבצים');
+      expect(frame.size, AppDialogSize.medium);
+      expect(frame.scrollable, isTrue);
+      expect(frame.padding, AppTokens.dialogPadding);
+      expect(find.byType(AppDialogIconBadge), findsOneWidget);
+      // חמשת הפריטים בתוך הגלילה של המסגרת, ולא בגלילה פנימית משלהם.
+      final body = find.byType(PanelScrollableContent);
+      expect(body, findsOneWidget);
+      expect(
+        find.descendant(of: body, matching: find.byType(Scrollable)),
+        findsOneWidget,
+      );
+    });
+
+    // הערת בעל הפרויקט 4.11: שני מקטעים עם כותרת. בסקירה השנייה: "יותר
+    // אהבתי ... שכמעט כל החלק הפנימי בהיר" — בלי כרטיסים ובלי גוף כהה, רק
+    // הכותרות וקו דק בין המקטעים.
+    testWidgets('שני מקטעים עם כותרת וקו ביניהם, על גוף הדיאלוג הבהיר', (
+      tester,
+    ) async {
+      await openInfo(tester);
+
+      final dialog = find.byType(AppDialogFrame);
+      final labels = find.descendant(
+        of: dialog,
+        matching: find.byType(AppSectionLabel),
+      );
+      expect(
+        tester.widgetList<AppSectionLabel>(labels).map((l) => l.text),
+        ['הספרים שבתיקייה', 'נתונים נוספים'],
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.byType(AppCard)),
+        findsNothing,
+      );
+      expect(
+        tester.widget<AppDialogFrame>(dialog).backgroundColor,
+        isNull,
+        reason: 'גוון הדיאלוג, כמו בכל דיאלוג הסבר',
+      );
+
+      // הקו בין שני המקטעים: מתחת לפריט האחרון של הראשון, מעל הכותרת השנייה.
+      final divider = find.descendant(
+        of: dialog,
+        matching: find.byType(Divider),
+      );
+      expect(divider, findsOneWidget);
+      final line = tester.getRect(divider);
+      expect(
+        line.top,
+        greaterThan(tester.getRect(find.text('קבצים שאינם טקסט')).bottom),
+      );
+      expect(line.bottom, lessThanOrEqualTo(tester.getRect(labels.last).top));
+    });
+
+    testWidgets('פריט: אייקון iconMD, כותרת titleSmall והסבר bodyMedium', (
+      tester,
+    ) async {
+      await openInfo(tester);
+
+      final theme = Theme.of(tester.element(find.byType(AppDialogFrame)));
+      final title = tester.widget<Text>(find.text('קבצים שאינם טקסט'));
+      expect(title.style, theme.textTheme.titleSmall);
+      final description = tester.widget<Text>(
+        find.textContaining('אין אפשרות להוספה'),
+      );
+      expect(description.style?.fontSize, theme.textTheme.bodyMedium?.fontSize);
+      expect(description.style?.color, theme.colorScheme.onSurfaceVariant);
+      final icon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byType(AppDialogFrame),
+          matching: find.byIcon(FluentIcons.database_24_regular),
+        ),
+      );
+      expect(icon.size, AppTokens.iconMD);
+    });
+
+    testWidgets('הטקסט אינו נכנס לשוליים שבהם יושב פס הגלילה', (tester) async {
+      await openInfo(tester);
+
+      final body = tester.getRect(find.byType(PanelScrollableContent));
+      final inset = AppTokens.dialogPadding.horizontal / 2;
+      final texts = find.descendant(
+        of: find.byType(PanelScrollableContent),
+        matching: find.byType(Text),
+      );
+      // שתי כותרות מקטע, וכותרת והסבר לכל אחד מחמשת הפריטים.
+      expect(texts, findsNWidgets(12));
+      for (final element in texts.evaluate()) {
+        final rect = tester.getRect(find.byWidget(element.widget));
+        expect(rect.left, greaterThanOrEqualTo(body.left + inset));
+        expect(rect.right, lessThanOrEqualTo(body.right - inset));
+      }
+    });
+
+    testWidgets('"סגור" ו-Escape סוגרים את הדיאלוג', (tester) async {
+      await openInfo(tester);
+      await tester.tap(find.text('סגור'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppDialogFrame), findsNothing);
+
+      await tester.tap(find.byTooltip('מידע נוסף'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppDialogFrame), findsNothing);
+    });
   });
 }
