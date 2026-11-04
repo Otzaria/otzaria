@@ -185,7 +185,7 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
                               curve: Curves.easeInOut,
                               width: widget.show ? width : 0,
                               child: Material(
-                                color: AppSurfaces.panelBackground(context),
+                                color: AppSurfaces.readerBackground(context),
                                 elevation: floating ? AppTokens.elevation2 : 0,
                                 child: ClipRect(
                                   child: OverflowBox(
@@ -226,41 +226,55 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
   }) {
     return SizedBox(
       width: width,
-      child: ColoredBox(
-        color: AppSurfaces.panelBackground(context),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(
-                    context,
-                    collapsed: savedCollapsed,
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: KeyedSubtree(
-                      key: TourTargetKeys.of(context).readingTabsSide,
-                      child: VerticalReadingTabStrip(
-                        collapsed: collapsed,
-                        width: width,
+      // קו דק בקצה הפנימי מפריד בין העמודה לתוכן: שניהם ברקע הקריאה. מצויר
+      // מעל ידית שינוי הרוחב, שיושבת באותו קצה.
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: BorderDirectional(
+            end: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+        ),
+        // רקע הקריאה, כמו מאחורי הרצועה האופקית: הריחוף (8% onSurface) יוצא
+        // אפור ונבדל מהכרטיסיה הפעילה שבצבע הסרגל (DD-06).
+        child: ColoredBox(
+          color: AppSurfaces.readerBackground(context),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(context, collapsed: savedCollapsed),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: TourTargetKeys.of(context).readingTabsSide,
+                        child: VerticalReadingTabStrip(
+                          collapsed: collapsed,
+                          width: width,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            if (!savedCollapsed)
-              ResizableDragHandle(
-                isVertical: true,
-                showDivider: true,
-                onDragStart: () => _onDragStart(width),
-                onDragDelta: _onDragDelta,
-                onDragEnd: _onDragEnd,
-              ),
-          ],
+              // במצב שמור מכווץ אין ידית גם בריחוף; הקו הוא של העמודה.
+              // במצב מורחב הידית גלויה במנוחה כדי לסמן שאפשר לשנות רוחב.
+              if (!savedCollapsed)
+                ResizableDragHandle(
+                  isVertical: true,
+                  showDivider: false,
+                  showIdleGrip: true,
+                  onDragStart: () => _onDragStart(width),
+                  onDragDelta: _onDragDelta,
+                  onDragEnd: _onDragEnd,
+                ),
+            ],
+          ),
         ),
       ),
     );

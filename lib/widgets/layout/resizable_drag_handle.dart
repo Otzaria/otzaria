@@ -38,6 +38,7 @@ class ResizableDragHandle extends StatefulWidget {
     this.onDragStart,
     this.onDragEnd,
     this.showDivider = true,
+    this.showIdleGrip,
     this.gripOffset = 0,
   });
 
@@ -59,6 +60,11 @@ class ResizableDragHandle extends StatefulWidget {
 
   /// Whether to show the divider line in idle state. If false, the line only appears on hover/drag.
   final bool showDivider;
+
+  /// האם הידית הקטנה (ה"צופציק" שבאמצע) נראית גם במנוחה. null — כמו
+  /// [showDivider]. `showDivider: false, showIdleGrip: true`: הידית גלויה
+  /// בלי הקו לכל האורך, כשקו אחר כבר יושב באותו קצה (עמודת הכרטיסיות).
+  final bool? showIdleGrip;
 
   /// הזזת הקו הנראה בפיקסלים לאורך ציר השינוי. ראה [paneHandleGripOffset].
   final double gripOffset;
@@ -146,7 +152,8 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
             final highlightColor = cs.primary.withValues(alpha: 0.22 * blend);
             final thickness = lerpDouble(3.0, 5.0, blend) ?? 3.0;
             final gripLength = lerpDouble(24.0, 32.0, blend) ?? 24.0;
-            final showGrip = widget.showDivider || blend > 0;
+            final showGrip =
+                (widget.showIdleGrip ?? widget.showDivider) || blend > 0;
             final idleOpacity = lerpDouble(0.35, 1.0, blend) ?? 0.35;
             final lineColor = showGrip
                 ? (Color.lerp(
