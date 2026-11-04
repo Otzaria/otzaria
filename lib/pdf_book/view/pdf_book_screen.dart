@@ -2555,7 +2555,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               edgePadding: horizontalPadding,
               dragZoneWidth: dragZoneWidth,
               icon: FluentIcons.chevron_left_24_regular,
-              tooltip: 'הזוג הקודם',
+              tooltip: 'הפוך דף אחורה',
               onPressed: _goPreviousPage,
             ),
           if (canGoNext)
@@ -2568,7 +2568,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               edgePadding: horizontalPadding,
               dragZoneWidth: dragZoneWidth,
               icon: FluentIcons.chevron_right_24_regular,
-              tooltip: 'הזוג הבא',
+              tooltip: 'הפוך דף קדימה',
               onPressed: _goNextPage,
             ),
           // בזמן גרירה המצביע יוצא מרצועת האחיזה — שכבה על כל השטח שומרת
