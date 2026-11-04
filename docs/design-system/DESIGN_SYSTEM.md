@@ -69,7 +69,7 @@
 
 | קובץ | מחלקה | תוכן |
 |---|---|---|
-| `lib/theme/app_tokens.dart` | `AppTokens` | ריווח 2/4/8/12/16/24/32, טוקנים סמנטיים (`cardPadding`, `listItemGap`, `dialogPadding`), רדיוס 8, גופן 11–22 (לשכבת ה־Theme בלבד), גדלי אייקון 14–48, `focusRingWidth`, `multiSelectedBorderWidth`, הגבהה 1/3, משכי אנימציה ו־`hoverPreviewDelay`. |
+| `lib/theme/app_tokens.dart` | `AppTokens` | ריווח 2/4/8/12/16/24/32, טוקנים סמנטיים (`cardPadding`, `listItemGap`, `dialogPadding`), רדיוס 8, גופן 11–22 (לשכבת ה־Theme בלבד), גדלי אייקון 14–48, `focusRingWidth`, `multiSelectedBorderWidth`, `borderThin`, הגבהה 1/3, משכי אנימציה ו־`hoverPreviewDelay`. |
 | `lib/theme/app_tokens.dart` | `AppTextStyles` | `settingTitle` 16, `settingSubtitle` 13 (שורות הגדרה בלבד), `monospaceFamily`. |
 | `lib/theme/app_surface_colors.dart` | `AppSurfaceColors` (ThemeExtension, DD-19) | המשטחים, האזהרה והמצבים, נבנים ב־`AppThemeData` מתוך ה־`ColorScheme`. |
 | `lib/theme/app_surfaces.dart` | `AppSurfaces` | הגישה למשטחים ולמצבים: `AppSurfaces.card(context)` קורא את `AppSurfaceColors`, ופונקציות של `ColorScheme` (`selectedRow(cs)` וכדומה) לצבעי מצב שנגזרים ישירות מתפקיד. |
@@ -115,6 +115,7 @@
 | גוף דיאלוג שבנוי מכרטיסים | `AppSurfaces.cardDialogBackground` | = רקע לוח | `surface` | קיים. חריג מתועד לגוון הדיאלוג של DD-07, כדי שהכרטיס יהיה בהיר מהגוף בשתי הערכות | היסטוריה, סימניות, "הצגה או הוספה של הקבצים" |
 | מפריד בתוך כרטיס | `AppSurfaces.cardRowDivider` | רווח שקוף בתוך `AppCard.section` (DD-12) | כנ"ל | קיים | `AppCard.section` |
 | מפריד עדין | `AppSurfaces.subtleDivider` | `outlineVariant` בשקיפות 50% | כנ"ל | קיים | רשימות |
+| קו אזורים | `AppSurfaces.regionBorder` (`AppSurfaceColors.regionBorder`) | ב"לבן": אפור בינוני 929292 (`onSurface` ב־48% מעל `surface`, אטום; 3:1 מול FF ו־FC). בשאר הערכות `null` | `null` | קיים | ב"לבן" בבהיר: שורת הכותרת והכרטיסייה הפעילה, עמודת הניווט, עמודת הכרטיסיות, `AppTopBar`, חלונית ניווט צמודה וחלונית צד צפה, `PaneCard`, דיאלוג, תפריטים ו־tooltip (`AppThemeData.raisedShape` / `AppSurfaces.raisedShape`). הקורא כותב `regionBorder(context) ?? <הקו הקיים>` (#2850, #1939) |
 | מקטע ניטרלי בחלונית | `AppSurfaces.panelSection` | `surfaceContainerHighest` בשקיפות 50% | כנ"ל | קיים | חלוניות הגדרות |
 | מקטע מודגש | `AppSurfaces.panelSectionAccent` / `…AccentBorder` | `primaryContainer` 30% / `primary` 30% | כנ"ל | קיים | — |
 | משטח מוגבה (תפריט, tooltip, דיאלוג) | `dialogTheme`/`menuTheme`/`popupMenuTheme`/`tooltipTheme` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים. גם `popupMenuTheme` על רקע התפריטים המשותף | — |
@@ -277,7 +278,7 @@
 |---|---|---|---|
 | `AppTokens.focusRingWidth` | 2 | טבעת פוקוס ופס פעיל | קיים |
 | `AppTokens.multiSelectedBorderWidth` | 1.5 | מסגרת בחירה מרובה וכרטיס פעיל | קיים |
-| `AppTokens.borderThin` | 1 | מסגרת כרטיס, שדה ומפריד | יעד. עד אז: ברירת המחדל של `BorderSide` (1) |
+| `AppTokens.borderThin` | 1 | מסגרת כרטיס, שדה ומפריד, וקו האזורים של "לבן" | קיים לקו האזורים (#2850). בשאר עדיין ברירת המחדל של `BorderSide` (1) |
 
 #### 2.5.4 צלליות והגבהה [מחייב] (DD-12 A) · קיים
 **התקן:** מסגרת ולא צל. שלוש רמות בלבד:
@@ -641,7 +642,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | הגדרה | איפה נשמרת | איפה מוחלת | היקף | הערות |
 |---|---|---|---|---|
-| ערכת צבע (seed), בהיר | `SettingsBloc.seedColor` | `app.dart` → `createColorScheme` | גלובלי, כל הכרום | 14 זרעים. ל"לבן" ול"פרגמנט" יש override לסולם המשטחים, לפי הזרע. ב"לבן" הקריאה לבנה, והסרגלים, הדיאלוגים והלוח נייטרלי בהיר מאוד (F6, לוח F8; q12 Q3) |
+| ערכת צבע (seed), בהיר | `SettingsBloc.seedColor` | `app.dart` → `createColorScheme` | גלובלי, כל הכרום | 14 זרעים. ל"לבן" ול"פרגמנט" יש override לסולם המשטחים, לפי הזרע. ב"לבן" הקריאה לבנה, והסרגלים, הדיאלוגים והלוח כמעט לבנים (FC, לוח FA), והאזורים מופרדים בקו דק אפור בינוני, `regionBorder` (q12 Q3, סקירת 4.11) |
 | ערכת צבע, כהה | `darkSeedColor` | כנ"ל | גלובלי | הבורר עורך רק את הזרע של הבהירות הנוכחית. לוחות כהים `surfaceContainerLow`, קריאה נייטרלית (DD-05) |
 | בהיר/כהה/מערכת | `isDarkMode`, `followSystemTheme` | `MaterialApp.themeMode` | גלובלי | |
 | גופן קריאה, גודל, גובה שורה | `SettingsState.fontFamily/fontSize/lineHeight` | הקורא, התצוגה המקדימה, ייצוא; הגופן גם בקטעי תוצאות | **תוכן בלבד** | לא משפיע על הממשק, ונשאר כך **[מחייב]** |
