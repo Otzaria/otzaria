@@ -150,12 +150,16 @@ class FindRefRankKey<T> {
     this.answersDibbur = false,
     this.categoryTokens = const {},
     this.punctuationAgrees = true,
+    this.directNameMatch = false,
   });
 
   final T item;
   final String normTitle;
   final bool fuzzyBookMatch;
   final bool exactMatch;
+
+  /// שם ספר מזוהה או התאמה ישירה לתוכן, כשמתחרים בכינוי מדויק.
+  final bool directNameMatch;
   final bool startsWithMatch;
 
   /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
@@ -206,6 +210,10 @@ int compareFindRefRelevance(
 
   // 1. התאמה מלאה של שם הספר
   if (a.exactMatch != b.exactMatch) return a.exactMatch ? -1 : 1;
+
+  if (a.directNameMatch != b.directNameMatch) {
+    return a.directNameMatch ? -1 : 1;
+  }
 
   // 2. התאמה של התחלת שם הספר
   if (a.startsWithMatch != b.startsWithMatch) {
