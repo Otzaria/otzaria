@@ -123,7 +123,8 @@ void main() {
   test('a timeout releases an existing late consumer too', () {
     fakeAsync((time) {
       pending = Completer<WebViewEnvironmentPrewarmResult?>();
-      startPrewarm();
+      // tearDown cannot resume a Future through this stopped fake zone.
+      unawaited(startPrewarm().whenComplete(() => warming = null));
       time.flushMicrotasks();
       var firstReady = false;
       var secondReady = false;
@@ -142,6 +143,7 @@ void main() {
       } finally {
         if (!pending!.isCompleted) pending!.complete(_ok);
         time.flushMicrotasks();
+        expect(warming, isNull);
       }
     });
   });
