@@ -113,6 +113,25 @@ void main() {
     },
   );
 
+  test('public temporary tracking cannot bypass fallback admission', () async {
+    DbReadWorker.maxQueuedFallbackReads = 0;
+    holdRead();
+    holdRead();
+    var callbackStarted = false;
+    expect(
+      await _outcome(
+        DbReadWorker.trackTemporaryRead(() async {
+          callbackStarted = true;
+          return 7;
+        }),
+      ),
+      isA<DbReadWorkerBusy>(),
+    );
+    expect(callbackStarted, isFalse);
+    expect(DbReadWorker.resourceUsage.activeFallbackReads, 2);
+    expect(DbReadWorker.resourceUsage.queuedReads, 0);
+  });
+
   test('an expired queued read never runs after a slot is released', () async {
     holdRead();
     holdRead();

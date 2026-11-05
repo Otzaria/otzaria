@@ -660,6 +660,10 @@ class DbReadWorker {
     Map<String, Object?>? requestArguments,
   }) => runOnFreshIsolate(read, requestArguments: requestArguments);
 
+  /// רישום קריאה זמנית כפוף לאותו admission, לפני הפעלת הקורא.
+  static Future<T> trackTemporaryRead<T>(Future<T> Function() read) =>
+      trackFallbackRead(read);
+
   /// הגבלת קריאות חיות: timeout אינו עוצר I/O ולכן אינו מפנה מקום.
   /// ההמתנה בתור מוגבלת בנפח, בכמות וב-[admissionTimeout].
   static Future<T> trackFallbackRead<T>(

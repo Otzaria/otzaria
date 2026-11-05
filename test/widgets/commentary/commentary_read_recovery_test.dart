@@ -237,7 +237,11 @@ void main() {
     // Admission may reject before the deferred expansion setState runs.
     await tester.tap(header);
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 2),
+    );
     expect(link.reads, hasLength(1));
     expect(find.textContaining('storage busy immediately'), findsOneWidget);
 
