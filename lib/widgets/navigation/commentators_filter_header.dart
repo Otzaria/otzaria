@@ -3,13 +3,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class CommentatorsFilterHeader extends StatelessWidget {
   final VoidCallback onBack;
-  final String title;
 
-  const CommentatorsFilterHeader({
-    super.key,
-    required this.onBack,
-    this.title = 'בחירת מפרשים',
-  });
+  const CommentatorsFilterHeader({super.key, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +18,7 @@ class CommentatorsFilterHeader extends StatelessWidget {
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 48, end: 48),
               child: Text(
-                title,
+                'בחירת מפרשים',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
