@@ -1,0 +1,444 @@
+{
+  "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+  "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+  "generated_utc": "2026-11-05T20:26:16.669576+00:00",
+  "status": "PASS",
+  "phases": {
+    "gate": {
+      "phase": "gate",
+      "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+      "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+      "started_utc": "2026-11-05T20:04:49.864835+00:00",
+      "status": "PASS",
+      "counts": {
+        "passed": 1300,
+        "failed": 0,
+        "skipped": 1
+      },
+      "skipped_tests": [
+        "user_books.db נעול: השחזור מדווח שלא הוחלף, ולא כחסר בגיבוי"
+      ],
+      "snapshot_unchanged": true,
+      "format_analyze_tests_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "completed_utc": "2026-11-05T20:13:23.419240+00:00",
+      "stages": [
+        {
+          "name": "dependencies",
+          "command": [
+            "flutter",
+            "pub",
+            "get",
+            "--enforce-lockfile"
+          ],
+          "started_utc": "2026-11-05T20:04:49.882659+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:26.395977+00:00",
+          "log": "dependencies.log",
+          "log_sha256": "69963db7e9de813bb270c0076be2cc66f1997d3c26de02fa576230473d857c25"
+        },
+        {
+          "name": "flutter-version",
+          "command": [
+            "flutter",
+            "--version",
+            "--machine"
+          ],
+          "started_utc": "2026-11-05T20:05:26.413249+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:26.535020+00:00",
+          "log": "flutter-version.log",
+          "log_sha256": "4322aeb138356aa1d65d10275d629e648d0381daa1c445b7e2439e7f9b4b9acf"
+        },
+        {
+          "name": "dart-version",
+          "command": [
+            "dart",
+            "--version"
+          ],
+          "started_utc": "2026-11-05T20:05:26.535440+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:26.537284+00:00",
+          "log": "dart-version.log",
+          "log_sha256": "b126264ba91ef67751ffbba40ed8a35c01da6efb9e57ac5e8f53c849c8c632e7"
+        },
+        {
+          "name": "rustc-version",
+          "command": [
+            "rustc",
+            "-Vv"
+          ],
+          "started_utc": "2026-11-05T20:05:26.537567+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:26.551027+00:00",
+          "log": "rustc-version.log",
+          "log_sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+        },
+        {
+          "name": "clang-version",
+          "command": [
+            "clang",
+            "--version"
+          ],
+          "started_utc": "2026-11-05T20:05:26.551534+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:29.741754+00:00",
+          "log": "clang-version.log",
+          "log_sha256": "77467400b91c4cebb6c3e29d8a611af518a2f4078c22baf276b0a1373e996bf5"
+        },
+        {
+          "name": "format",
+          "command": [
+            "dart",
+            "format",
+            "--output=none",
+            "--set-exit-if-changed",
+            "lib/core/messages/notes_messages.dart",
+            "lib/pdf_book/utils/pdf_personal_note_anchor.dart",
+            "lib/pdf_book/view/pdf_book_screen.dart",
+            "lib/pdf_book/view/pdf_commentary_panel.dart",
+            "lib/personal_notes/bloc/personal_notes_bloc.dart",
+            "lib/personal_notes/bloc/personal_notes_event.dart",
+            "lib/personal_notes/bloc/personal_notes_state.dart",
+            "lib/personal_notes/models/pdf_note_anchor.dart",
+            "lib/personal_notes/models/personal_note.dart",
+            "lib/personal_notes/models/personal_notes_sort_order.dart",
+            "lib/personal_notes/personal_notes_system.dart",
+            "lib/personal_notes/repository/personal_notes_repository.dart",
+            "lib/personal_notes/services/personal_note_draft_service.dart",
+            "lib/personal_notes/services/personal_notes_import_export_service.dart",
+            "lib/personal_notes/services/personal_notes_service.dart",
+            "lib/personal_notes/storage/personal_notes_database.dart",
+            "lib/personal_notes/utils/create_personal_note.dart",
+            "lib/personal_notes/utils/note_collection_utils.dart",
+            "lib/personal_notes/utils/note_location_ref.dart",
+            "lib/personal_notes/utils/open_personal_notes_target.dart",
+            "lib/personal_notes/utils/personal_note_source_link.dart",
+            "lib/personal_notes/utils/personal_notes_book_key.dart",
+            "lib/personal_notes/utils/personal_notes_filter.dart",
+            "lib/personal_notes/view/personal_notes_screen.dart",
+            "lib/personal_notes/widgets/inline_note_editor.dart",
+            "lib/personal_notes/widgets/note_delta_preview.dart",
+            "lib/personal_notes/widgets/note_tile.dart",
+            "lib/personal_notes/widgets/notes_search_header.dart",
+            "lib/personal_notes/widgets/personal_note_content_view.dart",
+            "lib/personal_notes/widgets/personal_note_editor.dart",
+            "lib/personal_notes/widgets/personal_note_editor_dialog.dart",
+            "lib/personal_notes/widgets/personal_note_styles.dart",
+            "lib/personal_notes/widgets/personal_notes_export_dialog.dart",
+            "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+            "lib/printing/print_content_models.dart",
+            "lib/printing/word_export_service.dart",
+            "lib/settings/services/backup_service.dart",
+            "lib/tabs/bloc/tabs_bloc.dart",
+            "lib/tabs/models/pdf_tab.dart",
+            "lib/text_book/utils/note_inline_render.dart",
+            "lib/text_book/view/combined_view/combined_book_screen.dart",
+            "lib/text_book/view/page_shape/page_shape_screen.dart",
+            "lib/text_book/view/page_shape/simple_text_viewer.dart",
+            "lib/text_book/view/splited_view/splited_view_screen.dart",
+            "lib/text_book/view/strategies/combined_view_strategy.dart",
+            "lib/text_book/view/strategies/split_view_strategy.dart",
+            "lib/text_book/view/strategies/text_book_view_strategy.dart",
+            "lib/text_book/view/text_book_scaffold.dart",
+            "lib/text_book/view/text_book_screen.dart",
+            "lib/utils/ui/context_menu_utils.dart",
+            "test/pdf_book/pdf_book_tab_test.dart",
+            "test/pdf_book/pdf_personal_note_anchor_test.dart",
+            "test/pdf_book/pdf_personal_note_viewer_test.dart",
+            "test/personal_notes/bloc/personal_notes_visible_filter_test.dart",
+            "test/personal_notes/imported_delta_preview_test.dart",
+            "test/personal_notes/note_delta_preview_test.dart",
+            "test/personal_notes/open_personal_notes_target_test.dart",
+            "test/personal_notes/personal_note_content_view_context_menu_test.dart",
+            "test/personal_notes/personal_note_draft_service_test.dart",
+            "test/personal_notes/personal_notes_book_key_test.dart",
+            "test/personal_notes/personal_notes_manager_loading_test.dart",
+            "test/personal_notes/personal_notes_paragraph_marker_selection_test.dart",
+            "test/personal_notes/personal_notes_pdf_point_test.dart",
+            "test/personal_notes/personal_notes_screen_test.dart",
+            "test/personal_notes/personal_notes_sort_order_test.dart",
+            "test/personal_notes/personal_notes_word_export_screen_test.dart",
+            "test/personal_notes/personal_notes_word_export_test.dart",
+            "test/personal_notes/personal_notes_write_confirmation_test.dart",
+            "test/personal_notes/storage/personal_notes_changes_test.dart",
+            "test/personal_notes/storage/personal_notes_database_test.dart",
+            "test/personal_notes/widgets/create_personal_note_test.dart",
+            "test/personal_notes/widgets/inline_note_editor_test.dart",
+            "test/personal_notes/widgets/note_tile_persistence_test.dart",
+            "test/personal_notes/widgets/personal_note_editor_lifecycle_test.dart",
+            "test/personal_notes/widgets/personal_notes_export_dialog_test.dart",
+            "test/personal_notes/widgets/personal_notes_sidebar_reveal_test.dart",
+            "test/printing/pdf_sheet_composer_test.dart",
+            "test/printing/printing_screen_export_profile_test.dart",
+            "test/printing/printing_screen_output_test.dart",
+            "test/printing/word_export_source_links_test.dart",
+            "test/settings/services/backup_service_test.dart",
+            "test/tabs/bloc/tabs_bloc_test.dart",
+            "test/text_book/utils/note_inline_render_test.dart",
+            "test/text_book/view/combined_view/combined_book_screen_test.dart",
+            "test/text_book/view/combined_view/combined_view_note_entry_test.dart",
+            "test/text_book/view/page_shape/page_shape_screen_settings_test.dart",
+            "test/text_book/view/page_shape/simple_text_viewer_test.dart",
+            "test/text_book/view/reader_line/continuous_line_interaction_test.dart",
+            "test/text_book/view/splited_view_toggle_commentators_pane_test.dart"
+          ],
+          "started_utc": "2026-11-05T20:05:29.856479+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:05:30.894566+00:00",
+          "log": "format.log",
+          "log_sha256": "68b63831be8ee27588a6fd0d0fc27115246340ab5583f057c69572e3319decb6"
+        },
+        {
+          "name": "analyze",
+          "command": [
+            "flutter",
+            "analyze",
+            "--no-pub",
+            "--fatal-infos"
+          ],
+          "started_utc": "2026-11-05T20:05:30.894897+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:06:51.314821+00:00",
+          "log": "analyze.log",
+          "log_sha256": "928276eec2ba44af7359d45db03d6c69642e4992435c2160e3c98764fe96a76e"
+        },
+        {
+          "name": "gate-tests",
+          "command": [
+            "flutter",
+            "test",
+            "--no-pub",
+            "--concurrency=1",
+            "--reporter",
+            "expanded",
+            "--file-reporter",
+            "json:/home/runner/work/_temp/personal-notes-qa-results/gate-tests.events.jsonl",
+            "test/personal_notes/",
+            "test/printing/",
+            "test/settings/services/backup_service_test.dart",
+            "test/pdf_book/pdf_personal_note_anchor_test.dart",
+            "test/pdf_book/pdf_personal_note_viewer_test.dart",
+            "test/pdf_book/pdf_book_tab_test.dart",
+            "test/pdf_book/pdf_navigation_history_native_test.dart",
+            "test/pdf_book/pdf_reader_position_test.dart",
+            "test/tabs/bloc/tabs_bloc_test.dart",
+            "test/tabs/models/pdf_tab_from_preserves_state_test.dart",
+            "test/tabs/reading_screen_notes_bloc_per_pane_test.dart",
+            "test/text_book/view/combined_view/combined_view_note_entry_test.dart",
+            "test/text_book/view/page_shape/simple_text_viewer_test.dart",
+            "test/text_book/view/reader_line/continuous_line_interaction_test.dart",
+            "test/text_book/view/combined_view/combined_book_screen_test.dart",
+            "test/text_book/view/page_shape/page_shape_screen_settings_test.dart",
+            "test/text_book/view/splited_view_toggle_commentators_pane_test.dart",
+            "test/text_book/view/page_shape/simple_text_viewer_notes_sync_test.dart",
+            "test/text_book/utils/note_inline_render_test.dart"
+          ],
+          "started_utc": "2026-11-05T20:06:51.315164+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:13:23.276699+00:00",
+          "log": "gate-tests.log",
+          "log_sha256": "6f6d105b244fe2d4491afb158e037de74cbd539cb5c4fe38f16e92878dd422a9"
+        }
+      ]
+    },
+    "red": {
+      "phase": "red",
+      "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+      "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+      "started_utc": "2026-11-05T20:13:23.500029+00:00",
+      "status": "PASS",
+      "expected_red_exit_code": 1,
+      "exactly_two_failed_assertions": true,
+      "verified_tests": [
+        {
+          "test": "manual export distinguishes the same page in different books",
+          "expected_assertion_confirmed": true
+        },
+        {
+          "test": "manual export shows a readable book without a location title",
+          "expected_assertion_confirmed": true
+        }
+      ],
+      "no_loading_or_runtime_errors": true,
+      "machine_report_confirms_failed_run": true,
+      "restored_component_sha256": "865b2d129648b791a20d98bc84259ffbcf7bcea668fc1ada5717d7cdbbb171e1",
+      "snapshot_unchanged_after_restore": true,
+      "completed_utc": "2026-11-05T20:13:37.752901+00:00",
+      "stages": [
+        {
+          "name": "red-tests",
+          "command": [
+            "flutter",
+            "test",
+            "--no-pub",
+            "--concurrency=1",
+            "--reporter",
+            "expanded",
+            "--file-reporter",
+            "json:/home/runner/work/_temp/personal-notes-qa-results/red-tests.events.jsonl",
+            "test/personal_notes/widgets/personal_notes_export_dialog_test.dart"
+          ],
+          "started_utc": "2026-11-05T20:13:23.637284+00:00",
+          "exit_code": 1,
+          "completed_utc": "2026-11-05T20:13:37.635719+00:00",
+          "log": "red-tests.log",
+          "log_sha256": "9dff0618fe6e513637d12c2199abcb077b855410df194b8744f1ac82feac7e62"
+        }
+      ]
+    },
+    "captures": {
+      "phase": "captures",
+      "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+      "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+      "started_utc": "2026-11-05T20:25:09.707090+00:00",
+      "status": "PASS",
+      "images": [
+        {
+          "path": "images/01-note-dialog.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 822,
+          "height": 826,
+          "bytes": 34037,
+          "sha256": "4b0c2fedd8ab393e8f1d24a2b356bcf57d8d89f3114dca7f20e5c751153d22f0"
+        },
+        {
+          "path": "images/02-note-panel.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 734,
+          "height": 1275,
+          "bytes": 46212,
+          "sha256": "bc6a53207d3159cbf96cc33903a6d53030bc7b6bb1ae85c6e24e0aadd89f4dcd"
+        },
+        {
+          "path": "images/03-note-manager-sort.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 1800,
+          "height": 1350,
+          "bytes": 73110,
+          "sha256": "20cd27e755c71e517162a5142719d22d406c0fd7c55a7deb2a4805dc56f45f73"
+        },
+        {
+          "path": "images/04-pdf-note-point.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 1800,
+          "height": 1200,
+          "bytes": 51015,
+          "sha256": "d47207567683db7afc29797ec37cbeb646ec9b5635f33c383eb4d30738e5d61d"
+        },
+        {
+          "path": "images/05-export-selection-before.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 840,
+          "height": 812,
+          "bytes": 41476,
+          "sha256": "fd21083c8aef5f7f0436500984f4e1cd482527de9fb09bc3a087a3f62fd37426"
+        },
+        {
+          "path": "images/06-export-selection-after.png",
+          "exists": true,
+          "valid_png": true,
+          "width": 840,
+          "height": 812,
+          "bytes": 44456,
+          "sha256": "eb5245109a7daf606d4b2636c24de7c97d9f7bd25903a5d23e343b45ad6db51a"
+        }
+      ],
+      "snapshot_unchanged": true,
+      "test_results": {
+        "counts": {
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        "skipped_tests": []
+      },
+      "note": "Actual production widgets and themes rendered with neutral fixture data. A bundled Rubik Hebrew fallback is explicitly loaded for the headless engine. Before/after export captures use identical data and theme.",
+      "completed_utc": "2026-11-05T20:26:16.546997+00:00",
+      "stages": [
+        {
+          "name": "capture-format",
+          "command": [
+            "dart",
+            "format",
+            "/home/runner/work/_temp/personal-notes-qa-results/capture_sources"
+          ],
+          "started_utc": "2026-11-05T20:25:09.819679+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:25:09.875315+00:00",
+          "log": "capture-format.log",
+          "log_sha256": "fabf7126ff94b4638c4342247fd8391552d92bc02d5753565995721fe72a6bc3"
+        },
+        {
+          "name": "capture-tests",
+          "command": [
+            "flutter",
+            "test",
+            "--no-pub",
+            "--concurrency=1",
+            "--reporter",
+            "expanded",
+            "--file-reporter",
+            "json:/home/runner/work/_temp/personal-notes-qa-results/capture-tests.events.jsonl",
+            "--name",
+            "QA capture",
+            "/home/runner/work/_temp/personal-notes-qa-results/capture_sources/note_creation_capture_test.dart",
+            "/home/runner/work/_temp/personal-notes-qa-results/capture_sources/note_sort_capture_test.dart",
+            "/home/runner/work/_temp/personal-notes-qa-results/capture_sources/pdf_note_capture_test.dart",
+            "/home/runner/work/_temp/personal-notes-qa-results/capture_sources/note_export_selection_capture_test.dart"
+          ],
+          "started_utc": "2026-11-05T20:25:09.875712+00:00",
+          "exit_code": 0,
+          "completed_utc": "2026-11-05T20:26:16.465127+00:00",
+          "log": "capture-tests.log",
+          "log_sha256": "68ab4da138a651ab5171df8d4594cf219720636bce8b9b933b2e01a29de85367"
+        }
+      ]
+    }
+  },
+  "quill_scope": {
+    "application_dependency": "hosted flutter_quill 11.6.0, unchanged",
+    "external_patch_integrated": false,
+    "external_patch_sha256": "8bb310684f64e974c7c0d52d4bf74cba6a7e7ef34af82d21778e9e6b5e1c1091",
+    "external_patch_base": "e880534f8750072c879fecd72ada72d0902bc5e8",
+    "reported_separate_tests": "17/17 PASS; not application integration evidence"
+  },
+  "provenance": {
+    "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+    "product_tree": "30e8224cb46e5788242d6bcfcfaf030f7f328809",
+    "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+    "reused_phases": [
+      "gate",
+      "red"
+    ],
+    "phases_executed_this_run": [
+      "capture-dependencies",
+      "captures"
+    ],
+    "prior_run_id": 42099805004,
+    "prior_run_url": "https://github.com/Otzaria/otzaria/actions/runs/42099805004",
+    "prior_artifact_id": 13450021903,
+    "prior_qa_commit": "1b840186b8a5f331658befc17e41d19dbdaf15e8",
+    "prior_artifact_zip_sha256": "01c73c03072e1c38b2fef4cdf3276992a976c0eadb016b847b054847f1ca7943",
+    "prior_artifact_download_digest_check": "actions/download-artifact pinned v8.0.2; digest-mismatch=error",
+    "prior_artifact_tar_sha256": "ea5585f0daed9fbe019262a5a4eb32d522ddfe2cf8f6a0c0e3fa4cac95d4a7ea",
+    "prior_checksums_sha256": "ec79cb3b02cf7f6a32a147c5286045692861f547fd721b3097cd1c1771a38204",
+    "prior_checksum_entries_verified": 44,
+    "prior_gate_result_sha256": "bf0ea2460061cb9170f40b02b1144f16c36f3a015a2d041fdeaddd5b6c70a97c",
+    "prior_red_result_sha256": "ce7a786026341a42084c50990a0df723e6fc860215ef67a937cb2d5c4a7c2081",
+    "prior_snapshot_sha256": "3a670b45c94cb77ce84c8c48504cf584ee48efe81af6109393e5bb5c1f388f3d",
+    "capture_bundle_checksums_sha256": "54907d57b5b8d76dc0f628825e548763950536d6b21ae4b85489b88832d50744",
+    "capture_bundle_checksum_entries_verified": 19,
+    "current_run_id": "42102930723",
+    "current_qa_commit": "2f78172edc0b05c439e677ed787fe8f5be08c093",
+    "note": "Gate and RED ran only in the prior run. Their original bytes and timestamps are preserved. The original artifact is retained as a pinned TAR. Old capture outputs were not imported; only newly generated images are current capture evidence."
+  }
+}

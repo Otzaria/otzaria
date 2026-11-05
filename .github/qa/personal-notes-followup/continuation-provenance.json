@@ -1,0 +1,30 @@
+{
+  "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+  "product_tree": "30e8224cb46e5788242d6bcfcfaf030f7f328809",
+  "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+  "reused_phases": [
+    "gate",
+    "red"
+  ],
+  "phases_executed_this_run": [
+    "capture-dependencies",
+    "captures"
+  ],
+  "prior_run_id": 42099805004,
+  "prior_run_url": "https://github.com/Otzaria/otzaria/actions/runs/42099805004",
+  "prior_artifact_id": 13450021903,
+  "prior_qa_commit": "1b840186b8a5f331658befc17e41d19dbdaf15e8",
+  "prior_artifact_zip_sha256": "01c73c03072e1c38b2fef4cdf3276992a976c0eadb016b847b054847f1ca7943",
+  "prior_artifact_download_digest_check": "actions/download-artifact pinned v8.0.2; digest-mismatch=error",
+  "prior_artifact_tar_sha256": "ea5585f0daed9fbe019262a5a4eb32d522ddfe2cf8f6a0c0e3fa4cac95d4a7ea",
+  "prior_checksums_sha256": "ec79cb3b02cf7f6a32a147c5286045692861f547fd721b3097cd1c1771a38204",
+  "prior_checksum_entries_verified": 44,
+  "prior_gate_result_sha256": "bf0ea2460061cb9170f40b02b1144f16c36f3a015a2d041fdeaddd5b6c70a97c",
+  "prior_red_result_sha256": "ce7a786026341a42084c50990a0df723e6fc860215ef67a937cb2d5c4a7c2081",
+  "prior_snapshot_sha256": "3a670b45c94cb77ce84c8c48504cf584ee48efe81af6109393e5bb5c1f388f3d",
+  "capture_bundle_checksums_sha256": "54907d57b5b8d76dc0f628825e548763950536d6b21ae4b85489b88832d50744",
+  "capture_bundle_checksum_entries_verified": 19,
+  "current_run_id": "42102930723",
+  "current_qa_commit": "2f78172edc0b05c439e677ed787fe8f5be08c093",
+  "note": "Gate and RED ran only in the prior run. Their original bytes and timestamps are preserved. The original artifact is retained as a pinned TAR. Old capture outputs were not imported; only newly generated images are current capture evidence."
+}
