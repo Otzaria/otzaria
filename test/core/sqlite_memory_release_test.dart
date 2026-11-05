@@ -135,10 +135,10 @@ void main() {
       await tester.pump();
       for (var i = 0; i < 50; i++) {
         observer.didHaveMemoryPressure();
-        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 20));
       }
       expect(calls, 1);
-      await tester.pump(const Duration(seconds: 25));
+      await tester.pump(const Duration(seconds: 1));
       expect(calls, 2);
     });
 
@@ -162,7 +162,7 @@ void main() {
       expect(calls, 1);
       gate.complete();
       await tester.pump();
-      await tester.pump(const Duration(seconds: 30));
+      await tester.pump(const Duration(seconds: 2));
       expect(calls, 2);
     });
 
@@ -180,7 +180,7 @@ void main() {
       observer.didHaveMemoryPressure();
       await tester.pump();
       observer.didHaveMemoryPressure();
-      await tester.pump(const Duration(seconds: 30));
+      await tester.pump(const Duration(seconds: 2));
       expect(calls, 2);
       expect(tester.takeException(), isNull);
     });

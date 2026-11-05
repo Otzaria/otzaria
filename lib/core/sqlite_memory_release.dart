@@ -51,6 +51,7 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
     this.backgroundDelay = const Duration(seconds: 5),
     this.retryDelay = const Duration(seconds: 2),
     this.minimumInterval = const Duration(seconds: 30),
+    this.pressureInterval = const Duration(seconds: 2),
   }) : _release = release,
        _isBusy = isBusy ?? _hasActiveWork,
        _windowCount = windowCount ?? _openWindowCount,
@@ -63,6 +64,7 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
   final Duration backgroundDelay;
   final Duration retryDelay;
   final Duration minimumInterval;
+  final Duration pressureInterval;
   bool _inBackground = false;
   bool _backgroundPending = false;
   bool _pressurePending = false;
@@ -134,7 +136,8 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
     }
     final lastRelease = pressure ? _lastPressureRelease : _lastRelease;
     if (lastRelease != null) {
-      final remaining = minimumInterval - _now().difference(lastRelease);
+      final interval = pressure ? pressureInterval : minimumInterval;
+      final remaining = interval - _now().difference(lastRelease);
       if (remaining > Duration.zero) {
         _schedule(remaining);
         return;
@@ -161,7 +164,7 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
             })
             .whenComplete(() {
               _lastRelease = _now();
-      if (pressure) _lastPressureRelease = _lastRelease;
+              if (pressure) _lastPressureRelease = _lastRelease;
               _running = null;
               if (_pressurePending || _backgroundPending)
                 _schedule(Duration.zero);
