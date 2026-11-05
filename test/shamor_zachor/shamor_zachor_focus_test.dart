@@ -642,6 +642,27 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
     return _categories[categoryName]?.books[bookName];
   }
 
+  /// כמו במקור: BookDetailScreen מאתר את הספר לפי המזהה (#3369).
+  @override
+  (BookDetails, String, String)? getBookById(int bookId) {
+    (BookDetails, String)? find(BookCategory category) {
+      for (final book in category.books.entries) {
+        if (book.value.id == bookId) return (book.value, book.key);
+      }
+      for (final sub in category.subcategories ?? const <BookCategory>[]) {
+        final found = find(sub);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    for (final entry in allBookData.entries) {
+      final found = find(entry.value);
+      if (found != null) return (found.$1, found.$2, entry.key);
+    }
+    return null;
+  }
+
   @override
   List<BookSearchResult> searchBooks(String query) {
     if (query.isEmpty) return const [];
