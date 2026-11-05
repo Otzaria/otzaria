@@ -84,21 +84,28 @@ const String _hostShortcutsJs = r'''
     if (e.key === 'Escape') {
       window.flutter_inappwebview.callHandler('otzaria_escape_pressed');
     }
+    // מאזיני התוסף נרשמים אחרי ה-stub. ב-bubble הם צריכים לקבל קדימות,
+    // ועדיין אפשר למנוע את פעולת ברירת המחדל לפני סיום האירוע.
+    window.removeEventListener('keydown', _forwardHostShortcut);
+    window.addEventListener('keydown', _forwardHostShortcut);
   }, true);
   // שלב bubble: קיצור שהתוסף טיפל בו (preventDefault) נשאר שלו. בשדה עריכה
-  // מועברים רק הקיצורים הקבועים, כדי לא לגנוב קיצורי עריכה (Ctrl+K, Ctrl+H).
-  window.addEventListener('keydown', function (e) {
+  // מועברים הקיצורים הקבועים וחיפוש חדש; קיצורי עריכה (Ctrl+K, Ctrl+H) נשארים.
+  function _forwardHostShortcut(e) {
     if (!window.flutter_inappwebview || e.key === 'Escape') return;
     if (e.repeat || e.defaultPrevented) return;
     var match = window.__otzariaMatchHostShortcut(e, window.__otzariaHostShortcuts);
     if (!match) return;
-    if (match.id.indexOf('fixed:') !== 0 && window.__otzariaIsEditableTarget(e)) {
+    if (match.id.indexOf('fixed:') !== 0 &&
+        match.id !== 'key-shortcut-open-new-search' &&
+        window.__otzariaIsEditableTarget(e)) {
       return;
     }
     e.preventDefault();
     e.stopImmediatePropagation();
     window.flutter_inappwebview.callHandler('otzaria_host_shortcut', match.id);
-  });
+  }
+  window.addEventListener('keydown', _forwardHostShortcut);
 ''';
 
 /// ה-stub של מופע רקע.
