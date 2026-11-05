@@ -1660,6 +1660,7 @@ class SemanticSearchRepository {
     })
       (
         family: family,
+        modelFamilyId: (await _loadIdentity(family)).familyId,
         chunkingIdentity: (await _loadIdentity(family)).chunkingIdentity,
       ),
   ];

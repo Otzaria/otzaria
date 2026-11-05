@@ -55,6 +55,7 @@ int _chunkingOf(SemanticVectorsFamily family) =>
 final List<SemanticVectorsCandidate> _anchorOnly = [
   (
     family: SemanticVectorsFamily.anchor,
+    modelFamilyId: kTestModelFamilyId,
     chunkingIdentity: _chunkingOf(SemanticVectorsFamily.anchor),
   ),
 ];
@@ -62,6 +63,7 @@ final List<SemanticVectorsCandidate> _anchorOnly = [
 final List<SemanticVectorsCandidate> _windowsFirst = [
   (
     family: SemanticVectorsFamily.windows,
+    modelFamilyId: kTestModelFamilyId,
     chunkingIdentity: _chunkingOf(SemanticVectorsFamily.windows),
   ),
   ..._anchorOnly,
@@ -76,7 +78,10 @@ String _manifest({
   'format': 'otzaria-vectors-release',
   'kind': 'base',
   'identity': {
-    'model': {'chunking_identity': _chunkingOf(family)},
+    'model': {
+      'family_id': kTestModelFamilyId,
+      'chunking_identity': _chunkingOf(family),
+    },
   },
   'fromLibraryVersion': 0,
   'toLibraryVersion': version,

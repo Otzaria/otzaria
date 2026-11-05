@@ -1339,8 +1339,9 @@ begin
   DeleteFile(ArchivePath);
 end;
 
-// מחלץ את כל רכיבי הספרייה המשובצים לתיקיית staging, ומחליף את הספרייה
-// הקיימת רק אחרי שהכל הצליח — כשל באמצע משאיר את הספרייה הישנה שלמה (issue #867).
+#include "preserve_semantic_model.iss"
+
+// מחליף את הספרייה רק אחרי חילוץ מלא ושימור המודל; כשל קודם משאיר את המקור שלם.
 procedure ExtractEmbeddedLibraryArchives();
 var
   LibraryRoot, StagingBooks, BooksBackup: String;
@@ -1389,6 +1390,16 @@ begin
   begin
     Log('Staging library is missing seforim.db - aborting swap');
     InstReportFailure(CustomMessage('SeforimMissing'), '', False);
+    Abort;
+  end;
+
+  if not CopySemanticModelDirectory(
+    SelectedBooksPath + '\' + SemanticModelFolderName,
+    StagingBooks + '\' + SemanticModelFolderName) then
+  begin
+    DelTree(StagingBooks, True, True, True);
+    InstReportFailure(CustomMessage('BooksSwapFailed'),
+      SelectedBooksPath + '\' + SemanticModelFolderName, False);
     Abort;
   end;
 
