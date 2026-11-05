@@ -19,23 +19,7 @@ class CategoryDao {
   Future<bool> get _hasCategories async =>
       (await _db.capabilities).hasCategories;
 
-  Future<List<Category>> getAllCategories() async {
-    if (!await _hasCategories) return const [];
-    final db = await database;
-    final categories = db
-        .select(_queries['selectAll']!)
-        .toMapList()
-        .map((row) => Category.fromJson(row))
-        .toList();
-
-    // Filter out special categories (except in debug mode)
-    if (!kDebugMode) {
-      return categories
-          .where((cat) => cat.title != 'ספרים מספריות חיצוניות')
-          .toList();
-    }
-    return categories;
-  }
+  Future<List<Category>> getAllCategories() => _selectVisible('selectAll');
 
   /// Gets all category rows, optionally within an ongoing transaction.
   /// Used by [DatabaseLibraryProvider] to load books and categories atomically.
@@ -64,11 +48,13 @@ class CategoryDao {
     return Category.fromJson(result.first);
   }
 
-  Future<List<Category>> getRootCategories() async {
+  Future<List<Category>> getRootCategories() => _selectVisible('selectRoot');
+
+  Future<List<Category>> _selectVisible(String query) async {
     if (!await _hasCategories) return const [];
     final db = await database;
     final categories = db
-        .select(_queries['selectRoot']!)
+        .select(_queries[query]!)
         .toMapList()
         .map((row) => Category.fromJson(row))
         .toList();
