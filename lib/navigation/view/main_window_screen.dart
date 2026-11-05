@@ -3995,32 +3995,31 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                           width: 1,
                                                         ),
                                                 ),
-                                                // ילד קבוע ב-Row: הסתרה היא רוחב 0 ולא
-                                                // הוצאה מהעץ, אחרת ה-PageView נבנה
-                                                // מחדש והמסכים מאבדים State.
-                                                ReadingTabsSidePanel(
-                                                  show:
-                                                      isLandscape &&
-                                                      !isImmersive &&
-                                                      hasOpenTabs &&
-                                                      (state.currentScreen ==
-                                                              Screen.reading ||
-                                                          state.currentScreen ==
-                                                              Screen.search) &&
-                                                      context.select<
-                                                        SettingsBloc,
-                                                        bool
-                                                      >(
-                                                        (b) => b
-                                                            .state
-                                                            .readingTabsOnSide,
-                                                      ),
-                                                ),
                                                 Expanded(
-                                                  child: RepaintBoundary(
-                                                    key: _windowKeys
-                                                        .windowContentBoundary,
-                                                    child: pageView,
+                                                  child: ReadingTabsSidePanel(
+                                                    show:
+                                                        isLandscape &&
+                                                        !isImmersive &&
+                                                        hasOpenTabs &&
+                                                        (state.currentScreen ==
+                                                                Screen
+                                                                    .reading ||
+                                                            state.currentScreen ==
+                                                                Screen
+                                                                    .search) &&
+                                                        context.select<
+                                                          SettingsBloc,
+                                                          bool
+                                                        >(
+                                                          (b) => b
+                                                              .state
+                                                              .readingTabsOnSide,
+                                                        ),
+                                                    child: RepaintBoundary(
+                                                      key: _windowKeys
+                                                          .windowContentBoundary,
+                                                      child: pageView,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
