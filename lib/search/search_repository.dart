@@ -6,6 +6,27 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 export 'package:otzaria/search/search_engine_gateway.dart'
     show SearchEngineRequest;
 
+/// ה-snapshot נלכד לפני תחילת הזרם, ונישא על העדכון הראשון בלבד. עטיפת
+/// העדכון הקיים משמרת את מספר המנות ואת כל השדות גם לצרכני תוספים.
+class SearchSnapshotUpdate extends SearchStreamUpdate {
+  final String snapshot;
+  final SearchStreamUpdate update;
+
+  SearchSnapshotUpdate(this.snapshot, this.update)
+    : super(
+        totalCount: update.totalCount,
+        bookCounts: update.bookCounts,
+        results: update.results,
+        truncated: update.truncated,
+        groupCount: update.groupCount,
+      );
+}
+
+/// העמוד שייך לתוכן או לסדר שונים מאלה של התוצאות שכבר מוצגות.
+class SearchSnapshotChanged implements Exception {
+  const SearchSnapshotChanged();
+}
+
 /// Performs a search operation across indexed texts.
 class SearchRepository {
   final SearchEngineGateway _gateway;
@@ -105,8 +126,25 @@ class SearchRepository {
     );
   }
 
-  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async =>
-      _gateway.search(await _engine(), request);
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async {
+    final engine = await _engine();
+    final expected = request.expectedSnapshot;
+    if (expected != null) await _verifySnapshot(engine, expected);
+    final results = await _gateway.search(engine, request);
+    if (expected != null) await _verifySnapshot(engine, expected);
+    return results;
+  }
+
+  Future<void> _verifySnapshot(
+    SearchEngineOperations engine,
+    String expected,
+  ) async {
+    if (engine is! SearchSnapshotEngineOperations ||
+        await (engine as SearchSnapshotEngineOperations).searchSnapshot() !=
+            expected) {
+      throw const SearchSnapshotChanged();
+    }
+  }
 
   /// Performs a combined search + count in a single engine pass.
   /// Returns total hit count alongside paged results, without streaming.
@@ -134,10 +172,17 @@ class SearchRepository {
     SearchEngineRequest request, {
     int chunkSize = 50,
   }) async* {
-    yield* _gateway.searchStreamWithCounts(
-      await _engine(),
+    final engine = await _engine();
+    String? snapshot = engine is SearchSnapshotEngineOperations
+        ? await (engine as SearchSnapshotEngineOperations).searchSnapshot()
+        : null;
+    await for (final update in _gateway.searchStreamWithCounts(
+      engine,
       request,
       chunkSize: chunkSize,
-    );
+    )) {
+      yield snapshot == null ? update : SearchSnapshotUpdate(snapshot, update);
+      snapshot = null;
+    }
   }
 }

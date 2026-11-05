@@ -224,7 +224,15 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   ) {
     final updated = List<Bookmark>.from(current);
     for (final bookmark in snapshots) {
-      updated.removeWhere((b) => b.historyKey == bookmark.historyKey);
+      final key = bookmark.historyKey;
+      // מפתח חיפוש עשוי לכלול אלפי facets. רק חיפושים באותה שאילתה
+      // יכולים להתנגש, ואין צורך למיין ולקודד את התחומים של כל היתר.
+      updated.removeWhere(
+        (b) =>
+            b.isSearch == bookmark.isSearch &&
+            (!bookmark.isSearch || b.ref == bookmark.ref) &&
+            b.historyKey == key,
+      );
       updated.insert(0, bookmark);
     }
     if (updated.length > _maxHistorySize) {
@@ -305,6 +313,14 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         workspaceName: workspaceName,
         searchScopeFacets: nonRootScopeFacets.isNotEmpty
             ? nonRootScopeFacets
+            : null,
+        searchFilterFacets:
+            scopeFacetsOverride == null &&
+                !setEquals(
+                  searchState.currentFacets.toSet(),
+                  scopeFacets.toSet(),
+                )
+            ? List<String>.of(searchState.currentFacets)
             : null,
         searchMode: searchState.configuration.searchMode,
         distance: searchState.configuration.distance,
@@ -436,9 +452,17 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       // ⚠️ האינדקס מתורגם לזהות כאן, מול הרשימה שממנה ה-UI חישב אותו.
       // מחיקה לפי אינדקס אצל הבעלים הייתה מוחקת רשומה אחרת אם חלון אחר
       // פתח ספר בינתיים — כל פתיחת ספר נכנסת בראש הרשימה ומזיזה את כולה.
-      final key = state.history[event.index].historyKey;
+      final bookmark = state.history[event.index];
+      final key = bookmark.historyKey;
       final updatedHistory = await _repository.mutateHistory(
-        (current) => current.where((b) => b.historyKey != key).toList(),
+        (current) => current
+            .where(
+              (b) =>
+                  b.isSearch != bookmark.isSearch ||
+                  (bookmark.isSearch && b.ref != bookmark.ref) ||
+                  b.historyKey != key,
+            )
+            .toList(),
       );
       _emitWritten(emit, updatedHistory);
     } catch (e) {

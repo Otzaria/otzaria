@@ -691,14 +691,28 @@ void main() {
       expect(bm.historyKey, 'commentators:filePath:/fake/בראשית.txt');
     });
 
-    test('historyKey הוא ref לסימנייה חיפוש', () {
+    test('historyKey מבחין בין חיפושים ומנרמל את תחום ברירת המחדל', () {
       final bm = Bookmark(
         ref: 'שאילתא',
         book: _book(),
         index: 0,
         isSearch: true,
       );
-      expect(bm.historyKey, 'שאילתא');
+      final explicitRoot = Bookmark(
+        ref: 'שאילתא',
+        book: _book(),
+        index: 0,
+        isSearch: true,
+        searchScopeFacets: const ['/'],
+      );
+      final anotherQuery = Bookmark(
+        ref: 'שאילתא אחרת',
+        book: _book(),
+        index: 0,
+        isSearch: true,
+      );
+      expect(bm.historyKey, explicitRoot.historyKey);
+      expect(bm.historyKey, isNot(anotherQuery.historyKey));
     });
 
     test('fromJson מטפל ב-commentatorsToShow חסר', () {

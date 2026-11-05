@@ -6,6 +6,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/history/history_repository.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
@@ -109,4 +110,52 @@ Future<void> main() async {
     },
     skip: engineReady ? false : searchEngineSkipReason,
   );
+
+  for (final filter in <List<String>>[
+    ['/scope/a'],
+    [],
+    ['/scope'],
+  ]) {
+    test('לכידת חיפוש שומרת סינון בעץ התוצאות: $filter', () async {
+      final repository = _MemoryHistoryRepository();
+      final tab = SearchingTab(
+        'ממון מזיק',
+        'ממון מזיק',
+        initialConfiguration: SearchConfiguration(
+          currentFacets: filter,
+          searchScopeFacets: const ['/scope'],
+        ),
+      );
+      addTearDown(tab.dispose);
+      await loadedBloc(repository, () => tab);
+      await PreCloseRegistry.runAll();
+
+      final saved = repository.stored.single;
+      expect(saved.searchScopeFacets, ['/scope']);
+      expect(
+        saved.searchFilterFacets,
+        filter.singleOrNull == '/scope' ? isNull : filter,
+      );
+    }, skip: engineReady ? false : searchEngineSkipReason);
+  }
+
+  test('תחום מפורש מהדיאלוג אינו לוכד את הסינון הקודם של הטאב', () async {
+    final repository = _MemoryHistoryRepository();
+    final tab = SearchingTab(
+      'ממון מזיק',
+      'ממון מזיק',
+      initialConfiguration: const SearchConfiguration(
+        currentFacets: ['/old/book'],
+        searchScopeFacets: ['/old'],
+      ),
+    );
+    addTearDown(tab.dispose);
+    final bloc = await loadedBloc(repository, () => null);
+    bloc.add(AddHistory(tab, scopeFacets: const ['/new']));
+    final saved = (await bloc.stream.firstWhere(
+      (s) => s.history.isNotEmpty,
+    )).history.single;
+    expect(saved.searchScopeFacets, ['/new']);
+    expect(saved.searchFilterFacets, isNull);
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }

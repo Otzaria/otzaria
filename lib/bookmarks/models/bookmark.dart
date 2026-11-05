@@ -1,4 +1,5 @@
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/bookmarks/utils/search_history_key.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -62,6 +63,10 @@ class Bookmark {
   final Map<String, String>? negativeSpacingValues;
   final String? workspaceName;
   final List<String>? searchScopeFacets;
+
+  /// הסינון בתוך התחום; נשמר רק כששונה ממנו, בלי לשכפל אלפי facets.
+  /// null משחזר את כל התחום, ורשימה ריקה משחזרת בחירה ריקה.
+  final List<String>? searchFilterFacets;
   final SearchMode? searchMode;
 
   /// המרווח (slop) בין מילות החיפוש. null בפריטים שנשמרו לפני הוספת השדה.
@@ -89,10 +94,14 @@ class Bookmark {
   /// [OpenedTab.historySlot] של הטאב שממנו נלכדה רשומת ההיסטוריה.
   final String? historySlot;
 
-  /// זהות מקום קריאה: סוג יעד, זהות ספר ו-slot; חיפוש מזוהה לפי השאילתה.
+  /// זהות מקום קריאה: סוג יעד, זהות ספר ו-slot; חיפוש לפי שאילתה וסינון.
   /// זהות הספר חייבת להתאים לשחזור המיקום, כדי לא לדרוס ספר אחר.
   String get historyKey => isSearch
-      ? ref
+      ? searchHistoryKey(
+          query: ref,
+          scopeFacets: searchScopeFacets,
+          filterFacets: searchFilterFacets,
+        )
       : '${targetKind.name}:${bookIdentity(book)}'
             '${historySlot == null ? '' : '#$historySlot'}';
 
@@ -105,7 +114,7 @@ class Bookmark {
   String get bookmarkIdentity =>
       '${bookIdentity(book)}|$index|${targetKind.name}';
 
-  // searchConfiguration נשמר בלי ה-facets: השחזור לוקח אותם מ-searchScopeFacets,
+  // searchConfiguration נשמר בלי ה-facets: השחזור לוקח אותם מהשדות הייעודיים,
   // ועם אלפי ספרים אישיים שני עותקים נוספים משלשים כל רשומת חיפוש (#3380).
   Bookmark({
     required this.ref,
@@ -122,6 +131,7 @@ class Bookmark {
     this.negativeSpacingValues,
     this.workspaceName,
     this.searchScopeFacets,
+    this.searchFilterFacets,
     this.searchMode,
     this.distance,
     this.proximityScope,
@@ -159,6 +169,7 @@ class Bookmark {
       negativeSpacingValues: negativeSpacingValues,
       workspaceName: workspaceName,
       searchScopeFacets: searchScopeFacets,
+      searchFilterFacets: searchFilterFacets,
       searchMode: searchMode,
       distance: distance,
       proximityScope: proximityScope,
@@ -229,6 +240,9 @@ class Bookmark {
       searchScopeFacets: json['searchScopeFacets'] != null
           ? List<String>.from(json['searchScopeFacets'] as List)
           : null,
+      searchFilterFacets: json['searchFilterFacets'] != null
+          ? List<String>.from(json['searchFilterFacets'] as List)
+          : null,
       searchMode: json['searchMode'] != null
           ? _trySearchModeFromName(json['searchMode'] as String)
           : null,
@@ -294,6 +308,7 @@ class Bookmark {
       'negativeSpacingValues': negativeSpacingValues,
       'workspaceName': workspaceName,
       'searchScopeFacets': searchScopeFacets,
+      'searchFilterFacets': ?searchFilterFacets,
       'searchMode': searchMode?.name,
       'distance': distance,
       'searchConfiguration': searchConfiguration,

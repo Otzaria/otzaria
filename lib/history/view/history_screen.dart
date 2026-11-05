@@ -296,7 +296,7 @@ class _HistoryViewState extends State<HistoryView> {
                         : const ['/'];
                     // ה-configuration המלא משוחזר מהמפה השמורה; פריטים ישנים
                     // (ללא מפה) נופלים לשדות הבודדים. ה-facets תמיד מגיעים
-                    // מלוגיקת ה-scope כאן, לא מהמפה.
+                    // מהשדות הייעודיים כאן, לא מהמפה.
                     final savedConfig = item.searchConfiguration;
                     final baseConfig = savedConfig != null
                         ? SearchConfiguration.fromMap(savedConfig)
@@ -316,7 +316,7 @@ class _HistoryViewState extends State<HistoryView> {
                       'חיפוש',
                       null,
                       initialConfiguration: baseConfig.copyWith(
-                        currentFacets: scopeFacets,
+                        currentFacets: item.searchFilterFacets ?? scopeFacets,
                         searchScopeFacets: scopeFacets,
                       ),
                     );
@@ -422,8 +422,12 @@ class _HistoryViewState extends State<HistoryView> {
                       item.searchConfiguration as Map<String, dynamic>?,
                     );
                     if (settings != null) segments.add('הגדרות: $settings');
-                    final facets = item.searchScopeFacets as List<String>?;
-                    if (facets != null && facets.isNotEmpty) {
+                    final filter = item.searchFilterFacets as List<String>?;
+                    final facets =
+                        filter ?? (item.searchScopeFacets as List<String>?);
+                    if (filter != null && filter.isEmpty) {
+                      segments.add('ללא ספרים מסומנים');
+                    } else if (facets != null && facets.isNotEmpty) {
                       final allNames = _facetDisplayNames(facets);
                       final displayed = allNames.length > 2
                           ? '${allNames.take(2).join(', ')}...'
@@ -436,7 +440,9 @@ class _HistoryViewState extends State<HistoryView> {
                 },
                 subtitleTooltipBuilder: (item) {
                   if (!(item.isSearch as bool)) return null;
-                  final facets = item.searchScopeFacets as List<String>?;
+                  final facets =
+                      (item.searchFilterFacets ?? item.searchScopeFacets)
+                          as List<String>?;
                   if (facets == null || facets.length <= 2) return null;
                   final segments = <String>[];
                   final settings = _searchSettingsLabel(

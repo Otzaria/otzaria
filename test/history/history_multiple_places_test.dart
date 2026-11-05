@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -31,6 +32,7 @@ class _MemoryHistoryRepository extends HistoryRepository {
     : stored = List<Bookmark>.from(items);
 
   List<Bookmark> stored;
+  int lastMutationMicroseconds = 0;
 
   @override
   Future<List<Bookmark>> load() async => stored;
@@ -39,8 +41,30 @@ class _MemoryHistoryRepository extends HistoryRepository {
   Future<List<Bookmark>> mutate(
     List<Bookmark> Function(List<Bookmark> current) apply,
   ) async {
+    final stopwatch = Stopwatch()..start();
     stored = List<Bookmark>.from(apply(List<Bookmark>.from(stored)));
+    stopwatch.stop();
+    lastMutationMicroseconds = stopwatch.elapsedMicroseconds;
     return List<Bookmark>.from(stored);
+  }
+}
+
+class _CountingSearchBookmark extends Bookmark {
+  _CountingSearchBookmark(String query, List<String> facets)
+    : super(
+        ref: query,
+        book: TextBook(title: query),
+        index: 0,
+        isSearch: true,
+        searchScopeFacets: facets,
+      );
+
+  int historyKeyReads = 0;
+
+  @override
+  String get historyKey {
+    historyKeyReads++;
+    return super.historyKey;
   }
 }
 
@@ -99,6 +123,109 @@ void main() {
       bloc.add(BulkAddHistory([entry]));
       await bloc.stream.firstWhere(
         (state) => identical(state.history.firstOrNull, entry),
+      );
+    }
+
+    test('אותה שאילתה בתחומים ובסינונים שונים נשמרת בנפרד', () async {
+      final bloc = await loadedBloc();
+      Bookmark search(List<String>? scope, {List<String>? filter}) => Bookmark(
+        ref: 'ממון מזיק',
+        book: TextBook(title: 'ממון מזיק'),
+        index: 0,
+        isSearch: true,
+        searchScopeFacets: scope,
+        searchFilterFacets: filter,
+      );
+      final all = search(null);
+      final scoped = search(['/רשבא', '/ריטבא']);
+      final filtered = search(['/רשבא', '/ריטבא'], filter: ['/רשבא']);
+      final empty = search(['/רשבא', '/ריטבא'], filter: []);
+      for (final entry in [all, scoped, filtered, empty]) {
+        await add(bloc, entry);
+      }
+      expect(bloc.state.history, [empty, filtered, scoped, all]);
+
+      final reordered = search(['/ריטבא', '/רשבא', '/רשבא']);
+      await add(bloc, reordered);
+      expect(bloc.state.history, [reordered, empty, filtered, all]);
+    });
+
+    test('סינוני מחבר ותקופה בכל הספרייה נשמרים כחיפושים נפרדים', () async {
+      final bloc = await loadedBloc();
+      final entries = <Bookmark>[];
+      for (final dimension in <String?>[
+        null,
+        '/author/מחבר א',
+        '/author/מחבר ב',
+        '/era/ראשונים',
+        '/base',
+      ]) {
+        final entry = Bookmark(
+          ref: 'ממון מזיק',
+          book: TextBook(title: 'ממון מזיק'),
+          index: 0,
+          isSearch: true,
+          searchFilterFacets: dimension == null ? null : ['/', dimension],
+        );
+        entries.add(entry);
+        await add(bloc, entry);
+      }
+      expect(bloc.state.history, entries.reversed.toList());
+    });
+
+    for (final operation in ['הוספת מקום', 'מחיקת מקום', 'חיפוש חדש']) {
+      test(
+        'היסטוריה גדולה: $operation מדלג על מפתחות חיפוש לא קשורים',
+        () async {
+          final facets = List.generate(
+            5000,
+            (i) => '/personal/folder/uid:${5000 - i}',
+          );
+          final searches = List.generate(
+            200,
+            (i) => _CountingSearchBookmark('שאילתה $i', facets),
+          );
+          final reading = _entry(42);
+          final removing = operation == 'מחיקת מקום';
+          // במחיקה נזרעת גם רשומת היעד, כדי למדוד תמיד 200 חיפושים אחרים.
+          final repository = _MemoryHistoryRepository([
+            if (removing) reading,
+            ...searches,
+          ]);
+          final bloc = HistoryBloc(repository);
+          addTearDown(bloc.close);
+          await bloc.stream.firstWhere((state) => state is HistoryLoaded);
+
+          if (removing) {
+            bloc.add(RemoveHistory(0));
+            await bloc.stream.firstWhere(
+              (state) => state.history.length == 200,
+            );
+            expect(bloc.state.history, searches);
+          } else {
+            final incoming = operation == 'חיפוש חדש'
+                ? Bookmark(
+                    ref: 'שאילתה חדשה',
+                    book: TextBook(title: 'שאילתה חדשה'),
+                    index: 0,
+                    isSearch: true,
+                    searchScopeFacets: facets,
+                  )
+                : reading;
+            await add(bloc, incoming);
+            expect(bloc.state.history, [incoming, ...searches.take(199)]);
+          }
+
+          final keyReads = searches.fold<int>(
+            0,
+            (sum, entry) => sum + entry.historyKeyReads,
+          );
+          debugPrint(
+            'history prefilter: $operation; 200 searches x 5000 facets; '
+            '${repository.lastMutationMicroseconds} us; $keyReads existing keys',
+          );
+          expect(keyReads, 0);
+        },
       );
     }
 

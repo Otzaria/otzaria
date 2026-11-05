@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -57,6 +58,57 @@ Future<void> main() async {
   });
 
   group('ביטול במנוע', () {
+    for (final mode in SearchMode.values) {
+      test('דפדוף וספירה משולבת מכבדים ביטול במצב ${mode.name}', () async {
+        final id = LexicalSearchRequestIds.next();
+        await repository.cancelLexicalSearch(id);
+        final request = SearchEngineRequest(
+          query: 'משה',
+          facets: const [book],
+          limit: 1,
+          offset: 1,
+          searchMode: mode,
+          cancelRequestId: id,
+        );
+        await expectLater(
+          repository.searchTexts(request),
+          throwsA(predicate(isSearchCancelledError)),
+        );
+        await expectLater(
+          repository.searchTextsAndCount(request),
+          throwsA(predicate(isSearchCancelledError)),
+        );
+        final fresh = SearchEngineRequest(
+          query: 'משה',
+          facets: const [book],
+          limit: 20,
+          searchMode: mode,
+          cancelRequestId: LexicalSearchRequestIds.next(),
+        );
+        expect(await repository.searchTexts(fresh), isNotEmpty);
+        expect(
+          (await repository.searchTextsAndCount(fresh)).results,
+          isNotEmpty,
+        );
+      });
+    }
+
+    test('חיפוש ביטוי בתוך שורה מכבד ביטול', () async {
+      final id = LexicalSearchRequestIds.next();
+      await repository.cancelLexicalSearch(id);
+      await expectLater(
+        RustSearchEngineOperations(engine).searchInlineExact(
+          SearchEngineRequest(
+            query: 'משה',
+            facets: const [book],
+            limit: 20,
+            cancelRequestId: id,
+          ),
+        ),
+        throwsA(predicate(isSearchCancelledError)),
+      );
+    });
+
     test('ספירה לקסיקלית שבוטלה נכשלת בשגיאת ביטול', () async {
       final id = LexicalSearchRequestIds.next();
       await repository.cancelLexicalSearch(id);

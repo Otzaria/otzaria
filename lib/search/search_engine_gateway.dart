@@ -68,6 +68,9 @@ class SearchEngineRequest {
   /// ([SearchEngineOperations.cancelLexicalSearch]); null — אין ביטול.
   final int? cancelRequestId;
 
+  /// תמונת התוצאות שכבר מוצגות, לבדיקת דפדוף מול אותו דור אינדקס.
+  final String? expectedSnapshot;
+
   const SearchEngineRequest({
     required this.query,
     required this.facets,
@@ -93,6 +96,7 @@ class SearchEngineRequest {
     this.wordMatchCount,
     this.anyOrder = false,
     this.cancelRequestId,
+    this.expectedSnapshot,
   });
 
   SearchEngineRequest copyWith({
@@ -122,6 +126,7 @@ class SearchEngineRequest {
   }) {
     return SearchEngineRequest(
       cancelRequestId: cancelRequestId,
+      expectedSnapshot: expectedSnapshot,
       query: query ?? this.query,
       facets: facets ?? this.facets,
       limit: limit ?? this.limit,
@@ -292,6 +297,12 @@ class SearchCountProgress extends SearchStreamUpdate {
     : super(totalCount: foundSoFar, results: const []);
 }
 
+/// מזהה את תוכן האינדקס, סדרו ומקורותיו. מימושים ללא snapshots ממשיכים
+/// לתמוך בחיפוש רגיל, אך אינם יכולים לאמת עמוד של snapshot נתון.
+abstract interface class SearchSnapshotEngineOperations {
+  Future<String> searchSnapshot();
+}
+
 /// ממשק קטן וניתן לבדיקה מעל ה-API של `search_engine`.
 abstract class SearchEngineOperations {
   Future<List<SearchResult>> searchExact(SearchEngineRequest request);
@@ -407,11 +418,17 @@ abstract class SearchEngineOperations {
 }
 
 class RustSearchEngineOperations
-    implements SearchEngineOperations, SemanticSearchEngineOperations {
+    implements
+        SearchEngineOperations,
+        SearchSnapshotEngineOperations,
+        SemanticSearchEngineOperations {
   final SearchEngine _engine;
 
   /// מנוע שנפתח ידנית צריך [prepareCancellation] לפני חיפושים ארוכים.
   const RustSearchEngineOperations(this._engine);
+
+  @override
+  Future<String> searchSnapshot() => _engine.searchSnapshot();
 
   static final _cancellationHandles =
       Expando<Future<LexicalCancellationHandle>>();
@@ -492,6 +509,7 @@ class RustSearchEngineOperations
       slop: 0,
       maxExpansions: 64,
       order: ResultsOrder.catalogue,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -508,6 +526,7 @@ class RustSearchEngineOperations
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       grouping: request.grouping,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -536,6 +555,7 @@ class RustSearchEngineOperations
       wordMatchMode: request.wordMatchMode,
       wordMatchCount: request.wordMatchCount,
       anyOrder: request.anyOrder,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -551,6 +571,7 @@ class RustSearchEngineOperations
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       grouping: request.grouping,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -620,6 +641,7 @@ class RustSearchEngineOperations
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       grouping: request.grouping,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -650,6 +672,7 @@ class RustSearchEngineOperations
       wordMatchMode: request.wordMatchMode,
       wordMatchCount: request.wordMatchCount,
       anyOrder: request.anyOrder,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 
@@ -665,6 +688,7 @@ class RustSearchEngineOperations
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       grouping: request.grouping,
+      cancelRequestId: request.cancelRequestId,
     );
   }
 

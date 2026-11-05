@@ -47,6 +47,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   /// מזהה הביטול במנוע של החיפוש הנוכחי; חיפוש חדש או סגירה מבטלים אותו.
   int? _engineRequestId;
 
+  /// תמונת האינדקס שנלכדה לפני הזרם של התוצאות המוצגות.
+  String? _searchSnapshot;
+
   /// חתימת החיפוש שעבורו חושבו ספירות ה-facets שב-state כרגע.
   /// מאפשרת לדלג על ספירת כל-האינדקס (countByBook) כשלחיצה על קטגוריה
   /// מפעילה חיפוש חוזר עם אותה שאילתה ואותן אפשרויות — התוצאה זהה ממילא.
@@ -141,6 +144,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) async {
     final requestId = ++_searchRequestId;
     _cancelEngineSearch();
+    _searchSnapshot = null;
     final query = event.query;
     final negativeQuery = event.negativeQuery ?? state.negativeQuery;
     // גם חיפוש שנעצר כאן מייצג את כוונת המשתמש העדכנית — שמירתו מונעת
@@ -277,9 +281,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
       final allResults = <SearchResult>[];
 
-      await for (final update in stream) {
+      await for (final received in stream) {
         if (requestId != _searchRequestId) {
           return; // החיפוש בוטל
+        }
+
+        final SearchStreamUpdate update;
+        if (received is SearchSnapshotUpdate) {
+          _searchSnapshot = received.snapshot;
+          update = received.update;
+        } else {
+          update = received;
         }
 
         final bookCounts = update.bookCounts;
@@ -1022,6 +1034,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     _searchRequestId++;
     _cancelEngineSearch();
     _facetCountsSignature = null;
+    _searchSnapshot = null;
     _lastUserSearch = null;
     emit(const SearchState());
   }
@@ -1111,6 +1124,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
             query: state.searchQuery,
           ),
           cancelRequestId: _engineRequestId,
+          expectedSnapshot: _searchSnapshot,
         ),
       );
       // חיפוש חדש החליף את התוצאות ומנהל את isLoading בעצמו.
@@ -1135,6 +1149,15 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       );
     } catch (e, stackTrace) {
       if (requestId != _searchRequestId) return;
+      if (e is SearchSnapshotChanged) {
+        _facetCountsSignature = null;
+        emit(state.copyWith(facetCounts: const {}));
+        // הרצה אחת בעקבות הדפדוף בלבד. הזרם הראשוני אינו מפעיל רענון
+        // נוסף, גם אם האינדוקס ממשיך. ההרצה הישירה מחליפה מיד requestId,
+        // כדי שספירות ישנות לא יחזרו למטמון בזמן המתנה לאירוע חדש.
+        await _onUpdateSearchQuery(_rerunEvent(), emit);
+        return;
+      }
       if (isSearchCancelledError(e)) {
         emit(state.copyWith(isLoading: false, isCounting: false));
         return;
