@@ -138,6 +138,7 @@ void main() {
       WidgetTester tester,
       String value, {
       required bool multiline,
+      double? width,
     }) async {
       final controller = TextEditingController(text: value);
       addTearDown(controller.dispose);
@@ -146,9 +147,12 @@ void main() {
           home: Directionality(
             textDirection: TextDirection.rtl,
             child: Scaffold(
-              body: RtlTextField(
-                controller: controller,
-                maxLines: multiline ? null : 1,
+              body: SizedBox(
+                width: width,
+                child: RtlTextField(
+                  controller: controller,
+                  maxLines: multiline ? null : 1,
+                ),
               ),
             ),
           ),
@@ -194,6 +198,14 @@ void main() {
           await tester.sendKeyUpEvent(modifier);
         }
         await tester.pump();
+        final selection = editable.textEditingValue.selection;
+        expect(
+          CharacterBoundary(
+            editable.textEditingValue.text,
+          ).getLeadingTextBoundaryAt(selection.extentOffset),
+          selection.extentOffset,
+          reason: 'הסמן חייב להישאר בגבול גרפמה, גם בסוף שורה',
+        );
         final spot = caretSpot(editable);
         final last = visited.last;
         if (spot == last) return press - 1;
@@ -214,19 +226,44 @@ void main() {
       fail('הסמן לא נעצר אחרי $limit לחיצות');
     }
 
-    for (final (name, value, multiline) in <(String, String, bool)>[
-      ('תג לטיני בטקסט עברי', 'אב <b>גד</b>', false),
-      ('מילה באנגלית בטקסט עברי', 'אב hello גד', false),
-      ('שדה רב-שורתי', 'אב hello גד\nשלום <b>עולם</b>', true),
-      ('שורה ריקה ושורה שמתחילה בלטינית', 'אבג\n\nhello דה', true),
-    ]) {
+    for (final (name, value, multiline, width, visualWords)
+        in <(String, String, bool, double?, bool)>[
+          ('תג לטיני בטקסט עברי', 'אב <b>גד</b>', false, null, true),
+          ('מילה באנגלית בטקסט עברי', 'אב hello גד', false, null, true),
+          ('שדה רב-שורתי', 'אב hello גד\nשלום <b>עולם</b>', true, null, true),
+          (
+            'שורה ריקה ושורה שמתחילה בלטינית',
+            'אבג\n\nhello דה',
+            true,
+            null,
+            true,
+          ),
+          (
+            'גלישת שורות בעברית',
+            'אבגדה וזחטי כלמנס עפקצר שתאבג דהוזח טיכלמ נסעפצ',
+            true,
+            160,
+            true,
+          ),
+          // פעולת המילה נשמרת כמקודם במקרה הזה ונבדקת בנפרד להלן.
+          ('מילה לטינית נגלשת', 'אב ${'abcdefgh' * 5} גד', true, 160, false),
+          ('מילה נגלשת עם חילופי כיוון רבים', '${'אa' * 20}א', true, 160, true),
+          (
+            'מילה מעורבת עם סימנים משולבים',
+            'אָב${'a\u0301' * 12}גּד',
+            false,
+            null,
+            true,
+          ),
+        ]) {
       testWidgets(
-        '$name: חצים, Shift ומילה עוברים את הטקסט בשני הכיוונים בלי להיתקע',
+        '$name: ${visualWords ? 'חצים, Shift ומילה' : 'חצים ו־Shift'} עוברים את הטקסט בשני הכיוונים בלי להיתקע',
         (tester) async {
           final editable = await fieldAtStart(
             tester,
             value,
             multiline: multiline,
+            width: width,
           );
           final length = editable.textEditingValue.text.length;
           final graphemes = editable.textEditingValue.text.characters.length;
@@ -237,7 +274,8 @@ void main() {
           for (final modifiers in [
             <LogicalKeyboardKey>[],
             [LogicalKeyboardKey.shiftLeft],
-            [word],
+            if (visualWords) [word],
+            if (visualWords) [word, LogicalKeyboardKey.shiftLeft],
           ]) {
             final leftMoves = await walk(
               tester,
@@ -262,7 +300,7 @@ void main() {
               reason: '$modifiers',
             );
             // חץ בלי מקש נוסף נעצר בכל מיקום חזותי, בלי לדלג על קטע.
-            if (modifiers.isEmpty) {
+            if (modifiers.isEmpty && width == null) {
               expect([leftMoves, rightMoves], [graphemes, graphemes]);
             }
           }
@@ -270,8 +308,98 @@ void main() {
         variant: TargetPlatformVariant({
           TargetPlatform.windows,
           TargetPlatform.macOS,
+          TargetPlatform.linux,
         }),
       );
     }
+    testWidgets(
+      'מילה לטינית נגלשת שומרת את פעולת המילה המובנית, גם עם Shift',
+      (tester) async {
+        final editable = await fieldAtStart(
+          tester,
+          'אב ${'abcdefgh' * 5} גד',
+          multiline: true,
+          width: 160,
+        );
+        final word = usesAltForWordNavigation()
+            ? LogicalKeyboardKey.altLeft
+            : LogicalKeyboardKey.controlLeft;
+        for (final right in [false, true]) {
+          for (final shift in [false, true]) {
+            editable.widget.controller.selection =
+                const TextSelection.collapsed(offset: 20);
+            await tester.pump();
+            await tester.sendKeyDownEvent(word);
+            if (shift) {
+              await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+            }
+            await tester.sendKeyEvent(
+              right
+                  ? LogicalKeyboardKey.arrowRight
+                  : LogicalKeyboardKey.arrowLeft,
+            );
+            if (shift) {
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            }
+            await tester.sendKeyUpEvent(word);
+            await tester.pump();
+            final expected = right ? 43 : 3;
+            expect(
+              editable.textEditingValue.selection,
+              TextSelection(
+                baseOffset: shift ? 20 : expected,
+                extentOffset: expected,
+              ),
+            );
+          }
+        }
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+      }),
+    );
+    testWidgets(
+      'קיצור מילה חוצה את כל המילה הנגלשת, גם עם Shift',
+      (tester) async {
+        final value = 'אבגדה' * 16;
+        final editable = await fieldAtStart(
+          tester,
+          value,
+          multiline: true,
+          width: 160,
+        );
+        final word = usesAltForWordNavigation()
+            ? LogicalKeyboardKey.altLeft
+            : LogicalKeyboardKey.controlLeft;
+        for (final shift in [false, true]) {
+          await tester.sendKeyDownEvent(word);
+          if (shift) {
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          }
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+          await tester.pump();
+          final selection = editable.textEditingValue.selection;
+          expect(selection.extentOffset, value.length);
+          expect(selection.baseOffset, shift ? 0 : value.length);
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.pump();
+          expect(
+            editable.textEditingValue.selection,
+            const TextSelection.collapsed(offset: 0),
+          );
+          if (shift) {
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          }
+          await tester.sendKeyUpEvent(word);
+        }
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+      }),
+    );
   });
 }
