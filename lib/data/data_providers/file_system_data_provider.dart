@@ -425,9 +425,6 @@ class FileSystemData {
     await _providerManager.fileSystemProvider.saveBookText(title, content);
   }
 
-  /// Updates the mapping of book titles to their file system paths.
-  ///
-
   /// Loads and parses the metadata for all books in the library.
   ///
   /// Reads metadata from a JSON file and creates a structured mapping of

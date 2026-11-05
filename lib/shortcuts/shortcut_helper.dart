@@ -418,13 +418,6 @@ class ShortcutHelper {
       .replaceAll('COMMA', ',')
       .replaceAll('ENTER', 'Enter');
 
-  /// ממיר מחרוזת קיצור (כגון `'ctrl+f'`) ל-[ShortcutActivator].
-  ///
-  /// מחזיר מפעיל קיצור עם modifiers מתאימים.
-  /// אם המחרוזת אינה ניתנת לניתוח, מחזיר `null`.
-  ///
-  /// ב-Mac ה-token `ctrl` ממופה ל-`meta: true` כדי שמתפעלי קיצור (Flutter
-  /// `Shortcuts` widget) יזהו לחיצת Command, אלא אם [mapCtrlToMeta] הוא false.
   /// כל המפעילים שיש לרשום עבור [shortcut]: הצירוף עצמו, ובנוסף המקשים
   /// המקבילים (לוח הספרות) — בסימטריה ל-[matchesShortcut].
   static List<ShortcutActivator> activatorsFromShortcut(
@@ -452,6 +445,13 @@ class ShortcutHelper {
     ];
   }
 
+  /// ממיר מחרוזת קיצור (כגון `'ctrl+f'`) ל-[ShortcutActivator].
+  ///
+  /// מחזיר מפעיל קיצור עם modifiers מתאימים.
+  /// אם המחרוזת אינה ניתנת לניתוח, מחזיר `null`.
+  ///
+  /// ב-Mac ה-token `ctrl` ממופה ל-`meta: true` כדי שמתפעלי קיצור (Flutter
+  /// `Shortcuts` widget) יזהו לחיצת Command, אלא אם [mapCtrlToMeta] הוא false.
   static ShortcutActivator? activatorFromShortcut(
     String shortcut, {
     bool mapCtrlToMeta = true,

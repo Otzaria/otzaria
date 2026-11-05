@@ -2,9 +2,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     show stripInlineNotesFromHeading;
 
-/// Shared TOC parsing utilities used by both the TextBook navigator and
-/// the Shamor Zachor scanner. This ensures a single source of truth for
-/// how headings are detected and converted to structures.
 /// סימון על תגית כותרת שמוציא אותה מתוכן העניינים (ומ-heRef): כותרת
 /// עיצובית שאינה חלק מתוכן העניינים המוטמע של הספר (ראו epub_to_otzaria).
 const String kTocExcludeAttr = 'data-toc="none"';
@@ -17,6 +14,8 @@ bool isTocExcludedHeadingLine(String lowerLine) {
 
 final RegExp _markdownHeading = RegExp(r'^(#{1,6})\s+(.+?)\s*$');
 
+/// Shared TOC parsing: the single source of truth for how headings are
+/// detected and converted to TOC entries.
 class TocParser {
   /// Parse TOC entries (hierarchical) from the full book content.
   static List<TocEntry> parseEntriesFromContent(String content) {

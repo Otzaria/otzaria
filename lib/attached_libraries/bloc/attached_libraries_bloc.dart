@@ -187,7 +187,6 @@ class AttachedLibrariesBloc
     return _notice(SettingsMessages.attachedLibraryReleased);
   });
 
-  /// ההודעה למשתמש על מסד שלא צורף.
   Future<void> _onCheckUpdate(
     CheckAttachedLibraryUpdate event,
     Emitter<AttachedLibrariesState> emit,
@@ -228,6 +227,7 @@ class AttachedLibrariesBloc
     emit(state.copyWith(updates: event.updates, notice: notice));
   }
 
+  /// ההודעה למשתמש על מסד שלא צורף.
   static String problemMessage(
     AttachedLibraryProblem problem,
   ) => switch (problem) {

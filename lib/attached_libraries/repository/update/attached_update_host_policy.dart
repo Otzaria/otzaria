@@ -70,8 +70,6 @@ class AttachedUpdateHostPolicy {
     }
   }
 
-  /// בדיקה מלאה: תחביר + כל כתובות ה-DNS ציבוריות. מחזיר את הכתובות
-  /// שנבדקו, כדי שהחיבור ייעשה אליהן בדיוק (בלי תרגום DNS שני).
   /// For a proxied request: [checkUri], then rejects a host that resolves
   /// locally to a non-public address. A failed local lookup is not an error.
   Future<void> checkNotPrivate(Uri uri) async {
@@ -92,6 +90,8 @@ class AttachedUpdateHostPolicy {
     }
   }
 
+  /// בדיקה מלאה: תחביר + כל כתובות ה-DNS ציבוריות. מחזיר את הכתובות
+  /// שנבדקו, כדי שהחיבור ייעשה אליהן בדיוק (בלי תרגום DNS שני).
   Future<List<InternetAddress>> resolve(Uri uri) async {
     checkUri(uri);
     if (_isTestTarget(uri)) return [InternetAddress.loopbackIPv4];
