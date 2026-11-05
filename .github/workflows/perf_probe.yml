@@ -1,0 +1,85 @@
+name: Performance probe tools
+
+on:
+  pull_request:
+    paths:
+      - 'tool/perf_probe/**'
+      - '.github/workflows/perf_probe.yml'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Build mode (results are never compared across modes)
+        type: choice
+        options: [profile, release, debug]
+        default: profile
+      cache_state:
+        description: Application data state (OS caches are not cleared)
+        type: choice
+        options: [cold, warm]
+        default: cold
+      launches:
+        description: Measured process launches
+        type: number
+        default: 3
+      repetitions:
+        description: Measured repetitions per action and launch
+        type: number
+        default: 5
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Sampler contracts (no performance thresholds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Validate process identity and invariant CSV formatting
+        shell: pwsh
+        run: ./tool/perf_probe/test_sample_resources.ps1
+
+  desktop:
+    name: Optional Windows measurements
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve pinned dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Run isolated measurements
+        shell: pwsh
+        env:
+          PROBE_MODE: ${{ inputs.mode }}
+          PROBE_CACHE: ${{ inputs.cache_state }}
+          PROBE_LAUNCHES: ${{ inputs.launches }}
+          PROBE_REPETITIONS: ${{ inputs.repetitions }}
+        run: |
+          ./tool/perf_probe/run_perf_probe.ps1 -Mode $env:PROBE_MODE `
+            -CacheState $env:PROBE_CACHE -Launches ([int]$env:PROBE_LAUNCHES) `
+            -Repetitions ([int]$env:PROBE_REPETITIONS) `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'perf-results') `
+            -HardwareId "github-hosted-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+      - name: Upload observations, including partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: perf-${{ inputs.mode }}-${{ inputs.cache_state }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/perf-results/*.json
+            ${{ runner.temp }}/perf-results/*.jsonl
+            ${{ runner.temp }}/perf-results/*.csv
+            ${{ runner.temp }}/perf-results/*.md
+            ${{ runner.temp }}/perf-results/*.log
+            ${{ runner.temp }}/perf-results/launch-*/*.json*
+            ${{ runner.temp }}/perf-results/launch-*/*.log
