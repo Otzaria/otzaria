@@ -123,7 +123,11 @@ void main() {
 
     expect(result.all, contains(SeforimFixtureIds.rashiTitle));
     expect(repository.isLibraryConnectionOpen, isTrue);
-    expect(DbReadWorker.sentMessageCount - before, 1);
+    expect(
+      DbReadWorker.sentMessageCount - before,
+      2,
+      reason: 'איתור הספר ושאילתת המפרשים רצים שניהם ב-worker',
+    );
   });
 
   test('חיבור סגור: מפרשי ברירת המחדל נטענים (#3081)', () async {
