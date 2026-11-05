@@ -75,6 +75,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   final ValueNotifier<List<int>> _visibleLineIndices = ValueNotifier(const []);
   final ValueNotifier<int> _newNoteCancelRequest = ValueNotifier<int>(0);
   final ItemScrollController _itemScrollController = ItemScrollController();
+  (String, int?, int)? _revealedExpansion;
+  (String, int?, int)? _revealedDraft;
+  int _revealGeneration = 0;
 
   @override
   void initState() {
@@ -183,28 +186,31 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
 
   Future<void> _restorePendingNewNoteDraftIfNeeded() async {
     final bloc = context.read<PersonalNotesBloc>();
+    final bookId = widget.bookId;
+    final categoryId = widget.categoryId;
     final draft = await _draftService.loadLatestNewNoteDraft(
-      bookId: widget.bookId,
-      categoryId: widget.categoryId,
+      bookId: bookId,
+      categoryId: categoryId,
     );
-    if (!mounted || draft == null || draft.lineNumber == null) {
+    if (!mounted ||
+        widget.bookId != bookId ||
+        widget.categoryId != categoryId ||
+        draft == null ||
+        draft.lineNumber == null) {
       return;
     }
 
     final currentState = bloc.state;
-    final sameDraftAlreadyLoaded =
-        currentState.isCreatingNewNote &&
-        currentState.newNoteBookId == widget.bookId &&
-        currentState.newNoteLineNumber == draft.lineNumber &&
-        currentState.newNoteInitialContent == draft.content &&
-        currentState.newNoteInitialFormat == draft.contentFormat;
-    if (sameDraftAlreadyLoaded) {
+    // ניווט או יצירה מפורשים גוברים על שחזור אוטומטי, גם אם הגיעו בזמן הטעינה.
+    if (widget.focusLineNumber != null ||
+        currentState.expandRequestLineNumber != null ||
+        currentState.isCreatingNewNote) {
       return;
     }
 
     bloc.add(
       StartCreatingPersonalNote(
-        bookId: widget.bookId,
+        bookId: bookId,
         lineNumber: draft.lineNumber!,
         referenceText: draft.referenceText,
         selectedText: currentState.newNoteSelectedText,
@@ -443,7 +449,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final items = <Widget>[];
 
     // הטיוטה מזוהה לפי newNoteBookId; state.bookId הוא הספר האחרון שנטען.
-    if (state.isCreatingNewNote && state.newNoteBookId == widget.bookId) {
+    final hasNewEditor =
+        state.isCreatingNewNote && state.newNoteBookId == widget.bookId;
+    if (hasNewEditor) {
       items.add(_buildNewNoteEditor(context, state));
     }
 
@@ -452,6 +460,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       items.addAll(
         filtered.locatedNotes.map(
           (note) => NoteTile(
+            key: ValueKey(note.id),
             note: note,
             onTap: () => widget.onNavigateToLine(note.lineNumber!, note: note),
             onSave: (result) => _saveInline(context, note, result),
@@ -503,6 +512,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       items.addAll(
         filtered.missingNotes.map(
           (note) => NoteTile(
+            key: ValueKey(note.id),
             note: note,
             onTap: () => _reposition(context, note),
             onSave: (result) => _saveInline(context, note, result),
@@ -565,6 +575,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       );
     }
 
+    _revealRequestedItem(state, filtered.locatedNotes, hasNewEditor);
     return ScrollablePositionedListScrollbar(
       scrollController: _itemScrollController,
       itemCount: items.length,
@@ -574,6 +585,56 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         itemBuilder: (context, index) => items[index],
       ),
     );
+  }
+
+  void _revealRequestedItem(
+    PersonalNotesState state,
+    List<PersonalNote> locatedNotes,
+    bool hasNewEditor,
+  ) {
+    final generation = ++_revealGeneration;
+    if (state.isLoading) return;
+    final expansion = (
+      widget.bookId,
+      widget.categoryId,
+      state.expandRequestToken,
+    );
+    final draft = hasNewEditor
+        ? (widget.bookId, widget.categoryId, state.newNoteRequestToken)
+        : null;
+    if (draft == null) _revealedDraft = null;
+    final revealExpansion =
+        state.expandRequestLineNumber != null &&
+        expansion != _revealedExpansion;
+    final revealDraft =
+        !revealExpansion && draft != null && draft != _revealedDraft;
+    if (!revealDraft && !revealExpansion) return;
+    final noteIndex = locatedNotes.indexWhere(
+      (note) => note.lineNumber == state.expandRequestLineNumber,
+    );
+    if (!revealDraft && noteIndex < 0) return;
+    final index = revealDraft ? 0 : noteIndex + (hasNewEditor ? 1 : 0);
+
+    // הפריט עשוי להיות מחוץ למסך או להגיע מטעינה אסינכרונית; גוללים אחרי הבנייה.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _revealGeneration ||
+          !_itemScrollController.isAttached) {
+        return;
+      }
+      final current = context.read<PersonalNotesBloc>().state;
+      if (!identical(current, state) ||
+          widget.bookId != expansion.$1 ||
+          widget.categoryId != expansion.$2 ||
+          (revealDraft
+              ? draft == _revealedDraft
+              : expansion == _revealedExpansion)) {
+        return;
+      }
+      _itemScrollController.jumpTo(index: index);
+      _revealedExpansion = expansion;
+      _revealedDraft = draft;
+    });
   }
 
   Widget _buildNewNoteEditor(BuildContext context, PersonalNotesState state) {

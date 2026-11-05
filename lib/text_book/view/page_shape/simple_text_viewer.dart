@@ -783,9 +783,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _handleNumberedNoteMarkerHover(url, globalPosition);
       return;
     }
-    if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
-      return;
-    }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
     _cancelPendingPreview();
     final bloc = context.read<TextBookBloc>();
@@ -852,16 +849,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (url.startsWith('otzaria://note')) {
-      final line = int.tryParse(
-        Uri.tryParse(url)?.queryParameters['line'] ?? '',
+      final notes = personalNotesForPreview(
+        url,
+        context.read<PersonalNotesBloc>().state.locatedNotes,
       );
-      if (line == null) return;
-      final notes = context
-          .read<PersonalNotesBloc>()
-          .state
-          .locatedNotes
-          .where((note) => note.lineNumber == line + 1)
-          .toList();
       if (notes.isEmpty) return;
       LinkPreviewOverlay.showContent(
         context,
@@ -1166,7 +1157,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
           context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(personalNotesBookKey(state.book)),
+            LoadPersonalNotes(
+              personalNotesBookKey(state.book),
+              categoryId: state.book.categoryId,
+            ),
           );
         }
       });
@@ -2446,11 +2440,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
   /// טיפול בלחיצה על סימון הערה אישית inline: מדגיש את השורה ופותח את החלונית.
   void _onInlineNoteTap(int lineIndex) {
-    context.read<TextBookBloc>().add(UpdateSelectedIndex(lineIndex));
-    context.read<TextBookBloc>().add(HighlightLine(lineIndex));
-    // פותחים את ההערה עצמה בחלונית, גם אם מוגדר "סגור כברירת מחדל".
-    context.read<PersonalNotesBloc>().add(
-      RequestExpandNotesForLine(lineIndex + 1),
+    final bloc = context.read<TextBookBloc>();
+    final state = bloc.state;
+    if (state is! TextBookLoaded) return;
+    bloc.add(UpdateSelectedIndex(lineIndex));
+    bloc.add(HighlightLine(lineIndex));
+    openPersonalNotesTarget(
+      context.read<PersonalNotesBloc>(),
+      bookId: personalNotesBookKey(state.book),
+      categoryId: state.book.categoryId,
+      lineNumber: lineIndex + 1,
     );
     if (widget.onOpenSidebarTab != null) {
       widget.onOpenSidebarTab!(kNotesTabIndex);

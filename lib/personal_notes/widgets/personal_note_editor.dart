@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
@@ -397,6 +398,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                           focusNode: widget.focusNode,
                           scrollController: widget.scrollController,
                           config: quill.QuillEditorConfig(
+                            customStyles: personalNoteStyles(context),
                             autoFocus: widget.autofocus,
                             expands: false,
                             padding: const EdgeInsets.all(12),

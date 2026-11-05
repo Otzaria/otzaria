@@ -25,6 +25,8 @@ class PersonalNotesState extends Equatable {
   // יצירת הערה חדשה — הטיוטה מתויגת ב-[newNoteBookId], כי bookId הוא הספר
   // האחרון שנטענו לו הערות ולא בהכרח ספר הטיוטה.
   final bool isCreatingNewNote;
+  // בקשה זהה עדיין צריכה לחשוף עורך שנגלל מחוץ למסך.
+  final int newNoteRequestToken;
   final String? newNoteBookId;
   final int? newNoteLineNumber;
   final String? newNoteReferenceText;
@@ -51,6 +53,7 @@ class PersonalNotesState extends Equatable {
     this.expandRequestLineNumber,
     this.expandRequestToken = 0,
     this.isCreatingNewNote = false,
+    this.newNoteRequestToken = 0,
     this.newNoteBookId,
     this.newNoteLineNumber,
     this.newNoteReferenceText,
@@ -78,6 +81,7 @@ class PersonalNotesState extends Equatable {
       expandRequestLineNumber = null,
       expandRequestToken = 0,
       isCreatingNewNote = false,
+      newNoteRequestToken = 0,
       newNoteBookId = null,
       newNoteLineNumber = null,
       newNoteReferenceText = null,
@@ -104,6 +108,7 @@ class PersonalNotesState extends Equatable {
     int? expandRequestLineNumber,
     int? expandRequestToken,
     bool? isCreatingNewNote,
+    int? newNoteRequestToken,
     String? newNoteBookId,
     int? newNoteLineNumber,
     String? newNoteReferenceText,
@@ -137,6 +142,7 @@ class PersonalNotesState extends Equatable {
       isCreatingNewNote: clearNewNoteData
           ? false
           : (isCreatingNewNote ?? this.isCreatingNewNote),
+      newNoteRequestToken: newNoteRequestToken ?? this.newNoteRequestToken,
       newNoteBookId: clearNewNoteData
           ? null
           : (newNoteBookId ?? this.newNoteBookId),
@@ -190,6 +196,7 @@ class PersonalNotesState extends Equatable {
     expandRequestLineNumber,
     expandRequestToken,
     isCreatingNewNote,
+    newNoteRequestToken,
     newNoteBookId,
     newNoteLineNumber,
     newNoteReferenceText,
