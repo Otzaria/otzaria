@@ -1040,11 +1040,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                   final defaultStyle = style.text;
                   final highlightStyle = style.highlight;
 
-                  // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
-                  // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
-                  // הדגשות מוטמעות ב-HTML.
+                  // רג׳קס מודגש לפי טווחי ההתאמה גם כשההגדרות מאפשרות חיפוש פשוט.
+                  // רק חיפוש ליטרלי חותך ומדגיש את השאילתה כמחרוזת.
                   final List<InlineSpan> highlightedSnippet;
-                  if (_isSimpleSearch) {
+                  if (_isSimpleSearch &&
+                      !UserRegexQuery.isValid(result.query)) {
                     final excerpt = SnippetBuilder.buildExcerptText(
                       fullText: snippet,
                       query: result.query,
@@ -1059,9 +1059,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                       wholeWord: _wholeWord,
                     );
                   } else {
-                    // המנוע מדגיש את הטוקן השלם; מדגישים מחדש בצד האפליקציה את
-                    // החלק המותאם בלבד, בעקביות עם הדגשת פאנל הקריאה. אם לא נמצאה
-                    // התאמה (וריאנט שהתבנית לא מכסה) — נשארים בהדגשת המנוע.
+                    // מדגישים את ההתאמה המדויקת כמו בפאנל הקריאה; בהיעדר טווחים
+                    // משמרים הדגשות HTML שהגיעו מהמנוע.
                     final plain = SnippetBuilder.htmlToPlainText(snippet);
                     final ranges =
                         _userRegexSnippetRanges(result, settingsState) ??
@@ -1216,7 +1215,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final settings = InBookSearchSettings.fromDialogResult(result);
         // הניתוב החדש נקבע לפני ה-setState, כדי שההדגשה שנשלחת ל-bloc תתאים
         // למסלול שירוץ בפועל ולא למסלול הקודם.
-        final willRunSimpleSearch = !settings.requiresEngine;
+        final willRunSimpleSearch = settings.isSimpleSearch;
         applyInBookSearchQuery(
           controller: searchTextController,
           query: result.query,

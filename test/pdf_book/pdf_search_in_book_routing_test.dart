@@ -508,6 +508,35 @@ Future<void> main() async {
     expect(repository.requests.last.distance, 3);
   }, skip: !engineReady);
 
+  testWidgets(
+    'מצב מתקדם שמור אינו חוסם חלק ממילה ב-PDF בשאילתה של מילה אחת (issue #4078)',
+    (tester) async {
+      SearchDefaults.saveModeDefault(SearchMode.advanced);
+      SearchDefaults.saveDistanceDefault(10);
+      addTearDown(() {
+        SearchDefaults.saveModeDefault(SearchMode.exact);
+        SearchDefaults.saveDistanceDefault(0);
+      });
+      final repository = await pumpPdfSearch(
+        tester,
+        query: '',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'הכנ');
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(repository.requests, isEmpty);
+      expect(
+        (repository.textSearcher.pattern as RegExp).hasMatch('ההכנה'),
+        isTrue,
+      );
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
+
   // הרגרסיה של issue #936: החלונית בנתה את ה-facet בלי מזהי הספר בעוד
   // האינדוקס משתמש בהם (id:/uid:/ext:) — מסלול המנוע החזיר תמיד "אין תוצאות"
   // לספר מזוהה, גם כשהחיפוש הגלובלי מצא בו התאמות.
