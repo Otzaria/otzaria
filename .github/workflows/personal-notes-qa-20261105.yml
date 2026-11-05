@@ -1,0 +1,54 @@
+name: Personal notes independent QA
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-notes-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.repository == 'Otzaria/otzaria' && github.event.ref_type == 'branch' && startsWith(github.event.ref, 'qa/personal-notes-validation-20261105-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      TZ: Asia/Jerusalem
+    steps:
+      - name: Checkout validation candidate
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.ref }}
+          fetch-depth: 3
+          persist-credentials: false
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Run independent regression validation
+        run: python3 tool/personal_notes_qa_20261105.py
+      - name: Pack validation evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$RUNNER_TEMP/personal-notes-qa" ]; then
+            tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/personal-notes-qa.tar" personal-notes-qa
+          fi
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: personal-notes-qa
+          path: ${{ runner.temp }}/personal-notes-qa.tar
+          if-no-files-found: error
+          retention-days: 14
