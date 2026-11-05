@@ -1,0 +1,100 @@
+name: PDF hand mode targeted follow-up
+
+on:
+  push:
+    branches: [qa/personal-notes-followup-20261105]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-notes-independent-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Replace only with the frozen commit containing the two PDF-test updates.
+      TARGET_SHA: '18d160c82e2abf8a04d8af91da0da724a4acf5ae'
+      TZ: Asia/Jerusalem
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - name: Check out the QA branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Keep QA outside the checkout and select the exact test-fix commit
+        id: product
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re, shutil, subprocess
+          product = os.environ['TARGET_SHA']
+          if not re.fullmatch('[0-9a-f]{40}', product):
+              raise SystemExit('Set TARGET_SHA to the frozen 40-character product commit.')
+          qa_temp = Path(os.environ['RUNNER_TEMP'])
+          bundle = qa_temp / 'pdf-hand-followup-bundle'
+          output = qa_temp / 'pdf-hand-followup-results'
+          shutil.copytree('qa/pdf-hand-followup', bundle)
+          output.mkdir(parents=True)
+          subprocess.run(['git', 'checkout', '--detach', product], check=True)
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          dirty = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all'], text=True).strip()
+          if actual != product or dirty:
+              raise SystemExit('The product checkout is not the requested clean snapshot: ' + dirty)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as export_file:
+              export_file.write(f'QA_BUNDLE_DIR={bundle}\n')
+              export_file.write(f'QA_OUT_DIR={output}\n')
+          PY
+
+      - name: Set up the repository's Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      # Ubuntu widget-test CI already provides clang, cmake and pkg-config.
+      # Rust is explicit for a Git-pinned crate with no downloadable binary.
+      - name: Set up Rust native source fallback
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Enforce the two-test diff, analyze and run the focused tests once
+        id: targeted
+        shell: bash
+        run: |
+          python3 "$QA_BUNDLE_DIR/run_pdf_hand_followup.py" \
+            --repo "$GITHUB_WORKSPACE" --target-sha "$TARGET_SHA" --out "$QA_OUT_DIR"
+
+      - name: Pack evidence even when validation or tests fail
+        if: ${{ always() && steps.product.outcome == 'success' }}
+        shell: bash
+        run: |
+          python3 - <<'PYREPORT'
+          from pathlib import Path
+          import hashlib, json, os
+          out = Path(os.environ['QA_OUT_DIR'])
+          report = out / 'qa-report.json'
+          if not report.exists():
+              report.write_text(json.dumps({'status': 'FAIL', 'target_sha': os.environ['TARGET_SHA'], 'error': 'The targeted QA runner did not produce a result; inspect workflow setup logs.'}, indent=2) + '\n')
+          manifest = out / 'SHA256SUMS'
+          lines = [hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + str(p.relative_to(out)) for p in sorted(out.rglob('*')) if p.is_file() and p != manifest]
+          manifest.write_text('\n'.join(lines) + '\n')
+          PYREPORT
+          tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/pdf-hand-followup-artifacts.tar" pdf-hand-followup-results
+
+      - name: Upload focused QA evidence
+        if: ${{ always() && steps.product.outcome == 'success' }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-hand-followup-${{ env.TARGET_SHA }}
+          path: ${{ runner.temp }}/pdf-hand-followup-artifacts.tar
+          if-no-files-found: error

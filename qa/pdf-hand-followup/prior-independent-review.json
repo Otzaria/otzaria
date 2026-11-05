@@ -1,0 +1,79 @@
+{
+  "reviewer": "independent agent /root/notes_search_followup",
+  "status": "PASS",
+  "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+  "product_tree": "30e8224cb46e5788242d6bcfcfaf030f7f328809",
+  "source_review": "PASS",
+  "gate": {
+    "run_id": 42099805004,
+    "artifact_id": 13450021903,
+    "passed": 1300,
+    "failed": 0,
+    "skipped": 1,
+    "skip_reason": "Existing Windows-only file-lock replacement test",
+    "format_dart_files": 89,
+    "format_changed_files": 0,
+    "full_analyze": "PASS; no issues",
+    "selected_test_files": 98,
+    "changed_files": 90,
+    "source_test_files": 3463
+  },
+  "red": {
+    "run_id": 42099805004,
+    "expected_failed_assertions": 2,
+    "unexpected_errors": 0,
+    "exact_product_bytes_restored": true
+  },
+  "captures": {
+    "run_id": 42102930723,
+    "artifact_id": 13450532724,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "error_events": 0,
+    "snapshot_unchanged": true,
+    "artifact_zip_sha256": "02344df46a686f6965a8cfe76263b55304929fcbe08f1681b89d2e3e39ded1aa",
+    "checksum_entries_verified": 48
+  },
+  "provenance_verified": true,
+  "gate_red_snapshot_and_support_logs_bytes_identical_to_original": true,
+  "gate_and_red_reused_not_rerun": true,
+  "six_pngs_visually_reviewed": [
+    {
+      "name": "01-note-dialog.png",
+      "sha256": "4b0c2fedd8ab393e8f1d24a2b356bcf57d8d89f3114dca7f20e5c751153d22f0",
+      "visual_review": "PASS"
+    },
+    {
+      "name": "02-note-panel.png",
+      "sha256": "bc6a53207d3159cbf96cc33903a6d53030bc7b6bb1ae85c6e24e0aadd89f4dcd",
+      "visual_review": "PASS"
+    },
+    {
+      "name": "03-note-manager-sort.png",
+      "sha256": "20cd27e755c71e517162a5142719d22d406c0fd7c55a7deb2a4805dc56f45f73",
+      "visual_review": "PASS"
+    },
+    {
+      "name": "04-pdf-note-point.png",
+      "sha256": "d47207567683db7afc29797ec37cbeb646ec9b5635f33c383eb4d30738e5d61d",
+      "visual_review": "PASS"
+    },
+    {
+      "name": "05-export-selection-before.png",
+      "sha256": "fd21083c8aef5f7f0436500984f4e1cd482527de9fb09bc3a087a3f62fd37426",
+      "visual_review": "PASS"
+    },
+    {
+      "name": "06-export-selection-after.png",
+      "sha256": "eb5245109a7daf606d4b2636c24de7c97d9f7bd25903a5d23e343b45ad6db51a",
+      "visual_review": "PASS"
+    }
+  ],
+  "visual_findings": "Dialog/inline panel, global timestamp order, PDF point marker and before/after book labels are readable; RTL, toolbars, controls and selection are intact. No visible rendering errors or overflow.",
+  "limitations": [
+    "Linux CI/widget/native fixtures do not establish actual Windows Alt+Enter sound or native keyboard behavior; interactive Windows verification was not performed by this reviewer.",
+    "The external Quill cursor patch remains unintegrated. Its separate 17/17 tests are not application integration evidence; this product uses the unchanged hosted flutter_quill 11.6.0 dependency."
+  ],
+  "note": "Records completed independent review only; no additional test run was performed to create this record."
+}

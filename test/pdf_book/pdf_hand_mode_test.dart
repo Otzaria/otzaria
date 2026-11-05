@@ -1,4 +1,5 @@
 // בדיקות למצב יד בצפיין ה-PDF (issue #916): גרירת עכבר גוללת במקום לסמן.
+// החיווט ל-PdfViewer נבדק בזמן ריצה ב-pdf_personal_note_viewer_test.dart.
 
 import 'dart:io';
 
@@ -34,18 +35,6 @@ void main() {
     setUpAll(() async {
       expect(sourceFile.existsSync(), isTrue);
       source = await sourceFile.readAsString();
-    });
-
-    test('textSelectionParams כפוף למצב היד', () {
-      expect(
-        source.contains(
-          'textSelectionParams: PdfTextSelectionParams(enabled: !_isHandMode)',
-        ),
-        isTrue,
-        reason:
-            'סימון הטקסט חייב להיות מנוטרל כשמצב היד פעיל — '
-            'זה מה שמפנה את גרירת העכבר לגלילה של pdfrx.',
-      );
     });
 
     test('הבחירה נזכרת ברמת התוכנה ולא מתאפסת בפתיחת ספר', () {

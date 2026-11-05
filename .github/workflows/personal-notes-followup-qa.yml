@@ -1,4 +1,4 @@
-name: Personal notes capture continuation
+name: PDF hand mode targeted follow-up
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: personal-notes-independent-qa-${{ github.ref }}
@@ -18,9 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # Replace this only after the product snapshot, including #4303, is frozen.
-      PRODUCT_SHA: 'fe27937a7e368bfc3d7d51203fe9497b186fbcb4'
-      BASE_SHA: '2ba2e6d76b53e7c72f37d048023f41d150f9702f'
+      # Replace only with the frozen commit containing the two PDF-test updates.
+      TARGET_SHA: '18d160c82e2abf8a04d8af91da0da724a4acf5ae'
       TZ: Asia/Jerusalem
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CI: 'true'
@@ -32,20 +30,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Keep QA outside the checkout and select the exact product commit
+      - name: Keep QA outside the checkout and select the exact test-fix commit
         id: product
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import os, re, shutil, subprocess
-          product = os.environ['PRODUCT_SHA']
+          product = os.environ['TARGET_SHA']
           if not re.fullmatch('[0-9a-f]{40}', product):
-              raise SystemExit('Set PRODUCT_SHA to the frozen 40-character product commit.')
+              raise SystemExit('Set TARGET_SHA to the frozen 40-character product commit.')
           qa_temp = Path(os.environ['RUNNER_TEMP'])
-          bundle = qa_temp / 'personal-notes-qa-bundle'
-          output = qa_temp / 'personal-notes-qa-results'
-          shutil.copytree('qa/personal-notes-followup', bundle)
+          bundle = qa_temp / 'pdf-hand-followup-bundle'
+          output = qa_temp / 'pdf-hand-followup-results'
+          shutil.copytree('qa/pdf-hand-followup', bundle)
+          output.mkdir(parents=True)
           subprocess.run(['git', 'checkout', '--detach', product], check=True)
           actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           dirty = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all'], text=True).strip()
@@ -68,65 +67,34 @@ jobs:
       - name: Set up Rust native source fallback
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Download the original immutable QA artifact
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          artifact-ids: '13450021903'
-          run-id: '42099805004'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: Otzaria/otzaria
-          path: ${{ runner.temp }}/personal-notes-prior-download
-          digest-mismatch: error
-
-      - name: Verify pinned evidence and inherit only the passing gate and RED
-        id: evidence
+      - name: Enforce the two-test diff, analyze and run the focused tests once
+        id: targeted
         shell: bash
         run: |
-          python3 "$QA_BUNDLE_DIR/resume_captures.py" \
-            --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
-            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase prepare \
-            --prior-tar "$RUNNER_TEMP/personal-notes-prior-download/personal-notes-qa-artifacts.tar"
+          python3 "$QA_BUNDLE_DIR/run_pdf_hand_followup.py" \
+            --repo "$GITHUB_WORKSPACE" --target-sha "$TARGET_SHA" --out "$QA_OUT_DIR"
 
-      - name: Install exactly locked dependencies for the new capture process
-        id: dependencies
+      - name: Pack evidence even when validation or tests fail
+        if: ${{ always() && steps.product.outcome == 'success' }}
         shell: bash
         run: |
-          flutter pub get --enforce-lockfile 2>&1 | tee "$QA_OUT_DIR/capture-dependencies.log"
-          flutter --version --machine > "$QA_OUT_DIR/capture-flutter-version.json"
-          python3 - <<'PYVERSION'
+          python3 - <<'PYREPORT'
           from pathlib import Path
-          import json, os
+          import hashlib, json, os
           out = Path(os.environ['QA_OUT_DIR'])
-          version = json.loads((out / 'capture-flutter-version.json').read_text())
-          if version.get('frameworkVersion') != '3.47.7':
-              raise SystemExit('Capture continuation used an unexpected Flutter version.')
-          PYVERSION
+          report = out / 'qa-report.json'
+          if not report.exists():
+              report.write_text(json.dumps({'status': 'FAIL', 'target_sha': os.environ['TARGET_SHA'], 'error': 'The targeted QA runner did not produce a result; inspect workflow setup logs.'}, indent=2) + '\n')
+          manifest = out / 'SHA256SUMS'
+          lines = [hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + str(p.relative_to(out)) for p in sorted(out.rglob('*')) if p.is_file() and p != manifest]
+          manifest.write_text('\n'.join(lines) + '\n')
+          PYREPORT
+          tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/pdf-hand-followup-artifacts.tar" pdf-hand-followup-results
 
-      - name: Render fresh UI captures without rerunning the gate or RED
-        id: captures
-        shell: bash
-        run: |
-          python3 "$QA_BUNDLE_DIR/run_qa.py" \
-            --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
-            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase captures
-
-      - name: Combine inherited gate and RED with new captures and explicit provenance
-        if: ${{ always() && steps.evidence.outcome == 'success' }}
-        shell: bash
-        run: |
-          python3 "$QA_BUNDLE_DIR/resume_captures.py" \
-            --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
-            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase summarize
-
-      - name: Pack logs, JSON, original evidence archive and new PNGs
-        if: ${{ always() && steps.evidence.outcome == 'success' }}
-        shell: bash
-        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/personal-notes-qa-capture-artifacts.tar" personal-notes-qa-results
-
-      - name: Upload capture evidence even on failure
-        if: ${{ always() && steps.evidence.outcome == 'success' }}
+      - name: Upload focused QA evidence
+        if: ${{ always() && steps.product.outcome == 'success' }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: personal-notes-capture-continuation-${{ env.PRODUCT_SHA }}
-          path: ${{ runner.temp }}/personal-notes-qa-capture-artifacts.tar
+          name: pdf-hand-followup-${{ env.TARGET_SHA }}
+          path: ${{ runner.temp }}/pdf-hand-followup-artifacts.tar
           if-no-files-found: error
