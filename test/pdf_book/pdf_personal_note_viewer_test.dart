@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
@@ -118,7 +119,7 @@ void main() {
     expect(condition(), isTrue);
   }
 
-  testWidgets('PDF אמיתי: ניווט, זהות, זום ובחירת נקודה בפאנל צר', (
+  testWidgets('PDF אמיתי: ניווט, זהות, זום, מצב יד ובחירת נקודה בפאנל צר', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
@@ -269,6 +270,51 @@ void main() {
     expect(controller.currentZoom, greaterThan(oldZoom));
     expectMarkerAtAnchor();
 
+    // בודקים את הפרמטרים שמקבל הצפיין בפועל אחרי פעולות במסך.
+    // כך שינוי ניסוח או פורמט בקוד המקור אינו משנה את הכיסוי של מצב היד.
+    void expectTextSelectionEnabled(bool enabled, {required String reason}) {
+      final viewer = tester.widget<PdfViewer>(find.byType(PdfViewer));
+      expect(
+        viewer.params.textSelectionParams?.enabled,
+        enabled,
+        reason: reason,
+      );
+    }
+
+    expectTextSelectionEnabled(
+      true,
+      reason: 'סימון טקסט זמין כשמצב היד ובחירת נקודה כבויים',
+    );
+    await tester.tap(find.byTooltip('מצב יד — גלילה בגרירת העכבר'));
+    await settle(tester, 5);
+    expectTextSelectionEnabled(
+      false,
+      reason: 'הפעלת מצב היד מפנה את גרירת העכבר לגלילה',
+    );
+    final sidebar = tester.widget<PersonalNotesSidebar>(
+      find.byType(PersonalNotesSidebar),
+    );
+    await sidebar.onReanchorNote!(note('current', anchor));
+    await settle(tester, 15);
+    expect(find.text(NotesMessages.choosePdfNotePoint), findsOneWidget);
+    expectTextSelectionEnabled(
+      false,
+      reason: 'בחירת נקודת הערה אינה מפעילה סימון טקסט במצב יד',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester, 15);
+    expect(find.text(NotesMessages.choosePdfNotePoint), findsNothing);
+    expectTextSelectionEnabled(
+      false,
+      reason: 'ביטול בחירת נקודה משאיר את מצב היד פעיל',
+    );
+    await tester.tap(find.byTooltip('מצב יד פעיל — לחץ לחזרה לסימון טקסט'));
+    await settle(tester, 5);
+    expectTextSelectionEnabled(
+      true,
+      reason: 'כיבוי מצב היד מחזיר את סימון הטקסט',
+    );
+
     await tester.binding.setSurfaceSize(const Size(420, 800));
     await settle(tester, 20);
     AdaptiveSidePane notesPane() => tester.widget<AdaptiveSidePane>(
@@ -287,12 +333,20 @@ void main() {
       // ההסתרה זמנית לתצוגה: ההחלטה על עורך inline נשארת לפי המצב הלוגי.
       expect((pdfBloc.state as PdfBookLoaded).showRightPane, isTrue);
       expect(notesPane().isOpen, isFalse);
+      expectTextSelectionEnabled(
+        false,
+        reason: 'בחירת נקודת הערה מנטרלת סימון טקסט גם כשמצב היד כבוי',
+      );
     }
 
     await beginReanchor();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await settle(tester, 15);
     expect(notesPane().isOpen, isTrue);
+    expectTextSelectionEnabled(
+      true,
+      reason: 'ביטול בחירת נקודה מחזיר סימון טקסט כשמצב היד כבוי',
+    );
     await beginReanchor();
     final newAnchor = PdfNoteAnchor(
       pageNumber: 2,
@@ -321,6 +375,10 @@ void main() {
     expect(moved.pdfAnchor!.x, closeTo(.45, .00001));
     expect(moved.pdfAnchor!.y, closeTo(.6, .00001));
     expect(notesPane().isOpen, isTrue);
+    expectTextSelectionEnabled(
+      true,
+      reason: 'שמירת נקודת ההערה מחזירה סימון טקסט כשמצב היד כבוי',
+    );
     await beginReanchor();
     tester.widget<PdfViewer>(find.byType(PdfViewer)).params.onDocumentChanged!(
       null,
@@ -330,6 +388,10 @@ void main() {
       notesPane().isOpen,
       isTrue,
       reason: 'החלפת מסמך מבטלת בחירת נקודה ומחזירה את הפאנל',
+    );
+    expectTextSelectionEnabled(
+      true,
+      reason: 'החלפת מסמך מבטלת את חסימת סימון הטקסט של בחירת נקודה',
     );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
