@@ -729,7 +729,7 @@ void main() {
     });
 
     test('גוף המייל: טקסט שגוי ומתוקן במקום בלוק ההצעה', () {
-      final details = ErrorReportHelper.sefariaErrorDetails(
+      final details = ErrorReportHelper.emailErrorDetails(
         ReportedErrorData(
           selectedText: 'כרא"ש',
           errorDetails: 'טעות הקלדה',
@@ -744,6 +744,27 @@ void main() {
         'בכרמלית הסמוך לו וכתב *הרא"ש* הרמב"ם בפי"ז השוה יחד',
       );
     });
+  });
+
+  test('מייל למקור שאינו ספריא: טקסט שגוי ומתוקן, ואחריהם ההצעה המלאה', () {
+    final details = ErrorReportHelper.emailErrorDetails(
+      ReportedErrorData(
+        selectedText: 'ב',
+        errorDetails: '',
+        correction: TextCorrection.selection(
+          originalLine: 'א ב ג',
+          start: 2,
+          end: 3,
+          proposedText: 'נ',
+        ),
+      ),
+      withFullProposal: true,
+    );
+    expect(
+      details,
+      startsWith('הטקסט השגוי:\nא ב ג\n\nהטקסט המתוקן:\nא *נ* ג'),
+    );
+    expect(details, endsWith('--- הצעת תיקון ---\nמקור: ב\nמוצע: נ'));
   });
 
   group('ErrorReportHelper.resolveSelectionContext', () {
@@ -1008,6 +1029,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('הדיווח יישלח לספריא'), findsNothing);
       expect(find.text('דיווח חופשי'), findsOneWidget);
+
+      await tester.tap(find.text('דיווח חופשי'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות'),
+        findsOneWidget,
+      );
 
       // שורה ארוכה מהתקרה חוסמת הצעת תיקון; בלי דיווח חופשי לא היה מסלול שליחה.
       final longLine = '${'א' * TextCorrection.maxTextLength} לבדיקה';

@@ -917,8 +917,12 @@ $detailsSection
     }
   }
 
-  /// פירוט הטעות למייל לספריא: הסבר המשתמש, ואחריו הצעת התיקון כטקסט שגוי ומתוקן.
-  static String sefariaErrorDetails(ReportedErrorData reportData) {
+  /// פירוט הטעות למייל: הסבר המשתמש, ואחריו הצעת התיקון כטקסט שגוי ומתוקן.
+  /// [withFullProposal] מצרף גם את ההצעה המלאה, לנמען שמחיל אותה על הקובץ.
+  static String emailErrorDetails(
+    ReportedErrorData reportData, {
+    bool withFullProposal = false,
+  }) {
     final correction = reportData.correction;
     final details = reportData.errorDetails;
     if (correction == null) return details;
@@ -926,7 +930,10 @@ $detailsSection
     if (snippets == null) return correction.appendFallbackTo(details);
     final block =
         'הטקסט השגוי:\n${snippets.wrong}\n\nהטקסט המתוקן:\n${snippets.fixed}';
-    return details.isEmpty ? block : '$details\n\n$block';
+    final withSnippets = details.isEmpty ? block : '$details\n\n$block';
+    return withFullProposal
+        ? correction.appendFallbackTo(withSnippets)
+        : withSnippets;
   }
 
   /// Handle regular report action (email or save)
@@ -947,10 +954,11 @@ $detailsSection
       currentRef,
       bookDetails,
       reportData.selectedText,
-      isSefariaSourceFolder(bookDetails['תיקיית המקור'])
-          ? sefariaErrorDetails(reportData)
-          : reportData.correction?.appendFallbackTo(reportData.errorDetails) ??
-                reportData.errorDetails,
+      // לכל מקור שאינו ספריא המייל מגיע גם לתיבת אוצריא, שמחילה את ההצעה המלאה.
+      emailErrorDetails(
+        reportData,
+        withFullProposal: !isSefariaSourceFolder(bookDetails['תיקיית המקור']),
+      ),
       lineNumber,
       contextText,
       libraryVersion,
@@ -1745,9 +1753,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       labelText: _isCorrection
                           ? 'הסבר לתיקון (רשות)'
                           : 'פירוט הטעות (חובה)',
-                      hintText: widget.isSefariaSource && !_isCorrection
-                          ? 'העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות'
-                          : 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל',
+                      hintText: _isCorrection
+                          ? 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל'
+                          : 'העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות',
                     ),
                   ),
                 ],
