@@ -13,12 +13,15 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
+import 'package:otzaria/pdf_book/utils/pdf_text_selection_actions.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -51,9 +54,11 @@ void main() {
     );
     addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
     final clipboard = <String>[];
+    Completer<void>? clipboardWrite;
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') {
         clipboard.add((call.arguments as Map)['text'] as String);
+        await clipboardWrite?.future;
       }
       return null;
     });
@@ -190,6 +195,7 @@ void main() {
     final menu = tester.widget<AppContextMenuRegion>(
       find.descendant(of: viewer, matching: find.byType(AppContextMenuRegion)),
     );
+    clipboardWrite = Completer<void>();
     menu
         .menuBuilder(tester.element(viewer), tester.getCenter(viewer))
         .firstWhere((entry) => entry.iconRowActions != null)
@@ -198,10 +204,31 @@ void main() {
         .onTap!();
     await settle();
     expect(clipboard, hasLength(3));
+    expect(find.text(CommonMessages.textCopied), findsNothing);
+    expect(selection.hasSelectedText, isTrue);
+    clipboardWrite.complete();
+    clipboardWrite = null;
+    await settle();
     expect(find.text(CommonMessages.textCopied), findsOneWidget);
     expect(selection.hasSelectedText, isFalse);
     UiSnack.hide();
     await settle();
+
+    for (final key in [LogicalKeyboardKey.keyC, LogicalKeyboardKey.keyA]) {
+      await Settings.setValue<String>(
+        ShortcutValidator.currentWindowSearchKey,
+        key == LogicalKeyboardKey.keyC ? 'ctrl+c' : 'ctrl+a',
+      );
+      await tester.tapAt(tester.getCenter(viewer));
+      await chord([command], key);
+      expect(ShortcutHelper.isEditingText, isTrue);
+      expect(clipboard, hasLength(3));
+      expect(selection.hasSelectedText, isFalse);
+    }
+    await Settings.setValue<String>(
+      ShortcutValidator.currentWindowSearchKey,
+      'ctrl+f',
+    );
 
     // קיצורי הקורא ש-889193890 הגן עליהם: Alt+Left ו-Ctrl+Shift+0.
     unawaited(controller.goToPage(pageNumber: 2, duration: Duration.zero));
@@ -233,6 +260,100 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 7));
     await disposePdfDocument(tester, document);
+  });
+
+  testWidgets('progressive PDF: select-all preserves an existing selection '
+      'until a complete retry', (tester) async {
+    final originalModulePath = Pdfrx.pdfiumModulePath;
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/${Platform.isWindows
+          ? 'pdfium.dll'
+          : Platform.isMacOS
+          ? 'libpdfium.dylib'
+          : 'libpdfium.so'}',
+    ).absolute.path;
+    addTearDown(() => Pdfrx.pdfiumModulePath = originalModulePath);
+    final document = (await tester.runAsync(() async {
+      await pdfrxFlutterInitialize();
+      final pdf = pw.Document();
+      for (var i = 0; i < 30; i++) {
+        pdf.addPage(
+          pw.Page(build: (_) => pw.Center(child: pw.Text('Page text $i'))),
+        );
+      }
+      return PdfDocument.openData(
+        await pdf.save(),
+        useProgressiveLoading: true,
+      );
+    }))!;
+    final controller = PdfViewerController();
+    var ready = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            height: 400,
+            child: PdfViewer(
+              PdfDocumentRefDirect(document, autoDispose: false),
+              controller: controller,
+              params: PdfViewerParams(
+                onViewerReady: (_, _) => ready = true,
+                textSelectionParams: PdfTextSelectionParams(
+                  showContextMenuAutomatically: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    try {
+      for (var i = 0; i < 40 && !ready; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+      }
+      expect(ready, isTrue);
+      final first = (await tester.runAsync(
+        document.pages.first.loadStructuredText,
+      ))!;
+      final selection = controller.textSelectionDelegate;
+      final oldRange = PdfTextSelectionRange.fromPoints(
+        PdfTextSelectionPoint(first, 0),
+        PdfTextSelectionPoint(first, first.charRects.length - 1),
+      );
+      await selection.setTextSelectionPointRange(oldRange);
+      expect(document.pages.any((page) => !page.isLoaded), isTrue);
+      final actions = PdfTextSelectionActions(controller, isActive: () => true);
+      expect(await actions.selectAll(), PdfTextActionResult.loading);
+      expect(selection.textSelectionPointRange!.start, oldRange.start);
+      expect(selection.textSelectionPointRange!.end, oldRange.end);
+
+      await tester.pump(const Duration(seconds: 1));
+      for (var i = 0; i < 100 && document.pages.any((p) => !p.isLoaded); i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+      expect(document.pages.every((page) => page.isLoaded), isTrue);
+      expect(
+        await tester.runAsync(actions.selectAll),
+        PdfTextActionResult.none,
+      );
+      expect(selection.textSelectionPointRange!.start.text.pageNumber, 1);
+      expect(selection.textSelectionPointRange!.end.text.pageNumber, 30);
+      final text = await tester.runAsync(selection.getSelectedText);
+      expect(text, contains('Page text 0'));
+      expect(text, contains('Page text 29'));
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+      await disposePdfDocument(tester, document);
+    }
   });
 }
 
