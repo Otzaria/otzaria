@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,6 +74,68 @@ void main() {
     expect(find.text('אבא'), findsOneWidget);
     expect(find.text('בית'), findsOneWidget);
     expect(selected, isNull, reason: 'לא נבחר עדיין פריט');
+  });
+
+  testWidgets('הסרת העוגן בזמן המדידה אינה פותחת תפריט מאוחר', (tester) async {
+    var completed = false;
+    int? result = -1;
+    await pumpAnchorWithMenu<int>(
+      tester,
+      entries: [
+        for (var i = 0; i < 20000; i++)
+          AppMenuEntry(value: i, label: 'שורה $i'),
+      ],
+      onResult: (value) {
+        result = value;
+        completed = true;
+      },
+    );
+    tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed!();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    for (var i = 0; i < 200 && !completed; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(completed, isTrue);
+    expect(result, isNull);
+    expect(tester.takeException(), isNull);
+    expect(find.byType(EditableText), findsNothing);
+  });
+
+  testWidgets('ניווט בזמן המדידה אינו פותח תפריט מעל הדף החדש', (
+    tester,
+  ) async {
+    var completed = false;
+    int? result = -1;
+    await pumpAnchorWithMenu<int>(
+      tester,
+      entries: [
+        for (var i = 0; i < 20000; i++)
+          AppMenuEntry(value: i, label: 'שורה $i'),
+      ],
+      onResult: (value) {
+        result = value;
+        completed = true;
+      },
+    );
+    final anchor = tester.element(find.byType(ElevatedButton));
+    tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed!();
+    unawaited(
+      Navigator.of(anchor).push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('דף חדש')),
+        ),
+      ),
+    );
+    for (var i = 0; i < 200 && !completed; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(anchor.mounted, isTrue);
+    expect(completed, isTrue);
+    expect(result, isNull);
+    await tester.pumpAndSettle();
+    expect(find.text('דף חדש'), findsOneWidget);
+    expect(find.byType(EditableText), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('כתיבה בשדה החיפוש מסננת את הפריטים', (tester) async {
@@ -172,6 +236,75 @@ void main() {
       matching: find.byType(InkWell),
     );
     expect(selectedRow, findsOneWidget);
+  });
+
+  for (final initial in [900, 998]) {
+    testWidgets(
+      'הפריים הראשון כבר מציג ובוחר את האזור הנבחר לאחר סינון ($initial)',
+      (tester) async {
+        int? selected;
+        await pumpAnchorWithMenu<int>(
+          tester,
+          entries: [
+            for (var i = 0; i < 1000; i++)
+              AppMenuEntry(value: i, label: 'שורה $i'),
+          ],
+          initialValue: initial,
+          filterLabels: const ['הכל', 'זוגיים'],
+          filterPredicates: [null, (entry) => entry.value.isEven],
+          initialFilter: 1,
+          onResult: (value) => selected = value,
+        );
+        await tester.tap(find.text('פתח'));
+        for (var i = 0; i < 100; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          if (find.byType(EditableText).evaluate().isNotEmpty) break;
+        }
+        expect(find.text('שורה $initial'), findsOneWidget);
+        expect(find.text('שורה 0'), findsNothing);
+        final position = tester
+            .widget<ListView>(find.byType(ListView))
+            .controller!
+            .position;
+        expect(
+          position.pixels,
+          inInclusiveRange(position.minScrollExtent, position.maxScrollExtent),
+        );
+        final target = initial == 998 ? initial : initial + 2;
+        await tester.tap(find.text('שורה $target'));
+        await tester.pumpAndSettle();
+        expect(selected, target);
+      },
+    );
+  }
+
+  testWidgets('בחירה אחרונה ברשימה קצרה אינה מתחילה מחוץ לתחום הגלילה', (
+    tester,
+  ) async {
+    int? selected;
+    await pumpAnchorWithMenu<int>(
+      tester,
+      entries: [
+        for (var i = 0; i < 4; i++) AppMenuEntry(value: i, label: 'שורה $i'),
+      ],
+      initialValue: 3,
+      onResult: (value) => selected = value,
+    );
+    await tester.tap(find.text('פתח'));
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (find.byType(EditableText).evaluate().isNotEmpty) break;
+    }
+    final position = tester
+        .widget<ListView>(find.byType(ListView))
+        .controller!
+        .position;
+    expect(position.pixels, 0);
+    expect(find.text('שורה 0'), findsOneWidget);
+    expect(find.text('שורה 3'), findsOneWidget);
+    await tester.tap(find.text('שורה 3'));
+    await tester.pumpAndSettle();
+    expect(selected, 3);
   });
 
   testWidgets('רשימה ריקה מחזירה null מיד בלי לפתוח תפריט', (tester) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -126,6 +127,34 @@ void main() {
       calculateAppMenuPreferredWidth(metrics, [huge.last]),
     );
   });
+  testWidgets('ברשימת ענק מדידת המנות זהה למדידת כל תווית בנפרד', (
+    tester,
+  ) async {
+    // גם תווית קצרה ורחבה בסוף נמדדת לצד תוויות ארוכות וצרות.
+    const wideShort = 'WWWWWWWWWWWWWWWWWWWWWWWWW';
+    List<AppMenuEntry<int>> huge(List<String> extra) => [
+      for (var i = 0; i < 5000; i++)
+        AppMenuEntry<int>(value: i, label: 'שורה ${i + 1}'),
+      for (var i = 0; i < 300; i++)
+        AppMenuEntry<int>(
+          value: 5000 + i,
+          label: 'Illinois: little cities, little districts $i',
+        ),
+      for (var i = 0; i < extra.length; i++)
+        AppMenuEntry<int>(value: -1 - i, label: extra[i]),
+    ];
+    double exhaustive(List<AppMenuEntry<int>> list) => list
+        .map((e) => calculateAppMenuPreferredWidth(metrics, [e]))
+        .reduce(max);
+
+    for (final list in [
+      huge(const []),
+      huge(const [wideShort]),
+      huge(const ['\t$wideShort', wideShort]),
+    ]) {
+      expect(calculateAppMenuPreferredWidth(metrics, list), exhaustive(list));
+    }
+  });
   testWidgets('ZWJ בתחילת תווית אינו מחבר אותה לפסקה הקודמת במדידה', (
     tester,
   ) async {
@@ -141,5 +170,60 @@ void main() {
         calculateAppMenuPreferredWidth(metrics, [separate.last]),
       ),
     );
+  });
+
+  testWidgets('קרנינג חיובי אינו מסתיר תווית קצרה ורחבה ברשימת ענק', (
+    tester,
+  ) async {
+    final labels = <AppMenuEntry<int>>[];
+    for (var first = 0; first < 49; first++) {
+      for (var second = first + 1; second < 49; second++) {
+        final chars = List.filled(135, 'ì');
+        chars[first * 2] = 'ſ';
+        chars[second * 2] = 'ſ';
+        labels.add(AppMenuEntry(value: labels.length, label: chars.join()));
+      }
+    }
+    labels.removeRange(1152, labels.length);
+    final widest = AppMenuEntry(value: -1, label: 'ſì' * 50);
+    labels.add(widest);
+    expect(
+      calculateAppMenuPreferredWidth(metrics, labels),
+      greaterThanOrEqualTo(calculateAppMenuPreferredWidth(metrics, [widest])),
+    );
+  });
+
+  test('מדידה חסומה מחזירה בדיוק את המינימום בין הרוחב המלא לתקרה', () async {
+    final options = [
+      ...entries,
+      const AppMenuEntry(value: -1, label: 'טקסט עברי עם ניקוד: עִבְרִית'),
+      const AppMenuEntry(value: -2, label: '\tWWW'),
+    ];
+    final full = calculateAppMenuPreferredWidth(metrics, options);
+    for (final limit in [0.0, 50.0, 250.0, full, full + 100]) {
+      expect(
+        calculateAppMenuPreferredWidth(metrics, options, maxWidth: limit),
+        min(full, limit),
+      );
+      expect(
+        await calculateAppMenuPreferredWidthAsync(
+          metrics,
+          options,
+          maxWidth: limit,
+        ),
+        min(full, limit),
+      );
+    }
+  });
+
+  test('מדידה של רשימה גדולה מאפשרת לאירועי הממשק להתקדם', () async {
+    final options = [
+      for (var i = 0; i < 20000; i++) AppMenuEntry(value: i, label: 'שורה $i'),
+    ];
+    var eventRan = false;
+    Timer.run(() => eventRan = true);
+    final width = await calculateAppMenuPreferredWidthAsync(metrics, options);
+    expect(eventRan, isTrue);
+    expect(width, calculateAppMenuPreferredWidth(metrics, options));
   });
 }
