@@ -14,9 +14,11 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         HighlightPattern,
         HighlightMatcher,
         HighlightMatch,
+        SemanticLexicalMode,
         UserRegexKind,
         UserRegexMatcher,
         generateHighlightPattern,
+        generateSmartHighlightPattern,
         splitQueryWords;
 import 'package:otzaria/search/utils/literal_search_pattern.dart'
     show LiteralEdgeCheck, literalEdgeCheck;
@@ -877,6 +879,7 @@ class _CompiledHighlightPattern {
   final RegExp? combined;
   final List<RegExp> words;
   final List<bool> boundaryEligible;
+  final bool allowsCrossLine;
 
   /// שאילתת `/…/`: ההתאמות כולן מהמתאם של המנוע, בלי פרמטרי החיפוש.
   final UserRegexMatcher? userRegex;
@@ -889,6 +892,7 @@ class _CompiledHighlightPattern {
     this.combined,
     this.words,
     this.boundaryEligible, {
+    this.allowsCrossLine = true,
     this.userRegex,
     this.userRegexCrossesLines = false,
   });
@@ -939,7 +943,12 @@ VoidCallback retainHighlightPattern({
   required int searchDistance,
   required bool isFuzzy,
   bool anyOrder = false,
+  SearchQuerySemantics querySemantics = SearchQuerySemantics.regular,
 }) {
+  if (!isFuzzy) querySemantics = SearchQuerySemantics.regular;
+  if (querySemantics == SearchQuerySemantics.smart) {
+    alternativeWords = withHolyNameAlternatives(searchQuery, alternativeWords);
+  }
   final key = _highlightRequestKey(
     searchQuery,
     searchOptions,
@@ -948,6 +957,7 @@ VoidCallback retainHighlightPattern({
     searchDistance,
     isFuzzy,
     anyOrder,
+    querySemantics,
   );
   _retainedHighlightPatterns.update(
     key,
@@ -993,6 +1003,7 @@ _CompiledHighlightPattern? _compileHighlightPattern(HighlightPattern? pattern) {
           ]
         : const [],
     pattern.wordBoundaryEligible,
+    allowsCrossLine: matcher?.allowsCrossLine() ?? true,
   );
 }
 
@@ -1008,8 +1019,13 @@ Future<void> primeHighlightPattern({
   required int searchDistance,
   required bool isFuzzy,
   bool anyOrder = false,
+  SearchQuerySemantics querySemantics = SearchQuerySemantics.regular,
   required Future<HighlightPattern?> Function() fetch,
 }) async {
+  if (!isFuzzy) querySemantics = SearchQuerySemantics.regular;
+  if (querySemantics == SearchQuerySemantics.smart) {
+    alternativeWords = withHolyNameAlternatives(searchQuery, alternativeWords);
+  }
   final key = _highlightRequestKey(
     searchQuery,
     searchOptions,
@@ -1018,6 +1034,7 @@ Future<void> primeHighlightPattern({
     searchDistance,
     isFuzzy,
     anyOrder,
+    querySemantics,
   );
   if (_primedHighlightCache.containsKey(key) ||
       !_primedHighlightInFlight.add(key)) {
@@ -1049,6 +1066,7 @@ String _highlightRequestKey(
   int searchDistance,
   bool isFuzzy,
   bool anyOrder,
+  SearchQuerySemantics querySemantics,
 ) {
   // מצב fuzzy מפיק תבנית שונה מהותית (וריאנטי מרחק-עריכה וצורות מילון) גם
   // עבור אותם query/distance — בלעדי הסמן, חיפוש advanced ו-fuzzy עם אותם
@@ -1056,6 +1074,7 @@ String _highlightRequestKey(
   final buffer = StringBuffer()
     ..write(isFuzzy ? 'f' : 'a')
     ..write(anyOrder ? 'u' : 'o')
+    ..write(querySemantics == SearchQuerySemantics.smart ? 's' : 'r')
     ..write(' ')
     ..write(searchDistance)
     ..write(' ')
@@ -1102,7 +1121,9 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
   int searchDistance,
   bool isFuzzy, {
   bool anyOrder = false,
+  SearchQuerySemantics querySemantics = SearchQuerySemantics.regular,
 }) {
+  if (!isFuzzy) querySemantics = SearchQuerySemantics.regular;
   final userRegex = UserRegexQuery.matcher(searchQuery);
   if (userRegex != null) {
     return _CompiledHighlightPattern(
@@ -1115,7 +1136,7 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
           UserRegexQuery.plan(searchQuery)?.kind == UserRegexKind.wordSequence,
     );
   }
-  if (!isFuzzy) {
+  if (!isFuzzy || querySemantics == SearchQuerySemantics.smart) {
     alternativeWords = withHolyNameAlternatives(searchQuery, alternativeWords);
   }
   final key = _highlightRequestKey(
@@ -1126,6 +1147,7 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
     searchDistance,
     isFuzzy,
     anyOrder,
+    querySemantics,
   );
   // תבנית מבוססת-אינדקס שהוזנה מראש קודמת ל-fallback: היא מדגישה את
   // הווריאנטים שהחיפוש באמת התאים, לא רק את צורת השאילתה.
@@ -1138,14 +1160,19 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
   }
 
   final compiled = _compileHighlightPattern(
-    generateHighlightPattern(
-      query: searchQuery,
-      distance: searchDistance < 0 ? 0 : searchDistance,
-      customSpacing: spacingValues,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-      anyOrder: anyOrder,
-    ),
+    querySemantics == SearchQuerySemantics.smart
+        ? generateSmartHighlightPattern(
+            query: searchQuery,
+            lexicalMode: SemanticLexicalMode.fuzzy,
+          )
+        : generateHighlightPattern(
+            query: searchQuery,
+            distance: searchDistance < 0 ? 0 : searchDistance,
+            customSpacing: spacingValues,
+            alternativeWords: alternativeWords,
+            searchOptions: searchOptions,
+            anyOrder: anyOrder,
+          ),
   );
 
   _highlightCacheKey = key;
@@ -1626,6 +1653,7 @@ String highLight(
     searchDistance,
     isFuzzy,
     anyOrder: matchPolicy.anyOrder && !isFuzzy,
+    querySemantics: matchPolicy.querySemantics,
   );
   if (compiled == null) return data;
 
@@ -1651,6 +1679,7 @@ String highLight(
   // מילה בודדת מותאמת בתוך טוקן אחד ולא יכולה לחצות את המעבר בין השורות.
   if (currentIndex == -1 &&
       !yellowBackground &&
+      compiled.allowsCrossLine &&
       (compiled.userRegexCrossesLines ||
           (matchPolicy.hasStandardWordMatching &&
               compiled.boundaryEligible.length > 1))) {
@@ -1830,6 +1859,7 @@ List<_HighlightMatch> _computeHighlightMatches(
     searchDistance,
     isFuzzy,
     anyOrder: (anyOrder ?? matchPolicy.anyOrder) && !isFuzzy,
+    querySemantics: matchPolicy.querySemantics,
   );
   if (compiled == null) return const [];
   final requireTokenBoundaries = [

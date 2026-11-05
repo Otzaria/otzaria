@@ -313,6 +313,10 @@ abstract class SearchEngineOperations {
   Future<List<SearchResult>> searchAdvanced(SearchEngineRequest request);
   Future<List<SearchResult>> searchFuzzy(SearchEngineRequest request);
 
+  /// כללי החיפוש החכם, עם סדר ודפדוף לקסיקליים וללא חלון מועמדים סמנטי.
+  Future<List<SearchResult>> searchSmartLexical(SearchEngineRequest request) =>
+      throw UnsupportedError('המנוע אינו תומך בחיפוש לקסיקלי חכם');
+
   Future<SearchPageResult> searchAndCountExact(SearchEngineRequest request);
   Future<SearchPageResult> searchAndCountAdvanced(SearchEngineRequest request);
   Future<SearchPageResult> searchAndCountFuzzy(SearchEngineRequest request);
@@ -571,6 +575,25 @@ class RustSearchEngineOperations
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       grouping: request.grouping,
+      cancelRequestId: request.cancelRequestId,
+    );
+  }
+
+  @override
+  Future<List<SearchResult>> searchSmartLexical(SearchEngineRequest request) {
+    primeSmartHighlightPattern(request);
+    return _engine.searchSmartLexical(
+      query: request.query,
+      facets: request.facets,
+      limit: request.limit,
+      offset: request.offset,
+      lexicalMode: request.searchMode == SearchMode.exact
+          ? SemanticLexicalMode.exact
+          : SemanticLexicalMode.fuzzy,
+      fuzzyMaxDistance: _fuzzyDistance(request.distance),
+      order: request.order,
+      matchNikud: request.matchNikud,
+      matchTaamim: request.matchTaamim,
       cancelRequestId: request.cancelRequestId,
     );
   }
@@ -1088,10 +1111,23 @@ class RustSearchEngineOperations
 
   /// מזין מראש תבנית שמפתח המטמון שלה תואם לפרמטרי הרינדור של הספר.
   @override
-  void primeHighlightPattern(SearchEngineRequest request) {
+  void primeHighlightPattern(SearchEngineRequest request) =>
+      _primeHighlightPattern(request, SearchQuerySemantics.regular);
+
+  /// גם טאב משוחזר צריך את אותו plan חכם שהפיק את תוצאות הספר.
+  void primeSmartHighlightPattern(SearchEngineRequest request) =>
+      _primeHighlightPattern(request, SearchQuerySemantics.smart);
+
+  void _primeHighlightPattern(
+    SearchEngineRequest request,
+    SearchQuerySemantics semantics,
+  ) {
     final indexed = indexHighlightRequest(request);
     if (indexed == null) return;
     request = indexed;
+    if (request.searchMode != SearchMode.fuzzy) {
+      semantics = SearchQuerySemantics.regular;
+    }
     unawaited(
       text_utils.primeHighlightPattern(
         searchQuery: request.query,
@@ -1101,21 +1137,30 @@ class RustSearchEngineOperations
         searchDistance: request.distance,
         isFuzzy: request.searchMode == SearchMode.fuzzy,
         anyOrder: request.anyOrder,
-        fetch: () => switch (request.searchMode) {
-          SearchMode.advanced => _engine.generateIndexHighlightPattern(
-            query: request.query,
-            distance: request.distance < 0 ? 0 : request.distance,
-            customSpacing: request.customSpacing,
-            alternativeWords: request.alternativeWords,
-            searchOptions: request.searchOptions,
-            anyOrder: request.anyOrder,
-          ),
-          SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
-            query: request.query,
-            maxDistance: _fuzzyDistance(request.distance),
-          ),
-          SearchMode.exact => Future.value(null),
-        },
+        querySemantics: semantics,
+        fetch: () => semantics == SearchQuerySemantics.smart
+            ? _engine.generateIndexSmartHighlightPattern(
+                query: request.query,
+                lexicalMode: request.searchMode == SearchMode.exact
+                    ? SemanticLexicalMode.exact
+                    : SemanticLexicalMode.fuzzy,
+                maxDistance: _fuzzyDistance(request.distance),
+              )
+            : switch (request.searchMode) {
+                SearchMode.advanced => _engine.generateIndexHighlightPattern(
+                  query: request.query,
+                  distance: request.distance < 0 ? 0 : request.distance,
+                  customSpacing: request.customSpacing,
+                  alternativeWords: request.alternativeWords,
+                  searchOptions: request.searchOptions,
+                  anyOrder: request.anyOrder,
+                ),
+                SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
+                  query: request.query,
+                  maxDistance: _fuzzyDistance(request.distance),
+                ),
+                SearchMode.exact => Future.value(null),
+              },
       ),
     );
   }

@@ -110,6 +110,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   Timer? _debounceTimer;
   Timer? _highlightTimer;
   SearchEngineRequest? _highlightRequest;
+  SearchQuerySemantics _highlightSemantics = SearchQuerySemantics.regular;
   VoidCallback? _releaseHighlightPattern;
   int _searchResultRequestId = 0;
   DateTime? _lastVisibleIndicesDispatchAt;
@@ -280,10 +281,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
   }
 
-  void _setHighlightRequest(SearchEngineRequest request) {
+  void _setHighlightRequest(
+    SearchEngineRequest request, {
+    SearchQuerySemantics querySemantics = SearchQuerySemantics.regular,
+  }) {
     _highlightRequest = RustSearchEngineOperations.indexHighlightRequest(
       request,
     );
+    _highlightSemantics = querySemantics;
     _syncHighlightPattern();
   }
 
@@ -300,6 +305,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             searchDistance: request.distance,
             isFuzzy: request.searchMode == SearchMode.fuzzy,
             anyOrder: request.anyOrder,
+            querySemantics: _highlightSemantics,
           );
     // Acquire first: reloading the same query must not briefly unpin it.
     previousRelease?.call();
@@ -310,7 +316,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           if (!isClosed &&
               _isTabVisible &&
               identical(request, _highlightRequest)) {
-            RustSearchEngineOperations(engine).primeHighlightPattern(request);
+            final operations = RustSearchEngineOperations(engine);
+            if (_highlightSemantics == SearchQuerySemantics.smart) {
+              operations.primeSmartHighlightPattern(request);
+            } else {
+              operations.primeHighlightPattern(request);
+            }
           }
         },
         onError: (Object error) =>
@@ -862,6 +873,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchOptions: searchOptions,
         anyOrder: matchPolicy.anyOrder,
       ),
+      querySemantics: matchPolicy.querySemantics,
     );
 
     try {
