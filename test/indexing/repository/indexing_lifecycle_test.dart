@@ -152,7 +152,7 @@ void main() {
 }
 
 class _Repository extends IndexingRepository {
-  _Repository(TantivyDataProvider provider) : super(provider);
+  _Repository(super.provider);
 
   final preflightEntered = Completer<void>();
   final orderEntered = Completer<void>();

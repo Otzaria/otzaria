@@ -275,7 +275,7 @@ void main() {
   );
 }
 
-class _LockedIndex extends IOOverrides {
+final class _LockedIndex extends IOOverrides {
   _LockedIndex(this.path);
   final String path;
 
