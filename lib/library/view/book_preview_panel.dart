@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' show min;
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_colors.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,7 @@ import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -171,6 +173,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   /// פורמט פתיחה שנבחר נקודתית למסכת המוצגת, גובר על ההגדרה (null = ההגדרה).
   bool? _formatOverride;
   PdfViewerController? _pdfController;
+  Completer<void>? _pdfHighlightRequest;
+  List<PdfTextSearchResult> _pdfHighlights = const [];
   bool _isPdfViewerReady = false;
   bool _pdfFileExists = true;
   double _fontSize = 18.0; // ברירת מחדל לגודל פונט
@@ -196,7 +200,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
     // אותה תוצאה, פרמטרי חיפוש אחרים: שינוי מצב/מרחק/אפשרויות והרצה חוזרת
     // של אותה שאילתה אינם סוגרים את החלונית, והטאב היה מדגיש לפי הישנים.
-    if (previewSearchParametersChanged(oldWidget, widget)) {
+    final searchChanged = previewSearchParametersChanged(oldWidget, widget);
+    if (searchChanged && _pdfController == null) {
       _disposeCurrentTab();
       _createNewTab();
       return;
@@ -222,6 +227,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         _pdfController != null &&
         _pdfController!.isReady) {
       _pdfController!.goToPage(pageNumber: widget.initialPdfPage!);
+    }
+    if (searchChanged ||
+        widget.initialPdfPage != oldWidget.initialPdfPage ||
+        widget.initialTextIsSearchResult !=
+            oldWidget.initialTextIsSearchResult) {
+      unawaited(_updatePdfHighlights());
     }
   }
 
@@ -271,11 +282,83 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   }
 
   void _disposeCurrentTab() {
+    _clearPdfHighlights();
     _currentTextTab?.dispose();
     _currentTextTab = null;
     _companionPdfBook = null;
     _pdfController = null;
     _isPdfViewerReady = false;
+  }
+
+  void _clearPdfHighlights() {
+    _pdfHighlightRequest?.complete();
+    _pdfHighlightRequest = null;
+    _pdfHighlights = const [];
+  }
+
+  /// Only the selected result page is needed in the preview. Loading it through
+  /// pdfrx's shared cache avoids scanning the book and retaining page geometry.
+  Future<void> _updatePdfHighlights() async {
+    _clearPdfHighlights();
+    final request = _pdfHighlightRequest = Completer<void>();
+    final controller = _pdfController;
+    if (controller == null || !controller.isReady) return;
+    controller.invalidate();
+    final query = widget.searchText ?? '';
+    final pageNumber = widget.initialPdfPage;
+    if (query.trim().isEmpty || pageNumber == null) return;
+    final parameters = widget;
+    final matches = await controller.useDocument((document) async {
+      if (pageNumber < 1 || pageNumber > document.pages.length) {
+        return const <PdfTextSearchResult>[];
+      }
+      final page = await document.pages[pageNumber - 1].waitForLoaded(
+        cancelLoading: request.future,
+      );
+      if (page == null || request.isCompleted) {
+        return const <PdfTextSearchResult>[];
+      }
+      final text = await PdfPageTextCache.forDocument(document).load(page);
+      if (request.isCompleted) return const <PdfTextSearchResult>[];
+      final spans = text_utils.computeHighlightSpans(
+        text.fullText,
+        query,
+        searchOptions: parameters.searchOptions,
+        alternativeWords: parameters.alternativeWords,
+        spacingValues: parameters.spacingValues,
+        isFuzzy: parameters.searchMode == SearchMode.fuzzy,
+        searchDistance: parameters.searchDistance,
+        matchPolicy: parameters.matchPolicy,
+        isSearchResultLine: parameters.initialTextIsSearchResult,
+      );
+      return [
+        for (final span in spans)
+          PdfTextSearchResult.fromRange(
+            PdfPageTextRange(pageText: text, start: span[0], end: span[1]),
+            contextLength: 0,
+          ),
+      ];
+    }, cancelLoading: request);
+    if (!mounted || request.isCompleted) return;
+    _pdfHighlights = matches ?? const [];
+    controller.invalidate();
+  }
+
+  void _paintPdfHighlights(Canvas canvas, Rect pageRect, PdfPage page) {
+    final paint = Paint()
+      ..color =
+          _pdfController?.params.matchTextColor ?? AppColors.permanentHighlight;
+    for (final match in _pdfHighlights) {
+      if (match.pageNumber != page.pageNumber) continue;
+      for (final bounds in match.rects) {
+        canvas.drawRect(
+          bounds
+              .toRect(page: page, scaledPageSize: pageRect.size)
+              .translate(pageRect.left, pageRect.top),
+          paint,
+        );
+      }
+    }
   }
 
   /// ה-PDF שמוצג בפועל: הספר עצמו, או מהדורת ה-PDF הנלווית של מסכת בבלי.
@@ -705,6 +788,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               margin: 4,
               // כמו בקורא: ברירת המחדל של pdfrx (0.2) איטית פי 5 מגלגלת בטקסט.
               scrollByMouseWheel: 1.0,
+              pagePaintCallbacks: [_paintPdfHighlights],
               onGeneralTap: (tapContext, _, details) {
                 if (details.type == PdfViewerGeneralTapType.secondaryTap) {
                   return true;
@@ -721,12 +805,15 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 return true;
               },
               onDocumentChanged: (document) {
-                if (document != null || !_isPdfViewerReady || !mounted) return;
+                if (document != null) return;
+                _clearPdfHighlights();
+                if (!_isPdfViewerReady || !mounted) return;
                 setState(() => _isPdfViewerReady = false);
               },
               onViewerReady: (document, controller) {
                 if (_isPdfViewerReady || !mounted) return;
                 setState(() => _isPdfViewerReady = true);
+                unawaited(_updatePdfHighlights());
               },
               viewerOverlayBuilder: (context, size, handleLinkTap) => [
                 if (_isPdfViewerReady)

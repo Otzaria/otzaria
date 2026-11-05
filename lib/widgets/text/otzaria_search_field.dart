@@ -1,5 +1,8 @@
 // lib/widgets/text/otzaria_search_field.dart
 
+import 'dart:math' as math;
+
+import 'package:flutter/cupertino.dart' show cupertinoTextSelectionControls;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -306,6 +309,9 @@ class OtzariaSearchField extends StatefulWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
 
+  /// מציג את פעולות החיפוש מתחת לשדה, כדי להשאיר מקום לשאילתה בחלונית צרה.
+  final bool actionsBelow;
+
   /// אייקון החיפוש. עדיף למקד אותו לפי מה שמחפשים בו — למשל
   /// `search_in_library_24_regular` בספרייה — כשהשדה מחפש בגוף תוכן
   /// שאינו מוצג על המסך. `leading` דוחה אותו.
@@ -342,6 +348,7 @@ class OtzariaSearchField extends StatefulWidget {
     this.maxWidth,
     this.leading,
     this.trailingActions,
+    this.actionsBelow = false,
     this.icon = OtzariaIcons.search_24_regular,
     this.slim,
     this.isCompact = false,
@@ -458,6 +465,26 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
   // ── שדה מלא ──────────────────────────────────────────────────────────────
 
+  double _selectionHandleClearance(BuildContext context, double fontSize) {
+    final controls = switch (Theme.of(context).platform) {
+      TargetPlatform.android ||
+      TargetPlatform.fuchsia => materialTextSelectionControls,
+      TargetPlatform.iOS => cupertinoTextSelectionControls,
+      _ => null,
+    };
+    if (controls == null) return 0;
+    final lineHeight = MediaQuery.textScalerOf(context).scale(fontSize);
+    final height = controls.getHandleSize(lineHeight).height;
+    final touchPadding = math.max(0.0, (kMinInteractiveDimension - height) / 2);
+    return TextSelectionHandleType.values.fold<double>(
+      0,
+      (clearance, type) => math.max(
+        clearance,
+        height + touchPadding - controls.getHandleAnchor(type, lineHeight).dy,
+      ),
+    );
+  }
+
   Widget _buildField(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasText = widget.controller.text.isNotEmpty;
@@ -508,6 +535,10 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     if (widget.trailingActions != null) {
       suffixChildren.addAll(widget.trailingActions!);
     }
+    final belowActions = widget.actionsBelow
+        ? List<Widget>.of(suffixChildren)
+        : const <Widget>[];
+    if (widget.actionsBelow) suffixChildren.clear();
     if (hasText && widget.onClear != null) {
       suffixChildren.add(
         OtzariaSearchAction.clear(
@@ -544,7 +575,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       vertical: 0,
     );
 
-    return SizedBox(
+    final field = SizedBox(
       height: effectiveHeight,
       child: RtlTextField(
         controller: widget.controller,
@@ -588,6 +619,20 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           disabledBorder: noBorder,
         ),
       ),
+    );
+    if (belowActions.isEmpty) return field;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        field,
+        // Mobile selection handles extend below the input. Reserve their full
+        // touch target even before focus, so the action row stays in place.
+        SizedBox(
+          height: _selectionHandleClearance(context, effectiveFontSize),
+        ),
+        Wrap(alignment: WrapAlignment.end, children: belowActions),
+      ],
     );
   }
 

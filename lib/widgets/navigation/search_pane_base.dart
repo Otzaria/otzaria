@@ -51,7 +51,7 @@ class SearchPaneBase extends StatefulWidget {
   final String? hintText;
   final VoidCallback? onAdvancedSearch;
 
-  /// פעולות שנוספות בתוך שדה החיפוש עצמו, לפני כפתור ההגדרות.
+  /// פעולות החיפוש שמתחת לשדה, לפני כפתור ההגדרות.
   final List<Widget>? searchFieldActions;
 
   /// שדה שתוספים רשאים להוסיף בו כפתור; null = אין.
@@ -159,6 +159,7 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
           onExpand: () => setState(() => _isCompact = false),
           leading: const Icon(OtzariaIcons.search_24_regular),
           pluginActionsField: widget.pluginActionsField,
+          actionsBelow: true,
           trailingActions: [
             ...?widget.searchFieldActions,
             if (widget.onAdvancedSearch != null)

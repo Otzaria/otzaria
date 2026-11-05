@@ -4495,16 +4495,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   );
 
   Widget _buildShortcutScope(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        // ב-Mac המוסכמה היא Cmd (Meta); בשאר הפלטפורמות Ctrl. שתי הגרסאות
-        // רשומות יחד כדי שאותו handler יופעל ללא בדיקה דינמית של פלטפורמה.
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF):
-            _ensureSearchTabIsActive,
-        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyF):
-            _ensureSearchTabIsActive,
-        ..._configurableBindings(),
-      },
+    final content = CallbackShortcuts(
+      bindings: _configurableBindings(),
       child: Scaffold(
         body: Column(
           children: [
@@ -4668,6 +4660,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           ],
         ),
       ),
+    );
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (ShortcutHelper.shouldIgnoreWhileEditing(event)) {
+          return KeyEventResult.ignored;
+        }
+        final shortcut = ShortcutValidator.getShortcutValue(
+          ShortcutValidator.currentWindowSearchKey,
+        );
+        if (ShortcutHelper.matchesShortcut(event, shortcut ?? '')) {
+          _ensureSearchTabIsActive();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: content,
     );
   }
 
