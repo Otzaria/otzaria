@@ -157,6 +157,33 @@ void main() {
       db.close();
     });
 
+    test('רשימה גדולה נקראת מהמסד ומפוענחת ב-isolate, בתוצאה זהה', () async {
+      final db = UserStateDatabase.openAt(dbPath);
+      final store = UserStateListStore(database: db);
+      final large = entries(2000);
+      await store.write('history', 'history', large);
+      final here = Isolate.current.debugName;
+
+      final readIn = await store.readDecoded(
+        'history',
+        'history',
+        _payloadAndIsolate,
+      );
+      expect(readIn.$2, isNot(here));
+      expect(readIn.$1, large);
+      expect(await store.read('history', 'history'), large);
+
+      await store.write('history', 'history', entries(3));
+      final small = await store.readDecoded(
+        'history',
+        'history',
+        _payloadAndIsolate,
+      );
+      expect(small.$2, here);
+      expect(small.$1, entries(3));
+      db.close();
+    });
+
     // שולחנות (#4082): fromJson נשאר כאן, אבל jsonDecode עצמו לא חוסם את ה-UI.
     test('בלי decodeInBackground, JSON גדול מפוענח ב-isolate', () async {
       final db = UserStateDatabase.openAt(dbPath);
@@ -220,17 +247,23 @@ void main() {
   });
 }
 
-/// מתזמן timer מיד אחרי הקריאה: פענוח סינכרוני מסתיים לפניו, isolate — אחריו.
+(List<dynamic>, String?) _payloadAndIsolate(String? payload) =>
+    (UserStateListStore.decodePayload(payload), Isolate.current.debugName);
+
+/// מתזמן timer עם תחילת הקריאה: פענוח סינכרוני מסתיים לפניו, isolate — אחריו.
 class _TimerAfterReadStore extends UserStateListStore {
   _TimerAfterReadStore(UserStateDatabase db) : super(database: db);
 
   bool timerFired = false;
 
   @override
-  Future<String?> readPayload(String box, String key) async {
-    final payload = await super.readPayload(box, key);
+  Future<R> readDecoded<R>(
+    String box,
+    String key,
+    R Function(String? payload) decode,
+  ) {
     timerFired = false;
     Timer.run(() => timerFired = true);
-    return payload;
+    return super.readDecoded(box, key, decode);
   }
 }

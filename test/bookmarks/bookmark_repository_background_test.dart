@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +14,11 @@ class _Store extends UserStateListStore {
   final String payload;
 
   @override
-  Future<String?> readPayload(String box, String key) async => payload;
+  Future<R> readDecoded<R>(
+    String box,
+    String key,
+    R Function(String? payload) decode,
+  ) => _decodeLikeStore(payload, decode);
 }
 
 Future<List<T>> _load<T>(
@@ -91,3 +96,9 @@ void main() {
     });
   }
 }
+
+// top-level: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
+Future<R> _decodeLikeStore<R>(String? payload, R Function(String?) decode) =>
+    (payload?.length ?? 0) < UserStateListStore.inlineDecodeMaxLength
+    ? Future.sync(() => decode(payload))
+    : Isolate.run(() => decode(payload));

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
@@ -14,7 +15,11 @@ class _MemoryStore extends UserStateListStore {
   _MemoryStore(this.payload);
   String? payload;
   @override
-  Future<String?> readPayload(String box, String key) async => payload;
+  Future<R> readDecoded<R>(
+    String box,
+    String key,
+    R Function(String? payload) decode,
+  ) => _decodeLikeStore(payload, decode);
   @override
   Future<void> clear(String box, String key, {Object? origin}) async {
     payload = null;
@@ -120,3 +125,9 @@ void main() {
     },
   );
 }
+
+// top-level: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
+Future<R> _decodeLikeStore<R>(String? payload, R Function(String?) decode) =>
+    (payload?.length ?? 0) < UserStateListStore.inlineDecodeMaxLength
+    ? Future.sync(() => decode(payload))
+    : Isolate.run(() => decode(payload));
