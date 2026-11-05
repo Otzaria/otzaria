@@ -44,7 +44,7 @@ Future<void> releaseSqliteMemory({bool Function()? shouldContinue}) async {
 /// לחץ מהמערכת דחוף; מעבר לרקע ממתין לשקט ואינו מפנה עבור חלון אחר.
 class SqliteMemoryPressureObserver with WidgetsBindingObserver {
   SqliteMemoryPressureObserver({
-    Future<void> Function()? release,
+    this._release,
     bool Function()? isBusy,
     int Function()? windowCount,
     DateTime Function()? now,
@@ -52,8 +52,7 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
     this.retryDelay = const Duration(seconds: 2),
     this.minimumInterval = const Duration(seconds: 30),
     this.pressureInterval = const Duration(seconds: 2),
-  }) : _release = release,
-       _isBusy = isBusy ?? _hasActiveWork,
+  }) : _isBusy = isBusy ?? _hasActiveWork,
        _windowCount = windowCount ?? _openWindowCount,
        _now = now ?? DateTime.now;
 
@@ -166,8 +165,9 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
               _lastRelease = _now();
               if (pressure) _lastPressureRelease = _lastRelease;
               _running = null;
-              if (_pressurePending || _backgroundPending)
+              if (_pressurePending || _backgroundPending) {
                 _schedule(Duration.zero);
+              }
             });
   }
 

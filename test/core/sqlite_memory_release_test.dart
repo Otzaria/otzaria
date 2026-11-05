@@ -25,7 +25,7 @@ void main() {
       addTearDown(observer.dispose);
       observer.didHaveMemoryPressure();
       observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
-      await tester.pump();
+      await tester.pump(Duration.zero);
       expect(calls, 1);
     });
 
@@ -50,8 +50,8 @@ void main() {
       observer.didChangeAppLifecycleState(AppLifecycleState.resumed);
       observer.didHaveMemoryPressure();
       background.complete();
-      await tester.pump();
-      await tester.pump();
+      await tester.pump(Duration.zero);
+      await tester.pump(Duration.zero);
       expect(calls, 2);
     });
 
@@ -66,7 +66,7 @@ void main() {
       );
       addTearDown(observer.dispose);
       observer.didHaveMemoryPressure();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       expect(calls, 1);
     });
 
@@ -120,7 +120,7 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
       expect(calls, 0);
       observer.didHaveMemoryPressure();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       expect(calls, 1);
     });
 
@@ -132,7 +132,7 @@ void main() {
       );
       addTearDown(observer.dispose);
       observer.didHaveMemoryPressure();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       for (var i = 0; i < 50; i++) {
         observer.didHaveMemoryPressure();
         await tester.pump(const Duration(milliseconds: 20));
@@ -156,12 +156,12 @@ void main() {
       );
       addTearDown(observer.dispose);
       observer.didHaveMemoryPressure();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       observer.didHaveMemoryPressure();
       await tester.pump(const Duration(minutes: 2));
       expect(calls, 1);
       gate.complete();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       await tester.pump(const Duration(seconds: 2));
       expect(calls, 2);
     });
@@ -178,7 +178,7 @@ void main() {
       );
       addTearDown(observer.dispose);
       observer.didHaveMemoryPressure();
-      await tester.pump();
+      await tester.pump(Duration.zero);
       observer.didHaveMemoryPressure();
       await tester.pump(const Duration(seconds: 2));
       expect(calls, 2);
