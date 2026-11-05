@@ -47,7 +47,11 @@ void main() {
     final engine = _PendingEngine();
     final cancelled = Completer<void>();
     engine.updates.onCancel = () => cancelled.future;
-    final stream = gateway.searchStreamWithCounts(engine, request, chunkSize: 5);
+    final stream = gateway.searchStreamWithCounts(
+      engine,
+      request,
+      chunkSize: 5,
+    );
     expect(SearchEngineGateway.hasActiveOperations, isFalse);
     final subscription = stream.listen((_) {});
     await Future<void>.delayed(Duration.zero);
