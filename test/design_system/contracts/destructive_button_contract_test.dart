@@ -80,9 +80,10 @@ void main() {
             .where((f) => f.path.endsWith('.dart')),
       File('lib/text_book/view/page_shape/page_shape_settings_panel.dart'),
     ];
+    expect(files, hasLength(greaterThan(10)), reason: 'הסורק לא מצא קבצים');
     final offenders = [
       for (final f in files)
-        if (f.readAsStringSync().contains('ActionButton.warning('))
+        if (_usesFullWarning(f.readAsStringSync()))
           f.path.replaceAll(r'\', '/'),
     ];
     expect(
@@ -93,4 +94,22 @@ void main() {
           'האדום המלא שמור לכפתור האישור בדיאלוג (lib/settings/dialogs).',
     );
   });
+
+  test('הסורק: warning נתפס, warningSoft לא', () {
+    expect(_usesFullWarning('ActionButton.warning(text: x)'), isTrue);
+    expect(_usesFullWarning('const ActionButton.warning(text: x)'), isTrue);
+    expect(_usesFullWarning('ActionButton.warningSoft(text: x)'), isFalse);
+    // הכפתור המלא קיים בדיאלוגים של ההגדרות, ולכן הסורק מוצא בהם משהו.
+    expect(
+      _usesFullWarning(
+        File(
+          'lib/settings/dialogs/hidden_books_list_dialog.dart',
+        ).readAsStringSync(),
+      ),
+      isTrue,
+    );
+  });
 }
+
+bool _usesFullWarning(String source) =>
+    source.contains('ActionButton.warning(');
