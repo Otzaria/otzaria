@@ -151,9 +151,6 @@ class _NoteTileState extends State<NoteTile> {
       );
     }
 
-    final bgColor =
-        widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
-
     return Column(
       children: [
         InkWell(
@@ -163,7 +160,7 @@ class _NoteTileState extends State<NoteTile> {
               horizontal: 16.0,
               vertical: 12.0,
             ),
-            color: bgColor,
+            color: widget.backgroundColor,
             child: Row(
               children: [
                 Expanded(
@@ -208,7 +205,7 @@ class _NoteTileState extends State<NoteTile> {
                   onTap: widget.onTap,
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 12.0),
-                    color: bgColor,
+                    color: widget.backgroundColor,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: PersonalNoteContentView(

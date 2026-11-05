@@ -121,8 +121,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         filteredMissingNotes: isSameBook ? null : const [],
         searchQuery: isSameBook ? state.searchQuery : '',
         visibleLineIndices: isSameBook ? state.visibleLineIndices : [],
-        // איפוס בקשת פתיחת הערה, כדי שלא תיפתח אוטומטית הערה באותה שורה בספר החדש
-        clearExpandRequest: true,
+        clearExpandRequest: !isSameBook,
       ),
     );
 
@@ -248,6 +247,8 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     emit(
       state.copyWith(
         isCreatingNewNote: true,
+        newNoteRequestToken: state.newNoteRequestToken + 1,
+        clearExpandRequest: true,
         clearNewNoteSourceSelection: true,
         newNoteBookId: event.bookId,
         newNoteLineNumber: event.lineNumber,

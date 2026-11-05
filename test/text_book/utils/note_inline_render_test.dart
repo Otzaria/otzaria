@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
 PersonalNote _note({
+  String id = 'n1',
   String? anchorText,
   String? anchorPrefix,
   String? anchorSuffix,
@@ -21,7 +22,7 @@ PersonalNote _note({
 }) {
   final now = DateTime(2026, 1, 1);
   return PersonalNote(
-    id: 'n1',
+    id: id,
     bookId: 'ספר',
     lineNumber: 1,
     displayTitle: anchorText,
@@ -75,7 +76,7 @@ int _maxAnchorDepthOfWellFormed(String html) {
 void main() {
   const color = Color(0xFF1A2B3C);
   const noteOpen =
-      '<a href="otzaria://note?line=3" style="text-decoration: underline; '
+      '<a href="otzaria://note?line=3&id=n1" style="text-decoration: underline; '
       'text-decoration-style: dotted; text-decoration-color: #1a2b3c; '
       'color: currentcolor;">';
   const linkOpen =
@@ -109,7 +110,7 @@ void main() {
       lineIndex0: 4,
       underlineColor: color,
     );
-    expect(html.contains('href="otzaria://note?line=4"'), isTrue);
+    expect(html.contains('href="otzaria://note?line=4&id=n1"'), isTrue);
     expect(html.contains('#1a2b3c'), isTrue);
     // המילים שלפני הביטוי לא נמצאות בתוך תגית ה-<a>.
     final aStart = html.indexOf('<a ');
@@ -180,7 +181,7 @@ void main() {
       lineIndex0: 0,
       underlineColor: color,
     );
-    expect(html.startsWith('<a href="otzaria://note?line=0"'), isTrue);
+    expect(html.startsWith('<a href="otzaria://note?line=0&id=n1"'), isTrue);
     expect(html.endsWith('</a>'), isTrue);
   });
 
@@ -193,6 +194,79 @@ void main() {
       underlineColor: color,
     );
     expect(html, raw);
+  });
+
+  test(
+    'עוגנים חופפים מציגים את ההערות של כל טווח בלבד, בלי קישורים מקוננים',
+    () {
+      final notes = [
+        _note(id: 'first', anchorText: 'alpha beta'),
+        _note(id: 'second', anchorText: 'beta gamma'),
+        _note(id: 'whole'),
+      ];
+      final html = buildAnnotatedLineHtml(
+        rawLine: 'alpha beta gamma',
+        notesForLine: notes,
+        lineIndex0: 0,
+        underlineColor: color,
+      );
+      final links = RegExp(
+        r'<a href="([^"]+)"[^>]*>([^<]+)</a>',
+      ).allMatches(html).toList();
+      expect(links.map((match) => match.group(2)), [
+        'alpha ',
+        'beta',
+        ' gamma',
+      ]);
+      final expected = [
+        ['first', 'whole'],
+        ['first', 'second', 'whole'],
+        ['second', 'whole'],
+      ];
+      for (var i = 0; i < links.length; i++) {
+        expect(
+          personalNotesForPreview(
+            links[i].group(1)!,
+            notes,
+          ).map((note) => note.id),
+          expected[i],
+        );
+      }
+      expect(_maxAnchorDepthOfWellFormed(html), 1);
+    },
+  );
+
+  test('מזהה הערה מקודד עובר מהסימון לתצוגה בלי לכלול הערה אחרת', () {
+    final selected = _note(id: 'id &"<,?', anchorText: 'טווח');
+    final notes = [selected, _note(id: 'other', anchorText: 'אחר')];
+    final html = buildAnnotatedLineHtml(
+      rawLine: 'טווח אחר',
+      notesForLine: notes,
+      lineIndex0: 0,
+      underlineColor: color,
+    );
+    final url = RegExp(r'href="([^"]+)"').firstMatch(html)!.group(1)!;
+    expect(personalNotesForPreview(url, notes), [selected]);
+    expect(_maxAnchorDepthOfWellFormed(html), 1);
+  });
+
+  test('קישורי שורה ישנים נתמכים ומזהה שגוי אינו מחזיר את כל הערות השורה', () {
+    final notes = [
+      _note(id: 'first'),
+      _note(id: 'other').copyWith(lineNumber: 2),
+    ];
+    expect(personalNotesForPreview('otzaria://note?line=0', notes), [
+      notes.first,
+    ]);
+    expect(
+      personalNotesForPreview('otzaria://note?line=0&id=unknown', notes),
+      isEmpty,
+    );
+    expect(
+      personalNotesForPreview('otzaria://note?line=1&id=first', notes),
+      isEmpty,
+    );
+    expect(personalNotesForPreview('otzaria://note?line=bad', notes), isEmpty);
   });
 
   test('הערת-שורה-שלמה לא בולעת קישור inline באותה שורה', () {
@@ -215,7 +289,7 @@ void main() {
       lineIndex0: 2,
       underlineColor: color,
     );
-    expect(html.startsWith('<a href="otzaria://note?line=2"'), isTrue);
+    expect(html.startsWith('<a href="otzaria://note?line=2&id=n1"'), isTrue);
     expect(html.endsWith('</a>'), isTrue);
   });
 

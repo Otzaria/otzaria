@@ -121,9 +121,7 @@ class PersonalNotesImportExportService {
     }
   }
 
-  /// בונה את בלוקי המסמך לייצוא וורד בתבנית חידושי תורה (issue #767):
-  /// כותרת לכל ספר, תת-כותרת לכל מיקום (פרק/דף) מתוך [locationRef], ואחריהן
-  /// גוף ההערה — בלי מספרי שורה ותאריכים. הערות ללא מיקום מקובצות בסוף הספר.
+  /// בונה כותרות ספר ומיקום וגופי הערות ל-Word; הערות ללא מיקום בסוף הספר.
   List<PrintBlock> buildWordExportBlocks({
     required List<PersonalNote> notes,
     required String? Function(PersonalNote note) locationRef,
@@ -134,7 +132,12 @@ class PersonalNotesImportExportService {
         if (byBook != 0) return byBook;
         int line(PersonalNote n) =>
             n.hasLocation ? (n.lineNumber ?? 0) : 1 << 30;
-        return line(a).compareTo(line(b));
+        final byLine = line(a).compareTo(line(b));
+        if (byLine != 0) return byLine;
+        final byTime = a.hasLocation
+            ? a.createdAt.compareTo(b.createdAt)
+            : b.updatedAt.compareTo(a.updatedAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
       });
 
     final blocks = <PrintBlock>[];
@@ -176,7 +179,7 @@ class PersonalNotesImportExportService {
     return blocks;
   }
 
-  /// גוף הערה אחת כבלוקי טקסט, כשהדיבור-המתחיל (הטקסט שסומן) מודגש בראשה.
+  /// גוף הערה כבלוקי טקסט, כשהטקסט שסומן או כותרת ההערה מודגשים בראשה.
   List<PrintBlock> _noteWordBlocks(PersonalNote note) {
     final paragraphs = _noteHtmlParagraphs(note);
     while (paragraphs.isNotEmpty && paragraphs.last.trim().isEmpty) {
@@ -184,7 +187,8 @@ class PersonalNotesImportExportService {
     }
     if (paragraphs.isEmpty) return const [];
 
-    final dibur = note.anchorText?.trim() ?? '';
+    var dibur = note.anchorText?.trim() ?? '';
+    if (dibur.isEmpty) dibur = note.displayTitle?.trim() ?? '';
     if (dibur.isNotEmpty) {
       final needsPeriod = !RegExp(r'[.:,;!?]$').hasMatch(dibur);
       final suffix = needsPeriod ? '.' : '';

@@ -6,6 +6,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -135,6 +136,66 @@ void main() {
   });
 
   group('טעינה מחדש שומרת על הסינון', () {
+    blocTest<PersonalNotesBloc, PersonalNotesState>(
+      'פתיחת יעד עם קטגוריה נשמרת גם כשהקורא נטען תחילה בלי קטגוריה',
+      build: buildBloc,
+      act: (bloc) async {
+        bloc.add(const LoadPersonalNotes(bookId));
+        await bloc.stream.firstWhere((state) => !state.isLoading);
+        openPersonalNotesTarget(
+          bloc,
+          bookId: bookId,
+          categoryId: 9,
+          lineNumber: 50,
+        );
+        await bloc.stream.firstWhere(
+          (state) =>
+              !state.isLoading &&
+              state.categoryId == 9 &&
+              state.expandRequestLineNumber == 50,
+        );
+        bloc.add(const LoadPersonalNotes(bookId, categoryId: 9));
+        await bloc.stream.firstWhere((state) => !state.isLoading);
+      },
+      verify: (bloc) {
+        expect(bloc.state.categoryId, 9);
+        expect(bloc.state.expandRequestLineNumber, 50);
+      },
+    );
+
+    blocTest<PersonalNotesBloc, PersonalNotesState>(
+      'בקשת הרחבה נשמרת ברענון אותו ספר',
+      build: buildBloc,
+      act: (bloc) async {
+        bloc.add(const LoadPersonalNotes(bookId));
+        await bloc.stream.firstWhere((state) => !state.isLoading);
+        bloc.add(const RequestExpandNotesForLine(50));
+        bloc.add(const LoadPersonalNotes(bookId));
+        await bloc.stream.firstWhere(
+          (state) => !state.isLoading && state.expandRequestToken == 1,
+        );
+      },
+      verify: (bloc) {
+        expect(bloc.state.expandRequestLineNumber, 50);
+        expect(bloc.state.expandRequestToken, 1);
+      },
+    );
+
+    blocTest<PersonalNotesBloc, PersonalNotesState>(
+      'בקשת הרחבה אינה עוברת לספר אחר',
+      build: buildBloc,
+      act: (bloc) async {
+        bloc.add(const LoadPersonalNotes(bookId));
+        await bloc.stream.firstWhere((state) => !state.isLoading);
+        bloc.add(const RequestExpandNotesForLine(50));
+        bloc.add(const LoadPersonalNotes('ספר אחר'));
+        await bloc.stream.firstWhere(
+          (state) => !state.isLoading && state.bookId == 'ספר אחר',
+        );
+      },
+      verify: (bloc) => expect(bloc.state.expandRequestLineNumber, isNull),
+    );
+
     blocTest<PersonalNotesBloc, PersonalNotesState>(
       'רענון אותו ספר שומר את השורות הגלויות (אחרת הסינון היה נופל '
       'וכל הספר היה מוצג)',

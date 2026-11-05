@@ -548,7 +548,11 @@ void main() {
   testWidgets('סימון הערה inline מוזרק לטקסט ולחיצתו פותחת את טאב ההערות', (
     tester,
   ) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState().copyWith(
+        book: TextBook(title: 'ספר בדיקה', categoryId: 9),
+      ),
+    );
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
         isLoading: false,
@@ -558,6 +562,8 @@ void main() {
         errorMessage: null,
         filteredLocatedNotes: [_note()],
         filteredMissingNotes: const [],
+        searchQuery: 'חיפוש קודם',
+        showOnlyVisible: true,
       ),
     );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
@@ -586,6 +592,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    expect(
+      personalNotesBloc.receivedEvents.whereType<LoadPersonalNotes>().single,
+      const LoadPersonalNotes('ספר בדיקה', categoryId: 9),
+    );
+    personalNotesBloc.receivedEvents.clear();
+
     // הסימון מוזרק כקישור inline בטקסט הראשי (otzaria://note?line=0).
     final mainText = tester
         .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
@@ -597,6 +609,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(openedTab, kNotesTabIndex);
+    expect(personalNotesBloc.receivedEvents, [
+      const ToggleShowOnlyVisible(),
+      const UpdateSearchQuery(''),
+      const LoadPersonalNotes('ספר בדיקה', categoryId: 9),
+      const RequestExpandNotesForLine(1),
+    ]);
   });
 
   testWidgets('תיבת הערה מרחפת נסגרת כשקישור בה פותח טאב אחר (issue #2957)', (

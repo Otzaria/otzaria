@@ -36,6 +36,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -575,23 +576,40 @@ class _PersonalNotesManagerScreenState
 
   Future<Uint8List?> _buildWordExport(NotesExportSelection selection) async {
     final fontFamily = context.read<SettingsBloc>().state.fontFamily;
+    final library = context.read<LibraryBloc>().state.library;
 
-    // כתובת המיקום (פרק/דף) לכל הערה נגזרת מתוכן העניינים של ספרה.
     final notesByBook = <String, List<PersonalNote>>{};
     for (final note in selection.notes) {
       notesByBook.putIfAbsent(note.bookId, () => []).add(note);
     }
     final refByNoteId = <String, String?>{};
     for (final entry in notesByBook.entries) {
-      final toc = await _tocFor(entry.key);
+      if (!mounted) return null;
+      final book = library == null
+          ? null
+          : findTextBookForPersonalNotesKey(library, entry.key);
+      final dbRefByLine = <int, Future<String?>>{};
       for (final note in entry.value) {
-        refByNoteId[note.id] = personalNoteLocationRef(
-          note,
-          isPdf: false,
-          bookTitle: parsePersonalNotesBookKey(entry.key).title,
-          tableOfContents: toc,
-          includeBookTitle: false,
-        );
+        if (!mounted) return null;
+        if (!note.hasLocation) continue;
+        final lineNumber = note.lineNumber!;
+        // תוכן העניינים עשוי להסתיים בפרק; heRef כולל את כתובת השורה עצמה.
+        final dbRef = book == null
+            ? null
+            : await dbRefByLine.putIfAbsent(
+                lineNumber,
+                () => heRefFromDbLine(book, lineNumber - 1),
+              );
+        if (!mounted) return null;
+        refByNoteId[note.id] =
+            dbRef ??
+            personalNoteLocationRef(
+              note,
+              isPdf: false,
+              bookTitle: parsePersonalNotesBookKey(entry.key).title,
+              tableOfContents: await _tocFor(entry.key),
+              includeBookTitle: false,
+            );
       }
     }
     if (!mounted) return null;
