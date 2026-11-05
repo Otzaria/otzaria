@@ -1162,8 +1162,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "9ebf98621c4a7501a7480fa29d35374641e07635"
-      resolved-ref: "9ebf98621c4a7501a7480fa29d35374641e07635"
+      ref: "461902c049b412d64dc4dfa7b547fedbf751211d"
+      resolved-ref: "461902c049b412d64dc4dfa7b547fedbf751211d"
       url: "https://github.com/Otzaria/opentype_shaper"
     source: git
     version: "0.3.2"

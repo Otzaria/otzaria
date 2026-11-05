@@ -51,7 +51,7 @@ class PdfShapedFont extends PdfFont {
     );
   }
 
-  /// The shaping font this PDF font mirrors.
+  /// השייפר מושאל: יוצרו משאיר אותו חי עד ש-save מסתיים ומשחרר אותו בעצמו.
   final ShaperFont shaper;
 
   /// Used when text arrives without an explicit direction or script, which is

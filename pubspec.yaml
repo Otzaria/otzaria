@@ -84,7 +84,7 @@ dependencies:
   opentype_shaper:
     git:
       url: https://github.com/Otzaria/opentype_shaper
-      ref: 9ebf98621c4a7501a7480fa29d35374641e07635
+      ref: 461902c049b412d64dc4dfa7b547fedbf751211d
   # The Unicode bidi algorithm, used to order the runs of a mixed line before
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
