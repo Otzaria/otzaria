@@ -36,7 +36,7 @@ void main() {
     expect(c['arch'], 'arm64');
     expect(c['portable'], true);
     expect(c['readableDbSchemaVersion'], isA<int>());
-    expect(c['reportsQueueFormat'], 1);
+    expect(c['reportsQueueFormat'], 2);
     expect(c['pluginInstallResults'], 1);
     expect(c['semanticVectorFamilies'], [
       'vectors-qa491-windows',

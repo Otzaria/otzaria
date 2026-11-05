@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -40,15 +41,20 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import '../test_helpers/memory_cache_provider.dart';
 
 final class _ImportFile extends PlatformFile {
+  _ImportFile(this.path);
+  @override
+  final String path;
   @override
   String get name => 'notes.json';
   @override
-  Uri get uri => Uri.file('/notes.json');
+  Uri get uri => Uri.file(path);
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ImportPicker extends FilePickerPlatform with MockPlatformInterfaceMixin {
+  _ImportPicker(this.path);
+  final String path;
   @override
   Future<PlatformFile?> pickFile({
     String? dialogTitle,
@@ -62,7 +68,7 @@ class _ImportPicker extends FilePickerPlatform with MockPlatformInterfaceMixin {
     WindowsOptions windowsOptions = const WindowsOptions(),
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
-  }) async => _ImportFile();
+  }) async => _ImportFile(path);
 }
 
 class _ImportedNotesService extends PersonalNotesImportExportService {
@@ -262,113 +268,192 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
+  /// מסך ההערות על מסד זמני: בוחר את [path] בייבוא ומאשר "מזג".
+  Future<void> importThroughScreen(
+    WidgetTester tester, {
+    required LibraryState libraryState,
+    required PersonalNotesImportExportService service,
+    required Future<void> Function(Directory root) prepare,
+  }) async {
+    final database = PersonalNotesDatabase.instance;
+    late Directory root;
+    await tester.runAsync(() async {
+      await database.close();
+      root = await Directory.systemTemp.createTemp('notes_import_');
+      // מסד נפרד לכל בדיקה: בלי התיקייה המסד נפתח ליד נתיב הספרייה המשותף.
+      await Directory('${root.path}/databases').create();
+      AppPaths.debugOverrideDataRootPath(root.path);
+      await prepare(root);
+    });
+    final path = '${root.path}${Platform.pathSeparator}notes.json';
+    final previousPicker = FilePickerPlatform.instance;
+    final previousOwner = DialogOwner.hwnd();
+    FilePickerPlatform.instance = _ImportPicker(path);
+    DialogOwner.mainWindowHwnd = 7;
+    if (Platform.isMacOS) {
+      const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect((call.arguments as Map)['viewId'], tester.view.viewId);
+        return [
+          {'path': path},
+        ];
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    }
+    addTearDown(() async {
+      FilePickerPlatform.instance = previousPicker;
+      DialogOwner.mainWindowHwnd = previousOwner;
+      await database.close();
+      AppPaths.debugOverrideDataRootPath(null);
+      await root.delete(recursive: true);
+    });
+    final repository = FakePersonalNotesRepository(
+      books: [],
+      notesByBookId: {},
+    );
+    final notesBloc = PersonalNotesBloc(repository: repository);
+    final settingsBloc = SettingsBloc(repository: SettingsRepository());
+    final libraryBloc = MockLibraryBloc();
+    addTearDown(notesBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(libraryBloc.close);
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: libraryState,
+    );
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          RepositoryProvider<SettingsRepository>.value(
+            value: SettingsRepository(),
+          ),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          BlocProvider<LibraryBloc>.value(value: libraryBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: notesBloc),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: Scaffold(
+            body: PersonalNotesManagerScreen(
+              repository: repository,
+              importExportService: service,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('ייבוא הערות'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('מזג'));
+    await tester.pump();
+    // קריאת הקובץ היא IO אמיתי: כל שלב שלו ממתין לתור האירועים האמיתי.
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Durations.short1));
+      await tester.pump(const Duration(milliseconds: 30));
+    }
+  }
+
+  Future<void> closeScreen(WidgetTester tester) async {
+    UiSnack.hide();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  PersonalNote plainNote(String id, String bookId) => PersonalNote(
+    id: id,
+    bookId: bookId,
+    lineNumber: 1,
+    displayTitle: 'שורה',
+    lastKnownLineNumber: null,
+    status: PersonalNoteStatus.located,
+    content: 'הערה',
+    contentPlain: 'הערה',
+    contentFormat: PersonalNoteContentFormat.plain,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+  );
+
   for (final readiness in ['loading', 'error', 'ready']) {
     testWidgets('import waits for a complete catalog: $readiness', (
       tester,
     ) async {
       final database = PersonalNotesDatabase.instance;
-      late Directory root;
-      await tester.runAsync(() async {
-        await database.close();
-        root = await Directory.systemTemp.createTemp('notes_readiness_');
-        AppPaths.debugOverrideDataRootPath(root.path);
-        final now = DateTime(2026);
-        await database.insertNote(
-          PersonalNote(
-            id: 'legacy',
-            bookId: 'יומן',
-            lineNumber: 1,
-            displayTitle: 'שורה',
-            lastKnownLineNumber: null,
-            status: PersonalNoteStatus.located,
-            content: 'הערה',
-            contentPlain: 'הערה',
-            contentFormat: PersonalNoteContentFormat.plain,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
-      });
-      final previousPicker = FilePickerPlatform.instance;
-      final previousOwner = DialogOwner.hwnd();
-      FilePickerPlatform.instance = _ImportPicker();
-      DialogOwner.mainWindowHwnd = 7;
-      if (Platform.isMacOS) {
-        const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
-        final messenger =
-            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-        messenger.setMockMethodCallHandler(channel, (call) async {
-          expect((call.arguments as Map)['viewId'], tester.view.viewId);
-          return [
-            {'path': '/notes.json'},
-          ];
-        });
-        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      }
-      addTearDown(() async {
-        FilePickerPlatform.instance = previousPicker;
-        DialogOwner.mainWindowHwnd = previousOwner;
-        await database.close();
-        AppPaths.debugOverrideDataRootPath(null);
-        await root.delete(recursive: true);
-      });
-      final repository = FakePersonalNotesRepository(
-        books: [],
-        notesByBookId: {},
-      );
-      final notesBloc = PersonalNotesBloc(repository: repository);
-      final settingsBloc = SettingsBloc(repository: SettingsRepository());
-      final libraryBloc = MockLibraryBloc();
-      addTearDown(notesBloc.close);
-      addTearDown(settingsBloc.close);
-      addTearDown(libraryBloc.close);
-      whenListen(
-        libraryBloc,
-        const Stream<LibraryState>.empty(),
-        initialState: LibraryState(
+      await importThroughScreen(
+        tester,
+        libraryState: LibraryState(
           library: Library(categories: [])
             ..books.add(TextBook(title: 'יומן', source: BookSource.user)),
           isLoading: readiness == 'loading',
           error: readiness == 'error' ? 'טעינת הקטלוג נכשלה' : null,
         ),
+        service: _ImportedNotesService(),
+        prepare: (_) => database.insertNote(plainNote('legacy', 'יומן')),
       );
-      await tester.pumpWidget(
-        MultiBlocProvider(
-          providers: [
-            RepositoryProvider<SettingsRepository>.value(
-              value: SettingsRepository(),
-            ),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-            BlocProvider<LibraryBloc>.value(value: libraryBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: notesBloc),
-          ],
-          child: MaterialApp(
-            navigatorKey: navigatorKey,
-            home: Scaffold(
-              body: PersonalNotesManagerScreen(
-                repository: repository,
-                importExportService: _ImportedNotesService(),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.tap(find.byTooltip('ייבוא הערות'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('מזג'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
 
       final target = readiness == 'ready' ? 'יומן|user' : 'יומן';
       expect((await database.loadNotes(target)).map((note) => note.id), [
         'legacy',
       ]);
       expect(await database.userBookKeysPending(), readiness != 'ready');
-      UiSnack.hide();
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump(const Duration(seconds: 1));
+      await closeScreen(tester);
+    });
+  }
+
+  // קובץ גיבוי מקבץ את ההערות לפי ספר, וב-1.0 בלי שדות העיגון. ייצוא 1.0
+  // שייך למערכת ההערות הקודמת ונדחה.
+  for (final (kind, version) in [
+    ('גיבוי', '1.0'),
+    ('גיבוי', '2.0'),
+    ('ייצוא', '1.0'),
+  ]) {
+    testWidgets('ייבוא הערות מקובץ $kind בגרסה $version (issue #4142)', (
+      tester,
+    ) async {
+      final database = PersonalNotesDatabase.instance;
+      final supported = kind == 'גיבוי';
+      await importThroughScreen(
+        tester,
+        libraryState: LibraryState(
+          library: Library(categories: [])..books.add(TextBook(title: 'יומן')),
+        ),
+        service: PersonalNotesImportExportService(),
+        prepare: (root) async {
+          await database.database; // פתיחת המסד היא IO אמיתי.
+          final json = plainNote('backup', 'יומן').toJson()
+            ..removeWhere(
+              (key, _) => version == '1.0' && key.startsWith('anchor'),
+            );
+          await File(
+            '${root.path}${Platform.pathSeparator}notes.json',
+          ).writeAsString(
+            jsonEncode({
+              'version': version,
+              if (supported) 'includes': {'notes': true},
+              'notes': [
+                {
+                  'bookId': 'יומן',
+                  'notes': [json],
+                },
+              ],
+            }),
+          );
+        },
+      );
+
+      expect(
+        (await database.loadNotes('יומן')).map((note) => note.id),
+        supported ? ['backup'] : isEmpty,
+      );
+      expect(
+        find.textContaining(supported ? 'נוספו 1' : 'גרסת ייצוא לא נתמכת'),
+        findsOneWidget,
+      );
+      await closeScreen(tester);
     });
   }
 

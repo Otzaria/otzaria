@@ -100,7 +100,11 @@ class AppReportImagesChanged extends AppReportEvent {
 }
 
 class AppReportSubmitted extends AppReportEvent {
-  const AppReportSubmitted();
+  const AppReportSubmitted({this.queueOnly = false});
+  final bool queueOnly;
+
+  @override
+  List<Object?> get props => [queueOnly];
 }
 
 /// שמירת הטופס כטיוטה, להשלמה ולשליחה בפתיחה הבאה.
@@ -111,4 +115,12 @@ class AppReportDraftSaved extends AppReportEvent {
 /// מחיקת הטיוטה השמורה וניקוי הטופס.
 class AppReportDraftDiscarded extends AppReportEvent {
   const AppReportDraftDiscarded();
+}
+
+/// Debounced local save; epoch invalidates timers queued before a discard.
+class AppReportAutosaveRequested extends AppReportEvent {
+  const AppReportAutosaveRequested(this.epoch);
+  final int epoch;
+  @override
+  List<Object?> get props => [epoch];
 }

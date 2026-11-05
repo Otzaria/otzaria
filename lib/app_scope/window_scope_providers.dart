@@ -90,10 +90,8 @@ class WindowScopeProviders extends StatelessWidget {
       child: MultiBlocProvider(
         providers: [
           BlocProvider<LibraryBloc>(
-            // ה-LoadLibrary אינו נשלח כאן יותר: בניית הקטלוג (~300ms CPU על
-            // ה-main thread) הייתה חונקת את שאילתת תוכן הספר הפעיל ומעכבת את
-            // הופעתו. ההפעלה עברה ל-MainWindowScreen._revealMainWindowOnce,
-            // שמעדיף את טעינת הספר הפעיל ורק אז מתחיל את בניית הקטלוג.
+            // LoadLibrary נשלח מ-MainWindowScreen אחרי הופעת הספר הפעיל: בניית
+            // הקטלוג (~300ms CPU) כאן הייתה מעכבת אותה.
             create: (_) => LibraryBloc(),
           ),
           BlocProvider<CustomFoldersBloc>(

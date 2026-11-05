@@ -38,6 +38,7 @@ import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/pdf_book/utils/pdf_plugin_menu_entries.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/pdf_book/utils/pdf_scroll_physics_provider.dart';
+import 'package:otzaria/pdf_book/utils/pdf_text_selection_actions.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/book_common/utils/default_commentators.dart';
@@ -653,6 +654,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final FocusNode _searchFieldFocusNode = FocusNode();
   final FocusNode _navigationFieldFocusNode = FocusNode();
   final FocusNode _pdfViewFocusNode = FocusNode();
+  late final _pdfTextSelectionActions = PdfTextSelectionActions(
+    widget.tab.pdfViewerController,
+    isActive: () => mounted && _isPdfVisible,
+  );
   final GlobalKey _pdfViewportBoundaryKey = GlobalKey();
   final _searchViewKey = GlobalKey<PdfBookSearchViewState>();
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
@@ -1483,7 +1488,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       canCopySelection: hasTextSelection && _isPdfCopyAllowed(),
       onSearchInBook: _ensureSearchTabIsActive,
       onSearchAllBooks: () => _searchAllBooksFromSelection(selection),
-      onCopySelection: _copyPdfTextSelection,
+      onCopySelection: () => unawaited(_copyPdfTextSelection()),
       onAddBookmark: () => _handleBookmarkPress(menuContext),
       onAddNote: () => _handleAddNotePress(menuContext),
     )..addAll(
@@ -1550,12 +1555,33 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
-  /// העתקת הטקסט המסומן דרך pdfrx — אותו מסלול שמפעיל Ctrl+C, והוא זה
-  /// שמכבד את הרשאת ההעתקה של המסמך.
-  void _copyPdfTextSelection() {
-    final controller = widget.tab.pdfViewerController;
-    if (!controller.isReady) return;
-    controller.textSelectionDelegate.copyTextSelection();
+  Future<void> _copyPdfTextSelection({bool keepSelection = false}) =>
+      _showPdfTextActionResult(
+        _pdfTextSelectionActions.copy(keepSelection: keepSelection),
+        errorMessage: CommonMessages.textCopyError,
+      );
+
+  Future<void> _selectAllPdfText() => _showPdfTextActionResult(
+    _pdfTextSelectionActions.selectAll(),
+    errorMessage: PdfMessages.textSelectionFailed,
+  );
+
+  Future<void> _showPdfTextActionResult(
+    Future<PdfTextActionResult> action, {
+    required String errorMessage,
+  }) async {
+    final result = await action;
+    if (!mounted || !_isPdfVisible) return;
+    switch (result) {
+      case PdfTextActionResult.copied:
+        UiSnack.show(CommonMessages.textCopied);
+      case PdfTextActionResult.loading:
+        UiSnack.show(PdfMessages.textSelectionLoading);
+      case PdfTextActionResult.failed:
+        UiSnack.showError(errorMessage);
+      case PdfTextActionResult.none:
+        break;
+    }
   }
 
   /// פתיחת יעד קישור מתפריט ההקשר. יעד השייך לתלמוד בבלי נפתח כ-PDF
@@ -1729,6 +1755,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           return false;
         }
         final keyboard = HardwareKeyboard.instance;
+        // צירופי Ctrl, כולל Ctrl+C ו-Ctrl+A, מטופלים בפוקוס החיצוני.
         if (keyboard.isAltPressed ||
             keyboard.isControlPressed ||
             keyboard.isMetaPressed) {
@@ -1771,6 +1798,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           ? [textSearcher!.pageTextMatchPaintCallback]
           : null,
       onDocumentChanged: (document) async {
+        _pdfTextSelectionActions.cancel();
         if (document == null) {
           widget.tab.documentRef.value = null;
           widget.tab.outline.value = null;
@@ -1993,7 +2021,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         return Focus(
           focusNode: _pdfViewFocusNode,
           autofocus: false,
+          onFocusChange: (hasFocus) {
+            if (!hasFocus) _pdfTextSelectionActions.cancel();
+          },
           onKeyEvent: (FocusNode node, KeyEvent event) {
+            if (event is KeyDownEvent) _pdfTextSelectionActions.cancel();
             if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
                 ShortcutHelper.matchesShortcut(
                   event,
@@ -2058,6 +2090,42 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 }
                 return KeyEventResult.handled;
               }
+              final isCopyShortcut = ShortcutHelper.matchesShortcut(
+                event,
+                'ctrl+c',
+              );
+              final isSelectAllShortcut = ShortcutHelper.matchesShortcut(
+                event,
+                'ctrl+a',
+              );
+              if (isCopyShortcut || isSelectAllShortcut) {
+                // גם Ctrl+C/A ניתנים להגדרה כחיפוש, שקודם לברירות המחדל.
+                if (!ShortcutHelper.shouldIgnoreWhileEditing(event) &&
+                    ShortcutHelper.matchesShortcut(
+                      event,
+                      ShortcutValidator.getShortcutValue(
+                            ShortcutValidator.currentWindowSearchKey,
+                          ) ??
+                          '',
+                    )) {
+                  _ensureSearchTabIsActive();
+                  return KeyEventResult.handled;
+                }
+                // קיצורי הקורא המוגדרים מטופלים במעטפת החיצונית.
+                if (_configurableBindings().keys.any(
+                  (activator) =>
+                      activator.accepts(event, HardwareKeyboard.instance),
+                )) {
+                  return KeyEventResult.ignored;
+                }
+                // pdfrx מעביר צירופי Ctrl למעטפת גם כשהפוקוס בתוכו.
+                if (isCopyShortcut) {
+                  unawaited(_copyPdfTextSelection(keepSelection: true));
+                } else {
+                  unawaited(_selectAllPdfText());
+                }
+                return KeyEventResult.handled;
+              }
               if (_isNextPageKey(event.logicalKey)) {
                 _goNextPage();
                 return KeyEventResult.handled;
@@ -2108,22 +2176,25 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           },
           child: _pdfViewerSuspended
               ? const SizedBox.expand()
-              : GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    _pdfViewFocusNode.requestFocus();
-                  },
-                  child: MouseRegion(
-                    cursor: _isHandMode
-                        ? AppCursors.grabOf(context)
-                        : MouseCursor.defer,
-                    child: PdfViewer(
-                      _pdfDocumentRef,
-                      controller: widget.tab.pdfViewerController,
-                      initialPageNumber: widget.tab.pageNumber < 1
-                          ? 1
-                          : widget.tab.pageNumber,
-                      params: _buildPdfViewerParams(layoutMode),
+              : Listener(
+                  onPointerDown: (_) => _pdfTextSelectionActions.cancel(),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      _pdfViewFocusNode.requestFocus();
+                    },
+                    child: MouseRegion(
+                      cursor: _isHandMode
+                          ? AppCursors.grabOf(context)
+                          : MouseCursor.defer,
+                      child: PdfViewer(
+                        _pdfDocumentRef,
+                        controller: widget.tab.pdfViewerController,
+                        initialPageNumber: widget.tab.pageNumber < 1
+                            ? 1
+                            : widget.tab.pageNumber,
+                        params: _buildPdfViewerParams(layoutMode),
+                      ),
                     ),
                   ),
                 ),
@@ -4058,6 +4129,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   @override
   void dispose() {
+    _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pageTurnController.stop(canceled: false);
     _stopContinuousScroll();
@@ -4279,8 +4351,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         // (ריחוף, גלגלת, טעינת מסמך), וכולם חטפו את המקלדת מהחלונית שנקראה.
         listenWhen: (previous, current) =>
             _isActivePane(previous) != _isActivePane(current),
-        listener: (context, state) =>
-            _pdfViewFocusNode.canRequestFocus = _isActivePane(state),
+        listener: (context, state) {
+          _pdfViewFocusNode.canRequestFocus = _isActivePane(state);
+          if (!_isActivePane(state)) _pdfTextSelectionActions.cancel();
+        },
         child: BlocListener<TabsBloc, TabsState>(
           listenWhen: (previous, current) =>
               _isShown(previous) != _isShown(current),
@@ -4340,6 +4414,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   void _releaseImagesWhileHidden() {
+    _pdfTextSelectionActions.cancel();
     _scrollPhysicsProvider.stop();
     _stopContinuousScroll();
     _pageTurnController.stop(canceled: false);

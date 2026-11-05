@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/utils/text/numeral_formats.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class FuzzyDistance extends StatefulWidget {
@@ -475,23 +476,8 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
     return textPainter.size.width;
   }
 
-  // פונקציה להמרת מספרים לתת-כתב Unicode
-  String _convertToSubscript(String number) {
-    const Map<String, String> subscriptMap = {
-      '0': '₀',
-      '1': '₁',
-      '2': '₂',
-      '3': '₃',
-      '4': '₄',
-      '5': '₅',
-      '6': '₆',
-      '7': '₇',
-      '8': '₈',
-      '9': '₉',
-    };
-
-    return number.split('').map((char) => subscriptMap[char] ?? char).join();
-  }
+  String _convertToSubscript(String number) =>
+      number.split('').map((char) => subscriptDigits[char] ?? char).join();
 
   List<TextSpan> _buildFormattedTextSpans(String text, BuildContext context) {
     if (text.trim().isEmpty) return [const TextSpan(text: '')];

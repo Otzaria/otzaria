@@ -1,3 +1,4 @@
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'dart:io';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
@@ -37,7 +38,7 @@ class ReportingNumbersWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'נתוני הדיווח:',
+              context.settingsText('נתוני הדיווח:'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -51,24 +52,24 @@ class ReportingNumbersWidget extends StatelessWidget {
               children: [
                 _buildCompactNumberItem(
                   context,
-                  'מספר גירסה',
+                  context.settingsText('מספר גירסה'),
                   libraryVersion,
                 ),
                 _buildCompactNumberItem(
                   context,
-                  'מספר ספר',
-                  bookId?.toString() ?? 'לא זמין',
+                  context.settingsText('מספר ספר'),
+                  bookId?.toString() ?? context.settingsText('לא זמין'),
                   enabled: bookId != null,
                 ),
                 _buildCompactNumberItem(
                   context,
-                  'מספר שורה',
+                  context.settingsText('מספר שורה'),
                   lineNumber.toString(),
                 ),
                 _buildCompactNumberItem(
                   context,
-                  'מספר שגיאה',
-                  errorId?.toString() ?? 'לא נבחר',
+                  context.settingsText('מספר שגיאה'),
+                  errorId?.toString() ?? context.settingsText('לא נבחר'),
                   enabled: errorId != null,
                 ),
               ],
@@ -140,7 +141,7 @@ class ReportingNumbersWidget extends StatelessWidget {
           spacing: 8,
           children: [
             Text(
-              'קו אוצריא:',
+              context.settingsText('קו אוצריא:'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -197,7 +198,7 @@ class ReportingNumbersWidget extends StatelessWidget {
                 IconButton(
                   onPressed: () => _copyToClipboard(context, _phoneNumber),
                   icon: const Icon(FluentIcons.copy_24_regular, size: 18),
-                  tooltip: 'העתק מספר טלפון',
+                  tooltip: context.settingsText('העתק מספר טלפון'),
                   visualDensity: VisualDensity.compact,
                 ),
                 if (isMobile) ...[
@@ -205,7 +206,7 @@ class ReportingNumbersWidget extends StatelessWidget {
                   IconButton(
                     onPressed: () => _makePhoneCall(context),
                     icon: const Icon(FluentIcons.phone_24_regular, size: 18),
-                    tooltip: 'התקשר',
+                    tooltip: context.settingsText('התקשר'),
                     visualDensity: VisualDensity.compact,
                   ),
                 ],
@@ -217,7 +218,7 @@ class ReportingNumbersWidget extends StatelessWidget {
 
         // טקסט המשנה נשאר כמו שהיה
         Text(
-          'לפירוט נוסף, השאר הקלטה ברורה!',
+          context.settingsText('לפירוט נוסף, השאר הקלטה ברורה!'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             fontStyle: FontStyle.italic,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -231,11 +232,13 @@ class ReportingNumbersWidget extends StatelessWidget {
     try {
       await Clipboard.setData(ClipboardData(text: text));
       if (context.mounted) {
-        UiSnack.show(CommonMessages.copiedToClipboard(text));
+        UiSnack.show(
+          context.settingsText('הועתק ללוח: {text}', args: {'text': text}),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError(CommonMessages.clipboardCopyError);
+        UiSnack.showError(context.settingsText(CommonMessages.clipboardCopyError));
       }
     }
   }
@@ -247,12 +250,12 @@ class ReportingNumbersWidget extends StatelessWidget {
         await launchUrl(phoneUri);
       } else {
         if (context.mounted) {
-          UiSnack.showError(CommonMessages.cannotOpenPhoneApp);
+          UiSnack.showError(context.settingsText(CommonMessages.cannotOpenPhoneApp));
         }
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError(CommonMessages.phoneAppOpenError);
+        UiSnack.showError(context.settingsText(CommonMessages.phoneAppOpenError));
       }
     }
   }

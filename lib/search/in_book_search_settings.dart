@@ -136,9 +136,8 @@ class InBookSearchSettings {
     );
   }
 
-  /// Whether these settings need the search engine rather than the local
-  /// literal scan.
-  bool get requiresEngine => !InBookSearchRouting.canRunAsSimpleSearch(
+  /// Whether the search runs as the local literal scan.
+  bool get isSimpleSearch => InBookSearchRouting.canRunAsSimpleSearch(
     searchMode: searchMode,
     distance: _appliesDistance ? distance : 0,
     searchOptions: searchOptions,
@@ -156,9 +155,6 @@ class InBookSearchSettings {
             UserRegexQuery.isValid(query) ||
             SearchQueryBuilder.hasMultipleWords(query));
   }
-
-  /// Whether the search runs as the local literal scan.
-  bool get isSimpleSearch => !requiresEngine && searchMode == SearchMode.exact;
 
   /// The per-word options that apply to [searchMode].
   SearchModeScopedParameters get activeParameters =>

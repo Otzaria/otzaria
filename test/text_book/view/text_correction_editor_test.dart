@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
@@ -271,8 +272,22 @@ void main() {
       await pumpTab(tester);
 
       expect(find.text(ReportMessages.proposalIdentical), findsOneWidget);
-      expect(find.text('שמור לשליחה מאוחרת'), findsNothing);
-      expect(find.text('שלח ישירות לאוצריא'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שמור לשליחה מאוחרת'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שלח ישירות לאוצריא'),
+            )
+            .onPressed,
+        isNull,
+      );
     });
 
     testWidgets('[T3] "מחיקת הקטע" שולח ""; אין אפשרות "ללא הצעה"', (
@@ -303,7 +318,14 @@ void main() {
         find.text(ReportMessages.proposalTooLong(TextCorrection.maxTextLength)),
         findsOneWidget,
       );
-      expect(find.text('שמור לשליחה מאוחרת'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שמור לשליחה מאוחרת'),
+            )
+            .onPressed,
+        isNull,
+      );
       expect(tester.widget<TextField>(proposalField()).controller!.text, long);
     });
 

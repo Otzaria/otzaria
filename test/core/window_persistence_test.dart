@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart'
     show Listenable, debugDefaultTargetPlatformOverride, TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/window_bounds.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
@@ -247,7 +249,41 @@ void main() {
       view.devicePixelRatio = 1.25;
       expect(await saveAndReadDpr(), 1.25);
     });
+
+    test('כשל דיסק בשמירת הגבולות נרשם ואינו שגיאה לא מטופלת', () async {
+      AppPaths.debugOverrideDataRootPath(tmp.path);
+      addTearDown(() => AppPaths.debugOverrideDataRootPath(null));
+      final window = _RecordingWindow(
+        visible: true,
+        bounds: const Rect.fromLTWH(10, 20, 800, 600),
+      );
+      final persistence = WindowPersistenceBinding(
+        controller: window,
+        geometry: window,
+        slot: () => 1,
+        sessions: _FailingBoundsStore(database: database),
+      );
+      final unhandled = <Object>[];
+      await runZonedGuarded(() async {
+        persistence.scheduleSave();
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+      }, (error, _) => unhandled.add(error));
+
+      expect(unhandled, isEmpty);
+      final log = File('${tmp.path}/logs/errors.txt').readAsStringSync();
+      expect(log, contains('שמירת גבולות החלון נכשלה'));
+      expect(log, contains('disk I/O error'));
+    });
   });
+}
+
+class _FailingBoundsStore extends WindowSessionStore {
+  _FailingBoundsStore({super.database});
+
+  @override
+  Future<void> saveBounds(int slot, String? boundsJson) async {
+    throw const FileSystemException('disk I/O error');
+  }
 }
 
 class _RecordingWindow implements AppWindowController, AppWindowGeometry {

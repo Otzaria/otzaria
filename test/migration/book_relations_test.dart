@@ -47,4 +47,30 @@ void main() {
     expect(books[2]!.authors.map((a) => a.name), ['רמב"ן']);
     expect(books[2]!.topics.map((t) => t.name), ['תורה']);
   });
+
+  group('searchAuthorNames — מילים בכל סדר (issue #4037)', () {
+    const alter = 'רבי יהודה אריה ליב אלתר';
+
+    setUp(() async {
+      final raw = await db.database;
+      for (final name in [alter, 'א_ב', 'א%ב', 'א\\ב', 'אגב']) {
+        raw.execute('INSERT INTO author (name) VALUES (?)', [name]);
+      }
+    });
+
+    test('סדר הפוך ודילוג על מילים מוצאים את המחבר', () async {
+      for (final query in ['יהודה אלתר', 'אלתר יהודה', ' ליב  רבי ']) {
+        expect(await repo.searchAuthorNames(query), [alter], reason: query);
+      }
+      expect(await repo.searchAuthorNames('אלתר רמב"ן'), isEmpty);
+    });
+
+    test('%, _ ו-\\ בכל מילה נחשבים תווים רגילים', () async {
+      expect(await repo.searchAuthorNames('_'), ['א_ב']);
+      expect(await repo.searchAuthorNames('%'), ['א%ב']);
+      expect(await repo.searchAuthorNames('\\'), ['א\\ב']);
+      expect(await repo.searchAuthorNames('ב _'), ['א_ב']);
+      expect(await repo.searchAuthorNames('ב %'), ['א%ב']);
+    });
+  });
 }

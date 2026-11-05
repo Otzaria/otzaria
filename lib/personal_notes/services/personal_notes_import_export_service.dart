@@ -273,19 +273,27 @@ class PersonalNotesImportExportService {
     final raw = await file.readAsString();
     final decoded = jsonDecode(raw) as Map<String, dynamic>;
     final version = decoded['version'] as String? ?? '1.0';
-    if (!version.startsWith('2')) {
+    // קובץ גיבוי של האפליקציה (includes, 1.0 או 2.0) מקבץ הערות לפי ספר;
+    // קובץ ייצוא 1.0 שייך למערכת ההערות הקודמת.
+    if (!version.startsWith('2') && decoded['includes'] == null) {
       throw Exception('גרסת ייצוא לא נתמכת: $version');
     }
 
-    final notesJson = decoded['notes'] as List<dynamic>? ?? const [];
+    final notes = [
+      for (final item in decoded['notes'] as List<dynamic>? ?? const [])
+        if (item is Map<String, dynamic>)
+          for (final json in item['notes'] as List<dynamic>? ?? [item])
+            (
+              PersonalNote.fromJson(json as Map<String, dynamic>),
+              json.containsKey('anchorText'),
+            ),
+    ];
     int inserted = 0;
     int updated = 0;
     int skipped = 0;
     int duplicated = 0;
 
-    for (final item in notesJson) {
-      if (item is! Map<String, dynamic>) continue;
-      final note = PersonalNote.fromJson(item);
+    for (final (note, hasAnchorText) in notes) {
       final existing = await _database.getNote(note.id);
 
       if (existing == null) {
@@ -299,16 +307,36 @@ class PersonalNotesImportExportService {
           skipped++;
           break;
         case NotesImportConflictStrategy.overwrite:
-          await _database.updateNote(note);
-          updated++;
-          break;
         case NotesImportConflictStrategy.merge:
-          if (note.updatedAt.isAfter(existing.updatedAt)) {
-            await _database.updateNote(note);
-            updated++;
-          } else {
+          if (strategy == NotesImportConflictStrategy.merge &&
+              !note.updatedAt.isAfter(existing.updatedAt)) {
             skipped++;
+            break;
           }
+          // שדה חסר בגיבוי ישן אינו מבטל עוגן מקומי; null מפורש כן.
+          // שומרים עוגן רק כשהספר, המיקום והקשר המקור עדיין תואמים.
+          final preserveAnchor =
+              !hasAnchorText &&
+              existing.isWordAnchored &&
+              note.bookId == existing.bookId &&
+              note.lineNumber == existing.lineNumber &&
+              note.status == existing.status &&
+              note.displayTitle == existing.displayTitle &&
+              (note.hasLocation ||
+                  note.lastKnownLineNumber == existing.lastKnownLineNumber);
+          final updatedNote = preserveAnchor
+              ? note
+                    .copyWith(clearAnchor: true)
+                    .copyWith(
+                      anchorText: existing.anchorText,
+                      anchorPrefix: existing.anchorPrefix,
+                      anchorSuffix: existing.anchorSuffix,
+                      anchorStart: existing.anchorStart,
+                      anchorEnd: existing.anchorEnd,
+                    )
+              : note;
+          await _database.updateNote(updatedNote);
+          updated++;
           break;
         case NotesImportConflictStrategy.keepBoth:
           await _database.insertNote(note.copyWith(id: _generateId()));

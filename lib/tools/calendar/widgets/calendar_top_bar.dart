@@ -170,14 +170,14 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     if (sameHebrewMonth) {
       return '${formatHebrewDay(startJewish.getJewishDayOfMonth())}-${formatHebrewDay(endJewish.getJewishDayOfMonth())} '
           '${getHebrewMonthNameFor(startJewish)} '
-          '${numberToHebrewWithoutQuotes(startJewish.getJewishYear())}';
+          '${formatHebrewYear(startJewish.getJewishYear())}';
     }
 
     return '${formatHebrewDay(startJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(startJewish)} '
-        '${numberToHebrewWithoutQuotes(startJewish.getJewishYear())}'
+        '${formatHebrewYear(startJewish.getJewishYear())}'
         ' - '
         '${formatHebrewDay(endJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(endJewish)} '
-        '${numberToHebrewWithoutQuotes(endJewish.getJewishYear())}';
+        '${formatHebrewYear(endJewish.getJewishYear())}';
   }
 
   String _formatWeekGregorianRange(CalendarState state) {
@@ -206,7 +206,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
         ? _formatWeekHebrewRange(s)
         : '${showOhrPrefix ? 'אור ל' : ''}${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
               '${getHebrewMonthNameFor(s.selectedJewishDate)} '
-              '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+              '${formatHebrewYear(s.selectedJewishDate.getJewishYear())}';
     final greg = s.calendarView == CalendarView.week
         ? _formatWeekGregorianRange(s)
         : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
@@ -251,7 +251,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
         ? _formatWeekHebrewRange(s)
         : '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
               '${getHebrewMonthNameFor(s.selectedJewishDate)} '
-              '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+              '${formatHebrewYear(s.selectedJewishDate.getJewishYear())}';
     final greg = s.calendarView == CalendarView.week
         ? _formatWeekGregorianRange(s)
         : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';

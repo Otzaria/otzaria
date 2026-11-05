@@ -210,6 +210,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         emit(PluginSystemLoaded(plugins));
         return;
       }
+      await PluginNewTabPageService.instance.syncOwner(repository);
       devWatchService.syncWatchers(
         plugins.where((plugin) => plugin.isDevelopment).toList(),
       );

@@ -1,3 +1,4 @@
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -97,7 +98,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'הוראות לדיווח טלפוני:',
+              context.settingsText('הוראות לדיווח טלפוני:'),
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -105,8 +106,9 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             ),
             const SizedBox(height: 4),
             Text(
-              '1. בחר את סוג השגיאה   •  '
-              '2. השתמש במספרים המוצגים למטה כשתתקשר',
+              context.settingsText(
+                '1. בחר את סוג השגיאה   •  2. השתמש במספרים המוצגים למטה כשתתקשר',
+              ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
@@ -122,7 +124,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'הטקסט שנבחר:',
+          context.settingsText('הטקסט שנבחר:'),
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -161,7 +163,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'בחר סוג שגיאה:',
+          context.settingsText('בחר סוג שגיאה:'),
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -175,7 +177,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
 
             return FilterChip(
               label: Text(
-                errorType.hebrewLabel,
+                context.settingsText(errorType.hebrewLabel),
                 style: TextStyle(
                   color: isSelected
                       ? Theme.of(context).colorScheme.onPrimary
@@ -241,7 +243,9 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'אי אפשר להתקדם... עדיין לא מילאתם בטופס...',
+                    context.settingsText(
+                      'אי אפשר להתקדם... עדיין לא מילאתם בטופס...',
+                    ),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onErrorContainer,
@@ -269,7 +273,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                         ),
                         Expanded(
                           child: Text(
-                            error,
+                            context.settingsText(error),
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: Theme.of(
@@ -297,7 +301,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                     ),
                     Expanded(
                       child: Text(
-                        errors.last,
+                        context.settingsText(errors.last),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onErrorContainer,
                         ),
@@ -316,7 +320,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                       ),
                       child: ActionButton.ghost(
                         onPressed: widget.onCancel,
-                        text: 'ביטול הדיווח',
+                        text: context.settingsText('ביטול הדיווח'),
                       ),
                     ),
                   ],
@@ -341,7 +345,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
       children: [
         ActionButton.ghost(
           onPressed: widget.onCancel,
-          text: 'ביטול הדיווח',
+          text: context.settingsText('ביטול הדיווח'),
         ),
       ],
     );

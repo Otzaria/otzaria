@@ -3438,11 +3438,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
     final hasTalmudBavliDirectory = await _bundledTalmudBavliDirectoryExists();
 
-    // OPTIMIZATION: Load minimal book data first, then load authors in one
-    // batch query inside the same transaction to avoid per-book DB work.
-    // full book data with relations (25+ columns + 4 junction table queries).
-    // Both queries run inside a single transaction to prevent BackgroundSync
-    // from locking the DB between them (which caused 17s delays).
     final tQuery = DateTime.now();
 
     final catalogRows =
@@ -3501,7 +3496,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     debugPrint('💾 Loaded ${allCategories.length} categories');
 
     // Build catalog tree starting from root categories (parentId = null)
-    // Sort root categories by orderIndex (like Kotlin: sortedBy { it.order })
+    // Sort root categories by orderIndex
     final rootCategories = (categoriesByParent[null] ?? [])
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final Library library = Library(categories: []);
@@ -3542,8 +3537,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     await _appendAttachedLibraries(library, metadata);
     _attachCatalogBookVersions(library);
 
-    // NOTE: Sorting is now done during build (like Kotlin), no need for post-sort
-
     // Mark titles as cached
     _titlesCached = true;
 
@@ -3551,9 +3544,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       '💾 Database catalog built with $totalCategories categories and ${allDbBooks.length} books from DB',
     );
 
-    // NOTE: Library is now built ONLY from the database.
-    // Files that are not in the DB will not appear in the library browser.
-    // This is intentional - all book/file information should be in the DB.
+    // NOTE: Library is built ONLY from the database: files that are not in
+    // the DB intentionally do not appear in the library browser.
 
     return library;
   }
@@ -3617,8 +3609,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
   }
 
-  /// Recursively builds a catalog category with its subcategories and books (OPTIMIZED - no async).
-  /// Mirrors the Kotlin buildCatalogCategoryRecursive logic:
+  /// Recursively builds a catalog category with its subcategories and books:
   /// - Books are sorted by order
   /// - Subcategories are sorted by orderIndex
   Category _buildCatalogCategoryRecursiveOptimized(
@@ -3629,7 +3620,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Category parent,
     Map<String, Map<String, dynamic>> metadata,
   ) {
-    // Create the category using orderIndex from DB (like Kotlin uses category.order)
     final category = Category(
       title: dbCategory.title,
       description: dbCategory.heDesc ?? '',
@@ -3640,7 +3630,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       parent: parent,
     );
 
-    // Get books for this category and sort by order (like Kotlin: sortedBy { it.order })
+    // Get books for this category and sort by order
     final dbBooks = (booksByCategory[dbCategory.id] ?? [])
       ..sort((a, b) {
         final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
@@ -3671,7 +3661,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       }
     }
 
-    // Get subcategories sorted by orderIndex (like Kotlin: sortedBy { it.order })
+    // Get subcategories sorted by orderIndex
     final children = (categoriesByParent[dbCategory.id] ?? [])
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
@@ -4491,8 +4481,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
     final normalizedFileType = (fileType ?? '').toLowerCase();
 
-    // External catalog books (fileType='link') are no longer stored in seforim.db.
-    // They are served from a separate database via ExternalCatalogRepository.
+    // External catalog books (fileType='link') are served from a separate
+    // database via ExternalCatalogRepository.
     if (normalizedFileType == 'link' || normalizedFileType == 'url') {
       return null;
     }
@@ -5253,33 +5243,41 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
     return _dbOperation<List<Link>>(
       (db) async {
-        // Join line_alt_toc -> line -> book
+        // עוגן האב קודם למיפוי רק כשאינו מדלג על פתיחת הבן הראשון.
+        // בלי עוגן בן תקף נשמר מסלול המיפוי והירידה בעץ של הסרגל.
         var results = db
             .select(
               '''
-          SELECT
-            b.title as bookTitle,
-            l.lineIndex,
-            l.heRef
-          FROM line_alt_toc lat
-          JOIN line l ON lat.lineId = l.id
+          SELECT b.title as bookTitle, l.lineIndex, l.heRef
+          FROM alt_toc_entry e
+          JOIN line l ON e.lineId = l.id
           JOIN book b ON l.bookId = b.id
-          WHERE lat.structureId = ? AND lat.altTocEntryId = ?
-          ORDER BY b.title, l.lineIndex
+          LEFT JOIN alt_toc_entry child ON child.id = (
+            SELECT id FROM alt_toc_entry
+            WHERE structureId = e.structureId AND parentId = e.id
+            ORDER BY id LIMIT 1
+          )
+          LEFT JOIN line childLine ON child.lineId = childLine.id
+          WHERE e.structureId = ? AND e.id = ?
+            AND (child.id IS NULL OR (
+              childLine.id IS NOT NULL AND (
+                childLine.bookId != l.bookId OR childLine.lineIndex >= l.lineIndex
+              )
+            ))
         ''',
               [structureId, altTocEntryId],
             )
             .toMapList();
-        // עלה שאחיו הבא נפתח באותה שורה (דפים בפסקה אחת) אינו ממופה ב-line_alt_toc.
         if (results.isEmpty) {
           results = db
               .select(
                 '''
           SELECT b.title as bookTitle, l.lineIndex, l.heRef
-          FROM alt_toc_entry e
-          JOIN line l ON e.lineId = l.id
+          FROM line_alt_toc lat
+          JOIN line l ON lat.lineId = l.id
           JOIN book b ON l.bookId = b.id
-          WHERE e.structureId = ? AND e.id = ? AND e.hasChildren = 0
+          WHERE lat.structureId = ? AND lat.altTocEntryId = ?
+          ORDER BY b.title, l.lineIndex
         ''',
                 [structureId, altTocEntryId],
               )

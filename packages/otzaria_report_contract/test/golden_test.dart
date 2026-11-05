@@ -24,6 +24,22 @@ bool _isSendable(DirectErrorReport report) {
 }
 
 void main() {
+  test(
+    'schema 2 payload is shared byte-for-byte with server and offline updater',
+    () {
+      final fixture = _fixture('app_report_schema2.json');
+      final report = AppReport.fromJson(
+        Map<String, dynamic>.from(fixture['stored'] as Map),
+      );
+      expect(report.validate(), isNull);
+      expect(report.toApiPayload(), fixture['payload']);
+      expect(
+        report.otherAttachmentBytes + report.images.single.bytes.length,
+        fixture['attachmentBytes'],
+      );
+    },
+  );
+
   group('OCJ-1', () {
     final cases = (_fixture('digest_fixtures.json')['cases'] as List)
         .cast<Map<String, dynamic>>();
@@ -212,7 +228,7 @@ void main() {
     });
   });
 
-  test('kReportsQueueFormat', () => expect(kReportsQueueFormat, 1));
+  test('kReportsQueueFormat', () => expect(kReportsQueueFormat, 2));
 
   group('רשומת היסטוריה שעדכוני אוצריא העבירה (C3)', () {
     const carried = {

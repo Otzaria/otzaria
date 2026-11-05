@@ -40,6 +40,9 @@ class _FakeRepo extends Mock implements PluginRegistryRepository {
   _FakeRepo(this.plugins);
   final List<InstalledPlugin> plugins;
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async => plugins;
   @override
   Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];

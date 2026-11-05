@@ -14,6 +14,7 @@ import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/settings/dialogs/reports_management_dialog.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/app_reports_panel.dart';
 import 'package:otzaria/settings/panels/error_reports_panel.dart';
 import 'package:otzaria/settings/panels/plugin_reports_panel.dart';
@@ -164,7 +165,11 @@ void main() {
     await settleReports(tester);
   }
 
-  Future<void> pumpDialog(WidgetTester tester, ReportsTab tab) async {
+  Future<void> pumpDialog(
+    WidgetTester tester,
+    ReportsTab tab, {
+    SettingsLanguage language = SettingsLanguage.hebrew,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final bloc = _FakeSettingsBloc();
@@ -174,7 +179,13 @@ void main() {
         value: bloc,
         child: MaterialApp(
           locale: const Locale('he', 'IL'),
-          home: Scaffold(body: ReportsManagementDialog(initialTab: tab)),
+          home: SettingsTextScope(
+            language: language,
+            child: Directionality(
+              textDirection: language.textDirection,
+              child: Scaffold(body: ReportsManagementDialog(initialTab: tab)),
+            ),
+          ),
         ),
       ),
     );
@@ -196,6 +207,48 @@ void main() {
     await tester.tap(find.text('טעויות בספרים'));
     await tester.pumpAndSettle();
     expect(find.byType(ErrorReportsPanel), findsOneWidget);
+  });
+
+  testWidgets('free book editing keeps English scope and scrolls in a low window', (
+    tester,
+  ) async {
+    final selected = 'מקור ארוך בשורה נפרדת\n' * 10;
+    await addReport(tester, ReportsTab.books, extra: {
+      'selectedText': selected,
+      'errorDetails': 'פרטי הטעות בשורה נפרדת\n' * 10,
+      'contextText': 'הקשר בשורה נפרדת\n' * 10,
+    });
+    await pumpDialog(tester, ReportsTab.books, language: SettingsLanguage.english);
+    await tapVisible(tester, 'Manage saved reports');
+    await tapVisible(tester, 'Edit');
+    await tester.binding.setSurfaceSize(const Size(1100, 360));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Edit a Saved Report'), findsOneWidget);
+    expect(find.text('The Selected Text'), findsOneWidget);
+    expect(find.text('What needs to be corrected?'), findsOneWidget);
+    expect(find.text('Context'), findsOneWidget);
+    final scroll = find.byKey(const ValueKey('book-report-edit-scroll'));
+    expect(scroll, findsOneWidget);
+    final state = tester.state<ScrollableState>(
+      find.descendant(of: scroll, matching: find.byType(Scrollable)).first,
+    );
+    expect(state.position.maxScrollExtent, greaterThan(0));
+    final contextField = find.byKey(const ValueKey('book-report-edit-context'));
+    await tester.ensureVisible(contextField);
+    await tester.enterText(contextField, 'הקשר המעודכן נשמר במדויק');
+    await tester.pump();
+    final save = find.text('Save');
+    expect(save.hitTestable(), findsOneWidget);
+    await tester.tap(save);
+    await settleReports(tester);
+    final reports = await tester.runAsync(
+      () => DirectErrorReportService().getPendingReports(),
+    );
+    expect(reports!.single.selectedText, selected.trim());
+    expect(reports.single.contextText, 'הקשר המעודכן נשמר במדויק');
+    expect(tester.takeException(), isNull);
   });
 
   for (final tab in ReportsTab.values) {

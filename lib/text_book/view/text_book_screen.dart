@@ -297,7 +297,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     try {
       final dataProvider = context.read<ShamorZachorDataProvider>();
       final progressProvider = context.read<ShamorZachorProgressProvider>();
-      final state = context.read<TextBookBloc>().state as TextBookLoaded;
+      await dataProvider.ensureLoaded();
+      if (!mounted) return;
+      final state = context.read<TextBookBloc>().state;
+      if (state is! TextBookLoaded) return;
 
       if (!dataProvider.hasData) {
         UiSnack.showError(TextBookMessages.shamorZachorDataNotLoaded);
@@ -333,100 +336,39 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return;
       }
 
-      final (bookDetails, bookName, topLevelCategoryKey) = result;
-      debugPrint('Book found: $bookName (ID: $bookId)');
+      final (bookDetails, _, _) = result;
 
-      // קבלת הפרק הנוכחי — שורת מקור (לא segmentIndex של מצב רצף).
+      // שורת מקור (לא segmentIndex של מצב רצף).
       final currentIndex = widget.tab.index;
 
-      // קבלת הכותרת הנוכחית
-      String currentRef = await refFromIndex(
-        currentIndex,
-        state.book.tableOfContents,
-      );
-
-      // אם הכותרת זהה לשם הספר, סימן שאנחנו לפני כל פרק - נחפש את ה-H2 הראשונה
-      if (currentRef == state.book.title || currentRef.isEmpty) {
-        debugPrint('Current ref is book title, looking for first H2...');
-        final toc = await state.book.tableOfContents;
-
-        for (final entry in toc) {
-          if (entry.index >= currentIndex) {
-            currentRef = entry.text;
-            debugPrint('Found first H2: $currentRef');
-            break;
+      // טווחי BookSection הם שורות מקור; כותרות יכולות לחזור בין פרקים.
+      BookSection? findCurrentSection(List<BookSection> sections) {
+        for (final section in sections) {
+          if (currentIndex < section.startPage ||
+              currentIndex > section.endPage) {
+            continue;
           }
-          for (final child in entry.children) {
-            if (child.index >= currentIndex) {
-              currentRef = '${entry.text}, ${child.text}';
-              debugPrint('Found first H2 child: $currentRef');
-              break;
-            }
-          }
-          if (currentRef != state.book.title && currentRef.isNotEmpty) break;
+          if (section.isLeaf) return section;
+          final child = findCurrentSection(section.children);
+          if (child != null) return child;
         }
+        return null;
       }
 
-      debugPrint('Current ref: $currentRef');
-
-      // חילוץ שם הפרק מהפניה
-      String? chapterName = _extractChapterName(currentRef);
-
-      // אם לא הצלחנו לחלץ שם פרק, נשתמש בכל הפניה
-      if (chapterName == null || chapterName.isEmpty) {
-        chapterName = currentRef;
-      }
-
-      debugPrint('Chapter name: $chapterName');
-      debugPrint('Book content type: ${bookDetails.contentType}');
-      debugPrint('Book is daf type: ${bookDetails.isDafType}');
-      debugPrint('Total learnable items: ${bookDetails.learnableItems.length}');
-
-      // מציאת הפריט הרלוונטי בשמור וזכור
-      final learnableItems = bookDetails.learnableItems;
-
-      // חיפוש הפריט המתאים לפי שם הכותרת (כפי שהיא מופיעה בטקסט)
-      LearnableItem? targetItem;
-
-      // נחפש לפי שם הכותרת הנוכחית
-      final searchTitle = chapterName;
-
-      debugPrint('Searching for title: "$searchTitle"');
-      debugPrint('Available learnable items:');
-      for (int i = 0; i < learnableItems.length && i < 10; i++) {
-        final item = learnableItems[i];
-        debugPrint(
-          '  [$i] displayLabel: "${item.displayLabel}", partName: "${item.partName}", hierarchyPath: ${item.hierarchyPath}',
-        );
-      }
-      if (learnableItems.length > 10) {
-        debugPrint('  ... and ${learnableItems.length - 10} more items');
-      }
-
-      // חיפוש לפי displayLabel או partName שמכיל את שם הכותרת. בכוונה אין
-      // התאמה חלקית לפי מילים בודדות — היא סימנה התקדמות על פריט שגוי.
-      targetItem = learnableItems.firstWhereOrNull((item) {
-        if (item.displayLabel != null &&
-            item.displayLabel!.contains(searchTitle)) {
-          return true;
-        }
-        if (item.partName.contains(searchTitle)) {
-          return true;
-        }
-        return item.hierarchyPath.any((path) => path.contains(searchTitle));
-      });
-
+      final section = findCurrentSection(bookDetails.sections ?? const []);
+      final targetItem = section == null
+          ? null
+          : bookDetails.learnableItems.firstWhereOrNull(
+              (item) => item.sectionId == section.id,
+            );
       if (targetItem == null) {
-        throw Exception('$searchTitle לא נמצא בשמור וזכור');
+        final currentRef = await refFromIndex(
+          currentIndex,
+          state.book.tableOfContents,
+        );
+        throw Exception('$currentRef לא נמצא בשמור וזכור');
       }
-
-      debugPrint(
-        'Found target item: displayLabel="${targetItem.displayLabel}", partName="${targetItem.partName}"',
-      );
-
-      debugPrint(
-        'Target item: ${targetItem.pageNumber}${targetItem.amudKey}, absoluteIndex: ${targetItem.absoluteIndex}',
-      );
+      final displayName = targetItem.hierarchyPath.join(', ');
 
       // בדיקת מצב העמודות עבור הפרק הספציפי - משתמשים ב-ID!
       final itemProgress = progressProvider.getProgressForItemById(
@@ -446,7 +388,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       }
 
       if (columnToMark == null) {
-        UiSnack.show(TextBookMessages.noFreeSlotInChapter(chapterName));
+        UiSnack.show(TextBookMessages.noFreeSlotInChapter(displayName));
         return;
       }
 
@@ -460,41 +402,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       );
 
       final columnName = _getColumnDisplayName(columnToMark);
-      // השתמש בשם המקורי מהכותרת
-      final displayName = chapterName;
       UiSnack.show(TextBookMessages.chapterMarked(displayName, columnName));
     } catch (e) {
       debugPrint('Error in _markShamorZachorProgress: $e');
       UiSnack.showError(TextBookMessages.markingError(e));
     }
-  }
-
-  /// חילוץ שם הפרק/דף מהפניה (לתצוגה)
-  String? _extractChapterName(String ref) {
-    // דוגמאות: "בראשית, פרק א" -> "פרק א", "ברכות, דף ו." -> "דף ו"
-
-    final patterns = [
-      RegExp(r'(פרק\s+[א-ת]+)'),
-      RegExp(r'(דף\s+[א-ת]+[.:]?)'), // שמירת הנקודה או הנקודתיים
-      RegExp(r',\s*([א-ת]+[.:]?)$'), // אם זה רק האות בסוף עם הסימן
-    ];
-
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(ref);
-      if (match != null) {
-        String result = match.group(1) ?? '';
-        return result;
-      }
-    }
-
-    // אם לא מצאנו דפוס מיוחד, ננסה לחלץ רק את החלק האחרון
-    final parts = ref.split(',');
-    if (parts.length > 1) {
-      String lastPart = parts.last.trim();
-      return lastPart; // שמירת הסימן המקורי
-    }
-
-    return null;
   }
 
   /// קבלת שם העמודה להצגה
@@ -753,12 +665,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     // טעינת הגדרות פר-ספר
     _loadPerBookSettings();
-
-    // איתור ה-PDF המלווה (getCompanionBook) דורש את כל קטלוג הספרייה
-    // (~300ms CPU על ה-main thread). קריאתו כאן ב-initState הייתה חונקת את
-    // שאילתת תוכן הספר ומעכבת את הצגתו ב-~600ms. הוא משפיע רק על נראות כפתור
-    // ה-PDF (_hasPdfBook), לא על התוכן — לכן נדחה ל-_resolveCompanionPdf
-    // שנקרא ברגע שהספר נטען (ראו ה-listener של ה-BlocConsumer).
 
     // רענון ספרייה (למשל אחרי התקנת קבצי התלמוד) עשוי להוסיף מהדורות
     // מקבילות — מאתרים מחדש כדי שהכפתור יופיע בלי לפתוח את הטאב מחדש.

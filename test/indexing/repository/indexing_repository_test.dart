@@ -27,6 +27,9 @@ import '../../support/fake_line_source_engine.dart';
 
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/indexing/models/index_check_scope.dart';
 import 'package:otzaria/indexing/models/index_commit_policy.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
@@ -42,6 +45,7 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/navigation/utils/refresh_indexing_plan.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
@@ -842,6 +846,139 @@ void main() {
 
     io.File pendingFile() =>
         io.File(p.join(indexDir.path, PendingReindexStore.fileName));
+
+    test(
+      'בדיקה מלאה שנדחתה נשארת בחיווי אחרי שחזור ספר מהסתרה',
+      () async {
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        const hiddenStore = HiddenLibraryStore();
+        await hiddenStore.resetRuntimeStateForAppRestart();
+        addTearDown(() async {
+          await hiddenStore.resetRuntimeStateForAppRestart();
+          await Settings.clearCache();
+        });
+        final engine = _CancellationRecordingEngine();
+        final stale = TextBook(id: 5, title: 'שבת');
+        final newlyVisible = TextBook(id: 6, title: 'עירובין');
+        final library = Library(categories: [])
+          ..books.addAll([stale, newlyVisible]);
+        final provider = providerWith(engine, [stale]);
+        final repository = _ReindexProbeRepository(provider);
+        final bloc = IndexingBloc(repository);
+        addTearDown(bloc.close);
+        final states = <IndexingState>[];
+        final subscription = bloc.stream.listen(states.add);
+        addTearDown(subscription.cancel);
+
+        for (final event in buildRefreshIndexingPlan(
+          library: library,
+          newBooks: const [],
+          changedBooks: const [],
+          indexWholeLibrary: true,
+          reconcile: true,
+          indexUpdateMode: IndexUpdateMode.off,
+        )) {
+          bloc.add(event);
+        }
+        final deferred = Completer<void>();
+        bloc.add(IndexingWorkBarrier(onSettled: deferred.complete));
+        await deferred.future.timeout(const Duration(seconds: 2));
+        expect(bloc.state, isA<IndexingInitial>());
+
+        final revision = await hiddenStore.beginVisibilityIndexUpdate();
+        final completions = <bool>[];
+        bloc.add(
+          ApplyHiddenIndexDelta(
+            library,
+            newlyHidden: const [],
+            newlyVisible: [newlyVisible],
+            visibilityRevision: revision,
+            onCompleted: completions.add,
+          ),
+        );
+        final settled = Completer<void>();
+        bloc.add(IndexingWorkBarrier(onSettled: settled.complete));
+        await settled.future.timeout(const Duration(seconds: 2));
+
+        expect(
+          await PendingReindexStore.forIndex(
+            indexDir.path,
+          )!.checkLibraryPending(),
+          isTrue,
+        );
+        expect(await repository.hasUnindexedBooks(library), isTrue);
+        expect(repository.indexedBooks, [newlyVisible]);
+        expect(completions, [true]);
+        expect(hiddenStore.hasPendingVisibilityIndex, isFalse);
+        expect(bloc.state, isA<IndexingInitial>());
+        expect(states.whereType<IndexingComplete>(), isEmpty);
+      },
+    );
+
+    test(
+      'רענון כשהאינדוקס כבוי שומר שינויים להפעלה הבאה ומעדכן את החיווי',
+      () async {
+        final engine = _CancellationRecordingEngine();
+        final changed = TextBook(id: 5, title: 'שבת');
+        final unchanged = TextBook(id: 6, title: 'עירובין');
+        final library = Library(categories: [])
+          ..books.addAll([changed, unchanged]);
+        final provider = providerWith(engine, [changed, unchanged]);
+        final repository = _ReindexProbeRepository(provider);
+        final bloc = IndexingBloc(repository);
+        addTearDown(bloc.close);
+
+        final ready = bloc.stream.firstWhere((s) => s is IndexingComplete);
+        bloc.add(CheckIndexStatus(library));
+        await ready.timeout(const Duration(seconds: 2));
+
+        for (final event in buildRefreshIndexingPlan(
+          library: library,
+          newBooks: const [],
+          changedBooks: [changed],
+          indexWholeLibrary: true,
+          reconcile: false,
+          indexUpdateMode: IndexUpdateMode.off,
+        )) {
+          bloc.add(event);
+        }
+        final deferred = Completer<void>();
+        bloc.add(IndexingWorkBarrier(onSettled: deferred.complete));
+        await deferred.future.timeout(const Duration(seconds: 2));
+
+        expect(bloc.state, isA<IndexingInitial>());
+        expect(repository.indexedBooks, isNull);
+        expect(engine.removedFilePaths, isEmpty);
+        expect(engine.commitCount, 0);
+        expect(await storedPending(), {'id:5'});
+        await bloc.close();
+
+        // הזיכרון מתאפס; ההפעלה הבאה קוראת את השינויים מהדיסק.
+        PendingReindexStore.resetMemoryForTesting();
+        await provider.reopenIndex(force: true);
+        final resumedRepository = _ReindexProbeRepository(provider);
+        expect(await resumedRepository.hasUnindexedBooks(library), isTrue);
+        final resumedBloc = IndexingBloc(resumedRepository);
+        addTearDown(resumedBloc.close);
+        for (final event in indexUpdateModeChangePlan(
+          library,
+          previous: IndexUpdateMode.off,
+          current: IndexUpdateMode.all,
+        )) {
+          resumedBloc.add(event);
+        }
+        final settled = Completer<void>();
+        resumedBloc.add(IndexingWorkBarrier(onSettled: settled.complete));
+        await settled.future.timeout(const Duration(seconds: 2));
+
+        expect(resumedBloc.state, const IndexingComplete());
+        expect(resumedRepository.indexedBooks, [changed]);
+        expect(engine.removedFilePaths, ['id:5']);
+        expect(engine.commitCount, 1);
+        expect(engine.committedCounts, {'id:5': 1, 'id:6': 1});
+        expect(pendingFile().existsSync(), isFalse);
+      },
+    );
 
     test(
       'מחליף רק את הספרים שהשתנו — לא שכנים בעלי אותה כותרת, ובאותו commit',
@@ -4230,14 +4367,21 @@ void main() {
         source: BookSource.attached('lib'),
       );
 
+      final attachedPdf = PdfBook(
+        id: 2,
+        title: 'מצורף סרוק',
+        path: '/attached/scanned.pdf',
+        source: attached.source,
+      );
+
       expect(
         IndexingRepository.booksForIndexing(
-          [official, personal, attached],
+          [official, personal, attached, attachedPdf],
           includePdfBooks: true,
           hidden: const HiddenLibrarySelection(),
           mode: IndexUpdateMode.libraryOnly,
         ),
-        [official, attached],
+        [official],
       );
     });
 
@@ -4253,11 +4397,18 @@ void main() {
           title: 'אישי',
           source: BookSource.user,
         );
-        library.books.add(personal);
+        library.books.addAll([
+          personal,
+          TextBook(
+            id: 3,
+            title: 'מצורף',
+            source: BookSource.attached('lib'),
+          ),
+        ]);
         provider.indexedFilePaths.addAll(
           library
               .getAllBooks()
-              .where((book) => !book.source.isUser)
+              .where((book) => book.source.isOfficial)
               .where(IndexingRepository.isIndexableBook)
               .map(BookIdentity.indexedFilePath),
         );
@@ -4408,6 +4559,9 @@ class _FakeSearchEngine implements SearchEngine {
 /// ספק עם מנוע יציב המקליט קריאות — לבדיקת ניקוי רשומות אינדקס שהועברו.
 class _RecordingTantivyDataProvider implements TantivyDataProvider {
   _RecordingTantivyDataProvider(this._engine);
+
+  @override
+  bool get isEconomyIndexing => false;
 
   final _RecordingSearchEngine _engine;
 

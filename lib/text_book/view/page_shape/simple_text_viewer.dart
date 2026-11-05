@@ -65,6 +65,7 @@ import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
@@ -2548,9 +2549,40 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         : state.book.title;
     if (widget.isBookNotesColumn &&
         selectedText.trim().isEmpty &&
-        _savedSelectedIndex != null) {
+        _savedSelectedIndex != null &&
+        _savedSelectedIndex! >= 0 &&
+        _savedSelectedIndex! < widget.content.length) {
       selectedText = widget.content[_savedSelectedIndex!];
     }
+
+    final noteRow = _savedSelectedIndex;
+    final sourceIndex = _sourceIndex(noteRow);
+    final firstNoteRow = _selectionLineStart ?? noteRow;
+    final lastNoteRow = _selectionLineEnd ?? firstNoteRow;
+    final noteSourceIndexes = <int>{
+      if (widget.isBookNotesColumn &&
+          firstNoteRow != null &&
+          lastNoteRow != null)
+        for (var row = firstNoteRow; row <= lastNoteRow; row++)
+          if (row >= 0 && row < widget.content.length)
+            if (_sourceIndex(row) case final int index) index,
+      ?sourceIndex,
+    };
+    final noteTarget = widget.isBookNotesColumn && sourceIndex != null
+        ? bookNoteReportTarget(
+            content: state.content,
+            bookNotes: state.bookNotes,
+            lineIndexes: noteSourceIndexes,
+            selectedText: selectedText,
+            noteHtml:
+                noteRow != null &&
+                    firstNoteRow == lastNoteRow &&
+                    noteRow >= 0 &&
+                    noteRow < widget.content.length
+                ? widget.content[noteRow]
+                : null,
+          )
+        : null;
 
     ErrorReportHelper.showErrorReportDialog(
       context: context,
@@ -2562,9 +2594,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       state: state,
       fontSize: widget.fontSize,
       bookTitle: resolvedBookTitle,
-      savedSelectedIndex: _sourceIndex(_savedSelectedIndex),
+      savedSelectedIndex: noteTarget?.lineIndex ?? sourceIndex,
       reportContent: widget.isBookNotesColumn ? state.content : widget.content,
       reportBook: widget.reportBook,
+      reportNote: widget.isBookNotesColumn
+          ? noteTarget?.contextText ?? selectedText
+          : null,
     );
   }
 

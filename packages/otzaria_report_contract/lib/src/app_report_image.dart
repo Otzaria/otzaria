@@ -16,12 +16,14 @@ class AppReportImage extends Equatable {
   /// מספר התמונות המרבי בדיווח אחד.
   static const int maxCount = 5;
 
-  /// מגה-בייט כפי שהשרת ו-Windows מחשבים אותו.
+  /// MiB (1,048,576 bytes), matching the server contract.
   static const int megabyte = 1024 * 1024;
 
   /// גבולות בבייטים, זהים לגבולות השרת.
-  static const int maxBytes = 5 * megabyte;
-  static const int maxTotalBytes = 15 * megabyte;
+  static const int maxBytes = 10 * megabyte;
+  static const int maxTotalBytes = 20 * megabyte;
+  static const int legacyMaxBytes = 5 * megabyte;
+  static const int legacyMaxTotalBytes = 15 * megabyte;
 
   /// הנפח המרבי של התמונות בגוף הבקשה: base64 ועוד שם וסוג לכל תמונה.
   static const int maxPayloadBytes =
@@ -91,11 +93,15 @@ enum AppReportImageRejection { tooLarge, tooMany, totalTooLarge }
 ({List<AppReportImage> images, AppReportImageRejection? rejection})
 mergeAppReportImages(
   List<AppReportImage> existing,
-  List<AppReportImage> incoming,
-) {
+  List<AppReportImage> incoming, {
+  int otherAttachmentBytes = 0,
+}) {
   AppReportImageRejection? rejection;
   final images = [...existing];
-  var total = images.fold<int>(0, (sum, image) => sum + image.bytes.length);
+  var total = images.fold<int>(
+    otherAttachmentBytes,
+    (sum, image) => sum + image.bytes.length,
+  );
   for (final image in incoming) {
     if (image.bytes.length > AppReportImage.maxBytes) {
       rejection ??= AppReportImageRejection.tooLarge;

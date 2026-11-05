@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_headings_builder.dart';
@@ -341,9 +342,7 @@ class UserContentRepository {
         : '$folderPath${p.separator}';
     final rows = db.select(
       "SELECT path FROM user_sidecar_file WHERE path LIKE ? ESCAPE '\\'",
-      [
-        '${prefix.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%',
-      ],
+      ['${escapeLike(prefix)}%'],
     );
     return [for (final row in rows) row['path'] as String];
   }

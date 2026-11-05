@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/utils/file/windows_library_preload.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// ב-Windows כל כניסה ל-pdfrx ממתינה לטעינת pdfium.dll ב-`LoadLibraryW` (FFI, safepoint);
@@ -19,19 +18,8 @@ void installPdfiumPreloadGate() {
 }
 
 void _loadLibrary(String modulePath) {
-  final loadLibraryW = DynamicLibrary.open('kernel32.dll')
-      .lookupFunction<
-        IntPtr Function(Pointer<Utf16>),
-        int Function(Pointer<Utf16>)
-      >('LoadLibraryW');
-  final path = modulePath.toNativeUtf16();
-  try {
-    // המודול נשאר טעון: ה-open של pdfrx מוצא אותו ממופה וחוזר מיד.
-    if (loadLibraryW(path) == 0) {
-      throw StateError('LoadLibraryW("$modulePath") failed');
-    }
-  } finally {
-    malloc.free(path);
+  if (!preloadWindowsLibrary(modulePath)) {
+    throw StateError('LoadLibraryW("$modulePath") failed');
   }
 }
 

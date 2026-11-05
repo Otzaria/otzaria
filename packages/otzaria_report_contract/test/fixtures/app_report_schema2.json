@@ -1,0 +1,72 @@
+{
+  "source": "Otzaria otzaria_report_contract AppReport.toApiPayload schema 2",
+  "stored": {
+    "schema": 2,
+    "reportId": "c3efb70b-1986-4445-aac3-4790a0b1aac8",
+    "type": "bug",
+    "trigger": "manual",
+    "title": "בדיקת צרופות",
+    "description": "תמונה מונפשת וטקסט בעברית",
+    "stepsToReproduce": "",
+    "reporterEmail": "reporter@example.com",
+    "appVersion": "1.0.0",
+    "platform": "windows",
+    "osVersion": "Windows 11",
+    "createdAt": "2026-11-05T00:00:00.000Z",
+    "diagnostics": {
+      "locale": "he",
+      "הפעלה": true,
+      "count": 2
+    },
+    "errorLog": "שורה ראשונה\nsecond line 😀",
+    "images": [
+      {
+        "fileName": "תמונה מונפשת.gif",
+        "mimeType": "image/gif",
+        "data": "R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQBCgABACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7"
+      }
+    ],
+    "minidump": {
+      "fileName": "fixture.dmp",
+      "data": "H4sIAAAAAAAAA/N18Q1gYGRiBgBJ1tZGCAAAAA=="
+    },
+    "merged": false,
+    "duplicate": false,
+    "issuePending": false
+  },
+  "payload": {
+    "schema": 2,
+    "reportId": "c3efb70b-1986-4445-aac3-4790a0b1aac8",
+    "type": "bug",
+    "trigger": "manual",
+    "title": "בדיקת צרופות",
+    "description": "תמונה מונפשת וטקסט בעברית",
+    "reporterEmail": "reporter@example.com",
+    "appVersion": "1.0.0",
+    "platform": "windows",
+    "osVersion": "Windows 11",
+    "createdAt": "2026-11-05T00:00:00.000Z",
+    "attachments": {
+      "diagnostics": {
+        "locale": "he",
+        "הפעלה": true,
+        "count": 2
+      },
+      "errorLog": "שורה ראשונה\nsecond line 😀",
+      "images": [
+        {
+          "fileName": "תמונה מונפשת.gif",
+          "mimeType": "image/gif",
+          "data": "R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQBCgABACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7"
+        }
+      ],
+      "minidump": {
+        "fileName": "fixture.dmp",
+        "data": "H4sIAAAAAAAAA/N18Q1gYGRiBgBJ1tZGCAAAAA=="
+      }
+    }
+  },
+  "attachmentBytes": 200,
+  "imageBytes": 111,
+  "dumpRawBytes": 8
+}

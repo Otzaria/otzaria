@@ -9,10 +9,11 @@ class FakeAppReportService implements AppReportService {
 
   final AppReportDeliveryResult Function(AppReport)? respond;
   final List<AppReport> sent = [];
+  final List<AppReport> queued = [];
   AppReportDraft? draft;
 
   @override
-  Future<AppReportDraft?> loadDraft() async => draft;
+  Future<AppReportDraft?> loadDraft({String? draftId}) async => draft;
 
   @override
   Future<void> saveDraft(AppReportDraft value) async => draft = value;
@@ -29,6 +30,9 @@ class FakeAppReportService implements AppReportService {
           report: report.copyWith(issueNumber: 42),
         );
   }
+
+  @override
+  Future<void> queueReport(AppReport report) async => queued.add(report);
 
   @override
   Future<List<AppReport>> getPendingReports() async => const [];

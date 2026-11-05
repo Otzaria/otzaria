@@ -418,7 +418,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     if (_isManuallyScrolling) return;
 
     final state = context.read<TextBookBloc>().state;
-    // כשהפאנל סגור הגלילה נכשלת אך משבשת את _lastScrolledEntryId
+    // כשהפאנל סגור הגלילה נכשלת אך משבשת את _lastScrolledEntryIds
     // וחוסמת את הגלילה האמיתית בפתיחה הבאה.
     if (state is TextBookLoaded && !state.showLeftPane) return;
     if (state is TextBookLoaded && !_isLoading) {

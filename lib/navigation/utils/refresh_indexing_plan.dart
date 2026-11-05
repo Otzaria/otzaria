@@ -55,8 +55,15 @@ List<IndexingEvent> buildRefreshIndexingPlan({
   required IndexUpdateMode indexUpdateMode,
 }) {
   if (!indexUpdateMode.isAutomatic) {
-    // ספרים חדשים שלא יאונדקסו משנים את מספר הספרים שאינם באינדקס — רק
-    // מרעננים את החיווי. ספרים שהשתנו אינם משנים את המספר הזה.
+    if (changedBooks.isNotEmpty || reconcile) {
+      return [
+        DeferIndexing(
+          library,
+          changedBooks: changedBooks,
+          checkLibrary: reconcile,
+        ),
+      ];
+    }
     return newBooks.isEmpty ? const [] : [CheckIndexStatus(library)];
   }
 

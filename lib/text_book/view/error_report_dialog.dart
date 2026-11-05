@@ -1,4 +1,9 @@
 import 'dart:io';
+
+import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
+import 'package:otzaria/reports/book_report_selection.dart';
+import 'package:otzaria/reports/repository/report_draft_store.dart';
+import 'package:otzaria/reports/view_scope.dart';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -41,11 +46,15 @@ class ReportedErrorData {
 
   /// הצעת תיקון מובנית; null בדיווח חופשי.
   final TextCorrection? correction;
+  final BookReportSelection? selection;
+  final String? selectionContext;
 
   const ReportedErrorData({
     required this.selectedText,
     required this.errorDetails,
     this.correction,
+    this.selection,
+    this.selectionContext,
   });
 }
 
@@ -182,10 +191,12 @@ class _ReportDetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = value.trim().isEmpty ? 'לא נשלח ערך' : value.trim();
+    final displayValue = value.trim().isEmpty
+        ? context.settingsText('לא נשלח ערך')
+        : value.trim();
     if (child == null) {
       return DetailsInfoSection(
-        title: label,
+        title: context.settingsText(label),
         value: displayValue,
         // ערך קצר בשורה אחת עם התווית; ארוך או רב־שורות מתחתיה.
         block: displayValue.length > 36 || displayValue.contains('\n'),
@@ -197,7 +208,7 @@ class _ReportDetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            label,
+            context.settingsText(label),
             style: TextStyle(
               fontSize: AppTokens.fontMD,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -325,11 +336,25 @@ class ErrorReportHelper {
         content[index] == snapshot.originalLine;
   }
 
+  static TextCorrection? correctionForReport({
+    required ReportSourceSnapshot? source,
+    required String selectedText,
+    String? reportNote,
+  }) => source == null || reportNote != null
+      ? null
+      : buildCorrectionTemplate(source.originalLine, selectedText);
+
   static String resolveReportTargetText({
     required List<String> content,
     required String selectedText,
     int? preferredLineNumber,
+    String? reportNote,
   }) {
+    // Notes are already decoded by the renderer. Literal markup in their
+    // visible text (for example &lt;b&gt;) must not be parsed a second time.
+    if (reportNote != null) {
+      return selectedText.trim().isEmpty ? reportNote.trim() : selectedText;
+    }
     if (selectedText.trim().isNotEmpty) {
       return sanitizeReportText(selectedText);
     }
@@ -343,6 +368,27 @@ class ErrorReportHelper {
     }
 
     return sanitizeReportText(content[preferredLineNumber]);
+  }
+
+  /// Free reports from file-backed, user and version books also let the user
+  /// select an occurrence within the complete displayed line, without needing
+  /// an official structured-correction source.
+  static String resolveReportSelectionSource({
+    required List<String> content,
+    required int lineIndex,
+    required String selectedText,
+    String? originalLine,
+    String? reportNote,
+  }) {
+    if (reportNote != null) return reportNote;
+    final raw =
+        originalLine ??
+        (lineIndex >= 0 && lineIndex < content.length
+            ? content[lineIndex]
+            : null);
+    if (raw == null) return selectedText;
+    final displayed = sanitizeReportText(raw);
+    return displayed.contains(selectedText) ? displayed : selectedText;
   }
 
   static bool isSefariaSourceFolder(String? sourceFolder) {
@@ -393,7 +439,7 @@ class ErrorReportHelper {
 
   /// כמה מילים סביב השינוי כפי שהן בספר, ושוב אחרי התיקון (השינוי בכוכביות),
   /// לאיתור בחיפוש באתר המקור. תואם ל-buildCorrectionSnippets באתר.
-  static ({String wrong, String fixed})? correctionSnippets(
+  static ({String wrong, String fixed, String? context})? correctionSnippets(
     TextCorrection correction,
   ) {
     final proposed = correction.proposedText;
@@ -424,19 +470,26 @@ class ErrorReportHelper {
     if (prefix == oldWords.length && prefix == newWords.length) return null;
 
     final from = math.max(0, prefix - _wordsAroundChange);
+    final until = math.min(
+      oldWords.length,
+      oldWords.length - suffix + _wordsAroundChange,
+    );
     final changed = newWords.sublist(prefix, newWords.length - suffix);
     final deleted = oldWords.sublist(prefix, oldWords.length - suffix);
     final newTail = newWords.length - suffix;
+    final wrong = oldWords.sublist(from, until).join(' ');
+    final original = oldWords.join(' ');
+    final searchable = ' $original ';
+    final needle = ' $wrong ';
+    final first = searchable.indexOf(needle);
+    final ambiguous = first >= 0 && searchable.indexOf(needle, first + 1) >= 0;
     return (
-      wrong: oldWords
-          .sublist(
-            from,
-            math.min(
-              oldWords.length,
-              oldWords.length - suffix + _wordsAroundChange,
-            ),
-          )
-          .join(' '),
+      wrong: wrong,
+      context: ambiguous
+          ? 'הקטע מופיע יותר מפעם אחת בשורה. מיקום הקטע: מילים ${from + 1}–$until מתוך ${oldWords.length}.\n\n'
+                'השורה המקורית המלאה:\n$original\n\n'
+                'השורה המתוקנת המלאה:\n${newWords.join(' ')}'
+          : null,
       fixed: [
         ...newWords.sublist(from, prefix),
         changed.isNotEmpty
@@ -756,7 +809,7 @@ $detailsSection
   /// Show simple snackbar message
   static void showSimpleSnack(BuildContext context, String message) {
     if (!context.mounted) return;
-    UiSnack.show(message);
+    UiSnack.show(reportText(context, message));
   }
 
   static Future<String?> ensureSenderEmail(BuildContext context) async {
@@ -781,7 +834,7 @@ $detailsSection
 
     await reportService.saveSenderEmail(enteredEmail);
     if (context.mounted) {
-      UiSnack.showSuccess(ReportMessages.senderEmailSaved);
+      UiSnack.showSuccess(reportText(context, ReportMessages.senderEmailSaved));
     }
     return enteredEmail.trim();
   }
@@ -841,7 +894,12 @@ $detailsSection
       ),
       errorDetails: replaceLoneSurrogates(reportData.errorDetails),
       contextText: fit(
-        replaceLoneSurrogates(contextText),
+        replaceLoneSurrogates(
+          reportData.selectionContext == null ||
+                  contextText.startsWith(reportData.selectionContext!)
+              ? contextText
+              : '${reportData.selectionContext}\n\n$contextText',
+        ),
         DirectErrorReport.maxContextTextLength,
       ),
       filePath: bookDetails['נתיב הקובץ'] ?? '',
@@ -858,15 +916,18 @@ $detailsSection
   }) async {
     await showSingleActionDialog(
       context: context,
-      title: title,
+      title: reportText(context, title),
       icon: FluentIcons.document_text_24_regular,
       headerBand: true,
-      confirmText: 'סגור',
-      customContent: _DirectReportDetails(report: report),
+      confirmText: reportText(context, 'סגור'),
+      customContent: reportDialogBuilder(
+        context,
+        (_) => _DirectReportDetails(report: report),
+      )(context),
     );
   }
 
-  static Future<void> handleDirectReport(
+  static Future<bool> handleDirectReport(
     BuildContext context,
     DirectErrorReport reportData,
   ) async {
@@ -887,24 +948,25 @@ $detailsSection
       }
 
       if (!context.mounted) {
-        return;
+        return result.isSent || result.isQueued;
       }
 
       if (result.isSent) {
         if (result.isDuplicate || result.correctionNotSupported) {
-          UiSnack.show(result.message);
+          UiSnack.show(reportFeedbackText(context, result.message));
         } else {
           await showDirectReportDetailsDialog(
             context,
-            title: ReportMessages.sentSuccessTitle,
+            title: reportText(context, ReportMessages.sentSuccessTitle),
             report: reportData,
           );
         }
       } else if (result.isQueued) {
-        UiSnack.show(result.message);
+        UiSnack.show(reportFeedbackText(context, result.message));
       } else {
-        UiSnack.showError(result.message);
+        UiSnack.showError(reportFeedbackText(context, result.message));
       }
+      return result.isSent || result.isQueued;
     } catch (e) {
       if (context.mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
@@ -912,8 +974,15 @@ $detailsSection
 
       debugPrint('Direct report error: $e');
       if (context.mounted) {
-        UiSnack.showError(ReportMessages.sendError(e));
+        UiSnack.showError(
+          reportText(
+            context,
+            'שגיאה בשליחת הדיווח: {error}',
+            args: {'error': e},
+          ),
+        );
       }
+      return false;
     }
   }
 
@@ -929,7 +998,8 @@ $detailsSection
     final snippets = correctionSnippets(correction);
     if (snippets == null) return correction.appendFallbackTo(details);
     final block =
-        'הטקסט השגוי:\n${snippets.wrong}\n\nהטקסט המתוקן:\n${snippets.fixed}';
+        'הטקסט השגוי:\n${snippets.wrong}\n\nהטקסט המתוקן:\n${snippets.fixed}'
+        '${snippets.context == null ? '' : '\n\n${snippets.context}'}';
     final withSnippets = details.isEmpty ? block : '$details\n\n$block';
     return withFullProposal
         ? correction.appendFallbackTo(withSnippets)
@@ -937,7 +1007,7 @@ $detailsSection
   }
 
   /// Handle regular report action (email or save)
-  static Future<void> handleRegularReportAction(
+  static Future<bool> handleRegularReportAction(
     BuildContext context,
     ErrorReportAction action,
     ReportedErrorData reportData,
@@ -948,6 +1018,8 @@ $detailsSection
     String contextText,
     String libraryVersion, {
     ReportSourceSnapshot? source,
+    String? reportId,
+    Future<bool> Function()? verifySource,
   }) async {
     final emailBody = buildEmailBody(
       bookTitle,
@@ -968,6 +1040,9 @@ $detailsSection
           : null,
     );
 
+    if (verifySource != null && !await verifySource()) {
+      throw StateError('The source changed before delivery.');
+    }
     if (action == ErrorReportAction.sendEmail) {
       final emailUri = Uri(
         scheme: 'mailto',
@@ -979,22 +1054,38 @@ $detailsSection
       );
 
       try {
-        if (!await launchUrl(emailUri, mode: LaunchMode.externalApplication)) {
+        final opened = await launchUrl(
+          emailUri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!opened) {
           if (context.mounted) {
             showSimpleSnack(context, ReportMessages.cannotOpenMailApp);
           }
         }
+        if (opened && context.mounted) {
+          showSimpleSnack(
+            context,
+            'תוכנת הדואר נפתחה. הטיוטה נשמרה בהגדרות עד שתשלחו את הדיווח או תשליכו אותה במפורש.',
+          );
+        }
+        // Opening a composer confirms neither delivery nor intentional queueing.
+        return false;
       } catch (_) {
         if (context.mounted) {
           showSimpleSnack(context, 'לא ניתן לפתוח את תוכנת הדואר');
         }
       }
     } else if (action == ErrorReportAction.saveForLater) {
+      if (!context.mounted) return false;
       final senderEmail = await ensureSenderEmail(context);
       if (senderEmail == null) {
-        return;
+        return false;
       }
 
+      if (verifySource != null && !await verifySource()) {
+        throw StateError('The source changed before queueing.');
+      }
       final directReport = buildDirectReport(
         senderEmail: senderEmail,
         reportData: reportData,
@@ -1009,14 +1100,22 @@ $detailsSection
 
       final reportService = DirectErrorReportService();
       await reportService.queueReport(
-        directReport,
+        reportId == null ? directReport : directReport.withId(reportId),
         queueType: DirectErrorReportQueueType.manual,
       );
       final count = await reportService.getPendingReportsCount();
       if (context.mounted) {
-        UiSnack.show(ReportMessages.savedForLater(count));
+        UiSnack.show(
+          reportText(
+            context,
+            'הדיווח נשמר להמשך. יש כרגע {count} דיווחים ממתינים בתור, וניתן לנהל את הדיווחים השמורים בהגדרות.',
+            args: {'count': count},
+          ),
+        );
       }
+      return true;
     }
+    return false;
   }
 
   /// Show error report dialog for text book
@@ -1035,6 +1134,8 @@ $detailsSection
   /// - [reportBook]: Optional book override for reports that target a secondary text
   /// - [reportLine]: השורה הגולמית ב-[savedSelectedIndex] כש-[reportContent] אינו
   ///   הספר כולו (מפרש); בלעדיה אין מסלול הצעת תיקון.
+  /// - [reportNote]: טקסט תצוגה של הערת שוליים ומיקומה; מחייב דיווח חופשי
+  ///   כדי שהצעת תיקון לא תחול בטעות על שורת האב.
   static Future<void> showErrorReportDialog({
     required BuildContext context,
     required String selectedText,
@@ -1045,6 +1146,7 @@ $detailsSection
     List<String>? reportContent,
     TextBook? reportBook,
     String? reportLine,
+    String? reportNote,
   }) async {
     final effectiveContent = resolveReportContent(
       state: state,
@@ -1055,7 +1157,9 @@ $detailsSection
       reportBook: reportBook,
     );
     if (effectiveBook == null) {
-      UiSnack.showError(ReportMessages.cannotIdentifyReportedBook);
+      UiSnack.showError(
+        reportText(context, ReportMessages.cannotIdentifyReportedBook),
+      );
       return;
     }
 
@@ -1076,6 +1180,7 @@ $detailsSection
       content: effectiveContent,
       selectedText: selectedText,
       preferredLineNumber: currentLineNumber,
+      reportNote: reportNote,
     );
     final bookDetails = await BookDetailsService().getBookDetails(
       effectiveBook,
@@ -1092,122 +1197,253 @@ $detailsSection
       content: effectiveContent,
       reportLine: reportLine,
     );
-    final correctionTemplate = source == null
-        ? null
-        : buildCorrectionTemplate(source.originalLine, selectedText);
+    final correctionTemplate = correctionForReport(
+      source: source,
+      selectedText: selectedText,
+      reportNote: reportNote,
+    );
 
     if (!context.mounted) return;
     final lineIndex = currentLineNumber;
 
-    // משותף לבדיקת הגודל לפני סגירת הדיאלוג ולבניית הדיווח אחריה.
-    Future<_PreparedReport> prepareReport(ReportedErrorData errorData) async {
-      final data = ReportedErrorData(
-        selectedText: sanitizeReportText(errorData.selectedText),
-        errorDetails: errorData.errorDetails.trim(),
-        correction: errorData.correction,
-      );
-      final selectionResolution = resolveSelectionContext(
-        content: effectiveContent,
-        selectedText: data.selectedText,
-        preferredLineNumber: lineIndex,
-        wordsBefore: 4,
-        wordsAfter: 4,
-      );
-      return (
-        data: data,
-        contextText: sanitizeReportText(selectionResolution.contextText),
-        currentRef: await refFromIndex(
-          lineIndex,
-          effectiveBook.tableOfContents,
-        ),
-        libraryVersion: await DataCollectionService().readLibraryVersion(),
-      );
-    }
-
-    DirectErrorReport buildFor(_PreparedReport prepared, String senderEmail) =>
-        buildDirectReport(
-          senderEmail: senderEmail,
-          reportData: prepared.data,
-          bookTitle: bookTitle,
-          currentRef: prepared.currentRef,
-          bookDetails: bookDetails,
-          lineNumber: lineIndex + 1,
-          contextText: prepared.contextText,
-          libraryVersion: prepared.libraryVersion,
-          source: source,
+    // Freeze all routing and source data before opening the form. A draft must
+    // not pick up a different open book or a new library build on restoration.
+    final displayedText = resolvedSelectedText;
+    final contextText =
+        reportNote?.trim() ??
+        sanitizeReportText(
+          resolveSelectionContext(
+            content: effectiveContent,
+            selectedText: displayedText,
+            preferredLineNumber: lineIndex,
+            wordsBefore: 4,
+            wordsAfter: 4,
+          ).contextText,
         );
-
-    // פתיחת הדיאלוג. בספר דיקטה מוצג בתוכו קישור בולט לתיקון עצמי.
-    final ReportDialogResult? result = await showDialog<ReportDialogResult>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return TabbedReportDialog(
-          selectedText: resolvedSelectedText,
-          fontSize: fontSize,
-          bookTitle: bookTitle,
-          currentLineNumber: lineIndex + 1, // +1 כי השורות מתחילות מ-1
-          directReportTargetLabel: directReportTargetLabel,
-          isDictaSource: isDictaSource,
-          isSefariaSource: isSefariaSource,
-          correctionTemplate: correctionTemplate,
-          validateBeforeSubmit: (data) async {
-            final report = buildFor(
-              await prepareReport(data),
-              _longestEmailPlaceholder,
-            );
-            return report.exceedsApiBodyLimit
-                ? ReportMessages.bodyTooLarge(
-                    DirectErrorReport.maxApiBodyBytes ~/ 1024,
-                  )
-                : null;
-          },
-        );
-      },
+    final selectionSource = resolveReportSelectionSource(
+      content: effectiveContent,
+      lineIndex: lineIndex,
+      selectedText: displayedText,
+      originalLine: source?.originalLine ?? reportLine,
+      reportNote: reportNote,
     );
+    final target = <String, dynamic>{
+      'selectionSource': selectionSource,
+      'bookTitle': bookTitle,
+      'selectedText': displayedText,
+      'reportNote': reportNote,
+      'fontSize': fontSize,
+      'lineNumber': lineIndex + 1,
+      'directReportTargetLabel': directReportTargetLabel,
+      'isDictaSource': isDictaSource,
+      'isSefariaSource': isSefariaSource,
+      'correctionTemplate': correctionTemplate?.toJson(),
+      'contextText': contextText,
+      'currentRef': await refFromIndex(
+        lineIndex,
+        effectiveBook.tableOfContents,
+      ),
+      'libraryVersion': await DataCollectionService().readLibraryVersion(),
+      'bookDetails': bookDetails,
+      'source': source == null
+          ? null
+          : {
+              'bookId': source.bookId,
+              'lineIndex': source.lineIndex,
+              'heRef': source.heRef,
+              'originalLine': source.originalLine,
+            },
+    };
+    if (context.mounted) await _showFrozenReportDialog(context, target);
+  }
 
-    // טיפול בתוצאה
-    if (result == null || !context.mounted) return;
+  static Future<void> resumeDraft(
+    BuildContext context,
+    ReportDraftRecord summary,
+  ) async {
+    final record = await ReportDraftStore.instance.read(summary.id);
+    if (record == null || !context.mounted) return;
+    final target = Map<String, dynamic>.from(record.payload['target'] as Map);
+    await _showFrozenReportDialog(context, target, restored: record);
+  }
 
+  /// Only a single row is read, when resuming/submitting a structured draft.
+  /// Unknown or changed source identity blocks submission; no retargeting.
+  static Future<bool> draftSourceMatches(Map<String, dynamic> target) async {
+    final source = target['source'];
+    if (source is! Map) return false;
     try {
-      final prepared = await prepareReport(result.data);
-      if (!context.mounted) return;
-      if (result.action == ErrorReportAction.sendEmail ||
-          result.action == ErrorReportAction.saveForLater) {
-        await handleRegularReportAction(
+      final libraryVersion = await DataCollectionService().readLibraryVersion();
+      if (libraryVersion != target['libraryVersion']) return false;
+      final resolved = await BookDatabaseResolver.resolveBook(
+        title: target['bookTitle'] as String,
+        officialOnly: true,
+      );
+      if (resolved == null ||
+          resolved.book.id != source['bookId'] ||
+          resolved.book.isFileBacked) {
+        return false;
+      }
+      final line = (await DbReadWorker.lines(
+        SqliteDataProvider.instance.dbPath,
+        source['bookId'] as int,
+        source['lineIndex'] as int,
+        source['lineIndex'] as int,
+      )).firstOrNull;
+      return line != null &&
+          line.content == source['originalLine'] &&
+          line.heRef == source['heRef'];
+    } catch (error) {
+      debugPrint('Draft source verification failed: $error');
+      return false;
+    }
+  }
+
+  static Future<void> _showFrozenReportDialog(
+    BuildContext context,
+    Map<String, dynamic> target, {
+    ReportDraftRecord? restored,
+  }) async {
+    final template = TextCorrection.fromJson(target['correctionTemplate']);
+    final selectionSource =
+        target['selectionSource'] as String? ??
+        target['selectedText'] as String;
+    final selection = BookReportSelection.unique(
+      selectionSource,
+      target['selectedText'] as String,
+    );
+    final initialForm = <String, dynamic>{
+      'mode': template == null ? 'freeText' : 'correction',
+      'details': '',
+      'proposedText': template?.target ?? '',
+      'proposalMode': 'replace',
+      'selectionStart': selection?.start,
+      'selectionEnd': selection?.end,
+    };
+    final draft = BookReportDraftCubit(
+      target: target,
+      initialForm: initialForm,
+      restored: restored,
+    );
+    final rawSource = target['source'] as Map?;
+    final source = rawSource == null
+        ? null
+        : ReportSourceSnapshot(
+            bookId: rawSource['bookId'] as int,
+            lineIndex: rawSource['lineIndex'] as int,
+            heRef: rawSource['heRef'] as String?,
+            originalLine: rawSource['originalLine'] as String,
+          );
+    final sourceChanged =
+        restored != null &&
+        template != null &&
+        !await draftSourceMatches(target);
+    String reportContext(ReportedErrorData data) => [
+      if (data.selectionContext != null) data.selectionContext!,
+      target['contextText'] as String,
+    ].join('\n\n');
+    DirectErrorReport build(ReportedErrorData data, String email) =>
+        buildDirectReport(
+          senderEmail: email,
+          reportData: data,
+          bookTitle: target['bookTitle'] as String,
+          currentRef: target['currentRef'] as String,
+          bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
+          lineNumber: target['lineNumber'] as int,
+          contextText: reportContext(data),
+          libraryVersion: target['libraryVersion'] as String,
+          source: source,
+        ).withId(draft.reportId);
+    if (!context.mounted) {
+      await draft.close();
+      return;
+    }
+    try {
+      final result = await showDialog<ReportDialogResult>(
+        context: context,
+        barrierDismissible: false,
+        builder: reportDialogBuilder(
+          context,
+          (_) => TabbedReportDialog(
+            selectedText: target['selectedText'] as String,
+            selectionSource: selectionSource,
+            fontSize: (target['fontSize'] as num).toDouble(),
+            bookTitle: target['bookTitle'] as String,
+            currentLineNumber: target['lineNumber'] as int,
+            directReportTargetLabel:
+                target['directReportTargetLabel'] as String,
+            isDictaSource: target['isDictaSource'] == true,
+            isSefariaSource: target['isSefariaSource'] == true,
+            correctionTemplate: template,
+            draft: draft,
+            sourceChanged: sourceChanged,
+            validateBeforeSubmit: (data) async {
+              final unavailableMessage = reportText(
+                context,
+                'מקור הספר השתנה או אינו זמין. אפשר לשמור את הטיוטה או לעבור במפורש לדיווח חופשי.',
+              );
+              final tooLargeMessage = reportText(
+                context,
+                'הדיווח גדול מדי לשליחה. יש לקצר את הפירוט או את ההצעה; הטקסט לא ייחתך.',
+              );
+              if (data.correction != null &&
+                  !await draftSourceMatches(target)) {
+                return unavailableMessage;
+              }
+              return build(data, _longestEmailPlaceholder).exceedsApiBodyLimit
+                  ? tooLargeMessage
+                  : null;
+            },
+          ),
+        ),
+      );
+      if (result == null || !context.mounted) return;
+      final data = result.data;
+      // The form is already durably saved before it returns an action. A mail
+      // picker cancellation or transport error leaves that draft available.
+      bool completed;
+      if (result.action == ErrorReportAction.sendDirect) {
+        final email = await ensureSenderEmail(context);
+        if (email == null || !context.mounted) return;
+        if (data.correction != null && !await draftSourceMatches(target)) {
+          throw StateError('The source changed before delivery.');
+        }
+        if (!context.mounted) return;
+        completed = await handleDirectReport(context, build(data, email));
+      } else {
+        completed = await handleRegularReportAction(
           context,
           result.action,
-          prepared.data,
-          bookTitle,
-          prepared.currentRef,
-          bookDetails,
-          lineIndex + 1,
-          prepared.contextText,
-          prepared.libraryVersion,
+          data,
+          target['bookTitle'] as String,
+          target['currentRef'] as String,
+          Map<String, String>.from(target['bookDetails'] as Map),
+          target['lineNumber'] as int,
+          reportContext(data),
+          target['libraryVersion'] as String,
           source: source,
+          reportId: draft.reportId,
+          verifySource: data.correction == null
+              ? null
+              : () => draftSourceMatches(target),
         );
-      } else if (result.action == ErrorReportAction.sendDirect) {
-        final senderEmail = await ensureSenderEmail(context);
-        if (senderEmail == null || !context.mounted) {
-          return;
-        }
-        await handleDirectReport(context, buildFor(prepared, senderEmail));
       }
-    } catch (e) {
-      debugPrint('Error handling report result: $e');
+      if (completed) await draft.complete();
+    } catch (error, stack) {
+      debugPrint('Book report failed: $error\n$stack');
       if (context.mounted) {
-        showSimpleSnack(context, ReportMessages.handleError(e));
+        UiSnack.showError(
+          reportText(
+            context,
+            'הפעולה לא הושלמה. הטיוטה נשמרה וניתן לפתוח אותה בהגדרות.',
+          ),
+        );
       }
+    } finally {
+      await draft.close();
     }
   }
 }
-
-typedef _PreparedReport = ({
-  ReportedErrorData data,
-  String contextText,
-  String currentRef,
-  String libraryVersion,
-});
 
 /// הכתובת עוד לא ידועה לפני סגירת הדיאלוג: בודקים מול האורך המרבי (RFC 5321).
 final String _longestEmailPlaceholder = 'a' * 254;
@@ -1220,6 +1456,7 @@ String widgetHash(String bookTitle, String currentRef, String selectedText) {
 /// Tabbed dialog for error reporting with regular and phone options
 class TabbedReportDialog extends StatefulWidget {
   final String selectedText;
+  final String? selectionSource;
   final double fontSize;
   final String bookTitle;
   final int currentLineNumber;
@@ -1227,11 +1464,14 @@ class TabbedReportDialog extends StatefulWidget {
   final bool isDictaSource;
   final bool isSefariaSource;
   final TextCorrection? correctionTemplate;
+  final BookReportDraftCubit? draft;
+  final bool sourceChanged;
   final Future<String?> Function(ReportedErrorData data)? validateBeforeSubmit;
 
   const TabbedReportDialog({
     super.key,
     required this.selectedText,
+    this.selectionSource,
     required this.fontSize,
     required this.bookTitle,
     required this.currentLineNumber,
@@ -1239,6 +1479,8 @@ class TabbedReportDialog extends StatefulWidget {
     this.isDictaSource = false,
     this.isSefariaSource = false,
     this.correctionTemplate,
+    this.draft,
+    this.sourceChanged = false,
     this.validateBeforeSubmit,
   });
 
@@ -1262,6 +1504,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   int? _bookId;
   bool _isLoadingData = true;
   List<String> _dataErrors = [];
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -1283,9 +1526,15 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
 
   Future<void> _loadPhoneReportData() async {
     try {
-      final availability = await _dataService.checkDataAvailability(
-        widget.bookTitle,
-      );
+      final target = widget.draft?.target;
+      final source = target?['source'] as Map?;
+      final availability = source != null
+          ? <String, dynamic>{
+              'libraryVersion': target?['libraryVersion'],
+              'bookId': source['bookId'],
+              'errors': <String>[],
+            }
+          : await _dataService.checkDataAvailability(widget.bookTitle);
 
       if (mounted) {
         setState(() {
@@ -1331,38 +1580,50 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
     final minHeight = maxHeight < 400 ? maxHeight : 400.0;
     final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
-    return Dialog(
-      clipBehavior: Clip.antiAlias,
-      insetPadding: isCompact ? const EdgeInsets.all(8) : null,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: minWidth,
-          maxWidth: maxWidth,
-          minHeight: minHeight,
-          maxHeight: maxHeight,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(context),
-            TabBar(
-              controller: _tabController,
-              splashBorderRadius: AppTokens.borderRadiusAll,
-              tabs: const [
-                Tab(text: 'שליחת דיווח'),
-                Tab(text: 'דיווח דרך קו אוצריא'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _leave();
+      },
+      child: AbsorbPointer(
+        absorbing: _leaving,
+        child: ExcludeFocus(
+          excluding: _leaving,
+          child: Dialog(
+          clipBehavior: Clip.antiAlias,
+          insetPadding: isCompact ? const EdgeInsets.all(8) : null,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: minWidth,
+              maxWidth: maxWidth,
+              minHeight: minHeight,
+              maxHeight: maxHeight,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(context),
+                TabBar(
+                  controller: _tabController,
+                  splashBorderRadius: AppTokens.borderRadiusAll,
+                  tabs: [
+                    Tab(text: context.settingsText('שליחת דיווח')),
+                    Tab(text: context.settingsText('דיווח דרך קו אוצריא')),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildRegularReportTab(),
+                      _buildPhoneReportTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildRegularReportTab(),
-                  _buildPhoneReportTab(),
-                ],
-              ),
-            ),
-          ],
+          ),
+          ),
         ),
       ),
     );
@@ -1373,7 +1634,8 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   Widget _buildHeader(BuildContext context) {
     return AppDialogHeader(
       icon: OtzariaIcons.book_exclamation_24_regular,
-      title: 'דיווח על טעות בספר',
+      title: context.settingsText('דיווח על טעות בספר'),
+      onClose: _leaving ? () {} : _leave,
       subtitle: widget.bookTitle,
       subtitleMaxLines: 1,
       compact: true,
@@ -1383,31 +1645,33 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   Widget _buildRegularReportTab() {
     return RegularReportTab(
       selectedText: widget.selectedText,
+      selectionSource: widget.selectionSource,
       fontSize: widget.fontSize,
       directReportTargetLabel: widget.directReportTargetLabel,
       bookTitle: widget.bookTitle,
       isDictaSource: widget.isDictaSource,
       isSefariaSource: widget.isSefariaSource,
       correctionTemplate: widget.correctionTemplate,
+      initialForm: widget.draft?.state.form,
+      sourceChanged: widget.sourceChanged,
+      onDraftChanged: widget.draft?.updateForm,
+      onDiscard: widget.draft == null ? null : _discard,
       validateBeforeSubmit: widget.validateBeforeSubmit,
-      onActionSelected: (action, reportData) {
-        Navigator.of(context).pop(ReportDialogResult(action, reportData));
-      },
-      onCancel: () {
-        Navigator.of(context).pop();
-      },
+      onActionSelected: (action, reportData) =>
+          _leave(ReportDialogResult(action, reportData)),
+      onCancel: _leave,
     );
   }
 
   Widget _buildPhoneReportTab() {
     if (_isLoadingData) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('טוען נתוני דיווח...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(context.settingsText('טוען נתוני דיווח...')),
           ],
         ),
       );
@@ -1421,7 +1685,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'לא ניתן לטעון את נתוני הדיווח:',
+              context.settingsText('לא ניתן לטעון את נתוני הדיווח:'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),
@@ -1430,15 +1694,15 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
               (error) => Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  error,
+                  context.settingsText(error),
                   textAlign: TextAlign.center,
                 ),
               ),
             ),
             const SizedBox(height: 24),
             ActionButton.neutral(
-              onPressed: () => Navigator.of(context).pop(),
-              text: 'סגור',
+              onPressed: _leave,
+              text: context.settingsText('סגור'),
             ),
           ],
         ),
@@ -1451,16 +1715,49 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
       libraryVersion: _libraryVersion,
       bookId: _bookId,
       lineNumber: widget.currentLineNumber,
-      onCancel: () {
-        Navigator.of(context).pop();
-      },
+      onCancel: _leave,
     );
+  }
+
+  Future<void> _leave([ReportDialogResult? result]) async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    try {
+      await widget.draft?.flush();
+      if (mounted) Navigator.of(context).pop(result);
+    } catch (_) {
+      if (mounted) {
+        UiSnack.showError(
+          context.settingsText(
+            'שמירת הטיוטה נכשלה. התוכן עדיין בטופס; נסו שוב.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
+  }
+
+  Future<void> _discard() async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    try {
+      await widget.draft?.complete();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        UiSnack.showError(context.settingsText('השלכת הטיוטה נכשלה. נסו שוב.'));
+      }
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
   }
 }
 
 /// Regular report tab widget
 class RegularReportTab extends StatefulWidget {
   final String selectedText;
+  final String? selectionSource;
   final double fontSize;
   final String directReportTargetLabel;
   final String bookTitle;
@@ -1476,10 +1773,15 @@ class RegularReportTab extends StatefulWidget {
   final Future<String?> Function(ReportedErrorData data)? validateBeforeSubmit;
   final void Function(ErrorReportAction, ReportedErrorData) onActionSelected;
   final VoidCallback onCancel;
+  final VoidCallback? onDiscard;
+  final Map<String, dynamic>? initialForm;
+  final ValueChanged<Map<String, dynamic>>? onDraftChanged;
+  final bool sourceChanged;
 
   const RegularReportTab({
     super.key,
     required this.selectedText,
+    this.selectionSource,
     required this.fontSize,
     required this.directReportTargetLabel,
     this.bookTitle = '',
@@ -1489,6 +1791,10 @@ class RegularReportTab extends StatefulWidget {
     this.validateBeforeSubmit,
     required this.onActionSelected,
     required this.onCancel,
+    this.onDiscard,
+    this.initialForm,
+    this.onDraftChanged,
+    this.sourceChanged = false,
   });
 
   @override
@@ -1504,17 +1810,25 @@ class _RegularReportTabState extends State<RegularReportTab> {
       Theme.of(context).brightness == Brightness.dark;
 
   final TextEditingController _detailsController = TextEditingController();
-  late _ReportMode _mode = widget.correctionTemplate == null
-      ? _ReportMode.freeText
-      : _ReportMode.correction;
+  late _ReportMode _mode;
+  late String _editorText;
+  late ProposalMode _proposalMode;
   TextCorrectionDraft? _draft;
+  BookReportSelection? _selection;
+  bool _validating = false;
+
+  String get _selectionSource => widget.selectionSource ?? widget.selectedText;
+  late final TextDirection _quoteDirection = reportContentDirection(
+    _selectionSource,
+  );
 
   bool get _isCorrection => _mode == _ReportMode.correction;
 
   /// לספריא אין דיווח חופשי, אלא אם השורה עצמה חוסמת הצעת תיקון.
   bool get _offersFreeText {
     final line = widget.correctionTemplate?.originalLine;
-    return !widget.isSefariaSource ||
+    return widget.sourceChanged ||
+        !widget.isSefariaSource ||
         line == null ||
         hasLoneSurrogate(line) ||
         line.length > TextCorrection.maxTextLength;
@@ -1523,7 +1837,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _hasDetails => _detailsController.text.trim().isNotEmpty;
 
   bool get _canSubmit {
+    if (_validating) return false;
     if (!_isCorrection) return _hasDetails;
+    if (widget.sourceChanged) return false;
     final draft = _draft;
     return draft != null && draft.isValid && draft.hasProposal;
   }
@@ -1531,6 +1847,31 @@ class _RegularReportTabState extends State<RegularReportTab> {
   @override
   void initState() {
     super.initState();
+    final form = widget.initialForm;
+    _mode = widget.correctionTemplate == null || form?['mode'] == 'freeText'
+        ? _ReportMode.freeText
+        : _ReportMode.correction;
+    _detailsController.text = form?['details'] as String? ?? '';
+    _editorText =
+        form?['proposedText'] as String? ??
+        widget.correctionTemplate?.target ??
+        '';
+    _proposalMode = form?['proposalMode'] == 'delete'
+        ? ProposalMode.delete
+        : ProposalMode.replace;
+    final start = form?['selectionStart'];
+    final end = form?['selectionEnd'];
+    if (start is int && end is int) {
+      final selection = BookReportSelection(start, end);
+      if (selection.isValidFor(_selectionSource)) _selection = selection;
+    }
+    if (widget.correctionTemplate case final original?) {
+      _draft = evaluateCorrectionDraft(
+        original: original,
+        mode: _proposalMode,
+        editedText: _editorText,
+      );
+    }
     _detailsController.addListener(_handleDetailsChanged);
   }
 
@@ -1545,18 +1886,36 @@ class _RegularReportTabState extends State<RegularReportTab> {
     ErrorReportAction action,
     ReportedErrorData data,
   ) async {
-    final error = await widget.validateBeforeSubmit?.call(data);
-    if (!mounted) return;
-    if (error != null) {
-      UiSnack.showError(error);
-      return;
+    if (_validating || !_canSubmit) return;
+    setState(() => _validating = true);
+    try {
+      final error = await widget.validateBeforeSubmit?.call(data);
+      if (!mounted) return;
+      if (error != null) {
+        UiSnack.showError(error);
+        return;
+      }
+      widget.onActionSelected(action, data);
+    } finally {
+      if (mounted) setState(() => _validating = false);
     }
-    widget.onActionSelected(action, data);
   }
+
+  Map<String, dynamic> get _form => {
+    'mode': _mode.name,
+    'details': _detailsController.text,
+    'proposedText': widget.correctionTemplate == null ? null : _editorText,
+    'proposalMode': _proposalMode.name,
+    'selectionStart': _selection?.start,
+    'selectionEnd': _selection?.end,
+  };
+
+  void _draftChanged() => widget.onDraftChanged?.call(_form);
 
   void _handleDetailsChanged() {
     if (mounted) {
       setState(() {});
+      _draftChanged();
     }
   }
 
@@ -1570,7 +1929,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
     if (opened) {
       widget.onCancel(); // המשתמש עבר לתקן באתר — אין צורך בטופס הדיווח
     } else {
-      UiSnack.showError(ReportMessages.cannotOpenEditPage);
+      UiSnack.showError(
+        context.settingsText(ReportMessages.cannotOpenEditPage),
+      );
     }
   }
 
@@ -1597,7 +1958,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'לחץ כאן על מנת לתקן את הספר בעצמך',
+                      context.settingsText('לחץ כאן על מנת לתקן את הספר בעצמך'),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: colorScheme.onPrimaryContainer,
                         fontWeight: FontWeight.bold,
@@ -1605,7 +1966,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'ספר זה מקורו בדיקטה — התיקון ייפתח באתר אוצריא ישירות בקטע שנבחר. לחילופין, ניתן להמשיך בדיווח רגיל.',
+                      context.settingsText(
+                        'ספר זה מקורו בדיקטה — התיקון ייפתח באתר אוצריא ישירות בקטע שנבחר. לחילופין, ניתן להמשיך בדיווח רגיל.',
+                      ),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.onPrimaryContainer,
                       ),
@@ -1650,9 +2013,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                 children: [
                   if (widget.isSefariaSource) ...[
                     Text(
-                      'הדיווח יישלח לספריא. דווחו רק על טעות בטקסט עצמו '
-                      '(כתיב, הקלדה, מילה חסרה או מיותרת) — לא על פתיחת '
-                      'ראשי תיבות, מראי מקומות חסרים או עיצוב.',
+                      context.settingsText(
+                        'הדיווח יישלח לספריא. דווחו רק על טעות בטקסט עצמו (כתיב, הקלדה, מילה חסרה או מיותרת) — לא על פתיחת ראשי תיבות, מראי מקומות חסרים או עיצוב.',
+                      ),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -1661,21 +2024,35 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   ],
                   if (widget.correctionTemplate != null && _offersFreeText) ...[
                     AppSegmentedControl<_ReportMode>(
-                      options: const [
+                      options: [
                         SegmentOption(
                           value: _ReportMode.correction,
-                          label: 'הצעת תיקון',
+                          label: context.settingsText('הצעת תיקון'),
                           icon: FluentIcons.text_edit_style_24_regular,
                         ),
                         SegmentOption(
                           value: _ReportMode.freeText,
-                          label: 'דיווח חופשי',
+                          label: context.settingsText('דיווח חופשי'),
                           icon: FluentIcons.comment_24_regular,
                         ),
                       ],
                       currentValue: _mode,
-                      onChanged: (mode) => setState(() => _mode = mode),
+                      onChanged: (mode) {
+                        setState(() => _mode = mode);
+                        _draftChanged();
+                      },
                       expandToFillWidth: true,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (widget.sourceChanged) ...[
+                    Text(
+                      context.settingsText(
+                        'מקור הספר השתנה מאז שמירת הטיוטה. הצעת התיקון נשמרה לעיון בלבד; אפשר לשלוח דיווח חופשי או להתחיל דיווח חדש מהספר המעודכן.',
+                      ),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -1683,11 +2060,20 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     TextCorrectionEditor(
                       original: widget.correctionTemplate!,
                       fontSize: widget.fontSize,
-                      onChanged: (draft) => setState(() => _draft = draft),
+                      initialText: _editorText,
+                      initialMode: _proposalMode,
+                      onChanged: (draft) {
+                        setState(() {
+                          _draft = draft;
+                          _editorText = draft.editedText ?? _editorText;
+                          _proposalMode = draft.mode ?? _proposalMode;
+                        });
+                        _draftChanged();
+                      },
                     )
                   else ...[
                     Text(
-                      'הטקסט שנבחר',
+                      context.settingsText('הטקסט שנבחר'),
                       style: TextStyle(
                         fontSize: AppTokens.fontMD,
                         fontWeight: FontWeight.bold,
@@ -1695,6 +2081,19 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       ),
                     ),
                     const SizedBox(height: AppTokens.spaceXS),
+                    Text(
+                      context.settingsText(
+                        'סמנו בציטוט את המילים שבהן נמצאת הטעות. המיקום וההקשר יצורפו לדיווח.',
+                      ),
+                    ),
+                    if (_selection != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _selection = null);
+                          _draftChanged();
+                        },
+                        child: Text(context.settingsText('נקה סימון')),
+                      ),
                     Container(
                       constraints: const BoxConstraints(
                         maxHeight: 150,
@@ -1717,8 +2116,48 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         borderRadius: AppTokens.borderRadiusAll,
                       ),
                       child: SingleChildScrollView(
-                        child: Text(
-                          widget.selectedText,
+                        child: SelectableText.rich(
+                          TextSpan(
+                            children: [
+                              if (_selection == null)
+                                TextSpan(text: _selectionSource)
+                              else ...[
+                                TextSpan(
+                                  text: _selectionSource.substring(
+                                    0,
+                                    _selection!.start,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: _selection!.selectedText(
+                                    _selectionSource,
+                                  ),
+                                  style: TextStyle(
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: _selectionSource.substring(
+                                    _selection!.end,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          key: const ValueKey('report-location-quote'),
+                          textDirection: _quoteDirection,
+                          onSelectionChanged: (selection, cause) {
+                            final range = BookReportSelection(
+                              selection.start,
+                              selection.end,
+                            );
+                            if (!range.isValidFor(_selectionSource)) return;
+                            setState(() => _selection = range);
+                            _draftChanged();
+                          },
                           style: TextStyle(
                             fontSize: widget.fontSize,
                             fontFamily: AppFonts.renderFontFamily(
@@ -1726,7 +2165,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                                   AppFonts.defaultFont,
                             ),
                           ),
-                          textAlign: TextAlign.right,
+                          textAlign: TextAlign.start,
                         ),
                       ),
                     ),
@@ -1750,12 +2189,16 @@ class _RegularReportTabState extends State<RegularReportTab> {
                               context,
                             ).colorScheme.surfaceContainerHighest
                           : AppSurfaces.card(context),
-                      labelText: _isCorrection
-                          ? 'הסבר לתיקון (רשות)'
-                          : 'פירוט הטעות (חובה)',
-                      hintText: _isCorrection
-                          ? 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל'
-                          : 'העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות',
+                      labelText: context.settingsText(
+                        _isCorrection
+                            ? 'הסבר לתיקון (רשות)'
+                            : 'פירוט הטעות (חובה)',
+                      ),
+                      hintText: context.settingsText(
+                        _isCorrection
+                            ? 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל'
+                            : 'העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות',
+                      ),
                     ),
                   ),
                 ],
@@ -1772,22 +2215,37 @@ class _RegularReportTabState extends State<RegularReportTab> {
   }
 
   ReportedErrorData get _reportData => ReportedErrorData(
-    selectedText: widget.selectedText,
+    selectedText: !_isCorrection && _selection != null
+        ? _selection!.selectedText(_selectionSource)
+        : widget.selectedText,
     errorDetails: _detailsController.text.trim(),
     correction: _isCorrection ? _draft?.correction : null,
+    selection: !_isCorrection ? _selection : null,
+    selectionContext: !_isCorrection
+        ? _selection?.contextText(_selectionSource)
+        : null,
   );
+
+  bool get _offline =>
+      Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
   Future<void> _confirmAndSendDirect() async {
     final reportData = _reportData;
+    if (_offline) {
+      await _submitValidated(ErrorReportAction.saveForLater, reportData);
+      return;
+    }
     final shouldSend = await showTwoActionsDialog(
       context: context,
-      title: 'אישור שליחת דיווח',
-      content:
-          'לחיצה על שלח דיווח תשלח את השגיאה ישירות '
-          'ל${widget.directReportTargetLabel}, יש לשים לב '
-          'לתקינות הדיווח לפני השליחה',
-      cancelText: 'ביטול',
-      confirmText: 'שלח דיווח',
+      title: context.settingsText('אישור שליחת דיווח'),
+      content: context.settingsText(
+        'לחיצה על שלח דיווח תשלח את השגיאה ישירות ל{target}. יש לבדוק את תקינות הדיווח לפני השליחה.',
+        args: {
+          'target': reportTargetText(context, widget.directReportTargetLabel),
+        },
+      ),
+      cancelText: context.settingsText('ביטול'),
+      confirmText: context.settingsText('שלח דיווח'),
     );
     if (shouldSend == true) {
       await _submitValidated(ErrorReportAction.sendDirect, reportData);
@@ -1795,53 +2253,82 @@ class _RegularReportTabState extends State<RegularReportTab> {
   }
 
   Widget _buildActionButtons() {
-    // בדיקת מצב אופליין
-    final isOfflineMode =
-        Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
-
     final reportData = _reportData;
-
-    return SizedBox(
-      width: double.infinity,
-      child: Wrap(
-        spacing: 8.0,
-        runSpacing: 8.0,
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          ActionButton.neutral(
-            text: 'ביטול',
-            onPressed: widget.onCancel,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_offline)
+          Text(
+            context.settingsText(
+              'מצב מנותק: הדיווח יישמר בתור לשליחה או להעברה, לאחר השלמת השדות הנדרשים.',
+            ),
           ),
-          if (_canSubmit)
-            ActionButton.neutral(
-              text: 'שמור לשליחה מאוחרת',
-              icon: FluentIcons.save_24_regular,
-              onPressed: () =>
-                  _submitValidated(ErrorReportAction.saveForLater, reportData),
+        if (!_canSubmit && !_validating)
+          Text(
+            context.settingsText(
+              _isCorrection
+                  ? 'כדי לשלוח או לשמור בתור, נדרשת הצעת תיקון תקינה ששונה מהמקור.'
+                  : 'כדי לשלוח או לשמור בתור, יש למלא את פירוט הטעות. אפשר לשמור טיוטה חלקית בכל עת.',
             ),
-          if (!isOfflineMode && _canSubmit)
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (widget.onDiscard != null)
+              ActionButton.ghost(
+                key: const ValueKey('book-report-discard-draft'),
+                text: context.settingsText('השלך טיוטה'),
+                onPressed: _validating ? null : widget.onDiscard,
+              ),
             ActionButton.neutral(
-              text: 'שלח בדוא"ל',
-              icon: FluentIcons.mail_24_regular,
-              onPressed: () {
-                widget.onActionSelected(
-                  ErrorReportAction.sendEmail,
-                  reportData,
-                );
-              },
+              key: const ValueKey('book-report-save-draft'),
+              text: context.settingsText('שמור טיוטה וצא זמנית'),
+              onPressed: _validating ? null : widget.onCancel,
             ),
-          if (_canSubmit)
+            if (!_offline)
+              ActionButton.neutral(
+                text: context.settingsText('שמור לשליחה מאוחרת'),
+                icon: FluentIcons.save_24_regular,
+                onPressed: _canSubmit
+                    ? () => _submitValidated(
+                        ErrorReportAction.saveForLater,
+                        reportData,
+                      )
+                    : null,
+              ),
+            if (!_offline)
+              ActionButton.neutral(
+                text: context.settingsText('שלח בדוא"ל'),
+                icon: FluentIcons.mail_24_regular,
+                onPressed: _canSubmit
+                    ? () => _submitValidated(
+                        ErrorReportAction.sendEmail,
+                        reportData,
+                      )
+                    : null,
+              ),
             ActionButton.recommended(
-              text: isOfflineMode
-                  ? 'שמור בתור ל${widget.directReportTargetLabel}'
-                  : 'שלח ישירות ל${widget.directReportTargetLabel}',
+              text: context.settingsText(
+                _offline ? 'שמור בתור ל{target}' : 'שלח ישירות ל{target}',
+                args: {
+                  'target': reportTargetText(
+                    context,
+                    widget.directReportTargetLabel,
+                  ),
+                },
+              ),
               icon: FluentIcons.arrow_upload_24_regular,
               tooltip: ShortcutHelper.formatShortcutForDisplay(_sendShortcut),
-              onPressed: _confirmAndSendDirect,
+              onPressed: _canSubmit ? _confirmAndSendDirect : null,
             ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

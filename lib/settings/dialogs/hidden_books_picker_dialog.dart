@@ -41,14 +41,18 @@ class _CategoryRow {
   final String title;
   final String path;
   final int depth;
+  final String _titleLower;
+  final String _pathLower;
 
-  _CategoryRow(Category category)
-    : title = category.title,
-      path = category.path,
-      depth = category.path.split('/').length - 2;
+  _CategoryRow(Category category) : this._(category.title, category.path);
 
-  bool matches(String query) =>
-      title.toLowerCase().contains(query) || path.toLowerCase().contains(query);
+  _CategoryRow._(this.title, this.path)
+    : depth = path.split('/').length - 2,
+      _titleLower = title.toLowerCase(),
+      _pathLower = path.toLowerCase();
+
+  bool matches(String lowerQuery) =>
+      _titleLower.contains(lowerQuery) || _pathLower.contains(lowerQuery);
 }
 
 class _PickerRow {
@@ -68,7 +72,7 @@ class _PickerRow {
       haystack = '${book.title} ${book.author ?? ''} $categoryPath'
           .toLowerCase();
 
-  bool matches(String query) => haystack.contains(query.toLowerCase());
+  bool matches(String lowerQuery) => haystack.contains(lowerQuery);
 }
 
 class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
@@ -126,18 +130,22 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
     super.dispose();
   }
 
+  /// מסנן רק את הרשימה המוצגת; המעבר בין ספרים לקטגוריות מסנן מחדש.
   void _applyFilter() {
     final query = _search.text.trim().toLowerCase();
     setState(() {
-      _visible = _rows
-          .where(
-            (row) =>
-                (query.isEmpty || row.matches(query)) &&
-                (!_hiddenOnly ||
-                    _selectedBooks.contains(row.key) ||
-                    _hidingCategory(row.categoryPath) != null),
-          )
-          .toList();
+      if (!_showCategories) {
+        _visible = _rows
+            .where(
+              (row) =>
+                  (query.isEmpty || row.matches(query)) &&
+                  (!_hiddenOnly ||
+                      _selectedBooks.contains(row.key) ||
+                      _hidingCategory(row.categoryPath) != null),
+            )
+            .toList();
+        return;
+      }
       _visibleCategories = _categories
           .where(
             (row) =>
@@ -178,8 +186,9 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
           currentValue: _showCategories,
           expandToFillWidth: true,
           onChanged: (value) {
-            setState(() => _showCategories = value);
+            _showCategories = value;
             _search.clear();
+            _applyFilter();
             if (_scroll.hasClients) _scroll.jumpTo(0);
           },
         ),

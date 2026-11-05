@@ -61,6 +61,9 @@ class _FakeRepo implements PluginRegistryRepository {
   @override
   Future<List<String>> getGrantedPermissionNames(String id) async => [];
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async =>
       plugins.values.toList();
   @override

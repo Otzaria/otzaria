@@ -233,33 +233,40 @@ Future<void> main() async {
     expect(repository.requests, hasLength(1));
   }, skip: !engineReady);
 
-  testWidgets('ביטוי רגולרי עם מרווח חיובי שומר על הדגשת ההתאמה בתוצאה', (
-    tester,
-  ) async {
-    final repository = _RecordingSearchRepository(results: const []);
-    final harness = await pumpSearchView(
-      tester,
-      searchRepository: repository,
-      initialQuery: '/שמים/',
-      searchDistance: 3,
-      content: const ['בראשית שמים וארץ'],
-    );
-    await harness.settle();
-    expect(repository.requests, isEmpty);
-    final result = tester
-        .widgetList<RichText>(find.byType(RichText))
-        .singleWhere(
-          (widget) => widget.text.toPlainText() == 'בראשית שמים וארץ',
-        );
-    final highlighted = <String>[];
-    result.text.visitChildren((span) {
-      if (span is TextSpan && span.style?.fontWeight == FontWeight.bold) {
-        highlighted.add(span.toPlainText());
-      }
-      return true;
-    });
-    expect(highlighted, contains('שמים'));
-  }, skip: !engineReady);
+  for (final mode in [SearchMode.exact, SearchMode.advanced]) {
+    for (final distance in [0, 3]) {
+      testWidgets(
+        'ביטוי רגולרי שומר על הדגשת ההתאמה בתוצאה: ${mode.name}, מרווח $distance',
+        (tester) async {
+          final repository = _RecordingSearchRepository(results: const []);
+          final harness = await pumpSearchView(
+            tester,
+            searchRepository: repository,
+            initialQuery: '/שמים/',
+            searchMode: mode,
+            searchDistance: distance,
+            content: const ['בראשית שמים וארץ'],
+          );
+          await harness.settle();
+          expect(repository.requests, isEmpty);
+          final result = tester
+              .widgetList<RichText>(find.byType(RichText))
+              .singleWhere(
+                (widget) => widget.text.toPlainText() == 'בראשית שמים וארץ',
+              );
+          final highlighted = <String>[];
+          result.text.visitChildren((span) {
+            if (span is TextSpan && span.style?.fontWeight == FontWeight.bold) {
+              highlighted.add(span.toPlainText());
+            }
+            return true;
+          });
+          expect(highlighted, ['שמים']);
+        },
+        skip: !engineReady,
+      );
+    }
+  }
 
   testWidgets(
     'שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון',
@@ -430,6 +437,29 @@ Future<void> main() async {
 
         expect(repository.requests, isEmpty);
         expect(simpleQueries, isNotEmpty);
+        expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'מצב מתקדם שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #4078)',
+      (tester) async {
+        SearchDefaults.saveModeDefault(SearchMode.advanced);
+        SearchDefaults.saveDistanceDefault(10);
+        addTearDown(() => SearchDefaults.saveModeDefault(SearchMode.exact));
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+          content: const ['ההכנה לשבת'],
+        );
+
+        await harness.type('הכנ');
+        await harness.settle();
+
+        expect(repository.requests, isEmpty);
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
         expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
       },
       skip: !engineReady,

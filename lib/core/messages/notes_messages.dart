@@ -15,6 +15,8 @@ abstract class NotesMessages {
   static String notesListLoadError(Object error) =>
       'שגיאה בטעינת רשימת ההערות: $error';
 
+  static String importFailed(Object error) => 'ייבוא ההערות נכשל: $error';
+
   static String importCompleted({
     required int inserted,
     required int updated,

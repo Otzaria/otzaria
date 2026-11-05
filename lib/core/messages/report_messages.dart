@@ -10,10 +10,12 @@ abstract class ReportMessages {
   static const String sentToSefaria = 'הדיווח נקלט ויועבר לספריא. תודה!';
   static const String sentSuccessTitle = 'הדיווח נקלט';
 
-  static String correctionNotSupportedByServer(String targetLabel) =>
-      'הדיווח נקלט אצל $targetLabel, אך השרת עדיין אינו תומך בהצעת תיקון '
+  static const correctionNotSupportedTemplate =
+      'הדיווח נקלט אצל {target}, אך השרת עדיין אינו תומך בהצעת תיקון '
       'מובנית. ההצעה נשלחה כטקסט בתוך פירוט הטעות ונשמרה בהיסטוריית '
       'הדיווחים.';
+  static String correctionNotSupportedByServer(String targetLabel) =>
+      correctionNotSupportedTemplate.replaceAll('{target}', targetLabel);
   static const String reportIdConflict =
       'השרת כבר קלט דיווח אחר עם אותו מזהה, ולכן הדיווח לא נקלט. '
       'ניתן לדווח שוב — דיווח חדש מקבל מזהה חדש.';
@@ -21,13 +23,17 @@ abstract class ReportMessages {
       'השרת כבר קלט דיווח אחר עם אותו מזהה, ולכן הדיווח לא נקלט. '
       'הדיווח קיבל מזהה חדש ונשאר בתור — ניתן לשלוח אותו שוב.';
 
-  static String bodyTooLarge(int maxKb) =>
-      'הדיווח גדול מדי לשליחה (הגבול הוא ${maxKb}KB). יש לקצר את הפירוט '
+  static const bodyTooLargeTemplate =
+      'הדיווח גדול מדי לשליחה (הגבול הוא {limit}KB). יש לקצר את הפירוט '
       'או את ההצעה — הטקסט לא ייחתך.';
+  static String bodyTooLarge(int maxKb) =>
+      bodyTooLargeTemplate.replaceAll('{limit}', '$maxKb');
 
-  static String duplicateReport(String targetLabel) =>
-      'דיווח זהה לזה כבר נשלח ל$targetLabel בעבר, ולכן לא נשלחה הודעה נוספת. '
+  static const duplicateReportTemplate =
+      'דיווח זהה לזה כבר נשלח ל{target} בעבר, ולכן לא נשלחה הודעה נוספת. '
       'הדיווח נקלט במערכת.';
+  static String duplicateReport(String targetLabel) =>
+      duplicateReportTemplate.replaceAll('{target}', targetLabel);
   static const String offlineQueueDisabled =
       'מצב אופליין פעיל, והגדרת התור האוטומטי כבויה.';
   static const String noInternet = 'אין כרגע חיבור לאינטרנט.';
@@ -36,21 +42,29 @@ abstract class ReportMessages {
   static const String unexpectedSendError =
       'אירעה שגיאה לא צפויה בשליחת הדיווח.';
 
-  static String queuedOffline(String targetLabel) =>
+  static const queuedOfflineTemplate =
       'אין כרגע חיבור. הדיווח נשמר ויישלח אוטומטית '
-      'ל$targetLabel כשהתוכנה תחזור להיות מקוונת. '
+      'ל{target} כשהתוכנה תחזור להיות מקוונת. '
       'ניתן לנהל את הדיווחים השמורים בהגדרות.';
+  static String queuedOffline(String targetLabel) =>
+      queuedOfflineTemplate.replaceAll('{target}', targetLabel);
 
-  static String queuedAfterFailure(String targetLabel) =>
+  static const queuedAfterFailureTemplate =
       'השליחה לא הצליחה כרגע. הדיווח נשמר להמשך ויישלח אוטומטית '
-      'ל$targetLabel בניסיון הבא. ניתן לנהל את הדיווחים '
+      'ל{target} בניסיון הבא. ניתן לנהל את הדיווחים '
       'השמורים בהגדרות.';
+  static String queuedAfterFailure(String targetLabel) =>
+      queuedAfterFailureTemplate.replaceAll('{target}', targetLabel);
 
+  static const serverPermanentFailureTemplate =
+      'שרת הדיווחים החזיר {status}. הדיווח לא נשמר להמשך כי נראה שיש בעיה קבועה בנתונים שנשלחו.';
   static String serverPermanentFailure(int statusCode) =>
-      'שרת הדיווחים החזיר $statusCode. הדיווח לא נשמר להמשך כי נראה שיש בעיה קבועה בנתונים שנשלחו.';
+      serverPermanentFailureTemplate.replaceAll('{status}', '$statusCode');
 
+  static const serverTransientFailureTemplate =
+      'שרת הדיווחים החזיר {status}. הדיווח יישמר להמשך.';
   static String serverTransientFailure(int statusCode) =>
-      'שרת הדיווחים החזיר $statusCode. הדיווח יישמר להמשך.';
+      serverTransientFailureTemplate.replaceAll('{status}', '$statusCode');
 
   /// כותרת חלון הסיכום של סקריפט השליחה האופליין (bat/sh).
   static const String offlineScriptWindowTitle =
@@ -74,12 +88,16 @@ abstract class ReportMessages {
       'ההצעה זהה למקור. יש לשנות את הטקסט או לבחור "מחיקת הקטע". '
       'אם אין הצעה — יש לבחור "דיווח חופשי".';
 
+  static const proposalTooLongTemplate =
+      'ההצעה ארוכה מדי (מעל {max} תווים). יש לקצר אותה — היא לא תיחתך.';
   static String proposalTooLong(int maxLength) =>
-      'ההצעה ארוכה מדי (מעל $maxLength תווים). יש לקצר אותה — היא לא תיחתך.';
+      proposalTooLongTemplate.replaceAll('{max}', '$maxLength');
 
-  static String originalTooLong(int maxLength) =>
-      'השורה המקורית ארוכה מ-$maxLength תווים, ולכן לא ניתן להציע לה תיקון '
+  static const originalTooLongTemplate =
+      'השורה המקורית ארוכה מ-{max} תווים, ולכן לא ניתן להציע לה תיקון '
       'מובנה. ניתן לשלוח דיווח חופשי.';
+  static String originalTooLong(int maxLength) =>
+      originalTooLongTemplate.replaceAll('{max}', '$maxLength');
 
   static const String invalidCharacters =
       'הטקסט מכיל תו פגום (חצי מתו מורכב, כמו אימוג׳י שנקטע), ולכן לא ניתן '
@@ -162,11 +180,21 @@ abstract class ReportMessages {
   static const String appReportDraftDiscarded = 'הטיוטה נמחקה.';
   static const String appReportCannotOpenIssue =
       'לא ניתן לפתוח את הדיווח בדפדפן.';
+  static const String appReportImageTooLargeTemplate =
+      'תמונה גדולה מ-{limit} MiB לא צורפה.';
+  static const String appReportTooManyImagesTemplate =
+      'ניתן לצרף עד {count} תמונות לדיווח.';
+  static const String appReportAttachmentsTooLargeTemplate =
+      'הגודל הכולל של הצרופות מוגבל ל-{limit} MiB.';
+  static const String appReportNoClipboardImage = 'אין תמונה נתמכת בלוח.';
   static String appReportImageTooLarge(int maxMegabytes) =>
-      'תמונה גדולה מ-$maxMegabytes MB לא צורפה.';
+      appReportImageTooLargeTemplate.replaceAll('{limit}', '$maxMegabytes');
   static String appReportTooManyImages(int maxCount) =>
-      'ניתן לצרף עד $maxCount תמונות לדיווח.';
+      appReportTooManyImagesTemplate.replaceAll('{count}', '$maxCount');
   static String appReportImagesTotalTooLarge(int maxMegabytes) =>
-      'הגודל הכולל של התמונות מוגבל ל-$maxMegabytes MB.';
+      appReportAttachmentsTooLargeTemplate.replaceAll(
+        '{limit}',
+        '$maxMegabytes',
+      );
   static const String appReportImageReadFailed = 'לא ניתן היה לקרוא את התמונה.';
 }

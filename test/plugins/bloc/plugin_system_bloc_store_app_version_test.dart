@@ -10,6 +10,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 class _FakeRepo extends Mock implements PluginRegistryRepository {
   @override
+  Future<String?> getNewTabPageOwner() async => null;
+
+  @override
   Future<List<InstalledPlugin>> getAllPlugins() async => [];
   @override
   Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];

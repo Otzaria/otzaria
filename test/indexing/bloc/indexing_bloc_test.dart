@@ -418,6 +418,72 @@ void main() {
       await store.clearPendingIndexReconciliation();
     });
 
+    for (final outcome in [
+      'כשל בספר',
+      'חריגה',
+      'תוצאה מבוטלת',
+      'ביטול בזמן ריצה',
+      'ביטול בבדיקת המצב',
+    ]) {
+      test('שחזור ספר עם $outcome מדווח כישלון ומשאיר marker', () async {
+        final repository = _FakeIndexingRepository();
+        switch (outcome) {
+          case 'כשל בספר':
+            repository.result = const IndexingRunResult.completed(
+              processedBooks: 1,
+              totalBooks: 1,
+              indexedBooks: 0,
+              failures: [failure],
+            );
+          case 'חריגה':
+            repository.error = StateError('index failed');
+          case 'תוצאה מבוטלת':
+            repository.result = const IndexingRunResult.cancelled(
+              processedBooks: 0,
+              totalBooks: 1,
+              indexedBooks: 0,
+            );
+          case 'ביטול בזמן ריצה':
+            repository.runGate = Completer<void>();
+          case 'ביטול בבדיקת המצב':
+            repository.statusGate = Completer<void>();
+        }
+        final bloc = _FakeIndexingBloc(repository);
+        addTearDown(bloc.close);
+        final library = libraryWithBooks();
+        final revision = await store.beginVisibilityIndexUpdate();
+        final completions = <bool>[];
+        final settled = Completer<void>();
+        bloc
+          ..add(
+            ApplyHiddenIndexDelta(
+              library,
+              newlyHidden: const [],
+              newlyVisible: library.books,
+              visibilityRevision: revision,
+              onCompleted: completions.add,
+            ),
+          )
+          ..add(IndexingWorkBarrier(onSettled: settled.complete));
+        final gate = repository.runGate ?? repository.statusGate;
+        if (gate != null) {
+          await pumpEventQueue();
+          expect(repository.runs, hasLength(1));
+          if (repository.statusGate != null) {
+            expect(repository.statusChecks, 1);
+          }
+          bloc.add(CancelIndexing());
+          await pumpEventQueue();
+          gate.complete();
+        }
+        await settled.future.timeout(const Duration(seconds: 2));
+
+        expect(completions, [false]);
+        expect(store.hasPendingVisibilityIndex, isTrue);
+        if (gate != null) expect(bloc.state, isA<IndexingStopped>());
+      });
+    }
+
     test('שתי פעולות ברצף מנקות marker רק בסיום האחרונה', () async {
       final first = await store.beginVisibilityIndexUpdate();
       final second = await store.beginVisibilityIndexUpdate();
@@ -562,6 +628,13 @@ void main() {
       build: _FakeIndexingBloc.new,
       act: (bloc) {
         final library = libraryWithBooks(3);
+        repositoryOf(bloc)
+          ..indexedBooks.add(library.books[2])
+          ..result = const IndexingRunResult.completed(
+            processedBooks: 2,
+            totalBooks: 2,
+            indexedBooks: 2,
+          );
         bloc.add(
           RunIndexing(
             library,
@@ -573,6 +646,7 @@ void main() {
       },
       expect: () => [
         const IndexingInProgress(booksProcessed: 0, totalBooks: 2),
+        const IndexingInProgress(booksProcessed: 2, totalBooks: 2),
         const IndexingComplete(),
       ],
       verify: (bloc) {
@@ -633,6 +707,37 @@ void main() {
       act: (bloc) => bloc.add(CancelIndexing()),
       expect: () => [isA<IndexingStopped>()],
       verify: (bloc) => expect(repositoryOf(bloc).cancelCalls, 1),
+    );
+
+    test(
+      'דחיית שינויים ממתינה לריצה פעילה ואינה מתחילה אינדוקס נוסף',
+      () async {
+        final repository = _FakeIndexingRepository()
+          ..runGate = Completer<void>();
+        final bloc = _FakeIndexingBloc(repository);
+        addTearDown(bloc.close);
+        final library = libraryWithBooks(2);
+        final changed = [library.books.first];
+        final settled = Completer<void>();
+        bloc
+          ..add(StartIndexing(library))
+          ..add(
+            DeferIndexing(library, changedBooks: changed, checkLibrary: true),
+          )
+          ..add(IndexingWorkBarrier(onSettled: settled.complete));
+        await pumpEventQueue();
+
+        expect(repository.runs, hasLength(1));
+        expect(repository.rememberedChanged, isEmpty);
+        expect(settled.isCompleted, isFalse);
+        repository.runGate!.complete();
+        await settled.future.timeout(const Duration(seconds: 2));
+
+        expect(repository.runs, hasLength(1));
+        expect(repository.rememberedChanged, changed);
+        expect(repository.rememberedLibraryCheck, isTrue);
+        expect(bloc.state, isA<IndexingInitial>());
+      },
     );
 
     test('ביטול מנקז ריצות שבתור, ושומר את מה שהיו מחליפות ובודקות', () async {
@@ -1007,8 +1112,11 @@ class _FakeIndexingRepository extends IndexingRepository {
   );
   Object? error;
   bool allBooksIndexed = false;
+  final indexedBooks = <Book>{};
   bool manualReindex = false;
   Completer<void>? compatibilityGate;
+  Completer<void>? statusGate;
+  int statusChecks = 0;
   Completer<void>? clearGate;
   final reportedResults = <IndexingRunResult>[];
   final runs =
@@ -1047,10 +1155,11 @@ class _FakeIndexingRepository extends IndexingRepository {
 
   Future<IndexingRunResult> _finish(
     void Function(int processed, int total) onProgress,
+    int workCount,
   ) async {
     final thrown = error;
     if (thrown != null) throw thrown;
-    onProgress(result.processedBooks, result.totalBooks);
+    if (workCount > 0) onProgress(result.processedBooks, result.totalBooks);
     return result;
   }
 
@@ -1078,12 +1187,21 @@ class _FakeIndexingRepository extends IndexingRepository {
         : (books ?? library.getIndexableBooks()).length + changedBooks.length;
     if (total > 0) onWorkListReady?.call(total);
     final gate = finalizeGate;
+    final IndexingRunResult runResult;
     if (gate != null) {
       onFinalizing?.call();
       await gate.future;
-      return result;
+      runResult = result;
+    } else {
+      runResult = await _finish(onProgress, total);
     }
-    return _finish(onProgress);
+    if (runResult.isClean) {
+      indexedBooks.addAll([
+        ...(books ?? library.getIndexableBooks()),
+        ...changedBooks,
+      ]);
+    }
+    return runResult;
   }
 
   final syncedOrders = <Library>[];
@@ -1137,11 +1255,17 @@ class _FakeIndexingRepository extends IndexingRepository {
   }
 
   @override
-  bool isBookIndexed(Book book) => allBooksIndexed;
+  bool isBookIndexed(Book book) =>
+      allBooksIndexed || indexedBooks.contains(book);
 
   @override
-  Future<bool> hasUnindexedBooks(Library library) async =>
-      library.getIndexableBooks().isNotEmpty && !allBooksIndexed;
+  Future<bool> hasUnindexedBooks(Library library) async {
+    statusChecks++;
+    await statusGate?.future;
+    return rememberedLibraryCheck ||
+        rememberedChanged.isNotEmpty ||
+        library.getIndexableBooks().any((book) => !isBookIndexed(book));
+  }
 
   @override
   bool isIndexing() => true;
@@ -1178,6 +1302,7 @@ class _FakeIndexingRepository extends IndexingRepository {
     await clearGate?.future;
     runsAtClear = runs.length;
     manualReindex = false;
+    indexedBooks.clear();
     return true;
   }
 }

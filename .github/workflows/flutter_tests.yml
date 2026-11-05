@@ -457,6 +457,28 @@ jobs:
       - name: Engine SQLite integration test (Windows)
         run: flutter test integration_test/external_line_text_test.dart -d windows --timeout 5m
 
+      - name: Native report clipboard roundtrip (Windows)
+        shell: pwsh
+        env:
+          CI: 'true'
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+          REPORT_QA_COMMIT: ${{ github.sha }}
+          REPORT_QA_REVIEWED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPORT_QA_NATIVE_OUTPUT: ${{ github.workspace }}/build/reporting_qa/native-clipboard.json
+        run: |
+          New-Item -ItemType Directory -Force build/reporting_qa | Out-Null
+          flutter test integration_test/report_clipboard_windows_test.dart -d windows --timeout 2m 2>&1 |
+            Tee-Object -FilePath build/reporting_qa/native-clipboard.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload native clipboard evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-native-report-clipboard
+          path: build/reporting_qa/native-clipboard.*
+          if-no-files-found: warn
+
       # ריבוי תצוגות באפליקציה המלאה. `flutter drive` ולא integration_test: ה-binding
       # של הבדיקות מחזיר engineId=1, ובלי בעלים אמיתי לא נפתחים חלונות Dart.
       # portable.marker: נתונים ומופע יחיד בתוך תיקיית הבנייה. DSN ריק משבית את Sentry.

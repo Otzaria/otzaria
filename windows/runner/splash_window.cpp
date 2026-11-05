@@ -360,7 +360,7 @@ HWND CreateSplashWindow(FrameDecoder* decoder, double* band_ms) {
   g_pos = {x, y};
 
   HWND hwnd = CreateWindowExW(
-      WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST |
+      WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW |
           WS_EX_NOACTIVATE,
       kSplashClassName, L"", WS_POPUP, x, y, disp, disp, nullptr, nullptr,
       hinst, nullptr);

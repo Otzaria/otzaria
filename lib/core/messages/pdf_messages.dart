@@ -1,5 +1,8 @@
 /// ריכוז הודעות המערכת (UiSnack) של צפיין ה-PDF וההדפסה.
 abstract class PdfMessages {
+  static const String textSelectionLoading =
+      'המסמך עדיין נטען. יש לנסות שוב לאחר סיום הטעינה';
+  static const String textSelectionFailed = 'שגיאה בבחירת הטקסט';
   static const String noCommentariesToPrint = 'אין מפרשים להדפסה';
   static const String directLinkUnavailableForBook =
       'קישור ישיר אינו זמין לספר זה';

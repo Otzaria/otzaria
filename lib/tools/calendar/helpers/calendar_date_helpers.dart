@@ -88,29 +88,10 @@ String formatAmud(int amud) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// ממיר מספר יום עברי לאותיות (ללא גרשיים)
-String formatHebrewDay(int day) => numberToHebrewWithoutQuotes(day);
-
-/// ממיר מספר לאותיות עבריות ללא גרשיים
-String numberToHebrewWithoutQuotes(int number) {
+String formatHebrewDay(int number) {
   if (number <= 0) return '';
   String result = '';
   int num = number;
-  if (num >= 100) {
-    int hundreds = (num ~/ 100) * 100;
-    const hundredsMap = {
-      900: 'תתק',
-      800: 'תת',
-      700: 'תש',
-      600: 'תר',
-      500: 'תק',
-      400: 'ת',
-      300: 'ש',
-      200: 'ר',
-      100: 'ק',
-    };
-    result += hundredsMap[hundreds] ?? '';
-    num %= 100;
-  }
   const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
   const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
   if (num == 15) {

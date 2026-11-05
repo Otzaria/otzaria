@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -33,6 +34,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
   Map<String, BookCategory> _allBookData = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
+  Future<void>? _loadFuture;
+  int _generation = 0;
+  bool _hasRequestedData = false;
+  bool _disposed = false;
 
   // Cache for TOC data - loaded on demand only
   final Map<int, List<BookSection>> _tocCache = {};
@@ -62,31 +67,60 @@ class ShamorZachorDataProvider with ChangeNotifier {
     ShamorZachorCategoryTreeLoader? categoryTreeLoader,
   }) : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance,
        _categoryTreeLoader =
-           categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree;
+           categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree {
+    _sqliteDataProvider!.repositoryChanges.addListener(_onRepositoryChanged);
+  }
 
-  /// Ensures data is loaded - call this when the widget is first displayed
-  ///
-  /// This method is idempotent - it will only load data once.
-  /// Subsequent calls will be ignored if data is already loaded or loading.
-  Future<void> ensureLoaded() async {
-    if (_isLoading || hasData || _error != null) {
-      return;
+  void _onRepositoryChanged() {
+    _generation++;
+    _allBookData = {};
+    _tocCache.clear();
+    _error = null;
+    _loadFuture = null;
+    _isLoading = false;
+    if (_hasRequestedData && _sqliteDataProvider!.repository != null) {
+      unawaited(loadAllData());
+    } else {
+      notifyListeners();
     }
+  }
+
+  bool _isCurrent(int generation) => !_disposed && generation == _generation;
+
+  /// ממתין לטעינה פעילה, או משתמש בנתונים שכבר נטענו מהמאגר הנוכחי.
+  Future<void> ensureLoaded() async {
+    if (_loadFuture == null && (hasData || _error != null)) return;
     await loadAllData();
   }
 
   Future<void> loadAllData() async {
-    if (_isLoading) return;
+    if (_disposed) return;
+    _hasRequestedData = true;
+    final generation = _generation;
+    await (_loadFuture ??= Future<void>.microtask(
+      () => _loadAllData(generation),
+    ));
+    if (!_disposed &&
+        generation != _generation &&
+        _sqliteDataProvider!.repository != null) {
+      await ensureLoaded();
+    }
+  }
+
+  Future<void> _loadAllData(int generation) async {
+    if (!_isCurrent(generation)) return;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      if (!_isCurrent(generation)) return;
       if (_sqliteDataProvider == null || !_sqliteDataProvider.isInitialized) {
         // Attempt to init if not ready
         await _sqliteDataProvider?.initialize();
       }
 
+      if (!_isCurrent(generation)) return;
       if (_sqliteDataProvider?.repository == null) {
         throw Exception('Database repository not initialized');
       }
@@ -95,6 +129,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       // Load tracked books list from Hive-backed settings
       await _loadTrackedBooksList();
+      if (!_isCurrent(generation)) return;
 
       // Try loading the category tree off the main isolate to keep the UI
       // thread responsive while opening books. Falls back to in-isolate logic
@@ -104,6 +139,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
           dbPath: _sqliteDataProvider.dbPath,
           trackedBookIds: _trackedBookIds.toList(),
         );
+        if (!_isCurrent(generation)) return;
         final categories = (workerResult['categories'] as List)
             .map((raw) => (raw as Map).cast<String, dynamic>())
             .toList();
@@ -116,6 +152,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
         );
         return;
       } catch (e, stackTrace) {
+        if (!_isCurrent(generation)) return;
         _logger.warning(
           'Failed to load Shamor Zachor data in isolate, falling back to main isolate',
           e,
@@ -124,12 +161,14 @@ class ShamorZachorDataProvider with ChangeNotifier {
       }
 
       final allBooks = await repository.database.bookDao.getAllBooks();
+      if (!_isCurrent(generation)) return;
       final relevantBooks = allBooks
           .where((book) => book.isBaseBook || _trackedBookIds.contains(book.id))
           .toList();
 
       final allCategories = await repository.database.categoryDao
           .getAllCategories();
+      if (!_isCurrent(generation)) return;
       final categoryMap = {for (var c in allCategories) c.id: c};
 
       // Build Category Tree Structure
@@ -153,8 +192,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
           booksByCatId,
           null,
           parentPath: [],
+          generation: generation,
         );
 
+        if (!_isCurrent(generation)) return;
         if (builtCat != null) {
           resultData[builtCat.name] = builtCat;
         }
@@ -165,11 +206,15 @@ class ShamorZachorDataProvider with ChangeNotifier {
         'Loaded ${_allBookData.length} top-level categories from DB using shared cache (${relevantBooks.length} books).',
       );
     } catch (e, stackTrace) {
+      if (!_isCurrent(generation)) return;
       _logger.severe('Error loading from DB', e, stackTrace);
       _error = ShamorZachorError.fromException(e, stackTrace: stackTrace);
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_isCurrent(generation)) {
+        _loadFuture = null;
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -228,6 +273,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
     Map<int, List<db_models.Book>> booksByCatId,
     String? inheritedContentType, {
     List<String> parentPath = const [],
+    required int generation,
   }) async {
     // Determine content type for this category
     // If inherited, use it. If "Bavli/Yerushalmi", force "daf".
@@ -254,6 +300,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
         myContentType,
         currentPath,
       );
+      if (!_isCurrent(generation)) return null;
       validBooks[dbBook.title] = bookDetails;
     }
 
@@ -271,7 +318,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
         booksByCatId,
         myContentType,
         parentPath: currentPath,
+        generation: generation,
       );
+      if (!_isCurrent(generation)) return null;
       if (sub != null) {
         validSubCats.add(sub);
       }
@@ -340,6 +389,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// Load TOC for a specific book on demand
   /// This is called only when the user actually needs the TOC
   Future<List<BookSection>> getTocForBook(int bookId) async {
+    final generation = _generation;
+    if (_disposed) return [];
     // Check cache first
     if (_tocCache.containsKey(bookId)) {
       return _tocCache[bookId]!;
@@ -348,7 +399,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
     try {
       final repository = _sqliteDataProvider!.repository!;
       final isolate = await FindRefDbIsolate.instance();
+      if (!_isCurrent(generation)) return [];
       final tocEntries = await isolate.getBookTocEntries(bookId);
+      if (!_isCurrent(generation)) return [];
 
       if (tocEntries.isEmpty) {
         _tocCache[bookId] = [];
@@ -357,6 +410,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       // Get book to know totalLines for proper endPage calculation
       final book = await repository.database.bookDao.getBookById(bookId);
+      if (!_isCurrent(generation)) return [];
       final totalLines = book?.totalLines ?? 100;
 
       final sections = _buildSectionsFromToc(tocEntries, totalLines);
@@ -714,6 +768,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _generation++;
+    _sqliteDataProvider!.repositoryChanges.removeListener(_onRepositoryChanged);
     _tocCache.clear();
     super.dispose();
   }

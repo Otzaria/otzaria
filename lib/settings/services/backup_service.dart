@@ -45,6 +45,7 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
+import 'package:otzaria/settings/services/backup/backup_report_format.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 
 /// תוצאת [BackupService.restoreFromBackup].
@@ -203,6 +204,8 @@ class BackupService {
       if (skippedSections.isNotEmpty) {
         backupData['partial_sections'] = skippedSections;
       }
+
+      setReportAwareBackupVersion(backupData);
 
       // Write backup file
       final file = File(backupPath);
@@ -798,6 +801,7 @@ class BackupService {
   /// גיבוי הדיווחים השמורים — הממתינים לשליחה וההיסטוריה שנשלחה. נכנסים
   /// לסעיף ההגדרות, שבו נשמרת כבר כתובת המייל שאליה הם משויכים.
   static Future<Map<String, dynamic>> _backupReportQueues() async {
+    await AppReportService().prepareQueueStorage();
     final store = PendingReportStore.instance;
     final queues = <String, dynamic>{};
     for (final queue in _reportQueues) {
@@ -884,7 +888,7 @@ class BackupService {
 
     // Validate backup version
     final version = backupData['version'] as String?;
-    if (version != '1.0' && version != '2.0') {
+    if (version != '1.0' && version != '2.0' && version != '3.0') {
       throw Exception('גרסת גיבוי לא נתמכת');
     }
 
@@ -1102,6 +1106,7 @@ class BackupService {
     await DirectErrorReportService.suspendAutomaticFlush();
     await PluginReportService.suspendAutomaticFlush();
     await AppReportService.suspendAutomaticFlush();
+    await AppReportService().prepareQueueStorage();
 
     final store = PendingReportStore.instance;
     for (final queue in _reportQueues) {
@@ -1119,7 +1124,11 @@ class BackupService {
       final sentIds = sent.map(_reportId).whereType<String>().toSet();
       final pending = _mergeReports(
         await _storedReports(store, queue.pendingKind),
-        _reportList(backedUp['pending']),
+        [
+          ..._reportList(backedUp['pending']),
+          if (queue.section == AppReportService.queueBoxName)
+            ..._reportList(backedUp[appReportsBackupPendingV2]),
+        ],
       ).where((report) => !sentIds.contains(_reportId(report))).toList();
 
       await _replaceReports(store, queue.pendingKind, pending);

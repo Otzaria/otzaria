@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/core/user_state/window_bounds.dart';
@@ -365,9 +366,21 @@ class WindowPersistenceBinding {
     if (_splashMode) return;
     _debounce?.cancel();
     _debounce = Timer(WindowPersistence._debounceDuration, () {
-      // Fire-and-forget; any failure here shouldn't crash the app.
-      unawaited(_saveNow());
+      unawaited(_saveNow().catchError(_logSaveFailure));
     });
+  }
+
+  // כשל דיסק בשמירת הגבולות נרשם ליומן ואינו יוצא כשגיאה לא מטופלת.
+  void _logSaveFailure(Object error, StackTrace stackTrace) {
+    try {
+      ErrorLogFile.append(
+        title: 'שמירת גבולות החלון נכשלה',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (logError, logStackTrace) {
+      debugPrint('רישום כשל שמירת גבולות נכשל: $logError\n$logStackTrace');
+    }
   }
 
   /// שומר לסשן של החלון הזה. חלון בלי משבצת אינו שומר — ובשום מצב אינו

@@ -12,6 +12,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
+import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -40,6 +41,7 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/plugins/utils/plugin_dev_tools_mode.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -106,6 +108,9 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   // Cache PackageInfo so the async gap in onLoadStop never crosses a dispose
   static PackageInfo? cachedPackageInfo;
   static const _fileServerDenialLogInterval = Duration(minutes: 1);
+
+  @visibleForTesting
+  static bool? debugVerboseConsoleOverride;
 
   InstalledPlugin get plugin;
   String get instanceId;
@@ -788,13 +793,24 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
         },
       );
 
+  /// WARNING/ERROR נרשמות תמיד; info/log/debug רק במצב פיתוח או אבחון,
+  /// כי ב-release ה-debugPrint של Sentry הופך כל קריאה ל-breadcrumb.
   void logPluginConsole(ConsoleMessage consoleMessage, {String prefix = ''}) {
+    final level = consoleMessage.messageLevel;
+    final important =
+        level == ConsoleMessageLevel.ERROR ||
+        level == ConsoleMessageLevel.WARNING;
+    if (!important &&
+        !(debugVerboseConsoleOverride ??
+            (PluginDevToolsMode.enabled ||
+                DeveloperDiagnostics.instance.isCollecting))) {
+      return;
+    }
     try {
-      if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
-          consoleMessage.messageLevel == ConsoleMessageLevel.WARNING) {
+      if (important) {
         PluginSystemDatabase.instance.writeLog(
           plugin.pluginId,
-          consoleMessage.messageLevel.toString(),
+          level.toString(),
           '$prefix${consoleMessage.message}',
         );
       }

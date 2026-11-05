@@ -1,3 +1,5 @@
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/reports/view_scope.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -40,14 +42,60 @@ TextCorrection buildCorrectionTemplate(String originalLine, String selected) {
 ({int start, int end})? _locateAsDisplayed(String line, String selected) {
   final located = locateSelectionInLine(line, selected);
   if (located == null) return null;
-  if (line.lastIndexOf('<', located.start) >
-      line.lastIndexOf('>', located.start)) {
+  if (!_isVisibleSourceRange(line, located.start, located.end)) return null;
+  // Visible "&amp;" in raw "&amp;amp;" must not replace only the first
+  // five source characters and leave an unintended "amp;" behind.
+  if (_htmlCharacterReference
+      .allMatches(line)
+      .any(
+        (reference) =>
+            reference.start < located.end && reference.end > located.start,
+      )) {
     return null;
   }
   final shown = removeVolwels(stripHtmlIfNeeded(line));
   return locateSelectionInLine(shown, removeVolwels(selected)) == null
       ? null
       : located;
+}
+
+// Conservative: unknown named references also use the whole-line path. This
+// guard does not decode or attempt to map visible characters back to raw HTML.
+final RegExp _htmlCharacterReference = RegExp(
+  r'&(?:#[xX][0-9a-fA-F]+;?|#[0-9]+;?|[a-zA-Z][a-zA-Z0-9]*;?)',
+);
+
+/// A `>` in a quoted attribute or comment is not a tag end. Ambiguous markup
+/// uses the unchanged whole-line path without mapping decoded text to HTML.
+bool _isVisibleSourceRange(String html, int start, int end) {
+  var inTag = false;
+  var inComment = false;
+  String? quote;
+  for (var i = 0; i < end; i++) {
+    if (!inTag && !inComment && html.startsWith('<!--', i)) {
+      inComment = true;
+    } else if (!inTag && !inComment && html[i] == '<') {
+      inTag = true;
+    }
+    if (i >= start && (inTag || inComment)) return false;
+    if (inComment) {
+      if (html.startsWith('-->', i)) {
+        if (i + 2 >= start) return false;
+        inComment = false;
+        i += 2;
+      }
+    } else if (inTag) {
+      final char = html[i];
+      if (quote != null) {
+        if (char == quote) quote = null;
+      } else if (char == '"' || char == "'") {
+        quote = char;
+      } else if (char == '>') {
+        inTag = false;
+      }
+    }
+  }
+  return !inTag && !inComment;
 }
 
 enum TextDiffOp { equal, removed, added }
@@ -167,8 +215,15 @@ enum ProposalMode { replace, delete }
 class TextCorrectionDraft {
   final TextCorrection correction;
   final String? error;
+  final String? editedText;
+  final ProposalMode? mode;
 
-  const TextCorrectionDraft({required this.correction, this.error});
+  const TextCorrectionDraft({
+    required this.correction,
+    this.error,
+    this.editedText,
+    this.mode,
+  });
 
   bool get isValid => error == null;
 
@@ -197,7 +252,12 @@ TextCorrectionDraft evaluateCorrectionDraft({
   } else if (proposed == original.target) {
     error = ReportMessages.proposalIdentical;
   }
-  return TextCorrectionDraft(correction: correction, error: error);
+  return TextCorrectionDraft(
+    correction: correction,
+    error: error,
+    editedText: editedText,
+    mode: mode,
+  );
 }
 
 /// עורך הצעת תיקון: המקור מוצג בנפרד ואינו ניתן לעריכה, ושדה העריכה נטען
@@ -210,12 +270,18 @@ class TextCorrectionEditor extends StatefulWidget {
   /// נטען מההצעה שב-[original] (עריכת דיווח שמור) במקום מהטקסט המקורי.
   final bool restoreProposal;
 
+  /// Unvalidated local draft state, including the text hidden by delete mode.
+  final String? initialText;
+  final ProposalMode? initialMode;
+
   const TextCorrectionEditor({
     super.key,
     required this.original,
     required this.fontSize,
     required this.onChanged,
     this.restoreProposal = false,
+    this.initialText,
+    this.initialMode,
   });
 
   @override
@@ -224,13 +290,14 @@ class TextCorrectionEditor extends StatefulWidget {
 
 class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
   late final TextEditingController _controller = TextEditingController(
-    text: _restoredText ?? widget.original.target,
+    text: widget.initialText ?? _restoredText ?? widget.original.target,
   );
   // דיווח שמור מגרסה קודמת עם "ללא הצעה" (null) נפתח בעריכת טקסט.
   late ProposalMode _mode =
-      widget.restoreProposal && widget.original.proposedText == ''
-      ? ProposalMode.delete
-      : ProposalMode.replace;
+      widget.initialMode ??
+      (widget.restoreProposal && widget.original.proposedText == ''
+          ? ProposalMode.delete
+          : ProposalMode.replace);
 
   String? get _restoredText {
     final proposed = widget.original.proposedText;
@@ -287,12 +354,19 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
     final colorScheme = Theme.of(context).colorScheme;
     final textStyle = _textStyle(context);
     final original = widget.original;
+    final sourceDirection = reportContentDirection(
+      original.originalLine,
+      isHtml: true,
+    );
+    final errorText = draft.error == null
+        ? null
+        : reportFeedbackText(context, draft.error!);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'טקסט המקור (לא ניתן לעריכה):',
+          context.settingsText('טקסט המקור (לא ניתן לעריכה):'),
           style: TextStyle(
             fontSize: AppTokens.fontMD,
             fontWeight: FontWeight.bold,
@@ -327,13 +401,14 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
                   ),
                 ],
               ),
+              textDirection: sourceDirection,
             ),
           ),
         ),
         if (!original.hasSelection) ...[
           const SizedBox(height: 4),
           Text(
-            ReportMessages.correctionWholeLineNotice,
+            context.settingsText(ReportMessages.correctionWholeLineNotice),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -341,15 +416,15 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
         ],
         const SizedBox(height: 8),
         AppSegmentedControl<ProposalMode>(
-          options: const [
+          options: [
             SegmentOption(
               value: ProposalMode.replace,
-              label: 'טקסט מוצע',
+              label: context.settingsText('טקסט מוצע'),
               icon: FluentIcons.edit_24_regular,
             ),
             SegmentOption(
               value: ProposalMode.delete,
-              label: 'מחיקת הקטע',
+              label: context.settingsText('מחיקת הקטע'),
               icon: FluentIcons.delete_24_regular,
             ),
           ],
@@ -359,29 +434,32 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
         ),
         const SizedBox(height: 8),
         if (_mode == ProposalMode.replace)
-          RtlTextField(
-            key: const ValueKey('correction-proposal-field'),
-            controller: _controller,
-            autofocus: true,
-            minLines: 2,
-            maxLines: null,
-            style: textStyle,
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: colorScheme.brightness == Brightness.dark
-                  ? colorScheme.surfaceContainerHighest
-                  : AppSurfaces.card(context),
-              labelText: 'הנוסח המתוקן',
-              errorText: draft.error,
-              errorMaxLines: 3,
-              helperText:
-                  '${_controller.text.length} / ${TextCorrection.maxTextLength}',
+          Directionality(
+            textDirection: sourceDirection,
+            child: RtlTextField(
+              key: const ValueKey('correction-proposal-field'),
+              controller: _controller,
+              autofocus: true,
+              minLines: 2,
+              maxLines: null,
+              style: textStyle,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: colorScheme.brightness == Brightness.dark
+                    ? colorScheme.surfaceContainerHighest
+                    : AppSurfaces.card(context),
+                labelText: context.settingsText('הנוסח המתוקן'),
+                errorText: errorText,
+                errorMaxLines: 3,
+                helperText:
+                    '${_controller.text.length} / ${TextCorrection.maxTextLength}',
+              ),
             ),
           )
         else if (draft.error != null)
           Text(
-            draft.error!,
+            errorText!,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: colorScheme.error,
             ),
@@ -389,7 +467,7 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
         if (draft.hasProposal && draft.error == null) ...[
           const SizedBox(height: 8),
           Text(
-            'השינוי המוצע:',
+            context.settingsText('השינוי המוצע:'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -454,6 +532,10 @@ class TextCorrectionDiffView extends StatelessWidget {
                   },
                 ),
             ],
+          ),
+          textDirection: reportContentDirection(
+            before.isEmpty ? after : before,
+            isHtml: true,
           ),
         ),
       ),

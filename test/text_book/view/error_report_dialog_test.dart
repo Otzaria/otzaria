@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -948,7 +949,14 @@ void main() {
         ),
       );
 
-      expect(find.text('שלח ישירות לאוצריא'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שלח ישירות לאוצריא'),
+            )
+            .onPressed,
+        isNull,
+      );
 
       await tester.enterText(find.byType(TextField), 'זו טעות בפסקה הנוכחית');
       await tester.pumpAndSettle();
@@ -994,7 +1002,7 @@ void main() {
 
       expect(
         find.text(
-          'לחיצה על שלח דיווח תשלח את השגיאה ישירות לספריא, יש לשים לב לתקינות הדיווח לפני השליחה',
+          'לחיצה על שלח דיווח תשלח את השגיאה ישירות לספריא. יש לבדוק את תקינות הדיווח לפני השליחה.',
         ),
         findsOneWidget,
       );
@@ -1598,7 +1606,9 @@ void main() {
         )
         .position;
 
-    testWidgets('טופס בלי עורך תיקון קצר ויציב בזמן הקלדה', (tester) async {
+    testWidgets('טופס חופשי נשאר קצר ויציב, והשדות והפעולות נגישים בגלילה', (
+      tester,
+    ) async {
       final initial = await dialogHeight(tester);
 
       expect(initial, lessThan(500), reason: 'לא בגובה של טופס עם עורך');
@@ -1612,11 +1622,22 @@ void main() {
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
-      expect(
-        formScroll(tester).maxScrollExtent,
-        0,
-        reason: 'טקסט נבחר ארוך ושדה פירוט מלא נכנסים בלי גלילה',
+      // Precise selection adds instructions and a clear-selection control.
+      // The form keeps its compact height and scrolls that content while the
+      // action area stays outside the scrollable viewport.
+      final scroll = formScroll(tester);
+      expect(scroll.maxScrollExtent, greaterThan(0));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('report-details-field')),
       );
+      await tester.pumpAndSettle();
+      expect(scroll.pixels, greaterThan(0));
+      expect(find.text('שמור לשליחה מאוחרת').hitTestable(), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('book-report-save-draft')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('טופס עם עורך תיקון נשאר בגובה הנוח', (tester) async {

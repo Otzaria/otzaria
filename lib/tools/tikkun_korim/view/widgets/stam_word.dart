@@ -399,10 +399,20 @@ double tikkunWordWidth(String text, TextStyle style) {
     width += painter.width;
     painter.dispose();
   }
-  // גבול עליון פשוט — עמוד חדש מודד מחדש במקום להחזיק את כל התנ"ך בזיכרון.
-  if (_wordWidthCache.length > 20000) _wordWidthCache.clear();
+  // מפנים קודם גדלים אחרים: ניקוי מלא באמצע חישוב הרווח של ספר שלם מאלץ
+  // למדוד את כולו שוב בכל בנייה.
+  if (_wordWidthCache.length > _kWordWidthCacheLimit) {
+    final size = '|${style.fontSize}|';
+    _wordWidthCache.removeWhere((k, _) => !k.contains(size));
+    if (_wordWidthCache.length > _kWordWidthCacheLimit) _wordWidthCache.clear();
+  }
   _wordWidthCache[key] = width;
   return width;
 }
 
+/// מכיל את שני הטורים של הספר הגדול במקרא בגודל אחד, לא את כל התנ"ך.
+const int _kWordWidthCacheLimit = 40000;
 final Map<String, double> _wordWidthCache = {};
+
+@visibleForTesting
+int get tikkunWordWidthCacheSize => _wordWidthCache.length;
