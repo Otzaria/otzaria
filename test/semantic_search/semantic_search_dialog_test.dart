@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -1136,6 +1137,174 @@ void main() {
     tester.testTextInput.enterText('חסד');
     await tester.pump();
     expect(find.text('חסד'), findsOneWidget);
+  });
+
+  group('בחירת השאילתה בפתיחת חיפוש חכם (issue #4257)', () {
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      SearchDefaults.rememberSessionMode(SearchMode.exact);
+      SearchDefaults.rememberSessionSemantic(false);
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      SearchDefaults.rememberSessionMode(SearchMode.exact);
+      SearchDefaults.rememberSessionSemantic(false);
+    });
+
+    EditableText queryField(WidgetTester tester) => tester.widget<EditableText>(
+      find.descendant(of: _queryField, matching: find.byType(EditableText)),
+    );
+
+    testWidgets('פתיחה חוזרת בוחרת את החיפוש הקודם והקלדה מחליפה אותו', (
+      tester,
+    ) async {
+      const previousQuery = 'צדקה לעני';
+      Settings.setValue<String>('key-last-search-typing', previousQuery);
+      await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        initialMode: null,
+      );
+      final regular = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byType(EnhancedSearchField),
+          matching: find.byType(EditableText),
+        ),
+      );
+      expect(
+        regular.controller.selection,
+        TextSelection(baseOffset: 0, extentOffset: previousQuery.length),
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.enterText(_queryField, previousQuery);
+      Navigator.of(tester.element(_queryField)).pop();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(ElevatedButtonLauncher.launchKey));
+      await tester.pumpAndSettle();
+      final field = queryField(tester);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(field.controller.text, previousQuery);
+      expect(
+        field.controller.selection,
+        TextSelection(baseOffset: 0, extentOffset: previousQuery.length),
+      );
+      tester.testTextInput.updateEditingValue(
+        field.controller.value.replaced(field.controller.selection, 'חסד'),
+      );
+      await tester.pump();
+      expect(field.controller.text, 'חסד');
+      expect(Settings.getValue<String>('key-last-search-typing'), 'חסד');
+    });
+
+    testWidgets('השאילתה נבחרת גם כשהטופס מופיע רק אחרי בדיקת הזמינות', (
+      tester,
+    ) async {
+      const previousQuery = 'צדקה לעני';
+      Settings.setValue<String>('key-last-search-typing', previousQuery);
+      SearchDefaults.rememberSessionSemantic(true);
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.needsDownload),
+        initialMode: null,
+      );
+      expect(_queryField, findsNothing);
+
+      harness.repository.emit(_availability(SemanticAvailabilityPhase.ready));
+      await tester.pumpAndSettle();
+      final field = queryField(tester);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(field.controller.text, previousQuery);
+      expect(
+        field.controller.selection,
+        TextSelection(baseOffset: 0, extentOffset: previousQuery.length),
+      );
+    });
+
+    testWidgets('בעריכת כרטיסייה נבחרת השאילתה בעותק הדיאלוג בלבד', (
+      tester,
+    ) async {
+      const previousQuery = 'צדקה לעני';
+      final tab = SemanticSearchTab(
+        options: const SemanticQueryOptions(query: previousQuery),
+        createResultsBloc: (_) =>
+            buildResultsBloc(source: null, recorder: RecordingRecorder()),
+      );
+      addTearDown(tab.dispose);
+      await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        editTab: tab,
+      );
+      final field = queryField(tester);
+      expect(identical(field.controller, tab.queryController), isFalse);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(
+        field.controller.selection,
+        TextSelection(baseOffset: 0, extentOffset: previousQuery.length),
+      );
+      tester.testTextInput.updateEditingValue(
+        field.controller.value.replaced(field.controller.selection, 'חסד'),
+      );
+      await tester.pump();
+      expect(field.controller.text, 'חסד');
+      expect(tab.queryController.text, previousQuery);
+      expect(tab.options.query, previousQuery);
+    });
+
+    testWidgets('עריכה ומיקום סמן נשמרים כשהזמינות מתעדכנת ובבנייה מחדש', (
+      tester,
+    ) async {
+      Settings.setValue<String>('key-last-search-typing', 'צדקה לעני');
+      SearchDefaults.rememberSessionSemantic(true);
+      final harness = await pumpDialog(
+        tester,
+        SemanticAvailability.initial,
+        initialMode: null,
+      );
+      expect(find.byType(EnhancedSearchField), findsOneWidget);
+      const edited = TextEditingValue(
+        text: 'חסד וצדקה',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+      tester.testTextInput.updateEditingValue(edited);
+      await tester.pump();
+
+      harness.repository.emit(_availability(SemanticAvailabilityPhase.ready));
+      await tester.pumpAndSettle();
+      expect(queryField(tester).controller.value, edited);
+      tester
+          .widget<FilterChip>(
+            find.byKey(const ValueKey('semantic-include-lexical')),
+          )
+          .onSelected!(false);
+      await tester.pumpAndSettle();
+      expect(queryField(tester).controller.value, edited);
+    });
+
+    testWidgets('שאילתה ריקה מקבלת סמן תקין והקלדה מיד בפתיחה', (tester) async {
+      SearchDefaults.rememberSessionSemantic(true);
+      await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        initialMode: null,
+      );
+      final field = queryField(tester);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(field.controller.text, isEmpty);
+      expect(
+        field.controller.selection,
+        const TextSelection.collapsed(offset: 0),
+      );
+      tester.testTextInput.updateEditingValue(
+        field.controller.value.replaced(field.controller.selection, 'חסד'),
+      );
+      await tester.pump();
+      expect(field.controller.text, 'חסד');
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('עריכת חיפוש חכם מעדכנת את אותה כרטיסייה', (tester) async {
