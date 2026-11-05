@@ -151,8 +151,7 @@ class _NoteTileState extends State<NoteTile> {
       );
     }
 
-    final bgColor =
-        widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
+    final bgColor = widget.backgroundColor;
 
     return Column(
       children: [

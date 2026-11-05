@@ -1183,14 +1183,6 @@ void main() {
       AppPaths.debugOverrideDataRootPath(null);
     });
 
-    Future<void> shadowMainBookTable() async {
-      final mainDb =
-          await SqliteDataProvider.instance.repository!.database.database;
-      mainDb.execute('PRAGMA query_only=OFF');
-      mainDb.execute('CREATE TEMP TABLE book AS SELECT * FROM main.book');
-      mainDb.execute('DELETE FROM temp.book');
-    }
-
     Link link(String title, int index2, {int? index2End}) => Link(
       heRef: title,
       index1: 1,
@@ -1200,6 +1192,14 @@ void main() {
       connectionType: 'commentary',
       targetCategoryId: 7,
     );
+
+    Future<void> shadowMainBookTable() async {
+      final mainDb =
+          await SqliteDataProvider.instance.repository!.database.database;
+      mainDb.execute('PRAGMA query_only=OFF');
+      mainDb.execute('CREATE TEMP TABLE book AS SELECT * FROM main.book');
+      mainDb.execute('DELETE FROM temp.book');
+    }
 
     test('שורות קישור שומרות br פנימי בשאילתת טווח', () async {
       final db = sqlite3.sqlite3.open(dbPath);

@@ -7,13 +7,13 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
-import 'package:otzaria/data/data_providers/read_worker_book_dao.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/book_read.dart';
 import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/migration/models/model_adapters.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -131,11 +131,18 @@ class SqliteDataProvider {
     if (!keepWalJournal) await normalizeJournalModeForReadOnly(_dbPath);
 
     try {
-      final database = MyDatabase.withPath(
+      late final MyDatabase database;
+      database = MyDatabase.withPath(
         _dbPath,
         readOnly: true,
         official: true,
-        bookDaoFactory: ReadWorkerBookDao.new,
+        bookReadDelegate: (operation, arguments, {required includeRelations}) =>
+            _readBooks(
+              database,
+              operation,
+              arguments,
+              includeRelations: includeRelations,
+            ),
       );
       // מסד בסכמה חדשה משגרסה זו קוראת נחסם כולו, ולא נכשל ספר אחר ספר.
       final schema = await database.readDbSchemaVersion();
@@ -177,6 +184,29 @@ class SqliteDataProvider {
 
   @visibleForTesting
   bool get debugIsInitializing => _initializationFuture != null;
+
+  Future<Object?> _readBooks(
+    MyDatabase database,
+    BookReadOperation operation,
+    List<Object?> arguments, {
+    required bool includeRelations,
+  }) async {
+    void requireActiveDatabase() {
+      if (!identical(repository?.database, database)) {
+        throw const DbReadWorkerSuspended();
+      }
+    }
+
+    requireActiveDatabase();
+    final result = await DbReadWorker.readBooks(
+      database.path,
+      operation,
+      arguments,
+      includeRelations: includeRelations,
+    );
+    requireActiveDatabase();
+    return result;
+  }
 
   /// Checks if the database is initialized and ready
   bool get isInitialized => _isInitialized;

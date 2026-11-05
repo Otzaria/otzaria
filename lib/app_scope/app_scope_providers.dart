@@ -24,7 +24,7 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_pro
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 /// ספקים ברמת התהליך, שאינם קוראים ספק של [WindowScopeProviders]. מעט מצב חלון
-/// שנשאר בהם (_dismissed, promptsInThisWindow) יפוצל בהמשך.
+/// שנשאר בהם (`_dismissed` של [PluginUpdatesCubit]) יפוצל בהמשך.
 class AppScopeProviders extends StatelessWidget {
   const AppScopeProviders({
     super.key,
