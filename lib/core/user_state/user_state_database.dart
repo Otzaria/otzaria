@@ -160,10 +160,10 @@ class UserStateDatabase {
     return body(await _connection());
   }
 
-  /// מריץ את [write] על חיבור משני ב-isolate. כתיבה — רק מתוך [runInWriteQueue];
-  /// קריאה בלבד מותרת גם מחוצה לו. [write] נשלח ל-isolate, ולכן נוצר בפונקציה סטטית.
-  Future<R> runOnWriteConnection<R>(FutureOr<R> Function(Database db) write) =>
-      _onWriteConnection(_path!, write, inline: debugWriteInline);
+  /// מריץ את [body] על חיבור משני ב-isolate. כתיבה — רק מתוך [runInWriteQueue];
+  /// קריאה בלבד מותרת גם מחוצה לו. [body] נשלח ל-isolate, ולכן נוצר בפונקציה סטטית.
+  Future<R> runOnWriteConnection<R>(FutureOr<R> Function(Database db) body) =>
+      _onWriteConnection(_path!, body, inline: debugWriteInline);
 
   Future<void> _runWriteBatch(
     Future<void>? previous,

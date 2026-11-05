@@ -99,6 +99,6 @@ void main() {
 
 // top-level: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
 Future<R> _decodeLikeStore<R>(String? payload, R Function(String?) decode) =>
-    (payload?.length ?? 0) < UserStateListStore.inlineDecodeMaxLength
+    utf8.encode(payload ?? '').length < UserStateListStore.inlineDecodeMaxBytes
     ? Future.sync(() => decode(payload))
     : Isolate.run(() => decode(payload));

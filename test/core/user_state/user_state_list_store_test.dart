@@ -169,7 +169,8 @@ void main() {
         'history',
         _payloadAndIsolate,
       );
-      expect(readIn.$2, isNot(here));
+      // decode נקרא באותו closure שמריץ את ה-SELECT על החיבור המשני.
+      expect(readIn.$2, 'UserStateWrite');
       expect(readIn.$1, large);
       expect(await store.read('history', 'history'), large);
 

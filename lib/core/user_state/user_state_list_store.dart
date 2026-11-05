@@ -28,9 +28,8 @@ class UserStateListStore {
   /// כל כתיבה משודרת עם ה-[origin] שלה, כדי שהכותב יוכל לסנן את עצמו.
   Stream<UserStateListChange> get changes => _changes.stream;
 
-  /// מעל האורך הזה (בתווים) הרשימה נקראת ומפוענחת ב-isolate. בבדיקת widget
-  /// טעינה כזו מסתיימת רק בתוך tester.runAsync.
-  static const int inlineDecodeMaxLength = 64 * 1024;
+  /// מעל הגודל הזה (בבתים של UTF-8) הרשימה נקראת ומפוענחת ב-isolate.
+  static const int inlineDecodeMaxBytes = 64 * 1024;
 
   Future<List<dynamic>> read(String box, String key) =>
       readDecoded(box, key, decodePayload);
@@ -43,8 +42,8 @@ class UserStateListStore {
     R Function(String? payload) decode,
   ) async {
     final db = await _database.database;
-    final length = _payloadLengthIn(db, box, key);
-    if (length == null || length < inlineDecodeMaxLength) {
+    final bytes = _payloadBytesIn(db, box, key);
+    if (bytes == null || bytes < inlineDecodeMaxBytes) {
       return decode(_payloadIn(db, box, key));
     }
     return _database.runOnWriteConnection(_reader(box, key, decode));
@@ -129,9 +128,11 @@ class UserStateListStore {
     _notifyPeers(box, key, origin);
   }
 
-  static int? _payloadLengthIn(Database db, String box, String key) {
+  // octet_length אינו טוען את התוכן; length על TEXT סופר תווים וטוען את כולו.
+  static int? _payloadBytesIn(Database db, String box, String key) {
     final rows = db.select(
-      'SELECT length(payload_json) AS n FROM lists WHERE box = ? AND key = ?',
+      'SELECT octet_length(payload_json) AS n FROM lists '
+      'WHERE box = ? AND key = ?',
       [box, key],
     );
     return rows.isEmpty ? null : rows.first['n'] as int;
