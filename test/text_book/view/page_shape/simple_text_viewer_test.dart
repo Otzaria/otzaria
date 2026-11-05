@@ -33,12 +33,14 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart'
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/commentary_anchor_links.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -836,6 +838,85 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  testWidgets('עמודת מפרש: ציטוט לינקר מקישורי הטווח של המפרש צבוע, מרחף '
+      'ונפתח בלחיצה (issue #2530)', (tester) async {
+    // קישורי הטווח של ספר המפרש כפי שהמסד מחזירם — מסוננים וממוזגים כמו בטור.
+    final rangeLinks = [
+      Link(
+        heRef: 'בראשית, א, א',
+        index1: 1,
+        path2: 'בראשית',
+        index2: 1,
+        connectionType: 'LINKER',
+        anchorStart: 0,
+        anchorEnd: 4,
+      ),
+      Link(
+        heRef: 'שולחן ערוך, א',
+        index1: 1,
+        path2: 'שולחן ערוך',
+        index2: 1,
+        connectionType: 'REFERENCE',
+        anchorStart: 5,
+      ),
+    ];
+    final opened = <OpenedTab>[];
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['שורת מפרש'],
+              fontSize: 18,
+              openBookCallback: opened.add,
+              isMainText: false,
+              bookTitle: 'מפרש בדיקה',
+              anchorLinksByLine: mergeAnchorLinksByLine(
+                const {},
+                filterCommentaryAnchorLinks(rangeLinks),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    const url = 'otzaria://anchor?ref=0_0&range=1';
+    final smartText = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null);
+    expect(smartText.text, contains('class="link-anchor-range" href="$url"'));
+
+    smartText.onAnchorHover!(url, const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+
+    smartText.onAnchorTap!(url);
+    await tester.pumpAndSettle();
+    expect(opened.map((tab) => (tab as TextBookTab).book.title), ['בראשית']);
   });
 
   // הסמן בתוך התצוגה המקדימה כשעמודת המפרש יוצאת מהעץ (החלפת מפרש).
