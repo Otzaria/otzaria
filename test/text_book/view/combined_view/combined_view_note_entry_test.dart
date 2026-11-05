@@ -22,6 +22,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -95,6 +96,11 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // The cached index Future must outlive each widget test's FakeAsync zone.
+    // Build the real index here so later report entries can await it as well.
+    final files = FileSystemLibraryProvider.instance;
+    await files.initialize();
+    await files.keyToPath;
   });
 
   testWidgets('continuous note after headings and wrapped pointed text', (

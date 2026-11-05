@@ -86,6 +86,24 @@ class _MemoryCacheProvider extends CacheProvider {
       _values[key] = value;
 }
 
+// Panel reads can enqueue real database writes even in an otherwise read-only
+// test. Drain them in the same FakeAsync zone that created them, before the
+// following test changes the database path. addTearDown runs too late for this.
+void _reportWidgets(
+  String description,
+  WidgetTesterCallback body, {
+  Timeout? timeout,
+}) {
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await reportIo(tester, UserStateDatabase.instance.flushWrites);
+    }
+  }, timeout: timeout ?? const Timeout(Duration(minutes: 1)));
+}
+
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: _MemoryCacheProvider());
@@ -199,7 +217,7 @@ void main() {
     await settleReports(tester);
   }
 
-  testWidgets('opens on the requested tab, with one panel per tab', (
+  _reportWidgets('opens on the requested tab, with one panel per tab', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -216,7 +234,7 @@ void main() {
     expect(find.byType(ErrorReportsPanel), findsOneWidget);
   });
 
-  testWidgets(
+  _reportWidgets(
     'free book editing keeps English scope and scrolls in a low window',
     (
       tester,
@@ -284,7 +302,7 @@ void main() {
       'clear',
       if (tab != ReportsTab.plugins) 'mark',
     ]) {
-      testWidgets(
+      _reportWidgets(
         '$action ${tab.name} updates the tab badge without switching tabs',
         (tester) async {
           await addReport(tester, tab);
@@ -320,7 +338,7 @@ void main() {
     }
   }
 
-  testWidgets('returning from the app report form refreshes its tab badge', (
+  _reportWidgets('returning from the app report form refreshes its tab badge', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -345,20 +363,23 @@ void main() {
     expect(find.text('יש כרגע 1 דיווחים שמורים בתור'), findsOneWidget);
   });
 
-  testWidgets('cancelling the app report form leaves the tab counters alone', (
-    tester,
-  ) async {
-    await pumpDialog(tester, ReportsTab.app);
-    final tabBar = tester.widget<TabBar>(find.byType(TabBar));
-    await tester.tap(find.byKey(const ValueKey('app-reports-open-dialog')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    Navigator.of(tester.element(find.byType(AppReportDialog))).pop();
-    await settleReports(tester);
-    expect(tester.widget<TabBar>(find.byType(TabBar)), same(tabBar));
-  });
+  _reportWidgets(
+    'cancelling the app report form leaves the tab counters alone',
+    (
+      tester,
+    ) async {
+      await pumpDialog(tester, ReportsTab.app);
+      final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+      await tester.tap(find.byKey(const ValueKey('app-reports-open-dialog')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      Navigator.of(tester.element(find.byType(AppReportDialog))).pop();
+      await settleReports(tester);
+      expect(tester.widget<TabBar>(find.byType(TabBar)), same(tabBar));
+    },
+  );
 
-  testWidgets('closing the reports while the app form is open is safe', (
+  _reportWidgets('closing the reports while the app form is open is safe', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -370,7 +391,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sent book search opens books despite a pending app report', (
+  _reportWidgets('sent book search opens books despite a pending app report', (
     tester,
   ) async {
     await addReport(tester, ReportsTab.books, sent: true);
@@ -412,7 +433,7 @@ void main() {
   });
 
   for (final tab in ReportsTab.values) {
-    testWidgets('${tab.name}: a report carried by Otzaria Updates says so', (
+    _reportWidgets('${tab.name}: a report carried by Otzaria Updates says so', (
       tester,
     ) async {
       await addReport(
@@ -446,7 +467,7 @@ void main() {
       expect(find.text('פרטי דיווח שנשלח'), findsNothing);
     });
 
-    testWidgets('${tab.name}: a report Otzaria sent has no carried status', (
+    _reportWidgets('${tab.name}: a report Otzaria sent has no carried status', (
       tester,
     ) async {
       await addReport(tester, tab, sent: true);

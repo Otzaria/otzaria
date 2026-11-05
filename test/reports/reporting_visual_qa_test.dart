@@ -55,7 +55,18 @@ class _Collector extends AppReportCollector {
 }
 
 void visualTest(String description, WidgetTesterCallback body) {
-  testWidgets(description, body, timeout: const Timeout(Duration(minutes: 1)));
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await reportIo(tester, UserStateDatabase.instance.flushWrites);
+      // Saving the sender email writes Hive from a form callback. Hive retains
+      // that write's Future, so close it while its FakeAsync zone still pumps.
+      // An outer tearDown cannot run late listeners in an already-finished zone.
+      await reportIo(tester, Hive.close);
+    }
+  }, timeout: const Timeout(Duration(minutes: 1)));
 }
 
 void main() {
@@ -691,6 +702,10 @@ void main() {
         findsOneWidget,
       );
       expect(requests, 1);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyErrorReportSenderEmail),
+        'qa@example.com',
+      );
       await clearSnack(tester);
       await click(tester, 'app-report-save-draft');
       expect(find.byType(AppReportDialog), findsNothing);
@@ -856,6 +871,17 @@ void main() {
       await tester.tap(edit);
       await nativeWork(tester);
       expect(find.byType(AppDialog), findsOneWidget);
+      final viewport = tester.getRect(
+        find.byKey(const ValueKey('book-report-edit-scroll')),
+      );
+      final selectedLabel = tester.getRect(find.text('The Selected Text'));
+      expect(
+        selectedLabel.top,
+        greaterThanOrEqualTo(viewport.top),
+        reason:
+            'The floating label must not be clipped by the scroll viewport.',
+      );
+      expect(selectedLabel.bottom, lessThanOrEqualTo(viewport.bottom));
       await capture(tester, 'book-queue-edit-low-en-top');
       for (final label in [
         'The Selected Text',

@@ -160,6 +160,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       final quote = find.byKey(const ValueKey('report-location-quote'));
+      final quoteBounds = tester.getRect(quote);
+      final clear = find.widgetWithText(TextButton, 'Clear selection');
+      expect(tester.widget<TextButton>(clear).onPressed, isNull);
       expect(
         find.ancestor(of: quote, matching: find.byType(AppSelectionArea)),
         findsOneWidget,
@@ -192,9 +195,23 @@ void main() {
       await gesture.moveTo(reverse ? forwardStart : forwardEnd);
       await tester.pump();
       await gesture.up();
-      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
       expect(changes.last['selectionStart'], start);
       expect(changes.last['selectionEnd'], end);
+      expect(tester.getRect(quote), quoteBounds);
+      expect(
+        paragraph
+            .getBoxesForSelection(
+              TextSelection(baseOffset: start, extentOffset: end),
+            )
+            .single
+            .toRect(),
+        box.toRect(),
+        reason:
+            'Marking the location must not move or resize the selected text.',
+      );
+      expect(tester.widget<TextButton>(clear).onPressed, isNotNull);
 
       final copyGesture = await tester.startGesture(
         Offset.lerp(left, right, 0.5)!,
@@ -209,6 +226,7 @@ void main() {
       await tester.tap(find.text('Copy'));
       await tester.pump();
       expect(copied, word);
+      expect(tester.takeException(), isNull);
 
       final details = find.descendant(
         of: find.byKey(const ValueKey('report-details-field')),
@@ -228,11 +246,59 @@ void main() {
       expect(submitted.selectionContext, contains('$start–$end'));
       expect(submitted.selectionContext, contains(source));
 
-      await tester.tap(find.text('Clear selection'));
+      final nextStart = source.indexOf(word);
+      final nextEnd = nextStart + word.length;
+      final nextBox = paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: nextStart, extentOffset: nextEnd),
+          )
+          .single;
+      final nextLeft = paragraph.localToGlobal(
+        Offset(nextBox.left + 1, (nextBox.top + nextBox.bottom) / 2),
+      );
+      final nextRight = paragraph.localToGlobal(
+        Offset(nextBox.right - 1, (nextBox.top + nextBox.bottom) / 2),
+      );
+      final nextGesture = await tester.startGesture(
+        direction == TextDirection.rtl ? nextRight : nextLeft,
+        kind: PointerDeviceKind.mouse,
+      );
+      await nextGesture.moveTo(
+        direction == TextDirection.rtl ? nextLeft : nextRight,
+      );
+      await nextGesture.up();
+      // Submit before a rebuild: the action must collect the latest location,
+      // rather than the report data captured by the previous build.
+      if (direction == TextDirection.ltr) {
+        await tester.tap(find.text('Save for later sending'));
+      } else {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        expect(find.text('Confirm report'), findsOneWidget);
+        await tester.tap(find.text('Send report'));
+      }
       await tester.pumpAndSettle();
+      expect(submissions, hasLength(2));
+      expect(submissions.last.selectedText, word);
+      expect(submissions.last.selection!.start, nextStart);
+      expect(submissions.last.selection!.end, nextEnd);
+      expect(
+        submissions.last.selectionContext,
+        contains('$nextStart–$nextEnd'),
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
       expect(changes.last['selectionStart'], isNull);
       expect(changes.last['selectionEnd'], isNull);
+      expect(tester.widget<TextButton>(clear).onPressed, isNull);
+      expect(tester.getRect(quote), quoteBounds);
       expect(paragraph.text.toPlainText(), source);
+      expect(tester.takeException(), isNull);
     }, timeout: const Timeout(Duration(minutes: 1)));
   }
 }

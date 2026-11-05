@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
@@ -1820,6 +1821,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   TextCorrectionDraft? _draft;
   BookReportSelection? _selection;
   bool _validating = false;
+  bool _quoteSelectionReadScheduled = false;
 
   String get _selectionSource => widget.selectionSource ?? widget.selectedText;
   late final TextDirection _quoteDirection = reportContentDirection(
@@ -1915,11 +1917,22 @@ class _RegularReportTabState extends State<RegularReportTab> {
   };
 
   void _handleQuoteSelectionChanged() {
-    if (!mounted ||
-        rtlSelectionPriming ||
-        !_quoteSelectionNotifier.registered) {
-      return;
-    }
+    if (!mounted || rtlSelectionPriming || _quoteSelectionReadScheduled) return;
+    _quoteSelectionReadScheduled = true;
+    // Selection fragments notify before both edges finish updating. Read after
+    // that synchronous change, before the next input can clear the selection.
+    scheduleMicrotask(() {
+      _quoteSelectionReadScheduled = false;
+      if (!mounted ||
+          rtlSelectionPriming ||
+          !_quoteSelectionNotifier.registered) {
+        return;
+      }
+      _readQuoteSelection();
+    });
+  }
+
+  void _readQuoteSelection() {
     final selected = _quoteSelectionNotifier.selection.range;
     if (selected == null) return;
     final range = BookReportSelection(
@@ -2118,11 +2131,12 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         'סמנו בציטוט את המילים שבהן נמצאת הטעות. המיקום וההקשר יצורפו לדיווח.',
                       ),
                     ),
-                    if (_selection != null)
-                      TextButton(
-                        onPressed: _clearQuoteSelection,
-                        child: Text(context.settingsText('נקה סימון')),
-                      ),
+                    TextButton(
+                      onPressed: _selection == null
+                          ? null
+                          : _clearQuoteSelection,
+                      child: Text(context.settingsText('נקה סימון')),
+                    ),
                     Container(
                       constraints: const BoxConstraints(
                         maxHeight: 150,
@@ -2169,7 +2183,6 @@ class _RegularReportTabState extends State<RegularReportTab> {
                                         backgroundColor: Theme.of(
                                           context,
                                         ).colorScheme.primaryContainer,
-                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     TextSpan(
@@ -2280,7 +2293,6 @@ class _RegularReportTabState extends State<RegularReportTab> {
   }
 
   Widget _buildActionButtons() {
-    final reportData = _reportData;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2324,7 +2336,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                 onPressed: _canSubmit
                     ? () => _submitValidated(
                         ErrorReportAction.saveForLater,
-                        reportData,
+                        _reportData,
                       )
                     : null,
               ),
@@ -2335,7 +2347,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                 onPressed: _canSubmit
                     ? () => _submitValidated(
                         ErrorReportAction.sendEmail,
-                        reportData,
+                        _reportData,
                       )
                     : null,
               ),

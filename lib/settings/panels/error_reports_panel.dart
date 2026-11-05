@@ -8,6 +8,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
@@ -559,6 +560,8 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
     }
     return SingleChildScrollView(
       key: const ValueKey('book-report-edit-scroll'),
+      // Floating labels extend above an outlined field's border.
+      padding: const EdgeInsets.only(top: AppTokens.spaceSM),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
