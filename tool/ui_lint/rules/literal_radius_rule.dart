@@ -6,7 +6,8 @@ import '../ui_lint.dart';
 
 /// UIL-019: רדיוס רק מהטוקן היחיד (DD-04).
 ///
-/// - `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי;
+/// - `BorderRadius.circular(n)`/`BorderRadiusDirectional.circular(n)`/
+///   `Radius.circular(n)` ליטרלי;
 /// - `StadiumBorder(...)`: הגלולה מאושרת רק ל־BarSplitButton (q8 שאלה 7),
 ///   והחריג נרשם ב־config;
 /// - `CircleBorder(...)`: מותר רק לכפתור אייקון בלבד (DD-04, q9 שאלה 3) —
@@ -15,7 +16,7 @@ import '../ui_lint.dart';
 class LiteralRadiusRule extends UiLintRule {
   const LiteralRadiusRule();
 
-  static const _types = {'BorderRadius', 'Radius'};
+  static const _types = {'BorderRadius', 'BorderRadiusDirectional', 'Radius'};
   static const _iconButtons = {'IconButton', 'AppIconButton'};
 
   @override

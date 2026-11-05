@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 BorderRadius computed(double radius) => BorderRadius.circular(radius);
+BorderRadiusDirectional computedStart(double radius) =>
+    BorderRadiusDirectional.circular(radius);
 
 pw.BorderRadius paper() => pw.BorderRadius.circular(4);
 
