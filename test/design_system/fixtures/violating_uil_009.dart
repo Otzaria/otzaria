@@ -11,3 +11,8 @@ void withAction(String message, VoidCallback undo) => UiSnack.showWithAction(
   actionLabel: 'בטל', // LINT
   onAction: undo,
 );
+void either(bool ok) => UiSnack.show(
+  ok
+      ? 'נשמר' // LINT
+      : 'נכשל', // LINT
+);
