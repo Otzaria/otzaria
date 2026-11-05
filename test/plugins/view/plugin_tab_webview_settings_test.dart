@@ -24,9 +24,9 @@ void main() {
       expect(settings.cacheEnabled, isTrue);
     });
 
-    test('התאוששות Android אינה מופעלת ללא destroy בטוח של renderer מת', () {
+    test('התאוששות Android מופעלת עם teardown בטוח בפורק', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
-      expect(settings.useOnRenderProcessGone, isFalse);
+      expect(settings.useOnRenderProcessGone, isTrue);
     });
 
     test('מצב פיתוח — ללא קאש ועם inspect', () {

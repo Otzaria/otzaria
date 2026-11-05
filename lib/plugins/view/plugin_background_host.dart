@@ -22,6 +22,7 @@ import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
+import 'package:otzaria/plugins/view/plugin_load_generation.dart';
 import 'package:otzaria/plugins/view/plugin_webrtc_block_script.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
@@ -141,7 +142,8 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
                       '_${plugin.installPath}'
                       '_${plugin.entrypointPath}'
                       '_${plugin.backgroundEntrypointPath}'
-                      '_${plugin.devRootPath ?? ""}',
+                      '_${plugin.devRootPath ?? ""}'
+                      '_${_onDemandGenerations[plugin.pluginId]}',
                     ),
                     width: 1,
                     height: 1,
@@ -313,6 +315,7 @@ class _BackgroundPluginRunner extends StatefulWidget {
 class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
     with PluginWebViewHost {
   late String _localHtmlPath;
+  final _loadGeneration = PluginLoadGeneration();
 
   /// תוצאה חיובית נשמרת עד החלפת ה-State; קובץ חסר נבדק שוב ברענון.
   bool? _entryExists;
@@ -460,8 +463,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
         statusBarEnabled: false,
         cacheEnabled: !widget.plugin.isDevelopment,
         isInspectable: kDebugMode,
-        // Android dispose ממתין ל-about:blank; אחרי מות renderer אין הבטחת destroy.
-        useOnRenderProcessGone: false,
+        // הפורק מנתק והורס renderer מת ומשלים את בקשות ה-JavaScript הממתינות.
+        useOnRenderProcessGone: true,
         resourceCustomSchemes: _usesAssetScheme
             ? const [pluginAssetScheme]
             : const [],
@@ -515,7 +518,26 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
         );
         return interceptPluginRequest(request, headless: _isHeadless);
       },
+      onLoadStart: (controller, url) {
+        if (mounted && isCurrentWebView(controller)) {
+          _loadGeneration.invalidate();
+        }
+      },
       onLoadStop: (controller, url) async {
+        if (!mounted || !isCurrentWebView(controller)) return;
+        final lazy = PluginLazyActivationService.instance;
+        final activationGeneration = widget.activationGeneration;
+        final generation = _loadGeneration.begin();
+        bool stale() =>
+            !mounted ||
+            !isCurrentWebView(controller) ||
+            !_loadGeneration.isCurrent(generation) ||
+            (activationGeneration != null &&
+                !lazy.isActivationCurrent(
+                  widget.plugin.pluginId,
+                  activationGeneration,
+                ));
+        if (stale()) return;
         PluginRuntimeDispatcher.instance.resetEventOptions(
           widget.plugin.pluginId,
           instanceId: PluginInstanceIds.background,
@@ -525,8 +547,10 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
           final packageInfo =
               PluginWebViewHost.cachedPackageInfo ??
               await PackageInfo.fromPlatform();
+          if (stale()) return;
           final permissions = await pluginRegistryRepository
               .getGrantedPermissionNames(widget.plugin.pluginId);
+          if (stale()) return;
           final booted = await controller.evaluateJavascript(
             source: pluginBootScript(
               runMode: 'background',
@@ -535,15 +559,22 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
               theme: theme,
             ),
           );
-          await adapter.applyBootEventOptions(booted);
+          if (stale()) return;
+          await adapter.applyBootEventOptions(
+            booted,
+            isCurrent: () => !stale(),
+          );
+          if (stale()) return;
           // המופע מוכן — מוסר אירועים שהמתינו להפעלה עצלה (contributes.startup).
           unawaited(
-            PluginLazyActivationService.instance.onBackgroundInstanceReady(
+            lazy.onBackgroundInstanceReady(
               widget.plugin.pluginId,
-              generation: widget.activationGeneration,
+              generation: activationGeneration,
+              isCurrent: () => !stale(),
             ),
           );
         } catch (e, st) {
+          if (stale()) return;
           debugPrint(
             'Background plugin [${widget.plugin.pluginId}] boot error: $e\n$st',
           );

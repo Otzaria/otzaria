@@ -1559,12 +1559,20 @@ class PluginRuntimeDispatcher {
     PluginInstanceId? instanceId,
     int? viewId,
     AppWindowKeys? windowKeys,
+    bool Function()? isCurrent,
   }) async {
     await PluginSafeMode.ready;
+    if (isCurrent != null && !isCurrent()) return;
     if (PluginSafeMode.isActive) return;
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
     if (instanceId != null) {
-      await _dispatchEventToInstance(pluginId, instanceId, topic, payload);
+      await _dispatchEventToInstance(
+        pluginId,
+        instanceId,
+        topic,
+        payload,
+        isCurrent: isCurrent,
+      );
       return;
     }
     // מופע רקע שנרשם אך טרם סיים boot: eval היה נבלע — האירוע ממתין בתור.
@@ -1617,6 +1625,7 @@ class PluginRuntimeDispatcher {
     try {
       final isEnabled =
           _enabledCache[pluginId] ?? await _repository.getIsEnabled(pluginId);
+      if (isCurrent != null && !isCurrent()) return;
       _enabledCache[pluginId] = isEnabled;
       if (!isEnabled) return;
       final background = _backgroundControllerOf(pluginId);
@@ -1668,8 +1677,9 @@ class PluginRuntimeDispatcher {
     String pluginId,
     PluginInstanceId instanceId,
     String topic,
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    bool Function()? isCurrent,
+  }) async {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances[key];
     final controller = instance?.controller;
@@ -1691,6 +1701,7 @@ class PluginRuntimeDispatcher {
     try {
       final isEnabled =
           _enabledCache[pluginId] ?? await _repository.getIsEnabled(pluginId);
+      if (isCurrent != null && !isCurrent()) return;
       _enabledCache[pluginId] = isEnabled;
       if (!isEnabled) return;
       if (instance.suspended && queueKey == null) {
