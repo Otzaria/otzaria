@@ -25,7 +25,9 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -40,6 +42,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -207,6 +210,77 @@ void main() {
       });
     }
   });
+
+  testWidgets(
+    'מעבר לעיון וחזרה אינו מזיז את פס הגלילה של הספרייה (issue #4173)',
+    (
+      tester,
+    ) async {
+      final folder = Category(
+        title: 'תיקייה',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: [for (var i = 0; i < 300; i++) TextBook(title: 'ספר $i')],
+        parent: null,
+      );
+      final library = Library(categories: [folder]);
+      folder.parent = library;
+      final harness = await _pumpMainWindow(
+        tester,
+        Future.value(library),
+        isLoading: false,
+        size: const Size(1400, 900),
+        tabsPlacement: SettingsRepository.readingTabsPlacementSide,
+        openTabs: [_StubTab('ספר א')],
+        initialScreen: Screen.library,
+      );
+      harness.libraryChanges.add(
+        LibraryState(library: library, currentCategory: folder),
+      );
+      await tester.pumpAndSettle();
+      final grid = find
+          .descendant(
+            of: find.byType(MyGridView, skipOffstage: false),
+            matching: find.byType(Scrollable, skipOffstage: false),
+          )
+          .first;
+      double thumb() =>
+          (tester
+                      .widget<CustomPaint>(
+                        find
+                            .descendant(
+                              of: grid,
+                              matching: find.byWidgetPredicate(
+                                (w) =>
+                                    w is CustomPaint &&
+                                    w.foregroundPainter is ScrollbarPainter,
+                                skipOffstage: false,
+                              ),
+                            )
+                            .first,
+                      )
+                      .foregroundPainter!
+                  as ScrollbarPainter)
+              .getThumbScrollOffset();
+      final position = tester.state<ScrollableState>(grid).position;
+      position.jumpTo(position.maxScrollExtent / 2);
+      await tester.pumpAndSettle();
+      final before = thumb();
+
+      // הספרייה נראית בכל פריים של ההחלקה, ביציאה ובחזרה.
+      for (final screen in [Screen.reading, Screen.library]) {
+        harness.navigationChanges.add(NavigationState(currentScreen: screen));
+        for (var frame = 0; frame < 10; frame++) {
+          await tester.pump(const Duration(milliseconds: 40));
+          expect(thumb(), before, reason: '${screen.name}, פריים $frame');
+        }
+        await tester.pumpAndSettle();
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 }
 
 class _StubTab extends OpenedTab {
@@ -220,9 +294,15 @@ class _StubTab extends OpenedTab {
 }
 
 class _Harness {
-  _Harness(this.libraryChanges, this.initialState, this.indexing);
+  _Harness(
+    this.libraryChanges,
+    this.initialState,
+    this.indexing,
+    this.navigationChanges,
+  );
 
   final StreamController<LibraryState> libraryChanges;
+  final StreamController<NavigationState> navigationChanges;
   final LibraryState initialState;
   final _IndexingBloc indexing;
 }
@@ -235,6 +315,7 @@ Future<_Harness> _pumpMainWindow(
   Size size = const Size(1200, 900),
   String tabsPlacement = SettingsRepository.readingTabsPlacementTop,
   List<OpenedTab> openTabs = const [],
+  Screen initialScreen = Screen.reading,
 }) async {
   await Settings.init(cacheProvider: MemoryCacheProvider());
   // כמו חלון שאינו בעל התהליך: בלי ניקוז הפעלות חיצוניות.
@@ -249,10 +330,11 @@ Future<_Harness> _pumpMainWindow(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   final navigation = _NavigationBloc();
+  final navigationChanges = StreamController<NavigationState>.broadcast();
   whenListen(
     navigation,
-    const Stream<NavigationState>.empty(),
-    initialState: const NavigationState(currentScreen: Screen.reading),
+    navigationChanges.stream,
+    initialState: NavigationState(currentScreen: initialScreen),
   );
   final focus = FocusRepository();
   final workStatus = WorkStatusCubit();
@@ -313,6 +395,7 @@ Future<_Harness> _pumpMainWindow(
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await libraryChanges.close();
+    await navigationChanges.close();
     for (final bloc in [
       navigation,
       settings,
@@ -356,6 +439,9 @@ Future<_Harness> _pumpMainWindow(
             BlocProvider<WorkspaceBloc>.value(value: workspace),
             BlocProvider<PluginSystemBloc>.value(value: pluginSystem),
             BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdate),
+            BlocProvider<CustomFoldersBloc>(
+              create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
+            ),
           ],
           child: RepositoryProvider<SettingsRepository>(
             create: (_) => SettingsRepository(),
@@ -366,7 +452,7 @@ Future<_Harness> _pumpMainWindow(
     ),
   );
   await tester.pump();
-  return _Harness(libraryChanges, initialState, indexing);
+  return _Harness(libraryChanges, initialState, indexing, navigationChanges);
 }
 
 class _NavigationBloc extends MockBloc<NavigationEvent, NavigationState>
