@@ -36,6 +36,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/repository/user_alt_toc_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
+import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
 import 'package:otzaria/user_content_import/services/user_sidecar_sync.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
@@ -395,6 +396,7 @@ Future<ScanResult> _writeDiscoveredBooks(_ExternalWriteBatch args) async {
 typedef _SidecarSyncArgs = ({
   String userDbPath,
   String? officialDbPath,
+  String? officialError,
   String folderPath,
   Map<String, Map<String, String>> queries,
 });
@@ -416,6 +418,9 @@ Future<List<String>> _applySidecars(_SidecarSyncArgs args) async {
       officialRepository: officialDb == null
           ? null
           : SeforimRepository(officialDb),
+      officialError: args.officialError == null
+          ? null
+          : Exception(args.officialError),
     );
   } finally {
     userDb.close();
@@ -5460,11 +5465,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       failedDetails.addAll(written.failedDetails);
       updatedBookIds.addAll(written.updatedBookIds);
 
-      // הקבצים הנלווים מזוהים לפי נתיב הספר, ולכן נקלטים רק אחריו. ב-isolate:
-      // אלפי קובצי קישורים ב-SQL סינכרוני היו תוקעים את ה-UI.
+      String? officialDbPath;
+      String? officialError;
+      try {
+        officialDbPath = (await officialUserLinkRepository())?.database.path;
+      } on Exception catch (e) {
+        officialError = '$e';
+      }
+      // הקבצים הנלווים מזוהים לפי נתיב הספר, ולכן נקלטים רק אחריו.
+      // ב-isolate: אלפי קובצי קישורים ב-SQL סינכרוני תוקעים את ה-UI.
       for (final error in await compute(_applySidecars, (
         userDbPath: repository.database.path,
-        officialDbPath: _sqliteProvider.repository?.database.path,
+        officialDbPath: officialDbPath,
+        officialError: officialError,
         folderPath: folderPath,
         queries: QueryLoader.cacheSnapshot,
       ))) {
