@@ -16,7 +16,7 @@ roots = {
 source = roots["zstandard_native"] / "src" / "zstd"
 assert (source / "common").is_dir(), source
 build = Path("build/test_zstd").resolve()
-environment = dict(os.environ, ZSTD_ROOT=str(source))
+environment = dict(os.environ, ZSTD_ROOT=source.as_posix())
 subprocess.run(
     ["cmake", "-S", str(roots["zstandard_windows"] / "zstd_build"),
      "-B", str(build), "-A", "x64"],
