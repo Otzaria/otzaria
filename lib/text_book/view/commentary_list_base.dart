@@ -3136,6 +3136,10 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                         fontSize: widget.fontSize,
                         bookTitle: widget.state.book.title,
                         savedSelectedIndex: widget.reportLineIndex,
+                        // רק הערה מ-line_note אינה בשורה, ואין לה הצעת תיקון.
+                        reportContent: widget.state.bookNotes.isEmpty
+                            ? null
+                            : widget.notes,
                       ),
                     ),
                   ],
