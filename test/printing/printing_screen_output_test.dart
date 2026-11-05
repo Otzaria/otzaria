@@ -21,6 +21,7 @@ import 'package:printing/printing.dart';
 import 'package:printing/src/interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -179,7 +180,7 @@ void main() {
 
         // ממתינים לסיום התצוגה המקדימה, שמשחררת את נעילת ה-pdfrx וקובעת את מספר העמודים.
         bool previewDone() =>
-            find.byType(Image).evaluate().isNotEmpty &&
+            find.byType(RawImage).evaluate().isNotEmpty &&
             find.byType(CircularProgressIndicator).evaluate().isEmpty;
         for (var i = 0; i < 200 && !previewDone(); i++) {
           await tester.runAsync(
@@ -209,10 +210,11 @@ void main() {
 
         expect(await _settle(tester, _pageCount(output)), 1);
 
-        // מניחים לתצוגה המקדימה שהתחילה בעקבות השינוי להסתיים לפני סגירת המסך.
+        // שינוי ההגדרה מתחיל תצוגה נוספת. הפירוק מבטל אותה, והמחסום ממתין
+        // לסגירת המסמך לפני שסביבת ה-FakeAsync של הבדיקה מסתיימת.
         await tester.pump(const Duration(milliseconds: 300));
-        await _settle(tester, Future<void>.value());
         await tester.pumpWidget(const SizedBox());
+        await drainPrintingRasterQueue(tester);
       },
       timeout: const Timeout(Duration(minutes: 2)),
     );

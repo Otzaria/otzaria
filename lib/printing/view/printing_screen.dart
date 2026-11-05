@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
@@ -29,6 +28,7 @@ import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/pdf_sheet_composer.dart';
 import 'package:otzaria/printing/print_pdf_source.dart';
+import 'package:otzaria/printing/print_preview_controller.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
@@ -165,6 +165,12 @@ class PrintingScreen extends StatefulWidget {
   @visibleForTesting
   static void Function(List<Map<String, String>> blocks)? debugOnPrintBlocks;
 
+  /// Completes after currently queued native printing work, including disposal.
+  /// Widget tests must unmount their screens before awaiting this barrier.
+  @visibleForTesting
+  static Future<void> get debugRasterIdle =>
+      _PrintingScreenState._rasterLock ?? Future<void>.value();
+
   @override
   State<PrintingScreen> createState() => _PrintingScreenState();
 }
@@ -182,35 +188,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
       AppFonts.fontPaths.keys.first; // ברירת מחדל - הגופן הראשון ברשימה
   late int startLine;
   late int endLine;
-  // התצוגה המקדימה מוצגת כתמונות מרוסטרות (ולא דרך PdfViewer), כי pdfrx מנהל
-  // worker יחיד שלא יכול לרסטר תוך כדי שה-PdfViewer פעיל — שני openData בו-זמנית
-  // תוקעים אותו. רסטור לתמונות עובר כולו דרך ה-runner הסדרתי ולכן בטוח.
-  //
-  // הרסטור מדורג: כל עמוד מתווסף ל-notifier מיד עם רסטורו, כך שהעמוד הראשון
-  // מוצג בלי להמתין לכל הטווח. הטווח מוגבל ל-[_maxPreviewPages] כדי למנוע
-  // צריכת זיכרון מופרזת/תקיעה במסמכים ארוכים מאוד.
-  final ValueNotifier<
-    ({
-      List<Uint8List> pages,
-      bool busy,
-      bool failed,
-      bool truncated,
-    })
-  >
-  _preview = ValueNotifier((
-    pages: const [],
-    busy: true,
-    failed: false,
-    truncated: false,
-  ));
-
-  /// מספר העמודים המרבי שמרוסטרים לתצוגה המקדימה (ההדפסה/הייצוא כוללים הכול).
-  static const int _maxPreviewPages = 60;
+  late final _preview = PrintPreviewController(
+    serialize: (action) => _withRasterLock(action),
+  );
 
   /// controller ל-ScrollablePositionedList של התצוגה — מאפשר גם scrollbar
   /// (דרך [ScrollablePositionedListScrollbar]) וגם קפיצה לעמוד לפי אינדקס.
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+  final ItemPositionsListener _thumbnailPositionsListener =
       ItemPositionsListener.create();
 
   /// תצוגת תמונות מוקטנות של כל הדפים (לחיצה מנווטת לעמוד).
@@ -231,12 +218,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
   int _pdfEndPage = 0; // 0 = כל העמודים
   int _renderGeneration = 0; // מונה שביטול renders ישנים
   // נעילה סדרתית של פעולות pdfrx: שני openData במקביל תוקעים את הספרייה.
-  Future<void> _rasterLock = Future.value();
+  static Future<void>? _rasterLock;
   // הסדרת התצוגות המקדימות: render כבד אחד בכל רגע, ודילוג על render שהתיישן
   // בזמן ההמתנה בתור, כדי ששינויי פרמטרים עוקבים לא יריצו במקביל מספר יצירות
   // base PDF / רסטור ניקוד / isolate שמציפים את המעבד.
-  final SerialLatestRunner<List<Uint8List>> _previewRunner =
-      SerialLatestRunner<List<Uint8List>>();
+  final SerialLatestRunner<bool> _previewRunner = SerialLatestRunner<bool>();
   Map<int, String> _pageLabels = {};
 
   String _labelForPage(int pageNumber) =>
@@ -372,6 +358,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     startLine = widget.startLine;
     endLine = startLine;
     _itemPositionsListener.itemPositions.addListener(_onPreviewScroll);
+    _thumbnailPositionsListener.itemPositions.addListener(_onThumbnailScroll);
 
     // יעד ההדפסה השמור — נופל ל-Word ל-PDF כשלא נתמך במצב הנוכחי.
     final savedDestination = Settings.getValue<int>(_destinationKey);
@@ -472,6 +459,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         _refreshPreview(immediate: true);
       } else {
         _renderGeneration++;
+        _preview.reset(pagesPerSheet: _pagesPerSheet);
         _initPreviewRange();
       }
     }
@@ -618,22 +606,41 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   @override
   void dispose() {
+    _renderGeneration++;
     _previewRefreshTimer?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_onPreviewScroll);
+    _thumbnailPositionsListener.itemPositions.removeListener(
+      _onThumbnailScroll,
+    );
     _preview.dispose();
+    _cachedBasePdf = null;
     super.dispose();
   }
 
-  /// עדכון הדף הנוכחי (הראשון הנראה) לבורר "מעבר לדף" — מתעדכן גם בגלילה ידנית.
+  Set<int> _visibleSheets(ItemPositionsListener listener) => listener
+      .itemPositions
+      .value
+      .where((p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1)
+      .map((p) => p.index)
+      .toSet();
+
   void _onPreviewScroll() {
-    final positions = _itemPositionsListener.itemPositions.value;
-    if (positions.isEmpty || !mounted) return;
-    final minIndex = positions
-        .map((p) => p.index)
-        .reduce((a, b) => a < b ? a : b);
+    if (!mounted) return;
+    final visible = _visibleSheets(_itemPositionsListener);
+    if (visible.isEmpty) return;
+    _preview.showSheets(visible);
+    final minIndex = visible.reduce(min);
     if (minIndex != _currentPreviewItem) {
       setState(() => _currentPreviewItem = minIndex);
     }
+  }
+
+  void _onThumbnailScroll() {
+    if (!mounted || !_showThumbnails) return;
+    _preview.showSheets(
+      _visibleSheets(_thumbnailPositionsListener),
+      thumbnails: true,
+    );
   }
 
   // פונקציה ליצירת רשימה שטוחה של כל הכותרות
@@ -658,7 +665,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   void _refreshPreview({bool immediate = false}) {
+    if (!mounted || _preview.isStopped) return;
     _renderGeneration++;
+    _preview.reset(pagesPerSheet: _pagesPerSheet);
     _previewRefreshTimer?.cancel();
     if (immediate) {
       _renderPreview();
@@ -669,159 +678,55 @@ class _PrintingScreenState extends State<PrintingScreen> {
     });
   }
 
-  /// מרנדר את התצוגה המקדימה בהדרגה: כל עמוד מתווסף ל-[_preview] מיד עם רסטורו,
-  /// כך שהעמוד הראשון מוצג בלי להמתין לכל הטווח. כל העבודה עוברת דרך ה-runner
-  /// הסדרתי (render כבד אחד בכל רגע, דילוג על renders מיושנים), כך שלא ירוצו
-  /// שני openData של pdfrx במקביל.
   void _renderPreview() {
-    final generation = _renderGeneration;
-    // מנקים את התמונות הקודמות ומציגים אינדיקטור טעינה — אחרת טווח קודם
-    // (למשל גדול יותר) ממשיך להופיע עד שהטווח החדש מסיים להיטען.
-    _preview.value = (
-      pages: const [],
-      busy: true,
-      failed: false,
-      truncated: false,
-    );
+    if (!mounted || _preview.isStopped) return;
+    final generation = ++_renderGeneration;
+    _currentPreviewItem = 0;
+    _preview.reset(pagesPerSheet: _pagesPerSheet);
     _previewRunner.run(
-      isStale: () => generation != _renderGeneration,
+      isStale: () => !mounted || generation != _renderGeneration,
       task: () => _renderPreviewTask(generation),
     );
   }
 
-  Future<List<Uint8List>> _renderPreviewTask(int generation) async {
+  Future<bool> _renderPreviewTask(int generation) async {
+    bool stale() =>
+        !mounted || _preview.isStopped || generation != _renderGeneration;
+    if (stale()) return false;
     try {
-      // רסטור ה-base PDF בלבד (openData אחד). פריסת ה-N-up נבנית מהתמונות
-      // ב-Flutter — לא יוצרים PDF ביניים ולא פותחים אותו שוב.
       final base = await _createBasePdf(format);
-      if (generation != _renderGeneration || !mounted) return const [];
-      final isPdfMode = _isPdfSource;
-      final startPage = isPdfMode ? _pdfStartPage : 1;
-      final endPage = computePdfPrintEndPage(
-        isPdfMode: isPdfMode,
-        pdfEndPage: _pdfEndPage,
-        totalPdfPages: _totalPdfPages,
-      );
-      final pages = <Uint8List>[];
-      final truncated = await _rasterizePdfToImages(
+      if (stale()) return false;
+      await _preview.load(
         base,
-        generation,
-        startPage: startPage,
-        endPage: endPage,
-        onPage: (img) {
-          pages.add(img);
-          if (generation != _renderGeneration || !mounted) return;
-          _preview.value = (
-            pages: List<Uint8List>.unmodifiable(pages),
-            busy: true,
-            failed: false,
-            truncated: false,
-          );
-        },
+        startPage: _isPdfSource ? _pdfStartPage : 1,
+        endPage: computePdfPrintEndPage(
+          isPdfMode: _isPdfSource,
+          pdfEndPage: _pdfEndPage,
+          totalPdfPages: _totalPdfPages,
+        ),
+        isStale: stale,
+        onPageCount: _updatePdfPageCount,
       );
-      if (generation == _renderGeneration && mounted) {
-        _preview.value = (
-          pages: List<Uint8List>.unmodifiable(pages),
-          busy: false,
-          failed: false,
-          truncated: truncated,
-        );
-      }
-      return pages;
+      return !stale();
     } catch (e, st) {
-      debugPrint('[PRINT] preview render failed: $e\n$st');
-      if (generation == _renderGeneration && mounted) {
-        _preview.value = (
-          pages: const [],
-          busy: false,
-          failed: true,
-          truncated: false,
-        );
-      }
-      return const [];
+      debugPrint('[PRINT] preview creation failed: $e\n$st');
+      if (!stale()) _preview.reportError(e, st);
+      return false;
     }
   }
 
-  /// מרסטר את עמודי ה-PDF (בטווח הנתון, עד [_maxPreviewPages]) לתמונות PNG,
-  /// וקורא [onPage] לכל עמוד מיד עם רסטורו (תצוגה מדורגת). מחזיר `true` אם
-  /// הטווח נחתך בגלל המגבלה.
-  ///
-  /// נקרא רק מתוך ה-runner הסדרתי וללא PdfViewer פעיל, כך שאין openData מקביל.
-  Future<bool> _rasterizePdfToImages(
-    PrintPdfSource source,
-    int generation, {
-    int startPage = 1,
-    int? endPage,
-    required void Function(Uint8List) onPage,
-  }) => _withRasterLock(
-    () => _rasterizePdfToImagesLocked(
-      source,
-      generation,
-      startPage: startPage,
-      endPage: endPage,
-      onPage: onPage,
-    ),
-    'images',
-  );
+  void _updatePdfPageCount(int count) {
+    if (_totalPdfPages != 0 || !_isPdfSource || !mounted || count == 0) return;
+    setState(() {
+      _totalPdfPages = count;
+      _pdfStartPage = _pdfStartPage.clamp(1, count);
+      _pdfEndPage = _pdfEndPage == 0 ? count : _pdfEndPage.clamp(1, count);
+    });
+  }
 
-  Future<bool> _rasterizePdfToImagesLocked(
-    PrintPdfSource source,
-    int generation, {
-    int startPage = 1,
-    int? endPage,
-    required void Function(Uint8List) onPage,
-  }) async {
-    if (generation != _renderGeneration || !mounted) return false;
-    final doc = await source.open();
-    try {
-      final pageCount = doc.pages.length;
-      // במצב PDF חיצוני, ספירת העמודים נחוצה לבחירת טווח עמודים ב-UI.
-      if (_totalPdfPages == 0 && _isPdfSource && mounted) {
-        setState(() {
-          _totalPdfPages = pageCount;
-          _pdfStartPage = _pdfStartPage.clamp(1, pageCount);
-          _pdfEndPage = _pdfEndPage == 0
-              ? pageCount
-              : _pdfEndPage.clamp(1, pageCount);
-        });
-      }
-
-      final firstIdx = max(0, min(startPage - 1, pageCount - 1));
-      final lastIdx = max(
-        firstIdx,
-        min((endPage ?? pageCount) - 1, pageCount - 1),
-      );
-      // גג בטיחותי: לא מרסטרים יותר מ-[_maxPreviewPages] לתצוגה (ההדפסה
-      // וההייצוא כוללים את כל הטווח דרך _createOutputPdf).
-      final limitIdx = min(lastIdx, firstIdx + _maxPreviewPages - 1);
-
-      // רזולוציית התצוגה המקדימה בלבד — הפלט המודפס הוא ה-PDF הווקטורי,
-      // כך שאין השפעה על איכות ההדפסה. 2x הכפיל את זיכרון ה-preview לחינם.
-      const previewScale = 1.5;
-      for (var i = firstIdx; i <= limitIdx; i++) {
-        if (generation != _renderGeneration || !mounted) break;
-        final page = doc.pages[i];
-        final pdfImage = await page.render(
-          fullWidth: page.width * previewScale,
-          fullHeight: page.height * previewScale,
-          backgroundColor: AppColors.pageWhite.toARGB32(),
-        );
-        if (pdfImage == null) continue;
-        final uiImage = await pdfImage.createImage();
-        pdfImage.dispose();
-        final byteData = await uiImage.toByteData(
-          format: ui.ImageByteFormat.png,
-        );
-        uiImage.dispose();
-        if (byteData == null) continue;
-        onPage(byteData.buffer.asUint8List());
-      }
-      return lastIdx > limitIdx;
-    } finally {
-      // חובה await: dispose שולח FPDF_CloseDocument ל-worker. בלי המתנה,
-      // ה-close רץ בו-זמנית עם ה-openData של ה-render הבא ותוקע את pdfrx.
-      await doc.dispose();
-    }
+  void _setPagesPerSheet(int value) {
+    setState(() => _pagesPerSheet = value);
+    _preview.setPagesPerSheet(value);
   }
 
   Future<Uint8List> _createOutputPdf(PdfPageFormat format) async {
@@ -929,7 +834,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     } else {
       bytes = await createPdf(format);
     }
-    if (mounted && _baseCacheKey(format) == key) {
+    if (mounted && !_preview.isStopped && _baseCacheKey(format) == key) {
       _cachedBasePdf = bytes;
       _cachedBaseKey = key;
     }
@@ -966,9 +871,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final previousLock = _rasterLock;
     _rasterLock = completer.future;
     try {
-      await previousLock;
+      if (previousLock != null) {
+        await previousLock;
+      }
       return await action();
     } finally {
+      // A drained queue must not retain the completed future or its old Zone.
+      // A newer tail still owns the queue when another operation is waiting.
+      if (identical(_rasterLock, completer.future)) {
+        _rasterLock = null;
+      }
       completer.complete();
     }
   }
@@ -1015,7 +927,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         sheetHeight: sheetFormat.height,
       );
     } finally {
-      // חובה await — ראה ההסבר ב-_rasterizePdfToImagesLocked.
+      // Native cleanup must finish before the next serialized operation opens.
       await doc.dispose();
     }
   }
@@ -2230,12 +2142,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                           ),
                                           PrintingPagesPerSheetDropdownRow(
                                             value: _pagesPerSheet,
-                                            onChanged: (value) {
-                                              // הרשת נבנית מתמונות העמודים הקיימות — אין מה לרסטר מחדש.
-                                              setState(
-                                                () => _pagesPerSheet = value,
-                                              );
-                                            },
+                                            onChanged: _setPagesPerSheet,
                                           ),
                                         ],
                                       ),
@@ -2554,12 +2461,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               _PrintDestination.word)
                                             PrintingPagesPerSheetDropdownRow(
                                               value: _pagesPerSheet,
-                                              onChanged: (value) {
-                                                // הרשת נבנית מתמונות העמודים הקיימות — אין מה לרסטר מחדש.
-                                                setState(
-                                                  () => _pagesPerSheet = value,
-                                                );
-                                              },
+                                              onChanged: _setPagesPerSheet,
                                             ),
                                         ],
                                       ),
@@ -2599,6 +2501,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
     // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent הגלובלי יגיע לכאן.
     return PopScope(
       canPop: !_isPrinting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) return;
+        _renderGeneration++;
+        _previewRefreshTimer?.cancel();
+        _preview.stop();
+      },
       child: Actions(
         actions: {
           DismissIntent: CallbackAction<DismissIntent>(
@@ -2716,153 +2624,124 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
     return ClipRRect(
       borderRadius: AppTokens.borderRadiusAll,
-      child:
-          ValueListenableBuilder<
-            ({
-              List<Uint8List> pages,
-              bool busy,
-              bool failed,
-              bool truncated,
-            })
-          >(
-            valueListenable: _preview,
-            builder: (context, state, _) {
-              if (state.failed) {
-                return Center(
-                  child: Icon(
-                    FluentIcons.error_circle_24_regular,
-                    color: colorScheme.error,
-                    size: 48,
-                  ),
-                );
-              }
+      child: AnimatedBuilder(
+        animation: _preview,
+        builder: (context, _) {
+          if (_preview.failed) {
+            return Center(
+              child: Icon(
+                FluentIcons.error_circle_24_regular,
+                color: colorScheme.error,
+                size: 48,
+              ),
+            );
+          }
 
-              final images = state.pages;
+          final pageCount = _preview.pageCount;
 
-              // אין עדיין תמונות — מציגים אינדיקטור טעינה (גם בזמן busy וגם בריק).
-              if (images.isEmpty) {
-                if (state.busy) {
-                  // נגלל: בפריסה צרה אזור התצוגה נמוך מהאינדיקטור וההסבר.
-                  return Center(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: colorScheme.primary),
-                          const SizedBox(height: 16),
-                          Text(
-                            'מכין תצוגה מקדימה...',
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SlowPreviewHint(),
-                        ],
+          // אין עדיין תמונות — מציגים אינדיקטור טעינה (גם בזמן busy וגם בריק).
+          if (pageCount == 0) {
+            if (_preview.busy) {
+              // נגלל: בפריסה צרה אזור התצוגה נמוך מהאינדיקטור וההסבר.
+              return Center(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: colorScheme.primary),
+                      const SizedBox(height: 16),
+                      Text(
+                        'מכין תצוגה מקדימה...',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  );
-                }
-                return Center(
-                  child: Text(
-                    'אין תצוגה מקדימה',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      const SlowPreviewHint(),
+                    ],
                   ),
-                );
-              }
-
-              final sheetCount = cells <= 1
-                  ? images.length
-                  : (images.length + cells - 1) ~/ cells;
-              // פריט אחרון נוסף לבאנר "טווח חלקי" / אינדיקטור טעינה מתמשך.
-              final footerCount = (state.busy || state.truncated) ? 1 : 0;
-              final itemCount = sheetCount + footerCount;
-
-              final list = ScrollablePositionedListScrollbar(
-                scrollController: _itemScrollController,
-                itemCount: itemCount,
-                child: ScrollablePositionedList.separated(
-                  itemScrollController: _itemScrollController,
-                  itemPositionsListener: _itemPositionsListener,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: itemCount,
-                  separatorBuilder: (_, _) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    if (index >= sheetCount) {
-                      return _previewFooter(
-                        state.busy,
-                        state.truncated,
-                        images.length,
-                        colorScheme,
-                      );
-                    }
-                    return Center(
-                      child: _buildSheet(
-                        index,
-                        images,
-                        rows,
-                        cols,
-                        colorScheme,
-                      ),
-                    );
-                  },
                 ),
               );
+            }
+            return Center(
+              child: Text(
+                'אין תצוגה מקדימה',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
+            );
+          }
 
-              return Row(
-                children: [
-                  // חלונית הניווט נפתחת/נסגרת ברוחב מונפש.
-                  AnimatedSize(
-                    duration: AppTokens.animNormal,
-                    curve: Curves.easeInOut,
-                    child: _showThumbnails
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildThumbnailsPane(
-                                images,
-                                rows,
-                                cols,
-                                colorScheme,
-                              ),
-                              VerticalDivider(
-                                width: 1,
-                                color: colorScheme.outlineVariant,
-                              ),
-                            ],
-                          )
-                        : const SizedBox.shrink(),
+          final sheetCount = cells <= 1
+              ? pageCount
+              : (pageCount + cells - 1) ~/ cells;
+          final list = ScrollablePositionedListScrollbar(
+            scrollController: _itemScrollController,
+            itemCount: sheetCount,
+            child: ScrollablePositionedList.separated(
+              itemScrollController: _itemScrollController,
+              itemPositionsListener: _itemPositionsListener,
+              padding: const EdgeInsets.all(16),
+              itemCount: sheetCount,
+              separatorBuilder: (_, _) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                return Center(
+                  child: _buildSheet(
+                    index,
+                    rows,
+                    cols,
+                    colorScheme,
                   ),
-                  Expanded(child: list),
-                ],
-              );
-            },
-          ),
+                );
+              },
+            ),
+          );
+
+          return Row(
+            children: [
+              // חלונית הניווט נפתחת/נסגרת ברוחב מונפש.
+              AnimatedSize(
+                duration: AppTokens.animNormal,
+                curve: Curves.easeInOut,
+                child: _showThumbnails
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildThumbnailsPane(
+                            rows,
+                            cols,
+                            colorScheme,
+                          ),
+                          VerticalDivider(
+                            width: 1,
+                            color: colorScheme.outlineVariant,
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              Expanded(child: list),
+            ],
+          );
+        },
+      ),
     );
   }
 
   /// פקדי ניווט בסרגל העליון: כפתור "ניווט" (מחליף תצוגה מוקטנת) ובורר "עמוד".
-  /// reactive ל-[_preview] — מוצג רק כשיש יותר מגיליון אחד והטעינה הסתיימה.
+  /// הניווט זמין ברגע שמספר הגיליונות ידוע, גם לפני רינדורם.
   Widget _buildTopBarNav() {
-    return ValueListenableBuilder<
-      ({
-        List<Uint8List> pages,
-        bool busy,
-        bool failed,
-        bool truncated,
-      })
-    >(
-      valueListenable: _preview,
-      builder: (context, state, _) {
+    return AnimatedBuilder(
+      animation: _preview,
+      builder: (context, _) {
         final cells = switch (_pagesPerSheet) {
           2 => 2,
           4 => 4,
           _ => 1,
         };
-        final pageCount = state.pages.length;
+        final pageCount = _preview.pageCount;
         final sheetCount = cells <= 1
             ? pageCount
             : (pageCount + cells - 1) ~/ cells;
-        final hasNav = !state.busy && sheetCount > 1;
+        final hasNav = sheetCount > 1;
         if (!hasNav) return const SizedBox.shrink();
         final currentSheet = _currentPreviewItem.clamp(
           0,
@@ -2870,8 +2749,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
         );
         final colorScheme = Theme.of(context).colorScheme;
 
-        void toggleThumbnails() =>
-            setState(() => _showThumbnails = !_showThumbnails);
+        void toggleThumbnails() {
+          setState(() => _showThumbnails = !_showThumbnails);
+          if (!_showThumbnails) _preview.showSheets({}, thumbnails: true);
+        }
 
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -2926,21 +2807,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// חלונית תצוגות מוקטנות של הגיליונות כפי שיודפסו (כולל פריסת N-up); לחיצה
   /// מנווטת לגיליון.
   Widget _buildThumbnailsPane(
-    List<Uint8List> images,
     int rows,
     int cols,
     ColorScheme colorScheme,
   ) {
     final cells = rows * cols;
     final sheetCount = cells <= 1
-        ? images.length
-        : (images.length + cells - 1) ~/ cells;
+        ? _preview.pageCount
+        : (_preview.pageCount + cells - 1) ~/ cells;
     // רקע מובחן מהתצוגה, כדי שהרצועה תיקרא כסרגל צד ולא כחלק מהדף.
     return ColoredBox(
       color: colorScheme.surfaceContainer,
       child: SizedBox(
         width: 132,
-        child: ListView.separated(
+        child: ScrollablePositionedList.separated(
+          itemPositionsListener: _thumbnailPositionsListener,
           padding: const EdgeInsets.all(8),
           itemCount: sheetCount,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -2966,7 +2847,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
                         width: selected ? 2 : 1,
                       ),
                     ),
-                    child: _buildSheet(i, images, rows, cols, colorScheme),
+                    child: _buildSheet(
+                      i,
+                      rows,
+                      cols,
+                      colorScheme,
+                      thumbnail: true,
+                    ),
                   ),
                   Text(
                     '${i + 1}',
@@ -2981,39 +2868,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-
-  /// שורת תחתית בתצוגה: אינדיקטור טעינה מתמשך, או הודעה שהטווח נחתך.
-  Widget _previewFooter(
-    bool busy,
-    bool truncated,
-    int shown,
-    ColorScheme colorScheme,
-  ) {
-    if (busy) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(strokeWidth: 3),
-          ),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Text(
-        'התצוגה המקדימה מוגבלת ל-$shown עמודים. ההדפסה/הייצוא יכללו את כל הטווח.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: colorScheme.onSurfaceVariant,
-          fontSize: 12,
-          fontStyle: FontStyle.italic,
         ),
       ),
     );
@@ -3040,24 +2894,19 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// משותף לתצוגה הראשית ולחלונית התצוגות המוקטנות.
   Widget _buildSheet(
     int sheetIndex,
-    List<Uint8List> images,
     int rows,
     int cols,
-    ColorScheme colorScheme,
-  ) {
+    ColorScheme colorScheme, {
+    bool thumbnail = false,
+  }) {
     final cells = rows * cols;
     if (cells <= 1) {
       return _decoratedSheet(
-        Image.memory(
-          images[sheetIndex],
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
-        ),
+        _buildPreviewPage(sheetIndex, thumbnail: thumbnail),
         colorScheme,
       );
     }
     final start = sheetIndex * cells;
-    final chunk = images.sublist(start, min(start + cells, images.length));
     final sheetFormat = _effectivePageFormat(format);
     return _decoratedSheet(
       AspectRatio(
@@ -3067,17 +2916,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
             return Expanded(
               child: Row(
                 children: List.generate(cols, (col) {
-                  final idx = row * cols + col;
-                  if (idx >= chunk.length) {
+                  final index = start + row * cols + col;
+                  if (index >= _preview.pageCount) {
                     return const Expanded(child: SizedBox());
                   }
                   return Expanded(
                     child: Center(
-                      child: Image.memory(
-                        chunk[idx],
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.medium,
-                      ),
+                      child: _buildPreviewPage(index, thumbnail: thumbnail),
                     ),
                   );
                 }),
@@ -3087,6 +2932,27 @@ class _PrintingScreenState extends State<PrintingScreen> {
         ),
       ),
       colorScheme,
+    );
+  }
+
+  Widget _buildPreviewPage(int index, {required bool thumbnail}) {
+    final size = _preview.pageSize(index);
+    final image = _preview.image(index, thumbnail: thumbnail);
+    return AspectRatio(
+      aspectRatio: size.width / size.height,
+      child: image == null
+          ? const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : RawImage(
+              image: image,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+            ),
     );
   }
 
