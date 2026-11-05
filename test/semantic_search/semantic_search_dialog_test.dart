@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -1142,13 +1140,11 @@ void main() {
 
   group('בחירת השאילתה בפתיחת חיפוש חכם (issue #4257)', () {
     setUp(() {
-      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       SearchDefaults.rememberSessionMode(SearchMode.exact);
       SearchDefaults.rememberSessionSemantic(false);
     });
 
     tearDown(() {
-      debugDefaultTargetPlatformOverride = null;
       SearchDefaults.rememberSessionMode(SearchMode.exact);
       SearchDefaults.rememberSessionSemantic(false);
     });
@@ -1198,7 +1194,7 @@ void main() {
       await tester.pump();
       expect(field.controller.text, 'חסד');
       expect(Settings.getValue<String>('key-last-search-typing'), 'חסד');
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('השאילתה נבחרת גם כשהטופס מופיע רק אחרי בדיקת הזמינות', (
       tester,
@@ -1222,7 +1218,7 @@ void main() {
         field.controller.selection,
         TextSelection(baseOffset: 0, extentOffset: previousQuery.length),
       );
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('בעריכת כרטיסייה נבחרת השאילתה בעותק הדיאלוג בלבד', (
       tester,
@@ -1253,7 +1249,7 @@ void main() {
       expect(field.controller.text, 'חסד');
       expect(tab.queryController.text, previousQuery);
       expect(tab.options.query, previousQuery);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('עריכה ומיקום סמן נשמרים כשהזמינות מתעדכנת ובבנייה מחדש', (
       tester,
@@ -1283,7 +1279,7 @@ void main() {
           .onSelected!(false);
       await tester.pumpAndSettle();
       expect(queryField(tester).controller.value, edited);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('שאילתה ריקה מקבלת סמן תקין והקלדה מיד בפתיחה', (tester) async {
       SearchDefaults.rememberSessionSemantic(true);
@@ -1305,7 +1301,7 @@ void main() {
       await tester.pump();
       expect(field.controller.text, 'חסד');
       expect(tester.takeException(), isNull);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
   testWidgets('עריכת חיפוש חכם מעדכנת את אותה כרטיסייה', (tester) async {
