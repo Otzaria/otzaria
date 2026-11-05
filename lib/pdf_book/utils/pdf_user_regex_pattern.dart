@@ -1,3 +1,4 @@
+import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -97,12 +98,7 @@ class PdfUserRegexPattern implements RegExp {
     return [
       for (final match in _matcher.findMatches(data: text))
         if (match.end > match.start)
-          _PdfUserRegexMatch(
-            this,
-            input,
-            start + match.start,
-            start + match.end,
-          ),
+          _Match(this, input, start + match.start, start + match.end),
     ];
   }
 
@@ -129,37 +125,8 @@ class PdfUserRegexPattern implements RegExp {
 }
 
 // ignore: deprecated_implement
-class _PdfUserRegexMatch implements RegExpMatch {
-  _PdfUserRegexMatch(this.pattern, this.input, this.start, this.end);
-
-  @override
-  final PdfUserRegexPattern pattern;
-
-  @override
-  final String input;
-
-  @override
-  final int start;
-
-  @override
-  final int end;
-
-  @override
-  int get groupCount => 0;
-
-  @override
-  String? group(int group) {
-    if (group != 0) throw RangeError.range(group, 0, 0);
-    return input.substring(start, end);
-  }
-
-  @override
-  String? operator [](int group) => this.group(group);
-
-  @override
-  List<String?> groups(List<int> groupIndices) => [
-    for (final index in groupIndices) group(index),
-  ];
+class _Match extends PdfSpanMatch<PdfUserRegexPattern> implements RegExpMatch {
+  _Match(super.pattern, super.input, super.start, super.end);
 
   @override
   Iterable<String> get groupNames => const [];
