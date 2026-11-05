@@ -103,6 +103,8 @@ class SharePreferenceCache extends CacheProvider {
     await _preferences?.clear();
   }
 
+  /// כמו `HiveCache.getValue`: הערך השמור אם הוא מסוג [T] (גם `bool?` וכו'),
+  /// אחרת [defaultValue].
   @override
   T? getValue<T>(String key, {T? defaultValue}) {
     final value = _preferences?.get(key);
