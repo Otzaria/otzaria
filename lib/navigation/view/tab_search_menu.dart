@@ -16,6 +16,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 const double _kMenuWidth = 320;
 const double _kMenuMaxHeight = 420;
@@ -160,7 +161,9 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
   /// הרשומה שסומנה בחיצים (הפתוחות ואחריהן הנסגרות); ‎-1 — אין סימון.
   int _highlighted = -1;
   List<VoidCallback> _entryActions = const [];
-  final _highlightedRow = GlobalKey();
+  final _itemScrollController = ItemScrollController();
+  final _itemPositionsListener = ItemPositionsListener.create();
+  int _openEntryCount = 0;
   late final _fieldFocus = FocusNode(onKeyEvent: _handleFieldKey);
 
   @override
@@ -207,9 +210,17 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isAltPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isShiftPressed) {
+      return KeyEventResult.ignored;
+    }
     final int target;
     switch (event.logicalKey) {
-      case LogicalKeyboardKey.arrowDown when _entryActions.isNotEmpty:
+      case LogicalKeyboardKey.arrowDown:
+        if (_entryActions.isEmpty) return KeyEventResult.handled;
         target = min(_highlighted + 1, _entryActions.length - 1);
       case LogicalKeyboardKey.arrowUp when _highlighted >= 0:
         target = _highlighted - 1;
@@ -220,19 +231,30 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
       default:
         return KeyEventResult.ignored;
     }
-    final down = target > _highlighted;
     setState(() => _highlighted = target);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final row = _highlightedRow.currentContext;
-      if (row == null) return;
-      Scrollable.ensureVisible(
-        row,
-        alignmentPolicy: down
-            ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
-            : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
-    });
+    _ensureHighlightedVisible();
     return KeyEventResult.handled;
+  }
+
+  void _ensureHighlightedVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _highlighted < 0 || !_itemScrollController.isAttached) {
+        return;
+      }
+      final rowIndex =
+          _highlighted +
+          1 +
+          (_openEntryCount > 0 && _highlighted >= _openEntryCount ? 1 : 0);
+      for (final position in _itemPositionsListener.itemPositions.value) {
+        if (position.index == rowIndex &&
+            position.itemLeadingEdge >= 0 &&
+            position.itemTrailingEdge <= 1) {
+          return;
+        }
+      }
+      // הרשומה עשויה להיות מחוץ לעץ אחרי גלילה ידנית.
+      _itemScrollController.jumpTo(index: rowIndex, alignment: 0.4);
+    });
   }
 
   @override
@@ -258,7 +280,43 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
           ];
           // סינון או סגירה עשויים לקצר את הרשימה מתחת לסימון.
           _highlighted = min(_highlighted, _entryActions.length - 1);
-          GlobalKey? keyAt(int i) => i == _highlighted ? _highlightedRow : null;
+          _openEntryCount = openTabs.length;
+          final rows = <Widget>[
+            if (openTabs.isNotEmpty) ...[
+              _SectionHeader(label: context.settingsText('כרטיסיות פתוחות')),
+              for (final (i, tab) in openTabs.indexed)
+                _TabRow(
+                  tab: tab,
+                  isCurrent: identical(tab, state.currentTab),
+                  isHighlighted: i == _highlighted,
+                  onTap: _entryActions[i],
+                  trailingIcon: FluentIcons.dismiss_24_regular,
+                  trailingTooltip: context.settingsText('סגור כרטיסיה'),
+                  onTrailing: () => closeTabWithHistory(context, tab),
+                ),
+            ],
+            if (closedTabs.isNotEmpty) ...[
+              _SectionHeader(
+                label: context.settingsText('נסגרו לאחרונה'),
+                actionIcon: FluentIcons.broom_24_regular,
+                actionTooltip: context.settingsText('נקה את הרשימה'),
+                onAction: () => context.read<TabsBloc>().add(
+                  const ClearRecentlyClosedTabs(),
+                ),
+              ),
+              for (final (i, tab) in closedTabs.indexed)
+                _TabRow(
+                  tab: tab,
+                  isCurrent: false,
+                  isHighlighted: openTabs.length + i == _highlighted,
+                  onTap: _entryActions[openTabs.length + i],
+                  trailingIcon: FluentIcons.arrow_undo_24_regular,
+                  trailingTooltip: context.settingsText('שחזר כרטיסיה'),
+                  onTrailing: () =>
+                      context.read<TabsBloc>().add(RestoreClosedTab(tab)),
+                ),
+            ],
+          ];
 
           return Column(
             children: [
@@ -295,56 +353,13 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                         icon: FluentIcons.tab_desktop_multiple_24_regular,
                         title: context.settingsText('אין כרטיסיות תואמות'),
                       )
-                    : ListView(
+                    : ScrollablePositionedList.builder(
                         padding: const EdgeInsets.only(top: 2, bottom: 8),
-                        children: [
-                          if (openTabs.isNotEmpty) ...[
-                            _SectionHeader(
-                              label: context.settingsText('כרטיסיות פתוחות'),
-                            ),
-                            for (final (i, tab) in openTabs.indexed)
-                              _TabRow(
-                                tab: tab,
-                                isCurrent: identical(tab, state.currentTab),
-                                highlightKey: keyAt(i),
-                                onTap: _entryActions[i],
-                                trailingIcon: FluentIcons.dismiss_24_regular,
-                                trailingTooltip: context.settingsText(
-                                  'סגור כרטיסיה',
-                                ),
-                                // הרשימה נבנית מחדש מה-BlocBuilder, ולכן
-                                // השורה נעלמת והחלונית נשארת פתוחה.
-                                onTrailing: () =>
-                                    closeTabWithHistory(context, tab),
-                              ),
-                          ],
-                          if (closedTabs.isNotEmpty) ...[
-                            _SectionHeader(
-                              label: context.settingsText('נסגרו לאחרונה'),
-                              actionIcon: FluentIcons.broom_24_regular,
-                              actionTooltip: context.settingsText(
-                                'נקה את הרשימה',
-                              ),
-                              onAction: () => context.read<TabsBloc>().add(
-                                const ClearRecentlyClosedTabs(),
-                              ),
-                            ),
-                            for (final (i, tab) in closedTabs.indexed)
-                              _TabRow(
-                                tab: tab,
-                                isCurrent: false,
-                                highlightKey: keyAt(openTabs.length + i),
-                                onTap: _entryActions[openTabs.length + i],
-                                trailingIcon: FluentIcons.arrow_undo_24_regular,
-                                trailingTooltip: context.settingsText(
-                                  'שחזר כרטיסיה',
-                                ),
-                                onTrailing: () => context.read<TabsBloc>().add(
-                                  RestoreClosedTab(tab),
-                                ),
-                              ),
-                          ],
-                        ],
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) => rows[index],
+                        itemScrollController: _itemScrollController,
+                        itemPositionsListener: _itemPositionsListener,
+                        estimateExtent: (_, _) => _kRowHeight + 2,
                       ),
               ),
               const Divider(height: 1),
@@ -458,8 +473,7 @@ class _TabRow extends StatelessWidget {
   final OpenedTab tab;
   final bool isCurrent;
 
-  /// קיים רק בשורה שסומנה בחיצים — לצביעתה ולגלילה אליה.
-  final GlobalKey? highlightKey;
+  final bool isHighlighted;
   final VoidCallback onTap;
   final IconData trailingIcon;
   final String trailingTooltip;
@@ -468,7 +482,7 @@ class _TabRow extends StatelessWidget {
   const _TabRow({
     required this.tab,
     required this.isCurrent,
-    this.highlightKey,
+    this.isHighlighted = false,
     required this.onTap,
     required this.trailingIcon,
     required this.trailingTooltip,
@@ -491,8 +505,7 @@ class _TabRow extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Container(
-            key: highlightKey,
-            color: highlightKey == null ? null : Theme.of(context).focusColor,
+            color: isHighlighted ? Theme.of(context).focusColor : null,
             height: _kRowHeight,
             padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
             child: Row(
