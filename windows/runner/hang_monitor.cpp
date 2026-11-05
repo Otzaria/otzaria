@@ -273,6 +273,7 @@ void ReportRecovered(ULONGLONG duration_ms) {
 
 enum class PollGap { kNone, kSleep, kProcessStall };
 
+// פער בין השעונים = המערכת ישנה.
 PollGap ClassifyPollGap(ULONGLONG tick_delta, ULONGLONG awake_delta) {
   if (tick_delta > awake_delta + kSleepGapMs) return PollGap::kSleep;
   if (awake_delta > kProcessStallGapMs) return PollGap::kProcessStall;
@@ -282,9 +283,10 @@ PollGap ClassifyPollGap(ULONGLONG tick_delta, ULONGLONG awake_delta) {
 void ReportProcessStall(ULONGLONG gap_ms) {
   char text[64];
   snprintf(text, sizeof(text), "Gap: %llums\n", gap_ms);
-  startup_watchdog::AppendReport("\n=== Process stall " +
-                                 startup_watchdog::UtcTimestamp() + " ===\n" +
-                                 text);
+  std::string report = "\n=== Process stall " +
+                       startup_watchdog::UtcTimestamp() + " ===\n" + text;
+  AppendMemory(&report);
+  startup_watchdog::AppendReport(report);
 }
 
 void WatcherLoop() {
@@ -304,7 +306,7 @@ void WatcherLoop() {
     if (!::IsWindow(g_window)) return;
     const ULONGLONG tick = ::GetTickCount64();
     const ULONGLONG awake = AwakeMs();
-    // פער בין השעונים = המערכת ישנה; אחרי חזרה החלון "תקוע" עד שישלוף הודעות.
+    // אחרי שינה או עצירה החלון "תקוע" עד שישלוף הודעות.
     const ULONGLONG tick_delta = tick - last_tick;
     const ULONGLONG awake_delta = awake - last_awake;
     last_tick = tick;
