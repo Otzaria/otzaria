@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 
@@ -185,8 +186,11 @@ void main() {
       bookOpenCoordinator: _MockBookOpenCoordinator(),
       themePayloadBuilder: () => <String, dynamic>{},
       showConfirmDialog: ({required title, required content}) async => true,
-      showWarningDialog:
-          ({required title, required content, required subtitle}) async => true,
+      showWarningDialog: ({
+        required title,
+        required content,
+        required subtitle,
+      }) async => true,
       pickFile: ({allowedExtensions, title}) async => pdf.path,
       hasUserActivation: (pluginId, instanceId) async => true,
       // בכוונה בלי printPluginFile: הבדיקה היא על ברירת המחדל האמיתית.
@@ -320,7 +324,8 @@ void main() {
       );
       final screen = tester.widget<PrintingScreen>(find.byType(PrintingScreen));
       expect(screen.bookId, 'הגהה');
-      expect(screen.createPdfOverride, isNotNull);
+      expect(screen.pdfFilePath, pdf.path);
+      expect(screen.createPdfOverride, isNull);
       expect(find.textContaining('הדפסה — הגהה'), findsOneWidget);
       // התצוגה המקדימה מרונדרת מהקובץ עצמו.
       expect(await _pumpUntil(tester, previewDone), isTrue);

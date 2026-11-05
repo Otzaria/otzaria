@@ -126,88 +126,95 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  testWidgets(
-    'שינוי הגדרה בזמן הפקת הפלט אינו מחליף את טווח העמודים ב-PDF המלא',
-    (tester) async {
-      tester.view.physicalSize = const Size(1600, 1200);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
+  for (final fromFile in [false, true]) {
+    testWidgets(
+      'שינוי הגדרה בזמן הפקת הפלט אינו מחליף את טווח העמודים (${fromFile ? 'path' : 'bytes'})',
+      (tester) async {
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-      final platform = _CapturingPrintingPlatform();
-      PrintingPlatform.instance = platform;
-      final settingsBloc = _MockSettingsBloc();
-      whenListen(
-        settingsBloc,
-        const Stream<SettingsState>.empty(),
-        initialState: SettingsState.initial(),
-      );
+        final platform = _CapturingPrintingPlatform();
+        PrintingPlatform.instance = platform;
+        final settingsBloc = _MockSettingsBloc();
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial(),
+        );
 
-      final source = await tester.runAsync(() async {
-        await pdfrxFlutterInitialize();
-        return _fivePagePdf();
-      });
+        final source = await tester.runAsync(() async {
+          await pdfrxFlutterInitialize();
+          return _fivePagePdf();
+        });
+        final sourceFile = File('${tempDir.path}/source.pdf');
+        if (fromFile) {
+          await tester.runAsync(() => sourceFile.writeAsBytes(source!));
+        }
 
-      await tester.pumpWidget(
-        RepositoryProvider<SettingsRepository>.value(
-          value: _FakeSettingsRepository(),
-          child: BlocProvider<SettingsBloc>.value(
-            value: settingsBloc,
-            child: MaterialApp(
-              // גופן הבדיקה רחב מהגופן האמיתי וגולש מפאנל ההגדרות הצר.
-              builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(textScaler: const TextScaler.linear(0.5)),
-                child: child!,
-              ),
-              home: PrintingScreen(
-                data: Future.value(''),
-                bookId: 'test',
-                createPdfOverride: (_) async => source!,
-                initialPage: 2,
+        await tester.pumpWidget(
+          RepositoryProvider<SettingsRepository>.value(
+            value: _FakeSettingsRepository(),
+            child: BlocProvider<SettingsBloc>.value(
+              value: settingsBloc,
+              child: MaterialApp(
+                // גופן הבדיקה רחב מהגופן האמיתי וגולש מפאנל ההגדרות הצר.
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: const TextScaler.linear(0.5)),
+                  child: child!,
+                ),
+                home: PrintingScreen(
+                  data: Future.value(''),
+                  bookId: 'test',
+                  createPdfOverride: fromFile ? null : (_) async => source!,
+                  pdfFilePath: fromFile ? sourceFile.path : null,
+                  initialPage: 2,
+                ),
               ),
             ),
           ),
-        ),
-      );
-
-      // ממתינים לסיום התצוגה המקדימה, שמשחררת את נעילת ה-pdfrx וקובעת את מספר העמודים.
-      bool previewDone() =>
-          find.byType(Image).evaluate().isNotEmpty &&
-          find.byType(CircularProgressIndicator).evaluate().isEmpty;
-      for (var i = 0; i < 200 && !previewDone(); i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 25)),
         );
+
+        // ממתינים לסיום התצוגה המקדימה, שמשחררת את נעילת ה-pdfrx וקובעת את מספר העמודים.
+        bool previewDone() =>
+            find.byType(Image).evaluate().isNotEmpty &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty;
+        for (var i = 0; i < 200 && !previewDone(); i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 25)),
+          );
+          await tester.pump();
+        }
+        expect(previewDone(), isTrue);
+
+        await tester.tap(find.text('הדפסה'));
         await tester.pump();
-      }
-      expect(previewDone(), isTrue);
+        final onLayout = platform.onLayout;
+        expect(onLayout, isNotNull);
 
-      await tester.tap(find.text('הדפסה'));
-      await tester.pump();
-      final onLayout = platform.onLayout;
-      expect(onLayout, isNotNull);
+        final pending = Future.value(onLayout!(PdfPageFormat.a4));
+        // מריצים עד פתיחת המסמך לרסטור, ואז המשתמש משנה הגדרה באמצע הפקת הפלט.
+        await tester.pump();
+        tester
+            .widget<AppDropdownField<PdfPageFormat>>(
+              find.byType(AppDropdownField<PdfPageFormat>),
+            )
+            .onSelected!(PdfPageFormat.a4);
+        final output = await _settle(tester, pending);
+        // סוף ה-spool: ב-Windows pdfrx מושהה עד שההדפסה מסתיימת.
+        platform.job.complete(false);
+        await tester.pump();
 
-      final pending = Future.value(onLayout!(PdfPageFormat.a4));
-      // מריצים עד פתיחת המסמך לרסטור, ואז המשתמש משנה הגדרה באמצע הפקת הפלט.
-      await tester.pump();
-      tester
-          .widget<AppDropdownField<PdfPageFormat>>(
-            find.byType(AppDropdownField<PdfPageFormat>),
-          )
-          .onSelected!(PdfPageFormat.a4);
-      final output = await _settle(tester, pending);
-      // סוף ה-spool: ב-Windows pdfrx מושהה עד שההדפסה מסתיימת.
-      platform.job.complete(false);
-      await tester.pump();
+        expect(await _settle(tester, _pageCount(output)), 1);
 
-      expect(await _settle(tester, _pageCount(output)), 1);
-
-      // מניחים לתצוגה המקדימה שהתחילה בעקבות השינוי להסתיים לפני סגירת המסך.
-      await tester.pump(const Duration(milliseconds: 300));
-      await _settle(tester, Future<void>.value());
-      await tester.pumpWidget(const SizedBox());
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+        // מניחים לתצוגה המקדימה שהתחילה בעקבות השינוי להסתיים לפני סגירת המסך.
+        await tester.pump(const Duration(milliseconds: 300));
+        await _settle(tester, Future<void>.value());
+        await tester.pumpWidget(const SizedBox());
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+  }
 }

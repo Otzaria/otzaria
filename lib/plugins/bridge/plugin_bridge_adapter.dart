@@ -4,6 +4,7 @@ import 'dart:typed_data';
 // dart:io מגדיר Link משלו (קישור בקובץ־מערכת) שמתנגש ב-Link של הקישורים.
 import 'dart:io' hide Link;
 import 'dart:math' as math;
+
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
@@ -521,8 +522,10 @@ const int _pluginRawLinksMaxRecords = 10000;
 /// מספר הפריטים המרבי בקריאת `library.getLinkContent` אחת.
 const int _pluginLinkContentMaxItems = 25;
 
-typedef PluginRpcEventSink =
-    Future<void> Function(String topic, Map<String, dynamic> payload);
+typedef PluginRpcEventSink = Future<void> Function(
+  String topic,
+  Map<String, dynamic> payload,
+);
 
 class _PluginNetworkRequest {
   final Uri uri;
@@ -5002,7 +5005,7 @@ class PluginBridgeAdapter {
     return printed ?? false;
   }
 
-  /// קורא את קובץ ה-PDF לפני פתיחת מסך ההדפסה בחלון הבקשה.
+  /// פותח קובץ PDF במסך ההדפסה בחלון הבקשה.
   Future<bool> _defaultPrintPluginFile(
     File file, {
     required String jobName,
@@ -5014,9 +5017,9 @@ class PluginBridgeAdapter {
     if (context == null || !context.mounted) {
       throw Exception('error.unavailable: No window to show the print screen');
     }
-    final Uint8List bytes;
     try {
-      bytes = await file.readAsBytes();
+      final handle = await file.open();
+      await handle.close();
     } on FileSystemException {
       // בלי הנתיב: הגשר מחזיר לתוסף את הודעת החריגה כמות שהיא.
       throw Exception('error.unavailable: the file could not be read');
@@ -5031,7 +5034,7 @@ class PluginBridgeAdapter {
         data: Future.value(''),
         // במסלול ה-PDF בלבד: תווית להצגה, לשם עבודת ההדפסה ולשם הקובץ בייצוא.
         bookId: jobName,
-        createPdfOverride: (_) async => bytes,
+        pdfFilePath: file.path,
       ),
     );
     return printed ?? false;
