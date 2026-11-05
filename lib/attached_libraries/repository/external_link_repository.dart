@@ -1277,14 +1277,12 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
           writeMeta(job.slug, job.fingerprint, _tooLargeMarker(signature));
         });
         continue;
-      } catch (e) {
-        // כשל בהמשך משאיר את ההתקדמות השמורה ואת הסימון כמות שהם.
-        if (resuming && resumeFrom != null) {
-          debugPrint('[ExternalLinks] resume of "${job.slug}" failed: $e');
-          continue;
-        }
-        // מסד שלא נקרא כעת — ננסה בסנכרון הבא, מאפס.
-        _transaction(db, () => clear(job.slug));
+      } catch (e, stackTrace) {
+        // סימון הבנייה נשאר גם בכשל ראשון, כדי לא להציג אינדקס חלקי כמעודכן.
+        debugPrint(
+          '[ExternalLinks] build of "${job.slug}" failed '
+          'after $scanned/$total rows: $e\n$stackTrace',
+        );
         continue;
       }
       _transaction(db, () {
