@@ -1,12 +1,56 @@
 # מערכת העיצוב של אוצריא — מסמך התקן
 
-> **מעמד:** גרסה 1.2 (3.11.2026). כל ההכרעות DD-01..31 אושרו בידי בעל הפרויקט, ונימוקיהן ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). האכיפה האוטומטית: [CI_ENFORCEMENT.md](CI_ENFORCEMENT.md).
-> **קהל:** כל מי שכותב קוד ממשק באוצריא: מפתחים, סוקרים וסוכני AI. סעיף 8 מסביר איך עובדים לפי התקן בפועל.
+> **מעמד:** גרסה 1.3 (5.11.2026). כל ההכרעות DD-01..31 אושרו בידי בעל הפרויקט, ונימוקיהן ב־[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). האכיפה האוטומטית: [CI_ENFORCEMENT.md](CI_ENFORCEMENT.md).
+> **קהל:** כל מי שכותב קוד ממשק באוצריא: מפתחים, סוקרים וסוכני AI. מתחילים ב"מתחילים כאן" שלמטה. סעיף 8 מסביר איך עובדים לפי התקן בפועל.
 > **גרסאות:**
 > - **1.0 (1.11.2026):** נעילת ההכרעות של חמשת סבבי ההכרעה.
 > - **השלמות 2.11 ו־3.11:** ארבעה סבבי המשך שעלו מהמימוש, משולבים בסעיפים ומסומנים "השלמה 2.11" או "השלמה 3.11". פירוטם ב־DESIGN_DECISIONS.
 > - **1.1 (3.11.2026):** סימוני המימוש נבדקו מול הקוד ב־`design-system/stage-b`. מה שמומש מסומן **קיים**, ומה שמומש בחלקו מסומן **חלקי** עם מה שנשאר.
-> - **1.2 (3.11.2026):** תשובות הסבב החמישי (q10) משולבות, מסומנות "q10", ומספרי ה־baseline עודכנו. מה שעוד פתוח מרוכז בסוף DESIGN_DECISIONS.
+> - **1.2 (3.11.2026):** תשובות הסבב החמישי (q10) משולבות, מסומנות "q10", ומספרי ה־baseline עודכנו.
+> - **1.3 (5.11.2026):** תשובות q11, ‏q12 וחמשת סבבי "סקירת 4.11" משולבות (ערכת "לבן", מסכים קטנים, צפיפות "אוטומטית", כרטיסי ההערות, אייקונים 20). נוסף "מתחילים כאן". מה שעוד פתוח מרוכז בסוף DESIGN_DECISIONS.
+
+## מתחילים כאן
+
+**לפני שכותבים ממשק** (מפתח שמוסיף מסך, או סוכן AI שמקבל משימת UI):
+1. מוצאים ברשימה שלמטה את הרכיב לכל צורך. רכיב קיים קודם לכל קוד חדש. הסעיף שבסוגריים מפרט וריאנטים והתנהגות.
+2. כל ערך (צבע, ריווח, רדיוס, גודל אייקון, גופן, משך) נלקח מטוקן או מתפקיד: הטבלאות ב־§2, והמיפוי "אני צריך… ← משתמש ב…" ב־§8.1. אין מספרים ואין צבעים בקוד פיצ'ר.
+3. החלטת פריסה לפי `WindowClass` או לפי ה־constraints שהרכיב קיבל, לא לפי פלטפורמה או כיוון המסך (§5).
+4. בודקים: `dart tool/ui_lint_cli.dart`, ‏`flutter test test/design_system/ui_lint_test.dart` והבדיקות של הקבצים שנגעו בהם (§8.6, ‏§8.7). בהיר, כהה ו"לבן"; RTL; רוחב 360 ורוחב מלא; טקסט ×1.3.
+5. רכיב משותף חדש רק לפי רשימת הבדיקה ב־§8.5. כשאין רכיב מתאים והשימוש ייחודי לפיצ'ר אחד, בונים אותו בפיצ'ר מרכיבי הקטלוג.
+
+**איזה רכיב לאיזה צורך:**
+
+| צורך | רכיב | § |
+|---|---|---|
+| שאלת כן/לא, אזהרה, הודעה, קלט, בחירה מרשימה, 3+ פעולות | `showTwoActionsDialog` / `showWarningDialog` / `showSingleActionDialog` / `showInputDialog` / `showSelectionDialog` / `showChoiceDialog` | 3.1 |
+| דיאלוג עם תוכן משלו (טופס, רשימה, לשוניות) | `AppDialogFrame(size: AppDialogSize.small\|medium\|large\|full)`, נפתח ב־`showDialogUntilTornDown` | 3.1 |
+| כפתור טקסט: ראשי / משני וביטול / שקט / בתוך הודעה | `ActionButton.recommended` / `.neutral` / `.ghost` / `.inline` | 3.2 |
+| כפתור הרסני: בדיאלוג / על מסך הגדרות | `ActionButton.warning` / `.warningSoft` | 3.2 |
+| כפתור אייקון / בסרגל | `AppIconButton(size:, tooltip:)` / `BarButton` בתוך `ResponsiveActionBar` | 3.2, 3.6 |
+| תפריט פעולות או בחירה מתפריט | `AppPopupMenuButton`, או `showAnchoredAppMenu` מעוגן לרכיב | 3.3 |
+| שדה טקסט / חיפוש | `RtlTextField` / `OtzariaSearchField` | 3.3 |
+| 2–4 אפשרויות / רשימה נפתחת / מתג קטן / פילטר | `AppSegmentedControl` (בהגדרות `SettingsSegmentedTile`) / `AppDropdownField` / `AppTogglePill` / `FilterChip` | 3.3 |
+| כרטיס מידע / כרטיס תוצאה / קבוצת שורות | `AppCard(tone:)` / `ResultCardFrame` / `AppCard.section` | 3.4 |
+| תגית או מונה / כותרת מקטע / חץ הרחבה | `MetaChip(tone:)` / `AppSectionLabel` / `ExpandingChevron` | 3.4 |
+| שורת הגדרה | `SettingsCard` עם `SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile` וכו' | 3.4 |
+| הודעה קצרה / באנר במסך | `UiSnack.show(<Module>Messages.x)` / `AppInfoBanner(tone:)` | 3.5 |
+| טעינה / ריק / שגיאה | `LoadingIndicator` (`.inline()`, `SkeletonLines`) / `OtzariaEmptyState` / `OtzariaErrorState` | 3.5 |
+| מסך לוח או כלי | `AppTopBar` + `panelBackground`, או `ToolScaffold` לכלי חיפוש | 3.6 |
+| חלונית ניווט / חלונית צד או צפה | `NavSidePanel` / `AdaptiveSidePane`, `ContextOverlayPanel` | 3.6 |
+| פס גלילה מפורש | `AppScrollbar` (בלי כלום: `EdgeScrollbarBehavior` של האפליקציה) | 6.1 |
+
+**חמישה דברים שאסור לכתוב** (ui_lint חוסם את רובם):
+
+```dart
+// ❌                                         // ✅
+Color(0xFF8A6D3B) / Colors.grey              // cs.onSurfaceVariant, AppSurfaces.hoverRow(cs)
+TextStyle(fontSize: 13)                      // Theme.of(context).textTheme.bodySmall
+EdgeInsets.only(left: 10)                    // EdgeInsetsDirectional.only(start: AppTokens.spaceSMD)
+Icon(icon, size: 22)                         // Icon(icon, size: AppTokens.iconMD)
+AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionButton.neutral / AppCard
+```
+
+**כש־ui_lint נכשל:** מתקנים לפי התחליף שבהודעה. רק כשהשימוש מוצדק (תוכן, ייצוא, חיקוי מערכת ההפעלה) מוסיפים `// ui-lint: allow UIL-xxx — <נימוק>`. לא מוסיפים חריגה משלך ל־baseline: הגדלת baseline דורשת את התווית `ui-baseline` ממתחזק, ושינוי תמונת golden את התווית `goldens-approved` (§8.6).
 
 ## 0. איך לקרוא את המסמך
 
@@ -32,7 +76,7 @@
 
 **מה לא נכלל:** טיפוגרפיה וצבעים של **תוכן הספרים** כפופים להגדרות הקריאה של המשתמש, ולא לטוקני הממשק. ראו סעיף 2.4.2.
 
-**מספרים "היום"** במסמך הם ספירות ה־baseline של `tool/ui_lint` ב־3.11.2026, אחרי q10. המצב העדכני: `dart tool/ui_lint_cli.dart`.
+**מספרים "היום"** במסמך הם ספירות ה־baseline של `tool/ui_lint` ב־5.11.2026. המצב העדכני: `dart tool/ui_lint_cli.dart`.
 
 ---
 
@@ -96,7 +140,7 @@
 **[אסור]** בקבצי פיצ'ר:
 - `Color(0x…)`.
 - `Colors.<גוון>` (`red`, `blue`, `grey` וכו').
-- `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 91 מופעים ב־baseline).
+- `.withValues(alpha:)`, `.withAlpha(` ו־`.withOpacity(` על צבעי ממשק (UIL-016; 86 מופעים ב־baseline).
 - `Theme.of(context).primaryColor`. זהו באג מוכח: במצב כהה Flutter מחזיר דרכו את `surface`, ולכן טקסט ותיבות סימון נעלמו.
 - `hoverColor`, `splashColor` ו־`overlayColor` (UIL-007). חריג אחד: `hoverColor: Colors.transparent` ב־`ListTile` שיש לו `onTap` וגם כפתורים ב־`trailing`, כדי שהריחוף של השורה לא יתחרה בהם. ערך מ־`AppSurfaces` (למשל `hoverRow`) אינו עקיפה, גם בתנאי שכל ענפיו `AppSurfaces` או `null`.
 - ענף `brightness == Brightness.dark` לבחירת צבע. ההחלטה שייכת ל־`AppSurfaceColors`. בדיקה לפי שם מצאה 31 אתרים מחוץ ל־`lib/theme`, ורובם אינם החלטת צבע (בניית הערכה, פלטפורמה, תוכן). הכלל (UIL-027) עוד לא מומש.
@@ -115,7 +159,9 @@
 | גוף דיאלוג שבנוי מכרטיסים | `AppSurfaces.cardDialogBackground` | = רקע לוח | `surface` | קיים. חריג מתועד לגוון הדיאלוג של DD-07, כדי שהכרטיס יהיה בהיר מהגוף בשתי הערכות | היסטוריה, סימניות |
 | מפריד בתוך כרטיס | `AppSurfaces.cardRowDivider` | רווח שקוף בתוך `AppCard.section` (DD-12) | כנ"ל | קיים | `AppCard.section` |
 | מפריד עדין | `AppSurfaces.subtleDivider` | `outlineVariant` בשקיפות 50% | כנ"ל | קיים | רשימות |
-| קו אזורים | `AppSurfaces.regionBorder` (`AppSurfaceColors.regionBorder`) | ב"לבן": אפור בינוני 929292 (`onSurface` ב־48% מעל `surface`, אטום; 3:1 מול FF ו־FC). בשאר הערכות `null` | `null` | קיים | ב"לבן" בבהיר: שורת הכותרת והכרטיסייה הפעילה, עמודת הניווט, עמודת הכרטיסיות, `AppTopBar`, חלונית ניווט צמודה וחלונית צד צפה, `PaneCard`, דיאלוג, תפריטים ו־tooltip (`AppThemeData.raisedShape` / `AppSurfaces.raisedShape`). הקורא כותב `regionBorder(context) ?? <הקו הקיים>` (#2850, #1939) |
+| כרטיס עדין ברשימת חלונית | `AppSurfaces.tintedRow(cs)` | `surfaceTint` בשקיפות 5% | כנ"ל | קיים | כרטיסי ההערות בחלונית ההערות: כל הערה כרטיס מעוגל בגוון הזה, עם רווח ובלי קו (#3086, סקירת 4.11, סבב חמישי). לא `panelSectionAccent`, שבולט בהרבה |
+| קו אזורים | `AppSurfaces.regionBorder` (`AppSurfaceColors.regionBorder`) | ב"לבן": אפור בינוני־בהיר 9F9F9F (`onSurface` ב־42% מעל `surface`, אטום; 2.6:1 מול FF ו־FC, מתחת ל־3:1 בכוונה, סקירת 4.11, סבב שלישי). בשאר הערכות `null` | `null` | קיים | ב"לבן" בבהיר: שורת הכותרת והכרטיסייה הפעילה, עמודת הניווט, עמודת הכרטיסיות, `AppTopBar`, חלונית ניווט צמודה וחלונית צד צפה, `PaneCard`, דיאלוג, תפריטים ו־tooltip (`AppThemeData.raisedShape` / `AppSurfaces.raisedShape`). הקורא כותב `regionBorder(context) ?? <הקו הקיים>` (#2850, #1939) |
+| קו בחירה | `AppSurfaces.selectedBorder` (`AppSurfaceColors.selectedBorder`) | ב"לבן": כמו קו האזורים, 9F9F9F. בשאר הערכות `null` | `null` | קיים | ב"לבן" בבהיר, סביב פריט נבחר: `AppCard(selected)` (גם שורה עצמאית ברשימת הספרייה), שורה מקובצת ברשימת הספרייה (קו עליון ותחתון), המקטע הנבחר ב־`AppSegmentedControl`, והפריט הנבחר בתפריט נפתח (קו עליון ותחתון). ב"לבן" מילוי הבחירה E0 קרוב לריחוף, ולכן הקו מסמן את הנבחר (סקירת 4.11, סבב רביעי, q-white-selected) |
 | מקטע ניטרלי בחלונית | `AppSurfaces.panelSection` | `surfaceContainerHighest` בשקיפות 50% | כנ"ל | קיים | חלוניות הגדרות |
 | מקטע מודגש | `AppSurfaces.panelSectionAccent` / `…AccentBorder` | `primaryContainer` 30% / `primary` 30% | כנ"ל | קיים | — |
 | משטח מוגבה (תפריט, tooltip, דיאלוג) | `dialogTheme`/`menuTheme`/`popupMenuTheme`/`tooltipTheme` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים. גם `popupMenuTheme` על רקע התפריטים המשותף | — |
@@ -127,7 +173,7 @@
 | אזהרה | `AppSurfaces.warning`, `onWarning`, `warningContainer`, `onWarningContainer` | הגוון הקבוע `AppColors.warningHue` (`#FB8C00`) עובר `harmonize` מול `primary` של הערכה, ולכן משתנה מעט מערכה לערכה (DD-24, השלמה 2.11) | כנ"ל | קיים | באנרים, תגיות `warning` |
 | הצלחה | `cs.secondaryContainer` / `onSecondaryContainer` | הגוון הנייטרלי הקיים (חום בערכת ברירת המחדל), **לא ירוק** | M3 | קיים (DD-24, DD-13) | הודעת הצלחה, סמל ה־וי, תגית `success` |
 | Hover / Pressed / Focus של כפתורים | `_hoverButtonStyle` (שקיפות 8%/12% על primary) | | | קיים בערכת הנושא | — |
-| שורה נבחרת | `AppSurfaces.selectedRow` / `onSelectedRow` = `secondaryContainer` | | | קיים (DD-06 C). "נבחר" מסומן גם במשקל או באייקון | רשימות, עצים, כרטיסיות |
+| שורה נבחרת | `AppSurfaces.selectedRow` / `onSelectedRow` = `secondaryContainer` (ב"לבן" בבהיר E0E0E0) | | | קיים (DD-06 C). "נבחר" מסומן גם במשקל, באייקון או ב"לבן" בקו הבחירה (`selectedBorder`) | רשימות, עצים, כרטיסיות |
 | שורה בפוקוס | `AppSurfaces.focusedRow` (`primary` 8%) + `focusRingDecoration` (טבעת `primary`, ‏`AppTokens.focusRingWidth` 2) | | | קיים | — |
 | ריחוף | `AppSurfaces.hoverRow` = שכבת ה־hover של M3 (`onSurface` 8%) | | | קיים | — |
 | בחירה מרובה | `AppSurfaces.multiSelected` (`primaryContainer`) + `multiSelectedBorder` (‏`AppTokens.multiSelectedBorderWidth` 1.5) | | | קיים | כרטיסיות, הכרטיס הפעיל בבורר שולחנות העבודה |
@@ -152,6 +198,21 @@
 3. **חיקוי כרום של מערכת ההפעלה**, כמו כפתורי חלון בסגנון Windows.
 4. **צללים** — רק דרך `AppShadows` ב־`lib/theme/app_shadows.dart`. צללים מקומיים שנשארו רשומים ב־baseline של UIL-030.
 
+#### 2.1.4 ערכת "לבן" בבהיר [מחייב] · קיים (DD-18, #2850)
+הזרע "לבן" (`AppThemeVariant.white`) במצב בהיר דורס ב־`AppThemeData.createColorScheme` את סולם המשטחים ואת צבע הבחירה. ב"לבן" בכהה אין דריסה, ובשאר הערכות רק ל"פרגמנט" בבהיר יש סולם משטחים משלו.
+
+| תפקיד | ערך ב"לבן" בבהיר |
+|---|---|
+| `surface` / `surfaceContainerLowest` (קריאה) | FFFFFF / FFFFFF |
+| `surfaceContainerLow` / `surfaceContainer` | FEFEFE / FDFDFD |
+| `surfaceContainerHigh` (סרגלים, חלונית ניווט, גוף דיאלוג) | FCFCFC (לוח הכלים יוצא כ־FA) |
+| `surfaceContainerHighest` (כותרת דיאלוג) | F5F5F5 |
+| `secondaryContainer` (בחירה, `selectedRow`) | E0E0E0 (`AppThemeData.whiteSelectedFill`) |
+| `AppSurfaces.regionBorder` (קו בין אזורים) | 9F9F9F, ‏`borderThin` |
+| `AppSurfaces.selectedBorder` (קו סביב הנבחר) | 9F9F9F, ‏`borderThin` |
+
+בערכה הזו האזורים נבדלים בקו ולא בגוון, והנבחר בקו ולא רק במילוי. לכן רכיב שמצייר גבול אזור או פריט נבחר כותב `AppSurfaces.regionBorder(context) ?? <הגבול הרגיל>` (או `selectedBorder`), ולא בודק איזה זרע פעיל. התפריטים, ה־tooltip והחלוניות הצפות מקבלים את הקו דרך `AppThemeData.raisedShape` / `AppSurfaces.raisedShape`, ובורר המקטעים דרך `segmentedButtonTheme`.
+
 ---
 
 ### 2.2 ריווח
@@ -168,7 +229,7 @@
 | `AppTokens.spaceLG` | 24 | ריפוד דיאלוג (M3), בין מקטעים |
 | `AppTokens.spaceXL` | 32 | שוליים של מסך רחב |
 
-**כלל העיגול [מחייב] (DD-03):** ריווח שמחוץ לסולם **עולה** לערך הבא: 6→8, ‏10→12, ‏14→16. העיגול נעשה כשהקובץ מוסב, לא בהחלפה גורפת. UIL-020 חוסם ריווח חדש מחוץ לסולם (151 מופעים ב־baseline).
+**כלל העיגול [מחייב] (DD-03):** ריווח שמחוץ לסולם **עולה** לערך הבא: 6→8, ‏10→12, ‏14→16. העיגול נעשה כשהקובץ מוסב, לא בהחלפה גורפת. UIL-020 חוסם ריווח חדש מחוץ לסולם (146 מופעים ב־baseline).
 
 **טוקנים סמנטיים** (`static const` ב־`AppTokens`, DD-03 C). כל הערכים נגזרים מהסולם. ערך שלא הוכרע נקבע ב־commit המיישם, עם תמונות:
 
@@ -228,7 +289,7 @@
 | מונוספייס (נתיב, קיצור מקשים, גרסה) | המשפחה: `AppTextStyles.monospaceFamily` (קיים). סגנון `AppTextStyles.mono` עם גודל מה־slots: יעד | גופן `monospace` של המערכת |
 
 **[מחייב]**
-- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme. UIL-017 חוסם את שניהם (188 מופעים ב־baseline). גם גודל שאין לו תפקיד ברור מקבל את ה־slot הקרוב, ולא חריג (q10 Q5).
+- **`fontSize:` אסור בקוד פיצ'ר (DD-02).** מותר רק ב־`lib/theme/` ובציור תוכן הספר (2.4.2). משתמשים ב־`Theme.of(context).textTheme.<slot>`, ובמקרה הצורך ב־`.copyWith(fontWeight:/color:)`. גם `AppTokens.font*` (ו־`fontSM - 1` וכדומה) נשאר בשכבת ה־Theme. UIL-017 חוסם את שניהם (184 מופעים ב־baseline). גם גודל שאין לו תפקיד ברור מקבל את ה־slot הקרוב, ולא חריג (q10 Q5).
 - `TextStyle(fontFamily: '…')` ליטרלי אסור (UIL-018). המשפחה נקבעת ב־`AppThemeData` (גופן ממשק), ב־`AppFonts` (תוכן) או ב־`AppTextStyles.monospaceFamily`.
 - `AppTextStyles.settingTitle/settingSubtitle` שמורים לשורות הגדרה. לא בונים מהם סגנונות לשימושים אחרים.
 
@@ -241,7 +302,7 @@
 **[מחייב] · קיים** חלונית הגדרות התצוגה (הכפתור בשורת הכותרת) מציגה רק את מה שחל על הכרטיסייה הפעילה: רכיב אחד, `TextSettingsTab(scope:)`, ולא עותק. ‏`all` במסך ההגדרות; ‏`book` בכרטיסיית ספר (בלי גודל התוצאות); ‏`searchResults` בכרטיסיית חיפוש: גודל הספר והגופן, מרווח השורות (של התצוגה המקדימה) וגודל התוצאות, ממש מעל הקריאה הרציפה, "תצוגת הטקסט", העתקת כותרות והגדרות לפי ספר. בלי גודל וגופן המפרשים ורוחב הטקסט, שלא חלים על התוצאות ועל התצוגה המקדימה. הגדרה חדשה בכרטיס נכנסת ל־scope שבו היא חלה.
 
 הכללים:
-- גדלים יחסיים בתוך תוכן (×0.85 לכותרת מפרש, ‎sup/small ב־HTML) הם חלק מהתוכן ומותרים.
+- גדלים יחסיים בתוך תוכן (×0.85 לכותרת מפרש, ‎sup/small ב־HTML) הם חלק מהתוכן ומותרים. גם כותרת החלונית הקומפקטית של קישור (Linker, שם הספר והמקום) היא ×0.85 מגודל התוכן של החלונית, אבל בין 11 (`labelSmall`) ל־14 (`titleSmall`), כדי שלא תתחרה בתוכן בגודל קריאה גדול (`compactPreviewTitleFontSize`, סקירת 4.11, סבב רביעי, q-linker-title).
 - **הודעות ממשק בתוך אזור התוכן** ("טוען מפרשים…", "אין תוכן זמין", שגיאת טעינה) הן ממשק, ולכן `textTheme`, וטקסט משני בהן `onSurfaceVariant`. חלקי: "טוען מפרשים…" כבר ב־`onSurfaceVariant` (q10 Q4.2), אבל עדיין בגודל הקריאה.
 - גופני ספר נקבעים דרך `AppFonts` בלבד.
 - ההחרגה ב־CI נעשית לפי נתיבים ודפוסים ולא בהערות. הרשימה ב־`CI_ENFORCEMENT.md` §3.6.
@@ -257,11 +318,11 @@
 |---|---|---|
 | `AppTokens.iconXS` | 14 | עץ ניווט, תגיות |
 | `AppTokens.iconSM` | 16 | בתוך שדה, כפתור קומפקטי, פעולת שורה |
-| `AppTokens.iconMD` | 20 | סרגלים (`BarButton`), תפריטים |
+| `AppTokens.iconMD` | 20 | ברירת המחדל בממשק: סרגלים (`BarButton`), תפריטים, אייקון השדה ב־`OtzariaSearchField`, תג כותרת הדיאלוג |
 | `AppTokens.iconLG` | 24 | ברירת מחדל של M3 |
 | `AppTokens.iconXL` | 48 | מצב ריק |
 
-**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 116 מופעים ב־baseline). גודל מחוץ לסולם עובר לטוקן: 18 ל־`iconSM` ‏(16), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9). ⚠ גודל 22 עוד ממתין להכרעה.
+**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 106 מופעים ב־baseline). גודל מחוץ לסולם עובר לטוקן: 18 ל־`iconSM` ‏(16), ‏22 ל־`iconMD` ‏(20) (סקירת 4.11, סבבים רביעי וחמישי, גם בתוך `OtzariaSearchField`), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9).
 
 #### 2.5.2 גבהים סטנדרטיים
 | רכיב | ערך | מקור | סטטוס |
@@ -270,9 +331,9 @@
 | שדה חיפוש slim | `AppInputTokens.compactHeight` | `OtzariaSearchField.heightSlim` | קיים |
 | סרגל עליון רגיל / קומפקטי | לפי `AppDensity.topBarHeight` | `AppDensity` | קיים |
 | כפתור סרגל | 40 / 36 | `BarButton` (פרמטר `compact`) | חלקי: הקורא מעביר את הצפיפות מ־`AppDensity` |
-| פריט תפריט | `AppMenuMetrics` | `packages/otzaria_context_menu` | קיים. צפוף יותר במצב הקומפקטי (DD-10). תווית רחבה מהתפריט מתקצרת ב־"…" ולא גולשת (סקירה שנייה של 4.11) |
+| פריט תפריט | `AppMenuMetrics` | `packages/otzaria_context_menu` | קיים. צפוף יותר במצב הקומפקטי (DD-10). תווית רחבה מהתפריט מתקצרת ב־"…" ולא גולשת (סקירת 4.11, סבב שני) |
 | לשונית חלונית | 44 | `AppTokens.panelTabHeight` | קיים |
-| סרגל ניווט תחתון (טלפון לאורך) | 64, תווית לכל יעד | `LayoutConstraints.bottomNavigationBarHeight`, דרך `navigationBarTheme` | קיים (q12 Q8, ss6 ⚠) |
+| סרגל ניווט תחתון (טלפון לאורך) | 64, תווית לכל יעד; רק לנבחר כשהתווית הארוכה לא נכנסת ברוחב של יעד (נמדד) | `LayoutConstraints.bottomNavigationBarHeight`, דרך `navigationBarTheme`; `BottomNavLabels.behaviorFor` | קיים (q12 Q8, ss6, סקירת 4.11, סבב שלישי) |
 
 #### 2.5.3 גבולות
 | טוקן | ערך | שימוש | סטטוס |
@@ -331,7 +392,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 - גודל אייקון בסרגל ו־menu metrics. **התפריטים צפופים יותר במצב הקומפקטי**;
 - `isCompact`.
 
-שינוי ההגדרה מתעדכן מיד בכל הממשק. שם ההגדרה למשתמש נשאר **"צפיפות ממשק"**. רכיבים קוראים `AppDensity.of(context)`. **[אסור]** לקרוא את `compactMenuMode` מתוך רכיב תצוגה. מחוץ ל־`lib/theme` ולהגדרות הוא נקרא היום רק ב־`app.dart` וב־`main_window_screen.dart`, וב־`lib/widgets` הכלל UIL-025 נועל אותו.
+שינוי ההגדרה מתעדכן מיד בכל הממשק. שם ההגדרה למשתמש נשאר **"צפיפות ממשק"**, והבורר הוא "רגיל | אוטומטי | מצומצם" ("אוטומטי" באמצע; סקירת 4.11, סבבים רביעי וחמישי, q-density-auto ו־q-auto-order). "אוטומטי" הוא ברירת המחדל, בלי מפתח שמור (`key-compact-menu-mode` נמחק): מצומצם ב"חלון קטן" (`AppDensity.isSmallWindow`: בטלפון ובטאבלט צד קצר מתחת ל־600, במחשב רק גובה מתחת ל־480) ורגיל בשאר, ותת־הכותרת אומרת למה הוא מתורגם כרגע. "רגיל" ו"מצומצם" נשמרים כבחירה מפורשת, גם בחלון נמוך. כשהצפיפות שבפועל מתהפכת עם החלון, התוספים מקבלים `theme.changed` (DD-15). רכיבים קוראים `AppDensity.of(context)`. **[אסור]** לקרוא את `compactMenuMode` מתוך רכיב תצוגה. מחוץ ל־`lib/theme` ולהגדרות הוא נקרא היום רק ב־`app.dart` וב־`main_window_screen.dart`, וב־`lib/widgets` הכלל UIL-025 נועל אותו.
 
 ---
 
@@ -434,8 +495,9 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | שדה מספרי | `RtlTextField(keyboardType: number, inputFormatters)` | הספרות תמיד LTR |
 | חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton`, וגודל הכפתורים נגזר מהשדה. כפתור סינון של תוסף (`providerBooksFilter`): במצב סינון אייקון ותווית קצרה בצורת צ'יפ (פינות 8, ‏`labelMedium`, q10 Q23), ״רק התוסף״ / ״רק הספרייה״, שהתוסף יכול להחליף (`pluginOnlyLabel`, `libraryOnlyLabel` במניפסט); בשדה שאין בו מקום לתווית, אייקון ו־tooltip (DD-31, השלמה 3.11) |
 | ניווט בין תוצאות | `SearchResultNavigator` | אחד, בשדות, בחלוניות החיפוש, בתצוגה המשולבת וב־PDF |
+| תפריט פעולות, או בחירה מתפריט שנפתח מכפתור | `AppPopupMenuButton`, או `showAnchoredAppMenu` (‏`lib/widgets/misc/app_popup_menu.dart`) | צפיפות לפי `AppMenuMetrics` (DD-10). `PopupMenuButton`, ‏`showMenu` ו־`MenuAnchor` גולמיים חסומים (UIL-014) |
 | בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (השלמה 2.11). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה) |
-| 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsSegmentedTile` | קיים. גם בורר מצב החיפוש ובורר שבוע/חודש בלוח השנה (DD-31a). במקטע צר מ־96 (`narrowBelowSegmentWidth`) האייקונים יורדים, ותווית ארוכה מתחלפת ב־`SegmentOption.shortLabel`, והמלאה ב־tooltip ("חיפוש חכם" ← "חכם", q12 Q8) |
+| 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsSegmentedTile` | קיים. גם בורר מצב החיפוש ובורר שבוע/חודש בלוח השנה (DD-31a). במקטע צר מ־96 (`narrowBelowSegmentWidth`) האייקונים יורדים, ותווית ארוכה מתחלפת ב־`SegmentOption.shortLabel`, והמלאה ב־tooltip ("חיפוש חכם" ← "חכם", q12 Q8). עם `twoRowsWhenClipped` ההחלטה במדידה (`TextPainter`, ‏`segmentPadding`), וכשגם התווית הקצרה בלי אייקון נחתכת — שתי שורות (2×2), באותו סגנון, בחירה, חצים ו־semantics (q-ss7) |
 | מתג קטן בתוך שורה | `AppTogglePill` | קיים. תווית `labelMedium` (12), כמו הצ'יפים שלידה (q10 Q1). גם מתג שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת. גם תיבת סימון שתוסף מוסיף לדיאלוג החיפוש (q10 Q8e) |
 | Checkbox | `Checkbox` של Material | יעד: `checkboxTheme`. השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
@@ -453,7 +515,8 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 | כרטיס מידע | `AppCard(tone: normal\|primary\|error\|inset)` | `Card(` גולמי אסור (UIL-012; נשארו 2: כרטיס הזמן בלוח השנה, כרטיס הארגון בחלון הגיוס). מסגרת, בלי צל (DD-12). `primary`/`error` על `primaryContainer`/`errorContainer`, והטקסט והאייקונים בצבע ה־on. `inset` לכרטיס בתוך כרטיס, על `surfaceContainerHigh` (q10 Q8a) |
 | קבוצת שורות בכרטיס | `AppCard.section(children:)` | מפריד = רווח שקוף |
 | כרטיס תוצאה (חיפוש וכלים) | `ResultCardFrame` (DD-11 A): צבע כרטיס, מסגרת `outlineVariant`, ריפוד `AppTokens.cardPadding` (12) ומרווח `AppTokens.listItemGap` (8) בין תוצאות | חלקי. בכלים דרך `ToolResultCardShell` (טקסט נבחר ולחיצה). מספר התוצאה: `SearchResultRankBadge`. עוד לא על המסגרת: כרטיסי איתור מקורות ורשימת תוצאות החיפוש במפרשים |
-| היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9 ⚠): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו. גוף הדיאלוג `AppSurfaces.cardDialogBackground` וריפוד 16, כמו ב־upstream (סקירת 4.11) | גם הסימניות המרוכזות. הערות אישיות נשארות כרטיסי מידע (`AppCard`, ריפוד `cardPadding`) |
+| היסטוריה וסימניות | **כרטיס בהיר לכל קבוצה** (DD-11, q12 Q9): `ItemsListView` בונה שורות בסגנון `AppCard.section`, רקע `AppSurfaces.card`, פינות בקצות הקבוצה ורווח `AppCard.sectionSpacing` בין השורות, בלי קו. גוף הדיאלוג `AppSurfaces.cardDialogBackground` וריפוד 16, כמו ב־upstream (סקירת 4.11) | גם הסימניות המרוכזות. |
+| רשימה בחלונית צד (קישורים, מפרשים, הערות) | שורות שקופות על רקע החלונית, עם מפריד דק ביניהן. **בחלונית ההערות בלבד** כל הערה כרטיס מעוגל ברקע `AppSurfaces.tintedRow`, מוזח `spaceSM` מהקצוות, ובין הכרטיסים רווח `spaceSM` בלי קו (`NoteTile(backgroundColor:)`; ‏#3086, סקירת 4.11, סבב חמישי) | הערה חסרת מיקום מזוהה בכותרת הקבוצה שמעליה, לא בגוון. כרטיס הערה במסך ניהול ההערות הוא `AppCard` עם ריפוד `cardPadding` |
 | דיאלוג הסבר בכמה נושאים | מקטעים: `AppSectionLabel` ומתחתיו הפריטים ישירות על גוף הדיאלוג, בגוון הדיאלוג, וקו `Divider` דק בין מקטע למקטע. בלי כרטיסים ובלי גוף כהה יותר | "הצגה או הוספה של הקבצים" (סקירת 4.11, ושנייה) |
 | כרטיס עם פעולות | `AppCard` + שורת `ActionButton`/`AppIconButton` בסוף | |
 | כרטיס פעיל ברשת (בורר שולחנות העבודה) | `AppCard(active: true)`: מסגרת `multiSelectedBorder` ‏1.5 במקום `outlineVariant`. אזור התצוגה המקדימה בלבד ב־`selectedRow` (אייקון וטקסט `onSelectedRow`); בלא פעילים `surfaceContainerHighest` ו־`primary` (DD-06, השלמה 3.11) | שורת השם בצבע הכרטיס. מחיקה: פח בשורת השם, מושבת בפעיל (DD-11) |
@@ -473,7 +536,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | מצב | רכיב | הערות |
 |---|---|---|
-| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 59 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
+| טעינה, מסך או חלונית | `LoadingIndicator`, ועם הודעה `LoadingIndicator(message:)` | חלקי: נשארו 55 `CircularProgressIndicator` גולמיים מחוץ ל־`lib/widgets/feedback` (UIL-013), מהם 4 התקדמות מדודה (`value:`) שאין לה עדיין רכיב משותף |
 | טעינה, inline | `LoadingIndicator.inline()` (‏16px, ‏stroke 2) | |
 | טעינה, שלד (skeleton) | `SkeletonLines` (רוחב כחלק מהמקום שקיבלו) | |
 | ריק | `OtzariaEmptyState` (`isCompact` בחלונית) | |
@@ -551,7 +614,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 **[מחייב] (q12 Q8) · קיים:** סף הגובה הוא `LayoutBreakpoints.compactHeight` (480, ה־compact height של M3), דרך `WindowClass.isShortOf(context)`. חלון נמוך הוא טלפון לרוחב, או חלון שטוח במחשב. בחלון כזה הגובה הוא האילוץ:
 - **ניווט וכרטיסיות:** עמודה בצד, וכרטיסיות בשורת הכותרת ולא בשורה שנייה, גם מתחת ל־600 (`WindowClass.usesSideNavigationOf`).
-- **צפיפות:** מצומצמת כשלא נבחרה, כי חלון נמוך הוא גם קטן (`SettingsState.compactMenuModeFor`). "רגיל" מפורש נשמר (סקירה שנייה של 4.11).
+- **צפיפות:** מצומצמת כשלא נבחרה, כי חלון נמוך הוא גם קטן (`SettingsState.compactMenuModeFor`). "רגיל" מפורש נשמר (סקירת 4.11, סבב שני).
 - **דיאלוגים:** בכל רוחב, ‏`large`/`full` במסך מלא.
 
 ### 5.2 שני סוגי החלטות [מחייב] (DD-15 A) · קיים
@@ -568,11 +631,11 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 |---|---|
 | מסך רחב (≥1200) | תוכן לוח מוגבל ל־860 וממורכז. חלוניות מוצמדות |
 | מחשב נייד (840–1200) | כמו רחב. חלונית צד אחת מוצמדת לכל היותר |
-| טאבלט (600–840) | חלוניות צפות עם scrim. דיאלוג `large` במסך מלא |
-| טלפון (<600) | ניווט תחתון. דיאלוגים לפי גודלם (DD-16, סעיף 3.1). שורות הגדרה בעמודה. כפתור "מסך מלא" בשורת הכותרת משמאל ל"הגדרות תצוגת הספרים", ובלי מקום שם בסרגל הקורא (במחשב: ליד כפתורי החלון ו־F11). "צפיפות ממשק" שלא נבחרה מצומצמת כשהצד הקצר מתחת ל־600. סרגל תחתון 64 עם תווית לכל יעד. בסרגל קורא צר מ־480 (`ReaderNavCenter.navInMenuFor`) חיצי הניווט בראש "עוד", והמרכז לכותרת. בספרייה כרטיסי התיקייה נמוכים מכרטיסי הספר. כותרת מסך שרק חוזרת על שורת הכותרת של החלון לא מוצגת: בתפריט ההגדרות אין `AppTopBar`, והוא מופיע רק עם "חזור" (בלשונית ובתוצאות החיפוש) |
-| חלון צר במחשב (420–600) | **כמו טלפון אבל עם עכבר.** שטחי הלחיצה נשארים לפי דסקטופ. החלון המינימלי הוא 420×400 |
+| טאבלט (600–840) | חלוניות צפות עם scrim. דיאלוג `large` צף; במסך מלא רק מתחת ל־600 או בחלון נמוך (DD-16) |
+| טלפון (<600) | ניווט תחתון. דיאלוגים לפי גודלם (DD-16, סעיף 3.1). שורות הגדרה בעמודה. כפתור "מסך מלא" בשורת הכותרת משמאל ל"הגדרות תצוגת הספרים", ובלי מקום שם בסרגל הקורא (במחשב: ליד כפתורי החלון ו־F11). "צפיפות ממשק" האוטומטית מצומצמת כשהצד הקצר מתחת ל־600. סרגל תחתון 64 עם תווית לכל יעד. בסרגל הקורא, ה־PDF וכרטיסיית המפרשים, חיצי הניווט בראש "עוד" רק כשארבעתם לא נכנסים ברוחב שהמרכז מקבל (`ReaderNavCenter.navFits`), והמרכז לכותרת. כשהם נכנסים הם קודמים לכותרת. בספרייה כרטיסי התיקייה נמוכים מכרטיסי הספר. כותרת מסך שרק חוזרת על שורת הכותרת של החלון לא מוצגת: בתפריט ההגדרות אין `AppTopBar`, והוא מופיע רק עם "חזור" (בלשונית ובתוצאות החיפוש) |
+| חלון צר במחשב (420–600) | **כמו טלפון אבל עם עכבר.** שטחי הלחיצה נשארים לפי דסקטופ. "צפיפות ממשק" האוטומטית נשארת רגילה: במחשב רק חלון נמוך מ־480 הוא "חלון קטן" (q-density-desktop-narrow). החלון המינימלי הוא 420×400 |
 | חלון נמוך (גובה <480: טלפון לרוחב) | עמודה בצד וכרטיסיות בשורת הכותרת, גם מתחת ל־600. כרום בצפיפות קומפקטית. דיאלוג `large`/`full` במסך מלא בכל רוחב (q12 Q8). בספרייה התצוגה המקדימה סגורה עד שהמשתמש פותח אותה, והבחירה שם נשמרת בנפרד. במסך ההגדרות אין כותרת "הגדרות" מעל הרשימה, כי שורת הכותרת של החלון כבר אומרת אותה |
-| חלוניות מפוצלות | כל חלונית מחליטה לפי ה־constraints שלה ולא לפי החלון. ידית הגרירה בסרגל (`AppTopBar`). לחלונית בלי סרגל, כמו תוסף, `FloatingPaneDragHandle`: במחשב רק בריחוף על הרצועה העליונה של החלונית (`hoverStripHeight`, ‏44, לכל הרוחב), ובמנוחה שקופה ולא חוסמת. במגע תמיד גלויה, בגרסה הקטנה (#2635) |
+| חלוניות מפוצלות | כל חלונית מחליטה לפי ה־constraints שלה ולא לפי החלון. ידית הגרירה בסרגל (`AppTopBar`). לחלונית בלי סרגל, כמו תוסף, `FloatingPaneDragHandle`: במחשב רק בריחוף על הרצועה העליונה של החלונית (`hoverStripHeight`, ‏44, לכל הרוחב), ובמנוחה שקופה ולא חוסמת. במגע מוסתרת באותו אופן, ומופיעה בגרסה הקטנה רק אחרי נגיעה ברצועה. הנגיעה מגיעה גם לתוסף (`Listener`, לא נבלעת). הידית נעלמת אחרי `touchRevealDuration` (‏3 שניות), נשארת בזמן גרירה, והספירה מתחילה מחדש בסוף הגרירה. במגע לחיצה ארוכה על הידית (גם בסרגל הספר) מתחילה גרירה ולא הסבר: ה־tooltip שלה ב־`TooltipTriggerMode.manual` (#2635) |
 | שינוי גודל בזמן ריצה | אין מצב שמחושב פעם אחת ב־`initState` לפי רוחב. רוחב שמור נשמר **כיחס** ולא בפיקסלים |
 | הגדלת טקסט | ראו 6.3 |
 
@@ -633,7 +696,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 - **ניגודיות:**
   - טקסט רגיל ≥4.5:1, ורכיבים גרפיים וטקסט גדול ≥3:1. נבדק לכל זרע בבדיקות `test/theme/app_theme_data_test.dart`, וברכיבים המשותפים גם ב־`meetsGuideline(textContrastGuideline)` (`test/design_system/a11y_guidelines_test.dart`).
   - טקסט משני הוא `onSurfaceVariant`, לא `onSurface` בשקיפות.
-  - צבע אינו הסימן היחיד למצב: נבחר מסומן גם במשקל או באייקון (DD-06).
+  - צבע אינו הסימן היחיד למצב: נבחר מסומן גם במשקל, באייקון, או ב"לבן" בקו `selectedBorder` (DD-06, §2.1.4).
 - **הפחתת תנועה:** ראו 2.5.5 (DD-21).
 - **גופנים שונים:** הממשק מוצג בגופן המערכת (DD-01), ולכן משתנה בין פלטפורמות. אסור להניח רוחב תו קבוע: אין רוחב בפיקסלים שמחושב מאורך מחרוזת.
 
@@ -643,14 +706,14 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 
 | הגדרה | איפה נשמרת | איפה מוחלת | היקף | הערות |
 |---|---|---|---|---|
-| ערכת צבע (seed), בהיר | `SettingsBloc.seedColor` | `app.dart` → `createColorScheme` | גלובלי, כל הכרום | 14 זרעים. ל"לבן" ול"פרגמנט" יש override לסולם המשטחים, לפי הזרע. ב"לבן" הקריאה לבנה, והסרגלים, הדיאלוגים והלוח כמעט לבנים (FC, לוח FA), והאזורים מופרדים בקו דק אפור בינוני, `regionBorder` (q12 Q3, סקירת 4.11) |
+| ערכת צבע (seed), בהיר | `SettingsBloc.seedColor` | `app.dart` → `createColorScheme` | גלובלי, כל הכרום | 14 זרעים. ל"לבן" ול"פרגמנט" יש override לסולם המשטחים, לפי הזרע. ב"לבן" הקריאה לבנה, והסרגלים, הדיאלוגים והלוח כמעט לבנים (FC, לוח FA), והאזורים מופרדים בקו דק אפור בינוני־בהיר (9F), `regionBorder` (q12 Q3, סקירת 4.11). צבע הבחירה (`secondaryContainer`) E0, והנבחר גם בקו `selectedBorder` (סקירת 4.11, סבב רביעי) |
 | ערכת צבע, כהה | `darkSeedColor` | כנ"ל | גלובלי | הבורר עורך רק את הזרע של הבהירות הנוכחית. לוחות כהים `surfaceContainerLow`, קריאה נייטרלית (DD-05) |
 | בהיר/כהה/מערכת | `isDarkMode`, `followSystemTheme` | `MaterialApp.themeMode` | גלובלי | |
 | גופן קריאה, גודל, גובה שורה | `SettingsState.fontFamily/fontSize/lineHeight` | הקורא, התצוגה המקדימה, ייצוא; הגופן גם בקטעי תוצאות | **תוכן בלבד** | לא משפיע על הממשק, ונשאר כך **[מחייב]** |
 | גודל טקסט בתוצאות החיפוש | `SettingsState.searchResultsFontSize` | קטעי תוצאות החיפוש | תוכן בלבד | נפרד מגודל הספר (§2.4.2, q12 Q2) |
 | גופן וגודל של מפרשים | `commentators*` | תוכן | תוכן בלבד | |
 | פרופיל תצוגת טקסט (ניקוד, טעמים) | `TextDisplayProfile` | תוכן | תוכן ו־export | |
-| "צפיפות ממשק" | `compactMenuMode` | `AppDensity` בערכת הנושא (DD-10 B) | סרגלים, שדות ותפריטים | השם "צפיפות ממשק" נשאר. התפריטים צפופים יותר במצב הקומפקטי |
+| "צפיפות ממשק" | `compactMenuMode` (`key-compact-menu-mode`; בלי מפתח = "אוטומטי") | `AppDensity` בערכת הנושא (DD-10 B), דרך `SettingsState.compactMenuModeFor` | סרגלים, שדות ותפריטים | השם "צפיפות ממשק" נשאר. "רגיל \| אוטומטי \| מצומצם", ו"אוטומטי" לפי גודל החלון (§2.5.8, DD-15). התפריטים צפופים יותר במצב הקומפקטי |
 | שפת הממשק | `settingsLanguageCode` (ברירת מחדל "מערכת") | `SettingsTextScope`, `ChromeDirectionality` | כרום הממשק — הרשימה הסגורה ב־6.1 (DD-20) | ברירת המחדל נשארת "לפי מערכת ההפעלה" |
 | גודל ממשק | **אין** | — | — | לא מוסיפים. מספיקה הגדלת הטקסט של מערכת ההפעלה (6.3) |
 | גופן ממשק | **אין** הגדרה | `AppThemeData` | — | גופני המערכת (DD-01) |
@@ -798,18 +861,29 @@ return switch (state) {
   6. באותו שינוי עוברים אליו לפחות המופעים שהצדיקו אותו.
 - **רכיב ייחודי** מתאים לתצוגה שתלויה בתוכן או בגאומטריה של פיצ'ר אחד (צורת הדף, טבלת שמור וזכור, תא בלוח השנה). הוא מורכב מרכיבי הקטלוג וכל ערך בו הוא טוקן. מיקומו `lib/<feature>/view/widgets/`, ולא מייבאים אותו ממודול אחר.
 
+**ובנוסף, לפני שמסמנים רכיב משותף כגמור** (מפתח או סוכן AI):
+- [ ] כל צבע, ריווח, רדיוס, גודל אייקון, גופן ומשך מטוקן או מתפקיד, ו־`dart tool/ui_lint_cli.dart` לא מדווח על הקבצים החדשים.
+- [ ] צפיפות מ־`AppDensity.of(context)`, החלטת רוחב ב־`LayoutBuilder` עם סף בעל שם (§5.2), ריווח Directional.
+- [ ] `tooltip` לכפתור אייקון, `Semantics` למצב (נבחר, מורחב, מושבת), ופוקוס עם Enter/Space לרכיב לחיץ שאינו כפתור Material (§6.2, ‏§6.3).
+- [ ] נבדק בבהיר, בכהה וב"לבן" (§2.1.4), ב־RTL, ברוחב 360 ובטקסט ×1.3.
+- [ ] נוספה שורה בקטלוג (§3), ב"מתחילים כאן" אם הוא עונה על צורך חדש, ובטבלת הרכיבים ב־`AGENTS.md` ("UI rules").
+
 ### 8.6 חריג, ומה עושים כש־ui_lint נכשל
+
+הדוח המלא מקומית: `dart tool/ui_lint_cli.dart` (ברירת המחדל Markdown; גם `--format=json` או `--format=github`). הבדיקה החוסמת: `flutter test test/design_system/ui_lint_test.dart`. כשהיא נכשלת ב"חריגה חדשה", ההודעה מציינת את הקובץ, השורה, הכלל והתחליף. לפי הסדר:
+
+1. **מתקנים** לפי התחליף. זה המקרה הרגיל.
+2. **חריג מוצדק** (תוכן, ייצוא והדפסה, חיקוי מערכת ההפעלה, או חריג שמתועד ב־DD): הערת allow בשורה שמעל הצומת. כלל אחד בכל הערה, נימוק של 12 תווים לפחות (רצוי עם מספר ה־DD), והיא חלה על הצומת הבא בלבד. אין `// ignore:` לכללי ui_lint ואין חריג לקובץ שלם.
+3. **תיקייה שלמה** שהכלל לא חל עליה (ייצוא, painters): רשומה ב־`tool/ui_lint/config.yaml` עם `reason:`, דרך PR שמתחזק מאשר.
+4. **baseline:** רק לחוב ישן. לא מוסיפים אליו חריגה חדשה כדי לעבור. `--allow-growth` מגדיל אותו, ו־PR כזה נחסם ב־`ui_baseline_guard` עד שמתחזק מוסיף את התווית `ui-baseline`.
 
 ```dart
 // ui-lint: allow UIL-015 — צבע הפס הוא צבע המרקר שהמשתמש בחר (תוכן)
 final band = Color(markerArgb);
 ```
 
-- **הערת allow:** כלל אחד בכל הערה, נימוק של 12 תווים לפחות (רצוי עם מספר ה־DD שמתיר אותו), והיא חלה על הצומת הבא בלבד. אין `// ignore:` לכללי ui_lint ואין חריג לקובץ שלם. חריג לתיקייה שלמה (ייצוא, painters) נכנס ל־`tool/ui_lint/config.yaml` עם `reason:`, דרך PR שמתחזק מאשר.
-- **`ui_lint_test` נכשל ב"חריגה חדשה":** ההודעה מציינת את הקובץ, השורה, הכלל והתחליף. מתקנים לפי התחליף. אם השימוש באמת מוצדק (תוכן, ייצוא, חיקוי מערכת ההפעלה), מוסיפים הערת allow עם נימוק. לא מוסיפים רשומה ל־baseline.
-- **"baseline מת":** תיקנת חריגה ישנה. מריצים `dart tool/ui_lint_cli.dart --update-baseline`, שרק מוחק רשומות, ומצרפים את `baseline.json` ל־commit.
-- **הדוח המלא** מקומית: `dart tool/ui_lint_cli.dart` (או `--format=md`). `--allow-growth` מגדיל את ה־baseline, ו־PR כזה נחסם ב־`ui_baseline_guard` עד שמתחזק מוסיף את התווית `ui-baseline`.
-- **golden נכשל:** אם השינוי החזותי מכוון, מעדכנים את התמונות על Windows (`flutter test --update-goldens test/goldens/<רכיב>`, או ה־workflow "Regenerate goldens"), וה־PR צריך את התווית `goldens-approved`. אם לא היה שינוי מכוון, זו רגרסיה.
+- **"baseline מת":** תיקנת חריגה ישנה. מריצים `dart tool/ui_lint_cli.dart --update-baseline`, שרק מוחק רשומות, ומצרפים את `tool/ui_lint/baseline.json` ל־commit.
+- **golden נכשל:** אם השינוי החזותי מכוון, מעדכנים את התמונות על Windows (`flutter test --update-goldens test/goldens/<רכיב>`, או ה־workflow "Regenerate goldens"), וה־PR צריך את התווית `goldens-approved` (`goldens_guard`). אם לא היה שינוי מכוון, זו רגרסיה.
 
 ### 8.7 בדיקות חובה
 

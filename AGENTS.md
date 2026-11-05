@@ -302,7 +302,7 @@ The binding UI standard is the design system in `docs/design-system/`. Read only
 
 | Document | Use it for |
 |---|---|
-| `DESIGN_SYSTEM.md` | The standard: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests) |
+| `DESIGN_SYSTEM.md` | The standard. Start with its "מתחילים כאן" section (need → component table, the five things never to write, what to do when ui_lint fails). Then: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests) |
 | `DESIGN_DECISIONS.md` | Settled decisions (DD-xx). Follow them; do not re-decide in a PR. Each one lists the alternatives, the reason, what is implemented and the commits |
 | `CI_ENFORCEMENT.md` | The `tool/ui_lint` rules, baseline, goldens and CI guards |
 
@@ -343,8 +343,8 @@ A widget that only fits one feature's content or geometry may stay in `lib/<feat
 - A changed golden PNG needs the `goldens-approved` label (`goldens_guard.yml`), and the reviewer checks the GitHub image diff. The threshold stays 0.05% (DD-22).
 
 ### Processes
-- **Adding a token.** Use an existing role or scale value first (`DESIGN_SYSTEM.md` §8.1). A value off the scale rounds up. A new surface or state goes into `lib/theme/app_surfaces.dart` as a function with a one-line comment, in the same PR that uses it. A new scale value or semantic colour needs a DD in `DESIGN_DECISIONS.md` approved by a maintainer, plus `test/theme/` contrast coverage for all seeds.
-- **Adding a shared component.** Only when the same role appears in 3+ places or 2+ modules and no existing component can take a variant (`DESIGN_SYSTEM.md` §8.5). Keep the API small (variants, not booleans; no escape hatches), with no feature imports. Add a contract test in `test/design_system/contracts/`, plus a golden if it has a look. Move the call sites that justified it in the same PR. Before replacing an existing API, find every caller and write the contract test first; keep a temporary compatibility layer only when it is really needed, with a written removal condition, so two competing implementations do not remain (`DESIGN_SYSTEM.md` §3).
+- **Adding a token.** Use an existing role or scale value first (`DESIGN_SYSTEM.md` §8.1). A value off the scale rounds up. A theme-dependent surface or state goes into `AppSurfaceColors` (`lib/theme/app_surface_colors.dart`) and is read through `AppSurfaces`; a state colour derived directly from a `ColorScheme` role can be an `AppSurfaces` function. Either way, with a one-line comment, in the same PR that uses it. A new scale value or semantic colour needs a DD in `DESIGN_DECISIONS.md` approved by a maintainer, plus `test/theme/` contrast coverage for all seeds.
+- **Adding a shared component.** Only when the same role appears in 3+ places or 2+ modules and no existing component can take a variant (`DESIGN_SYSTEM.md` §8.5). Keep the API small (variants, not booleans; no escape hatches), with no feature imports. Add a contract test in `test/design_system/contracts/`, plus a golden if it has a look. Move the call sites that justified it in the same PR, and go through the checklist in `DESIGN_SYSTEM.md` §8.5. Before replacing an existing API, find every caller and write the contract test first; keep a temporary compatibility layer only when it is really needed, with a written removal condition, so two competing implementations do not remain (`DESIGN_SYSTEM.md` §3).
 - **Getting an exception approved.** Put `// ui-lint: allow UIL-xxx — <reason>` on the line directly above the flagged node. Use one rule per comment, with a real reason (12+ characters) and the DD that allows it, e.g. `(DD-24)`. Local colour is allowed only for content, export/print and OS-chrome imitation. A whole-folder exception goes into `tool/ui_lint/config.yaml` with `reason:` and needs maintainer approval. Never use `// ignore:` for ui-lint rules, and never exempt a whole file.
 
 ### PR checklist for visual changes
@@ -362,7 +362,7 @@ Before opening the PR, confirm that no open PR already covers the topic, that th
 11. Regression risks.
 12. Related PRs.
 
-The checklist is also in `.github/PULL_REQUEST_TEMPLATE.md`. The per-change checks (light/dark, RTL, width 360 and full, text ×1.3) and the required tests are in `DESIGN_SYSTEM.md` §8.7.
+The checklist is also in `.github/PULL_REQUEST_TEMPLATE.md`. The per-change checks (light, dark and the "לבן" (white) theme, RTL, width 360 and full, text ×1.3) and the required tests are in `DESIGN_SYSTEM.md` §8.7.
 
 ## Code Guidelines
 
