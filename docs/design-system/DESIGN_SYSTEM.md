@@ -322,7 +322,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 | `AppTokens.iconLG` | 24 | ברירת מחדל של M3 |
 | `AppTokens.iconXL` | 48 | מצב ריק |
 
-**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 106 מופעים ב־baseline). גודל מחוץ לסולם עובר לטוקן: 18 ל־`iconSM` ‏(16), ‏22 ל־`iconMD` ‏(20) (סקירת 4.11, סבבים רביעי וחמישי, גם בתוך `OtzariaSearchField`), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9).
+**[אסור]** גודל אייקון מספרי בקוד פיצ'ר, וטוקן גופן כגודל אייקון (UIL-029; 105 מופעים ב־baseline). גודל מחוץ לסולם עובר לטוקן: 18 ל־`iconSM` ‏(16), ‏22 ל־`iconMD` ‏(20) (סקירת 4.11, סבבים רביעי וחמישי, גם בתוך `OtzariaSearchField`), ו־56/64 ל־`iconXL` ‏(48) (q10 Q9).
 
 #### 2.5.2 גבהים סטנדרטיים
 | רכיב | ערך | מקור | סטטוס |
@@ -483,7 +483,7 @@ AppMotion.scroll(context, AppTokens.animPanelSlide,
 **מדיניות Tooltip [מחייב]:** לכל כפתור שמכיל אייקון בלבד יש `tooltip` (UIL-003). הטקסט שלו הוא גם השם הנגיש. אם יש קיצור מקשים, הוא מופיע ב־tooltip בצורה `"הדפסה (Ctrl+P)"`, בעזרת `ShortcutHelper.formatShortcutForDisplay`. כפתור עם תווית טקסט לא צריך tooltip.
 
 **[אסור]**
-- `TextButton(`, `FilledButton(`, `OutlinedButton(`, `ElevatedButton(` מחוץ ל־`lib/widgets/controls/`. תשעת הכפתורים הגולמיים האחרונים הוסבו (q10 Q7), ואין יותר כאלה בפיצ'רים. הכלל (UIL-002) עוד לא באכיפה.
+- `TextButton(`, `FilledButton(`, `OutlinedButton(`, `ElevatedButton(` מחוץ ל־`lib/widgets/controls/`. תשעת הכפתורים הגולמיים האחרונים הוסבו (q10 Q7), ואין יותר כאלה בפיצ'רים. נאכף ב־UIL-002 (נעול).
 - `IconButton` בלי `tooltip`.
 - `IconButton` בתוך `ResponsiveActionBar` במקום `BarButton`.
 
