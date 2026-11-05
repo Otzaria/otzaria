@@ -51,6 +51,18 @@ void main() {
       ]);
     });
 
+    test('עצירה של כל התהליך אינה תקיעה ואינה ראיה לקריסה', () {
+      final blocks = parseErrorLogBlocks(
+        '\n=== Process stall ${DateTime.utc(2026, 11, 3, 12, 24, 31).toIso8601String()} ===\n'
+        'Gap: 296114ms\n',
+      );
+      expect(blocks.single.title, 'Process stall');
+      expect(blocks.single.isAppHang, isFalse);
+      expect(blocks.single.isAppHangRecovered, isFalse);
+      expect(blocks.single.isStartupStall, isFalse);
+      expect(blocks.single.isCrashEvidence, isFalse);
+    });
+
     test('חתימה יציבה בין תקיעות באותו מקום, גם כשההמתנה במערכת שונה', () {
       final a = parseErrorLogBlocks(
         hangEntry(DateTime.utc(2026, 10, 18, 10)),

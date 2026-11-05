@@ -22,6 +22,8 @@ constexpr ULONGLONG kHungThresholdMs = 5000;
 constexpr int kRequiredHungPolls = 2;
 constexpr ULONGLONG kSleepGapMs = 2000;
 constexpr ULONGLONG kResumeGraceMs = 10000;
+// פער כזה בשעון הערות בין דגימות של שנייה = כל התהליך או המחשב נעצר (דפדוף).
+constexpr ULONGLONG kProcessStallGapMs = 10000;
 constexpr int kMaxReports = 5;
 // דגימה אחת לא מבדילה בין לולאה ארוכה אחת לבין עבודה שמתחלפת.
 constexpr int kMaxExtraSamples = 3;
@@ -269,6 +271,22 @@ void ReportRecovered(ULONGLONG duration_ms) {
                                  text);
 }
 
+enum class PollGap { kNone, kSleep, kProcessStall };
+
+PollGap ClassifyPollGap(ULONGLONG tick_delta, ULONGLONG awake_delta) {
+  if (tick_delta > awake_delta + kSleepGapMs) return PollGap::kSleep;
+  if (awake_delta > kProcessStallGapMs) return PollGap::kProcessStall;
+  return PollGap::kNone;
+}
+
+void ReportProcessStall(ULONGLONG gap_ms) {
+  char text[64];
+  snprintf(text, sizeof(text), "Gap: %llums\n", gap_ms);
+  startup_watchdog::AppendReport("\n=== Process stall " +
+                                 startup_watchdog::UtcTimestamp() + " ===\n" +
+                                 text);
+}
+
 void WatcherLoop() {
   ULONGLONG last_tick = ::GetTickCount64();
   ULONGLONG last_awake = AwakeMs();
@@ -278,6 +296,7 @@ void WatcherLoop() {
   ULONGLONG last_sample_at = 0;
   int hung_polls = 0;
   int reports = 0;
+  int stalls = 0;
   int samples = 0;
   bool in_hang = false;
 
@@ -290,8 +309,12 @@ void WatcherLoop() {
     const ULONGLONG awake_delta = awake - last_awake;
     last_tick = tick;
     last_awake = awake;
-    if (tick_delta > awake_delta + kSleepGapMs) {
-      grace_until = awake + kResumeGraceMs;
+    const PollGap gap = ClassifyPollGap(tick_delta, awake_delta);
+    if (gap != PollGap::kNone) grace_until = awake + kResumeGraceMs;
+    // בתוך תקיעה רשומה נפרדת הייתה מנתקת ממנה את הדגימות שאחריה.
+    if (gap == PollGap::kProcessStall && !in_hang && stalls < kMaxReports) {
+      ++stalls;
+      ReportProcessStall(awake_delta);
     }
 
     const bool hung = ::IsHungAppWindow(g_window) != FALSE;
