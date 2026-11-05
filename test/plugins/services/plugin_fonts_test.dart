@@ -314,9 +314,10 @@ void main() {
       });
     });
 
-    test('שגיאה בסקריפט, תשובה ריקה או חריגה — false, וה-boot מזריק', () async {
+    test('תשובה שאינה true או חריגה מחזירות false', () async {
       for (final controller in [
         _FakeController(CallAsyncJavaScriptResult(error: 'ReferenceError')),
+        _FakeController(CallAsyncJavaScriptResult(value: false)),
         _FakeController(null),
         _FakeController(null, throws: true),
       ]) {
@@ -354,36 +355,30 @@ void main() {
 
     test('משפחות ללא כלל אינן עוקפות בדיקת transport של גופן מובנה', () async {
       final controller = _ScriptController('unmatched');
-      expect(
-        await installPluginFonts(
-          controller,
-          css: 'X',
-          targets: ['16px "Missing System Family"'],
-        ),
-        isFalse,
+      await installPluginFonts(
+        controller,
+        css: 'X',
+        targets: ['16px "Missing System Family"'],
       );
+      expect(await controller.runScript(), isFalse);
     });
 
     test('targets ריקים אינם עוקפים בדיקת transport של גופן מובנה', () async {
       final controller = _ScriptController('unmatched');
-      expect(
-        await installPluginFonts(controller, css: 'X', targets: const []),
-        isFalse,
-      );
+      await installPluginFonts(controller, css: 'X', targets: const []);
+      expect(await controller.runScript(), isFalse);
     });
 
     for (final outcome in ['loaded', 'blocked', 'pending']) {
       test('תוצאת טעינת הגופן ב-JS: $outcome', () async {
         final controller = _ScriptController(outcome);
-        expect(
-          await installPluginFonts(
-            controller,
-            css: 'X',
-            targets: ['16px "A"'],
-            timeout: const Duration(milliseconds: 10),
-          ),
-          outcome == 'loaded',
+        await installPluginFonts(
+          controller,
+          css: 'X',
+          targets: ['16px "A"'],
+          timeout: const Duration(milliseconds: 10),
         );
+        expect(await controller.runScript(), outcome == 'loaded');
       });
     }
 
@@ -544,6 +539,7 @@ class _FakeController extends Fake implements InAppWebViewController {
   final CallAsyncJavaScriptResult? result;
   final bool throws;
   final bool hangs;
+  late String functionBody;
   Map<String, dynamic>? arguments;
 
   @override
@@ -552,6 +548,7 @@ class _FakeController extends Fake implements InAppWebViewController {
     Map<String, dynamic> arguments = const <String, dynamic>{},
     ContentWorld? contentWorld,
   }) async {
+    this.functionBody = functionBody;
     this.arguments = arguments;
     if (throws) throw PlatformException(code: 'unsupported');
     if (hangs) await Completer<void>().future;
@@ -559,17 +556,14 @@ class _FakeController extends Fake implements InAppWebViewController {
   }
 }
 
-class _ScriptController extends Fake implements InAppWebViewController {
-  _ScriptController(this.outcome);
+class _ScriptController extends _FakeController {
+  _ScriptController(this.outcome)
+    : super(CallAsyncJavaScriptResult(value: true));
 
   final String outcome;
 
-  @override
-  Future<CallAsyncJavaScriptResult?> callAsyncJavaScript({
-    required String functionBody,
-    Map<String, dynamic> arguments = const <String, dynamic>{},
-    ContentWorld? contentWorld,
-  }) async {
+  // זמן התנעת Node אינו חלק מזמן ההמתנה לגופן ב-WebView שכבר פועל.
+  Future<bool> runScript() async {
     final result = await Process.run('node', [
       '-e',
       """
@@ -595,9 +589,7 @@ $functionBody
     ]);
     expect(result.exitCode, 0, reason: result.stderr.toString());
     final response = jsonDecode(result.stdout.toString()) as Map;
-    return CallAsyncJavaScriptResult(
-      value: response['value'],
-      error: response['error'],
-    );
+    expect(response['error'], isNull);
+    return response['value'] as bool;
   }
 }

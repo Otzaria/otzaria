@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -313,7 +314,7 @@ void main() {
           var receivedRequest = Completer<void>();
           final downloader = PluginFileDownloadService(
             client: _ObservedClient(() {
-              if (phase == 'body' && !receivedRequest.isCompleted) {
+              if (phase != 'headers' && !receivedRequest.isCompleted) {
                 receivedRequest.complete();
               }
             }),
@@ -343,7 +344,7 @@ void main() {
                 if (received) return;
                 received = true;
                 requests++;
-                if (phase != 'body' && !receivedRequest.isCompleted) {
+                if (phase == 'headers' && !receivedRequest.isCompleted) {
                   receivedRequest.complete();
                 }
                 if (phase == 'headers') return;
@@ -370,16 +371,26 @@ void main() {
             await server.close();
           });
 
+          const requestTimeout = Duration(milliseconds: 60);
+          final clock = FakeAsync();
+          final timeoutZone = clock.run((_) => Zone.current);
           for (var i = 0; i < 4; i++) {
             receivedRequest = Completer<void>();
-            final running = cache.fetch(
-              'p1',
-              Uri.parse('http://127.0.0.1:${server.port}/slow.pdf'),
-              downloader: downloader,
-              isAllowed: allowAll,
-              timeout: revoke
-                  ? const Duration(seconds: 2)
-                  : const Duration(milliseconds: 60),
+            // רק מועד ה-timeout נשלט. החיבור, הזרם והקבצים נשארים אמיתיים.
+            final running = runZoned(
+              () => cache.fetch(
+                'p1',
+                Uri.parse('http://127.0.0.1:${server.port}/slow.pdf'),
+                downloader: downloader,
+                isAllowed: allowAll,
+                timeout: requestTimeout,
+              ),
+              zoneSpecification: ZoneSpecification(
+                createTimer: (self, parent, zone, duration, callback) =>
+                    duration == requestTimeout
+                    ? timeoutZone.createTimer(duration, callback)
+                    : parent.createTimer(zone, duration, callback),
+              ),
             );
             final failed = expectLater(
               running,
@@ -393,13 +404,18 @@ void main() {
                     )
                   : throwsA(isA<TimeoutException>()),
             );
+            await receivedRequest.future;
             if (revoke) {
-              await receivedRequest.future;
               await cache.deleteForPlugin('p1');
+            } else {
+              // עומס CI לא יכול לגרום לביטול לפני השלב שהטסט בודק.
+              clock.elapse(requestTimeout);
             }
             await failed;
+            await disconnected.last;
+            await waitForCleanup('p1');
           }
-          await Future.wait(disconnected).timeout(const Duration(seconds: 2));
+          await Future.wait(disconnected);
           expect(requests, 4);
           expect(sockets, isEmpty);
           await waitForCleanup('p1');

@@ -136,6 +136,7 @@ void main() {
       copyByDefault: false,
     );
     AttachedLibrariesRepository.instance = attached;
+    await LibraryProviderManager.instance.initialize();
   });
 
   tearDown(() async {

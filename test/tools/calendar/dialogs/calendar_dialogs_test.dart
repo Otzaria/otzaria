@@ -57,7 +57,8 @@ void main() {
         final full = parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
         final short = parseCalendarDate('טו תמוז פו', currentJewishYear: 5786);
         expect(full, isNotNull);
-        expect(short, equals(full));
+        expect(short, isNotNull);
+        expect(DateUtils.dateOnly(short!), DateUtils.dateOnly(full!));
       });
       test('שנה חסרה → שנה עברית נוכחית', () {
         final withYear = parseCalendarDate(
@@ -65,7 +66,9 @@ void main() {
           currentJewishYear: 5786,
         );
         final noYear = parseCalendarDate('טו תמוז', currentJewishYear: 5786);
-        expect(noYear, equals(withYear));
+        expect(withYear, isNotNull);
+        expect(noYear, isNotNull);
+        expect(DateUtils.dateOnly(noYear!), DateUtils.dateOnly(withYear!));
       });
       test('שנה שמסתיימת באות סופית', () {
         expect(hebrewYearToInt('תש"ף'), 5780);

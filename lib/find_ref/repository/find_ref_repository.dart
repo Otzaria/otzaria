@@ -2033,8 +2033,9 @@ class FindRefRepository {
   /// בלבד (כולל רווח בסוף, להבטיח גבול מילה שלמה).
   @visibleForTesting
   static List<DbReferenceResult> suppressDeeperVariants(
-    List<DbReferenceResult> entries,
-  ) {
+    List<DbReferenceResult> entries, {
+    void Function()? debugOnPrefixProbe,
+  }) {
     if (entries.length < 2) return entries;
 
     final referencesByGroup = <(int, BookSource, bool, bool), _VariantGroup>{};
@@ -2068,6 +2069,10 @@ class FindRefRepository {
         i >= 0;
         i = reference.indexOf(' ', i + 1)
       ) {
+        assert(() {
+          debugOnPrefixProbe?.call();
+          return true;
+        }());
         final ancestorIsPartial = siblings[reference.substring(0, i)];
         if (ancestorIsPartial == null) continue;
         if (!ancestorIsPartial || entry.isPartialTocMatch) return false;

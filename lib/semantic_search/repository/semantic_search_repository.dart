@@ -176,8 +176,10 @@ class SemanticSearchRepository {
   Timer? _busyRetry;
 
   Future<void>? _opening;
+  Future<void>? _disablingSession;
   _PassageModelDownload? _passageModelDownload;
   String? _passageModelStagingDirectory;
+  Future<void>? _discardingPassageModelStaging;
   ({String path, int size, String sha, DateTime modified, DateTime changed})?
   _passageModelVerification;
   int _lifecycleEpoch = 0;
@@ -680,9 +682,11 @@ class SemanticSearchRepository {
         /* הפותח כבר קיבל את הכשל. */
       }
     }
-    if (!wasOpen) return;
+    if (!wasOpen && _disablingSession == null) return;
     try {
-      await _backend.disable();
+      await (_disablingSession ??= _backend.disable().whenComplete(
+        () => _disablingSession = null,
+      ));
     } catch (error, stackTrace) {
       _log('disable', error, stackTrace);
     }
@@ -926,9 +930,14 @@ class SemanticSearchRepository {
     }
   }
 
-  Future<void> _discardPassageModelStaging() async {
+  Future<void> _discardPassageModelStaging() =>
+      _discardingPassageModelStaging ??= _deletePassageModelStaging()
+          .whenComplete(() => _discardingPassageModelStaging = null);
+
+  Future<void> _deletePassageModelStaging() async {
     final staging = _passageModelStagingDirectory;
     if (staging == null) return;
+    // סגירה מקבילה חייבת להמתין לאותה מחיקה גם אחרי שהבעלות נמסרה לה.
     _passageModelStagingDirectory = null;
     final directory = Directory(staging);
     if (await directory.exists()) await directory.delete(recursive: true);

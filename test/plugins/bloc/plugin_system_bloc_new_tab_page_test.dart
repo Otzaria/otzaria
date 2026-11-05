@@ -20,6 +20,25 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
+class _TestPluginSystemBloc extends PluginSystemBloc {
+  _TestPluginSystemBloc({required super.repository});
+
+  Completer<void>? nextLoad;
+
+  @override
+  void onDone(
+    PluginSystemEvent event, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
+    super.onDone(event, error, stackTrace);
+    if (event is LoadPlugins) {
+      nextLoad?.complete();
+      nextLoad = null;
+    }
+  }
+}
+
 InstalledPlugin _plugin(String id) => InstalledPlugin(
   pluginId: id,
   name: id,
@@ -95,17 +114,19 @@ void main() {
   });
 
   Future<void> send(
-    PluginSystemBloc bloc,
+    _TestPluginSystemBloc bloc,
     PluginSystemEvent event,
   ) async {
+    final loaded = Completer<void>();
+    bloc.nextLoad = loaded;
     bloc.add(event);
-    await pumpEventQueue(times: 100);
+    await loaded.future;
     expect(bloc.state, isA<PluginSystemLoaded>());
   }
 
-  blocTest<PluginSystemBloc, PluginSystemState>(
+  blocTest<_TestPluginSystemBloc, PluginSystemState>(
     'טעינה ראשונה משחזרת בעלות שמורה ופותחת את התוסף הנכון בלי רישום חוזר',
-    build: () => PluginSystemBloc(repository: repository),
+    build: () => _TestPluginSystemBloc(repository: repository),
     act: (bloc) => send(bloc, LoadPlugins()),
     expect: () => [isA<PluginSystemLoading>(), isA<PluginSystemLoaded>()],
     verify: (_) async {
@@ -117,9 +138,9 @@ void main() {
     },
   );
 
-  blocTest<PluginSystemBloc, PluginSystemState>(
+  blocTest<_TestPluginSystemBloc, PluginSystemState>(
     'רענון מאמץ בעלות שהוחלפה במסד',
-    build: () => PluginSystemBloc(repository: repository),
+    build: () => _TestPluginSystemBloc(repository: repository),
     act: (bloc) async {
       await send(bloc, LoadPlugins());
       expect(registry.activePluginId, owner);
@@ -141,9 +162,9 @@ void main() {
     },
   );
 
-  blocTest<PluginSystemBloc, PluginSystemState>(
+  blocTest<_TestPluginSystemBloc, PluginSystemState>(
     'השבתה מסירה את הפלוס והפעלה מחדש משחזרת את הבעלות השמורה',
-    build: () => PluginSystemBloc(repository: repository),
+    build: () => _TestPluginSystemBloc(repository: repository),
     act: (bloc) async {
       await send(bloc, LoadPlugins());
       expect(registry.activePluginId, owner);
@@ -161,9 +182,9 @@ void main() {
   );
 
   for (final permission in ['navigation.write', pluginNewTabPagePermission]) {
-    blocTest<PluginSystemBloc, PluginSystemState>(
+    blocTest<_TestPluginSystemBloc, PluginSystemState>(
       'שלילת $permission מסירה בעלות ואינה משוחזרת ברענון',
-      build: () => PluginSystemBloc(repository: repository),
+      build: () => _TestPluginSystemBloc(repository: repository),
       act: (bloc) async {
         await send(bloc, LoadPlugins());
         expect(registry.activePluginId, owner);
@@ -186,19 +207,23 @@ void main() {
     );
   }
 
-  blocTest<PluginSystemBloc, PluginSystemState>(
+  blocTest<_TestPluginSystemBloc, PluginSystemState>(
     'החלטת מצב בטוח מעכבת שחזור בעלות ומשאירה את ההרשאות השמורות',
-    build: () => PluginSystemBloc(repository: repository),
+    build: () => _TestPluginSystemBloc(repository: repository),
     act: (bloc) async {
       final decision = Completer<void>();
       PluginSafeMode.ready = decision.future;
-      bloc.add(LoadPlugins());
-      await pumpEventQueue();
-      expect(bloc.state, isA<PluginSystemLoading>());
-      expect(registry.hasActiveRegistration, isFalse);
-      PluginSafeMode.active.value = true;
-      decision.complete();
-      await pumpEventQueue(times: 100);
+      final loading = bloc.stream.firstWhere((s) => s is PluginSystemLoading);
+      final loaded = send(bloc, LoadPlugins());
+      try {
+        await loading;
+        expect(bloc.state, isA<PluginSystemLoading>());
+        expect(registry.hasActiveRegistration, isFalse);
+        PluginSafeMode.active.value = true;
+      } finally {
+        decision.complete();
+        await loaded;
+      }
       expect(bloc.state, isA<PluginSystemLoaded>());
       expect(registry.hasActiveRegistration, isFalse);
       expect((await database.getInstalledPlugin(owner))!.enabled, isTrue);

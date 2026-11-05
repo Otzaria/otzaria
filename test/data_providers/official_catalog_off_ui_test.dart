@@ -127,6 +127,8 @@ void main() {
       throwsA(isA<DbReadWorkerSuspended>()),
     );
     try {
+      // ההשהיה חייבת להקדים את הקריאה; סגירת המנוע עצמה אסינכרונית.
+      await DbReadWorker.suspendForExternalWrite();
       await provider.sqliteProvider.closeForExternalWrite();
       await cancelled;
       expect(provider.sqliteProvider.isInitialized, isFalse);

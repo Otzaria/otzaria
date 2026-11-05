@@ -4,7 +4,10 @@ import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 
 /// מימוש ייחוס: תחילית לכל רווח בכל כתובת.
-List<DbReferenceResult> _previousSuppress(List<DbReferenceResult> entries) {
+List<DbReferenceResult> _previousSuppress(
+  List<DbReferenceResult> entries, {
+  void Function()? onPrefixProbe,
+}) {
   if (entries.length < 2) return entries;
   final groups = <(int, BookSource, bool, bool), Map<String, bool>>{};
   for (final e in entries) {
@@ -21,6 +24,7 @@ List<DbReferenceResult> _previousSuppress(List<DbReferenceResult> entries) {
       i >= 0;
       i = reference.indexOf(' ', i + 1)
     ) {
+      onPrefixProbe?.call();
       final ancestorIsPartial = siblings[reference.substring(0, i)];
       if (ancestorIsPartial == null) continue;
       if (!ancestorIsPartial || entry.isPartialTocMatch) return false;
@@ -66,20 +70,6 @@ List<DbReferenceResult> _commentaryResults({int books = 35, int simanim = 75}) {
     }
   }
   return out;
-}
-
-int _fastestMicros(
-  List<DbReferenceResult> Function(List<DbReferenceResult>) f,
-  List<DbReferenceResult> entries,
-) {
-  var best = 1 << 62;
-  for (var i = 0; i < 15; i++) {
-    final stopwatch = Stopwatch()..start();
-    f(entries);
-    final elapsed = stopwatch.elapsedMicroseconds;
-    if (elapsed < best) best = elapsed;
-  }
-  return best;
 }
 
 void main() {
@@ -238,19 +228,22 @@ void main() {
 
   test('סינון הצאצאים אינו בונה תחילית לכל רווח בשם הספר', () {
     final entries = _commentaryResults();
-    expect(
-      FindRefRepository.suppressDeeperVariants(entries),
-      orderedEquals(_previousSuppress(entries)),
-    );
-    final previous = _fastestMicros(_previousSuppress, entries);
-    final current = _fastestMicros(
-      FindRefRepository.suppressDeeperVariants,
+    var previous = 0;
+    var current = 0;
+    final expected = _previousSuppress(
       entries,
+      onPrefixProbe: () => previous++,
     );
+    final actual = FindRefRepository.suppressDeeperVariants(
+      entries,
+      debugOnPrefixProbe: () => current++,
+    );
+    expect(actual, orderedEquals(expected));
+    expect(current, greaterThan(0));
     expect(
       current * 2,
       lessThan(previous),
-      reason: 'previous=${previous}us current=${current}us',
+      reason: 'בדיקות תחילית: previous=$previous current=$current',
     );
   });
 }

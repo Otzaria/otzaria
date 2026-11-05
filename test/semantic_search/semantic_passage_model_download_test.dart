@@ -73,7 +73,8 @@ class _Downloads {
 }
 
 class _Harness {
-  _Harness(this.root, {bool separatePassages = true}) {
+  _Harness(this.root, {bool separatePassages = true, FakeBackend? backend})
+    : backend = backend ?? (FakeBackend()..vectors = installedV30) {
     installModelFiles(root);
     currentRoot = root;
     final queryRelease = testModelReleases[SemanticQuantization.int8]!;
@@ -92,7 +93,7 @@ class _Harness {
           : null,
     );
     repo = SemanticSearchRepository(
-      backend: backend,
+      backend: this.backend,
       consent: () => consent,
       settings: settings,
       paths: () async => paths,
@@ -110,7 +111,7 @@ class _Harness {
 
   final Directory root;
   late Directory currentRoot;
-  final backend = FakeBackend()..vectors = installedV30;
+  final FakeBackend backend;
   final settings = FakeSettingsStore()..dataEnabled = true;
   final consent = FakeConsentStore();
   final downloads = _Downloads();
@@ -133,6 +134,55 @@ class _Harness {
   }
 }
 
+class _GatedDisableBackend extends FakeBackend {
+  final started = Completer<void>();
+  final release = Completer<void>();
+  int disableCalls = 0;
+
+  @override
+  Future<void> disable() async {
+    disableCalls++;
+    if (!started.isCompleted) started.complete();
+    await release.future;
+    await super.disable();
+  }
+}
+
+final class _StagingDeletionGate extends IOOverrides {
+  final started = Completer<void>();
+  final release = Completer<void>();
+  int calls = 0;
+
+  @override
+  Directory createDirectory(String path) {
+    final directory = super.createDirectory(path);
+    return p.basename(path).startsWith('.passage-model-')
+        ? _GatedStagingDirectory(directory, this)
+        : directory;
+  }
+}
+
+class _GatedStagingDirectory extends Fake implements Directory {
+  _GatedStagingDirectory(this.directory, this.gate);
+
+  final Directory directory;
+  final _StagingDeletionGate gate;
+
+  @override
+  String get path => directory.path;
+
+  @override
+  Future<bool> exists() => directory.exists();
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) async {
+    gate.calls++;
+    if (!gate.started.isCompleted) gate.started.complete();
+    await gate.release.future;
+    return directory.delete(recursive: recursive);
+  }
+}
+
 void main() {
   late Directory root;
   _Harness? active;
@@ -146,8 +196,12 @@ void main() {
     if (await root.exists()) await root.delete(recursive: true);
   });
 
-  _Harness harness({bool separatePassages = true}) =>
-      active = _Harness(root, separatePassages: separatePassages);
+  _Harness harness({bool separatePassages = true, FakeBackend? backend}) =>
+      active = _Harness(
+        root,
+        separatePassages: separatePassages,
+        backend: backend,
+      );
 
   test(
     'the published FP32 asset stays optional for the initial query package',
@@ -543,14 +597,88 @@ void main() {
         failure(SemanticFailureKind.cancelled),
       );
       await h.downloads.started.future;
+      final consentClosed = h.repo.availabilityChanges.firstWhere(
+        (availability) => !availability.consentGranted,
+      );
       h.consent.set(SearchFeedbackConsent.declined);
       await rejected;
       h.downloads.gate!.complete();
       await h.repo.releaseForLibraryMove();
+      await consentClosed;
       expect(await h.document.exists(), isFalse);
       expect(h.backend.highlightTargets, isEmpty);
     },
   );
+
+  test('concurrent close calls wait for the same staging cleanup', () async {
+    final deletion = _StagingDeletionGate();
+    addTearDown(() {
+      if (!deletion.release.isCompleted) deletion.release.complete();
+    });
+    await IOOverrides.runWithIOOverrides(() async {
+      final h = harness();
+      await h.repo.ensureOpen();
+      h.downloads.gate = Completer<void>();
+      final rejected = expectLater(
+        h.highlight(),
+        failure(SemanticFailureKind.cancelled),
+      );
+      await h.downloads.started.future;
+      final consentClosed = h.repo.availabilityChanges.firstWhere(
+        (availability) => !availability.consentGranted,
+      );
+      h.consent.set(SearchFeedbackConsent.declined);
+      await rejected;
+      h.downloads.gate!.complete();
+      await deletion.started.future;
+
+      var moveCompleted = false;
+      final moving = h.repo.releaseForLibraryMove().then((_) {
+        moveCompleted = true;
+      });
+      try {
+        // כל ה-Future-ים של הסגירה השנייה כבר זמינים; רק המחיקה חסומה.
+        await pumpEventQueue(times: 1);
+        expect(moveCompleted, isFalse);
+        expect(deletion.calls, 1);
+      } finally {
+        deletion.release.complete();
+        await moving;
+        await consentClosed;
+      }
+      expect(await h.document.exists(), isFalse);
+      expect(h.backend.highlightTargets, isEmpty);
+    }, deletion);
+  });
+
+  test('a library move waits for an in-flight backend disable', () async {
+    final backend = _GatedDisableBackend()..vectors = installedV30;
+    addTearDown(() {
+      if (!backend.release.isCompleted) backend.release.complete();
+    });
+    final h = harness(backend: backend);
+    await h.repo.ensureOpen();
+    final consentClosed = h.repo.availabilityChanges.firstWhere(
+      (availability) => !availability.consentGranted,
+    );
+    h.consent.set(SearchFeedbackConsent.declined);
+    await backend.started.future;
+
+    var moveCompleted = false;
+    final moving = h.repo.releaseForLibraryMove().then((_) {
+      moveCompleted = true;
+    });
+    try {
+      await pumpEventQueue(times: 1);
+      expect(moveCompleted, isFalse);
+      expect(backend.disableCalls, 1);
+    } finally {
+      backend.release.complete();
+      await moving;
+      await consentClosed;
+    }
+    expect(backend.calls, contains('disable'));
+  });
 
   test('families without a separate passage graph retain their path', () async {
     final h = harness(separatePassages: false);

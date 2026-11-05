@@ -333,30 +333,48 @@ class PluginFileDownloadService {
       name = '$name.pdf';
     }
     name = _storedFileName(name);
-    await dir.create(recursive: true);
-    final partial = File(p.join(dir.path, partialFileName));
-    var received = 0;
-    final sink = partial.openWrite();
+    // מאזינים לפני IO נוסף (mkdir ופתיחת הקובץ), כדי שביטול ינתק גם
+    // בחלון הזה. ההשהיה שומרת backpressure עד שהקובץ מוכן לקבל נתונים.
+    final body = StreamController<List<int>>(sync: true);
+    final subscription = response.stream.listen(
+      body.add,
+      onError: body.addError,
+      onDone: body.close,
+    )..pause();
+    body
+      ..onListen = subscription.resume
+      ..onPause = subscription.pause
+      ..onResume = subscription.resume
+      ..onCancel = subscription.cancel;
     try {
-      await sink.addStream(
-        response.stream.timeout(_stallTimeout).map((chunk) {
-          received += chunk.length;
-          if (received > maxBytes) throw tooLarge;
-          if (expired?.call() ?? false) throw TimeoutException(null);
-          return chunk;
-        }),
-      );
-      await sink.flush();
-      await sink.close();
-    } catch (_) {
+      await dir.create(recursive: true);
+      final partial = File(p.join(dir.path, partialFileName));
+      var received = 0;
+      final sink = partial.openWrite();
       try {
+        await sink.addStream(
+          body.stream.timeout(_stallTimeout).map((chunk) {
+            received += chunk.length;
+            if (received > maxBytes) throw tooLarge;
+            if (expired?.call() ?? false) throw TimeoutException(null);
+            return chunk;
+          }),
+        );
+        await sink.flush();
         await sink.close();
-      } catch (_) {}
-      if (await partial.exists()) await partial.delete();
-      rethrow;
+      } catch (_) {
+        try {
+          await sink.close();
+        } catch (_) {}
+        if (await partial.exists()) await partial.delete();
+        rethrow;
+      }
+      final outFile = await partial.rename(p.join(dir.path, name));
+      return PluginFileDownloadResult(outFile.path, name);
+    } finally {
+      await subscription.cancel();
+      unawaited(body.close());
     }
-    final outFile = await partial.rename(p.join(dir.path, name));
-    return PluginFileDownloadResult(outFile.path, name);
   }
 
   /// מבצעת GET תוך מעקב ידני אחרי redirects, כשכל יעד נבדק מול [isAllowed]
