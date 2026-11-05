@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 
 /// מסד SQLite להערות אישיות, עם אינדקסים לפי ספר ושורה.
@@ -21,6 +23,10 @@ class PersonalNotesDatabase {
   static const _columnAnchorSuffix = 'anchor_suffix';
   static const _columnAnchorStart = 'anchor_start';
   static const _columnAnchorEnd = 'anchor_end';
+  static const _columnPdfPage = 'pdf_page';
+  static const _columnPdfX = 'pdf_x';
+  static const _columnPdfY = 'pdf_y';
+  static const _columnPdfDocumentId = 'pdf_document_id';
   static const _columnLastKnownLine = 'last_known_line';
   static const _columnStatus = 'status';
   static const _columnContent = 'content';
@@ -80,6 +86,10 @@ class PersonalNotesDatabase {
         $_columnAnchorSuffix TEXT,
         $_columnAnchorStart INTEGER,
         $_columnAnchorEnd INTEGER,
+        $_columnPdfPage INTEGER,
+        $_columnPdfX REAL,
+        $_columnPdfY REAL,
+        $_columnPdfDocumentId TEXT,
         $_columnLastKnownLine INTEGER,
         $_columnStatus TEXT NOT NULL,
         $_columnContent TEXT NOT NULL,
@@ -110,6 +120,10 @@ class PersonalNotesDatabase {
       'anchor_suffix': 'TEXT',
       'anchor_start': 'INTEGER',
       'anchor_end': 'INTEGER',
+      'pdf_page': 'INTEGER',
+      'pdf_x': 'REAL',
+      'pdf_y': 'REAL',
+      'pdf_document_id': 'TEXT',
     };
 
     for (final entry in anchorColumns.entries) {
@@ -125,10 +139,10 @@ class PersonalNotesDatabase {
   Future<List<PersonalNote>> loadNotes(String bookId) async {
     final db = await database;
     final maps = db.select(
-      'SELECT * FROM $_tableNotes WHERE $_columnBookId = ? ORDER BY $_columnLineNumber ASC, $_columnUpdatedAt DESC',
+      'SELECT * FROM $_tableNotes WHERE $_columnBookId = ?',
       [bookId],
     ).toMapList();
-    return maps.map((map) => _noteFromMap(map)).toList();
+    return sortPersonalNotes(maps.map((map) => _noteFromMap(map)).toList());
   }
 
   /// Insert a new note
@@ -153,7 +167,10 @@ class PersonalNotesDatabase {
       ...m.values,
       note.id,
     ]);
-    if (db.updatedRows > 0) _notifyChanges([note.bookId]);
+    if (db.updatedRows == 0) {
+      throw StateError(NotesMessages.noteNoLongerExists);
+    }
+    _notifyChanges([note.bookId]);
   }
 
   /// Delete a note
@@ -334,6 +351,10 @@ class PersonalNotesDatabase {
       _columnAnchorSuffix: note.anchorSuffix,
       _columnAnchorStart: note.anchorStart,
       _columnAnchorEnd: note.anchorEnd,
+      _columnPdfPage: note.pdfAnchor?.pageNumber,
+      _columnPdfX: note.pdfAnchor?.x,
+      _columnPdfY: note.pdfAnchor?.y,
+      _columnPdfDocumentId: note.pdfAnchor?.documentId,
       _columnLastKnownLine: note.lastKnownLineNumber,
       _columnStatus: note.status.name,
       _columnContent: note.content,
@@ -356,6 +377,14 @@ class PersonalNotesDatabase {
       anchorSuffix: map[_columnAnchorSuffix] as String?,
       anchorStart: map[_columnAnchorStart] as int?,
       anchorEnd: map[_columnAnchorEnd] as int?,
+      pdfAnchor: map[_columnPdfPage] == null
+          ? null
+          : PdfNoteAnchor.fromJson({
+              'pageNumber': map[_columnPdfPage],
+              'x': map[_columnPdfX],
+              'y': map[_columnPdfY],
+              'documentId': map[_columnPdfDocumentId],
+            }),
       lastKnownLineNumber: map[_columnLastKnownLine] as int?,
       status: PersonalNoteStatus.values.byName(map[_columnStatus] as String),
       content: map[_columnContent] as String,

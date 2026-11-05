@@ -90,8 +90,11 @@ void main() {
     expect(await delivered(), isEmpty);
   });
 
-  test('עדכון הערה שאינה קיימת אינו מודיע', () async {
-    await db.updateNote(_note('missing', bookId: 'רש"י'));
+  test('עדכון הערה שאינה קיימת נדחה ואינו מודיע', () async {
+    await expectLater(
+      db.updateNote(_note('missing', bookId: 'רש"י')),
+      throwsStateError,
+    );
     expect(await delivered(), isEmpty);
   });
 

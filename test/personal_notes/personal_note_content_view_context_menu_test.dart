@@ -10,6 +10,7 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 
 /// issue #1271 — בתיבת הריחוף של הערה (עטופה ב-AppSelectionArea) לחיצה ימנית
 /// פתחה גם את תפריט ההעתקה של אוצריא וגם את תפריט Flutter של עורך ההערה.
@@ -148,6 +149,82 @@ void main() {
       expect(clipboardWrites, [selectedText]);
     });
   });
+
+  // #3260: גרירה בתצוגת הקריאה של ההערה משאירה בחירה בלי פוקוס ב-Quill.
+  // לכן Ctrl+C הגיע לקורא, גם כשהטקסט המסומן היה בגוף ההערה.
+  for (final withSelectionArea in [false, true]) {
+    testWidgets(
+      'Ctrl+C אחרי גרירה בהערה לא ממוקדת מעתיק אותה (מארח: $withSelectionArea)',
+      (tester) async {
+        await onPlatform(TargetPlatform.windows, () async {
+          final clipboardWrites = <String>[];
+          mockClipboard(tester, clipboardWrites);
+          final readerFocus = FocusNode();
+          addTearDown(readerFocus.dispose);
+          var readerCopies = 0;
+          final content = PersonalNoteContentView(note: note());
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: [
+                    SelectionCopyShortcuts(
+                      onCopy: () => readerCopies++,
+                      child: SelectionArea(
+                        focusNode: readerFocus,
+                        child: const Text('טקסט הקורא'),
+                      ),
+                    ),
+                    withSelectionArea
+                        ? AppSelectionArea(child: content)
+                        : content,
+                  ],
+                ),
+              ),
+            ),
+          );
+          readerFocus.requestFocus();
+          await tester.pumpAndSettle();
+          expect(readerFocus.hasFocus, isTrue);
+          final editor = tester.widget<quill.QuillEditor>(
+            find.byType(quill.QuillEditor),
+          );
+          expect(editor.focusNode.hasFocus, isFalse);
+
+          final line = tester.getRect(find.text(noteText, findRichText: true));
+          final gesture = await tester.startGesture(
+            line.centerLeft + const Offset(2, 0),
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump();
+          for (var step = 0; step < 5; step++) {
+            await gesture.moveBy(const Offset(6, 0));
+            await tester.pump();
+          }
+          await gesture.up();
+          await tester.pumpAndSettle();
+          final selectedText = editor.controller.getPlainText();
+          expect(editor.controller.selection.isCollapsed, isFalse);
+          expect(selectedText, isNotEmpty);
+          expect(selectedText, isNot(noteText));
+
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.pumpAndSettle();
+
+          expect(readerCopies, 0, reason: 'הבחירה הפעילה נמצאת בהערה');
+          expect(clipboardWrites.where((text) => text.isNotEmpty), [
+            selectedText,
+          ]);
+          expect(
+            editor.controller.document.toPlainText().trimRight(),
+            noteText,
+          );
+        });
+      },
+    );
+  }
 
   // עורך Quill אינו מדווח ל-SelectionArea, ובלי רישום הבחירה "העתק" של תיבת
   // הריחוף נשאר מושבת (issue #1595).

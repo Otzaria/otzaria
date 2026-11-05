@@ -128,6 +128,8 @@ void main() {
                     fontSize: 12,
                     height: 1.45,
                     color: Color(0xFF444444),
+                    fontFamily: 'serif',
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -233,6 +235,25 @@ void main() {
         {'insert': '\n'},
       ]),
     );
+  });
+
+  testWidgets('תצוגה אינטראקטיבית וקלה יורשות את הגופן והצבע של ההערה', (
+    tester,
+  ) async {
+    for (final interactive in [true, false]) {
+      await pump(
+        tester,
+        note([
+          {'insert': 'הערה בעברית\n'},
+        ]),
+        interactive: interactive,
+      );
+      final style = renderedRuns(tester)['הערה בעברית']!;
+      expect(style.color, const Color(0xFF444444));
+      expect(style.fontFamily, 'serif');
+      expect(style.fontWeight, FontWeight.w500);
+      expect(style.height, 1.5);
+    }
   });
 
   testWidgets('עיצוב, רשימות, ציטוט וקישורים זהים לעורך Quill', (

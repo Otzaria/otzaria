@@ -19,6 +19,7 @@ class TextBookScaffold extends StatelessWidget {
   final TextBookTab tab;
   final int? initialSidebarTabIndex;
   final Key? pageShapeKey; // מפתח עבור PageShapeScreen
+  final Key? splitViewKey;
   final GlobalKey? pageShapePrintBoundaryKey; // מפתח עבור צילום למסמך הדפסה
   final ValueNotifier<int?>? pageShapeSidebarTabNotifier;
 
@@ -37,6 +38,7 @@ class TextBookScaffold extends StatelessWidget {
     required this.tab,
     this.initialSidebarTabIndex,
     this.pageShapeKey,
+    this.splitViewKey,
     this.pageShapePrintBoundaryKey,
     this.pageShapeSidebarTabNotifier,
     this.pageShapeOpenSettingsNotifier,
@@ -62,6 +64,7 @@ class TextBookScaffold extends StatelessWidget {
           tab: tab,
           initialSidebarTabIndex: initialSidebarTabIndex,
           pageShapeKey: pageShapeKey,
+          splitViewKey: splitViewKey,
           pageShapePrintBoundaryKey: pageShapePrintBoundaryKey,
           pageShapeSidebarTabNotifier: pageShapeSidebarTabNotifier,
           pageShapeOpenSettingsNotifier: pageShapeOpenSettingsNotifier,

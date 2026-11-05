@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -10,6 +15,41 @@ void main() {
 
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+  });
+
+  testWidgets('Alt+Enter בחלונית שומר פעם אחת בלי להוסיף ירידת שורה', (
+    tester,
+  ) async {
+    final saved = <PersonalNoteEditorResult>[];
+    await tester.pumpWidget(
+      RepositoryProvider(
+        create: (_) => SettingsRepository(),
+        child: BlocProvider(
+          create: (context) =>
+              SettingsBloc(repository: context.read<SettingsRepository>()),
+          child: MaterialApp(
+            home: Scaffold(
+              body: InlineNoteEditor(
+                bookId: 'ספר בדיקה',
+                draftLineNumber: 4,
+                initialContent: 'שורה ראשונה\nשורה שנייה',
+                linkableNotes: const [],
+                onSave: saved.add,
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    expect(saved, hasLength(1));
+    expect(saved.single.contentPlain, 'שורה ראשונה\nשורה שנייה');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('InlineNoteEditor תופס פוקוס מיד בעלייה', (tester) async {

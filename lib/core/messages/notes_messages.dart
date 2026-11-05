@@ -4,9 +4,24 @@ abstract class NotesMessages {
   // ===== הערות אישיות =====
   static const String emptyNoteNotSaved = 'ההערה ריקה, לא נשמרה';
   static const String noteSaved = 'ההערה נשמרה בהצלחה';
+  static const String noteSavedDraftCleanupFailed =
+      'ההערה נשמרה, אך לא ניתן למחוק את הטיוטה הישנה';
+  static String noteDraftUpdateError(Object error) =>
+      'שגיאה בעדכון טיוטת ההערה: $error';
   static const String noteUpdated = 'ההערה עודכנה';
+  static const String noteNoLongerExists = 'ההערה אינה קיימת עוד';
+  static const String noteMovedToDifferentBook =
+      'ההערה הועברה לספר אחר. יש לפתוח אותה מחדש לפני שמירה';
   static const String noteDeleted = 'ההערה נמחקה';
   static const String noteHasNoLocation = 'להערה הזו אין מיקום';
+  static const String choosePdfNotePoint = 'לחץ על הנקודה הרצויה בעמוד להערה';
+  static const String pdfNotePointUnavailable =
+      'בחר נקודה בתוך עמוד שנטען במלואו';
+  static const String pdfNoteLocationUnavailable =
+      'לא ניתן להגיע למיקום ההערה במסמך הזה';
+  static const String noteRepositioned = 'מיקום ההערה עודכן';
+  static String noteRepositionFailed(Object error) =>
+      'שינוי מיקום ההערה נכשל: $error';
   static const String libraryNotLoadedYet = 'הספרייה לא נטענה עדיין';
   static const String backupCompleted = 'הגיבוי הושלם בהצלחה';
   static const String textExportCompleted = 'הייצוא לטקסט הושלם בהצלחה';
@@ -14,6 +29,8 @@ abstract class NotesMessages {
 
   static String notesListLoadError(Object error) =>
       'שגיאה בטעינת רשימת ההערות: $error';
+  static const String notesLoadIncomplete =
+      'חלק מההערות לא נטענו. יש לנסות שוב לפני ייצוא.';
 
   static String importFailed(Object error) => 'ייבוא ההערות נכשל: $error';
 

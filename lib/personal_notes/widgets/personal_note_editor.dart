@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
@@ -101,6 +102,10 @@ class PersonalNoteEditorResult {
   });
 }
 
+/// ההשלמה מציינת שהכתיבה הצליחה; כשל משאיר את העורך פתוח עם הטיוטה.
+typedef PersonalNoteSaveCallback =
+    FutureOr<void> Function(PersonalNoteEditorResult result);
+
 /// בעל בקר Quill והמסמך שלו; יוצר העורך משחרר אותם ב-[dispose].
 class PersonalNoteEditorController {
   final quill.QuillController quillController;
@@ -122,6 +127,7 @@ class PersonalNoteEditorController {
 
 class PersonalNoteEditorBody extends StatefulWidget {
   final PersonalNoteEditorController controller;
+  final GlobalKey<quill.EditorState>? editorKey;
   final FocusNode focusNode;
   final ScrollController scrollController;
   final bool autofocus;
@@ -130,10 +136,12 @@ class PersonalNoteEditorBody extends StatefulWidget {
   final List<PersonalNote> linkableNotes;
   final String? bookId;
   final VoidCallback? onSaveShortcut;
+  final VoidCallback? onCancelShortcut;
 
   const PersonalNoteEditorBody({
     super.key,
     required this.controller,
+    this.editorKey,
     required this.focusNode,
     required this.scrollController,
     required this.autofocus,
@@ -142,6 +150,7 @@ class PersonalNoteEditorBody extends StatefulWidget {
     this.hintText,
     this.bookId,
     this.onSaveShortcut,
+    this.onCancelShortcut,
   });
 
   @override
@@ -380,8 +389,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                         // Ctrl+Enter (במק Cmd+Enter) — קיצור השמירה המומלץ.
                         ShortcutHelper.activatorFromShortcut('ctrl+enter')!:
                             widget.onSaveShortcut!,
-                        // Alt+Enter — לתאימות לאחור; ב-Windows הוא משמיע
-                        // "דינג" מערכת, ולכן הקיצור הראשי הוא Ctrl+Enter.
+                        // Alt+Enter — לתאימות לאחור.
                         const SingleActivator(
                           LogicalKeyboardKey.enter,
                           alt: true,
@@ -409,13 +417,26 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                           focusNode: widget.focusNode,
                           scrollController: widget.scrollController,
                           config: quill.QuillEditorConfig(
+                            editorKey: widget.editorKey,
+                            customStyles: personalNoteStyles(context),
                             autoFocus: widget.autofocus,
                             expands: false,
                             padding: const EdgeInsets.all(12),
                             placeholder:
                                 widget.hintText ??
                                 'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
-                            customShortcuts: _rtlArrowShortcuts,
+                            customShortcuts: widget.onCancelShortcut == null
+                                ? _rtlArrowShortcuts
+                                : {
+                                    ..._rtlArrowShortcuts,
+                                    // Quill דורס התאמת SingleActivator בקיצור המובנה.
+                                    // LogicalKeySet משמר את קדימות קיצור הסגירה.
+                                    LogicalKeySet(
+                                      LogicalKeyboardKey.escape,
+                                    ): VoidCallbackIntent(
+                                      widget.onCancelShortcut!,
+                                    ),
+                                  },
                             contextMenuBuilder: _touchContextMenu,
                           ),
                         ),

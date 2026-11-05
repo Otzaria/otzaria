@@ -6,6 +6,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -98,6 +99,86 @@ void main() {
 
     expect(times, unorderedEquals(fromFullLoad));
     expect(times, hasLength(9));
+  });
+
+  test('הערות באותה שורה נשארות בסדר היצירה אחרי עריכה וטעינה מחדש', () async {
+    final first = PersonalNote(
+      id: 'first',
+      bookId: 'ספר בדיקה',
+      lineNumber: 2,
+      lastKnownLineNumber: 2,
+      status: PersonalNoteStatus.located,
+      content: 'ראשונה',
+      contentPlain: 'ראשונה',
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    final second = first.copyWith(
+      id: 'second',
+      createdAt: DateTime(2026, 1, 2),
+      updatedAt: DateTime(2026, 1, 2),
+    );
+    final third = second.copyWith(id: 'third');
+    final earlierLine = third.copyWith(id: 'earlier-line', lineNumber: 1);
+    await database.batchInsertNotes([third, second, first, earlierLine]);
+    final expected = ['earlier-line', 'first', 'second', 'third'];
+    expect(
+      (await database.loadNotes(first.bookId)).map((note) => note.id),
+      expected,
+    );
+    await database.updateNote(first.copyWith(updatedAt: DateTime(2026, 2, 1)));
+    await database.close();
+
+    final reloaded = await database.loadNotes(first.bookId);
+    expect(reloaded.map((note) => note.id), expected);
+    expect(
+      sortPersonalNotes(reloaded.reversed.toList()).map((note) => note.id),
+      expected,
+    );
+  });
+
+  test('מיון תאריכים משווה רגעים בזמן ושומר חסרות מיקום בסדר עדכון', () async {
+    final instant = DateTime.utc(2026, 1, 1, 12);
+    final utcNote = PersonalNote(
+      id: 'a-utc',
+      bookId: 'ספר בדיקה',
+      lineNumber: 1,
+      lastKnownLineNumber: 1,
+      status: PersonalNoteStatus.located,
+      content: 'תוכן',
+      contentPlain: 'תוכן',
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: instant,
+      updatedAt: instant,
+    );
+    final localNote = utcNote.copyWith(
+      id: 'b-local',
+      createdAt: instant.toLocal(),
+    );
+    final missing = utcNote.copyWith(
+      id: 'missing-old',
+      status: PersonalNoteStatus.missing,
+      clearLineNumber: true,
+    );
+    final newerMissing = missing.copyWith(
+      id: 'missing-new',
+      updatedAt: instant.add(const Duration(hours: 1)),
+    );
+    await database.batchInsertNotes([
+      localNote,
+      missing,
+      newerMissing,
+      utcNote,
+    ]);
+
+    final reloaded = await database.loadNotes(utcNote.bookId);
+    expect(reloaded.map((note) => note.id), [
+      'a-utc',
+      'b-local',
+      'missing-new',
+      'missing-old',
+    ]);
   });
 
   test('זמן עדכון פגום מדלג על השורה ולא מפיל את הספירה', () async {

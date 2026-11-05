@@ -20,11 +20,14 @@ class PersonalNotesState extends Equatable {
   // בקשת הרחבה של הערות לשורה מסוימת (לחיצה על סימון inline).
   // הטוקן עולה בכל בקשה כדי לאפשר הרחבה חוזרת גם אחרי כיווץ ידני.
   final int? expandRequestLineNumber;
+  final PdfNoteAnchor? expandRequestPdfAnchor;
   final int expandRequestToken;
 
   // יצירת הערה חדשה — הטיוטה מתויגת ב-[newNoteBookId], כי bookId הוא הספר
   // האחרון שנטענו לו הערות ולא בהכרח ספר הטיוטה.
   final bool isCreatingNewNote;
+  // בקשה זהה עדיין צריכה לחשוף עורך שנגלל מחוץ למסך.
+  final int newNoteRequestToken;
   final String? newNoteBookId;
   final int? newNoteLineNumber;
   final String? newNoteReferenceText;
@@ -33,6 +36,7 @@ class PersonalNotesState extends Equatable {
   final String? newNoteSourceSelectedText;
   final int? newNoteSourceSelectionOffset;
   final bool newNotePunctuationHidden;
+  final PdfNoteAnchor? newNotePdfAnchor;
   final String? newNoteInitialContent;
   final PersonalNoteContentFormat? newNoteInitialFormat;
 
@@ -49,8 +53,10 @@ class PersonalNotesState extends Equatable {
     this.showOnlyVisible = true,
     this.visibleLineIndices = const [],
     this.expandRequestLineNumber,
+    this.expandRequestPdfAnchor,
     this.expandRequestToken = 0,
     this.isCreatingNewNote = false,
+    this.newNoteRequestToken = 0,
     this.newNoteBookId,
     this.newNoteLineNumber,
     this.newNoteReferenceText,
@@ -59,6 +65,7 @@ class PersonalNotesState extends Equatable {
     this.newNoteSourceSelectedText,
     this.newNoteSourceSelectionOffset,
     this.newNotePunctuationHidden = false,
+    this.newNotePdfAnchor,
     this.newNoteInitialContent,
     this.newNoteInitialFormat,
   });
@@ -76,8 +83,10 @@ class PersonalNotesState extends Equatable {
       showOnlyVisible = true,
       visibleLineIndices = const [],
       expandRequestLineNumber = null,
+      expandRequestPdfAnchor = null,
       expandRequestToken = 0,
       isCreatingNewNote = false,
+      newNoteRequestToken = 0,
       newNoteBookId = null,
       newNoteLineNumber = null,
       newNoteReferenceText = null,
@@ -86,6 +95,7 @@ class PersonalNotesState extends Equatable {
       newNoteSourceSelectedText = null,
       newNoteSourceSelectionOffset = null,
       newNotePunctuationHidden = false,
+      newNotePdfAnchor = null,
       newNoteInitialContent = null,
       newNoteInitialFormat = null;
 
@@ -102,8 +112,10 @@ class PersonalNotesState extends Equatable {
     bool? showOnlyVisible,
     List<int>? visibleLineIndices,
     int? expandRequestLineNumber,
+    PdfNoteAnchor? expandRequestPdfAnchor,
     int? expandRequestToken,
     bool? isCreatingNewNote,
+    int? newNoteRequestToken,
     String? newNoteBookId,
     int? newNoteLineNumber,
     String? newNoteReferenceText,
@@ -112,10 +124,12 @@ class PersonalNotesState extends Equatable {
     String? newNoteSourceSelectedText,
     int? newNoteSourceSelectionOffset,
     bool? newNotePunctuationHidden,
+    PdfNoteAnchor? newNotePdfAnchor,
     String? newNoteInitialContent,
     PersonalNoteContentFormat? newNoteInitialFormat,
     bool clearNewNoteData = false,
     bool clearNewNoteSourceSelection = false,
+    bool clearNewNotePdfAnchor = false,
     bool clearExpandRequest = false,
   }) {
     return PersonalNotesState(
@@ -133,10 +147,16 @@ class PersonalNotesState extends Equatable {
       expandRequestLineNumber: clearExpandRequest
           ? null
           : (expandRequestLineNumber ?? this.expandRequestLineNumber),
+      expandRequestPdfAnchor: clearExpandRequest
+          ? null
+          : expandRequestLineNumber != null
+          ? expandRequestPdfAnchor
+          : (expandRequestPdfAnchor ?? this.expandRequestPdfAnchor),
       expandRequestToken: expandRequestToken ?? this.expandRequestToken,
       isCreatingNewNote: clearNewNoteData
           ? false
           : (isCreatingNewNote ?? this.isCreatingNewNote),
+      newNoteRequestToken: newNoteRequestToken ?? this.newNoteRequestToken,
       newNoteBookId: clearNewNoteData
           ? null
           : (newNoteBookId ?? this.newNoteBookId),
@@ -165,6 +185,11 @@ class PersonalNotesState extends Equatable {
       newNotePunctuationHidden: clearNewNoteData
           ? false
           : (newNotePunctuationHidden ?? this.newNotePunctuationHidden),
+      newNotePdfAnchor: clearNewNoteData
+          ? null
+          : clearNewNotePdfAnchor
+          ? newNotePdfAnchor
+          : (newNotePdfAnchor ?? this.newNotePdfAnchor),
       newNoteInitialContent: clearNewNoteData
           ? null
           : (newNoteInitialContent ?? this.newNoteInitialContent),
@@ -188,8 +213,10 @@ class PersonalNotesState extends Equatable {
     showOnlyVisible,
     visibleLineIndices,
     expandRequestLineNumber,
+    expandRequestPdfAnchor,
     expandRequestToken,
     isCreatingNewNote,
+    newNoteRequestToken,
     newNoteBookId,
     newNoteLineNumber,
     newNoteReferenceText,
@@ -198,6 +225,7 @@ class PersonalNotesState extends Equatable {
     newNoteSourceSelectedText,
     newNoteSourceSelectionOffset,
     newNotePunctuationHidden,
+    newNotePdfAnchor,
     newNoteInitialContent,
     newNoteInitialFormat,
   ];

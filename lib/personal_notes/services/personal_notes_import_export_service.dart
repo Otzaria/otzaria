@@ -121,12 +121,11 @@ class PersonalNotesImportExportService {
     }
   }
 
-  /// בונה את בלוקי המסמך לייצוא וורד בתבנית חידושי תורה (issue #767):
-  /// כותרת לכל ספר, תת-כותרת לכל מיקום (פרק/דף) מתוך [locationRef], ואחריהן
-  /// גוף ההערה — בלי מספרי שורה ותאריכים. הערות ללא מיקום מקובצות בסוף הספר.
+  /// בונה כותרות ספר ומיקום וגופי הערות ל-Word; הערות ללא מיקום בסוף הספר.
   List<PrintBlock> buildWordExportBlocks({
     required List<PersonalNote> notes,
     required String? Function(PersonalNote note) locationRef,
+    String? Function(PersonalNote note)? sourceLink,
   }) {
     final sorted = [...notes]
       ..sort((a, b) {
@@ -134,12 +133,18 @@ class PersonalNotesImportExportService {
         if (byBook != 0) return byBook;
         int line(PersonalNote n) =>
             n.hasLocation ? (n.lineNumber ?? 0) : 1 << 30;
-        return line(a).compareTo(line(b));
+        final byLine = line(a).compareTo(line(b));
+        if (byLine != 0) return byLine;
+        final byTime = a.hasLocation
+            ? a.createdAt.compareTo(b.createdAt)
+            : b.updatedAt.compareTo(a.updatedAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
       });
 
     final blocks = <PrintBlock>[];
     String? currentBook;
     String? currentRef;
+    String? currentSourceLink;
     for (final note in sorted) {
       final body = _noteWordBlocks(note);
       if (body.isEmpty) continue;
@@ -147,6 +152,7 @@ class PersonalNotesImportExportService {
       if (note.bookId != currentBook) {
         currentBook = note.bookId;
         currentRef = null;
+        currentSourceLink = null;
         blocks.add(
           PrintBlock(
             kind: PrintBlockKind.heading,
@@ -160,13 +166,17 @@ class PersonalNotesImportExportService {
       final refLabel = (ref?.isNotEmpty ?? false)
           ? ref
           : (note.hasLocation ? null : 'הערות ללא מיקום');
-      if (refLabel != null && refLabel != currentRef) {
+      final link = note.hasLocation ? sourceLink?.call(note) : null;
+      if (refLabel != null &&
+          (refLabel != currentRef || link != currentSourceLink)) {
         currentRef = refLabel;
+        currentSourceLink = link;
         blocks.add(
           PrintBlock(
             kind: PrintBlockKind.heading,
             headingLevel: 2,
             text: _escapeHtml(refLabel),
+            sourceLink: link,
           ),
         );
       }
@@ -176,7 +186,7 @@ class PersonalNotesImportExportService {
     return blocks;
   }
 
-  /// גוף הערה אחת כבלוקי טקסט, כשהדיבור-המתחיל (הטקסט שסומן) מודגש בראשה.
+  /// גוף הערה כבלוקי טקסט, כשהטקסט שסומן או כותרת ההערה מודגשים בראשה.
   List<PrintBlock> _noteWordBlocks(PersonalNote note) {
     final paragraphs = _noteHtmlParagraphs(note);
     while (paragraphs.isNotEmpty && paragraphs.last.trim().isEmpty) {
@@ -184,7 +194,8 @@ class PersonalNotesImportExportService {
     }
     if (paragraphs.isEmpty) return const [];
 
-    final dibur = note.anchorText?.trim() ?? '';
+    var dibur = note.anchorText?.trim() ?? '';
+    if (dibur.isEmpty) dibur = note.displayTitle?.trim() ?? '';
     if (dibur.isNotEmpty) {
       final needsPeriod = !RegExp(r'[.:,;!?]$').hasMatch(dibur);
       final suffix = needsPeriod ? '.' : '';
@@ -286,6 +297,7 @@ class PersonalNotesImportExportService {
             (
               PersonalNote.fromJson(json as Map<String, dynamic>),
               json.containsKey('anchorText'),
+              json.containsKey('pdfAnchor'),
             ),
     ];
     int inserted = 0;
@@ -293,7 +305,7 @@ class PersonalNotesImportExportService {
     int skipped = 0;
     int duplicated = 0;
 
-    for (final (note, hasAnchorText) in notes) {
+    for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
       final existing = await _database.getNote(note.id);
 
       if (existing == null) {
@@ -324,7 +336,7 @@ class PersonalNotesImportExportService {
               note.displayTitle == existing.displayTitle &&
               (note.hasLocation ||
                   note.lastKnownLineNumber == existing.lastKnownLineNumber);
-          final updatedNote = preserveAnchor
+          var updatedNote = preserveAnchor
               ? note
                     .copyWith(clearAnchor: true)
                     .copyWith(
@@ -335,6 +347,16 @@ class PersonalNotesImportExportService {
                       anchorEnd: existing.anchorEnd,
                     )
               : note;
+          if (!hasPdfAnchor &&
+              existing.pdfAnchor != null &&
+              note.bookId == existing.bookId &&
+              note.lineNumber == existing.lineNumber &&
+              note.displayTitle == existing.displayTitle &&
+              note.status == existing.status &&
+              (note.hasLocation ||
+                  note.lastKnownLineNumber == existing.lastKnownLineNumber)) {
+            updatedNote = updatedNote.copyWith(pdfAnchor: existing.pdfAnchor);
+          }
           await _database.updateNote(updatedNote);
           updated++;
           break;

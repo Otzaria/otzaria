@@ -345,38 +345,6 @@ int resolvePageShapeNavigationBaseIndex({
   return selectedIndex ?? 0;
 }
 
-/// שומרת הערת מפרש דרך ה-repository, ממפה את תוצאת העורך לקריאת `addNote`.
-///
-/// מופרדת לפונקציה עצמאית כדי לאפשר בדיקה ישירה של מיפוי הפרמטרים (ה-`bookId`
-/// של המפרש, מספר השורה והתוכן) ללא תלות ב-UI של עורך ה-Quill.
-@visibleForTesting
-Future<void> saveCommentaryNoteToRepository({
-  required PersonalNotesRepository repository,
-  required String bookId,
-  required int lineNumber,
-  required PersonalNoteEditorResult result,
-  String? selectedText,
-  int? selectionColumn,
-  String? sourceSelectedText,
-  int? sourceSelectionOffset,
-  bool punctuationHidden = false,
-  int? categoryId,
-}) {
-  return repository.addNote(
-    bookId: bookId,
-    lineNumber: lineNumber,
-    content: result.content,
-    contentPlain: result.contentPlain,
-    contentFormat: result.contentFormat,
-    selectedText: selectedText,
-    selectionColumn: selectionColumn,
-    sourceSelectedText: sourceSelectedText,
-    sourceSelectionOffset: sourceSelectionOffset,
-    punctuationHidden: punctuationHidden,
-    categoryId: categoryId,
-  );
-}
-
 /// סמן הבחירה מצויר בריפוד הימני של הרשימה, מחוץ לטקסט.
 const _readerListPadding = EdgeInsets.all(4);
 
@@ -783,9 +751,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _handleNumberedNoteMarkerHover(url, globalPosition);
       return;
     }
-    if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
-      return;
-    }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
     _cancelPendingPreview();
     final bloc = context.read<TextBookBloc>();
@@ -852,16 +817,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (url.startsWith('otzaria://note')) {
-      final line = int.tryParse(
-        Uri.tryParse(url)?.queryParameters['line'] ?? '',
+      final notes = personalNotesForPreview(
+        url,
+        context.read<PersonalNotesBloc>().state.locatedNotes,
       );
-      if (line == null) return;
-      final notes = context
-          .read<PersonalNotesBloc>()
-          .state
-          .locatedNotes
-          .where((note) => note.lineNumber == line + 1)
-          .toList();
       if (notes.isEmpty) return;
       LinkPreviewOverlay.showContent(
         context,
@@ -1166,7 +1125,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
           context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(personalNotesBookKey(state.book)),
+            LoadPersonalNotes(
+              personalNotesBookKey(state.book),
+              categoryId: state.book.categoryId,
+            ),
           );
         }
       });
@@ -2399,10 +2361,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? utils.removeVolwels(selectedText!.trim())
         : widget.content[index];
 
-    // הערה שנוצרת מתוך מפרש (לא הטקסט הראשי) חייבת להישמר תחת ספר המפרש
-    // עצמו, עם מספר השורה המקומי בתוך תוכן המפרש. הסיידבר של צורת הדף קשור
-    // תמיד לספר הראשי, לכן אי אפשר להשתמש בו — פותחים דיאלוג עצמאי ושומרים
-    // ישירות דרך ה-repository, בלי לשבש את ה-PersonalNotesBloc של הספר הראשי.
+    // הערת מפרש שייכת לספר המפרש ולשורה המקומית שלו, גם כשהעורך נפתח
+    // בחלונית הערות שכבר פעילה עבור הספר הראשי.
     if (!widget.isMainText && widget.bookTitle != null) {
       await _createCommentaryNote(
         bookTitle: widget.bookTitle!,
@@ -2417,40 +2377,37 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return;
     }
 
-    // טען טיוטה אם קיימת
-    final draftService = PersonalNoteDraftService();
-    final draft = await draftService.loadDraft(
+    await createPersonalNote(
+      context,
+      isNotesPanelOpen: widget.isPersonalNotesTabActive,
       bookId: personalNotesBookKey(state.book),
       categoryId: state.book.categoryId,
       lineNumber: index + 1,
-    );
-
-    if (!mounted) return;
-
-    // שלח event לפתיחת מצב יצירה בסיידבר
-    context.read<PersonalNotesBloc>().add(
-      StartCreatingPersonalNote(
-        bookId: personalNotesBookKey(state.book),
-        lineNumber: index + 1,
-        referenceText: referenceText,
-        selectedText: selectedText?.trim(),
-        selectionColumn: source.column,
-        sourceSelectedText: mappedSelection?.text,
-        sourceSelectionOffset: mappedSelection?.offset,
-        punctuationHidden: state.removePunctuation,
-        initialContent: draft?.content ?? '',
-        initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-      ),
+      referenceText: referenceText,
+      selectedText: selectedText?.trim(),
+      selectionColumn: source.column,
+      sourceSelectedText: mappedSelection?.text,
+      sourceSelectionOffset: mappedSelection?.offset,
+      punctuationHidden: state.removePunctuation,
+      repository: widget.notesRepository,
+      openNotesPanel: widget.onOpenSidebarTab == null
+          ? null
+          : () => widget.onOpenSidebarTab!(kNotesTabIndex),
     );
   }
 
   /// טיפול בלחיצה על סימון הערה אישית inline: מדגיש את השורה ופותח את החלונית.
   void _onInlineNoteTap(int lineIndex) {
-    context.read<TextBookBloc>().add(UpdateSelectedIndex(lineIndex));
-    context.read<TextBookBloc>().add(HighlightLine(lineIndex));
-    // פותחים את ההערה עצמה בחלונית, גם אם מוגדר "סגור כברירת מחדל".
-    context.read<PersonalNotesBloc>().add(
-      RequestExpandNotesForLine(lineIndex + 1),
+    final bloc = context.read<TextBookBloc>();
+    final state = bloc.state;
+    if (state is! TextBookLoaded) return;
+    bloc.add(UpdateSelectedIndex(lineIndex));
+    bloc.add(HighlightLine(lineIndex));
+    openPersonalNotesTarget(
+      context.read<PersonalNotesBloc>(),
+      bookId: personalNotesBookKey(state.book),
+      categoryId: state.book.categoryId,
+      lineNumber: lineIndex + 1,
     );
     if (widget.onOpenSidebarTab != null) {
       widget.onOpenSidebarTab!(kNotesTabIndex);
@@ -2467,12 +2424,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         : bookTitle;
   }
 
-  /// יצירת הערה על מפרש (בצורת הדף) — נשמרת תחת ספר המפרש עצמו.
-  ///
-  /// [bookTitle] - שם ספר המפרש (למשל "רש"י")
-  /// [lineNumber] - מספר השורה המקומי בתוך תוכן המפרש (1-based)
-  /// [referenceText] - טקסט הייחוס המוצג בכותרת ההערה
-  /// [selectedText] - הטקסט שסומן, אם קיים
+  /// הערת מפרש נשמרת תחת ספר המפרש ומספר השורה המקומי שלו (1-based).
   Future<void> _createCommentaryNote({
     required String bookTitle,
     required int lineNumber,
@@ -2486,51 +2438,28 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final notesKey = _commentaryNotesKey(bookTitle);
     final categoryId = widget.reportBook?.categoryId;
 
-    // טען טיוטה קיימת (אם יש) כדי לתמוך בשחזור טקסט לא שמור — כמו במסלול הרגיל.
-    final draftService = PersonalNoteDraftService();
-    final draft = await draftService.loadDraft(
+    final panel = findPersonalNotesPanel(context);
+    final openTarget =
+        widget.onOpenCommentaryPersonalNote ?? panel?.revealPersonalNotesTarget;
+    await createPersonalNote(
+      context,
+      isNotesPanelOpen:
+          panel?.isPersonalNotesPanelOpen ?? widget.isPersonalNotesTabActive,
+      title: 'הערה חדשה - $bookTitle',
       bookId: notesKey,
       categoryId: categoryId,
       lineNumber: lineNumber,
+      referenceText: referenceText,
+      selectedText: selectedText,
+      selectionColumn: selectionColumn,
+      sourceSelectedText: sourceSelectedText,
+      sourceSelectionOffset: sourceSelectionOffset,
+      punctuationHidden: punctuationHidden,
+      repository: widget.notesRepository,
+      openNotesPanel: openTarget == null
+          ? null
+          : () => openTarget(notesKey, categoryId, lineNumber),
     );
-
-    if (!mounted) return;
-
-    final result = await showDialog<PersonalNoteEditorResult>(
-      context: context,
-      builder: (dialogContext) => PersonalNoteEditorDialog(
-        title: 'הערה חדשה - $bookTitle',
-        referenceText: referenceText,
-        icon: FluentIcons.note_add_24_regular,
-        bookId: notesKey,
-        categoryId: categoryId,
-        // draftLineNumber מאפשר לדיאלוג לשמור/לנקות טיוטה בעת סגירה.
-        draftLineNumber: lineNumber,
-        initialContent: draft?.content ?? '',
-        initialContentFormat:
-            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-      ),
-    );
-
-    if (result == null || result.contentPlain.trim().isEmpty) return;
-
-    try {
-      await saveCommentaryNoteToRepository(
-        repository: widget.notesRepository ?? PersonalNotesRepository(),
-        bookId: notesKey,
-        lineNumber: lineNumber,
-        result: result,
-        selectedText: selectedText,
-        selectionColumn: selectionColumn,
-        sourceSelectedText: sourceSelectedText,
-        sourceSelectionOffset: sourceSelectionOffset,
-        punctuationHidden: punctuationHidden,
-        categoryId: categoryId,
-      );
-      if (mounted) UiSnack.showSuccess(TextBookMessages.noteSaved);
-    } catch (e) {
-      if (mounted) UiSnack.showError(TextBookMessages.noteSaveError(e));
-    }
   }
 
   int? _sourceIndex(int? index) =>

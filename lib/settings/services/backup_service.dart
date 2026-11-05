@@ -1269,8 +1269,9 @@ class BackupService {
     counts.history += added;
   }
 
-  /// מפתח העיגון שנוכחותו מעידה שהגיבוי יודע לבטא עיגון להערה.
+  /// נוכחות המפתחות מבחינה בין גיבוי ישן לבין הסרה מפורשת של סוג העוגן.
   static const String _noteAnchorKey = 'anchorText';
+  static const String _notePdfAnchorKey = 'pdfAnchor';
 
   /// Restore notes to SQLite database.
   ///
@@ -1298,13 +1299,21 @@ class BackupService {
             try {
               final json = noteData as Map<String, dynamic>;
               var note = PersonalNote.fromJson(json);
-              if (!json.containsKey(_noteAnchorKey)) {
+              final missingWordAnchor = !json.containsKey(_noteAnchorKey);
+              final missingPdfAnchor = !json.containsKey(_notePdfAnchorKey);
+              if (missingWordAnchor || missingPdfAnchor) {
                 note = await _restoreNoteAnchoredAsBefore(
                   database,
                   note,
                   pendingNote: toWrite[note.id],
+                  preserveWordAnchor: missingWordAnchor,
+                  preservePdfAnchor: missingPdfAnchor,
                 );
-                if (!note.isWordAnchored) anchorlessNotes++;
+              }
+              if (missingWordAnchor &&
+                  !note.isWordAnchored &&
+                  note.pdfAnchor == null) {
+                anchorlessNotes++;
               }
               if (counts != null) {
                 // בייבוא ממזג אין לדרוס הערה מקומית או ממתינה חדשה יותר.
@@ -1347,17 +1356,35 @@ class BackupService {
     PersonalNotesDatabase database,
     PersonalNote note, {
     PersonalNote? pendingNote,
+    required bool preserveWordAnchor,
+    required bool preservePdfAnchor,
   }) async {
     try {
       final existing = pendingNote ?? await database.getNote(note.id);
-      if (existing == null || !existing.isWordAnchored) return note;
-      return note.copyWith(
-        anchorText: existing.anchorText,
-        anchorPrefix: existing.anchorPrefix,
-        anchorSuffix: existing.anchorSuffix,
-        anchorStart: existing.anchorStart,
-        anchorEnd: existing.anchorEnd,
-      );
+      if (existing == null) return note;
+      var restored = note;
+      if (preserveWordAnchor && existing.isWordAnchored) {
+        restored = restored.copyWith(
+          anchorText: existing.anchorText,
+          anchorPrefix: existing.anchorPrefix,
+          anchorSuffix: existing.anchorSuffix,
+          anchorStart: existing.anchorStart,
+          anchorEnd: existing.anchorEnd,
+        );
+      }
+      // אותו כלל כמו בייבוא ממנהל ההערות: שדה חסר אינו מבטל נקודה מקומית,
+      // אך שינוי המקור או המיקום אינו רשאי להוריש את העוגן הישן.
+      if (preservePdfAnchor &&
+          existing.pdfAnchor != null &&
+          note.bookId == existing.bookId &&
+          note.lineNumber == existing.lineNumber &&
+          note.displayTitle == existing.displayTitle &&
+          note.status == existing.status &&
+          (note.hasLocation ||
+              note.lastKnownLineNumber == existing.lastKnownLineNumber)) {
+        restored = restored.copyWith(pdfAnchor: existing.pdfAnchor);
+      }
+      return restored;
     } catch (e) {
       _logger.warning('Failed to preserve anchor for note ${note.id}: $e');
       return note;

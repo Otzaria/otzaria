@@ -172,19 +172,20 @@ void main() {
                 home: Directionality(
                   textDirection: TextDirection.rtl,
                   child: Scaffold(
-                    body: UnconstrainedBox(
-                      constrainedAxis: Axis.horizontal,
-                      alignment: Alignment.topCenter,
-                      child: SizedBox(
-                        key: key,
-                        width: 400,
-                        child: PersonalNoteContentView(
-                          note: note,
-                          interactive: interactive,
-                          maxPreviewChars: 280,
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xff444444),
+                    body: SingleChildScrollView(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          key: key,
+                          width: 400,
+                          child: PersonalNoteContentView(
+                            note: note,
+                            interactive: interactive,
+                            maxPreviewChars: 280,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xff444444),
+                            ),
                           ),
                         ),
                       ),

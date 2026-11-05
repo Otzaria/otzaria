@@ -142,11 +142,14 @@ void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
     await Settings.setValue<int>('key-print-destination', 1);
-    if (Platform.isMacOS) {
-      Pdfrx.pdfiumModulePath = File(
-        'build/native_assets/macos/libpdfium.dylib',
-      ).absolute.path;
-    }
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, (_) async => '/tmp');
   });

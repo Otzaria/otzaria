@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -9,6 +10,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/widgets/note_delta_preview.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -186,26 +188,43 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
           platform == TargetPlatform.android || platform == TargetPlatform.iOS;
       final useOwnMenu =
           widget.interactive && !hostHasOwnMenu && !useNativeTouchMenu;
-      Widget editor = quill.QuillEditor(
-        key: _editorKey,
-        controller: controller,
-        focusNode: _focusNode!,
-        scrollController: _scrollController!,
-        config: quill.QuillEditorConfig(
-          contextMenuBuilder: hostHasOwnMenu || useOwnMenu
-              ? (context, _) => const SizedBox.shrink()
-              : null,
-          autoFocus: false,
-          expands: false,
-          padding: EdgeInsets.zero,
-          showCursor: false,
-          enableInteractiveSelection: widget.interactive,
-          scrollable: false,
-          // בלי הרישום, Quill מוסיף https:// לפני otzaria:// בעת לחיצה.
-          customLinkPrefixes: const ['otzaria://', 'zayit://'],
-          onLaunchUrl: widget.onLinkTap,
+      Widget editor = Builder(
+        builder: (context) => quill.QuillEditor(
+          key: _editorKey,
+          controller: controller,
+          focusNode: _focusNode!,
+          scrollController: _scrollController!,
+          config: quill.QuillEditorConfig(
+            customStyles: personalNoteStyles(context),
+            contextMenuBuilder: hostHasOwnMenu || useOwnMenu
+                ? (context, _) => const SizedBox.shrink()
+                : null,
+            autoFocus: false,
+            expands: false,
+            padding: EdgeInsets.zero,
+            showCursor: false,
+            enableInteractiveSelection: widget.interactive,
+            scrollable: false,
+            // בלי הרישום, Quill מוסיף https:// לפני otzaria:// בעת לחיצה.
+            customLinkPrefixes: const ['otzaria://', 'zayit://'],
+            onLaunchUrl: widget.onLinkTap,
+          ),
         ),
       );
+
+      if (widget.interactive) {
+        // Quill אינו מבקש פוקוס בגרירת בחירה בעכבר. בלעדיו Ctrl+C מגיע
+        // לקורא שהיה ממוקד קודם, אף שהבחירה המוצגת נמצאת בגוף ההערה.
+        editor = Listener(
+          onPointerUp: (event) {
+            if (event.kind == PointerDeviceKind.mouse &&
+                !_focusNode!.hasFocus) {
+              _focusNode!.requestFocus();
+            }
+          },
+          child: editor,
+        );
+      }
 
       if (useOwnMenu) {
         editor = AppContextMenuRegion(

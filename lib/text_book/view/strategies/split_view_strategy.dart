@@ -9,6 +9,7 @@ class SplitViewStrategyImpl extends TextBookViewStrategy {
   @override
   Widget buildView(BuildContext context, TextBookViewConfig config) {
     return SplitedViewScreen(
+      key: config.splitViewKey,
       content: config.content,
       openBookCallback: config.openBookCallback,
       searchTextController: config.searchTextController,

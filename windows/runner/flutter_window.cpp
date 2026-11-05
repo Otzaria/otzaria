@@ -346,6 +346,13 @@ bool InstallDartViewHooks(HWND root) {
 
 constexpr UINT_PTR kFramelessSubclassId = 0x0F1F;
 
+// Flutter מעביר WM_SYSCHAR ל-DefWindowProc גם כשהקיצור טופל ב-Dart.
+// צורכים את בקשת התפריט של Alt+Enter כדי למנוע צפצוף, בלי לחסום את המקש.
+bool IsAltEnterMenuCommand(UINT message, WPARAM command, LPARAM character) {
+  return message == WM_SYSCOMMAND && (command & 0xFFF0) == SC_KEYMENU &&
+         character == L'\r';
+}
+
 // כמו `IsWindows11OrGreater` של window_manager: ב-10 נשאר פס עליון של פיקסל.
 bool IsWindows11OrGreaterForFrame() {
 #pragma warning(push)
@@ -377,6 +384,7 @@ void AdjustMaximizedClientRect(NCCALCSIZE_PARAMS* sz) {
 // בלי WS_THICKFRAME (מסך מלא של ה-engine) הכול עובר כרגיל.
 LRESULT CALLBACK FramelessViewProc(HWND hwnd, UINT message, WPARAM wparam,
                                    LPARAM lparam, UINT_PTR, DWORD_PTR) {
+  if (IsAltEnterMenuCommand(message, wparam, lparam)) return 0;
   const bool framed =
       (::GetWindowLongPtr(hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
   switch (message) {
@@ -980,6 +988,7 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (IsAltEnterMenuCommand(message, wparam, lparam)) return 0;
   // נשלחת רק לחלון הראשי: ל-Dart שלו יש את ה-Navigator להצעת הדיווח.
   if (message == hang_monitor::kMsgAppHangRecovered) {
     if (process_control_channel_) {

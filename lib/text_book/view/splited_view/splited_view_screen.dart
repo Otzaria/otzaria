@@ -4,6 +4,9 @@ import 'package:otzaria/plugins/view/plugin_text_reader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
+import 'package:otzaria/personal_notes/utils/create_personal_note.dart';
+import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -55,7 +58,8 @@ class SplitedViewScreen extends StatefulWidget {
   State<SplitedViewScreen> createState() => _SplitedViewScreenState();
 }
 
-class _SplitedViewScreenState extends State<SplitedViewScreen> {
+class _SplitedViewScreenState extends State<SplitedViewScreen>
+    implements PersonalNotesPanelVisibility {
   bool _paneOpen = false;
   // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
   bool _didAutoOpenCommentary = false;
@@ -63,6 +67,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   // מונח החיפוש להדגשה בטאב המפרשים (התוצאה שנחתה בהערה).
   late final ValueNotifier<String> _searchHighlightNotifier;
   int? _currentTabIndex;
+
+  @override
+  bool get isPersonalNotesPanelOpen =>
+      _paneOpen && _currentTabIndex == kNotesTabIndex;
   String? _notesBookIdOverride;
   int? _notesCategoryIdOverride;
   int? _notesFocusLineNumber;
@@ -138,6 +146,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     setState(() {
       _paneOpen = true;
       _currentTabIndex = kNotesTabIndex;
+      _notesBookIdOverride = null;
+      _notesCategoryIdOverride = null;
+      _notesFocusLineNumber = null;
     });
   }
 
@@ -372,12 +383,28 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   }
 
   void _openCommentaryPersonalNote(Link link, int lineNumber) {
+    final bookId = personalNotesBookKeyFor(
+      utils.getTitleFromPath(link.path2),
+      link.targetSource,
+    );
+    revealPersonalNotesTarget(bookId, link.targetCategoryId, lineNumber);
+  }
+
+  @override
+  void revealPersonalNotesTarget(
+    String bookId,
+    int? categoryId,
+    int lineNumber,
+  ) {
+    openPersonalNotesTarget(
+      context.read<PersonalNotesBloc>(),
+      bookId: bookId,
+      categoryId: categoryId,
+      lineNumber: lineNumber,
+    );
     setState(() {
-      _notesBookIdOverride = personalNotesBookKeyFor(
-        utils.getTitleFromPath(link.path2),
-        link.targetSource,
-      );
-      _notesCategoryIdOverride = link.targetCategoryId;
+      _notesBookIdOverride = bookId;
+      _notesCategoryIdOverride = categoryId;
       _notesFocusLineNumber = lineNumber;
       _paneOpen = true;
       _currentTabIndex = kNotesTabIndex;
