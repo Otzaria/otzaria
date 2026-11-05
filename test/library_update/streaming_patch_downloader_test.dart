@@ -8,7 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/library_update/services/streaming_patch_downloader.dart';
 import 'package:path/path.dart' as p;
-import 'package:seforim_library_updater/seforim_library_updater.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    hide StreamingPatchDownloader;
 
 void main() {
   late Directory tmp;
@@ -31,10 +32,24 @@ void main() {
       );
 
   var extractorCalls = 0;
-  Future<void> reversingExtractor(String src, String dst) async {
+  Future<FileExtractionResult> reversingExtractor(
+    String src,
+    String dst, {
+    required int maxOutputBytes,
+    bool Function()? isCancelled,
+    void Function(int)? onProgress,
+  }) async {
     extractorCalls++;
     final bytes = File(src).readAsBytesSync();
-    File(dst).writeAsBytesSync(bytes.reversed.toList(), flush: true);
+    if (isCancelled?.call() ?? false) throw const PatchDownloadCancelled();
+    final output = bytes.reversed.toList();
+    if (output.length > maxOutputBytes) throw const FormatException('limit');
+    await File(dst).writeAsBytes(output, flush: true);
+    onProgress?.call(output.length);
+    return FileExtractionResult(
+      bytesWritten: output.length,
+      sha256: sha256.convert(output).toString(),
+    );
   }
 
   StreamingPatchDownloader build() {
@@ -187,10 +202,14 @@ void main() {
       );
       // הנעילה נשארת על אותו inode; כל נתוני ההורדה חייבים להימחק.
       final leftovers = tmp.listSync();
-      expect(leftovers.map((file) => p.basename(file.path)), [
-        'patch-v1-v2.db.zst.lock',
-      ]);
-      final lock = leftovers.single;
+      expect(
+        leftovers.map((file) => p.basename(file.path)),
+        unorderedEquals([
+          'patch-v1-v2.db.zst.lock',
+          'patch-v1-v2.db.lock',
+        ]),
+      );
+      final lock = leftovers.first;
       expect(
         FileSystemEntity.typeSync(lock.path, followLinks: false),
         FileSystemEntityType.file,

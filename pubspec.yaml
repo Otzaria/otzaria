@@ -120,7 +120,7 @@ dependencies:
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
-      ref: 24d1a13f4f9e9a05fe7ef7eb71750a8a81a3ea6c
+      ref: b413244de5dc08bcf79bca8a52d4c586359c7f3d
   # הפורק מסנן הודעות חלון לפי HWND, כדי שמצב החלון הראשי לא יחול על חלונות
   # נוספים, ומקבע את קצוות שינוי הגודל לפי המסך תחת RTL (#3187). ב-master של
   # upstream הקוד הזה הוסר (שכתוב לקראת 0.6.0, שטרם שוחרר).

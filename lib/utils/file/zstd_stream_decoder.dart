@@ -16,19 +16,24 @@ class ZstdStreamDecoder {
     _outSize = zstdOutputChunkBytes;
     _stream = _zstd.ZSTD_createDStream();
     if (_stream == nullptr) throw StateError('ZSTD_createDStream נכשל');
-    _inNative = malloc.allocate<Uint8>(_inSize);
-    _outNative = malloc.allocate<Uint8>(_outSize);
-    _inBuf = malloc<ZSTD_inBuffer_s>();
-    _outBuf = malloc<ZSTD_outBuffer_s>();
-    _check(_zstd.ZSTD_initDStream(_stream), 'ZSTD_initDStream');
-    _check(
-      _zstd.ZSTD_DCtx_setParameter(
-        _stream,
-        ZSTD_dParameter.ZSTD_d_windowLogMax,
-        zstdWindowLogMax(),
-      ),
-      'ZSTD_DCtx_setParameter',
-    );
+    try {
+      _inNative = malloc.allocate<Uint8>(_inSize);
+      _outNative = malloc.allocate<Uint8>(_outSize);
+      _inBuf = malloc<ZSTD_inBuffer_s>();
+      _outBuf = malloc<ZSTD_outBuffer_s>();
+      _check(_zstd.ZSTD_initDStream(_stream), 'ZSTD_initDStream');
+      _check(
+        _zstd.ZSTD_DCtx_setParameter(
+          _stream,
+          ZSTD_dParameter.ZSTD_d_windowLogMax,
+          zstdWindowLogMax(),
+        ),
+        'ZSTD_DCtx_setParameter',
+      );
+    } catch (_) {
+      dispose();
+      rethrow;
+    }
   }
 
   final ZstandardNativeBindings _zstd;
@@ -37,10 +42,10 @@ class ZstdStreamDecoder {
   late final int _inSize;
   late final int _outSize;
   late final Pointer<ZSTD_DCtx> _stream;
-  late final Pointer<Uint8> _inNative;
-  late final Pointer<Uint8> _outNative;
-  late final Pointer<ZSTD_inBuffer_s> _inBuf;
-  late final Pointer<ZSTD_outBuffer_s> _outBuf;
+  Pointer<Uint8> _inNative = nullptr;
+  Pointer<Uint8> _outNative = nullptr;
+  Pointer<ZSTD_inBuffer_s> _inBuf = nullptr;
+  Pointer<ZSTD_outBuffer_s> _outBuf = nullptr;
   int _lastRet = 0;
   bool _fedAny = false;
   bool _disposed = false;
@@ -48,6 +53,13 @@ class ZstdStreamDecoder {
   void _check(int code, String what) {
     if (_zstd.ZSTD_isError(code) != 0) {
       final name = _zstd.ZSTD_getErrorName(code).cast<Utf8>().toDartString();
+      final errorCode = _zstd.ZSTD_getErrorCode(code);
+      if (what != 'פענוח zstd' ||
+          errorCode == ZSTD_ErrorCode.ZSTD_error_memory_allocation ||
+          errorCode ==
+              ZSTD_ErrorCode.ZSTD_error_frameParameter_windowTooLarge) {
+        throw StateError('$what נכשל: $name');
+      }
       throw FormatException('$what נכשל: $name');
     }
   }
