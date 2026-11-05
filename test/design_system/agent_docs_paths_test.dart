@@ -60,13 +60,25 @@ void main() {
   for (final doc in _docs) {
     test('כל נתיב ב-$doc קיים', () {
       final text = File(doc).readAsStringSync().replaceAll('\r\n', '\n');
+      final paths = _pathsIn(text).toSet();
+      expect(paths, isNotEmpty, reason: 'הסורק לא מצא אף נתיב ב-$doc');
       final missing = {
-        for (final p in _pathsIn(text))
+        for (final p in paths)
           if (!File(p).existsSync() && !Directory(p).existsSync()) p,
       };
       expect(missing, isEmpty);
     });
   }
+
+  test('הסורק: נתיב במאגר נמצא בלי מספר השורה, ומחוק או חיצוני לא', () {
+    expect(
+      _pathsIn(
+        'ראו `lib/core/ui_snack.dart:12`, ~~`lib/gone.dart`~~, '
+        '`changes/74a-white-9f` ו־`AppTokens.iconMD`',
+      ).toList(),
+      ['lib/core/ui_snack.dart'],
+    );
+  });
 
   test('כל נתיב בעץ הקוד של AGENTS.md קיים', () {
     final paths = _treePaths(
