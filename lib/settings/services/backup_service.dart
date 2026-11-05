@@ -46,6 +46,8 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
+import 'package:otzaria/tour/models/live_tip.dart';
+import 'package:otzaria/tour/models/tour_steps.dart';
 
 /// תוצאת [BackupService.restoreFromBackup].
 typedef BackupRestoreResult = ({
@@ -104,7 +106,6 @@ class BackupService {
     required bool includeNotes,
     required bool includeWorkspaces,
     required bool includeShamorZachor,
-    // [EDITING DISABLED] required bool includeUserOverrides,
     required bool includePlugins,
     bool isAutoBackup = false,
   }) async {
@@ -133,7 +134,6 @@ class BackupService {
           'notes': includeNotes,
           'workspaces': includeWorkspaces,
           'shamorZachor': includeShamorZachor,
-          // [EDITING DISABLED] 'userOverrides': includeUserOverrides,
           'plugins': includePlugins,
         },
       };
@@ -172,11 +172,6 @@ class BackupService {
       if (includeNotes) {
         backupData['notes'] = await _backupNotes();
       }
-
-      // [EDITING DISABLED]
-      // if (includeUserOverrides) {
-      //   backupData['user_overrides'] = await _backupUserOverrides();
-      // }
 
       // Backup plugins
       if (includePlugins) {
@@ -330,6 +325,14 @@ class BackupService {
   /// מפתחות ההגדרות שהגיבוי אוסף כשאין גישה ל-Hive box (ראה [_backupSettings]).
   /// כולל את הקיצורים הדינמיים, שמפתחותיהם נגזרים מהתוספים המותקנים.
   static List<String> get fallbackSettingsKeys => [
+    ..._legacyFallbackSettingsKeys,
+    TourSteps.statusKey,
+    LiveTipStorage.resolvedTipsKey,
+    LiveTipStorage.launchCountKey,
+  ];
+
+  // בגיבוי ללא settingsSource, מפתחות הסיור מוכיחים סריקת Box.
+  static List<String> get _legacyFallbackSettingsKeys => [
     ...SettingsRepository.allKeys,
     ...ShortcutValidator.shortcutKeys,
     'shortcuts',
@@ -474,28 +477,6 @@ class BackupService {
 
     return result;
   }
-
-  // [EDITING DISABLED]
-  // /// Backup user overrides
-  // static Future<Map<String, dynamic>> _backupUserOverrides() async {
-  //   final overridesDir = Directory(await AppPaths.getUserOverridesRootPath());
-  //   if (!await overridesDir.exists()) return {};
-  //   final overridesData = <String, dynamic>{};
-  //   await for (final entity in overridesDir.list(recursive: true)) {
-  //     if (entity is File &&
-  //         (entity.path.endsWith('.md') ||
-  //             entity.path.endsWith('.tmp') ||
-  //             entity.path.endsWith('.recovery'))) {
-  //       final relativePath = p.relative(entity.path, from: overridesDir.path);
-  //       try {
-  //         overridesData[relativePath] = await entity.readAsString();
-  //       } catch (e) {
-  //         _logger.warning('Failed to backup override file $relativePath: $e');
-  //       }
-  //     }
-  //   }
-  //   return overridesData;
-  // }
 
   //גיבוי תוספים: גיבוי קבצים, תיקיית נתונים, הרשאות ונתוני DB
   // תוספי פיתוח (`development`) מדולגים, כיון שאינם קיימים במחשב היעד.
@@ -994,15 +975,6 @@ class BackupService {
       );
     }
 
-    // [EDITING DISABLED]
-    // final includeOverrides =
-    //     includes['userOverrides'] as bool? ?? includes['notes'] == true;
-    // if (includeOverrides && backupData.containsKey('user_overrides')) {
-    //   await _restoreUserOverrides(
-    //     backupData['user_overrides'] as Map<String, dynamic>,
-    //   );
-    // }
-
     // Restore workspaces
     if (includes['workspaces'] == true &&
         backupData.containsKey('workspaces')) {
@@ -1166,13 +1138,8 @@ class BackupService {
     return merged;
   }
 
-  /// האם סעיף ההגדרות נאסף מרשימת מפתחות מוצהרת ולכן חסר את השאר.
-  ///
-  /// [source] הוא `settingsSource` מהמניפסט: `'declared-keys'` מצהיר על עצמו,
-  /// ו-`'box'` שולל. גיבוי מלפני שהשדה נוסף אינו נושא אותו כלל, ולכן ההכרעה
-  /// נופלת על התוכן: אוסף מרשימה מוצהרת יכול להכיל רק מפתחות מתוכה
-  /// (ראה [fallbackSettingsKeys]), ולכן מפתח אחד מחוצה לה מוכיח סריקת Box.
-  /// בלי הבדיקה הזאת גם גיבוי שלם מלפני התיקון היה מתריע התראת שקר.
+  /// האם סעיף ההגדרות נאסף מרשימת מפתחות חלקית. בלי חתימת מקור, רק מפתח
+  /// מחוץ לרשימה הישנה מוכיח שהגיבוי סרק את ה-Box כולו.
   @visibleForTesting
   static bool isPartialSettingsSection(
     Map<String, dynamic> settings,
@@ -1180,7 +1147,7 @@ class BackupService {
   ) {
     if (source == 'declared-keys') return true;
     if (source != null) return false;
-    final declared = fallbackSettingsKeys.toSet();
+    final declared = _legacyFallbackSettingsKeys.toSet();
     return !settings.keys.any((key) => !declared.contains(key));
   }
 
@@ -1735,8 +1702,6 @@ class BackupService {
         Settings.getValue<bool>('key-backup-workspaces') ?? true;
     final includeShamorZachor =
         Settings.getValue<bool>('key-backup-shamor-zachor') ?? true;
-    // [EDITING DISABLED]
-    // final includeUserOverrides = Settings.getValue<bool>('key-backup-user-overrides') ?? true;
     final includePlugins =
         Settings.getValue<bool>('key-backup-plugins') ?? true;
 
@@ -1767,7 +1732,6 @@ class BackupService {
       includeNotes: includeNotes,
       includeWorkspaces: includeWorkspaces,
       includeShamorZachor: includeShamorZachor,
-      // [EDITING DISABLED] includeUserOverrides: includeUserOverrides,
       includePlugins: includePlugins,
       isAutoBackup: true,
     );
