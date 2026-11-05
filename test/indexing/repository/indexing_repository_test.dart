@@ -20,6 +20,7 @@ import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -1816,6 +1817,7 @@ void main() {
         );
         await SqliteDataProvider.instance.dispose();
         await SqliteDataProvider.instance.initialize();
+        await FindRefDbIsolate.resumeAfterExternalWrite();
         previousRegistry = AttachedLibraryRegistry.instance;
         AttachedLibraryRegistry.instance =
             AttachedLibraryRegistry(idleTimeout: null)..update([
@@ -1836,7 +1838,12 @@ void main() {
         DbReadWorker.disposeForTesting();
         await CacheDatabaseHolder.instance.close();
         AppPaths.debugOverrideDataRootPath(null);
-        await tempDir.delete(recursive: true);
+        try {
+          expect(await FindRefDbIsolate.suspendForExternalWrite(), isTrue);
+          await tempDir.delete(recursive: true);
+        } finally {
+          await FindRefDbIsolate.resumeAfterExternalWrite();
+        }
       });
 
       for (final source in [
