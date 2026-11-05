@@ -153,7 +153,7 @@ void main() {
         'type': 'search',
         'requestId': 1,
         'contentId': 1,
-        'content': <String>['אברהם'],
+        'content': <String>['<h2>פרק א</h2>', 'אברהם'],
         'query': 'אברהם',
         'patternSource': literalPatternSource('אברהם'),
       });
@@ -164,7 +164,7 @@ void main() {
         'type': 'search',
         'requestId': 2,
         'contentId': 2,
-        'content': <String>['יצחק', 'יעקב'],
+        'content': <String>['יצחק', '<h2>פרק ב</h2>', 'יעקב'],
         'query': 'אברהם',
         'patternSource': literalPatternSource('אברהם'),
       });
@@ -187,6 +187,12 @@ void main() {
       final reuse = await harness.waitForMessage(requestId: 3);
       expect(reuse['type'], 'result');
       expect(reuse['results'] as List, hasLength(1));
+      // גם הכותרות שבונות את כתובת התוצאה הוחלפו יחד עם התוכן.
+      expect(
+        (((reuse['results'] as List).single as Map)['address'] as String)
+            .trim(),
+        'פרק ב',
+      );
     });
 
     test('contentId לא מוכר ללא content מחזיר error', () async {

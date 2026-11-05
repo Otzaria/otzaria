@@ -127,6 +127,12 @@ bool queryCanCrossLines(String query) {
 
 bool _isHeadingLine(String rawLine) => rawLine.trimLeft().startsWith('<h');
 
+/// [source] עם חלופת `\n` ל-[crossLineMatch]: הסריקה נעצרת במעבר השורה במקום
+/// לעבור על כל השורה הבאה, והתאמות שמתחילות לפניו אינן משתנות.
+@visibleForTesting
+RegExp crossLinePattern(String source) =>
+    compileLiteralPattern('(?:$source)|\\n');
+
 /// התאמה של [pattern] שמתחילה בסוף השורה הנקייה [line] ונמשכת בתחילת
 /// [nextLine], בלי סימון ממוספר בקצוות — אותו כלל כמו במנוע. כותרת או שורה
 /// ריקה עוצרות ביטוי. מחזירה את ההיסט בשורה ואת קטע שתי השורות.
@@ -625,6 +631,9 @@ class SectionSearchWorkerRuntime {
   List<String>? _cachedRawContent;
   List<String>? _cachedCleanLines;
 
+  /// אינדקסי השורות שמעדכנות את כתובת התוצאה (כותרות מתחת ל-h1), בסדר עולה.
+  List<int>? _cachedHeadingLines;
+
   void onMessage(dynamic message) {
     if (message is! Map) {
       return;
@@ -652,10 +661,11 @@ class SectionSearchWorkerRuntime {
         try {
           final contentId = request['contentId'] as int?;
           final query = _normalizeQueryWhitespace(request['query'] as String);
-          final pattern = compileLiteralPattern(
-            request['patternSource'] as String,
-          );
-          final canCrossLines = queryCanCrossLines(query);
+          final patternSource = request['patternSource'] as String;
+          final pattern = compileLiteralPattern(patternSource);
+          final crossPattern = queryCanCrossLines(query)
+              ? crossLinePattern(patternSource)
+              : null;
 
           // ודא שה-cache תואם לתוכן המבוקש; אחרת בנה אותו פעם אחת.
           // בקשה ללא contentId (תאימות לאחור) נחשבת תמיד כתוכן חדש.
@@ -684,6 +694,8 @@ class SectionSearchWorkerRuntime {
 
           final cleanLines = _cachedCleanLines!;
           final sourceLines = _cachedRawContent!;
+          final headingLines = _cachedHeadingLines!;
+          var nextHeading = 0;
 
           final results = <Map<String, dynamic>>[];
           final address = <String>[];
@@ -697,15 +709,13 @@ class SectionSearchWorkerRuntime {
               ? cleanLines.length
               : requestedEnd;
 
-          for (int i = 0; i < rangeEnd; i++) {
-            if (i < rangeStart) {
-              // הכותרות שלפני הטווח עדיין בונות את כתובת התוצאות שבתוכו.
-              final rawLine = sourceLines[i];
-              if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
-                _updateAddress(address, rawLine);
-              }
-              continue;
-            }
+          // הכותרות שלפני הטווח עדיין בונות את כתובת התוצאות שבתוכו.
+          while (nextHeading < headingLines.length &&
+              headingLines[nextHeading] < rangeStart) {
+            _updateAddress(address, sourceLines[headingLines[nextHeading++]]);
+          }
+
+          for (int i = rangeStart; i < rangeEnd; i++) {
             if (results.length >= _maxSearchResults) {
               if (pattern
                   .allMatches(cleanLines[i])
@@ -725,8 +735,10 @@ class SectionSearchWorkerRuntime {
 
             final rawLine = sourceLines[i];
 
-            if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
+            if (nextHeading < headingLines.length &&
+                headingLines[nextHeading] == i) {
               _updateAddress(address, rawLine);
+              nextHeading++;
             }
 
             // תוצאה לכל הופעה בשורה — לא אחת לשורה — כדי ששתי הופעות
@@ -772,9 +784,9 @@ class SectionSearchWorkerRuntime {
             }
 
             // ביטוי שנמשך לשורה הבאה נספר פעם אחת, בשורה שבה הוא מתחיל.
-            if (canCrossLines && i + 1 < rangeEnd) {
+            if (crossPattern != null && i + 1 < rangeEnd) {
               final crossing = crossLineMatch(
-                pattern,
+                crossPattern,
                 rawLine: rawLine,
                 rawNextLine: sourceLines[i + 1],
                 line: cleanLines[i],
@@ -841,8 +853,13 @@ class SectionSearchWorkerRuntime {
   /// אותו ספר אינו מפסיק את הבנייה — היא עדיין שימושית לשאילתה החדשה.
   Future<bool> _buildCache(int? contentId, List<String> content) async {
     final clean = List<String>.filled(content.length, '', growable: false);
+    final headingLines = <int>[];
     for (int i = 0; i < content.length; i++) {
-      clean[i] = cleanLineForSearch(content[i]);
+      final rawLine = content[i];
+      clean[i] = cleanLineForSearch(rawLine);
+      if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
+        headingLines.add(i);
+      }
       if ((i + 1) % _searchChunkSize == 0) {
         await Future<void>.delayed(Duration.zero);
         final next = _queuedRequest;
@@ -854,6 +871,7 @@ class SectionSearchWorkerRuntime {
     _cachedContentId = contentId;
     _cachedRawContent = content;
     _cachedCleanLines = clean;
+    _cachedHeadingLines = headingLines;
     return true;
   }
 }
