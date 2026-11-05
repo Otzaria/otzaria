@@ -1,0 +1,209 @@
+{
+  "status": "read_only_source_triage_complete",
+  "revisions": {
+    "dev": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+    "parent": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+    "candidate": "18d160c82e2abf8a04d8af91da0da724a4acf5ae"
+  },
+  "published_candidate_diff_from_parent": [
+    "M\ttest/pdf_book/pdf_hand_mode_test.dart",
+    "M\ttest/pdf_book/pdf_personal_note_viewer_test.dart"
+  ],
+  "blobs": {
+    "test/widgets/app_menu_preferred_width_test.dart": {
+      "dev": "311ebdd54230c1519f4ed181d28e4546b8d93de1",
+      "parent": "311ebdd54230c1519f4ed181d28e4546b8d93de1",
+      "candidate": "311ebdd54230c1519f4ed181d28e4546b8d93de1"
+    },
+    "packages/otzaria_context_menu/lib/src/menu_rows.dart": {
+      "dev": "d459512fcb36590cb356bf7f4b2dfc2860d8e80c",
+      "parent": "d459512fcb36590cb356bf7f4b2dfc2860d8e80c",
+      "candidate": "d459512fcb36590cb356bf7f4b2dfc2860d8e80c"
+    },
+    "packages/otzaria_context_menu/lib/src/menu_metrics.dart": {
+      "dev": "653dc3e9f631a93f7535aedbef96b9490de32b8c",
+      "parent": "653dc3e9f631a93f7535aedbef96b9490de32b8c",
+      "candidate": "653dc3e9f631a93f7535aedbef96b9490de32b8c"
+    },
+    "packages/otzaria_context_menu/lib/src/menu_models.dart": {
+      "dev": "457e0117921805b0774726f6669d6b9b91ea5ed2",
+      "parent": "457e0117921805b0774726f6669d6b9b91ea5ed2",
+      "candidate": "457e0117921805b0774726f6669d6b9b91ea5ed2"
+    },
+    "packages/otzaria_context_menu/lib/src/menu_presentation.dart": {
+      "dev": "522d56579c042980d20c3a36e0b29c9c988799da",
+      "parent": "522d56579c042980d20c3a36e0b29c9c988799da",
+      "candidate": "522d56579c042980d20c3a36e0b29c9c988799da"
+    },
+    "packages/otzaria_context_menu/lib/otzaria_context_menu.dart": {
+      "dev": "792eb52eddeaa8e308db17121a1bb7efee9c15e5",
+      "parent": "792eb52eddeaa8e308db17121a1bb7efee9c15e5",
+      "candidate": "792eb52eddeaa8e308db17121a1bb7efee9c15e5"
+    },
+    "packages/otzaria_context_menu/pubspec.yaml": {
+      "dev": "082b74207e0567bea8ca40f295f2d516c410f77c",
+      "parent": "082b74207e0567bea8ca40f295f2d516c410f77c",
+      "candidate": "082b74207e0567bea8ca40f295f2d516c410f77c"
+    },
+    "lib/widgets/misc/app_menu_exports.dart": {
+      "dev": "2a54cb2ae5ff4b4e5e00db52b706f6e5e7587cb8",
+      "parent": "2a54cb2ae5ff4b4e5e00db52b706f6e5e7587cb8",
+      "candidate": "2a54cb2ae5ff4b4e5e00db52b706f6e5e7587cb8"
+    },
+    "lib/widgets/misc/app_popup_menu.dart": {
+      "dev": "d21cc0e4e08a17a37cc5a7151061048231b52f3e",
+      "parent": "d21cc0e4e08a17a37cc5a7151061048231b52f3e",
+      "candidate": "d21cc0e4e08a17a37cc5a7151061048231b52f3e"
+    },
+    "lib/theme/theme_exports.dart": {
+      "dev": "48cc3dca5020b83648d27b044243ecf638f8f4c1",
+      "parent": "48cc3dca5020b83648d27b044243ecf638f8f4c1",
+      "candidate": "48cc3dca5020b83648d27b044243ecf638f8f4c1"
+    },
+    "lib/theme/app_theme_data.dart": {
+      "dev": "df6f511269447b92909c3671fcb44b5661d8d546",
+      "parent": "df6f511269447b92909c3671fcb44b5661d8d546",
+      "candidate": "df6f511269447b92909c3671fcb44b5661d8d546"
+    },
+    "pubspec.yaml": {
+      "dev": "f40e93c2caa9a0165526a8d64bfc168dded6fbbf",
+      "parent": "f40e93c2caa9a0165526a8d64bfc168dded6fbbf",
+      "candidate": "f40e93c2caa9a0165526a8d64bfc168dded6fbbf"
+    },
+    "pubspec.lock": {
+      "dev": "829dc75ea7789f3e5a58f5c7544ab81df6fb5d70",
+      "parent": "829dc75ea7789f3e5a58f5c7544ab81df6fb5d70",
+      "candidate": "829dc75ea7789f3e5a58f5c7544ab81df6fb5d70"
+    },
+    ".github/workflows/flutter_tests.yml": {
+      "dev": "b3a7e9224246358f8ef69ee8087ed8f01219128a",
+      "parent": "b3a7e9224246358f8ef69ee8087ed8f01219128a",
+      "candidate": "b3a7e9224246358f8ef69ee8087ed8f01219128a"
+    },
+    "tool/ci/test_shards.dart": {
+      "dev": "6c6ed5f9c54b0a1f3b4f750941cff42a52759252",
+      "parent": "6c6ed5f9c54b0a1f3b4f750941cff42a52759252",
+      "candidate": "6c6ed5f9c54b0a1f3b4f750941cff42a52759252"
+    }
+  },
+  "all_listed_blobs_identical_across_three_revisions": true,
+  "tree_hashes": {
+    "lib": {
+      "dev": "5213d3cfe97e770d0f5fe80e5534f3a550fab43e",
+      "parent": "0763a8f6c557cfbd42628340a7e0033379aa7aad",
+      "candidate": "0763a8f6c557cfbd42628340a7e0033379aa7aad"
+    },
+    "packages": {
+      "dev": "f1c71bd89109d7d10f85d1104f10a0cf0c0f0e2c",
+      "parent": "f1c71bd89109d7d10f85d1104f10a0cf0c0f0e2c",
+      "candidate": "f1c71bd89109d7d10f85d1104f10a0cf0c0f0e2c"
+    },
+    "fonts": {
+      "dev": "fb0f5f00023cf854287e4f2c60e4dccbed8ab339",
+      "parent": "fb0f5f00023cf854287e4f2c60e4dccbed8ab339",
+      "candidate": "fb0f5f00023cf854287e4f2c60e4dccbed8ab339"
+    },
+    "assets": {
+      "dev": "f3799fc46b6244ee4d2da7e558e1c79e0605ebf6",
+      "parent": "f3799fc46b6244ee4d2da7e558e1c79e0605ebf6",
+      "candidate": "f3799fc46b6244ee4d2da7e558e1c79e0605ebf6"
+    },
+    ".github/workflows": {
+      "dev": "6b493631f0ca14e5f76ee7627636fc5cacbe9be7",
+      "parent": "6b493631f0ca14e5f76ee7627636fc5cacbe9be7",
+      "candidate": "6b493631f0ca14e5f76ee7627636fc5cacbe9be7"
+    }
+  },
+  "dependency_chain": [
+    "test imports lib/widgets/misc/app_menu_exports.dart -> app_popup_menu.dart -> package:otzaria_context_menu/otzaria_context_menu.dart -> src/menu_rows.dart",
+    "AppMenuMetrics comes via theme_exports.dart -> app_theme_data.dart -> same context-menu package src/menu_metrics.dart",
+    "pubspec.yaml resolves otzaria_context_menu to packages/otzaria_context_menu; pubspec.yaml, pubspec.lock and CI workflow are unchanged across all three revisions",
+    "The called function uses only supplied AppMenuMetrics/AppMenuEntry values, dart:math and Flutter TextPainter/TextSpan/TextStyle; no personal-note/PDF code is invoked on this path"
+  ],
+  "mechanism": {
+    "entry_count": 60001,
+    "labels": "60000 unique numbered Hebrew labels and one longest label at the end",
+    "metrics": {
+      "font_size": 14,
+      "font_weight_for_measurement": "w600",
+      "requested_font_family": "Roboto",
+      "icon_size": 18,
+      "menu_min_width": 150,
+      "horizontal_item_padding_per_side": 12
+    },
+    "baseline": "one timed pass of 60001 individual TextPainter layout/dispose operations, first",
+    "optimized": "one timed function call; deduplicate strings, batch up to 64 ordinary labels joined by newline, TextPainter layout/dispose, then scan icon/trailing reservation",
+    "ordinary_batch_count": 938,
+    "assertion": "optimized elapsed microseconds * 1.5 < individual elapsed microseconds; thus requires speedup strictly greater than 1.5x (time reduction >33.3333%)",
+    "correctness_assertion": "width == longestOnly precedes timing expect and passed according to supplied logs",
+    "stability_properties": "No in-test warm-up, repeated samples or median; wall-clock stopwatch comparison with fixed baseline-first ordering. CI initial test invocation explicitly runs -j 4; retry uses default concurrency."
+  },
+  "ci": {
+    "run_id": 42107123214,
+    "job_id": 127524762476,
+    "url": "https://github.com/Otzaria/otzaria/actions/runs/42107123214/job/127524762476",
+    "observations_provenance": "Failure numbers, assertion-pass information and prior-run results supplied by parent agent; this read-only task independently verified Git source, hashes, timing arithmetic and workflow only.",
+    "measurements": [
+      {
+        "attempt": "first",
+        "individual_us": 794986,
+        "optimized_us": 538776.0,
+        "assertion_actual_optimized_times_1_5": 808164,
+        "required_optimized_strictly_less_than_us": 529990.6666666666,
+        "miss_us": 8785.333333333372,
+        "miss_percent": 1.657639254024601,
+        "observed_speedup": 1.4755408555689191,
+        "optimized_time_reduction_percent": 32.22824049731693
+      },
+      {
+        "attempt": "retry",
+        "individual_us": 805470,
+        "optimized_us": 546200.0,
+        "assertion_actual_optimized_times_1_5": 819300,
+        "required_optimized_strictly_less_than_us": 536980.0,
+        "miss_us": 9220.0,
+        "miss_percent": 1.717009944504455,
+        "observed_speedup": 1.4746796045404613,
+        "optimized_time_reduction_percent": 32.18866003699703
+      }
+    ],
+    "previous_product_run": {
+      "run_id": 42102359368,
+      "url": "https://github.com/Otzaria/otzaria/actions/runs/42102359368",
+      "supplied_observation": "Shard 3 had the five known Shamor failures but no app-menu benchmark failure; this does not establish an app-menu timing failure on baseline."
+    },
+    "root_confirmed_final_status": {
+      "head_sha": "18d160c82e2abf8a04d8af91da0da724a4acf5ae",
+      "completed_at_utc_time": "21:03",
+      "all_jobs_pass_except": "Test (shard 3/5)",
+      "shard3_failures": {
+        "known_shamor": 5,
+        "app_menu_timing": 1
+      },
+      "plugin_six_tests": "passed without retry",
+      "provenance": "Parent-agent follow-up; not independently fetched in this subtask."
+    }
+  },
+  "citations": {
+    "benchmark": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/test/widgets/app_menu_preferred_width_test.dart#L35-L81",
+    "implementation": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/packages/otzaria_context_menu/lib/src/menu_rows.dart#L175-L244",
+    "batch_and_font_constants": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/packages/otzaria_context_menu/lib/src/menu_rows.dart#L9-L19",
+    "metrics_factory": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/packages/otzaria_context_menu/lib/src/menu_metrics.dart#L30-L46",
+    "menu_export": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/lib/widgets/misc/app_popup_menu.dart#L19-L28",
+    "metrics_export": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/lib/theme/app_theme_data.dart#L1-L11",
+    "path_dependency": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/pubspec.yaml#L31-L36",
+    "flutter_pin": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/.github/workflows/flutter_tests.yml#L180-L192",
+    "initial_parallel_tests": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/.github/workflows/flutter_tests.yml#L251-L269",
+    "retry": "https://github.com/Otzaria/otzaria/blob/18d160c82e2abf8a04d8af91da0da724a4acf5ae/.github/workflows/flutter_tests.yml#L281-L322",
+    "candidate_compare": "https://github.com/Otzaria/otzaria/compare/fe27937a7e368bfc3d7d51203fe9497b186fbcb4...18d160c82e2abf8a04d8af91da0da724a4acf5ae"
+  },
+  "conclusion": "No changed code path, metrics, model, dependency lockfile or CI definition explains this as a direct personal-notes runtime regression. This is a narrow failure of an existing timing benchmark: observed speedup was about 1.475x instead of >1.5x. Classify as an out-of-scope timing failure on unchanged source, plausibly environment/runtime-sensitive; do not claim its failure is already reproduced on baseline.",
+  "limitations": [
+    "No Dart/Flutter/compiler invocation was made. No same-runner controlled baseline timing probe was performed.",
+    "Identical source establishes no direct changed algorithm/dependency, not the exact causal mechanism for elapsed time. CPU contention, scheduling, allocation/GC, engine/JIT state or other test workload effects are plausible influences, not measured diagnoses.",
+    "Two candidate attempts failed similarly; this is not a demonstrated random one-off, and the prior product run did not fail this test.",
+    "The preceding equality checks this dataset; it is not a general proof of all menu-width behavior."
+  ],
+  "recommendation": "Document the exact timing failure and unchanged dependency chain; do not weaken the benchmark or change menu product code in personal-notes PR #4226. Another broad baseline suite is not materially needed to establish scope. If a green gate or a demonstrated inherited benchmark failure is specifically required, a separate controlled run of this unchanged benchmark at dev/product base under comparable runner conditions is the appropriate evidence; until then keep causality and baseline failure unclaimed.",
+  "suggested_hebrew_report": "נוסף כשל בבדיקת ביצועים קיימת של רוחב התפריט: החישוב היה מהיר בערך פי 1.475 מהמדידה הישירה, אך הבדיקה דורשת יותר מפי 1.5 — פער של כ־1.7% מהסף. בדיקת הרוחב עצמה עברה. הבדיקה, המימוש, המדדים, התלויות והגדרת ה־CI זהים ב־dev, בקומיט המוצר ובמועמד; אין שינוי במסלול הקוד הזה. זהו כשל תזמון מחוץ לתחום שינוי ההערות, אך אין כרגע הוכחה שהכשל הזה משתחזר גם בבסיס. לא שיניתי את רף הבדיקה."
+}
