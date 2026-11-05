@@ -30,6 +30,14 @@ rules:
       - path: lib/widgets/dialogs/**
         reason: הרכיבים המשותפים שבונים את הדיאלוגים
 
+  UIL-002:
+    strict: true
+    exclude:
+      - path: lib/widgets/controls/**
+        reason: רכיבי הכפתור המשותפים (ActionButton ועוד) בונים את כפתורי Material
+      - path: lib/widgets/misc/app_dropdown_field.dart
+        reason: הכפתור של AppDropdownField הוא FilledButton.tonal בצבעי השדה (DESIGN_SYSTEM §3.3)
+
   UIL-006:
     strict: true
     exclude:
