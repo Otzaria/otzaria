@@ -19,9 +19,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022]
+        os: [ubuntu-24.04, windows-2022]
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: "1"
+      OTZARIA_REQUIRE_CODEC_TESTS: "1"
     steps:
       - uses: actions/checkout@v5
       - name: Enable long Git paths on Windows
@@ -35,6 +36,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve exact dependencies
         run: flutter pub get --enforce-lockfile
+      - name: Build the locked zstd dependency for Windows tests
+        if: runner.os == 'Windows'
+        run: python .qa/build_test_zstd.py
       - name: Analyze
         run: flutter analyze --no-pub
       - name: Reproduce concurrent disposal before the lifecycle fix
