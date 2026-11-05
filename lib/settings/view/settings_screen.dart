@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/settings/search/settings_search_field.dart';
 import 'package:otzaria/settings/search/settings_search_index.dart';
@@ -16,6 +18,7 @@ import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -74,6 +77,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
   List<SettingsSearchEntry> _searchResults = const [];
+  SettingsSearchNavigationRequest? _activeSearchNavigationRequest;
 
   @override
   void initState() {
@@ -88,6 +92,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   @override
   void dispose() {
+    _activeSearchNavigationRequest = null;
     _focus.unregisterSettingsFocusRequester(_requestSettingsFocus);
     SettingsSearchRegistry.instance.removeListener(_handleSearchNavigation);
     widget.controller?.removeListener(_handleRequestedTab);
@@ -100,6 +105,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   // ── חיפוש: עדכון השאילתה ─────────────────────────────────────────────────
   void _onSearchChanged(String query) {
+    _activeSearchNavigationRequest = null;
     setState(() {
       _searchQuery = query;
       // ה-State יושב מעל ה-SettingsTextScope, ולכן השפה נלקחת מה-bloc.
@@ -121,6 +127,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   // ── מובייל: כפתור "חזור" — סוגר קודם את החיפוש הפעיל, אחרת חוזר לתפריט ────
   void _handleMobileBack() {
+    _activeSearchNavigationRequest = null;
     setState(() {
       if (_searchQuery.trim().isNotEmpty) {
         _clearSearch();
@@ -131,6 +138,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   }
 
   void _handleDesktopEscape() {
+    _activeSearchNavigationRequest = null;
     if (_searchQuery.trim().isNotEmpty) {
       setState(_clearSearch);
     } else {
@@ -189,31 +197,56 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     if (!mounted) return;
 
     final tabIndex = _tabToIndex(request.tab);
-    if (!_isTabAvailable(tabIndex)) return;
+    if (!_isTabAvailable(tabIndex)) {
+      _activeSearchNavigationRequest = null;
+      return;
+    }
 
     setState(() {
+      _activeSearchNavigationRequest = request;
       _selectedIndex = tabIndex;
       _showMobileMenu = false;
     });
     _recordTabTourInteraction(tabIndex);
 
     // לאחר טעינת הטאב — גלילה והבזק על הכרטיס.
-    final cardId = request.cardId;
-    if (cardId != null) {
+    if (request.cardId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await Future.delayed(const Duration(milliseconds: 80));
+        if (!_isCurrentSearchNavigationRequest(request)) return;
+        var cardId = request.cardId!;
+        final settingKey = request.expandSection;
+        if (request.tab == SettingsTab.shortcuts &&
+            settingKey != null &&
+            ShortcutsSettingsTab.searchEntries.any(
+              (entry) => entry.expandSection == settingKey,
+            ) &&
+            (ShortcutValidator.getShortcutValue(settingKey) ?? '').isEmpty) {
+          cardId = ShortcutsSettingsTab.availableActionsCardId;
+        }
         await SettingsSearchRegistry.instance.scrollAndHighlight(
           cardId,
           section: request.expandSection,
+          isCurrent: () => _isCurrentSearchNavigationRequest(request),
         );
       });
     }
   }
 
+  bool _isCurrentSearchNavigationRequest(
+    SettingsSearchNavigationRequest request,
+  ) =>
+      mounted &&
+      identical(_activeSearchNavigationRequest, request) &&
+      _selectedIndex == _tabToIndex(request.tab) &&
+      !_showMobileMenu &&
+      context.read<NavigationBloc>().state.currentScreen == Screen.settings;
+
   @override
   void didUpdateWidget(covariant MySettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      _activeSearchNavigationRequest = null;
       oldWidget.controller?.removeListener(_handleRequestedTab);
       widget.controller?.addListener(_handleRequestedTab);
       _applyRequestedTab(widget.controller?.takeRequestedTab());
@@ -222,6 +255,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   void _changeTab(int index) {
     if (!_isTabAvailable(index)) return;
+    _activeSearchNavigationRequest = null;
     setState(() {
       _selectedIndex = index;
       _clearSearch();
@@ -259,6 +293,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
     final tabIndex = _tabToIndex(tab);
     if (!_isTabAvailable(tabIndex)) return;
+    _activeSearchNavigationRequest = null;
 
     if (!mounted) {
       _selectedIndex = tabIndex;
@@ -356,18 +391,24 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   Widget build(BuildContext context) {
     // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
     // נשארת RTL כי ה-locale הגלובלי אינו משתנה.
-    return BlocSelector<SettingsBloc, SettingsState, String>(
-      selector: (state) => state.settingsLanguageCode,
-      builder: (context, languageCode) {
-        final language = resolveSettingsLanguage(languageCode);
-        return Directionality(
-          textDirection: language.textDirection,
-          child: SettingsTextScope(
-            language: language,
-            child: Builder(builder: _buildContent),
-          ),
-        );
-      },
+    return BlocListener<NavigationBloc, NavigationState>(
+      listenWhen: (previous, current) =>
+          previous.currentScreen == Screen.settings &&
+          current.currentScreen != Screen.settings,
+      listener: (context, state) => _activeSearchNavigationRequest = null,
+      child: BlocSelector<SettingsBloc, SettingsState, String>(
+        selector: (state) => state.settingsLanguageCode,
+        builder: (context, languageCode) {
+          final language = resolveSettingsLanguage(languageCode);
+          return Directionality(
+            textDirection: language.textDirection,
+            child: SettingsTextScope(
+              language: language,
+              child: Builder(builder: _buildContent),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -394,6 +435,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       FluentIcons.chevron_left_24_regular,
                     ),
                     onTap: () {
+                      _activeSearchNavigationRequest = null;
                       setState(() {
                         _selectedIndex = idx;
                         _showMobileMenu = false;

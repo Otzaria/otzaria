@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 
+/// פותח יעד חיפוש, עם בדיקת תוקף שמלווה גם המשך ניווט אסינכרוני.
+typedef SettingsSectionOpener =
+    void Function(
+      String section, {
+      bool Function()? isCurrent,
+    });
+
 /// בקשת ניווט לתוצאת חיפוש — נשלחת מ-SearchResults אל מסך ההגדרות.
 class SettingsSearchNavigationRequest {
   final SettingsTab tab;
@@ -30,7 +37,7 @@ class SettingsSearchRegistry extends ChangeNotifier {
 
   final Map<String, GlobalKey> _anchors = {};
   final Map<String, ValueNotifier<bool>> _flashNotifiers = {};
-  final Map<String, ValueChanged<String>> _sectionOpeners = {};
+  final Map<String, SettingsSectionOpener> _sectionOpeners = {};
 
   SettingsSearchNavigationRequest? _pendingRequest;
   SettingsSearchNavigationRequest? get pendingRequest => _pendingRequest;
@@ -50,11 +57,11 @@ class SettingsSearchRegistry extends ChangeNotifier {
 
   /// Lets the card [cardId] open the part of it that a result's
   /// `expandSection` names, when that part is not on the page itself.
-  void registerSectionOpener(String cardId, ValueChanged<String> open) {
+  void registerSectionOpener(String cardId, SettingsSectionOpener open) {
     _sectionOpeners[cardId] = open;
   }
 
-  void unregisterSectionOpener(String cardId, ValueChanged<String> open) {
+  void unregisterSectionOpener(String cardId, SettingsSectionOpener open) {
     if (_sectionOpeners[cardId] == open) _sectionOpeners.remove(cardId);
   }
 
@@ -88,14 +95,19 @@ class SettingsSearchRegistry extends ChangeNotifier {
   /// כשהטאב עוד לא נבנה, ה-context לא זמין מיד — לכן ננסה כמה פעמים
   /// (עד ~720ms) לפני ויתור, כדי לכסות build איטי או anchors שעוד
   /// לא נכנסו לעץ.
-  Future<void> scrollAndHighlight(String cardId, {String? section}) async {
+  Future<void> scrollAndHighlight(
+    String cardId, {
+    String? section,
+    bool Function()? isCurrent,
+  }) async {
     BuildContext? ctx;
     for (var attempt = 0; attempt < 12; attempt++) {
+      if (isCurrent?.call() == false) return;
       ctx = _anchors[cardId]?.currentContext;
       if (ctx != null && ctx.mounted) break;
       await Future.delayed(const Duration(milliseconds: 60));
     }
-    if (ctx == null || !ctx.mounted) return;
+    if (ctx == null || !ctx.mounted || isCurrent?.call() == false) return;
 
     await Scrollable.ensureVisible(
       ctx,
@@ -103,10 +115,11 @@ class SettingsSearchRegistry extends ChangeNotifier {
       curve: Curves.easeOutCubic,
       alignment: 0.05,
     );
+    if (!ctx.mounted || isCurrent?.call() == false) return;
 
     final openSection = _sectionOpeners[cardId];
     if (section != null && openSection != null) {
-      openSection(section);
+      openSection(section, isCurrent: isCurrent);
       return;
     }
 

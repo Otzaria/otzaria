@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +12,16 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/panels/library_settings_panel.dart';
+
+class _TrackingSettingsCache extends MemorySettingsCache {
+  final writes = <String>[];
+
+  @override
+  Future<void> setObject<T>(String key, T? value) {
+    writes.add(key);
+    return super.setObject<T>(key, value);
+  }
+}
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
@@ -46,7 +58,11 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
-Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
+Widget _wrap(
+  SettingsBloc settingsBloc, {
+  bool catalogExists = true,
+  Future<bool> Function()? catalogChecker,
+}) {
   return MaterialApp(
     home: Directionality(
       textDirection: TextDirection.rtl,
@@ -55,7 +71,7 @@ Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
           value: settingsBloc,
           child: SingleChildScrollView(
             child: LibrarySettingsPanel(
-              catalogExistsChecker: () async => catalogExists,
+              catalogExistsChecker: catalogChecker ?? () async => catalogExists,
             ),
           ),
         ),
@@ -66,9 +82,11 @@ Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late _TrackingSettingsCache cache;
 
   setUp(() async {
-    await Settings.init(cacheProvider: MemorySettingsCache());
+    cache = _TrackingSettingsCache();
+    await Settings.init(cacheProvider: cache);
   });
 
   Future<void> setHebrewBooksPath(String path) =>
@@ -174,12 +192,14 @@ void main() {
   ) async {
     await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
     await tester.pumpAndSettle();
-    expect(find.text(localTileTitle), findsNothing);
+    expect(find.text(localTileTitle), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
 
     await setHebrewBooksPath(r'C:\HebrewBooks');
     await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(2));
   });
 
   testWidgets('המתג מוסתר כשהיברובוקס כבר מוצג מהקטלוג', (tester) async {
@@ -192,7 +212,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(localTileTitle), findsNothing);
+    expect(find.text(localTileTitle), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
   });
 
   testWidgets('כיבוי המתג משדר UpdateShowLocalHebrewBooks', (tester) async {
@@ -211,5 +232,98 @@ void main() {
       find.text('ספרים מתיקיית היברובוקס לא יוצגו בתוצאות איתור הספר'),
       findsOneWidget,
     );
+  });
+
+  const unavailableCases = [
+    (
+      name: 'קטלוג חסר',
+      catalog: false,
+      path: r'C:\HebrewBooks',
+      included: false,
+      explanation:
+          'כדי להציג ספרי היברובוקס מקומיים, יש להוריד את הקטלוג באמצעות "הורד קטלוג".',
+    ),
+    (
+      name: 'תיקייה חסרה',
+      catalog: true,
+      path: '',
+      included: false,
+      explanation:
+          'כדי להציג ספרי היברובוקס שברשותך, יש לבחור תיקייה ב"מיקום ספרי היברובוקס".',
+    ),
+    (
+      name: 'כלול במקורות',
+      catalog: true,
+      path: r'C:\HebrewBooks',
+      included: true,
+      explanation:
+          'ספרי היברובוקס שברשותך כבר כלולים במקור היברובוקס שנבחר ב"מקורות אחרים לספרים".',
+    ),
+  ];
+  for (final item in unavailableCases) {
+    testWidgets('חיפוש היברובוקס: ' + item.name, (tester) async {
+      await setHebrewBooksPath(item.path);
+      final settingsBloc = _FakeSettingsBloc(
+        showExternalBooks: item.included,
+        showHebrewBooks: item.included,
+      );
+      addTearDown(settingsBloc.close);
+      cache.writes.clear();
+      await tester.pumpWidget(_wrap(settingsBloc, catalogExists: item.catalog));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(localTileTitle),
+        findsOneWidget,
+        reason: 'תוצאת חיפוש היברובוקס צריכה להציג את תנאי הזמינות',
+      );
+      expect(find.text(item.explanation), findsOneWidget);
+      expect(find.byType(Switch), findsOneWidget);
+      expect(settingsBloc.dispatched, isEmpty);
+      expect(cache.writes, isEmpty);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyHebrewBooksPath),
+        item.path,
+      );
+    });
+  }
+
+  testWidgets('שורת היברובוקס ממתינה לתוצאת בדיקת הקטלוג', (tester) async {
+    final checked = Completer<bool>();
+    final settingsBloc = _FakeSettingsBloc();
+    addTearDown(settingsBloc.close);
+    await tester.pumpWidget(
+      _wrap(settingsBloc, catalogChecker: () => checked.future),
+    );
+    await tester.pump();
+    expect(find.text(localTileTitle), findsNothing);
+    expect(cache.writes, isEmpty);
+    checked.complete(false);
+    await tester.pumpAndSettle();
+    expect(find.text(localTileTitle), findsOneWidget);
+    expect(find.text('הורד קטלוג'), findsOneWidget);
+    expect(cache.writes, isEmpty);
+  });
+
+  testWidgets('מעבר מקורות מחליף הסבר ומתג בלי לשנות את הבחירה המקומית', (
+    tester,
+  ) async {
+    await setHebrewBooksPath(r'C:\HebrewBooks');
+    final settingsBloc = _FakeSettingsBloc(showLocalHebrewBooks: false);
+    addTearDown(settingsBloc.close);
+    await tester.pumpWidget(_wrap(settingsBloc));
+    await tester.pumpAndSettle();
+    expect(find.byType(Switch), findsNWidgets(2));
+    cache.writes.clear();
+    settingsBloc.add(const UpdateShowExternalBooks(true));
+    settingsBloc.add(const UpdateShowHebrewBooks(true));
+    await tester.pumpAndSettle();
+    expect(find.text(localTileTitle), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
+    expect(find.text(unavailableCases.last.explanation), findsOneWidget);
+    settingsBloc.add(const UpdateShowHebrewBooks(false));
+    await tester.pumpAndSettle();
+    expect(find.byType(Switch), findsNWidgets(2));
+    expect(settingsBloc.state.showLocalHebrewBooks, isFalse);
+    expect(cache.writes, isEmpty);
   });
 }
