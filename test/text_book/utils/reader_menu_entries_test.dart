@@ -51,6 +51,281 @@ void main() {
     });
   });
 
+  group('חיפוש מבחירה עם סמני הערות', () {
+    ReaderMenuSelection fromHtml(String selected, String html) =>
+        ReaderMenuSelection(
+          selected,
+          sourceLines: [html],
+          lineStart: 0,
+          lineEnd: 0,
+        );
+
+    test('בחירה המסתיימת בסמן אינה מצמידה אותו למילת החיפוש', () {
+      final selection = fromHtml(
+        'הודאתו3963',
+        'הרי שסמך על מקצת הודאתו<sup class="footnote-marker">3963</sup>',
+      );
+      expect(selection.cleaned, 'הודאתו');
+      expect(selection.quote(20), 'הודאתו');
+      expect(selection.hasText, isTrue);
+    });
+
+    test('בחירה החוצה סמן משאירה גבול בין מילות הגוף', () {
+      expect(
+        fromHtml('אב1גד', 'אב<sup class="footnote-marker">1</sup>גד').cleaned,
+        'אב גד',
+      );
+    });
+
+    test('פסיק בגוף הטקסט אחרי סמן נשאר בשאילתה', () {
+      expect(
+        fromHtml(
+          'אב1,',
+          'אב<sup class="footnote-marker">1</sup>,',
+        ).cleaned,
+        'אב ,',
+      );
+    });
+
+    test('מרכאה סוגרת בגוף הטקסט אחרי סמן נשארת בשאילתה', () {
+      expect(
+        fromHtml(
+          '"אב1"',
+          '"אב<sup class="footnote-marker">1</sup>"',
+        ).cleaned,
+        '"אב "',
+      );
+    });
+
+    test('פיסוק מוסתר אינו מונע התאמה מדויקת לסמן', () {
+      expect(
+        fromHtml(
+          'אב1 גד',
+          'אב<sup class="footnote-marker">1</sup>, גד',
+        ).cleaned,
+        'אב גד',
+      );
+    });
+
+    test('פיסוק בתוך הסמן מוסר ופיסוק סמוך בגוף נשמר', () {
+      expect(
+        fromHtml(
+          'אב1,,',
+          'אב<sup class="footnote-marker">1,</sup>,',
+        ).cleaned,
+        'אב ,',
+      );
+    });
+
+    test('בחירה המסתיימת בתוך סמן מסירה גם סמן חלקי', () {
+      expect(
+        fromHtml(
+          'הודאתו39',
+          'הודאתו<sup class="footnote-marker">3963</sup>',
+        ).cleaned,
+        'הודאתו',
+      );
+    });
+
+    test('עיצוב המקונן בתוך הסמן אינו משאיר את ספרותיו', () {
+      expect(
+        fromHtml(
+          'הודאתו3963',
+          '<b>הודאתו</b><sup class="footnote-marker"><i>3963</i></sup>',
+        ).cleaned,
+        'הודאתו',
+      );
+    });
+
+    test('בחירה רב שורתית מסירה סמנים בלי להדביק שורות', () {
+      expect(
+        ReaderMenuSelection(
+          'אב1\nגד2',
+          sourceLines: const [
+            'אב<sup class="footnote-marker">1</sup>',
+            'גד<sup class="footnote-marker">2</sup>',
+          ],
+          lineStart: 0,
+          lineEnd: 1,
+        ).cleaned,
+        'אב גד',
+      );
+    });
+
+    test('מספרים בגוף הטקסט נשמרים לצד הסרת הסמן', () {
+      expect(
+        fromHtml(
+          'סימן3963 הלכה127',
+          'סימן3963 הלכה12<sup class="footnote-marker">7</sup>',
+        ).cleaned,
+        'סימן3963 הלכה12',
+      );
+    });
+
+    test('sup רגיל ומחלקה דומה נשמרים', () {
+      expect(
+        fromHtml(
+          'אב123',
+          'אב<sup>1</sup><sup class="not-footnote-marker">2</sup>'
+              '<sup class="footnote-marker">3</sup>',
+        ).cleaned,
+        'אב12',
+      );
+    });
+
+    test('סמן מזוהה גם כשיש לו מחלקות נוספות', () {
+      expect(
+        fromHtml(
+          'אב1',
+          "אב<sup class='small footnote-marker end'>1</sup>",
+        ).cleaned,
+        'אב',
+      );
+    });
+
+    test('ישויות ורווחי HTML נשמרים כתוכן פשוט', () {
+      expect(
+        fromHtml(
+          'אב & גד1 דה',
+          'אב &amp; גד<sup class="footnote-marker">1</sup><br>דה',
+        ).cleaned,
+        'אב & גד דה',
+      );
+    });
+
+    test('בלי מקור אין ניחוש שמספר הוא סמן', () {
+      expect(ReaderMenuSelection('הודאתו3963').cleaned, 'הודאתו3963');
+    });
+
+    test('טווח שורות חסר או לא תקף משאיר את הבחירה', () {
+      for (final range in <(int?, int?)>[
+        (null, 0),
+        (0, null),
+        (-1, 0),
+        (1, 0),
+        (0, 1),
+      ]) {
+        expect(
+          ReaderMenuSelection(
+            'אב1',
+            sourceLines: const ['אב<sup class="footnote-marker">1</sup>'],
+            lineStart: range.$1,
+            lineEnd: range.$2,
+          ).cleaned,
+          'אב1',
+          reason: 'אין להסיק שמספר הוא הערה מתוך טווח $range',
+        );
+      }
+    });
+
+    test('מקור שאינו מתאים לבחירה אינו משנה אותה', () {
+      expect(
+        fromHtml('גד1', 'אב<sup class="footnote-marker">1</sup>').cleaned,
+        'גד1',
+      );
+    });
+
+    test('בחירה עמומה בין מספר גוף לסמן אינה משנה את המספר', () {
+      expect(
+        fromHtml('אב1', 'אב1 אב<sup class="footnote-marker">1</sup>').cleaned,
+        'אב1',
+      );
+    });
+
+    test('טווח המקור מגביל את ההתאמה לשורה שנבחרה', () {
+      const lines = ['אב1', 'אב<sup class="footnote-marker">1</sup>'];
+      expect(
+        ReaderMenuSelection(
+          'אב1',
+          sourceLines: lines,
+          lineStart: 0,
+          lineEnd: 0,
+        ).cleaned,
+        'אב1',
+      );
+      expect(
+        ReaderMenuSelection(
+          'אב1',
+          sourceLines: lines,
+          lineStart: 1,
+          lineEnd: 1,
+        ).cleaned,
+        'אב',
+      );
+    });
+
+    test('תווי הכיווניות שהמרנדר מוסיף לסמן אינם מכשילים את ההתאמה', () {
+      expect(
+        fromHtml(
+          'הודאתו\u20663963\u2069',
+          'הודאתו<sup class="footnote-marker">3963</sup>',
+        ).cleaned,
+        'הודאתו',
+      );
+    });
+
+    test('תווי כיווניות במקור מנורמלים יחד עם הבחירה', () {
+      expect(
+        fromHtml(
+          'הודאתו3963',
+          'הודאתו<sup class="footnote-marker">\u20663963\u2069</sup>',
+        ).cleaned,
+        'הודאתו',
+      );
+    });
+
+    test('נרמול הכיווניות אינו מוחק מספר גוף או sup רגיל', () {
+      expect(
+        fromHtml(
+          'סימן 123 ומקום\u20664\u2069\u20667\u2069',
+          'סימן 123 ומקום<sup>4</sup><sup class="footnote-marker">7</sup>',
+        ).cleaned,
+        'סימן 123 ומקום4',
+      );
+    });
+
+    testWidgets('בחירה של סמן בלבד ניתנת להעתקה אך אינה שאילתת חיפוש', (
+      tester,
+    ) async {
+      const original = '\u20663963\u2069';
+      final selection = fromHtml(
+        original,
+        '<sup class="footnote-marker">3963</sup>',
+      );
+      expect(selection.cleaned, isEmpty);
+      expect(selection.hasText, isFalse);
+      expect(selection.hasOriginalText, isTrue);
+      late BuildContext context;
+      await tester.pumpWidget(
+        Builder(
+          builder: (value) {
+            context = value;
+            return const SizedBox.shrink();
+          },
+        ),
+      );
+      String? copied;
+      final row = buildReaderIconRow(
+        context: context,
+        selection: selection,
+        book: TextBook(title: 'ספר בדיקה'),
+        paragraphIndex: 0,
+        selectedText: original,
+        onCopy: () => copied = original,
+        onAddNote: () {},
+      );
+      final actions = row.iconRowActions!;
+      expect(
+        actions.firstWhere((item) => item.label == 'חיפוש').enabled,
+        isFalse,
+      );
+      final copy = actions.firstWhere((item) => item.label == 'העתקה');
+      expect(copy.enabled, isTrue);
+      copy.onTap!();
+      expect(copied, original);
+    });
+  });
+
   group('buildReaderIconRow', () {
     Future<List<String>> describe(
       WidgetTester tester, {

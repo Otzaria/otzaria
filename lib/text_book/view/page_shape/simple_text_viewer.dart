@@ -1939,7 +1939,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final sourceText = source.text;
 
     if (widget.isMainText) {
-      final menuSelection = ReaderMenuSelection(sourceText);
+      final menuSelection = ReaderMenuSelection(
+        sourceText,
+        sourceLines: widget.content,
+        lineStart: _selectionLineStart,
+        lineEnd: _selectionLineEnd,
+      );
 
       // שורת אייקונים עליונה בסגנון Windows 11 — הרשימה המלאה נשארת מתחת.
       entries.add(
