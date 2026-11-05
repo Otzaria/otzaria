@@ -5,7 +5,7 @@ import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
 /// UIL-015: צבע קשיח (`Color(0x…)`, `Color.fromARGB(…)` מליטרלים,
-/// `Colors.<גוון>`) מחוץ לשכבת הטוקנים.
+/// `Colors.<גוון>`, `CupertinoColors.<גוון>`) מחוץ לשכבת הטוקנים.
 class HardcodedColorRule extends UiLintRule {
   const HardcodedColorRule();
 
@@ -33,6 +33,8 @@ class _Visitor extends RecursiveAstVisitor<void> {
 
   final HardcodedColorRule rule;
   final UiLintFile file;
+
+  static const _palettes = {'Colors', 'CupertinoColors'};
 
   bool _inPainter(AstNode node) =>
       isInsideClassExtending(node, const {'CustomPainter'});
@@ -69,7 +71,7 @@ class _Visitor extends RecursiveAstVisitor<void> {
   @override
   void visitPrefixedIdentifier(PrefixedIdentifier node) {
     final name = node.identifier.name;
-    if (node.prefix.name == 'Colors' &&
+    if (_palettes.contains(node.prefix.name) &&
         name != 'transparent' &&
         !_inPainter(node) &&
         !((name.startsWith('white') || name.startsWith('black')) &&
