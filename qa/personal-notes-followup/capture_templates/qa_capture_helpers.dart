@@ -17,7 +17,7 @@ const localizations = <LocalizationsDelegate<dynamic>>[
   GlobalCupertinoLocalizations.delegate,
   GlobalMaterialLocalizations.delegate,
   GlobalWidgetsLocalizations.delegate,
-  mui.DefaultMaterialLocalizations.delegate,
+  mui.GlobalMaterialLocalizations.delegate,
 ];
 
 ThemeData captureTheme() {

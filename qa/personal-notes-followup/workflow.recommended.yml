@@ -1,4 +1,4 @@
-name: Personal notes independent QA
+name: Personal notes capture continuation
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: personal-notes-independent-qa-${{ github.ref }}
@@ -67,47 +68,65 @@ jobs:
       - name: Set up Rust native source fallback
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Enforced dependencies, format, analyze and the complete selected gate
-        id: gate
+      - name: Download the original immutable QA artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: '13450021903'
+          run-id: '42099805004'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Otzaria/otzaria
+          path: ${{ runner.temp }}/personal-notes-prior-download
+          digest-mismatch: error
+
+      - name: Verify pinned evidence and inherit only the passing gate and RED
+        id: evidence
         shell: bash
         run: |
-          python3 "$QA_BUNDLE_DIR/run_qa.py" \
+          python3 "$QA_BUNDLE_DIR/resume_captures.py" \
             --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
-            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase gate
+            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase prepare \
+            --prior-tar "$RUNNER_TEMP/personal-notes-prior-download/personal-notes-qa-artifacts.tar"
 
-      - name: Prove the original export-selection regression and restore exact source
-        if: ${{ !cancelled() && steps.gate.outcome == 'success' }}
+      - name: Install exactly locked dependencies for the new capture process
+        id: dependencies
         shell: bash
         run: |
-          python3 "$QA_BUNDLE_DIR/run_qa.py" \
-            --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
-            --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase red
+          flutter pub get --enforce-lockfile 2>&1 | tee "$QA_OUT_DIR/capture-dependencies.log"
+          flutter --version --machine > "$QA_OUT_DIR/capture-flutter-version.json"
+          python3 - <<'PYVERSION'
+          from pathlib import Path
+          import json, os
+          out = Path(os.environ['QA_OUT_DIR'])
+          version = json.loads((out / 'capture-flutter-version.json').read_text())
+          if version.get('frameworkVersion') != '3.47.7':
+              raise SystemExit('Capture continuation used an unexpected Flutter version.')
+          PYVERSION
 
-      - name: Render real UI captures outside the product checkout
-        if: ${{ !cancelled() && steps.gate.outcome == 'success' }}
+      - name: Render fresh UI captures without rerunning the gate or RED
+        id: captures
         shell: bash
         run: |
           python3 "$QA_BUNDLE_DIR/run_qa.py" \
             --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
             --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase captures
 
-      - name: Write combined JSON and artifact checksums
-        if: ${{ always() && steps.product.outcome == 'success' }}
+      - name: Combine inherited gate and RED with new captures and explicit provenance
+        if: ${{ always() && steps.evidence.outcome == 'success' }}
         shell: bash
         run: |
-          python3 "$QA_BUNDLE_DIR/run_qa.py" \
+          python3 "$QA_BUNDLE_DIR/resume_captures.py" \
             --repo "$GITHUB_WORKSPACE" --product-sha "$PRODUCT_SHA" \
             --base-sha "$BASE_SHA" --out "$QA_OUT_DIR" --phase summarize
 
-      - name: Pack logs, JSON, source manifest and PNGs
-        if: ${{ always() && steps.product.outcome == 'success' }}
+      - name: Pack logs, JSON, original evidence archive and new PNGs
+        if: ${{ always() && steps.evidence.outcome == 'success' }}
         shell: bash
-        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/personal-notes-qa-artifacts.tar" personal-notes-qa-results
+        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/personal-notes-qa-capture-artifacts.tar" personal-notes-qa-results
 
-      - name: Upload evidence even when a gate fails
-        if: ${{ always() && steps.product.outcome == 'success' }}
+      - name: Upload capture evidence even on failure
+        if: ${{ always() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: personal-notes-independent-qa-${{ env.PRODUCT_SHA }}
-          path: ${{ runner.temp }}/personal-notes-qa-artifacts.tar
+          name: personal-notes-capture-continuation-${{ env.PRODUCT_SHA }}
+          path: ${{ runner.temp }}/personal-notes-qa-capture-artifacts.tar
           if-no-files-found: error
