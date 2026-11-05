@@ -52,7 +52,41 @@ bool _isTypeName(String name) {
 bool _isPrefixName(String name) => !_isTypeName(name);
 
 /// מפרש את [node] כקריאת בנאי, או null כשאינו כזה.
+///
+/// prefix של ייבוא Flutter (`import 'package:flutter/material.dart' as m;`)
+/// נמחק: `m.AlertDialog(...)` הוא אותו `AlertDialog(...)`, והכללים, שמדלגים על
+/// קריאה עם prefix כדי לא לתפוס את `pw.*` של הייצוא, היו מפספסים אותו.
 CtorCall? asCtorCall(AstNode node) {
+  final call = _rawCtorCall(node);
+  final prefix = call?.importPrefix;
+  if (call == null ||
+      prefix == null ||
+      !flutterImportPrefixes(node.root).contains(prefix)) {
+    return call;
+  }
+  return CtorCall(
+    node: call.node,
+    typeName: call.typeName,
+    constructor: call.constructor,
+    importPrefix: null,
+    arguments: call.arguments,
+  );
+}
+
+final _flutterPrefixes = Expando<Set<String>>();
+
+/// ה-prefixes שהקובץ של [root] נותן לייבוא של `package:flutter/...`.
+Set<String> flutterImportPrefixes(AstNode root) {
+  if (root is! CompilationUnit) return const {};
+  return _flutterPrefixes[root] ??= {
+    for (final directive in root.directives)
+      if (directive is ImportDirective &&
+          (directive.uri.stringValue ?? '').startsWith('package:flutter/'))
+        ?directive.prefix?.name,
+  };
+}
+
+CtorCall? _rawCtorCall(AstNode node) {
   if (node is InstanceCreationExpression) {
     final type = node.constructorName.type;
     final prefix = type.importPrefix?.name.lexeme;

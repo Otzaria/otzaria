@@ -217,6 +217,22 @@ final k = const pw.Foo.named();
       );
     });
 
+    test('prefix של ייבוא Flutter נמחק, prefix אחר (pw) נשאר', () {
+      final unit = parseString(
+        content: '''
+import 'package:flutter/material.dart' as m;
+import 'package:pdf/widgets.dart' as pw;
+final a = m.Card();
+final b = const m.TextButton.icon();
+final c = pw.Card();
+''',
+      ).unit;
+      expect(
+        ctorCallsNamed(unit, {'Card', 'TextButton'}).map((c) => c.head),
+        ['Card', 'TextButton.icon', 'pw.Card'],
+      );
+    });
+
     test('scopeOf: מחלקה ומתודה, בלי מספרי שורות', () {
       final result = lintSource(
         '''
