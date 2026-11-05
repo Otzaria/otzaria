@@ -1,5 +1,6 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
 import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -64,6 +65,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   final bool _sharedDevWatcher;
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
   StreamSubscription<TabsState>? _readerStateSub;
+  Future<void>? _closeFuture;
 
   /// החתימה מונעת קומפילציה ושאילתות חוזרות כשהמניפסט וההרשאות לא השתנו.
   String? _lastDeclarativeSyncSignature;
@@ -85,6 +87,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   PluginSystemBloc({
     required this.repository,
     PluginInstallerService? installerService,
+    // השירות מועבר לבעלות ה-BLoC ומשוחרר בסגירת החלון.
     PluginDownloadService? downloadService,
     PluginDevLoaderService? devLoader,
     PluginDevWatchService? devWatchService,
@@ -154,18 +157,26 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   }
 
   @override
-  Future<void> close() async {
-    PluginShortcutRegistry.instance.removeListener(_onPluginShortcutsChanged);
-    await _devWatchSub?.cancel();
-    await _readerStateSub?.cancel();
-    if (_sharedDevWatcher) {
-      PluginDevWatchService.release();
-    } else {
-      devWatchService.dispose();
+  // _close קוראת ל-super.close ב-finally, גם אם שחרור השירות נכשל.
+  // ignore: must_call_super
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
+    try {
+      _downloadService.dispose();
+    } finally {
+      PluginShortcutRegistry.instance.removeListener(_onPluginShortcutsChanged);
+      await _devWatchSub?.cancel();
+      await _readerStateSub?.cancel();
+      if (_sharedDevWatcher) {
+        PluginDevWatchService.release();
+      } else {
+        devWatchService.dispose();
+      }
+      declarativeHost?.dispose();
+      toolbarRegistry?.dispose();
+      await super.close();
     }
-    declarativeHost?.dispose();
-    toolbarRegistry?.dispose();
-    await super.close();
   }
 
   Future<void> _handleDevChange(PluginDevFsChange change) async {
@@ -519,6 +530,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     InstallRemotePluginRequested event,
     Emitter<PluginSystemState> emit,
   ) async {
+    if (_closeFuture != null || emit.isDone) return;
     String? archivePath;
 
     // אישור קבלה מיידי לאתר החנות — עוד לפני ההורדה ודיאלוג ההרשאות,
@@ -533,17 +545,23 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       try {
         appVersion = appReleaseVersion(await PackageInfo.fromPlatform());
       } catch (_) {}
+      if (_closeFuture != null || emit.isDone) return;
 
       archivePath = await _downloadService.downloadPluginArchive(
         Uri.parse(event.downloadUrl),
         appVersion: appVersion,
         storeOnly: event.storeOnly,
       );
+      if (_closeFuture != null || emit.isDone) return;
 
       final prepareInfo = await _installerService.prepareInstall(
         archivePath,
         forceOverwrite: event.forceOverwrite,
       );
+      if (_closeFuture != null || emit.isDone) {
+        await _installerService.cancelInstall(prepareInfo.tempDirPath);
+        return;
+      }
 
       emit(
         PluginSystemInstallRequiresPermissions(
@@ -555,7 +573,10 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           isUserInitiated: event.isUserInitiated,
         ),
       );
+    } on http.RequestAbortedException {
+      return;
     } on PluginOverwriteException catch (e) {
+      if (_closeFuture != null || emit.isDone) return;
       UiSnack.show(PluginMessages.pluginAlreadyInstalledSameVersion);
       debugPrint(
         'Plugin overwrite required for "${e.pluginName}" version ${e.version}',
@@ -567,6 +588,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       );
       add(LoadPlugins());
     } on PluginStoreIncompatibleException catch (e) {
+      if (_closeFuture != null || emit.isDone) return;
       // tryParse מבטיח שלפחות אחד הגבולות קיים, לכן maxAppVersion אינו null כאן.
       final String message;
       if (e.isAboveCeiling || e.minAppVersion.isEmpty) {
@@ -588,6 +610,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       );
       add(LoadPlugins());
     } on PluginNewerVersionInstalledException catch (e) {
+      if (_closeFuture != null || emit.isDone) return;
       UiSnack.show(
         PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
       );
@@ -598,6 +621,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       );
       add(LoadPlugins());
     } catch (e) {
+      if (_closeFuture != null || emit.isDone) return;
       UiSnack.showError(PluginMessages.installRemotePluginError(e));
       _reportInstallResult(
         event.reportContext,

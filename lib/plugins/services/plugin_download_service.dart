@@ -10,15 +10,32 @@ import 'package:path/path.dart' as p;
 
 class PluginDownloadService {
   final http.Client _client;
+  final bool _ownsClient;
+  final _downloads = <Completer<void>>{};
+  late final FutureOr<void> Function() _closer = dispose;
+  bool _disposed = false;
 
   /// משך מרבי ללא בייטים (גם בהמתנה לכותרות) לפני [TimeoutException].
   final Duration _stallTimeout;
 
+  /// [client] מוזרק נשאר באחריות הקורא ואינו נסגר עם השירות.
   PluginDownloadService({
     http.Client? client,
     this._stallTimeout = const Duration(seconds: 60),
-  }) : _client = client ?? http.Client() {
-    HttpClientRegistry.register(_client.close);
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null {
+    if (_ownsClient) HttpClientRegistry.register(_closer);
+  }
+
+  /// מבטל הורדות פעילות ומשחרר רק את ה-client שבבעלות השירות.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    if (_ownsClient) HttpClientRegistry.unregister(_closer);
+    for (final download in _downloads) {
+      if (!download.isCompleted) download.complete();
+    }
+    if (_ownsClient) _client.close();
   }
 
   /// מורידה את ארכיון התוסף. [appVersion] — גרסת האוצריא הנוכחית; כשהכתובת
@@ -32,56 +49,81 @@ class PluginDownloadService {
     String? appVersion,
     bool storeOnly = false,
   }) async {
-    final resolvedUri = PluginStoreLinkParser.appendAppVersion(
-      downloadUri,
-      appVersion,
-    );
-    var response = await _sendFollowingRedirects(resolvedUri, storeOnly);
-
-    if (response.statusCode >= 400 && resolvedUri != downloadUri) {
-      final body = await utf8.decodeStream(
-        response.stream.timeout(_stallTimeout),
-      );
-      // לחנות אין גרסה תואמת — פרטי התאימות כבר בגוף התשובה, ואין טעם
-      // להוריד ארכיון שממילא ייפסל.
-      final incompatible = PluginStoreIncompatibleException.tryParse(body);
-      if (incompatible != null) {
-        throw incompatible;
-      }
-      // סירוב מסיבה אחרת (למשל שילוב פרמטרים שהשרת דוחה) — מנסים שוב
-      // בכתובת המקורית, כדי לא לשבור התקנה שעבדה לפני הוספת appVersion.
-      response = await _sendFollowingRedirects(downloadUri, storeOnly);
-    }
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'שגיאה בהורדת התוסף (${response.statusCode})',
-      );
-    }
-
-    final tempDir = await Directory.systemTemp.createTemp(
-      'otzaria_plugin_download_',
-    );
-    final archivePath = p.join(
-      tempDir.path,
-      '${_resolveFileStem(downloadUri)}.otzplugin',
-    );
-    final targetFile = File(archivePath);
-    final sink = targetFile.openWrite();
-
+    if (_disposed) throw StateError('PluginDownloadService is disposed');
+    final abort = Completer<void>();
+    _downloads.add(abort);
+    http.StreamedResponse? response;
+    var responseConsumed = false;
     try {
-      await sink.addStream(response.stream.timeout(_stallTimeout));
-      await sink.flush();
-      await sink.close();
-    } catch (_) {
-      try {
-        await sink.close();
-      } catch (_) {}
-      await _cleanupDirectory(tempDir);
-      rethrow;
-    }
+      final resolvedUri = PluginStoreLinkParser.appendAppVersion(
+        downloadUri,
+        appVersion,
+      );
+      response = await _sendFollowingRedirects(resolvedUri, storeOnly, abort);
+      _checkActive(abort, downloadUri);
 
-    return archivePath;
+      if (response.statusCode >= 400 && resolvedUri != downloadUri) {
+        responseConsumed = true;
+        final body = await utf8.decodeStream(
+          response.stream.timeout(_stallTimeout),
+        );
+        _checkActive(abort, downloadUri);
+        final incompatible = PluginStoreIncompatibleException.tryParse(body);
+        if (incompatible != null) throw incompatible;
+
+        // סירוב שאינו אי-תאימות — מנסים את הכתובת המקורית ללא appVersion.
+        response = await _sendFollowingRedirects(downloadUri, storeOnly, abort);
+        responseConsumed = false;
+        _checkActive(abort, downloadUri);
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('שגיאה בהורדת התוסף (${response.statusCode})');
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_plugin_download_',
+      );
+      final archivePath = p.join(
+        tempDir.path,
+        '${_resolveFileStem(downloadUri)}.otzplugin',
+      );
+      IOSink? sink;
+      try {
+        _checkActive(abort, downloadUri);
+        sink = File(archivePath).openWrite();
+        responseConsumed = true;
+        await sink.addStream(response.stream.timeout(_stallTimeout));
+        await sink.flush();
+        await sink.close();
+        sink = null;
+        _checkActive(abort, downloadUri);
+      } catch (_) {
+        try {
+          await sink?.close();
+        } catch (_) {}
+        await _cleanupDirectory(tempDir);
+        rethrow;
+      }
+
+      return archivePath;
+    } catch (error) {
+      if (abort.isCompleted &&
+          (error is http.ClientException || error is SocketException)) {
+        throw http.RequestAbortedException(downloadUri);
+      }
+      rethrow;
+    } finally {
+      if (!abort.isCompleted) abort.complete();
+      _downloads.remove(abort);
+      if (response != null && !responseConsumed) {
+        await response.stream.listen(null).cancel();
+      }
+    }
+  }
+
+  void _checkActive(Completer<void> abort, Uri uri) {
+    if (abort.isCompleted) throw http.RequestAbortedException(uri);
   }
 
   Future<void> cleanupDownloadedArchive(String archivePath) async {
@@ -112,14 +154,29 @@ class PluginDownloadService {
   Future<http.StreamedResponse> _sendFollowingRedirects(
     Uri uri,
     bool storeOnly,
+    Completer<void> abort,
   ) async {
     var current = uri;
     for (var hop = 0; hop <= _maxRedirects; hop++) {
+      _checkActive(abort, current);
       if (storeOnly && !PluginStoreLinkParser.isStoreDownloadUri(current)) {
         throw Exception('הורדת תוסף מותרת רק מכתובת של חנות התוספים');
       }
-      final request = http.Request('GET', current)..followRedirects = false;
-      final response = await _client.send(request).timeout(_stallTimeout);
+      final request = http.AbortableRequest(
+        'GET',
+        current,
+        abortTrigger: abort.future,
+      )..followRedirects = false;
+      final response = await _client
+          .send(request)
+          .then((response) async {
+            if (abort.isCompleted) {
+              await response.stream.listen(null).cancel();
+              throw http.RequestAbortedException(request.url);
+            }
+            return response;
+          })
+          .timeout(_stallTimeout);
       final location = response.headers['location'];
       final isRedirect =
           response.statusCode >= 300 &&
