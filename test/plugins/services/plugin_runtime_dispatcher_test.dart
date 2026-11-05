@@ -132,6 +132,7 @@ class _LifecycleFakeController extends Fake implements InAppWebViewController {
   int resumeCalls = 0;
   final List<String> jsEvents = [];
   final List<MemoryUsageTargetLevel> memoryLevels = [];
+  final List<bool> mediaSuspension = [];
 
   @override
   Future<void> pause() async => pauseCalls++;
@@ -142,6 +143,10 @@ class _LifecycleFakeController extends Fake implements InAppWebViewController {
 
   @override
   Future<void> resume() async => resumeCalls++;
+
+  @override
+  Future<void> setAllMediaPlaybackSuspended({required bool suspended}) async =>
+      mediaSuspension.add(suspended);
 
   @override
   Future<dynamic> evaluateJavascript({
@@ -219,7 +224,7 @@ class _TimingOutController extends Fake implements InAppWebViewController {
 }
 
 // ── fake controller עם pause/resume שניתן לעכב (gate) — לבדיקת serialization.
-// מתעד את רצף הפעולות הגלובלי בכל הבקרים כדי לוודא שאין חפיפה.
+// מתעד סדר פעולות כדי לבדוק עצמאות בין מופעים וסדר בתוך כל מופע.
 class _SlowController extends Fake implements InAppWebViewController {
   _SlowController(this.name, this.log);
   final String name;
@@ -984,7 +989,7 @@ void main() {
       expect(b.memoryLevels, [MemoryUsageTargetLevel.NORMAL]);
     });
 
-    test('בפלטפורמה ללא pause native נשלחים רק אירועי lifecycle', () async {
+    test('ללא pause native המדיה מושהית ונשלחים אירועי lifecycle', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
@@ -997,6 +1002,7 @@ void main() {
       expect(a.resumeCalls, 0);
       expect(a.pauseCalls, 0);
       expect(a.memoryLevels, isEmpty);
+      expect(a.mediaSuspension, [false, true]);
       expect(a.jsEvents, contains(contains('plugin.resumed')));
       expect(a.jsEvents, contains(contains('plugin.suspended')));
     });
@@ -1366,7 +1372,7 @@ void main() {
     });
 
     test(
-      'reconcile חופף לא רץ עד שהקודם הסתיים, והפעולות אינן משתלבות',
+      'מופע חדש מתחדש מיד, והשהיית המופע הקודם ממתינה לחידוש שלו',
       () async {
         final log = <String>[];
         final a = _SlowController('a', log);
@@ -1381,16 +1387,21 @@ void main() {
           _fg(pidA),
         }); // reconcile #1: resume A (נחסם)
         await pumpEventQueue();
-        // המעבר ל-B נכנס לתור — אסור שיתחיל כל עוד #1 חסום.
+        // ל-B תור נפרד; השהיית A חייבת להמתין ל-resume של A.
         _d.setVisiblePluginInstances({_fg(pidB)});
         await pumpEventQueue();
         expect(
           log,
-          equals(['a:resume:start']),
-          reason: 'reconcile #2 לא אמור להתחיל בזמן ש-#1 חסום',
+          equals([
+            'a:resume:start',
+            'b:resume:start',
+            'b:resume:end',
+            'b:js:resumed',
+          ]),
+          reason: 'מופע איטי אינו מעכב את המופע שהמשתמש כבר הציג',
         );
 
-        // משחררים את #1; כעת #2 רץ אחריו ברצף.
+        // אחרי חידוש A, ההשהיה שלו ממשיכה באותו תור.
         a.resumeGate!.complete();
         await pumpEventQueue();
 
@@ -1398,11 +1409,11 @@ void main() {
           log,
           equals([
             'a:resume:start',
-            'a:resume:end',
-            'a:js:resumed',
             'b:resume:start',
             'b:resume:end',
             'b:js:resumed',
+            'a:resume:end',
+            'a:js:resumed',
             'a:js:suspended',
             'a:pause:start',
             'a:pause:end',

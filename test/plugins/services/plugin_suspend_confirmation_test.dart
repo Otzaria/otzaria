@@ -151,6 +151,37 @@ void main() {
     return controller;
   }
 
+  _Controller visibleInFakeAsync(FakeAsync async) {
+    // Future completion is scheduled in its creation zone, so both lifecycle
+    // queues must be created under the clock that drives this test.
+    dispatcher.resetVisibilityForTesting();
+    final controller = _Controller();
+    controllers.add(controller);
+    dispatcher.registerController(
+      pluginId,
+      controller,
+      instanceId: 'a',
+      viewId: 0,
+    );
+    dispatcher.setVisiblePluginInstances({key});
+    var ready = false;
+    unawaited(
+      dispatcher.onForegroundInstanceReady(pluginId, instanceId: 'a').then((_) {
+        ready = true;
+      }),
+    );
+    async.flushMicrotasks();
+    expect(
+      ready,
+      true,
+      reason: 'The fixture must finish boot in its fake zone',
+    );
+    expect(details()['suspensionState'], 'active');
+    controller.calls.clear();
+    controller.scripts.clear();
+    return controller;
+  }
+
   setUp(() async {
     await dispatcher.prepareForAppRestart();
     dispatcher.resetVisibilityForTesting();
@@ -292,6 +323,7 @@ void main() {
       );
       old.pauseGate!.complete();
       await ready;
+      await pumpEventQueue();
       expect(details()['suspensionState'], 'active');
       expect(replacement.calls, isNot(contains('pause')));
       expect(details()['suspendConfirmed'], 0);
@@ -323,6 +355,7 @@ void main() {
       );
       controller.resumeGate!.complete();
       await ready;
+      await pumpEventQueue();
       expect(details()['suspensionState'], 'active');
       expect(details()['suspendConfirmed'], 0);
     },
@@ -371,24 +404,30 @@ void main() {
     'a missing native reply times out without permanently blocking lifecycle',
     () {
       fakeAsync((async) {
-        final controller = _Controller()..pauseGate = Completer<void>();
-        controllers.add(controller);
-        dispatcher.registerController(pluginId, controller, instanceId: 'a');
-        dispatcher.setVisiblePluginInstances({key});
-        async.flushMicrotasks();
-        dispatcher.setVisiblePluginInstances(const {});
-        async.flushMicrotasks();
-        expect(details()['suspensionState'], 'suspendRequested');
-        async.elapse(const Duration(seconds: 6));
-        async.flushMicrotasks();
-        expect(details()['suspensionState'], 'failed');
-        controller.pauseGate!.complete();
-        async.flushMicrotasks();
-        expect(details()['suspensionState'], 'failed');
-        dispatcher.setVisiblePluginInstances({key});
-        async.flushMicrotasks();
-        expect(details()['suspensionState'], 'active');
-        dispatcher.resetVisibilityForTesting();
+        final controller = visibleInFakeAsync(async);
+        final gate = Completer<void>();
+        controller.pauseGate = gate;
+        try {
+          dispatcher.setVisiblePluginInstances(const {});
+          async.flushMicrotasks();
+          expect(details()['suspensionState'], 'suspendRequested');
+          async.elapse(const Duration(seconds: 6));
+          async.flushMicrotasks();
+          expect(details()['suspensionState'], 'failed');
+          expect(gate.isCompleted, false);
+          gate.complete();
+          async.flushMicrotasks();
+          expect(details()['suspensionState'], 'failed');
+          dispatcher.setVisiblePluginInstances({key});
+          async.flushMicrotasks();
+          expect(details()['suspensionState'], 'active');
+        } finally {
+          if (!gate.isCompleted) {
+            gate.complete();
+          }
+          async.flushMicrotasks();
+          dispatcher.resetVisibilityForTesting();
+        }
       });
     },
   );
@@ -420,71 +459,63 @@ void main() {
     );
   }
 
-  test(
-    'a stalled Linux event cannot block later lifecycle operations',
-    () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-      final controller = await visible();
-      fakeAsync((async) {
+  test('a stalled Linux event cannot block later lifecycle operations', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    fakeAsync((async) {
+      final controller = visibleInFakeAsync(async);
+      dispatcher.setVisiblePluginInstances(const {});
+      async.flushMicrotasks();
+      expect(details()['suspensionState'], 'hidden');
+      controller.calls.clear();
+      const topic = 'qa.stalled.targeted';
+      final gate = Completer<void>();
+      controller
+        ..eventGate = gate
+        ..heldTopic = topic;
+      var deliveryFinished = false;
+      try {
+        unawaited(
+          dispatcher
+              .dispatchEventToPlugin(pluginId, topic, const {}, instanceId: 'a')
+              .then((_) {
+                deliveryFinished = true;
+              }),
+        );
+        async.flushMicrotasks();
+        expect(
+          controller.scripts.any((source) => source.contains(topic)),
+          true,
+        );
+        expect(details()['suspensionState'], 'active');
+        dispatcher.setVisiblePluginInstances({key});
+        async.flushMicrotasks();
         dispatcher.setVisiblePluginInstances(const {});
         async.flushMicrotasks();
+        expect(deliveryFinished, false);
+        expect(controller.calls, isNot(contains('visible:false')));
+
+        async.elapse(const Duration(seconds: 3));
+        async.flushMicrotasks();
+        expect(deliveryFinished, true);
+        expect(gate.isCompleted, false);
         expect(details()['suspensionState'], 'hidden');
-        controller.calls.clear();
-        const topic = 'qa.stalled.targeted';
-        final gate = Completer<void>();
-        controller
-          ..eventGate = gate
-          ..heldTopic = topic;
-        var deliveryFinished = false;
-        try {
-          unawaited(
-            dispatcher
-                .dispatchEventToPlugin(
-                  pluginId,
-                  topic,
-                  const {},
-                  instanceId: 'a',
-                )
-                .then((_) {
-                  deliveryFinished = true;
-                }),
-          );
-          async.flushMicrotasks();
-          expect(
-            controller.scripts.any((source) => source.contains(topic)),
-            true,
-          );
-          expect(details()['suspensionState'], 'active');
-          dispatcher.setVisiblePluginInstances({key});
-          async.flushMicrotasks();
-          dispatcher.setVisiblePluginInstances(const {});
-          async.flushMicrotasks();
-          expect(deliveryFinished, false);
-          expect(controller.calls, isNot(contains('visible:false')));
-
-          async.elapse(const Duration(seconds: 3));
-          async.flushMicrotasks();
-          expect(deliveryFinished, true);
-          expect(gate.isCompleted, false);
-          expect(details()['suspensionState'], 'hidden');
-          expect(controller.calls, contains('visible:false'));
+        expect(controller.calls, contains('visible:false'));
+        gate.complete();
+        async.flushMicrotasks();
+        expect(details()['suspensionState'], 'hidden');
+      } finally {
+        if (!gate.isCompleted) {
           gate.complete();
-          async.flushMicrotasks();
-          expect(details()['suspensionState'], 'hidden');
-        } finally {
-          if (!gate.isCompleted) {
-            gate.complete();
-          }
-          async.flushMicrotasks();
-          dispatcher.resetVisibilityForTesting();
         }
-      });
-    },
-  );
+        async.flushMicrotasks();
+        dispatcher.resetVisibilityForTesting();
+      }
+    });
+  });
 
-  test('a missing reload reply cannot block a later resume', () async {
-    final controller = await visible();
+  test('a missing reload reply cannot block a later resume', () {
     fakeAsync((async) {
+      final controller = visibleInFakeAsync(async);
       dispatcher.setVisiblePluginInstances(const {});
       async.flushMicrotasks();
       expect(details()['suspensionState'], 'suspendedConfirmed');

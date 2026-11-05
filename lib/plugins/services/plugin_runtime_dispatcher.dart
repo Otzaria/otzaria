@@ -988,7 +988,7 @@ class PluginRuntimeDispatcher {
             key,
             readyInstance,
             readyController,
-            readyGeneration!,
+            readyGeneration,
           )) {
             return;
           }
@@ -1011,7 +1011,7 @@ class PluginRuntimeDispatcher {
         key,
         readyInstance,
         readyController,
-        readyGeneration!,
+        readyGeneration,
       )) {
         return;
       }
@@ -1470,7 +1470,12 @@ class PluginRuntimeDispatcher {
     }
     if (instance.busyCount > 0) return 'busyRpc';
     if (instance.graceTimer != null) return 'gracePeriod';
-    if (instance.pendingRedeliveries.isNotEmpty) return 'pendingRedelivery';
+    final now = clock();
+    if (instance.pendingRedeliveries.any(
+      (event) => now.difference(event.at) < _redeliverWindow,
+    )) {
+      return 'pendingRedelivery';
+    }
     if (instance.queuedOneShots > 0) return 'queuedOneShot';
     if (PluginUnsavedChangesRegistry.instance.hasUnsavedChanges(key)) {
       return 'unsavedChanges';

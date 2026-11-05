@@ -147,13 +147,35 @@ void main() {
         await _checkState(controller, cycle, draft);
         expect(probe.loadCount(), 1, reason: 'resume אינו אמור לטעון דף חדש');
 
-        await _closeProbe(tester, probe.nativeChannel);
-        counts['nativeHostsClosed'] = counts['nativeHostsClosed']! + 1;
-        await _measureResources(environment, cycle, 'afterHostClose', 0);
-        _report({'cycle': cycle, 'phase': 'hostClosed', ...counts});
-        await WebViewEnvironmentHolder.disposeForAppRestart();
-        expect(WebViewEnvironmentHolder.environment, isNull);
-        previousEnvironment = environment;
+        // שומרים handles בזמן שה-host חי; רשימת הסביבה יכולה להיעלם בסגירה.
+        final tracked = await _captureTrackedProcesses(environment);
+        try {
+          await _closeProbe(tester, probe.nativeChannel);
+          final closedAt = Stopwatch()..start();
+          counts['nativeHostsClosed'] = counts['nativeHostsClosed']! + 1;
+          await _measureResources(environment, cycle, 'afterHostClose', 0);
+          await _measureTrackedProcesses(
+            tracked,
+            cycle,
+            'trackedAfterHostClose',
+            closedAt,
+          );
+          _report({'cycle': cycle, 'phase': 'hostClosed', ...counts});
+          await WebViewEnvironmentHolder.disposeForAppRestart();
+          final disposedAt = Stopwatch()..start();
+          expect(WebViewEnvironmentHolder.environment, isNull);
+          await _measureTrackedProcesses(
+            tracked,
+            cycle,
+            'trackedAfterEnvironmentDispose',
+            disposedAt,
+          );
+          previousEnvironment = environment;
+        } finally {
+          for (final process in tracked.entries) {
+            process.close();
+          }
+        }
       }
       expect(counts['hostsCreated'], 3);
       expect(counts['nativeHostsClosed'], counts['hostsCreated']);
@@ -346,6 +368,7 @@ Future<void> _closeProbe(WidgetTester tester, MethodChannel channel) async {
 
 typedef _ProcessPoint = ({
   int creation100ns,
+  int? exit100ns,
   int cpu100ns,
   int? privateBytes,
 });
@@ -375,32 +398,210 @@ Map<int, _ProcessPoint> _processPoints(Set<int> ids) => {
 };
 
 _ProcessPoint? _processPoint(int id) {
-  final handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, id);
+  final handle = OpenProcess(
+    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+    false,
+    id,
+  );
   if (!handle.value.isValid) return null;
+  try {
+    final point = _readProcessPoint(handle.value);
+    return point?.exit100ns == null ? point : null;
+  } finally {
+    handle.value.close();
+  }
+}
+
+/// exitTime אינו מוגדר בתהליך חי. Wait(0) הוא בדיקת חיות שאינה חוסמת.
+_ProcessPoint? _readProcessPoint(HANDLE handle) {
   final times = calloc<FILETIME>(4);
   final counters = calloc<PROCESS_MEMORY_COUNTERS>();
   try {
-    final result = GetProcessTimes(
-      handle.value,
-      times,
-      times + 1,
-      times + 2,
-      times + 3,
-    );
-    if (!result.value || _fileTimeTicks(times[1]) != 0) return null;
-    final size = sizeOf<PROCESS_MEMORY_COUNTERS>();
-    counters.ref.cb = size;
-    final memory = GetProcessMemoryInfo(handle.value, counters, size);
-    return (
-      creation100ns: _fileTimeTicks(times[0]),
-      cpu100ns: _fileTimeTicks(times[2]) + _fileTimeTicks(times[3]),
-      privateBytes: memory.value ? counters.ref.PagefileUsage : null,
-    );
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final before = WaitForSingleObject(handle, 0).value;
+      if (before != WAIT_OBJECT_0 && before != WAIT_TIMEOUT) return null;
+      final result = GetProcessTimes(
+        handle,
+        times,
+        times + 1,
+        times + 2,
+        times + 3,
+      );
+      if (!result.value) return null;
+      final creation = _fileTimeTicks(times[0]);
+      final cpu = _fileTimeTicks(times[2]) + _fileTimeTicks(times[3]);
+      if (before == WAIT_OBJECT_0) {
+        final exit = _fileTimeTicks(times[1]);
+        if (exit <= 0 || exit < creation) return null;
+        return (
+          creation100ns: creation,
+          exit100ns: exit,
+          cpu100ns: cpu,
+          privateBytes: 0,
+        );
+      }
+      final size = sizeOf<PROCESS_MEMORY_COUNTERS>();
+      counters.ref.cb = size;
+      final memory = GetProcessMemoryInfo(handle, counters, size);
+      final after = WaitForSingleObject(handle, 0).value;
+      if (after == WAIT_TIMEOUT) {
+        return (
+          creation100ns: creation,
+          exit100ns: null,
+          cpu100ns: cpu,
+          privateBytes: memory.value ? counters.ref.PagefileUsage : null,
+        );
+      }
+      if (after != WAIT_OBJECT_0) return null;
+      // יצא במהלך הקריאה: קוראים שוב רק אחרי אישור היציאה, לקבלת מוני הסיום.
+    }
+    return null;
   } finally {
     calloc.free(times);
     calloc.free(counters);
-    handle.value.close();
   }
+}
+
+class _TrackedProcess {
+  _TrackedProcess(this.info, this.creation100ns, this._handle);
+
+  factory _TrackedProcess.capture(WebViewProcess info) {
+    final handle = OpenProcess(
+      PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+      false,
+      info.pid,
+    ).value;
+    if (!handle.isValid) return _TrackedProcess(info, null, null);
+    var adopted = false;
+    try {
+      final point = _readProcessPoint(handle);
+      if (point == null || point.exit100ns != null) {
+        return _TrackedProcess(info, null, null);
+      }
+      final process = _TrackedProcess(info, point.creation100ns, handle);
+      adopted = true;
+      return process;
+    } finally {
+      if (!adopted) handle.close();
+    }
+  }
+
+  final WebViewProcess info;
+  final int? creation100ns;
+  HANDLE? _handle;
+
+  _ProcessPoint? read() {
+    final handle = _handle;
+    if (handle == null) return null;
+    final point = _readProcessPoint(handle);
+    return point?.creation100ns == creation100ns ? point : null;
+  }
+
+  void close() {
+    final handle = _handle;
+    _handle = null;
+    handle?.close();
+  }
+}
+
+typedef _TrackedProcesses = ({
+  List<_TrackedProcess> entries,
+  bool captureListStable,
+});
+
+Future<_TrackedProcesses> _captureTrackedProcesses(
+  WebViewEnvironment environment,
+) async {
+  final before = await _processes(environment);
+  final tracked = <_TrackedProcess>[];
+  try {
+    for (final process in before.values) {
+      tracked.add(_TrackedProcess.capture(process));
+    }
+    final after = await _processes(environment);
+    // אותו PID חייב עדיין להשתייך לסביבה לפני הסגירה; ה-handle מכאן ואילך
+    // מצביע לאותה זהות OS גם לאחר exit ושימוש חוזר ב-PID.
+    for (final process in tracked) {
+      if (after[process.info.pid]?.kind != process.info.kind) {
+        process.close();
+      }
+    }
+    return (
+      entries: tracked,
+      captureListStable:
+          before.isNotEmpty &&
+          setEquals(before.keys.toSet(), after.keys.toSet()) &&
+          before.values.every((p) => after[p.pid]?.kind == p.kind),
+    );
+  } catch (_) {
+    for (final process in tracked) {
+      process.close();
+    }
+    rethrow;
+  }
+}
+
+Future<void> _measureTrackedProcesses(
+  _TrackedProcesses tracked,
+  int cycle,
+  String phase,
+  Stopwatch boundaryClock,
+) async {
+  Map<int, _ProcessPoint> read() => {
+    for (final process in tracked.entries) process.info.pid: ?process.read(),
+  };
+
+  // מספר קטן וקבוע של handles, ללא lookup נוסף לפי PID או המתנה חוסמת.
+  final before = read();
+  final clock = Stopwatch()..start();
+  await Future<void>.delayed(const Duration(milliseconds: 750));
+  final after = read();
+  clock.stop();
+  final delta = <int, int>{
+    for (final process in tracked.entries)
+      if (before[process.info.pid] case final previous?)
+        if (after[process.info.pid] case final current?)
+          if (current.cpu100ns >= previous.cpu100ns &&
+              (previous.exit100ns == null ||
+                  previous.exit100ns == current.exit100ns))
+            process.info.pid: current.cpu100ns - previous.cpu100ns,
+  };
+  final unreadable = tracked.entries.length - after.length;
+  final exited = after.values.where((point) => point.exit100ns != null).length;
+  final alive = after.length - exited;
+  // שלמות מתייחסת לזהויות שנלכדו בלבד, גם אם נוספו תהליכים בזמן הלכידה.
+  final cpuComplete =
+      tracked.entries.isNotEmpty && delta.length == tracked.entries.length;
+  final memoryComplete =
+      tracked.entries.isNotEmpty &&
+      unreadable == 0 &&
+      after.values.every((point) => point.privateBytes != null);
+  _report({
+    'cycle': cycle,
+    'phase': phase,
+    'processScope': 'fixed WebView2 identities captured before host close; host and later processes excluded',
+    'captureListStable': tracked.captureListStable,
+    'trackedProcesses': tracked.entries.length,
+    'trackedAlive': alive,
+    'trackedExited': exited,
+    'trackedUnreadable': unreadable,
+    'intervalMicros': clock.elapsedMicroseconds,
+    'observedAfterBoundaryMicros': boundaryClock.elapsedMicroseconds,
+    'trackedCpuComplete': cpuComplete,
+    'trackedCpuPercentOfOneCore': cpuComplete
+        ? 100 *
+              delta.values.fold(0, (sum, ticks) => sum + ticks) /
+              (clock.elapsedMicroseconds * 10)
+        : null,
+    'privateMemoryMetric': 'windowsPrivateCommit',
+    'privateMemoryUnit': 'MiB',
+    'trackedMemoryComplete': memoryComplete,
+    'trackedAlivePrivateCommitMiB': memoryComplete
+        ? (after.values.fold(0, (sum, point) => sum + point.privateBytes!) /
+                  (1 << 20))
+              .round()
+        : null,
+  });
 }
 
 int _fileTimeTicks(FILETIME time) =>
