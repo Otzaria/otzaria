@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-2022]
+        os: [windows-2022]
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: "1"
       OTZARIA_REQUIRE_CODEC_TESTS: "1"

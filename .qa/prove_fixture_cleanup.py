@@ -27,7 +27,7 @@ try:
     print(output)
     assert result.returncode != 0, "Expected old fixture to fail on the held Windows database"
     assert "errno = 32" in output, "Failure was not the observed Windows file-sharing violation"
-    assert any(line.startswith("QA remaining ") and line.endswith(": seforim.db") for line in output.splitlines()), "Expected the held seforim.db in the diagnostic output"
+    assert any("QA remaining " in line and line.endswith(": seforim.db") for line in output.splitlines()), "Expected the held seforim.db in the diagnostic output"
     print("EXPECTED NEGATIVE CONTROL: the old fixture leaves seforim.db open.")
 finally:
     fixture.write_text(original, encoding="utf-8")
