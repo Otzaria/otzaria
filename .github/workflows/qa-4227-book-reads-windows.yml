@@ -1,0 +1,104 @@
+name: 'QA #4227 Windows — 60342aa'
+
+on:
+  push:
+    branches: [qa/4227-book-reads-windows-60342aa]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-4227-book-reads-windows-60342aa
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DASH__SUPPRESS_ANALYTICS: 'true'
+  OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  POWERSHELL_UPDATECHECK: 'Off'
+
+jobs:
+  regressions:
+    name: Book reads — 115 Windows regressions
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Preserve source bytes and support long dependency paths
+        run: |
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 60342aa51c74bd5ac015e21b29da408fd153e4e6
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove the tested commit and tree
+        run: |
+          New-Item -ItemType Directory -Force qa-results/regressions | Out-Null
+          $commit = (git rev-parse HEAD).Trim()
+          $tree = (git rev-parse 'HEAD^{tree}').Trim()
+          if ($commit -ne '60342aa51c74bd5ac015e21b29da408fd153e4e6') { throw 'Unexpected tested commit' }
+          if ($tree -ne '85547bfff8f783204a6c767205b4886f78cd182b') { throw 'Unexpected tested tree' }
+          [ordered]@{ testedCommit = $commit; testedTree = $tree; workflowCommit = $env:GITHUB_SHA; workflowRef = $env:GITHUB_WORKFLOW_REF; imageVersion = $env:ImageVersion } |
+            ConvertTo-Json | Set-Content -Encoding utf8 qa-results/regressions/checkout.json
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+
+      - name: Resolve the locked dependencies
+        run: |
+          flutter --suppress-analytics --no-version-check --version 2>&1 | Tee-Object qa-results/regressions/flutter-version.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter --suppress-analytics --no-version-check pub get --enforce-lockfile 2>&1 | Tee-Object qa-results/regressions/pub-get.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- lib test pubspec.yaml pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency setup changed the tested sources or lockfile' }
+
+      - name: Run and verify all 115 regressions
+        run: |
+          $files = @(
+            'test/data_providers/book_reads_off_ui_test.dart',
+            'test/data_providers/sqlite_book_lookup_test.dart',
+            'test/data_providers/db_read_worker_test.dart',
+            'test/data_providers/book_text_reader_test.dart',
+            'test/personal_notes/personal_notes_repository_content_cache_test.dart',
+            'test/text_book/commentators_closed_library_test.dart'
+          )
+          flutter --suppress-analytics --no-version-check test --no-pub -j 2 --reporter=expanded --file-reporter=json:qa-results/regressions/tests.json @files 2>&1 |
+            Tee-Object qa-results/regressions/tests.log
+          $testExit = $LASTEXITCODE
+          if (-not (Test-Path qa-results/regressions/tests.json)) { throw "No JSON reporter output; Flutter exit $testExit" }
+          $events = @(Get-Content qa-results/regressions/tests.json | ForEach-Object { $_ | ConvertFrom-Json })
+          $done = @($events | Where-Object { $_.type -eq 'done' })
+          $results = @($events | Where-Object { $_.type -eq 'testDone' -and -not $_.hidden })
+          $passed = @($results | Where-Object { $_.result -eq 'success' -and -not $_.skipped }).Count
+          $skipped = @($results | Where-Object { $_.skipped }).Count
+          [ordered]@{ exitCode = $testExit; expected = 115; passed = $passed; skipped = $skipped; total = $results.Count; files = $files } |
+            ConvertTo-Json | Set-Content -Encoding utf8 qa-results/regressions/summary.json
+          if ($testExit -ne 0) { exit $testExit }
+          if ($done.Count -ne 1 -or $done[0].success -ne $true -or $passed -ne 115 -or $skipped -ne 0 -or $results.Count -ne 115) {
+            throw 'Expected a successful, complete run of all 115 tests without skips'
+          }
+          git diff --exit-code -- lib test pubspec.yaml pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'The run changed the tested sources or lockfile' }
+
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4227-windows-60342aa-regressions
+          path: qa-results/regressions/
+          if-no-files-found: error
+          retention-days: 14
