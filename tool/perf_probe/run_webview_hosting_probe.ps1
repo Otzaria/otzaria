@@ -86,28 +86,15 @@ for ($pair = 0; $pair -lt $Pairs; $pair++) {
                 $iterationStart = $clock.Elapsed.TotalMilliseconds
                 $app.Refresh()
                 if ($app.HasExited) { throw 'The application exited while sampling; trial is incomplete.' }
-                $all = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)
-                $ids = @(Get-WebViewHostingTreeIds -RootProcessId $app.Id -Processes $all)
+                $all = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, CreationDate |
+                    Select-Object ProcessId, ParentProcessId, CreationDate)
+                $tree = @(Get-WebViewHostingTree -RootProcessId $app.Id -RootStartedUtc $app.StartTime -Processes $all)
                 $missing = 0
-                $records = @(foreach ($processId in $ids) {
-                    $process = $null
+                $records = @(foreach ($snapshot in $tree) {
                     try {
-                        $process = Get-Process -Id $processId -ErrorAction Stop
-                        $started = $process.StartTime.ToUniversalTime().ToString('o')
-                        if ($processId -eq $app.Id -and $started -ne $rootStart) {
-                            throw 'Root process identity changed.'
-                        }
-                        [pscustomobject]@{
-                            processId = $processId; startedUtc = $started
-                            name = $process.ProcessName
-                            cpuSeconds = $process.TotalProcessorTime.TotalSeconds
-                            privateCommitBytes = $process.PrivateMemorySize64
-                            workingSetBytes = $process.WorkingSet64
-                        }
+                        Read-WebViewHostingProcess -Snapshot $snapshot
                     } catch {
                         $missing++
-                    } finally {
-                        if ($null -ne $process) { $process.Dispose() }
                     }
                 })
                 $sample = [pscustomobject]@{
@@ -125,8 +112,7 @@ for ($pair = 0; $pair -lt $Pairs; $pair++) {
                 $delay = [math]::Max(0, $IntervalMs - ($clock.Elapsed.TotalMilliseconds - $iterationStart))
                 if ($delay -gt 0) { Start-Sleep -Milliseconds ([int]$delay) }
             }
-            $writer.WriteLine((@{ type = 'end'; complete = $true; elapsedSeconds = $clock.Elapsed.TotalSeconds } | ConvertTo-Json -Compress))
-            $writer.Flush()
+            Complete-WebViewHostingTrial -Process $app -Writer $writer -ElapsedSeconds $clock.Elapsed.TotalSeconds
             Write-Host "Saved $trialName. Close the application normally, including any save prompts."
             [void](Read-Host 'Press Enter after the application has closed')
             $app.Refresh()
