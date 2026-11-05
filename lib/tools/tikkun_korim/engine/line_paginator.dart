@@ -357,8 +357,7 @@ List<TikkunLine> paginateAllTokens(
   }
 
   /// מוריד את המילה האחרונה של השיטה שמעל [k] אליה, אם הריווח משתפר.
-  /// [squaredCost] משקלל את שתי השיטין יחד; בלעדיו נשקל הרווח הגדול שבהן.
-  bool tryMoveWordDown(int k, {required bool squaredCost}) {
+  bool tryMoveWordDown(int k) {
     final donor = lines[k - 1];
     final target = lines[k];
     final donorMeta = lineMeta[k - 1];
@@ -387,25 +386,12 @@ List<TikkunLine> paginateAllTokens(
     }
     if (targetUsed > targetWidth) return false;
 
-    final double before;
-    final double after;
-    if (squaredCost) {
-      before =
-          _gapCostEm(donor.words, widths, donorWidth) +
-          _gapCostEm(target.words, widths, targetWidth);
-      after =
-          _gapCostEm(newDonorWords, widths, donorWidth) +
-          _gapCostEm(newTargetWords, widths, targetWidth);
-    } else {
-      before = math.max(
-        _extraGapEm(donor.words, widths, donorWidth),
-        _extraGapEm(target.words, widths, targetWidth),
-      );
-      after = math.max(
-        _extraGapEm(newDonorWords, widths, donorWidth),
-        _extraGapEm(newTargetWords, widths, targetWidth),
-      );
-    }
+    final before =
+        _gapCostEm(donor.words, widths, donorWidth) +
+        _gapCostEm(target.words, widths, targetWidth);
+    final after =
+        _gapCostEm(newDonorWords, widths, donorWidth) +
+        _gapCostEm(newTargetWords, widths, targetWidth);
     if (after >= before) return false;
 
     donor.words = newDonorWords;
@@ -495,7 +481,7 @@ List<TikkunLine> paginateAllTokens(
     for (var pass = 0; pass < _kMaxBalancePasses; pass++) {
       var changed = false;
       for (var k = 1; k < lines.length; k++) {
-        if (tryMoveWordDown(k, squaredCost: true)) changed = true;
+        if (tryMoveWordDown(k)) changed = true;
       }
       if (!changed) return;
     }
