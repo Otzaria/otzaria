@@ -1,0 +1,3412 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "baselineApplicationRevision": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+  "scope": "Headless Flutter engine with real dart:ui and PDFium. Baseline reproduces the source/raster/PNG/decode pipeline; optimized controller cases execute the actual production PrintPreviewController. This is not a full application window or physical printer measurement.",
+  "sourceSha256": {
+    "lib/printing/print_pdf_source.dart": "366c17082f1346fb8459fe2f7ebbdfcf70cdd9d1ae66f178feff51b189b6a6bd",
+    "lib/printing/print_preview_controller.dart": "1e6723ca9c665d4d182f1d503ca94d442c3fdd92e1ab13c9c7c3f2e028e5d524",
+    "tool/perf_probe/pdf_print_preview_probe.dart": "0868aa548caf46c778c40e6bbcdbcbcc2352e1b10f3eeffed230e9b7eb7f61f8"
+  },
+  "kernelSha256": "d110a19620ba5699e82451066d92876f21cca16681f301b322a4d4261998fe69",
+  "method": {
+    "runs": "39 fresh Flutter processes: 3 repeats for each of 10 pipeline/controller configurations, plus 9 one-off lifecycle diagnostics. Paired variant order alternates across repetitions. All runs completed with exit 0.",
+    "sourceRead": "Each run begins with a fresh document; bytes includes File.readAsBytes and retains it. OS filesystem caches were not flushed, so this is not cold-disk latency. Already-cached bytes on later screen generations are not represented by these initial-open timings.",
+    "baselinePublication": "Exact dev baseline calls onPage for every PNG and immediately publishes the list. firstPreviewAvailableUs is the first PNG ready for this callback, not completion of the eager loop. Up to two visible PNG decodes run asynchronously while later pages render; the images stay live until after measurement.",
+    "controllerPublication": "Listener observes the first cached ui.Image notification. load completion includes the initial visible sheet and neighbor and awaited document disposal. In paired N-up=1 cases exactly two images remain cached.",
+    "initialDemand": "Default visibleDecodeLimit=2 matches the initial controller image count for N-up=1. The baseline still rasterizes and encodes 3 small or up to 60 large-document pages. No claim is made that all eager PNGs are decoded.",
+    "timeBoundary": "Both pipelines initialize pdfrx and connect/reset the VM profiler before timing. Controller construction/reset and PNG list/cache construction are after profiler reset and memory baseline. firstImageReadyUs is decoded image readiness, not first rendered frame. totalUs includes document close and pending visible PNG decodes, plus explicitly requested controller scroll batches.",
+    "memory": "Linux ProcessInfo RSS and /proc/self/smaps_rollup Private_Clean+Private_Dirty, sampled every 10ms and at phase/listener boundaries. These include Flutter, Dart, PDFium and the harness. Process lifetime peak RSS includes startup and is distinct from sampled scenario peak. Native-only allocator peak and Windows private commit are not measured. Peak increments are computed per process before aggregation.",
+    "cacheAccounting": "Lower-level peakCachePixelBytes uses 4 bytes/pixel; production sampledPeakCacheBudgetBytes uses 8 retained plus 4 active-render bytes/pixel estimates. These are different accounting models and are not compared as physical memory. The 32MiB cache budget is not a process/PDFium memory cap.",
+    "allocations": "VM getAllocationProfile(reset:true,gc:true) before work, then current-isolate accumulators after work. Includes the probe and VM-service client overhead, excludes worker, PDFium and GPU allocations. Old screen ValueNotifier list copies, widget builds and ImageCache behavior are not modeled. No general reduction in whole-screen allocations is established.",
+    "cancellation": "One-off diagnostics, not paired controller speedup. PNG/direct after-render cancel immediately after the native bitmap; PNG still encodes the stale result while direct discards it. Controller after-render means after first cached-image publication. During-render is 1ms after render request for PNG/direct but 1ms after load request for controller. Controller cancellation calls reset(), so it measures generation reset and native drain, not terminal route stop or closing animation.",
+    "reopen": "Controller scroll diagnostics use sheets 0,40,0 and await each serialized task, including progressive metadata reload, raster and document close. The bytes source diagnostic retains a 47MB PDF and reopens in the same process.",
+    "quality": "Native-only file/bytes pixel parity is recorded separately. Flutter comparison first-image dimensions match within each paired N-up=1 case. Focused unmodified source/composer tests verify mixed sizes, source reopen, text/searchable vector output and N-up layout. These do not certify physical printer output or interactive zoom appearance.",
+    "excludedExploration": "Earlier smoke, invalid deferred-publication and visibleDecodeLimit=3 exploratory runs remain in scratch audit logs only and are excluded from this result."
+  },
+  "environment": {
+    "platform": "linux",
+    "machine": "x86_64",
+    "kernel": "6.18.57",
+    "flutterVersion": "3.47.7",
+    "flutterFrameworkRevision": "abaf9c523780a608bd46686fd5e53740a07077f8",
+    "flutterEngineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+    "dartVersion": "3.13.5",
+    "execution": "flutter_tester, JIT with checked mode, software and deterministic Skia rendering; no UI surface",
+    "pdfrxRevision": "a656fd1a14de1a82a5e432261f3cfe66c7860356",
+    "pdfrxEngine": "0.9.0",
+    "pdfiumDart": "0.4.1 / chromium_8125",
+    "pdfiumLibrarySha256": "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723",
+    "cgroupMemoryLimitBytes": 8589934592,
+    "cgroupCpuQuota": "800000 100000",
+    "cgroupMemoryCurrentBytesAtAggregation": 6949330944,
+    "loadAverageAtAggregation": [
+      2.9990234375,
+      4.1064453125,
+      12.419921875
+    ],
+    "contention": "Shared host initially near its 8GiB limit; pressure changed during the runs. Retain all outliers and ranges. These manual debug/headless measurements are not release UI or Windows performance guarantees."
+  },
+  "reproduction": {
+    "normalRunner": "flutter test tool/perf_probe/pdf_print_preview_probe.dart --enable-vmservice --no-dds --concurrency=1",
+    "fixtures": "dart run tool/perf_probe/make_pdf_print_preview_fixtures.dart .dart_tool/pdf-preview-fixtures",
+    "variables": "Each run records configuration keys; prefix with OTZARIA_PREVIEW_. PDF is an absolute fixture path. Default VISIBLE=2, LIMIT=60, SCALE=1.5, BUDGET_MIB=32. See PDF_OPEN_PROBE.md.",
+    "observedRunner": "Flutter wrapper was unreliable under host pressure. A minimal package with exact dependencies and symlinks to production source compiled the same runPdfPrintPreviewProbe body directly against flutter_patched_sdk/platform_strong.dill, then ran flutter_tester. The main initialized WidgetsFlutterBinding and set Pdfrx.pdfiumModulePath to the recorded native library. Test registration was bypassed; measurement code was unchanged.",
+    "compilerTemplate": "$DART_SDK/bin/dartaotruntime $DART_SDK/bin/snapshots/gen_kernel_aot.dart.snapshot --target=flutter --platform=$FLUTTER_SDK/bin/cache/artifacts/engine/common/flutter_patched_sdk/platform_strong.dill --packages=$PACKAGE_CONFIG --native-assets=$NATIVE_ASSETS_JSON --output=preview_probe.dill preview_main.dart",
+    "runnerTemplate": "$FLUTTER_SDK/bin/cache/artifacts/engine/linux-x64/flutter_tester --icu-data-file-path=$FLUTTER_SDK/bin/cache/artifacts/engine/linux-x64/icudtl.dat --enable-checked-mode --enable-software-rendering --skia-deterministic-rendering --non-interactive --enable-dart-profiling --disable-vm-service-publication --vm-service-port=0 --packages=$PACKAGE_CONFIG preview_probe.dill"
+  },
+  "fixtures": [
+    {
+      "name": "small",
+      "pages": 3,
+      "bytes": 4639,
+      "sha256": "aca340781d81180c9bbc5d7bab03de67b008bf27938447a036942cfc05549bc4"
+    },
+    {
+      "name": "mixed",
+      "pages": 600,
+      "bytes": 877929,
+      "sha256": "1cf676791adda4b67a29a952df8cba2c909cd788ac174109e54cd533a0b82dac"
+    },
+    {
+      "name": "scanned",
+      "pages": 120,
+      "bytes": 47269246,
+      "sha256": "c8913bbb41dcbda7207ebd29381cc75435c05fb17901e308aaacd2849366aa4b"
+    }
+  ],
+  "cases": [
+    {
+      "name": "paired-small-bytes-png",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "small.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 187.564,
+          "min": 170.61,
+          "max": 257.503
+        },
+        "firstImageReadyMs": {
+          "median": 223.876,
+          "min": 188.547,
+          "max": 294.678
+        },
+        "totalMs": {
+          "median": 419.162,
+          "min": 350.93,
+          "max": 496.485
+        },
+        "openIncludingReadMs": {
+          "median": 63.073,
+          "min": 41.961,
+          "max": 83.147
+        },
+        "renderMs": {
+          "median": 39.195,
+          "min": 28.667,
+          "max": 42.606
+        },
+        "createImageMs": {
+          "median": 58.26,
+          "min": 37.696,
+          "max": 77.653
+        },
+        "encodePngMs": {
+          "median": 214.317,
+          "min": 197.192,
+          "max": 275.594
+        },
+        "decodePngMs": {
+          "median": 51.549,
+          "min": 31.983,
+          "max": 65.045
+        },
+        "closeMs": {
+          "median": 8.476,
+          "min": 5.634,
+          "max": 9.973
+        },
+        "sampledPeakRssMiB": {
+          "median": 343.988,
+          "min": 323.32,
+          "max": 351.551
+        },
+        "baselineRssMiB": {
+          "median": 321.438,
+          "min": 302.469,
+          "max": 325.504
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 22.551,
+          "min": 20.852,
+          "max": 26.047
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 343.0,
+          "min": 322.336,
+          "max": 350.566
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 320.605,
+          "min": 301.473,
+          "max": 324.535
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 22.395,
+          "min": 20.863,
+          "max": 26.031
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 168050608,
+          "min": 151047072,
+          "max": 168575040
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1087143,
+          "min": 1086824,
+          "max": 1104553
+        }
+      },
+      "runs": [
+        {
+          "name": "paired-small-bytes-png-1",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.079944188000809,
+          "result": {
+            "pid": 5,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 3,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 187564,
+            "firstEncodedPngReadyUs": 186183,
+            "firstImageReadyUs": 223876,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 419162,
+            "documentClosedUs": 418772,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 3,
+            "encodedPages": 3,
+            "decodedPages": 2,
+            "retainedPngBytes": 374148,
+            "retainedSourceDartBytes": 4639,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 6363,
+            "openIncludingReadUs": 63073,
+            "renderUs": 42606,
+            "createImageUs": 77653,
+            "encodePngUs": 197192,
+            "decodePngUs": 65045,
+            "closeUs": 9973,
+            "baselineRssBytes": 341315584,
+            "sampledPeakRssBytes": 368627712,
+            "processLifetimePeakRssBytes": 395227136,
+            "baselinePrivateResidentBytes": 340299776,
+            "sampledPeakPrivateResidentBytes": 367595520,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1086824,
+              "allocatedBytes": 168050608,
+              "heapUsageBytes": 168053488,
+              "externalUsageBytes": 12674352
+            }
+          }
+        },
+        {
+          "name": "paired-small-bytes-png-2",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.7960626229978516,
+          "result": {
+            "pid": 79,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 3,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 170610,
+            "firstEncodedPngReadyUs": 169737,
+            "firstImageReadyUs": 188547,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 350930,
+            "documentClosedUs": 350502,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 3,
+            "encodedPages": 3,
+            "decodedPages": 2,
+            "retainedPngBytes": 374148,
+            "retainedSourceDartBytes": 4639,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 4489,
+            "openIncludingReadUs": 41961,
+            "renderUs": 28667,
+            "createImageUs": 37696,
+            "encodePngUs": 214317,
+            "decodePngUs": 31983,
+            "closeUs": 5634,
+            "baselineRssBytes": 317161472,
+            "sampledPeakRssBytes": 339025920,
+            "processLifetimePeakRssBytes": 409202688,
+            "baselinePrivateResidentBytes": 316116992,
+            "sampledPeakPrivateResidentBytes": 337993728,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1087143,
+              "allocatedBytes": 151047072,
+              "heapUsageBytes": 151049696,
+              "externalUsageBytes": 3655856
+            }
+          }
+        },
+        {
+          "name": "paired-small-bytes-png-3",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.186878476997663,
+          "result": {
+            "pid": 122,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 3,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 257503,
+            "firstEncodedPngReadyUs": 254231,
+            "firstImageReadyUs": 294678,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 496485,
+            "documentClosedUs": 496044,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 3,
+            "encodedPages": 3,
+            "decodedPages": 2,
+            "retainedPngBytes": 374148,
+            "retainedSourceDartBytes": 4639,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 11693,
+            "openIncludingReadUs": 83147,
+            "renderUs": 39195,
+            "createImageUs": 58260,
+            "encodePngUs": 275594,
+            "decodePngUs": 51549,
+            "closeUs": 8476,
+            "baselineRssBytes": 337051648,
+            "sampledPeakRssBytes": 360697856,
+            "processLifetimePeakRssBytes": 390713344,
+            "baselinePrivateResidentBytes": 336179200,
+            "sampledPeakPrivateResidentBytes": 359661568,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1104553,
+              "allocatedBytes": 168575040,
+              "heapUsageBytes": 168577952,
+              "externalUsageBytes": 12672480
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "paired-small-file-controller",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "small.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 93.838,
+          "min": 88.342,
+          "max": 104.42
+        },
+        "firstImageReadyMs": {
+          "median": 93.838,
+          "min": 88.342,
+          "max": 104.42
+        },
+        "totalMs": {
+          "median": 126.128,
+          "min": 123.565,
+          "max": 141.676
+        },
+        "initialWindowReadyAndDocumentClosedMs": {
+          "median": 125.194,
+          "min": 122.289,
+          "max": 140.743
+        },
+        "sampledPeakRssMiB": {
+          "median": 317.426,
+          "min": 315.578,
+          "max": 336.105
+        },
+        "baselineRssMiB": {
+          "median": 305.023,
+          "min": 303.191,
+          "max": 324.57
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 11.535,
+          "min": 10.555,
+          "max": 14.234
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 316.441,
+          "min": 314.602,
+          "max": 335.121
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 304.047,
+          "min": 302.211,
+          "max": 323.734
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 11.387,
+          "min": 10.555,
+          "max": 14.23
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 151237440,
+          "min": 151208128,
+          "max": 168288240
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1089637,
+          "min": 1088802,
+          "max": 1096170
+        }
+      },
+      "runs": [
+        {
+          "name": "paired-small-file-controller-1",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.5732816640011151,
+          "result": {
+            "pid": 19,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 3,
+            "selectedPages": 3,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 93838,
+            "firstImageReadyUs": 93838,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 125194,
+            "viewportRequests": [],
+            "totalUs": 126128,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 319840256,
+            "sampledPeakRssBytes": 330907648,
+            "processLifetimePeakRssBytes": 403419136,
+            "baselinePrivateResidentBytes": 318816256,
+            "sampledPeakPrivateResidentBytes": 329883648,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1088802,
+              "allocatedBytes": 151208128,
+              "heapUsageBytes": 151210512,
+              "externalUsageBytes": 2097296
+            }
+          }
+        },
+        {
+          "name": "paired-small-file-controller-2",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.6211911420032266,
+          "result": {
+            "pid": 64,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 3,
+            "selectedPages": 3,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 104420,
+            "firstImageReadyUs": 104420,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 140743,
+            "viewportRequests": [],
+            "totalUs": 141676,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 317919232,
+            "sampledPeakRssBytes": 332845056,
+            "processLifetimePeakRssBytes": 367288320,
+            "baselinePrivateResidentBytes": 316891136,
+            "sampledPeakPrivateResidentBytes": 331812864,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1089637,
+              "allocatedBytes": 151237440,
+              "heapUsageBytes": 151244304,
+              "externalUsageBytes": 2228368
+            }
+          }
+        },
+        {
+          "name": "paired-small-file-controller-3",
+          "configuration": {
+            "PDF": "small.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.780595923999499,
+          "result": {
+            "pid": 136,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "small.pdf",
+            "fileBytes": 4639,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 3,
+            "selectedPages": 3,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 88342,
+            "firstImageReadyUs": 88342,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 122289,
+            "viewportRequests": [],
+            "totalUs": 123565,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 340336640,
+            "sampledPeakRssBytes": 352432128,
+            "processLifetimePeakRssBytes": 407605248,
+            "baselinePrivateResidentBytes": 339460096,
+            "sampledPeakPrivateResidentBytes": 351399936,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1096170,
+              "allocatedBytes": 168288240,
+              "heapUsageBytes": 168290928,
+              "externalUsageBytes": 10331424
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "paired-scanned-short-bytes-png",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png",
+        "START": "80",
+        "END": "81",
+        "LIMIT": "2"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 875.199,
+          "min": 625.082,
+          "max": 920.52
+        },
+        "firstImageReadyMs": {
+          "median": 1301.694,
+          "min": 971.82,
+          "max": 1311.276
+        },
+        "totalMs": {
+          "median": 1339.093,
+          "min": 996.647,
+          "max": 1376.814
+        },
+        "openIncludingReadMs": {
+          "median": 413.296,
+          "min": 260.107,
+          "max": 469.206
+        },
+        "renderMs": {
+          "median": 56.31,
+          "min": 28.102,
+          "max": 63.642
+        },
+        "createImageMs": {
+          "median": 24.806,
+          "min": 13.949,
+          "max": 47.152
+        },
+        "encodePngMs": {
+          "median": 717.462,
+          "min": 648.503,
+          "max": 775.725
+        },
+        "decodePngMs": {
+          "median": 435.845,
+          "min": 376.903,
+          "max": 476.169
+        },
+        "closeMs": {
+          "median": 13.771,
+          "min": 13.109,
+          "max": 27.166
+        },
+        "sampledPeakRssMiB": {
+          "median": 418.879,
+          "min": 398.348,
+          "max": 480.383
+        },
+        "baselineRssMiB": {
+          "median": 324.969,
+          "min": 301.898,
+          "max": 326.242
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 96.449,
+          "min": 93.91,
+          "max": 154.141
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 417.574,
+          "min": 397.746,
+          "max": 480.492
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 324.004,
+          "min": 301.066,
+          "max": 325.281
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 96.68,
+          "min": 93.57,
+          "max": 155.211
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 144759536,
+          "min": 144400768,
+          "max": 214616704
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 276446,
+          "min": 268288,
+          "max": 1081021
+        }
+      },
+      "runs": [
+        {
+          "name": "paired-scanned-short-bytes-png-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.5741622790010297,
+          "result": {
+            "pid": 34,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 625082,
+            "firstEncodedPngReadyUs": 624517,
+            "firstImageReadyUs": 971820,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 996647,
+            "documentClosedUs": 983933,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 113376,
+            "openIncludingReadUs": 260107,
+            "renderUs": 28102,
+            "createImageUs": 13949,
+            "encodePngUs": 648503,
+            "decodePngUs": 376903,
+            "closeUs": 13771,
+            "baselineRssBytes": 340754432,
+            "sampledPeakRssBytes": 439226368,
+            "processLifetimePeakRssBytes": 438886400,
+            "baselinePrivateResidentBytes": 339742720,
+            "sampledPeakPrivateResidentBytes": 437858304,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 276446,
+              "allocatedBytes": 144759536,
+              "heapUsageBytes": 144761024,
+              "externalUsageBytes": 7935952
+            }
+          }
+        },
+        {
+          "name": "paired-scanned-short-bytes-png-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.8185451030003605,
+          "result": {
+            "pid": 108,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 875199,
+            "firstEncodedPngReadyUs": 874278,
+            "firstImageReadyUs": 1301694,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 1376814,
+            "documentClosedUs": 1343672,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 81612,
+            "openIncludingReadUs": 413296,
+            "renderUs": 63642,
+            "createImageUs": 47152,
+            "encodePngUs": 775725,
+            "decodePngUs": 476169,
+            "closeUs": 13109,
+            "baselineRssBytes": 342089728,
+            "sampledPeakRssBytes": 503717888,
+            "processLifetimePeakRssBytes": 504377344,
+            "baselinePrivateResidentBytes": 341082112,
+            "sampledPeakPrivateResidentBytes": 503832576,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1081021,
+              "allocatedBytes": 214616704,
+              "heapUsageBytes": 214619040,
+              "externalUsageBytes": 15155488
+            }
+          }
+        },
+        {
+          "name": "paired-scanned-short-bytes-png-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 3.1831763020018116,
+          "result": {
+            "pid": 149,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 920520,
+            "firstEncodedPngReadyUs": 919668,
+            "firstImageReadyUs": 1311276,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 1339093,
+            "documentClosedUs": 1317958,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 88194,
+            "openIncludingReadUs": 469206,
+            "renderUs": 56310,
+            "createImageUs": 24806,
+            "encodePngUs": 717462,
+            "decodePngUs": 435845,
+            "closeUs": 27166,
+            "baselineRssBytes": 316563456,
+            "sampledPeakRssBytes": 417697792,
+            "processLifetimePeakRssBytes": 417521664,
+            "baselinePrivateResidentBytes": 315691008,
+            "sampledPeakPrivateResidentBytes": 417067008,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 268288,
+              "allocatedBytes": 144400768,
+              "heapUsageBytes": 144401584,
+              "externalUsageBytes": 5445584
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "paired-scanned-short-file-controller",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller",
+        "START": "80",
+        "END": "81",
+        "LIMIT": "2"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 121.37,
+          "min": 120.568,
+          "max": 125.281
+        },
+        "firstImageReadyMs": {
+          "median": 121.37,
+          "min": 120.568,
+          "max": 125.281
+        },
+        "totalMs": {
+          "median": 160.96,
+          "min": 145.371,
+          "max": 171.814
+        },
+        "initialWindowReadyAndDocumentClosedMs": {
+          "median": 159.814,
+          "min": 144.728,
+          "max": 170.866
+        },
+        "sampledPeakRssMiB": {
+          "median": 342.359,
+          "min": 248.078,
+          "max": 342.496
+        },
+        "baselineRssMiB": {
+          "median": 327.227,
+          "min": 233.469,
+          "max": 327.602
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 14.895,
+          "min": 14.609,
+          "max": 15.133
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 341.363,
+          "min": 232.523,
+          "max": 341.5
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 326.258,
+          "min": 218.414,
+          "max": 326.637
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 14.863,
+          "min": 14.109,
+          "max": 15.105
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 168968656,
+          "min": 151718928,
+          "max": 168978576
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1101271,
+          "min": 1096526,
+          "max": 1102022
+        }
+      },
+      "runs": [
+        {
+          "name": "paired-scanned-short-file-controller-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.5763884729967685,
+          "result": {
+            "pid": 49,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 2,
+            "firstPage": 80,
+            "endPage": 81,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 125281,
+            "firstImageReadyUs": 125281,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "initialWindowReadyAndDocumentClosedUs": 170866,
+            "viewportRequests": [],
+            "totalUs": 171814,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 343121920,
+            "sampledPeakRssBytes": 358989824,
+            "processLifetimePeakRssBytes": 377925632,
+            "baselinePrivateResidentBytes": 342106112,
+            "sampledPeakPrivateResidentBytes": 357945344,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1101271,
+              "allocatedBytes": 168968656,
+              "heapUsageBytes": 168971552,
+              "externalUsageBytes": 10920416
+            }
+          }
+        },
+        {
+          "name": "paired-scanned-short-file-controller-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.727227667994157,
+          "result": {
+            "pid": 94,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 2,
+            "firstPage": 80,
+            "endPage": 81,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 121370,
+            "firstImageReadyUs": 121370,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "initialWindowReadyAndDocumentClosedUs": 159814,
+            "viewportRequests": [],
+            "totalUs": 160960,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 343515136,
+            "sampledPeakRssBytes": 359133184,
+            "processLifetimePeakRssBytes": 432295936,
+            "baselinePrivateResidentBytes": 342503424,
+            "sampledPeakPrivateResidentBytes": 358088704,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1102022,
+              "allocatedBytes": 168978576,
+              "heapUsageBytes": 168981424,
+              "externalUsageBytes": 10788624
+            }
+          }
+        },
+        {
+          "name": "paired-scanned-short-file-controller-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller",
+            "START": "80",
+            "END": "81",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.9872228210006142,
+          "result": {
+            "pid": 164,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 2,
+            "firstPage": 80,
+            "endPage": 81,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 120568,
+            "firstImageReadyUs": 120568,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "initialWindowReadyAndDocumentClosedUs": 144728,
+            "viewportRequests": [],
+            "totalUs": 145371,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 22514080,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 244809728,
+            "sampledPeakRssBytes": 260128768,
+            "processLifetimePeakRssBytes": 296370176,
+            "baselinePrivateResidentBytes": 229023744,
+            "sampledPeakPrivateResidentBytes": 243818496,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1096526,
+              "allocatedBytes": 151718928,
+              "heapUsageBytes": 151721520,
+              "externalUsageBytes": 2621584
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stages-scanned-short-file-png",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "png",
+        "START": "80",
+        "LIMIT": "2"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 490.948,
+          "min": 474.662,
+          "max": 611.163
+        },
+        "firstImageReadyMs": {
+          "median": 645.65,
+          "min": 530.162,
+          "max": 858.766
+        },
+        "totalMs": {
+          "median": 993.637,
+          "min": 889.045,
+          "max": 1028.433
+        },
+        "openIncludingReadMs": {
+          "median": 95.696,
+          "min": 78.777,
+          "max": 147.643
+        },
+        "renderMs": {
+          "median": 54.123,
+          "min": 34.512,
+          "max": 101.879
+        },
+        "createImageMs": {
+          "median": 26.165,
+          "min": 18.578,
+          "max": 33.365
+        },
+        "encodePngMs": {
+          "median": 700.888,
+          "min": 679.622,
+          "max": 735.978
+        },
+        "decodePngMs": {
+          "median": 92.862,
+          "min": 74.011,
+          "max": 416.213
+        },
+        "closeMs": {
+          "median": 9.165,
+          "min": 9.045,
+          "max": 19.507
+        },
+        "sampledPeakRssMiB": {
+          "median": 372.77,
+          "min": 367.719,
+          "max": 393.098
+        },
+        "baselineRssMiB": {
+          "median": 303.176,
+          "min": 302.246,
+          "max": 322.004
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 69.594,
+          "min": 65.473,
+          "max": 71.094
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 371.773,
+          "min": 367.172,
+          "max": 392.125
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 302.191,
+          "min": 301.262,
+          "max": 321.039
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 69.582,
+          "min": 65.91,
+          "max": 71.086
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 150976672,
+          "min": 150922288,
+          "max": 168406160
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1088083,
+          "min": 1088046,
+          "max": 1098332
+        }
+      },
+      "runs": [
+        {
+          "name": "stages-scanned-short-file-png-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "png",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.6425122180007747,
+          "result": {
+            "pid": 7,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 611163,
+            "firstEncodedPngReadyUs": 610545,
+            "firstImageReadyUs": 645650,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 1028433,
+            "documentClosedUs": 1009315,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 147643,
+            "renderUs": 101879,
+            "createImageUs": 18578,
+            "encodePngUs": 679622,
+            "decodePngUs": 74011,
+            "closeUs": 19507,
+            "baselineRssBytes": 337645568,
+            "sampledPeakRssBytes": 412192768,
+            "processLifetimePeakRssBytes": 411848704,
+            "baselinePrivateResidentBytes": 336633856,
+            "sampledPeakPrivateResidentBytes": 411172864,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1098332,
+              "allocatedBytes": 168406160,
+              "heapUsageBytes": 168409088,
+              "externalUsageBytes": 17180864
+            }
+          }
+        },
+        {
+          "name": "stages-scanned-short-file-png-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "png",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.5791370470033144,
+          "result": {
+            "pid": 51,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 474662,
+            "firstEncodedPngReadyUs": 473976,
+            "firstImageReadyUs": 858766,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 889045,
+            "documentClosedUs": 866141,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 78777,
+            "renderUs": 34512,
+            "createImageUs": 26165,
+            "encodePngUs": 700888,
+            "decodePngUs": 416213,
+            "closeUs": 9045,
+            "baselineRssBytes": 316928000,
+            "sampledPeakRssBytes": 385581056,
+            "processLifetimePeakRssBytes": 385347584,
+            "baselinePrivateResidentBytes": 315895808,
+            "sampledPeakPrivateResidentBytes": 385007616,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1088046,
+              "allocatedBytes": 150976672,
+              "heapUsageBytes": 150979184,
+              "externalUsageBytes": 7411632
+            }
+          }
+        },
+        {
+          "name": "stages-scanned-short-file-png-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "png",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 3.011137266003061,
+          "result": {
+            "pid": 66,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 490948,
+            "firstEncodedPngReadyUs": 490161,
+            "firstImageReadyUs": 530162,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 993637,
+            "documentClosedUs": 949242,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 2,
+            "decodedPages": 2,
+            "retainedPngBytes": 3872460,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 95696,
+            "renderUs": 54123,
+            "createImageUs": 33365,
+            "encodePngUs": 735978,
+            "decodePngUs": 92862,
+            "closeUs": 9165,
+            "baselineRssBytes": 317902848,
+            "sampledPeakRssBytes": 390877184,
+            "processLifetimePeakRssBytes": 453828608,
+            "baselinePrivateResidentBytes": 316870656,
+            "sampledPeakPrivateResidentBytes": 389832704,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1088083,
+              "allocatedBytes": 150922288,
+              "heapUsageBytes": 149757456,
+              "externalUsageBytes": 8329136
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stages-scanned-short-file-direct",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "direct",
+        "START": "80",
+        "LIMIT": "2"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 149.665,
+          "min": 110.752,
+          "max": 169.26
+        },
+        "firstImageReadyMs": {
+          "median": 149.665,
+          "min": 110.752,
+          "max": 169.26
+        },
+        "totalMs": {
+          "median": 175.455,
+          "min": 138.179,
+          "max": 199.592
+        },
+        "openIncludingReadMs": {
+          "median": 98.659,
+          "min": 78.251,
+          "max": 119.087
+        },
+        "renderMs": {
+          "median": 43.325,
+          "min": 28.432,
+          "max": 44.577
+        },
+        "createImageMs": {
+          "median": 14.991,
+          "min": 13.292,
+          "max": 15.269
+        },
+        "closeMs": {
+          "median": 6.656,
+          "min": 4.746,
+          "max": 6.771
+        },
+        "sampledPeakRssMiB": {
+          "median": 360.906,
+          "min": 360.84,
+          "max": 382.449
+        },
+        "baselineRssMiB": {
+          "median": 303.785,
+          "min": 303.617,
+          "max": 324.297
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 57.289,
+          "min": 57.055,
+          "max": 58.152
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 359.906,
+          "min": 359.84,
+          "max": 381.457
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 302.801,
+          "min": 302.641,
+          "max": 323.332
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 57.266,
+          "min": 57.039,
+          "max": 58.125
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 150804432,
+          "min": 150796496,
+          "max": 168019712
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1084909,
+          "min": 1084437,
+          "max": 1089988
+        }
+      },
+      "runs": [
+        {
+          "name": "stages-scanned-short-file-direct-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "direct",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.622690270000021,
+          "result": {
+            "pid": 22,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "direct",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 110752,
+            "firstEncodedPngReadyUs": null,
+            "firstImageReadyUs": 110752,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 138179,
+            "documentClosedUs": 137936,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 0,
+            "decodedPages": 0,
+            "retainedPngBytes": 0,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 78251,
+            "renderUs": 28432,
+            "createImageUs": 13292,
+            "closeUs": 6656,
+            "baselineRssBytes": 340049920,
+            "sampledPeakRssBytes": 401027072,
+            "processLifetimePeakRssBytes": 405991424,
+            "baselinePrivateResidentBytes": 339038208,
+            "sampledPeakPrivateResidentBytes": 399986688,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1089988,
+              "allocatedBytes": 168019712,
+              "heapUsageBytes": 168022432,
+              "externalUsageBytes": 10790368
+            }
+          }
+        },
+        {
+          "name": "stages-scanned-short-file-direct-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "direct",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.6762597670021933,
+          "result": {
+            "pid": 36,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "direct",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 149665,
+            "firstEncodedPngReadyUs": null,
+            "firstImageReadyUs": 149665,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 175455,
+            "documentClosedUs": 175029,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 0,
+            "decodedPages": 0,
+            "retainedPngBytes": 0,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 98659,
+            "renderUs": 43325,
+            "createImageUs": 14991,
+            "closeUs": 4746,
+            "baselineRssBytes": 318541824,
+            "sampledPeakRssBytes": 378368000,
+            "processLifetimePeakRssBytes": 410685440,
+            "baselinePrivateResidentBytes": 317509632,
+            "sampledPeakPrivateResidentBytes": 377319424,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1084437,
+              "allocatedBytes": 150796496,
+              "heapUsageBytes": 150800544,
+              "externalUsageBytes": 2883728
+            }
+          }
+        },
+        {
+          "name": "stages-scanned-short-file-direct-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "direct",
+            "START": "80",
+            "LIMIT": "2"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.829433885999606,
+          "result": {
+            "pid": 81,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "direct",
+            "pageCount": 120,
+            "firstPage": 80,
+            "renderLimit": 2,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 169260,
+            "firstEncodedPngReadyUs": null,
+            "firstImageReadyUs": 169260,
+            "firstImageWidth": 1262,
+            "firstImageHeight": 892,
+            "totalUs": 199592,
+            "documentClosedUs": 199263,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 2,
+            "encodedPages": 0,
+            "decodedPages": 0,
+            "retainedPngBytes": 0,
+            "retainedSourceDartBytes": 0,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 9005632,
+            "cacheBudgetBytes": 33554432,
+            "openIncludingReadUs": 119087,
+            "renderUs": 44577,
+            "createImageUs": 15269,
+            "closeUs": 6771,
+            "baselineRssBytes": 318365696,
+            "sampledPeakRssBytes": 378437632,
+            "processLifetimePeakRssBytes": 412053504,
+            "baselinePrivateResidentBytes": 317341696,
+            "sampledPeakPrivateResidentBytes": 377389056,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1084909,
+              "allocatedBytes": 150804432,
+              "heapUsageBytes": 150806896,
+              "externalUsageBytes": 3014800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "additional-mixed-full-bytes-png",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "mixed.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 303.018,
+          "min": 215.534,
+          "max": 327.886
+        },
+        "firstImageReadyMs": {
+          "median": 365.557,
+          "min": 240.247,
+          "max": 402.291
+        },
+        "totalMs": {
+          "median": 4959.911,
+          "min": 4949.758,
+          "max": 5434.34
+        },
+        "openIncludingReadMs": {
+          "median": 179.627,
+          "min": 106.779,
+          "max": 186.411
+        },
+        "renderMs": {
+          "median": 427.329,
+          "min": 389.381,
+          "max": 439.813
+        },
+        "createImageMs": {
+          "median": 464.198,
+          "min": 305.796,
+          "max": 498.851
+        },
+        "encodePngMs": {
+          "median": 3726.379,
+          "min": 3667.64,
+          "max": 3918.142
+        },
+        "decodePngMs": {
+          "median": 83.33,
+          "min": 39.723,
+          "max": 95.413
+        },
+        "closeMs": {
+          "median": 8.588,
+          "min": 6.536,
+          "max": 72.823
+        },
+        "sampledPeakRssMiB": {
+          "median": 371.621,
+          "min": 334.77,
+          "max": 374.41
+        },
+        "baselineRssMiB": {
+          "median": 301.562,
+          "min": 301.16,
+          "max": 302.883
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 68.738,
+          "min": 33.207,
+          "max": 73.25
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 367.52,
+          "min": 333.781,
+          "max": 373.41
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 300.586,
+          "min": 300.176,
+          "max": 301.91
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 65.609,
+          "min": 33.195,
+          "max": 73.234
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 154838000,
+          "min": 154795024,
+          "max": 154850272
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1142929,
+          "min": 1141780,
+          "max": 1142944
+        }
+      },
+      "runs": [
+        {
+          "name": "additional-mixed-full-bytes-png-1",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 7.547920908000378,
+          "result": {
+            "pid": 231,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 600,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 327886,
+            "firstEncodedPngReadyUs": 327366,
+            "firstImageReadyUs": 402291,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 4959911,
+            "documentClosedUs": 4959552,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 7575683,
+            "retainedSourceDartBytes": 877929,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 18573,
+            "openIncludingReadUs": 179627,
+            "renderUs": 427329,
+            "createImageUs": 305796,
+            "encodePngUs": 3726379,
+            "decodePngUs": 95413,
+            "closeUs": 72823,
+            "baselineRssBytes": 316211200,
+            "sampledPeakRssBytes": 351031296,
+            "processLifetimePeakRssBytes": 350429184,
+            "baselinePrivateResidentBytes": 315187200,
+            "sampledPeakPrivateResidentBytes": 349995008,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1142929,
+              "allocatedBytes": 154795024,
+              "heapUsageBytes": 153879840,
+              "externalUsageBytes": 42401904
+            }
+          }
+        },
+        {
+          "name": "additional-mixed-full-bytes-png-2",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 6.761955173999013,
+          "result": {
+            "pid": 315,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 600,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 215534,
+            "firstEncodedPngReadyUs": 214657,
+            "firstImageReadyUs": 240247,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 4949758,
+            "documentClosedUs": 4949262,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 7575683,
+            "retainedSourceDartBytes": 877929,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 10039,
+            "openIncludingReadUs": 106779,
+            "renderUs": 389381,
+            "createImageUs": 464198,
+            "encodePngUs": 3667640,
+            "decodePngUs": 39723,
+            "closeUs": 6536,
+            "baselineRssBytes": 317595648,
+            "sampledPeakRssBytes": 389672960,
+            "processLifetimePeakRssBytes": 414969856,
+            "baselinePrivateResidentBytes": 316575744,
+            "sampledPeakPrivateResidentBytes": 385372160,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1142944,
+              "allocatedBytes": 154850272,
+              "heapUsageBytes": 154868768,
+              "externalUsageBytes": 43843696
+            }
+          }
+        },
+        {
+          "name": "additional-mixed-full-bytes-png-3",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 7.158708484996168,
+          "result": {
+            "pid": 368,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 600,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 303018,
+            "firstEncodedPngReadyUs": 302366,
+            "firstImageReadyUs": 365557,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 5434340,
+            "documentClosedUs": 5433958,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 7575683,
+            "retainedSourceDartBytes": 877929,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 88289,
+            "openIncludingReadUs": 186411,
+            "renderUs": 439813,
+            "createImageUs": 498851,
+            "encodePngUs": 3918142,
+            "decodePngUs": 83330,
+            "closeUs": 8588,
+            "baselineRssBytes": 315789312,
+            "sampledPeakRssBytes": 392597504,
+            "processLifetimePeakRssBytes": 417914880,
+            "baselinePrivateResidentBytes": 314757120,
+            "sampledPeakPrivateResidentBytes": 391548928,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1141780,
+              "allocatedBytes": 154838000,
+              "heapUsageBytes": 154851616,
+              "externalUsageBytes": 45285488
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "additional-mixed-full-file-controller",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "mixed.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 170.744,
+          "min": 130.804,
+          "max": 299.391
+        },
+        "firstImageReadyMs": {
+          "median": 170.744,
+          "min": 130.804,
+          "max": 299.391
+        },
+        "totalMs": {
+          "median": 220.832,
+          "min": 161.776,
+          "max": 344.43
+        },
+        "initialWindowReadyAndDocumentClosedMs": {
+          "median": 219.135,
+          "min": 160.533,
+          "max": 343.07
+        },
+        "sampledPeakRssMiB": {
+          "median": 313.73,
+          "min": 256.664,
+          "max": 334.566
+        },
+        "baselineRssMiB": {
+          "median": 303.367,
+          "min": 246.277,
+          "max": 323.816
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 10.387,
+          "min": 10.363,
+          "max": 10.75
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 312.746,
+          "min": 255.68,
+          "max": 333.586
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 302.395,
+          "min": 245.293,
+          "max": 322.852
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 10.387,
+          "min": 10.352,
+          "max": 10.734
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 151695200,
+          "min": 151632576,
+          "max": 168886240
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1099355,
+          "min": 1098400,
+          "max": 1107608
+        }
+      },
+      "runs": [
+        {
+          "name": "additional-mixed-full-file-controller-1",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.7898778800008586,
+          "result": {
+            "pid": 250,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 600,
+            "selectedPages": 600,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 299391,
+            "firstImageReadyUs": 299391,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 343070,
+            "viewportRequests": [],
+            "totalUs": 344430,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 258240512,
+            "sampledPeakRssBytes": 269131776,
+            "processLifetimePeakRssBytes": 300257280,
+            "baselinePrivateResidentBytes": 257208320,
+            "sampledPeakPrivateResidentBytes": 268099584,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1099355,
+              "allocatedBytes": 151695200,
+              "heapUsageBytes": 151697760,
+              "externalUsageBytes": 4063376
+            }
+          }
+        },
+        {
+          "name": "additional-mixed-full-file-controller-2",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.383842374001688,
+          "result": {
+            "pid": 301,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 600,
+            "selectedPages": 600,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 170744,
+            "firstImageReadyUs": 170744,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 219135,
+            "viewportRequests": [],
+            "totalUs": 220832,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 318103552,
+            "sampledPeakRssBytes": 328970240,
+            "processLifetimePeakRssBytes": 359444480,
+            "baselinePrivateResidentBytes": 317083648,
+            "sampledPeakPrivateResidentBytes": 327938048,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1098400,
+              "allocatedBytes": 151632576,
+              "heapUsageBytes": 151635008,
+              "externalUsageBytes": 3145872
+            }
+          }
+        },
+        {
+          "name": "additional-mixed-full-file-controller-3",
+          "configuration": {
+            "PDF": "mixed.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.723722392001946,
+          "result": {
+            "pid": 385,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "mixed.pdf",
+            "fileBytes": 877929,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 600,
+            "selectedPages": 600,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 130804,
+            "firstImageReadyUs": 130804,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 160533,
+            "viewportRequests": [],
+            "totalUs": 161776,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 339546112,
+            "sampledPeakRssBytes": 350818304,
+            "processLifetimePeakRssBytes": 383545344,
+            "baselinePrivateResidentBytes": 338534400,
+            "sampledPeakPrivateResidentBytes": 349790208,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1107608,
+              "allocatedBytes": 168886240,
+              "heapUsageBytes": 168888928,
+              "externalUsageBytes": 10957392
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "additional-scanned-full-bytes-png",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 807.273,
+          "min": 688.578,
+          "max": 5585.931
+        },
+        "firstImageReadyMs": {
+          "median": 1048.131,
+          "min": 878.305,
+          "max": 5797.81
+        },
+        "totalMs": {
+          "median": 26997.049,
+          "min": 26242.687,
+          "max": 30833.408
+        },
+        "openIncludingReadMs": {
+          "median": 341.918,
+          "min": 209.522,
+          "max": 5128.726
+        },
+        "renderMs": {
+          "median": 599.253,
+          "min": 593.875,
+          "max": 620.489
+        },
+        "createImageMs": {
+          "median": 734.811,
+          "min": 615.159,
+          "max": 794.729
+        },
+        "encodePngMs": {
+          "median": 24435.194,
+          "min": 23891.182,
+          "max": 24900.753
+        },
+        "decodePngMs": {
+          "median": 243.377,
+          "min": 225.793,
+          "max": 289.67
+        },
+        "closeMs": {
+          "median": 26.144,
+          "min": 9.49,
+          "max": 50.376
+        },
+        "sampledPeakRssMiB": {
+          "median": 464.684,
+          "min": 441.66,
+          "max": 551.816
+        },
+        "baselineRssMiB": {
+          "median": 302.434,
+          "min": 198.707,
+          "max": 326.5
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 249.383,
+          "min": 115.16,
+          "max": 265.977
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 463.379,
+          "min": 431.977,
+          "max": 550.809
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 301.453,
+          "min": 198.801,
+          "max": 310.625
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 249.355,
+          "min": 121.352,
+          "max": 264.578
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 143814128,
+          "min": 143711344,
+          "max": 143864672
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 259026,
+          "min": 257146,
+          "max": 259911
+        }
+      },
+      "runs": [
+        {
+          "name": "additional-scanned-full-bytes-png-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 33.05200017999596,
+          "result": {
+            "pid": 265,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 5585931,
+            "firstEncodedPngReadyUs": 5585074,
+            "firstImageReadyUs": 5797810,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 30833408,
+            "documentClosedUs": 30833004,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 125447894,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 2162784,
+            "openIncludingReadUs": 5128726,
+            "renderUs": 620489,
+            "createImageUs": 734811,
+            "encodePngUs": 23891182,
+            "decodePngUs": 243377,
+            "closeUs": 50376,
+            "baselineRssBytes": 208359424,
+            "sampledPeakRssBytes": 487256064,
+            "processLifetimePeakRssBytes": 487088128,
+            "baselinePrivateResidentBytes": 208457728,
+            "sampledPeakPrivateResidentBytes": 485888000,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 259911,
+              "allocatedBytes": 143864672,
+              "heapUsageBytes": 143865952,
+              "externalUsageBytes": 129773872
+            }
+          }
+        },
+        {
+          "name": "additional-scanned-full-bytes-png-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 28.703550960999564,
+          "result": {
+            "pid": 348,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 807273,
+            "firstEncodedPngReadyUs": 806647,
+            "firstImageReadyUs": 1048131,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 26997049,
+            "documentClosedUs": 26996706,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 125447894,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 135950,
+            "openIncludingReadUs": 341918,
+            "renderUs": 593875,
+            "createImageUs": 794729,
+            "encodePngUs": 24900753,
+            "decodePngUs": 289670,
+            "closeUs": 26144,
+            "baselineRssBytes": 342360064,
+            "sampledPeakRssBytes": 463114240,
+            "processLifetimePeakRssBytes": 463237120,
+            "baselinePrivateResidentBytes": 325713920,
+            "sampledPeakPrivateResidentBytes": 452960256,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 259026,
+              "allocatedBytes": 143814128,
+              "heapUsageBytes": 143815072,
+              "externalUsageBytes": 129511712
+            }
+          }
+        },
+        {
+          "name": "additional-scanned-full-bytes-png-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "bytes",
+            "PIPELINE": "png"
+          },
+          "exit": 0,
+          "elapsedSeconds": 27.725675384994247,
+          "result": {
+            "pid": 400,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "bytes",
+            "pipeline": "png",
+            "pageCount": 120,
+            "firstPage": 1,
+            "renderLimit": 60,
+            "visibleDecodeLimit": 2,
+            "scale": 1.5,
+            "cancel": "none",
+            "firstPreviewAvailableUs": 688578,
+            "firstEncodedPngReadyUs": 687883,
+            "firstImageReadyUs": 878305,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "totalUs": 26242687,
+            "documentClosedUs": 26242395,
+            "cancelToDocumentClosedUs": null,
+            "renderedPages": 60,
+            "encodedPages": 60,
+            "decodedPages": 2,
+            "retainedPngBytes": 125447894,
+            "retainedSourceDartBytes": 47269246,
+            "retainedUiImages": 2,
+            "peakCachePixelBytes": 6747088,
+            "cacheBudgetBytes": 33554432,
+            "readFileUs": 89672,
+            "openIncludingReadUs": 209522,
+            "renderUs": 599253,
+            "createImageUs": 615159,
+            "encodePngUs": 24435194,
+            "decodePngUs": 225793,
+            "closeUs": 9490,
+            "baselineRssBytes": 317124608,
+            "sampledPeakRssBytes": 578621440,
+            "processLifetimePeakRssBytes": 577769472,
+            "baselinePrivateResidentBytes": 316096512,
+            "sampledPeakPrivateResidentBytes": 577564672,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 257146,
+              "allocatedBytes": 143711344,
+              "heapUsageBytes": 143711904,
+              "externalUsageBytes": 127152416
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "additional-scanned-full-file-controller",
+      "repeats": 3,
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller"
+      },
+      "summary": {
+        "firstPreviewAvailableMs": {
+          "median": 290.489,
+          "min": 213.587,
+          "max": 392.174
+        },
+        "firstImageReadyMs": {
+          "median": 290.489,
+          "min": 213.587,
+          "max": 392.174
+        },
+        "totalMs": {
+          "median": 344.558,
+          "min": 264.401,
+          "max": 451.836
+        },
+        "initialWindowReadyAndDocumentClosedMs": {
+          "median": 342.941,
+          "min": 263.359,
+          "max": 450.243
+        },
+        "sampledPeakRssMiB": {
+          "median": 378.801,
+          "min": 356.074,
+          "max": 379.742
+        },
+        "baselineRssMiB": {
+          "median": 323.266,
+          "min": 301.828,
+          "max": 325.066
+        },
+        "sampledPeakRssIncreaseMiB": {
+          "median": 54.676,
+          "min": 54.246,
+          "max": 55.535
+        },
+        "sampledPeakPrivateResidentMiB": {
+          "median": 362.727,
+          "min": 355.141,
+          "max": 378.664
+        },
+        "baselinePrivateResidentMiB": {
+          "median": 307.66,
+          "min": 300.848,
+          "max": 324.102
+        },
+        "sampledPeakPrivateResidentIncreaseMiB": {
+          "median": 54.562,
+          "min": 54.293,
+          "max": 55.066
+        },
+        "currentIsolateAllocatedBytes": {
+          "median": 168463408,
+          "min": 151460800,
+          "max": 168663680
+        },
+        "currentIsolateAllocatedInstances": {
+          "median": 1095306,
+          "min": 1093429,
+          "max": 1099364
+        }
+      },
+      "runs": [
+        {
+          "name": "additional-scanned-full-file-controller-1",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.181417646999762,
+          "result": {
+            "pid": 286,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 120,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 392174,
+            "firstImageReadyUs": 392174,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 450243,
+            "viewportRequests": [],
+            "totalUs": 451836,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 316489728,
+            "sampledPeakRssBytes": 373370880,
+            "processLifetimePeakRssBytes": 385003520,
+            "baselinePrivateResidentBytes": 315461632,
+            "sampledPeakPrivateResidentBytes": 372391936,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1093429,
+              "allocatedBytes": 151460800,
+              "heapUsageBytes": 151465856,
+              "externalUsageBytes": 6160528
+            }
+          }
+        },
+        {
+          "name": "additional-scanned-full-file-controller-2",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 2.126872959001048,
+          "result": {
+            "pid": 334,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 120,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 213587,
+            "firstImageReadyUs": 213587,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 263359,
+            "viewportRequests": [],
+            "totalUs": 264401,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 338968576,
+            "sampledPeakRssBytes": 397201408,
+            "processLifetimePeakRssBytes": 396742656,
+            "baselinePrivateResidentBytes": 322605056,
+            "sampledPeakPrivateResidentBytes": 380346368,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1099364,
+              "allocatedBytes": 168663680,
+              "heapUsageBytes": 168669264,
+              "externalUsageBytes": 11932416
+            }
+          }
+        },
+        {
+          "name": "additional-scanned-full-file-controller-3",
+          "configuration": {
+            "PDF": "scanned.pdf",
+            "SOURCE": "file",
+            "PIPELINE": "controller"
+          },
+          "exit": 0,
+          "elapsedSeconds": 1.9223439449997386,
+          "result": {
+            "pid": 420,
+            "mode": "flutter-tester-direct-jit",
+            "platform": "linux",
+            "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+            "file": "scanned.pdf",
+            "fileBytes": 47269246,
+            "source": "file",
+            "pipeline": "controller",
+            "pageCount": 120,
+            "selectedPages": 120,
+            "firstPage": 1,
+            "endPage": null,
+            "pagesPerSheet": 1,
+            "firstPreviewAvailableUs": 290489,
+            "firstImageReadyUs": 290489,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262,
+            "initialWindowReadyAndDocumentClosedUs": 342941,
+            "viewportRequests": [],
+            "totalUs": 344558,
+            "readFileUs": 0,
+            "cancel": "none",
+            "cancellationPoint": null,
+            "cancelToDocumentClosedUs": null,
+            "peakCachedImages": 2,
+            "retainedUiImages": 2,
+            "pngEncodingUsed": false,
+            "sampledPeakCacheBudgetBytes": 15738448,
+            "cacheBudgetBytes": 33554432,
+            "retainedSourceDartBytes": 0,
+            "baselineRssBytes": 340856832,
+            "sampledPeakRssBytes": 398188544,
+            "processLifetimePeakRssBytes": 397668352,
+            "baselinePrivateResidentBytes": 339845120,
+            "sampledPeakPrivateResidentBytes": 397058048,
+            "memorySampleIntervalMs": 10,
+            "dartAllocations": {
+              "scope": "current Dart isolate; excludes native and worker allocations",
+              "accumulatorsSupported": true,
+              "allocatedInstances": 1095306,
+              "allocatedBytes": 168463408,
+              "heapUsageBytes": 168466368,
+              "externalUsageBytes": 13316864
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "lifecycleDiagnostics": [
+    {
+      "name": "lifecycle-scanned-png-after-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png",
+        "CANCEL": "after-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.716470578001463,
+      "result": {
+        "pid": 96,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "bytes",
+        "pipeline": "png",
+        "pageCount": 120,
+        "firstPage": 1,
+        "renderLimit": 60,
+        "visibleDecodeLimit": 2,
+        "scale": 1.5,
+        "cancel": "after-render",
+        "firstPreviewAvailableUs": null,
+        "firstEncodedPngReadyUs": 655406,
+        "firstImageReadyUs": null,
+        "firstImageWidth": null,
+        "firstImageHeight": null,
+        "totalUs": 669185,
+        "documentClosedUs": 668827,
+        "cancelToDocumentClosedUs": 401382,
+        "renderedPages": 1,
+        "encodedPages": 1,
+        "decodedPages": 0,
+        "retainedPngBytes": 0,
+        "retainedSourceDartBytes": 47269246,
+        "retainedUiImages": 0,
+        "peakCachePixelBytes": 0,
+        "cacheBudgetBytes": 33554432,
+        "readFileUs": 90240,
+        "openIncludingReadUs": 239824,
+        "renderUs": 23133,
+        "createImageUs": 13519,
+        "encodePngUs": 374197,
+        "closeUs": 7997,
+        "baselineRssBytes": 339718144,
+        "sampledPeakRssBytes": 425320448,
+        "processLifetimePeakRssBytes": 424980480,
+        "baselinePrivateResidentBytes": 338702336,
+        "sampledPeakPrivateResidentBytes": 424275968,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 274476,
+          "allocatedBytes": 144629840,
+          "heapUsageBytes": 144631088,
+          "externalUsageBytes": 5236512
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-direct-after-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "direct",
+        "CANCEL": "after-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 1.879172490000201,
+      "result": {
+        "pid": 112,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "file",
+        "pipeline": "direct",
+        "pageCount": 120,
+        "firstPage": 1,
+        "renderLimit": 60,
+        "visibleDecodeLimit": 2,
+        "scale": 1.5,
+        "cancel": "after-render",
+        "firstPreviewAvailableUs": null,
+        "firstEncodedPngReadyUs": null,
+        "firstImageReadyUs": null,
+        "firstImageWidth": null,
+        "firstImageHeight": null,
+        "totalUs": 206387,
+        "documentClosedUs": 206077,
+        "cancelToDocumentClosedUs": 10249,
+        "renderedPages": 1,
+        "encodedPages": 0,
+        "decodedPages": 0,
+        "retainedPngBytes": 0,
+        "retainedSourceDartBytes": 0,
+        "retainedUiImages": 0,
+        "peakCachePixelBytes": 0,
+        "cacheBudgetBytes": 33554432,
+        "openIncludingReadUs": 158164,
+        "renderUs": 32781,
+        "closeUs": 9940,
+        "baselineRssBytes": 342450176,
+        "sampledPeakRssBytes": 393117696,
+        "processLifetimePeakRssBytes": 416755712,
+        "baselinePrivateResidentBytes": 341438464,
+        "sampledPeakPrivateResidentBytes": 391680000,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1095194,
+          "allocatedBytes": 168104544,
+          "heapUsageBytes": 168122496,
+          "externalUsageBytes": 11081104
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-controller-after-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller",
+        "CANCEL": "after-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 1.7314764879993163,
+      "result": {
+        "pid": 126,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "file",
+        "pipeline": "controller",
+        "pageCount": 120,
+        "selectedPages": 120,
+        "firstPage": 1,
+        "endPage": null,
+        "pagesPerSheet": 1,
+        "firstPreviewAvailableUs": 180161,
+        "firstImageReadyUs": 180161,
+        "firstImageWidth": 892,
+        "firstImageHeight": 1262,
+        "initialWindowReadyAndDocumentClosedUs": 206529,
+        "viewportRequests": [],
+        "totalUs": 207063,
+        "readFileUs": 0,
+        "cancel": "after-render",
+        "cancellationPoint": "after first image publication",
+        "cancelToDocumentClosedUs": 20583,
+        "peakCachedImages": 1,
+        "retainedUiImages": 0,
+        "pngEncodingUsed": false,
+        "sampledPeakCacheBudgetBytes": 13508448,
+        "cacheBudgetBytes": 33554432,
+        "retainedSourceDartBytes": 0,
+        "baselineRssBytes": 317333504,
+        "sampledPeakRssBytes": 373428224,
+        "processLifetimePeakRssBytes": 392847360,
+        "baselinePrivateResidentBytes": 316444672,
+        "sampledPeakPrivateResidentBytes": 372379648,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1091312,
+          "allocatedBytes": 151344048,
+          "heapUsageBytes": 151346560,
+          "externalUsageBytes": 3276880
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-png-during-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "png",
+        "CANCEL": "during-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.7364095899974927,
+      "result": {
+        "pid": 141,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "bytes",
+        "pipeline": "png",
+        "pageCount": 120,
+        "firstPage": 1,
+        "renderLimit": 60,
+        "visibleDecodeLimit": 2,
+        "scale": 1.5,
+        "cancel": "during-render",
+        "firstPreviewAvailableUs": null,
+        "firstEncodedPngReadyUs": 894232,
+        "firstImageReadyUs": null,
+        "firstImageWidth": null,
+        "firstImageHeight": null,
+        "totalUs": 910243,
+        "documentClosedUs": 909830,
+        "cancelToDocumentClosedUs": 452272,
+        "renderedPages": 1,
+        "encodedPages": 1,
+        "decodedPages": 0,
+        "retainedPngBytes": 0,
+        "retainedSourceDartBytes": 47269246,
+        "retainedUiImages": 0,
+        "peakCachePixelBytes": 0,
+        "cacheBudgetBytes": 33554432,
+        "readFileUs": 189930,
+        "openIncludingReadUs": 442736,
+        "renderUs": 27385,
+        "createImageUs": 23639,
+        "encodePngUs": 393148,
+        "closeUs": 8618,
+        "baselineRssBytes": 316764160,
+        "sampledPeakRssBytes": 413315072,
+        "processLifetimePeakRssBytes": 413233152,
+        "baselinePrivateResidentBytes": 315731968,
+        "sampledPeakPrivateResidentBytes": 410865664,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 265540,
+          "allocatedBytes": 144237968,
+          "heapUsageBytes": 144238400,
+          "externalUsageBytes": 2352928
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-direct-during-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "direct",
+        "CANCEL": "during-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.072288135001145,
+      "result": {
+        "pid": 156,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "file",
+        "pipeline": "direct",
+        "pageCount": 120,
+        "firstPage": 1,
+        "renderLimit": 60,
+        "visibleDecodeLimit": 2,
+        "scale": 1.5,
+        "cancel": "during-render",
+        "firstPreviewAvailableUs": null,
+        "firstEncodedPngReadyUs": null,
+        "firstImageReadyUs": null,
+        "firstImageWidth": null,
+        "firstImageHeight": null,
+        "totalUs": 279826,
+        "documentClosedUs": 279256,
+        "cancelToDocumentClosedUs": 39448,
+        "renderedPages": 0,
+        "encodedPages": 0,
+        "decodedPages": 0,
+        "retainedPngBytes": 0,
+        "retainedSourceDartBytes": 0,
+        "retainedUiImages": 0,
+        "peakCachePixelBytes": 0,
+        "cacheBudgetBytes": 33554432,
+        "openIncludingReadUs": 220814,
+        "renderUs": 30868,
+        "closeUs": 19643,
+        "baselineRssBytes": 341880832,
+        "sampledPeakRssBytes": 386854912,
+        "processLifetimePeakRssBytes": 386125824,
+        "baselinePrivateResidentBytes": 340865024,
+        "sampledPeakPrivateResidentBytes": 385818624,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1095561,
+          "allocatedBytes": 167949488,
+          "heapUsageBytes": 167952112,
+          "externalUsageBytes": 12195168
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-controller-during-render",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller",
+        "CANCEL": "during-render"
+      },
+      "exit": 0,
+      "elapsedSeconds": 1.9414044069999363,
+      "result": {
+        "pid": 171,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "file",
+        "pipeline": "controller",
+        "pageCount": 0,
+        "selectedPages": 0,
+        "firstPage": 1,
+        "endPage": null,
+        "pagesPerSheet": 1,
+        "firstPreviewAvailableUs": null,
+        "firstImageReadyUs": null,
+        "firstImageWidth": null,
+        "firstImageHeight": null,
+        "initialWindowReadyAndDocumentClosedUs": 179329,
+        "viewportRequests": [],
+        "totalUs": 180349,
+        "readFileUs": 0,
+        "cancel": "during-render",
+        "cancellationPoint": "1 ms after load request",
+        "cancelToDocumentClosedUs": 174572,
+        "peakCachedImages": 0,
+        "retainedUiImages": 0,
+        "pngEncodingUsed": false,
+        "sampledPeakCacheBudgetBytes": 0,
+        "cacheBudgetBytes": 33554432,
+        "retainedSourceDartBytes": 0,
+        "baselineRssBytes": 334401536,
+        "sampledPeakRssBytes": 380252160,
+        "processLifetimePeakRssBytes": 414834688,
+        "baselinePrivateResidentBytes": 333381632,
+        "sampledPeakPrivateResidentBytes": 378884096,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1130432,
+          "allocatedBytes": 168592656,
+          "heapUsageBytes": 168595120,
+          "externalUsageBytes": 10429056
+        }
+      }
+    },
+    {
+      "name": "lifecycle-mixed-controller-nup1-scroll",
+      "configuration": {
+        "PDF": "mixed.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller",
+        "NUP": "1",
+        "SCROLL_SHEETS": "0,40,0"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.2482714529978693,
+      "result": {
+        "pid": 186,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "mixed.pdf",
+        "fileBytes": 877929,
+        "source": "file",
+        "pipeline": "controller",
+        "pageCount": 600,
+        "selectedPages": 600,
+        "firstPage": 1,
+        "endPage": null,
+        "pagesPerSheet": 1,
+        "firstPreviewAvailableUs": 219267,
+        "firstImageReadyUs": 219267,
+        "firstImageWidth": 892,
+        "firstImageHeight": 1262,
+        "initialWindowReadyAndDocumentClosedUs": 260391,
+        "viewportRequests": [
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 719,
+            "cachedImages": 2,
+            "estimatedCacheBytes": 13494176,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          },
+          {
+            "sheetIndex": 40,
+            "readyAndDocumentClosedUs": 139614,
+            "cachedImages": 4,
+            "estimatedCacheBytes": 26988352,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          },
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 56800,
+            "cachedImages": 4,
+            "estimatedCacheBytes": 26988352,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          }
+        ],
+        "totalUs": 476452,
+        "readFileUs": 0,
+        "cancel": "none",
+        "cancellationPoint": null,
+        "cancelToDocumentClosedUs": null,
+        "peakCachedImages": 4,
+        "retainedUiImages": 4,
+        "pngEncodingUsed": false,
+        "sampledPeakCacheBudgetBytes": 31491168,
+        "cacheBudgetBytes": 33554432,
+        "retainedSourceDartBytes": 0,
+        "baselineRssBytes": 341168128,
+        "sampledPeakRssBytes": 363212800,
+        "processLifetimePeakRssBytes": 363085824,
+        "baselinePrivateResidentBytes": 340148224,
+        "sampledPeakPrivateResidentBytes": 361979904,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1126032,
+          "allocatedBytes": 170313840,
+          "heapUsageBytes": 170318544,
+          "externalUsageBytes": 14819776
+        }
+      }
+    },
+    {
+      "name": "lifecycle-mixed-controller-nup4-scroll",
+      "configuration": {
+        "PDF": "mixed.pdf",
+        "SOURCE": "file",
+        "PIPELINE": "controller",
+        "NUP": "4",
+        "SCROLL_SHEETS": "0,40,0"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.6861131559999194,
+      "result": {
+        "pid": 200,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "mixed.pdf",
+        "fileBytes": 877929,
+        "source": "file",
+        "pipeline": "controller",
+        "pageCount": 600,
+        "selectedPages": 600,
+        "firstPage": 1,
+        "endPage": null,
+        "pagesPerSheet": 4,
+        "firstPreviewAvailableUs": 142063,
+        "firstImageReadyUs": 142063,
+        "firstImageWidth": 544,
+        "firstImageHeight": 770,
+        "initialWindowReadyAndDocumentClosedUs": 327945,
+        "viewportRequests": [
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 760,
+            "cachedImages": 8,
+            "estimatedCacheBytes": 30154272,
+            "firstImageWidth": 544,
+            "firstImageHeight": 770
+          },
+          {
+            "sheetIndex": 40,
+            "readyAndDocumentClosedUs": 322850,
+            "cachedImages": 12,
+            "estimatedCacheBytes": 31177152,
+            "firstImageWidth": 452,
+            "firstImageHeight": 639
+          },
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 175311,
+            "cachedImages": 8,
+            "estimatedCacheBytes": 30154272,
+            "firstImageWidth": 544,
+            "firstImageHeight": 770
+          }
+        ],
+        "totalUs": 843039,
+        "readFileUs": 0,
+        "cancel": "none",
+        "cancellationPoint": null,
+        "cancelToDocumentClosedUs": null,
+        "peakCachedImages": 12,
+        "retainedUiImages": 8,
+        "pngEncodingUsed": false,
+        "sampledPeakCacheBudgetBytes": 33554360,
+        "cacheBudgetBytes": 33554432,
+        "retainedSourceDartBytes": 0,
+        "baselineRssBytes": 317575168,
+        "sampledPeakRssBytes": 354025472,
+        "processLifetimePeakRssBytes": 405180416,
+        "baselinePrivateResidentBytes": 316542976,
+        "sampledPeakPrivateResidentBytes": 352993280,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 1137777,
+          "allocatedBytes": 153978944,
+          "heapUsageBytes": 153987552,
+          "externalUsageBytes": 14680400
+        }
+      }
+    },
+    {
+      "name": "lifecycle-scanned-controller-bytes-scroll",
+      "configuration": {
+        "PDF": "scanned.pdf",
+        "SOURCE": "bytes",
+        "PIPELINE": "controller",
+        "SCROLL_SHEETS": "0,40,0"
+      },
+      "exit": 0,
+      "elapsedSeconds": 2.4861758469996857,
+      "result": {
+        "pid": 215,
+        "mode": "flutter-tester-direct-jit",
+        "platform": "linux",
+        "dart": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+        "file": "scanned.pdf",
+        "fileBytes": 47269246,
+        "source": "bytes",
+        "pipeline": "controller",
+        "pageCount": 120,
+        "selectedPages": 120,
+        "firstPage": 1,
+        "endPage": null,
+        "pagesPerSheet": 1,
+        "firstPreviewAvailableUs": 502754,
+        "firstImageReadyUs": 502754,
+        "firstImageWidth": 892,
+        "firstImageHeight": 1262,
+        "initialWindowReadyAndDocumentClosedUs": 552357,
+        "viewportRequests": [
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 588,
+            "cachedImages": 2,
+            "estimatedCacheBytes": 13494176,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          },
+          {
+            "sheetIndex": 40,
+            "readyAndDocumentClosedUs": 109600,
+            "cachedImages": 4,
+            "estimatedCacheBytes": 26988352,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          },
+          {
+            "sheetIndex": 0,
+            "readyAndDocumentClosedUs": 90026,
+            "cachedImages": 4,
+            "estimatedCacheBytes": 26988352,
+            "firstImageWidth": 892,
+            "firstImageHeight": 1262
+          }
+        ],
+        "totalUs": 767395,
+        "readFileUs": 151816,
+        "cancel": "none",
+        "cancellationPoint": null,
+        "cancelToDocumentClosedUs": null,
+        "peakCachedImages": 4,
+        "retainedUiImages": 4,
+        "pngEncodingUsed": false,
+        "sampledPeakCacheBudgetBytes": 31491168,
+        "cacheBudgetBytes": 33554432,
+        "retainedSourceDartBytes": 47269246,
+        "baselineRssBytes": 318029824,
+        "sampledPeakRssBytes": 395874304,
+        "processLifetimePeakRssBytes": 395706368,
+        "baselinePrivateResidentBytes": 316997632,
+        "sampledPeakPrivateResidentBytes": 393863168,
+        "memorySampleIntervalMs": 10,
+        "dartAllocations": {
+          "scope": "current Dart isolate; excludes native and worker allocations",
+          "accumulatorsSupported": true,
+          "allocatedInstances": 288347,
+          "allocatedBytes": 145804208,
+          "heapUsageBytes": 145806816,
+          "externalUsageBytes": 3932400
+        }
+      }
+    }
+  ],
+  "focusedValidation": {
+    "runner": "test_core Engine and unmodified tests in flutter_tester",
+    "passed": 25,
+    "failed": 0,
+    "skipped": 0,
+    "sourceSha256": {
+      "lib/printing/print_pdf_source.dart": "366c17082f1346fb8459fe2f7ebbdfcf70cdd9d1ae66f178feff51b189b6a6bd",
+      "lib/printing/print_preview_controller.dart": "1e6723ca9c665d4d182f1d503ca94d442c3fdd92e1ab13c9c7c3f2e028e5d524",
+      "lib/printing/pdf_sheet_composer.dart": "660f98b147b437fbd0801c2a8eb688102016e37a76aa294e182675b95a38c7cb",
+      "test/printing/print_pdf_source_test.dart": "183c47a4c8b74550800566f2e9706ef5930dad17e7e091cea839bc2c9b95a39b",
+      "test/printing/print_preview_controller_test.dart": "c94001fdbe134afad1605f54ced47a349b92aad7926381eeb865fcab1a3feda0",
+      "test/printing/print_preview_qa_test.dart": "d55473949a305db195174dbe2884266652473aa6cdcf6b203a383287749609f7",
+      "test/printing/pdf_sheet_composer_test.dart": "2e9069b13e626edd9e643ba9f8279d61a11e568d8399054924418470b3e66370"
+    },
+    "kernelSha256": "882c6d2095431a18c3391af71d16a3dbba785513a62e7ecc2d49a3c2f49674b2",
+    "unchangedDuringRun": true,
+    "note": "These 25 exact tests were independently run by the dependency audit agent. They use test_core Engine rather than the Flutter CLI wrapper. Source/composer cases use native PDFium; controller scheduling/ownership cases use deterministic fake documents with real ui.Image."
+  }
+}
