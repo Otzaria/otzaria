@@ -4,78 +4,104 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
+
+export 'package:otzaria/widgets/dialogs/app_dialog_frame.dart'
+    show AppDialogSize;
 
 // ── AppDialog ─────────────────────────────────────────────────────────────────
 
 enum _DialogVariant { singleAction, twoActions, warning }
 
-/// דיאלוג גנרי M3 עם ניווט מקלדת מלא והדגשת פוקוס. השתמש בבנאים הממוינים:
+/// אייקוני המשפחות (DD-07): התג כשלפעולה אין אייקון שאומר משהו.
+abstract final class AppDialogIcons {
+  static const IconData info = FluentIcons.info_24_regular;
+  static const IconData confirm = FluentIcons.question_circle_24_regular;
+  static const IconData warning = FluentIcons.warning_24_regular;
+  static const IconData input = FluentIcons.edit_24_regular;
+  static const IconData selection = FluentIcons.list_24_regular;
+  static const IconData progress = FluentIcons.hourglass_half_24_regular;
+}
+
+/// דיאלוג גנרי M3 לפי חוזה המקלדת של [DialogKeyboardNavigator], מעל
+/// [AppDialogFrame]: רצועת כותרת ותג אייקון תמיד. השתמש בבנאים הממוינים:
 /// - [AppDialog.singleAction] — כפתור אישור בלבד
 /// - [AppDialog.twoActions] — ביטול + אישור
 /// - [AppDialog.warning] — ביטול (primary/בטוח) + אישור (error/מסוכן)
 class AppDialog extends StatefulWidget {
-  final dynamic title;
+  final String title;
   final String? content;
   final Widget? customContent;
-  final String confirmText;
-  final String cancelText;
+
+  /// null = תווית ברירת המחדל בשפת הממשק.
+  final String? confirmText;
+  final String? cancelText;
   final String? subtitle;
-  final TextDirection? textDirection;
   final bool handleEnterKey;
   final _DialogVariant _variant;
 
-  /// תג אייקון בכותרת. באזהרה: אייקון אזהרה כברירת מחדל.
+  /// תג האייקון בכותרת: מה מאשרים. null = אייקון המשפחה ([AppDialogIcons]).
   final IconData? icon;
 
-  /// כותרת ברצועה מלאה — אייקון, איקס סגירה וקו חוצץ — לדיאלוגים עם תוכן
-  /// גדול. דיאלוג קטן נשאר עם כותרת פשוטה.
-  final bool headerBand;
+  /// ווידג'ט בסוף הכותרת, לפני ה-X.
+  final Widget? headerTrailing;
+
+  /// small לאישור ולהודעה; medium/large לתוכן מותאם רחב.
+  final AppDialogSize size;
+
+  /// הגוף גולל בתוך ריפוד הדיאלוג ([AppDialogFrame.scrollable]), כך שפס
+  /// הגלילה יושב בשוליים ולא מעל הטקסט. להודעה ארוכה ב-[customContent].
+  final bool scrollable;
 
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
 
-  /// כל עוד true, לחיצה מחוץ לדיאלוג לא סוגרת אותו ומשמיעה צליל אזהרה.
-  final ValueListenable<bool>? hasUnsavedChanges;
+  /// כל עוד true, ביטול, X, Escape ולחיצה בחוץ שואלים לפני הסגירה.
+  final ValueListenable<bool>? isDirty;
 
   const AppDialog.singleAction({
     super.key,
     required this.title,
     this.content,
     this.customContent,
-    this.confirmText = 'אישור',
-    this.textDirection,
+    this.confirmText,
     this.onConfirm,
     this.icon,
-    this.headerBand = false,
+    this.headerTrailing,
+    this.size = AppDialogSize.small,
+    this.scrollable = false,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
        ),
        _variant = _DialogVariant.singleAction,
-       cancelText = '',
+       cancelText = null,
        subtitle = null,
        handleEnterKey = true,
-       hasUnsavedChanges = null;
+       isDirty = null;
 
   const AppDialog.twoActions({
     super.key,
     required this.title,
-    required this.content,
+    this.content,
     this.customContent,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'אישור',
-    this.textDirection,
+    this.cancelText,
+    this.confirmText,
     this.handleEnterKey = true,
-    this.hasUnsavedChanges,
+    this.isDirty,
     this.icon,
-    this.headerBand = false,
-  }) : _variant = _DialogVariant.twoActions,
+    this.headerTrailing,
+    this.size = AppDialogSize.small,
+    this.scrollable = false,
+  }) : assert(
+         content != null || customContent != null,
+         'content או customContent חייבים להיות מוגדרים',
+       ),
+       _variant = _DialogVariant.twoActions,
        subtitle = null,
        onConfirm = null;
 
@@ -84,160 +110,124 @@ class AppDialog extends StatefulWidget {
     required this.title,
     required this.content,
     this.customContent,
-    this.cancelText = 'ביטול',
-    this.confirmText = 'המשך',
+    this.cancelText,
+    this.confirmText,
     this.subtitle,
-    this.textDirection,
-    this.icon = FluentIcons.warning_24_regular,
-  }) : headerBand = false,
-       _variant = _DialogVariant.warning,
+    this.icon,
+  }) : _variant = _DialogVariant.warning,
+       headerTrailing = null,
+       size = AppDialogSize.small,
        handleEnterKey = true,
        onConfirm = null,
-       hasUnsavedChanges = null;
+       isDirty = null,
+       scrollable = false;
 
   @override
   State<AppDialog> createState() => _AppDialogState();
 }
 
 class _AppDialogState extends State<AppDialog> {
-  // 0 = cancel/first, 1 = confirm/second
-  // warning: safer default = cancel (0); others: confirm (1)
-  late int _focusedIndex;
-
-  late final FocusNode _confirmFocusNode;
-  FocusNode? _cancelFocusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _confirmFocusNode = FocusNode();
-    if (widget._variant != _DialogVariant.singleAction) {
-      _cancelFocusNode = FocusNode();
-    }
-    _focusedIndex = widget._variant == _DialogVariant.warning ? 0 : 1;
-  }
-
-  @override
-  void dispose() {
-    _confirmFocusNode.dispose();
-    _cancelFocusNode?.dispose();
-    super.dispose();
-  }
-
-  void _moveFocus(int newIndex) {
-    setState(() => _focusedIndex = newIndex);
-    (newIndex == 1 ? _confirmFocusNode : _cancelFocusNode)?.requestFocus();
-  }
-
   void _handleConfirm() {
     if (widget.onConfirm != null && !widget.onConfirm!()) return;
     Navigator.of(context).pop(true);
   }
 
+  void _cancel() => Navigator.of(context).maybePop(false);
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final dialog = DialogKeyboardNavigator(
-      focusedIndex: _focusedIndex,
-      onFocusChange: _moveFocus,
+    final theme = Theme.of(context);
+    final isWarning = widget._variant == _DialogVariant.warning;
+    return AppDialogFrame(
+      title: widget.title,
+      icon:
+          widget.icon ??
+          switch (widget._variant) {
+            _DialogVariant.singleAction => AppDialogIcons.info,
+            _DialogVariant.twoActions => AppDialogIcons.confirm,
+            _DialogVariant.warning => AppDialogIcons.warning,
+          },
+      tone: isWarning ? AppDialogHeaderTone.error : AppDialogHeaderTone.primary,
+      trailing: widget.headerTrailing,
+      size: widget.size,
+      scrollable: widget.scrollable,
+      isDirty: widget.isDirty,
+      onClose: _cancel,
       onConfirm: _handleConfirm,
-      onCancel: () => Navigator.of(context).pop(false),
       handleEnterKey: widget.handleEnterKey,
-      child: AlertDialog(
-        backgroundColor: cs.surfaceContainerHigh,
-        clipBehavior: widget.headerBand ? Clip.antiAlias : Clip.none,
-        titlePadding: widget.headerBand ? EdgeInsets.zero : null,
-        contentPadding: widget.headerBand
-            ? const EdgeInsets.fromLTRB(24, 16, 24, AppTokens.spaceMD)
-            : null,
-        title: widget.title is String && widget.headerBand
-            ? AppDialogHeader(
-                icon: widget.icon,
-                title: widget.title as String,
-                compact: true,
-              )
-            : widget.title is String
-            ? AppDialogTitle(
-                widget.title as String,
-                icon: widget.icon,
-                tone: widget._variant == _DialogVariant.warning
-                    ? AppDialogHeaderTone.error
-                    : AppDialogHeaderTone.primary,
-                textDirection: widget.textDirection,
-              )
-            : widget.title as Widget,
-        content: _buildContent(cs),
-        actions: _buildActions(),
+      dismissResult: false,
+      actions: _buildActions(),
+      // גוף הטקסט כמו ב-AlertDialog של M3.
+      child: DefaultTextStyle.merge(
+        style:
+            theme.dialogTheme.contentTextStyle ??
+            theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+        child: _buildContent(theme.colorScheme),
       ),
-    );
-    final unsaved = widget.hasUnsavedChanges;
-    if (unsaved == null) return dialog;
-    // הרקע סוגר דרך maybePop, שנחסם כאן; הכפתורים ו-Esc סוגרים ב-pop ישיר.
-    return ValueListenableBuilder<bool>(
-      valueListenable: unsaved,
-      builder: (context, hasChanges, child) => PopScope(
-        canPop: !hasChanges,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) SystemSound.play(SystemSoundType.alert);
-        },
-        child: child!,
-      ),
-      child: dialog,
     );
   }
 
   Widget _buildContent(ColorScheme cs) {
     if (widget.customContent != null) return widget.customContent!;
+    final text = Text(widget.content!);
     if (widget._variant == _DialogVariant.warning && widget.subtitle != null) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.content!, textDirection: widget.textDirection),
-          const SizedBox(height: 8),
-          Text(
-            widget.subtitle!,
-            style: TextStyle(color: cs.error, fontSize: 13),
-            textDirection: widget.textDirection,
-          ),
-        ],
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            text,
+            const SizedBox(height: 8),
+            Text(
+              widget.subtitle!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.error),
+            ),
+          ],
+        ),
       );
     }
-    return Text(widget.content!, textDirection: widget.textDirection);
+    return SingleChildScrollView(child: text);
   }
+
+  String get _confirmLabel =>
+      widget.confirmText ??
+      context.settingsText(
+        widget._variant == _DialogVariant.warning ? 'המשך' : 'אישור',
+      );
+
+  String get _cancelLabel => widget.cancelText ?? context.settingsText('ביטול');
 
   List<Widget> _buildActions() => switch (widget._variant) {
     _DialogVariant.singleAction => [
       ActionButton.recommended(
-        focusNode: _confirmFocusNode,
         autofocus: widget.customContent == null,
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: _handleConfirm,
       ),
     ],
     _DialogVariant.twoActions => [
       ActionButton.neutral(
-        focusNode: _cancelFocusNode,
-        text: widget.cancelText,
-        onPressed: () => Navigator.of(context).pop(false),
+        text: _cancelLabel,
+        onPressed: _cancel,
       ),
       ActionButton.recommended(
-        focusNode: _confirmFocusNode,
         autofocus: true,
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: () => Navigator.of(context).pop(true),
       ),
     ],
     _DialogVariant.warning => [
       ActionButton.recommended(
-        focusNode: _cancelFocusNode,
         autofocus: true,
-        text: widget.cancelText,
-        onPressed: () => Navigator.of(context).pop(false),
+        text: _cancelLabel,
+        onPressed: _cancel,
       ),
       ActionButton.warning(
-        focusNode: _confirmFocusNode,
-        text: widget.confirmText,
+        text: _confirmLabel,
         onPressed: () => Navigator.of(context).pop(true),
       ),
     ],
@@ -259,12 +249,12 @@ Future<bool?> showSingleActionDialog({
   required String title,
   String? content,
   Widget? customContent,
-  String confirmText = 'אישור',
-  TextDirection? textDirection,
+  String? confirmText,
   bool barrierDismissible = true,
   bool Function()? onConfirm,
   IconData? icon,
-  bool headerBand = false,
+  AppDialogSize size = AppDialogSize.small,
+  bool scrollable = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -275,10 +265,10 @@ Future<bool?> showSingleActionDialog({
       content: content,
       customContent: customContent,
       confirmText: confirmText,
-      textDirection: textDirection,
       onConfirm: onConfirm,
       icon: icon,
-      headerBand: headerBand,
+      size: size,
+      scrollable: scrollable,
     ),
   ),
 );
@@ -286,16 +276,16 @@ Future<bool?> showSingleActionDialog({
 Future<bool?> showTwoActionsDialog({
   required BuildContext context,
   required String title,
-  required String content,
+  String? content,
   Widget? customContent,
-  String cancelText = 'ביטול',
-  String confirmText = 'אישור',
-  TextDirection? textDirection,
+  String? cancelText,
+  String? confirmText,
   bool barrierDismissible = true,
   bool handleEnterKey = true,
-  ValueListenable<bool>? hasUnsavedChanges,
+  ValueListenable<bool>? isDirty,
   IconData? icon,
-  bool headerBand = false,
+  AppDialogSize size = AppDialogSize.small,
+  bool scrollable = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -307,11 +297,11 @@ Future<bool?> showTwoActionsDialog({
       customContent: customContent,
       cancelText: cancelText,
       confirmText: confirmText,
-      textDirection: textDirection,
       handleEnterKey: handleEnterKey,
-      hasUnsavedChanges: hasUnsavedChanges,
+      isDirty: isDirty,
       icon: icon,
-      headerBand: headerBand,
+      size: size,
+      scrollable: scrollable,
     ),
   ),
 );
@@ -321,10 +311,10 @@ Future<bool?> showWarningDialog({
   required String title,
   required String content,
   String? subtitle,
-  String cancelText = 'ביטול',
-  String confirmText = 'איפוס',
-  TextDirection? textDirection,
+  String? cancelText,
+  String? confirmText,
   bool barrierDismissible = true,
+  IconData? icon,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -335,8 +325,90 @@ Future<bool?> showWarningDialog({
       content: content,
       subtitle: subtitle,
       cancelText: cancelText,
-      confirmText: confirmText,
-      textDirection: textDirection,
+      confirmText: confirmText ?? context.settingsText('איפוס'),
+      icon: icon,
     ),
   ),
 );
+
+// ── showChoiceDialog ─────────────────────────────────────────────────────────
+
+/// אפשרות אחת בדיאלוג בחירה בין כמה פעולות.
+class AppDialogChoice<T> {
+  const AppDialogChoice({
+    required this.value,
+    required this.label,
+    this.recommended = false,
+  });
+
+  final T value;
+  final String label;
+
+  /// הפעולה הראשית (כפתור מלא וממוקד). לכל היותר אחת.
+  final bool recommended;
+}
+
+/// בחירה בין כמה פעולות שוות, למשל "טקסט / Word / ביטול". מחזיר את הערך של
+/// הבחירה, או null בביטול, ב-Escape ובלחיצה בחוץ.
+Future<T?> showChoiceDialog<T>({
+  required BuildContext context,
+  required String title,
+  String? content,
+  Widget? customContent,
+  required List<AppDialogChoice<T>> choices,
+  String? cancelText,
+  IconData? icon,
+  bool barrierDismissible = true,
+  AppDialogSize size = AppDialogSize.small,
+}) {
+  assert(content != null || customContent != null);
+  assert(choices.where((c) => c.recommended).length <= 1);
+  return showDialogUntilTornDown<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (dialogContext) => _withOpenerDirection(
+      context,
+      Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          return AppDialogFrame(
+            title: title,
+            icon: icon ?? AppDialogIcons.confirm,
+            size: size,
+            actions: [
+              ActionButton.neutral(
+                text: cancelText ?? context.settingsText('ביטול'),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+              for (final choice in choices)
+                choice.recommended
+                    ? ActionButton.recommended(
+                        autofocus: true,
+                        text: choice.label,
+                        onPressed: () =>
+                            Navigator.of(context).pop(choice.value),
+                      )
+                    : ActionButton.neutral(
+                        text: choice.label,
+                        onPressed: () =>
+                            Navigator.of(context).pop(choice.value),
+                      ),
+            ],
+            child: DefaultTextStyle.merge(
+              style:
+                  theme.dialogTheme.contentTextStyle ??
+                  theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+              child:
+                  customContent ??
+                  SingleChildScrollView(
+                    child: Text(content!),
+                  ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}

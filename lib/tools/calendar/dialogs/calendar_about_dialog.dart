@@ -9,7 +9,7 @@ Future<void> showCalendarAboutDialog(BuildContext context) async {
     context: context,
     title: 'אודות חישובי הלוח',
     icon: FluentIcons.info_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: 'הבנתי',
     customContent: const SizedBox(
       width: 520,

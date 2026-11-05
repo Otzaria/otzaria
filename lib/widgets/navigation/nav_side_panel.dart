@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/misc/animated_pin_button.dart';
@@ -32,8 +31,10 @@ class NavSidePanel extends StatelessWidget {
   final bool autoHandleResponsiveVisibility;
 
   /// חלונית לא נעוצה מרחפת מעל התוכן ונסגרת בלחיצה עליו; נעוצה דוחקת אותו.
-  /// נעיצה גלובלית בהגדרות גוברת.
   final bool isPinned;
+
+  /// נעיצה גלובלית בהגדרות; גוברת על [isPinned].
+  final bool isGloballyPinned;
 
   const NavSidePanel({
     super.key,
@@ -42,8 +43,8 @@ class NavSidePanel extends StatelessWidget {
     required this.paneContent,
     required this.onClose,
     this.alignment = AlignmentDirectional.centerEnd,
-    this.paneWidth = 340,
-    this.minMainContentWidth = 500,
+    this.paneWidth = LayoutConstraints.sidePaneWidth,
+    this.minMainContentWidth = LayoutConstraints.mainContentMinWidth,
     this.onOpen,
     this.isResizable = false,
     this.minPaneWidth = 220,
@@ -53,6 +54,7 @@ class NavSidePanel extends StatelessWidget {
     this.onLayoutModeChanged,
     this.autoHandleResponsiveVisibility = true,
     this.isPinned = true,
+    this.isGloballyPinned = false,
   });
 
   /// רקע חלונית הניווט — צבע הסרגל העליון, כדי שהחלונית תיראה כהמשך שלו.
@@ -66,8 +68,7 @@ class NavSidePanel extends StatelessWidget {
       alignment: alignment,
       // ההצמדה, הצבע ומרווח פס הגלילה הם העיצוב האחיד — לא פרמטרים של המסך.
       attachToTopEdge: true,
-      floatOverContent:
-          !isPinned && !(Settings.getValue<bool>('key-pin-sidebar') ?? false),
+      floatOverContent: !isPinned && !isGloballyPinned,
       paneColor: background(context),
       scrollbarTopMargin: 0,
       mainContent: mainContent,
@@ -158,7 +159,7 @@ class _NavPanelTabHeaderState extends State<NavPanelTabHeader> {
         ? data.iconFilled!
         : data.icon;
     final iconWidget = AnimatedSwitcher(
-      duration: AppTokens.animFast,
+      duration: AppMotion.duration(context, AppTokens.animFast),
       child: Icon(
         iconData,
         key: ValueKey<IconData>(iconData),
@@ -174,24 +175,27 @@ class NavPanelPinButton extends StatelessWidget {
   final bool isPinned;
   final VoidCallback? onToggle;
 
+  /// נעיצה גלובלית בהגדרות.
+  final bool isGloballyPinned;
+
   const NavPanelPinButton({
     super.key,
     required this.isPinned,
     required this.onToggle,
+    this.isGloballyPinned = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final globalPin = Settings.getValue<bool>('key-pin-sidebar') ?? false;
-    final effectivePinned = isPinned || globalPin;
+    final effectivePinned = isPinned || isGloballyPinned;
     return AnimatedPinButton(
       isPinned: effectivePinned,
-      tooltip: globalPin
+      tooltip: isGloballyPinned
           ? 'החלונית נעוצה לפי ההגדרות'
           : effectivePinned
           ? 'בטל נעיצה'
           : 'נעץ את החלונית',
-      onPressed: globalPin ? null : onToggle,
+      onPressed: isGloballyPinned ? null : onToggle,
     );
   }
 }
@@ -232,7 +236,7 @@ class NavPanelToggleButton extends StatelessWidget {
       splashRadius: 22,
       color: Theme.of(context).colorScheme.onSecondaryContainer,
       icon: AnimatedSwitcher(
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         child: Icon(
           key: ValueKey(isOpen),
           _glyph(isOpen: isOpen, ltr: ltrGlyph),

@@ -25,32 +25,6 @@ void main() {
   });
 
   group('RtlIcon — RTL context, מירור מהמפה', () {
-    testWidgets('arrow_left_24_regular מוחלף ב-arrow_right_24_regular', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(const RtlIcon(FluentIcons.arrow_left_24_regular)),
-      );
-
-      final icon = tester.widget<Icon>(find.byType(Icon));
-      expect(
-        icon.icon,
-        FluentIcons.arrow_right_24_regular,
-        reason: 'arrow_left הוא כיווני — חייב להתחלף ב-RTL',
-      );
-    });
-
-    testWidgets('chevron_right_24_regular מוחלף ב-chevron_left_24_regular', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(const RtlIcon(FluentIcons.chevron_right_24_regular)),
-      );
-
-      final icon = tester.widget<Icon>(find.byType(Icon));
-      expect(icon.icon, FluentIcons.chevron_left_24_regular);
-    });
-
     testWidgets('chevron_double_left_20_regular מוחלף ב-chevron_double_right', (
       tester,
     ) async {
@@ -61,6 +35,47 @@ void main() {
       final icon = tester.widget<Icon>(find.byType(Icon));
       expect(icon.icon, FluentIcons.chevron_double_right_20_regular);
     });
+  });
+
+  // הגליף בפועל: האייקון שמצויר, והאם Icon עצמו משקף אותו (matchTextDirection).
+  group('RtlIcon — הגליף שמצויר בפועל', () {
+    Future<({IconData icon, bool mirrored})> painted(
+      WidgetTester tester,
+      IconData icon,
+      TextDirection dir,
+    ) async {
+      await tester.pumpWidget(_wrap(RtlIcon(icon), dir: dir));
+      final drawn = tester.widget<Icon>(find.byType(Icon)).icon!;
+      final flips = find.descendant(
+        of: find.byType(Icon),
+        matching: find.byType(Transform),
+      );
+      final ownFlip = flips.evaluate().isNotEmpty;
+      return (icon: drawn, mirrored: ownFlip);
+    }
+
+    for (final (name, icon) in const [
+      ('chevron_right_24', FluentIcons.chevron_right_24_regular),
+      ('chevron_left_16', FluentIcons.chevron_left_16_regular),
+      ('arrow_left_24', FluentIcons.arrow_left_24_regular),
+      ('arrow_left_24_filled', FluentIcons.arrow_left_24_filled),
+      ('arrow_next_24', FluentIcons.arrow_next_24_regular),
+      ('text_align_right_24', FluentIcons.text_align_right_24_regular),
+    ]) {
+      testWidgets('$name (matchTextDirection): RTL הוא תמונת המראה של LTR', (
+        tester,
+      ) async {
+        expect(icon.matchTextDirection, isTrue);
+        final ltr = await painted(tester, icon, TextDirection.ltr);
+        final rtl = await painted(tester, icon, TextDirection.rtl);
+        expect(ltr, (icon: icon, mirrored: false));
+        expect(
+          rtl,
+          (icon: icon, mirrored: true),
+          reason: 'אותו גליף, משוקף פעם אחת — לא מוחלף וגם משוקף',
+        );
+      });
+    }
   });
 
   group('RtlIcon — RTL context, היפוך גאומטרי (_flippableIcons)', () {

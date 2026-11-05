@@ -1,0 +1,58 @@
+name: Goldens Guard
+
+# תמונות הייחוס של test/goldens/ משתנות רק בשינוי ממשק מכוון
+# (docs/design-system/CI_ENFORCEMENT.md §5.10, DD-23). PR שמוסיף, משנה או
+# מוחק PNG תחת test/goldens/ צריך את התווית goldens-approved, שמתחזק מוסיף
+# אחרי שבדק את ה-diff של התמונות. golden שנכשל ב-PR שלא נגע בתמונות הוא רגרסיה.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: goldens-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Golden image changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check golden image changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          APPROVED_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'goldens-approved') }}
+        run: |
+          set -euo pipefail
+          changed=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
+            --jq '.[] | select((.filename | test("^test/goldens/.*\\.png$")) or ((.previous_filename // "") | test("^test/goldens/.*\\.png$"))) | .status + " " + .filename')
+          if [ -z "$changed" ]; then
+            echo "No golden image changed."
+            exit 0
+          fi
+          echo "Changed golden images:"
+          echo "$changed"
+          # ה־PR שמכניס את תשתית ה־golden: ב־base אין אף תמונה, ולכן אין מה
+          # שהשתנה. תמונות חדשות נבדקות בסקירת ה־PR הזה עצמו.
+          base_count=$(gh api "repos/$REPO/git/trees/$BASE_SHA?recursive=1" \
+            --jq '[.tree[].path | select(test("^test/goldens/.*\\.png$"))] | length')
+          if [ "$base_count" = "0" ] && ! echo "$changed" | grep -qv '^added '; then
+            echo "The base has no golden images: this pull request introduces them."
+            exit 0
+          fi
+          if [ "$APPROVED_LABEL" = "true" ]; then
+            echo "Golden changes approved with the 'goldens-approved' label."
+            exit 0
+          fi
+          echo "::error::This pull request changes golden images under test/goldens/. Golden images change only with an intended UI change. A maintainer reviews the image diff and adds the 'goldens-approved' label."
+          exit 1

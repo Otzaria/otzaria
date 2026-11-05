@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// בקשת ניווט לתוצאת חיפוש — נשלחת מ-SearchResults אל מסך ההגדרות.
 class SettingsSearchNavigationRequest {
@@ -99,7 +100,7 @@ class SettingsSearchRegistry extends ChangeNotifier {
 
     await Scrollable.ensureVisible(
       ctx,
-      duration: const Duration(milliseconds: 280),
+      duration: AppMotion.duration(ctx, const Duration(milliseconds: 280)),
       curve: Curves.easeOutCubic,
       alignment: 0.05,
     );

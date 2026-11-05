@@ -15,6 +15,7 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// כרטיס נתוני החיפוש הסמנטי: מצב ההורדה, בחירת המודל ומחיקת הנתונים.
 /// מוסתר כשהפלטפורמה או המנוע אינם תומכים בחיפוש סמנטי.
@@ -67,7 +68,7 @@ class _SemanticDataCard extends StatelessWidget {
               actions: _statusActions(context, bloc, availability),
             ),
             if (bloc.repository.availableQuantizations.length > 1)
-              SettingsActionTile.segmentedTile<SemanticQuantization>(
+              SettingsSegmentedTile<SemanticQuantization>(
                 key: const ValueKey('semantic-data-quantization'),
                 icon: FluentIcons.brain_circuit_24_regular,
                 title: context.settingsText('רכיב החיפוש'),
@@ -210,7 +211,7 @@ class _SemanticDataCard extends StatelessWidget {
         ),
       ],
       SemanticAvailabilityPhase.downloading => [
-        ActionButton.ghost(
+        ActionButton.neutral(
           key: const ValueKey('semantic-data-cancel'),
           text: context.settingsText('ביטול'),
           onPressed: () => bloc.add(const SemanticDownloadCancelRequested()),
@@ -282,7 +283,7 @@ Future<void> showSemanticLicenseDialog(
     context: context,
     title: title,
     icon: FluentIcons.certificate_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     customContent: _LicenseContent(license: license),
     confirmText: context.settingsText('סגור'),
   );
@@ -338,8 +339,9 @@ class _LicenseContentState extends State<_LicenseContent> {
                   borderRadius: AppTokens.borderRadiusAll,
                   border: Border.all(color: cs.outlineVariant),
                 ),
-                child: Scrollbar(
+                child: AppScrollbar(
                   controller: _scroll,
+                  contentInset: AppTokens.spaceMD,
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _scroll,

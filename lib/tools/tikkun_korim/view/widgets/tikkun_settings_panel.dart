@@ -63,7 +63,7 @@ class TikkunSettingsPanel extends StatelessWidget {
         SettingsCard(
           title: 'תצוגה',
           children: [
-            SettingsActionTile.dropdownTile<String>(
+            SettingsDropdownTile<String>(
               icon: OtzariaIcons.text_font_hebrew_24_filled,
               stacked: true,
               title: 'גופן סת"ם',
@@ -72,7 +72,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               onSelected: (value) =>
                   _emit(settings.copyWith(stamFont: value ?? 'Ashurit')),
             ),
-            SettingsActionTile.dropdownTile<String>(
+            SettingsDropdownTile<String>(
               icon: OtzariaIcons.alef_niqqud_24_filled,
               stacked: true,
               title: 'גופן ניקוד',
@@ -95,7 +95,7 @@ class TikkunSettingsPanel extends StatelessWidget {
                 ),
               ),
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: FluentIcons.eye_24_regular,
               title: 'הצגת טור הסת"ם',
               subtitle: settings.hideStam
@@ -104,7 +104,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               value: !settings.hideStam,
               onChanged: (value) => _emit(settings.copyWith(hideStam: !value)),
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: FluentIcons.eye_24_regular,
               title: 'הצגת טור המנוקד',
               subtitle: settings.hideNikud
@@ -113,7 +113,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               value: !settings.hideNikud,
               onChanged: (value) => _emit(settings.copyWith(hideNikud: !value)),
             ),
-            SettingsActionTile.segmentedTile<bool>(
+            SettingsSegmentedTile<bool>(
               icon: FluentIcons.arrow_swap_24_regular,
               title: 'סדר הטורים',
               options: const [
@@ -124,7 +124,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               onChanged: (value) =>
                   _emit(settings.copyWith(swapColumns: value)),
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: FluentIcons.line_horizontal_1_24_regular,
               title: 'קווי הפרדה בין השורות',
               subtitle: settings.hideRowBorders
@@ -135,7 +135,7 @@ class TikkunSettingsPanel extends StatelessWidget {
                   _emit(settings.copyWith(hideRowBorders: !value)),
             ),
             if (settings.isSingleColumn)
-              SettingsActionTile.switchTile(
+              SettingsSwitchTile(
                 icon: FluentIcons.align_center_horizontal_24_regular,
                 title: 'מרכוז הטור המוצג',
                 subtitle: settings.centerSingleColumn
@@ -147,7 +147,6 @@ class TikkunSettingsPanel extends StatelessWidget {
               ),
           ],
         ),
-        kSettingsCardSpacing,
         SettingsCard(
           title: 'תוכן ומנהגים',
           children: [
@@ -156,7 +155,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               value: settings.vavKetia,
               onChanged: (value) => _emit(settings.copyWith(vavKetia: value)),
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               icon: FluentIcons.book_open_24_regular,
               title: 'פתיחה בהפעלה',
               options: const [
@@ -167,7 +166,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               onChanged: (value) =>
                   _emit(settings.copyWith(startupMode: value)),
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               icon: OtzariaIcons.book_24_regular,
               title: 'נוסח',
               options: const [
@@ -177,7 +176,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               currentValue: settings.nusach,
               onChanged: (value) => _emit(settings.copyWith(nusach: value)),
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               icon: OtzariaIcons.shabbat_candles_24_regular,
               title: 'מנהג לקריאות חגים ומועדים',
               options: const [
@@ -187,7 +186,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               currentValue: settings.nusachLand,
               onChanged: (value) => _emit(settings.copyWith(nusachLand: value)),
             ),
-            SettingsActionTile.segmentedTile<TikkunDecalogueTaam>(
+            SettingsSegmentedTile<TikkunDecalogueTaam>(
               icon: OtzariaIcons.luchot_habrit_24_regular,
               title: 'טעמי עשרת הדברות',
               subtitle: switch (settings.decalogueTaam) {
@@ -214,7 +213,7 @@ class TikkunSettingsPanel extends StatelessWidget {
               onChanged: (value) =>
                   _emit(settings.copyWith(decalogueTaam: value)),
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: OtzariaIcons.alef_lock_24_filled,
               title: 'הסתרת שם השם',
               subtitle: settings.hideDivineName

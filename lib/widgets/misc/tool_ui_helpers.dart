@@ -3,11 +3,6 @@
 // עזרי UI משותפים למסכי כלים.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// עוטף תוכן כלי עם אפשרות למרכוז אופקי והגבלת רוחב.
@@ -50,26 +45,6 @@ class ToolPanelWrapper extends StatelessWidget {
   }
 }
 
-/// מפעיל קיצור "חפש בחלון" לפי ההגדרות. נקרא מתוך build, כדי שהמסך ייבנה
-/// מחדש כשהמשתמש משנה את הקיצור.
-ShortcutActivator currentWindowSearchActivator(
-  BuildContext context, {
-  bool mapCtrlToMeta = true,
-}) {
-  const key = ShortcutValidator.currentWindowSearchKey;
-  final shortcut = context.select(
-    (SettingsBloc bloc) =>
-        bloc.state.shortcuts[key] ??
-        ShortcutValidator.defaultShortcuts[key] ??
-        'ctrl+f',
-  );
-  return ShortcutHelper.activatorFromShortcut(
-        shortcut,
-        mapCtrlToMeta: mapCtrlToMeta,
-      ) ??
-      const SingleActivator(LogicalKeyboardKey.keyF, control: true);
-}
-
 /// גולל את [controller] בעמוד אחד (85% מגובה התצוגה) קדימה או אחורה.
 void scrollToolContentByPage(
   ScrollController controller, {
@@ -82,9 +57,10 @@ void scrollToolContentByPage(
     0.0,
     position.maxScrollExtent,
   );
-  controller.animateTo(
+  AppMotion.scrollPosition(
+    position,
     target,
-    duration: const Duration(milliseconds: 180),
+    const Duration(milliseconds: 180),
     curve: Curves.easeOut,
   );
 }

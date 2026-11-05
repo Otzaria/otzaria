@@ -18,6 +18,7 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class SearchFacetFiltering extends StatefulWidget {
   final SearchingTab tab;
@@ -409,7 +410,7 @@ class SearchDimensionFilterButton extends StatelessWidget {
           selected
               ? FluentIcons.checkbox_checked_24_filled
               : FluentIcons.checkbox_unchecked_24_regular,
-          size: 18,
+          size: AppTokens.iconSM,
           color: selected ? cs.primary : cs.onSurfaceVariant,
         ),
         onPressed: () => onToggle(facet),

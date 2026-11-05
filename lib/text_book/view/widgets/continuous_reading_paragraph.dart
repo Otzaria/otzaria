@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
@@ -13,6 +14,8 @@ import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
+import 'package:otzaria/widgets/smart_text/inline_html_document.dart'
+    show parseCssColor;
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
@@ -264,7 +267,12 @@ class _ContinuousReadingParagraphState
     // קוראת את הטקסט מעץ הרינדור.
     return RaisedMarkerOverlay.wrap(
       context: context,
-      markers: RaisedMarkers.extract(markerSources.join()),
+      markers: RaisedMarkers.extract(
+        SearchHighlightCss.resolve(
+          markerSources.join(),
+          Theme.of(context).colorScheme,
+        ),
+      ),
       baseStyle: widget.baseStyle,
       linkColor: widget.linkStyle?.color,
       activeBackground: widget.anchorActiveBackground,
@@ -283,12 +291,18 @@ class _ContinuousReadingParagraphState
     ContinuousReadingParagraphLine line,
     Map<(String, TextStyle), _BuiltLine> builtLines,
   ) {
-    final htmlText = line.htmlText;
+    var htmlText = line.htmlText;
     if (htmlText == null) {
       return (
         spans: [TextSpan(text: line.text, style: line.style)],
         length: line.text.length,
         recognizers: const [],
+      );
+    }
+    if (SearchHighlightCss.hasTokens(htmlText)) {
+      htmlText = SearchHighlightCss.resolve(
+        htmlText,
+        Theme.of(context).colorScheme,
       );
     }
     final key = (htmlText, line.style);
@@ -730,14 +744,11 @@ final _underlineRe = RegExp(
   r'text-decoration\s*:\s*[^;]*\bunderline\b',
   caseSensitive: false,
 );
-final _rgbaRe = RegExp(
-  r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
-);
 
 Color? _inlineCssColor(RegExp property, String inlineStyle) {
   final match = property.firstMatch(inlineStyle);
   if (match == null) return null;
-  return _parseCssColor(match.group(1)!.trim());
+  return parseCssColor(match.group(1)!.trim());
 }
 
 double? _inlineDecorationThickness(String inlineStyle) {
@@ -746,53 +757,6 @@ double? _inlineDecorationThickness(String inlineStyle) {
   final value = double.tryParse(match.group(1)!);
   if (value == null) return null;
   return match.group(2) == '%' ? value / 100 : value;
-}
-
-Color? _parseCssColor(String value) {
-  final v = value.toLowerCase().trim();
-  final rgba = _rgbaRe.firstMatch(v);
-  if (rgba != null) {
-    final red = int.parse(rgba.group(1)!).clamp(0, 255).toInt();
-    final green = int.parse(rgba.group(2)!).clamp(0, 255).toInt();
-    final blue = int.parse(rgba.group(3)!).clamp(0, 255).toInt();
-    final alpha = (double.parse(rgba.group(4)!) * 255)
-        .round()
-        .clamp(0, 255)
-        .toInt();
-    return Color.fromARGB(alpha, red, green, blue);
-  }
-  // צבעים פשוטים שהחיפוש משתמש בהם.
-  switch (v) {
-    case 'red':
-      return const Color(0xFFFF0000);
-    case 'blue':
-      return const Color(0xFF0000FF);
-    case 'yellow':
-      return const Color(0xFFFFFF00);
-    case 'green':
-      return const Color(0xFF008000);
-    case 'black':
-      return const Color(0xFF000000);
-    case 'white':
-      return const Color(0xFFFFFFFF);
-  }
-  // #rgb / #rrggbb
-  if (v.startsWith('#')) {
-    var hex = v.substring(1);
-    if (hex.length == 3) {
-      hex = hex.split('').map((c) => '$c$c').join();
-    }
-    if (hex.length == 6) {
-      final n = int.tryParse(hex, radix: 16);
-      if (n != null) return Color(0xFF000000 | n);
-    }
-    if (hex.length == 8) {
-      final rgb = int.tryParse(hex.substring(0, 6), radix: 16);
-      final alpha = int.tryParse(hex.substring(6, 8), radix: 16);
-      if (rgb != null && alpha != null) return Color((alpha << 24) | rgb);
-    }
-  }
-  return null;
 }
 
 double? _inlineFontSize(String inlineStyle, double parentFontSize) {

@@ -6,6 +6,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 import 'navigation_key_tracker.dart';
 
@@ -13,12 +15,13 @@ import 'navigation_key_tracker.dart';
 void animatePageScroll(ScrollPosition position, {required bool forward}) {
   final delta = position.viewportDimension * 0.8 * (forward ? 1 : -1);
   unawaited(
-    position.animateTo(
+    AppMotion.scrollPosition(
+      position,
       (position.pixels + delta).clamp(
         position.minScrollExtent,
         position.maxScrollExtent,
       ),
-      duration: const Duration(milliseconds: 200),
+      AppTokens.animPanelOpacity,
       curve: Curves.easeOut,
     ),
   );
@@ -294,9 +297,10 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
             );
             if (target != position.pixels) {
               unawaited(
-                position.animateTo(
+                AppMotion.scrollPosition(
+                  position,
                   target,
-                  duration: const Duration(milliseconds: 150),
+                  AppTokens.animFast,
                   curve: Curves.linear,
                 ),
               );

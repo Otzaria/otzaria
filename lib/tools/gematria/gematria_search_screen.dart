@@ -1,3 +1,4 @@
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -5,7 +6,6 @@ import 'package:otzaria/tools/gematria/widgets/gematria_status_bar.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -14,10 +14,11 @@ import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 String _bookNameWithoutTextExtension(String fileName) {
@@ -366,54 +367,39 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      // חלונית ההגדרות מכסה את כל רוחב הגוף; רק התוצאות ממורכזות.
+      centerContent: false,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          hintText: 'חפש גימטריה...',
+          autofocus: true,
+          onSubmitted: (_) => _performSearch(),
+          onClear: _clearResults,
+          icon: OtzariaIcons.search_in_numbered_list_24_regular,
+          onIconPressed: _performSearch,
+          iconTooltip: 'חפש',
+        ),
+        trailingItems: [
+          AppTopBarItem(
+            widget: BarButton.icon(
+              compact: AppDensity.of(context).isCompact,
+              tooltip: 'הגדרות גימטריה',
+              icon: FluentIcons.settings_24_regular,
+              selected: _showingSettings,
+              onPressed: _toggleSettings,
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
         children: [
-          BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) => AppTopBar(
-              center: OtzariaSearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                hintText: 'חפש גימטריה...',
-                autofocus: true,
-                onSubmitted: (_) => _performSearch(),
-                onClear: _clearResults,
-                leading: IconButton(
-                  icon: const Icon(
-                    OtzariaIcons.search_in_numbered_list_24_regular,
-                  ),
-                  onPressed: _performSearch,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              trailingItems: [
-                AppTopBarItem(
-                  widget: BarButton.icon(
-                    compact: settingsState.compactMenuMode,
-                    tooltip: 'הגדרות גימטריה',
-                    icon: FluentIcons.settings_24_regular,
-                    selected: _showingSettings,
-                    onPressed: _toggleSettings,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(child: _buildResultsContent()),
-                Positioned.fill(
-                  child: _buildSettingsOverlay(),
-                ),
-              ],
-            ),
-          ),
+          Positioned.fill(child: _buildResultsContent()),
+          Positioned.fill(child: _buildSettingsOverlay()),
         ],
       ),
     );
@@ -460,16 +446,16 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
     }
 
     if (_searchResults.isEmpty && _hasSearched) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_in_numbered_list_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 
     if (_searchResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.calculator_24_regular,
-        message: 'הזן ערך לחיפוש גימטריה',
+        title: 'הזן ערך לחיפוש גימטריה',
       );
     }
 

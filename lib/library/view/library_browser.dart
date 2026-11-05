@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -55,6 +56,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/utils/ui/editable_focus.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
@@ -238,7 +240,7 @@ List<FlatLibraryRow> buildFlatLibraryRows({
 
 /// רוחב המסך המזערי שבו יש מקום לחלונית התצוגה המקדימה לצד רשת הספרים.
 /// אותו סף שבו הספרייה מצמצמת את כפתורי הניווט שלה.
-const double kLibraryPreviewMinScreenWidth = 600.0;
+const double kLibraryPreviewMinScreenWidth = LayoutBreakpoints.compact;
 
 /// האם חלונית התצוגה המקדימה פעילה. מתחת ל-[kLibraryPreviewMinScreenWidth]
 /// היא הייתה נפרשת כשכבה שמכסה את הספרייה וחוסמת אותה, ולכן שם היא כבויה
@@ -371,28 +373,31 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   // רק המצב הריק מציג את טקסט החיפוש; בלעדיו הקלדה לא בונה מחדש את התוכן.
   bool _showsEmptyState = false;
 
+  /// חלון נמוך (טלפון לרוחב): שם התצוגה המקדימה סגורה עד שהמשתמש פותח אותה,
+  /// ובחירה שם נשמרת בנפרד (ss5).
+  bool get _isShortWindow => WindowClass.isShortOf(context);
+
   bool _isPreviewPanelVisible(SettingsState s) => libraryPreviewPaneEnabled(
     screenWidth: MediaQuery.sizeOf(context).width,
-    preferenceEnabled: s.libraryShowPreview,
+    preferenceEnabled: s.libraryShowPreviewFor(isShortWindow: _isShortWindow),
   );
 
   void _openSettingsPanel() => _settingsPanelOpen.value = true;
 
   void _closeSettingsPanel() => _settingsPanelOpen.value = false;
 
-  void _showPreviewPanel(SettingsState s) {
-    context.read<SettingsBloc>().add(const UpdateLibraryShowPreview(true));
-  }
-
-  void _hidePreviewPanel(SettingsState s) {
-    context.read<SettingsBloc>().add(const UpdateLibraryShowPreview(false));
-  }
-
-  void _togglePreviewPanel(SettingsState s) {
+  void _setPreviewPanel(bool show) {
     context.read<SettingsBloc>().add(
-      UpdateLibraryShowPreview(!s.libraryShowPreview),
+      UpdateLibraryShowPreview(show, shortWindow: _isShortWindow),
     );
   }
+
+  void _showPreviewPanel(SettingsState s) => _setPreviewPanel(true);
+
+  void _hidePreviewPanel(SettingsState s) => _setPreviewPanel(false);
+
+  void _togglePreviewPanel(SettingsState s) =>
+      _setPreviewPanel(!s.libraryShowPreviewFor(isShortWindow: _isShortWindow));
 
   @override
   void initState() {
@@ -537,7 +542,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           // האם יש מספיק מקום ל-DafYomi בשורה הראשית?
                           final dafYomiInline =
                               constraints.maxWidth >= _kDafYomiInlineMinWidth;
-                          final isCompact = settingsState.compactMenuMode;
+                          final isCompact = AppDensity.of(context).isCompact;
 
                           // גובה הסרגל הראשי (קבוע) — ממנו נגזר ה-padding התחתון
                           final primaryBarH = AppTopBar.barHeight(isCompact);
@@ -562,8 +567,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                         ? topBarHeight
                                         : topPad;
                                     return AnimatedPadding(
-                                      duration: const Duration(
-                                        milliseconds: 180,
+                                      duration: AppMotion.duration(
+                                        context,
+                                        const Duration(milliseconds: 180),
                                       ),
                                       curve: Curves.easeOut,
                                       padding: EdgeInsets.only(
@@ -639,7 +645,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     SettingsState settingsState, {
     required bool dafYomiInline,
   }) {
-    final isCompact = settingsState.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final isLibraryEmpty = context.select<NavigationBloc, bool>(
       (b) => b.state.isLibraryEmpty,
     );
@@ -777,14 +783,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     SettingsState settingsState, {
     required bool isLibraryEmpty,
   }) {
-    final isCompact = settingsState.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    final maxButtons = screenWidth < 400
+    const twoButtonsBelow = 400.0, fourButtonsBelow = 800.0;
+    final maxButtons = screenWidth < twoButtonsBelow
         ? 2
-        : screenWidth < 600
+        : screenWidth < LayoutBreakpoints.compact
         ? 3
-        : screenWidth < 800
+        : screenWidth < fourButtonsBelow
         ? 4
         : 5;
 
@@ -915,16 +922,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 args: {'category': state.currentCategory?.title ?? ''},
               ),
               maxWidth: isCompact ? 500 : 400,
-              pluginActionsField: PluginSearchField.library,
-              pluginInvocationContext: () {
-                final current = context.read<LibraryBloc>().state;
-                return {
-                  PluginSearchFieldContext.categoryPathKey: pluginCategoryPath(
-                    current.currentCategory,
-                    root: current.library,
-                  ),
-                };
-              },
+              extraActions: PluginSearchFieldExtraActions(
+                PluginSearchField.library,
+                invocationContext: () {
+                  final current = context.read<LibraryBloc>().state;
+                  return {
+                    PluginSearchFieldContext.categoryPathKey:
+                        pluginCategoryPath(
+                          current.currentCategory,
+                          root: current.library,
+                        ),
+                  };
+                },
+              ),
               onChanged: (value) {
                 context.read<LibraryBloc>().add(UpdateSearchQuery(value));
                 context.read<LibraryBloc>().add(const SelectTopics([]));
@@ -1146,15 +1156,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: AppTokens.borderRadiusAll,
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.shadow.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
             ),
             child: const Center(child: _LoadingDotsText()),
           ),
@@ -1178,13 +1180,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             icon: libraryUpdateButtonIcon(state.status),
             // ספינר מסתובב בזמן עדכון — אינדיקציית פעילות רציפה (ticker עצמאי),
             // כי בשלב ה-apply הארוך אין שינויי state שיבנו מחדש את הכפתור.
-            iconWidget: isBusy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  )
-                : null,
+            iconWidget: isBusy ? const LoadingIndicator.inline() : null,
             selected: isBusy,
             onPressed: () {
               final b = ctx.read<LibraryUpdateBloc>();
@@ -1606,6 +1602,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return MyGridView(
       key: PageStorageKey(category),
       items: allItems,
+      // בחלון קטן (טלפון, AppDensity.isSmallWindow) כרטיסי התיקייה נמוכים
+      // מכרטיסי הספר (q12 Q8, ss4). במחשב הרשת לא משתנה.
+      leadingCategoryCount: AppDensity.isSmallWindow(MediaQuery.sizeOf(context))
+          ? filteredSubCategories.length
+          : 0,
       onExitTop: () => _refocusSearchBar(selectAll: true),
       scrollable: true,
       controller: _categoryGridController,
@@ -1626,7 +1627,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
@@ -1775,7 +1778,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     builder,
   ) {
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
@@ -2091,7 +2096,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             ExpandingChevron(
               isExpanded: isExpanded,
               color: cs.onSecondaryContainer,
-              size: 18,
+              size: AppTokens.iconSM,
             ),
           ],
         ),
@@ -2179,10 +2184,28 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       height: isGrouped ? 1.1 : null,
     );
 
-    final row = DecoratedBox(
-      decoration: BoxDecoration(
-        color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.3) : null,
-      ),
+    // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+    // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium. ב"לבן" בבהיר הנבחרת
+    // גם בקו דק ([AppSurfaces.selectedBorder]), כי המילוי קרוב לריחוף:
+    // - שורה עצמאית: מסגרת ה-AppCard שלה (selected), כי מסגרת הכרטיס מצוירת
+    //   מעל התוכן ומסתירה קו פנימי באותו מקום.
+    // - שורה מקובצת: קו למעלה ולמטה בלבד, כמו הפריט הנבחר בתפריט. בצדדים היא
+    //   נוגעת בגבול הקבוצה, ובקצה קבוצה בעץ המשוטח מסגרת ישרה הייתה נחתכת
+    //   בפינה המעוגלת.
+    final groupedSelectedBorder = isSelected && isGrouped
+        ? AppSurfaces.selectedBorder(context)
+        : null;
+    final row = Material(
+      color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+      shape: groupedSelectedBorder == null
+          ? null
+          : Border.symmetric(
+              horizontal: BorderSide(
+                color: groupedSelectedBorder,
+                width: AppTokens.borderThin,
+              ),
+            ),
+      textStyle: DefaultTextStyle.of(context).style,
       child: InkWell(
         focusNode: focusNode,
         mouseCursor: SystemMouseCursors.click,
@@ -2241,6 +2264,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     return AppCard(
       margin: const EdgeInsets.symmetric(vertical: 2),
+      selected: isSelected,
       child: row,
     );
   }
@@ -2394,7 +2418,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      buildWhen: (p, c) =>
+          p.libraryShowPreview != c.libraryShowPreview ||
+          p.libraryShowPreviewShortWindow != c.libraryShowPreviewShortWindow,
       builder: (ctx, settingsState) {
         return BlocBuilder<LibraryBloc, LibraryState>(
           buildWhen: (p, c) =>
@@ -2686,7 +2712,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         args: {'count': books.length},
       ),
       icon: FluentIcons.library_24_regular,
-      headerBand: true,
+      size: AppDialogSize.large,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: 600,

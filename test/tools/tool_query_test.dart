@@ -252,7 +252,8 @@ void main() {
     );
     inbox.post(const ToolQuery('רש"י'));
     await tester.pump();
-    expect(find.byType(TextField), findsNothing, reason: 'עדיין בטעינה');
+    // הסרגל גלוי גם בטעינה (ToolScaffold); הבקשה עדיין לא הוחלה.
+    expect(_fieldText(tester), isEmpty, reason: 'עדיין בטעינה');
 
     loaded.complete();
     await tester.pump();

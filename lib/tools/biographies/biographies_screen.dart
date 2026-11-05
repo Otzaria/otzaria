@@ -10,16 +10,13 @@ import 'package:otzaria/tools/biographies/repository/biographies_repository.dart
 import 'package:otzaria/tools/biographies/widgets/biographies_credit_line.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
-import 'package:otzaria/widgets/feedback/loading_indicator.dart';
-import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 class BiographiesScreen extends StatefulWidget {
@@ -95,9 +92,10 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       setState(() {
         _bundle = bundle;
         _byId = {for (final bio in bundle.entries) bio.id: bio};
-        _filteredResults = bundle.entries;
         _isLoading = false;
       });
+      // השדה גלוי גם בטעינה, ומה שהוקלד בה מסנן עכשיו את הרשימה הטעונה.
+      _performSearch(_searchController.text);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -139,83 +137,58 @@ class _BiographiesScreenState extends State<BiographiesScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const LoadingIndicator();
-    }
-
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
+    final bundle = _bundle;
+    final hasEntries = bundle != null && bundle.entries.isNotEmpty;
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      loading: _isLoading,
+      loadError: _loadFailed ? 'טעינת הביוגרפיות נכשלה' : null,
+      onRetry: _loadBiographies,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          hintText: 'חפש רב לפי שם או כינוי...',
+          icon: OtzariaIcons.search_in_person_24_regular,
+          autofocus: true,
+          onChanged: _performSearch,
+          onClear: () => _performSearch(''),
+        ),
+      ),
+      filters: hasEntries ? _buildEraChips(bundle) : null,
+      footer: hasEntries ? BiographiesCreditLine(bundle: bundle) : null,
+      body: Column(
         children: [
-          AppTopBar(
-            center: OtzariaSearchField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              hintText: 'חפש רב לפי שם או כינוי...',
-              icon: OtzariaIcons.search_in_person_24_regular,
-              autofocus: true,
-              onChanged: _performSearch,
-              onClear: () => _performSearch(''),
+          if (hasEntries && _opened.isEmpty)
+            ToolResultsHeader(
+              label: _filteredResults.length == 1
+                  ? 'ערך אחד'
+                  : '${_filteredResults.length} ערכים',
             ),
-          ),
-          if (_bundle case final bundle? when bundle.entries.isNotEmpty)
-            _buildEraChips(bundle),
           Expanded(
-            child: ToolPanelWrapper(
-              child: Column(
-                children: [
-                  if ((_bundle?.entries.isNotEmpty ?? false) && _opened.isEmpty)
-                    ToolResultsHeader(
-                      label: _filteredResults.length == 1
-                          ? 'ערך אחד'
-                          : '${_filteredResults.length} ערכים',
-                    ),
-                  Expanded(
-                    // The list stays mounted under an opened entry, so going
-                    // back keeps its scroll position.
-                    child: Stack(
-                      children: [
-                        Offstage(
-                          offstage: _opened.isNotEmpty,
-                          child: _buildResultsList(),
-                        ),
-                        if (_opened.isNotEmpty) _buildOpenedEntry(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            // The list stays mounted under an opened entry, so going
+            // back keeps its scroll position.
+            child: Stack(
+              children: [
+                Offstage(
+                  offstage: _opened.isNotEmpty,
+                  child: _buildResultsList(),
+                ),
+                if (_opened.isNotEmpty) _buildOpenedEntry(),
+              ],
             ),
           ),
-          if (_bundle case final bundle? when bundle.entries.isNotEmpty)
-            BiographiesCreditLine(bundle: bundle),
         ],
       ),
     );
   }
 
   Widget _buildResultsList() {
-    if (_loadFailed) {
-      return OtzariaErrorState(
-        title: 'טעינת הביוגרפיות נכשלה',
-        actions: [
-          ActionButton.recommended(
-            text: 'נסה שוב',
-            icon: FluentIcons.arrow_clockwise_24_regular,
-            onPressed: _loadBiographies,
-          ),
-        ],
-      );
-    }
-
     if (_allBiographies.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.person_24_regular,
-        message: 'נתוני הביוגרפיות אינם זמינים',
+        title: 'נתוני הביוגרפיות אינם זמינים',
       );
     }
 
@@ -252,7 +225,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
           alignment: AlignmentDirectional.centerStart,
           child: ActionButton.ghost(
             text: previous == null ? 'חזרה לרשימה' : 'חזרה אל ${previous.name}',
-            iconWidget: const RtlIcon(FluentIcons.arrow_left_24_regular),
+            iconWidget: const Icon(FluentIcons.arrow_left_24_regular),
             onPressed: _closeEntry,
           ),
         ),
@@ -274,9 +247,9 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         ? null
         : _bundle?.eras.where((e) => e.key == _era).firstOrNull?.label;
     if (query.isEmpty && eraLabel == null) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.person_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
     final both = query.isNotEmpty && eraLabel != null;

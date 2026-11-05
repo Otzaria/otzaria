@@ -348,13 +348,21 @@ class _ReadingScreenState extends State<ReadingScreen>
     if (target != state.currentTabIndex) {
       context.read<TabsBloc>().add(SetCurrentTab(target));
     }
+    final duration = AppMotion.duration(
+      context,
+      const Duration(milliseconds: 220),
+    );
     _suppressPageSync = true;
     try {
-      await controller.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
+      if (duration == Duration.zero) {
+        controller.jumpToPage(target);
+      } else {
+        await controller.animateToPage(
+          target,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+      }
     } finally {
       _suppressPageSync = false;
       // השלמת סנכרון לכל שינוי טאב שקרה בזמן האנימציה (למשל לחיצה
@@ -442,9 +450,6 @@ class _ReadingScreenState extends State<ReadingScreen>
         // (כולם מותקנים בעץ בגלל KeepAlive).
         buildWhen: TabsState.changedBesidesActivePane,
         builder: (context, state) {
-          // Scaffold יחיד לשני המצבים — Theme מפיץ את scaffoldBackgroundColor
-          // לכל Scaffold פנימי (TextBookScreen, PdfBookScreen וכד').
-          final readerBg = AppSurfaces.readerBackground(context);
           final validIndex = state.hasOpenTabs
               ? state.currentTabIndex.clamp(0, state.tabs.length - 1)
               : 0;
@@ -454,10 +459,8 @@ class _ReadingScreenState extends State<ReadingScreen>
           // שינוי כרטיסיות באותו אורך אינו מגיע ל-BlocListener.
           TabContentBoundaries.instance.retainOnly(state.tabs);
           _pruneTabViewCache(state);
-          return Theme(
-            data: Theme.of(context).copyWith(
-              scaffoldBackgroundColor: readerBg,
-            ),
+          // Scaffold יחיד לשני המצבים; גם Scaffold-ים פנימיים מקבלים את רקע הקריאה.
+          return ReaderSurfaceScope(
             child: Scaffold(
               body: !state.hasOpenTabs
                   ? OtzariaEmptyState(

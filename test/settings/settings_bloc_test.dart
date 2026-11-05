@@ -290,6 +290,122 @@ void main() {
       });
     });
 
+    // q12 Q8 (4.11): "לא נבחר" נבדל מ"רגיל", כדי שבמסך קטן ברירת המחדל
+    // תהיה מצומצמת ובחירה מפורשת תישמר.
+    group('צפיפות ממשק: בחירה מפורשת', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'בלי מפתח שמור אין בחירה; ערך שמור (גם "רגיל") הוא בחירה',
+        build: () {
+          when(mockRepository.loadSettings()).thenAnswer(
+            (_) async => {...mockSettings, 'compactMenuMode': false},
+          );
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) {
+          expect(bloc.state.compactMenuMode, isFalse);
+          expect(bloc.state.compactMenuModeIsSet, isTrue);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בטעינה בלי מפתח: compactMenuModeIsSet כבוי',
+        build: () {
+          when(
+            mockRepository.loadSettings(),
+          ).thenAnswer((_) async => mockSettings);
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) => expect(bloc.state.compactMenuModeIsSet, isFalse),
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בחירה ב"רגיל" נשמרת ומסומנת כבחירה',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateCompactMenuMode(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            compactMenuMode: false,
+            compactMenuModeIsSet: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateCompactMenuMode(false)).called(1);
+        },
+      );
+
+      // סקירת 4.11 r4, q-density-auto (B): מקטע שלישי "אוטומטי".
+      blocTest<SettingsBloc, SettingsState>(
+        '"אוטומטי" מוחק את הבחירה, והצפיפות שוב לפי החלון',
+        build: () => settingsBloc,
+        seed: () => SettingsState.initial().copyWith(
+          compactMenuMode: true,
+          compactMenuModeIsSet: true,
+        ),
+        act: (bloc) => bloc.add(const UpdateCompactMenuMode(null)),
+        expect: () => [
+          SettingsState.initial().copyWith(
+            compactMenuMode: false,
+            compactMenuModeIsSet: false,
+          ),
+        ],
+        verify: (bloc) {
+          verify(mockRepository.updateCompactMenuMode(null)).called(1);
+          expect(bloc.state.compactMenuModeFor(isSmallWindow: true), isTrue);
+          expect(bloc.state.compactMenuModeFor(isSmallWindow: false), isFalse);
+        },
+      );
+    });
+
+    // q12 Q8, ss5: בחלון נמוך התצוגה המקדימה בספרייה סגורה עד שהמשתמש פותח
+    // אותה שם, והבחירה שם לא משנה את ההעדפה בחלון רגיל.
+    group('תצוגה מקדימה בספרייה בחלון נמוך', () {
+      test('בלי בחירה: סגורה בחלון נמוך, וההעדפה הרגילה בחלון רגיל', () {
+        final s = settingsBloc.state.copyWith(libraryShowPreview: true);
+        expect(s.libraryShowPreviewShortWindow, isNull);
+        expect(s.libraryShowPreviewFor(isShortWindow: true), isFalse);
+        expect(s.libraryShowPreviewFor(isShortWindow: false), isTrue);
+      });
+
+      blocTest<SettingsBloc, SettingsState>(
+        'פתיחה בחלון נמוך נשמרת בנפרד, וההעדפה הרגילה לא משתנה',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(libraryShowPreview: false),
+        act: (bloc) =>
+            bloc.add(const UpdateLibraryShowPreview(true, shortWindow: true)),
+        verify: (bloc) {
+          expect(bloc.state.libraryShowPreviewFor(isShortWindow: true), isTrue);
+          expect(bloc.state.libraryShowPreview, isFalse);
+          verify(
+            mockRepository.updateLibraryShowPreviewShortWindow(true),
+          ).called(1);
+          verifyNever(mockRepository.updateLibraryShowPreview(any));
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בטעינה: ערך שמור לחלון נמוך נקרא',
+        build: () {
+          when(mockRepository.loadSettings()).thenAnswer(
+            (_) async => {
+              ...mockSettings,
+              'libraryShowPreviewShortWindow': true,
+            },
+          );
+          when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(LoadSettings()),
+        verify: (bloc) => expect(
+          bloc.state.libraryShowPreviewFor(isShortWindow: true),
+          isTrue,
+        ),
+      );
+    });
+
     group('UpdateDarkMode', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateDarkMode is added',
@@ -314,6 +430,62 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateFollowSystemTheme(true)).called(1);
+        },
+      );
+    });
+
+    group('UpdateThemeMode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'כהה: מצב אחד עם followSystemTheme כבוי ו־isDarkMode דלוק',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(followSystemTheme: true),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.dark)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: false,
+            isDarkMode: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(false)).called(1);
+          verify(mockRepository.updateDarkMode(true)).called(1);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'בהיר: מצב אחד עם שני הדגלים כבויים',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(
+          followSystemTheme: true,
+          isDarkMode: true,
+        ),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.light)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: false,
+            isDarkMode: false,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(false)).called(1);
+          verify(mockRepository.updateDarkMode(false)).called(1);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'לפי המערכת: מצב אחד, ו־isDarkMode לא נכתב',
+        build: () => settingsBloc,
+        seed: () => settingsBloc.state.copyWith(isDarkMode: true),
+        act: (bloc) => bloc.add(const UpdateThemeMode(ThemeMode.system)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            followSystemTheme: true,
+            isDarkMode: true,
+          ),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateFollowSystemTheme(true)).called(1);
+          verifyNever(mockRepository.updateDarkMode(any));
         },
       );
     });

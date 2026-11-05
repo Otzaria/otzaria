@@ -586,18 +586,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                                 _currentTabIndex == kCommentaryTabIndex,
                             isLinksTabActive: () =>
                                 _paneOpen && _currentTabIndex == kLinksTabIndex,
-                            isPersonalNotesTabActive: () =>
-                                _paneOpen && _currentTabIndex == kNotesTabIndex,
                           ),
                         ),
                       ),
                     ),
                     if (!_paneOpen)
-                      Positioned(
-                        left: 0,
-                        top: MediaQuery.of(context).size.height * 0.10,
-                        child: PanelOpenHandle(onTap: _togglePane),
-                      ),
+                      PositionedPanelOpenHandle(onTap: _togglePane),
                   ],
                 ),
                 isResizable: true,

@@ -87,7 +87,7 @@ class TextDisplaySection {
   });
 }
 
-/// תוכן הפאנל: כותרת, מקטע לכל יעד, ושורת הסבר עם איפוס אופציונלי.
+/// תוכן הפאנל: כותרת, טבלה עם עמודה לכל יעד, ושורת הסבר עם איפוס אופציונלי.
 class TextDisplayPopupPanel extends StatelessWidget {
   final String viewLabel;
   final List<TextDisplaySection> sections;
@@ -145,15 +145,23 @@ class TextDisplayPopupPanel extends StatelessWidget {
                 ],
               ),
             ),
-            for (final (i, section) in sections.indexed) ...[
-              if (i > 0) const Divider(height: 1),
-              _SectionTitle(section.title),
-              ...TextDisplayProfileEditor.tiles(
-                context,
-                profile: section.profile,
-                onChanged: section.onChanged,
+            // טבלה: שורה לכל הגדרה ועמודה לכל מקטע (q12 Q7).
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceMD,
               ),
-            ],
+              child: TextDisplayProfileTable(
+                columns: [
+                  for (final section in sections)
+                    (
+                      title: section.title,
+                      profile: section.profile,
+                      onChanged: section.onChanged,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTokens.spaceXS),
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -293,27 +301,6 @@ class TextBookDisplayPanel extends StatelessWidget {
       },
     );
   }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-  const _SectionTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppTokens.spaceMD,
-      AppTokens.spaceSM,
-      AppTokens.spaceMD,
-      0,
-    ),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    ),
-  );
 }
 
 /// פריט תפריט שמארח ווידג'ט חופשי (הפאנל) בתוך תפריט מוצמד.

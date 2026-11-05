@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_icon.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// מחבר את תשתית התפריטים העצמאית לעיצוב ולאייקונים של האפליקציה.
 MenuPresentation createAppMenuPresentation(
@@ -29,7 +28,7 @@ MenuPresentation createAppMenuPresentation(
   // הכיוון פיזי לפי מיקום החלונית; Fluent משקף אייקונים בעצמו ב-RTL.
   submenuArrowBuilder: (context, openToRight, size, color) => Directionality(
     textDirection: TextDirection.ltr,
-    child: RtlIcon(
+    child: Icon(
       openToRight
           ? FluentIcons.chevron_right_16_regular
           : FluentIcons.chevron_left_16_regular,

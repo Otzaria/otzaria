@@ -53,6 +53,13 @@ class AppSeedColors {
     _ => seed,
   };
 
+  /// צבע הסימון על עיגול [swatch]: שחור על עיגול בהיר, לבן על כהה. הסימון
+  /// מותאם לדוגמת הצבע (תוכן) ולא לערכה, כדי שייראה על כל עיגול.
+  static Color checkColorOn(Color swatch) =>
+      ThemeData.estimateBrightnessForColor(swatch) == Brightness.dark
+      ? Colors.white
+      : Colors.black;
+
   /// מחזיר את השם העברי של צבע, או null אם לא נמצא ברשימה.
   static String? nameOf(Color color) {
     for (final entry in options) {
@@ -60,4 +67,18 @@ class AppSeedColors {
     }
     return null;
   }
+}
+
+/// ערכה שיש לה משטחים משלה, מעבר למה שהזרע מייצר. נקבעת לפי הזרע שנבחר,
+/// ולא לפי ערכי הצבע שנוצרו ממנו.
+enum AppThemeVariant {
+  standard,
+  white,
+  parchment;
+
+  static AppThemeVariant ofSeed(Color seed) => switch (seed) {
+    AppSeedColors.white => white,
+    AppSeedColors.parchment => parchment,
+    _ => standard,
+  };
 }

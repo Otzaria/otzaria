@@ -6,6 +6,7 @@ import 'package:otzaria/pdf_book/utils/bounded_image_cache.dart';
 import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class ThumbnailsView extends StatefulWidget {
   const ThumbnailsView({
@@ -138,10 +139,10 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
       _scrollController.position.maxScrollExtent,
     );
     if (animate) {
-      _scrollController.animateTo(
+      AppMotion.scrollPosition(
+        _scrollController.position,
         offset,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        AppTokens.animPanelSlide,
       );
     } else {
       _scrollController.jumpTo(offset);
@@ -246,6 +247,7 @@ class _PageThumbnail extends StatefulWidget {
 
 class _PageThumbnailState extends State<_PageThumbnail> {
   static const double _maximumDpi = 300;
+  // ui-lint: allow UIL-030 — צל הנייר של עמוד PDF הוא תוכן (JX-05, q10 Q11)
   static const BoxShadow _pageShadow = BoxShadow(
     color: Colors.black54,
     blurRadius: 4,
@@ -321,6 +323,7 @@ class _PageThumbnailState extends State<_PageThumbnail> {
             aspectRatio: page.width / page.height,
             child: DecoratedBox(
               decoration: BoxDecoration(
+                // ui-lint: allow UIL-015 — נייר העמוד עד שתמונת ה־PDF נטענת (תוכן, DESIGN_SYSTEM §2.1.3)
                 color: image == null ? Colors.white : null,
                 boxShadow: const [_pageShadow],
               ),

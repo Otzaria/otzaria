@@ -3,7 +3,6 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -123,31 +122,6 @@ class ItemsListView extends StatefulWidget {
     this.titleSpanBuilder,
   });
 
-  /// כותרת המיקום בתוך הספר — חותך את שם הספר מ-ref.
-  /// fallback: "תחילת הספר" (index 0), "עמוד X" (PDF), "פסקה X" (טקסט).
-  static String? locationSubtitle(dynamic item) {
-    final ref = item.ref as String;
-    final bookTitle = item.book.title as String;
-
-    String location;
-    if (ref == bookTitle) {
-      location = '';
-    } else if (ref.startsWith('$bookTitle, ')) {
-      location = ref.substring('$bookTitle, '.length);
-    } else if (ref.startsWith('$bookTitle ')) {
-      location = ref.substring('$bookTitle '.length);
-    } else {
-      location = ref;
-    }
-
-    if (location.isEmpty) {
-      if (item.index as int == 0) return 'תחילת הספר';
-      if (item.book is PdfBook) return 'עמוד ${item.index as int}';
-      return 'פסקה ${item.index as int}';
-    }
-    return location;
-  }
-
   @override
   State<ItemsListView> createState() => _ItemsListViewState();
 }
@@ -223,8 +197,7 @@ class _ItemsListViewState extends State<ItemsListView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       constraints: const BoxConstraints(maxWidth: 360),
-      textStyle: TextStyle(
-        fontSize: 13,
+      textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
         height: 1.4,
         color: cs.onSurface,
       ),
@@ -234,13 +207,7 @@ class _ItemsListViewState extends State<ItemsListView> {
         border: Border.all(
           color: cs.outlineVariant.withValues(alpha: 0.55),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: 0.16),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: AppShadows.floating(cs),
       ),
       child: subtitleWidget,
     );
@@ -264,6 +231,7 @@ class _ItemsListViewState extends State<ItemsListView> {
 
     Widget content = InkWell(
       onTap: () => widget.onItemTap(context, item, originalIndex),
+      hoverColor: AppSurfaces.hoverRow(cs),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceMD,
@@ -296,11 +264,8 @@ class _ItemsListViewState extends State<ItemsListView> {
                 ],
               ),
             ),
-            IconButton(
-              icon: Icon(
-                FluentIcons.delete_24_regular,
-                color: cs.onSurfaceVariant,
-              ),
+            AppIconButton(
+              icon: const Icon(FluentIcons.delete_24_regular),
               tooltip: 'מחק',
               onPressed: () => widget.onDelete(context, originalIndex),
             ),
@@ -310,8 +275,9 @@ class _ItemsListViewState extends State<ItemsListView> {
     );
 
     if (isKeyboardFocused) {
-      content = ColoredBox(
-        color: Theme.of(context).colorScheme.secondaryContainer,
+      content = Container(
+        color: AppSurfaces.focusedRow(cs),
+        foregroundDecoration: AppSurfaces.focusRingDecoration(cs),
         child: content,
       );
     }
@@ -399,9 +365,11 @@ class _ItemsListViewState extends State<ItemsListView> {
     );
   }
 
-  /// שורת פריט בסגנון [AppCard.section]: רקע כרטיס, פינות מעוגלות בקצות
-  /// הקבוצה ורווח [AppCard.sectionSpacing] בין שורות — נבנית שורה-שורה כדי
-  /// שהרשימה תישאר וירטואלית.
+  /// שורת פריט בכרטיס בהיר לכל קבוצה, בסגנון [AppCard.section]: רקע
+  /// [AppSurfaces.card], פינות מעוגלות בקצות הקבוצה, ורווח
+  /// [AppCard.sectionSpacing] בין השורות שמראה את המשטח שמתחת. נבנית שורה־שורה
+  /// כדי שהרשימה תישאר וירטואלית. הכרעת בעל הפרויקט ב־q12 (DD-11, שאלה 9 C):
+  /// השורות בולטות שוב מגוף הדיאלוג, כמו ב־upstream.
   Widget _buildCardRow(BuildContext context, _ListRow row) {
     final entry = row.entry!;
     Widget content = Material(
@@ -523,10 +491,16 @@ class _ItemsListViewState extends State<ItemsListView> {
           return;
         }
       }
-      _itemScrollController.scrollTo(
-        index: rowIndex,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 150),
+      AppMotion.scroll(
+        context,
+        AppTokens.animFast,
+        animate: (duration) => _itemScrollController.scrollTo(
+          index: rowIndex,
+          alignment: 0.4,
+          duration: duration,
+        ),
+        jump: () =>
+            _itemScrollController.jumpTo(index: rowIndex, alignment: 0.4),
       );
     });
   }

@@ -120,7 +120,7 @@ void main() {
         html,
         const RenderSettings(searchText: 'מנשה', formatParentheses: false),
       );
-      expect(rendered, contains('color: red'), reason: html);
+      expect(rendered, contains('color: otzaria-search-hit'), reason: html);
       expect(
         text.removeSearchInvisibles(
           text.removeVolwels(text.stripHtmlIfNeeded(rendered)),
@@ -132,7 +132,7 @@ void main() {
       'א<sub>30</sub>ב',
       const RenderSettings(searchText: '30', formatParentheses: false),
     );
-    expect(sub, contains('color: red'));
+    expect(sub, contains('color: otzaria-search-hit'));
     expect(text.removeSearchInvisibles(text.stripHtmlIfNeeded(sub)), 'א₃₀ב');
     expect(
       TextRendererService.processText(

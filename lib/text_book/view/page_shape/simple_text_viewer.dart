@@ -101,6 +101,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה/ניווט שורה בצורת הדף.
 ///
@@ -427,7 +428,6 @@ class SimpleTextViewer extends StatefulWidget {
 
   /// repository לשמירת הערות מפרשים. ניתן להזרקה בבדיקות; בייצור נוצר ברירת מחדל.
   final PersonalNotesRepository? notesRepository;
-  final bool isPersonalNotesTabActive;
   final void Function(String bookId, int? categoryId, int lineNumber)?
   onOpenCommentaryPersonalNote;
 
@@ -479,7 +479,6 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenCommentaryPersonalNote,
     this.labelForIndex,
     this.notesRepository,
-    this.isPersonalNotesTabActive = false,
     this.isCommentatorsTabActive = false,
     this.isLinksTabActive = false,
     this.onOpenCommentatorsPane,
@@ -783,9 +782,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _handleNumberedNoteMarkerHover(url, globalPosition);
       return;
     }
-    if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
-      return;
-    }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
     _cancelPendingPreview();
     final bloc = context.read<TextBookBloc>();
@@ -802,7 +798,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final previewLink = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (previewLink != null) prefetchLinkPreview(previewLink);
     }
-    _previewHoverTimer = Timer(const Duration(milliseconds: 280), () {
+    _previewHoverTimer = Timer(AppTokens.hoverPreviewDelay, () {
       if (mounted && identical(context.read<TextBookBloc>(), bloc)) {
         _showUrlPreview(url, globalPosition, hoverMode: true);
       }
@@ -1001,6 +997,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return identical(context.read<TabsBloc>().state.activePane, tab);
   }
 
+  bool _isFocusInAnotherRoute() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null || !focusContext.mounted) return false;
+    final route = ModalRoute.of(focusContext);
+    return route != null && route != ModalRoute.of(context);
+  }
+
   void _requestKeyboardFocus(String reason) {
     final focusNode = _resolvedKeyboardFocusNode;
     if (!widget.isMainText || !focusNode.canRequestFocus) {
@@ -1008,6 +1011,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (!_isTabInForeground()) {
+      return;
+    }
+
+    // דיאלוג שנפתח מעל הקורא מחזיק את הפוקוס: בלעדיו Escape לא סוגר אותו.
+    if (_isFocusInAnotherRoute()) {
       return;
     }
 
@@ -3116,7 +3124,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               isMainText: widget.isMainText,
               isRelated: widget.highlightedIndices?.contains(index) ?? false,
             ).background,
-            theme.colorScheme,
+            theme,
           );
 
     final notesForLine =

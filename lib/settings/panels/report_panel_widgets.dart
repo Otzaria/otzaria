@@ -21,7 +21,7 @@ import 'package:path_provider/path_provider.dart';
 /// The action row under a saved or sent report.
 Widget buildReportActions({required List<Widget> children}) {
   return Padding(
-    padding: const EdgeInsets.only(right: 56, left: 16, bottom: 12),
+    padding: const EdgeInsetsDirectional.only(start: 56, end: 16, bottom: 12),
     child: Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Wrap(
@@ -123,7 +123,7 @@ Widget buildOfflineQueueNote(BuildContext context) {
       context.settingsText(
         'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.',
       ),
-      style: kSettingsSubtitleStyle,
+      style: AppTextStyles.settingSubtitle,
     ),
   );
 }
@@ -233,7 +233,7 @@ Future<void> showReportDetailsDialog(
     context: context,
     title: title,
     icon: FluentIcons.document_text_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: context.settingsText('סגור'),
     customContent: SizedBox(
       width: 560,
@@ -276,10 +276,10 @@ Widget _buildReportTile({
     children: [
       ListTile(
         leading: Icon(icon),
-        title: Text(title, style: kSettingsTitleStyle),
+        title: Text(title, style: AppTextStyles.settingTitle),
         subtitle: Text(
           subtitle,
-          style: kSettingsSubtitleStyle,
+          style: AppTextStyles.settingSubtitle,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),

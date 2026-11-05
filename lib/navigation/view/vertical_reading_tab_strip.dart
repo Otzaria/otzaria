@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
 import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/navigation/view/tab_context_menu.dart';
@@ -11,6 +10,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 
@@ -167,16 +167,27 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
               HardwareKeyboard.instance.isShiftPressed) {
             return;
           }
-          // ה-state שנתפס ב-build עלול להיות מיושן עד הלחיצה.
-          final bloc = context.read<TabsBloc>();
-          final target = bloc.state.tabs.indexOf(tab);
-          if (target != -1 && target != bloc.state.currentTabIndex) {
-            bloc.add(SetCurrentTab(target));
-          }
+          _activate(context, tab);
         },
-        child: AutoScrollBarrier(child: child),
+        child: AutoScrollBarrier(
+          child: TabActivationRegion(
+            selected: index == state.currentTabIndex,
+            label: tab.title,
+            onActivate: () => _activate(context, tab),
+            child: child,
+          ),
+        ),
       ),
     );
+  }
+}
+
+/// בחירה בכרטיסיה; ה-state שנתפס ב-build עלול להיות מיושן עד הלחיצה.
+void _activate(BuildContext context, OpenedTab tab) {
+  final bloc = context.read<TabsBloc>();
+  final target = bloc.state.tabs.indexOf(tab);
+  if (target != -1 && target != bloc.state.currentTabIndex) {
+    bloc.add(SetCurrentTab(target));
   }
 }
 
@@ -201,13 +212,14 @@ class _VerticalTabRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final background = isInSelection
-        ? cs.secondaryContainer
-        : isSelected
-        ? cs.surfaceContainerHighest
-        : isHovered
-        ? cs.surfaceContainerHigh
-        : Colors.transparent;
+    final background =
+        TabStateColors.background(
+          context,
+          selected: isSelected,
+          inSelection: isInSelection,
+        ) ??
+        TabStateColors.hover(context, hovered: isHovered, selected: false) ??
+        Colors.transparent;
 
     final leading = buildTabTypeIcon(context, tab);
     // במצב מכווץ ה-X רק בריחוף, כדי לא להעמיס על העמודה הצרה.
@@ -218,7 +230,13 @@ class _VerticalTabRow extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppTokens.borderRadiusAll,
+          border: isInSelection
+              ? Border.all(
+                  color: TabStateColors.border(context, inSelection: true)!,
+                  width: AppTokens.multiSelectedBorderWidth,
+                )
+              : null,
         ),
         child: Padding(
           padding: EdgeInsetsDirectional.only(
@@ -255,6 +273,16 @@ class _VerticalTabRow extends StatelessWidget {
                     )
                   : Row(
                       children: [
+                        // הנעץ בתחילת השורה ולחיץ, כמו ברצועה העליונה (q10 Q14 C).
+                        if (tab.isPinned) ...[
+                          TabPinButton(
+                            tooltip: context.settingsText('בטל הצמדה'),
+                            onPressed: () => context.read<TabsBloc>().add(
+                              TogglePinTab(tab),
+                            ),
+                          ),
+                          const SizedBox(width: AppTokens.spaceSM),
+                        ],
                         if (leading != null) ...[
                           leading,
                           const SizedBox(width: 6),
@@ -270,10 +298,6 @@ class _VerticalTabRow extends StatelessWidget {
                           ),
                         ),
                         if (showClose) _buildCloseButton(context, extent: 24),
-                        if (tab.isPinned) ...[
-                          const SizedBox(width: 4),
-                          const Icon(FluentIcons.pin_24_filled, size: 14),
-                        ],
                       ],
                     ),
             ),

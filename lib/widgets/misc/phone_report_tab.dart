@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/phone_report_data.dart';
 import 'package:otzaria/widgets/misc/reporting_numbers_widget.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// Tab widget for phone-based error reporting
 class PhoneReportTab extends StatefulWidget {
@@ -89,8 +90,9 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
   }
 
   Widget _buildInstructions(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
+    return AppCard(
+      tone: AppCardTone.primary,
+      margin: const EdgeInsets.all(4),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -224,8 +226,9 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
     final errors = _validationErrors;
     if (errors.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      color: Theme.of(context).colorScheme.errorContainer,
+    return AppCard(
+      tone: AppCardTone.error,
+      margin: const EdgeInsets.all(4),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(

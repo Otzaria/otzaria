@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -7,8 +8,6 @@ import 'package:otzaria/search/saved_alternatives_store.dart';
 import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
@@ -320,7 +319,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
             _buildScopeToggle(),
           ],
         );
-        if (constraints.maxWidth < 720) {
+        const stackBelow = 720.0;
+        if (constraints.maxWidth < stackBelow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -349,6 +349,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
           child: Text(
             'אפשרויות מילה',
             style: TextStyle(
+              // ui-lint: allow UIL-017 — כותרת קטנה 13 של דיאלוג החיפוש ואיתור המקורות נשארת (DD-14, השלמה 2.11)
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary,
@@ -367,96 +368,36 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
 
   /// מתג הרחבת החיפוש בחלופות השמורות — כבוי בכל חיפוש חדש.
   Widget _buildSavedAlternativesToggle() {
-    final colorScheme = Theme.of(context).colorScheme;
     final enabled =
         widget.enableSavedAlternatives && widget.tab.useSavedAlternatives;
-
-    return Tooltip(
-      message: enabled
+    return AppTogglePill(
+      label: 'חלופות שמורות',
+      tooltip: enabled
           ? 'החיפוש יורחב במילים החילופיות שנשמרו עבור מילות השאילתה'
           : 'הפעל כדי להרחיב את החיפוש במילים החילופיות שנשמרו',
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppSurfaces.togglePill(colorScheme, active: enabled),
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'חלופות שמורות',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: enabled
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Transform.scale(
-              scale: 0.75,
-              child: CustomSwitch(
-                value: enabled,
-                onChanged: (value) {
-                  setState(() {
-                    widget.tab.useSavedAlternatives = value;
-                    _updateLocalStateForWord(_wordIndex);
-                  });
-                },
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
-        ),
-      ),
+      value: enabled,
+      onChanged: (value) {
+        setState(() {
+          widget.tab.useSavedAlternatives = value;
+          _updateLocalStateForWord(_wordIndex);
+        });
+      },
     );
   }
 
   /// מתג קומפקטי לבחירת היקף ההגדרות: גלובלי לכל המילים או פר-מילה.
   Widget _buildScopeToggle() {
-    final colorScheme = Theme.of(context).colorScheme;
     final useGlobal = _useGlobalSearchOptions.value;
-
-    return Tooltip(
-      message: useGlobal
+    return AppTogglePill(
+      label: 'זהה לכל המילים',
+      tooltip: useGlobal
           ? 'ההגדרות חלות על כל המילים בשאילתה ולא משתנות בעת שינוי המילים'
           : 'ההגדרות נשמרות לכל מילה בנפרד',
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppSurfaces.togglePill(colorScheme, active: useGlobal),
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'זהה לכל המילים',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: useGlobal
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Transform.scale(
-              scale: 0.75,
-              child: CustomSwitch(
-                value: useGlobal,
-                onChanged: (value) {
-                  _useGlobalSearchOptions.value = value;
-                  _searchOptionsChanged.value++;
-                },
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
-        ),
-      ),
+      value: useGlobal,
+      onChanged: (value) {
+        _useGlobalSearchOptions.value = value;
+        _searchOptionsChanged.value++;
+      },
     );
   }
 
@@ -535,6 +476,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                       vertical: 8,
                     ),
                     suffixIcon: IconButton(
+                      tooltip: 'נקה',
                       icon: const Icon(
                         FluentIcons.dismiss_24_regular,
                         size: 20,
@@ -597,6 +539,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                     vertical: 8,
                   ),
                   prefixIcon: IconButton(
+                    tooltip: 'הוסף מילה חלופית',
                     icon: const Icon(FluentIcons.add_24_regular, size: 20),
                     onPressed: isEnabled ? _addAlternative : null,
                   ),
@@ -643,7 +586,11 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
               style: const TextStyle(fontSize: 14),
             ),
             trailing: IconButton(
-              icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+              tooltip: 'מחק',
+              icon: const Icon(
+                FluentIcons.delete_24_regular,
+                size: AppTokens.iconSM,
+              ),
               onPressed: () => _removeAlternative(index),
             ),
           );

@@ -16,13 +16,14 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_page_factory.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/misc/exit_fullscreen_button.dart';
 
 /// האם למקד את צומת התוכן של טאב כלי.
@@ -201,7 +202,8 @@ class ToolTabScreenState extends State<ToolTabScreen>
     final plugin = lookup is ToolAvailable ? lookup.entry.plugin : null;
     if (plugin != null) _requestUpdateCheck(pluginState);
 
-    return Stack(
+    // בטאב מפוצל לחלונית של תוסף אין AppTopBar שיציג את ידית הגרירה (#2635).
+    final shell = Stack(
       children: [
         Positioned.fill(
           child: Focus(
@@ -228,6 +230,8 @@ class ToolTabScreenState extends State<ToolTabScreen>
           ),
       ],
     );
+    // כלי מובנה מציג את הידית בסרגל שלו; העטיפה נשארת, כדי שהעץ לא ישתנה.
+    return FloatingPaneDragHandle(enabled: plugin != null, child: shell);
   }
 
   /// בדיקת עדכונים עצלה בפתיחת טאב תוסף — הקוביט מתלכד וממטמן, כך שפתיחת
@@ -303,10 +307,10 @@ class ToolTabScreenState extends State<ToolTabScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Expanded(
-          child: ToolEmptyState(
+          child: OtzariaEmptyState(
             icon: FluentIcons.plug_disconnected_24_regular,
-            message: message,
-            subtitle: subtitle,
+            title: message,
+            message: subtitle,
           ),
         ),
         Padding(

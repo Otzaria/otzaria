@@ -129,6 +129,10 @@ void main() {
     for (final scale in [1.0, 1.5]) {
       for (final entry in cases.entries) {
         testWidgets('${entry.key} $brightness ×$scale', (tester) async {
+          // שורה 1.5 בהערות (#2531): 280 תווים בהגדלה ×1.5 גבוהים מ-600.
+          tester.view.physicalSize = const Size(800, 1200);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
           const fallbackCases = {
             'line height',
             'named colors',

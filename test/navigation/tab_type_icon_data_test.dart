@@ -36,7 +36,8 @@ void main() {
       TextBookTab(book: TextBook(title: title, categoryId: 1), index: 0);
 
   test('כל סוג כרטיסיה מקבל את האייקון שלו', () {
-    expect(tabTypeIconData(pdfTab()), FluentIcons.document_pdf_16_regular);
+    // אייקון PDF של אוצריא, כמו ברצועה העליונה (q10 Q14 C).
+    expect(tabTypeIconData(pdfTab()), OtzariaIcons.document_pdf_24_regular);
     expect(
       tabTypeIconData(SearchingTab('חיפוש', null)),
       OtzariaIcons.search_24_regular,

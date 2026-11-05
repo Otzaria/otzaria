@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class TourProgressDots extends StatelessWidget {
   final int currentIndex;
@@ -28,7 +29,10 @@ class TourProgressDots extends StatelessWidget {
           GestureDetector(
             onTap: onDotTap != null ? () => onDotTap!(i) : null,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 180),
+              ),
               width: i == currentIndex ? 20 : 8,
               height: 8,
               decoration: BoxDecoration(

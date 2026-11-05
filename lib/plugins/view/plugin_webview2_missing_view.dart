@@ -55,7 +55,7 @@ class PluginWebView2MissingView extends StatelessWidget {
           children: [
             Icon(
               FluentIcons.globe_prohibited_24_regular,
-              size: 56,
+              size: AppTokens.iconXL,
               color: cs.primary,
             ),
             const SizedBox(height: 16),

@@ -42,6 +42,27 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // UI-047, q10 שאלה 7.7: הכפתור נראה פעיל, ולחיצה עליו פותחת את התפריט.
+  testWidgets('"אל תציג שוב" הוא כפתור פעיל שפותח את תפריט ההשהיה', (
+    tester,
+  ) async {
+    await pumpUntilListReady(tester);
+    await finishAnimations(tester);
+    final button = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('אל תציג שוב'),
+        matching: find.byWidgetPredicate((w) => w is FilledButton),
+      ),
+    );
+    expect(button.onPressed, isNotNull);
+
+    await tester.tap(find.text('אל תציג שוב'));
+    await tester.pumpAndSettle();
+    expect(find.text('למשך שבוע'), findsOneWidget);
+    expect(find.text('למשך חודש'), findsOneWidget);
+    expect(find.text('לעולם'), findsOneWidget);
+  });
+
   group('תצוגה מקובץ הנתונים', () {
     testWidgets('כל הארגונים שבקובץ מוצגים עם שם וטלפון', (tester) async {
       await pumpUntilListReady(tester);

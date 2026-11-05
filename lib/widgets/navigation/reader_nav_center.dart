@@ -1,15 +1,46 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+
+/// איפה [ReaderNavCenter] שם את החיצים בפריסה האחרונה: בסרגל, או (אין מקום
+/// לארבעתם) בשורת האייקונים שבראש התפריט "עוד" של אותו סרגל.
+///
+/// נכתב בזמן הפריסה ונקרא כשהתפריט נפתח
+/// (`ResponsiveActionBar.menuHeaderActionsVisible`). לכן זה שדה פשוט ולא
+/// notifier: פריסה לא יכולה לתזמן בנייה מחדש של ווידג'ט אחר.
+class ReaderNavPlacement {
+  bool arrowsInBar = true;
+}
 
 /// אזור המרכז האחיד לסרגלי הקריאה: [prev-major] [prev-minor] | כותרת | [next-minor] [next-major].
 ///
 /// [title] — ווידג'ט הכותרת (Text, SelectionArea, LayoutBuilder וכו').
 /// [afterTitle] — ווידג'ט אופציונלי אחרי הכותרת (למשל PageNumberDisplay ב-PDF).
+///
+/// ארבעת החיצים קודמים לכותרת: כל עוד הם נכנסים ברוחב שהסרגל נותן למרכז,
+/// הם בסרגל והכותרת מקבלת את מה שנשאר (גם כלום). רק כשאין מקום לארבעתם הם
+/// יוצאים מהסרגל כולם, והכותרת מקבלת את כל המרכז. הסרגל מציג אותם אז בראש
+/// התפריט "עוד" לפי [placement] (q12 Q8, סקירה שלישית של 4.11).
 class ReaderNavCenter extends StatelessWidget {
   static const double minTitleWidth = 80.0;
+
+  /// הרווח בין החיצים הפנימיים לכותרת, מכל צד.
+  static const double navGap = 4.0;
+
+  /// הרוחב שארבעת החיצים צריכים במרכז: ארבעה כפתורי סרגל ושני רווחים.
+  static double navButtonsWidth({required bool compact}) =>
+      4 * BarButton.toolbarWidth(compact) + 2 * navGap;
+
+  /// במרכז צר מזה הכפתורים בגודל compact גם בצפיפות רגילה.
+  static const double _forceCompactBelow = 240.0;
+
+  /// האם ארבעת החיצים נכנסים במרכז ברוחב [centerWidth].
+  static bool navFits(double centerWidth, {required bool isCompact}) =>
+      centerWidth >=
+      navButtonsWidth(
+        compact: isCompact || centerWidth < _forceCompactBelow,
+      );
 
   final Widget title;
   final VoidCallback onPrevMajor;
@@ -23,6 +54,10 @@ class ReaderNavCenter extends StatelessWidget {
   final IconData prevMajorIcon;
   final IconData nextMajorIcon;
   final Widget? afterTitle;
+
+  /// מקבל בכל פריסה את ההחלטה אם החיצים בסרגל. הסרגל קורא אותו כדי להציג
+  /// אותם בראש התפריט "עוד" כשהם לא כאן.
+  final ReaderNavPlacement? placement;
 
   const ReaderNavCenter({
     super.key,
@@ -38,12 +73,12 @@ class ReaderNavCenter extends StatelessWidget {
     this.prevMajorIcon = FluentIcons.chevron_double_left_20_regular,
     this.nextMajorIcon = FluentIcons.chevron_double_right_20_regular,
     this.afterTitle,
+    this.placement,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
-    const gap = 4.0;
+    final isCompact = AppDensity.of(context).isCompact;
     return LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.hasBoundedWidth
@@ -51,18 +86,15 @@ class ReaderNavCenter extends StatelessWidget {
             : 340.0;
 
         // כשהמרחב צר, עוברים ל-compact (36px לכפתור במקום 40px).
-        final forceCompact = available < 240 || isCompact;
-        final buttonWidth = BarButton.toolbarWidth(forceCompact);
+        final forceCompact = available < _forceCompactBelow || isCompact;
 
-        // כפתורי major מוסתרים כשאין מקום ל-4 כפתורים + כותרת מינימלית.
-        final showMajor =
-            available >=
-            4 * buttonWidth + 2 * gap + ReaderNavCenter.minTitleWidth;
-        // כשאין מקום אף לשני כפתורי minor (הצדדים בלעו את הסרגל) — מוותרים
-        // גם עליהם, אחרת ה-Row גולש ומצייר את פס האזהרה (issue #891).
-        final showMinor = available >= 2 * buttonWidth + 2 * gap;
-        final visibleButtons = showMajor ? 4 : (showMinor ? 2 : 0);
-        final navButtonsWidth = visibleButtons * buttonWidth + 2 * gap;
+        // כל הארבעה או אף אחד: חץ בודד בלי בן זוגו, או שני חיצים בלי
+        // מעבר הפרק, אינם ניווט שלם (#891 — אז הם לא היו בשום מקום).
+        final showNav = navFits(available, isCompact: isCompact);
+        placement?.arrowsInBar = showNav;
+        final navButtonsWidth = showNav
+            ? ReaderNavCenter.navButtonsWidth(compact: forceCompact)
+            : 0.0;
 
         final remainingForTitle = (available - navButtonsWidth).clamp(
           0.0,
@@ -71,7 +103,7 @@ class ReaderNavCenter extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showMajor)
+            if (showNav) ...[
               BarButton.icon(
                 tooltip: prevMajorTooltip,
                 icon: prevMajorIcon,
@@ -79,14 +111,13 @@ class ReaderNavCenter extends StatelessWidget {
                 compact: forceCompact,
                 onPressed: onPrevMajor,
               ),
-            if (showMinor) ...[
               BarButton.icon(
                 tooltip: prevMinorTooltip,
                 icon: FluentIcons.chevron_left_24_regular,
                 compact: forceCompact,
                 onPressed: onPrevMinor,
               ),
-              const SizedBox(width: gap),
+              const SizedBox(width: navGap),
             ],
             Flexible(
               child: ConstrainedBox(
@@ -101,16 +132,14 @@ class ReaderNavCenter extends StatelessWidget {
                 constraints: BoxConstraints(maxWidth: remainingForTitle),
                 child: FittedBox(fit: BoxFit.scaleDown, child: afterTitle!),
               ),
-            if (showMinor) ...[
-              const SizedBox(width: gap),
+            if (showNav) ...[
+              const SizedBox(width: navGap),
               BarButton.icon(
                 tooltip: nextMinorTooltip,
                 icon: FluentIcons.chevron_right_24_regular,
                 compact: forceCompact,
                 onPressed: onNextMinor,
               ),
-            ],
-            if (showMajor)
               BarButton.icon(
                 tooltip: nextMajorTooltip,
                 icon: nextMajorIcon,
@@ -118,6 +147,7 @@ class ReaderNavCenter extends StatelessWidget {
                 compact: forceCompact,
                 onPressed: onNextMajor,
               ),
+            ],
           ],
         );
       },

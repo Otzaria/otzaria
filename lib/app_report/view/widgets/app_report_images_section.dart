@@ -266,7 +266,7 @@ class _ImageThumbnail extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: AppTokens.borderRadiusAll,
               child: Image.memory(
                 image.bytes,
                 fit: BoxFit.cover,
@@ -294,6 +294,9 @@ class _ImageThumbnail extends StatelessWidget {
                     height: 24,
                   ),
                   padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    shape: AppTokens.roundedShape,
+                  ),
                   onPressed: onRemove,
                   icon: const Icon(FluentIcons.dismiss_16_regular),
                 ),

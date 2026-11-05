@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -8,10 +9,15 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 // LEFT/RIGHT swapped (flutter_quill doesn't flip them for RTL). UP/DOWN use
 // Quill's adjacentLineAction: Windows input can't find lines across blocks.
@@ -128,6 +134,9 @@ class PersonalNoteEditorBody extends StatefulWidget {
   final String? bookId;
   final VoidCallback? onSaveShortcut;
 
+  /// בדיאלוג: Escape בשדה סוגר את הדיאלוג, כמו מחוץ לשדה.
+  final bool escapeDismisses;
+
   const PersonalNoteEditorBody({
     super.key,
     required this.controller,
@@ -139,6 +148,7 @@ class PersonalNoteEditorBody extends StatefulWidget {
     this.hintText,
     this.bookId,
     this.onSaveShortcut,
+    this.escapeDismisses = false,
   });
 
   @override
@@ -166,6 +176,16 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
     super.dispose();
   }
 
+  /// Quill בולע Escape (הסתרת סרגל הבחירה); בדיאלוג הוא מגיע לסגירה (DD-08).
+  KeyEventResult? _dismissOnEscape(KeyEvent event, quill.Node? node) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return null;
+    }
+    Actions.maybeInvoke(context, const DismissIntent());
+    return KeyEventResult.handled;
+  }
+
   void _handleFocusChange() {
     if (!widget.focusNode.hasFocus) return;
     // הפוקוס קודם לסוף אנימציית פתיחת הכרטיס והגלילה: גלילה ב-post-frame,
@@ -187,7 +207,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
       // לא ה-PageView של כרטיסייה מוסתרת.
       Scrollable.maybeOf(ctx)?.position.ensureVisible(
         ctx.findRenderObject()!,
-        duration: const Duration(milliseconds: 200),
+        duration: AppMotion.duration(ctx, AppTokens.animPanelOpacity),
         curve: Curves.easeInOut,
         alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
       );
@@ -320,9 +340,16 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
               ),
             ),
           ),
+        // אזור הכתיבה במילוי של שדה בדיאלוג (כמו filledOnDialog), וסרגל הכלים
+        // כהה ממנו. המסגרת מצוירת מעל, כדי ששני המילויים לא יכסו אותה.
         Container(
           key: _editorAreaKey,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
+            color: AppSurfaces.card(context),
+            borderRadius: AppTokens.borderRadiusAll,
+          ),
+          foregroundDecoration: BoxDecoration(
             border: Border.all(
               color: colorScheme.outline.withValues(alpha: 0.6),
               width: 1.2,
@@ -331,10 +358,13 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
           ),
           child: Column(
             children: [
-              _PersonalNoteToolbar(
-                controller: widget.controller.quillController,
-                editorFocusNode: widget.focusNode,
-                onInsertLink: _insertLink,
+              ColoredBox(
+                color: colorScheme.surfaceContainerHighest,
+                child: _PersonalNoteToolbar(
+                  controller: widget.controller.quillController,
+                  editorFocusNode: widget.focusNode,
+                  onInsertLink: _insertLink,
+                ),
               ),
               const Divider(height: 1),
               SizedBox(
@@ -397,13 +427,18 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                           focusNode: widget.focusNode,
                           scrollController: widget.scrollController,
                           config: quill.QuillEditorConfig(
+                            customStyles: personalNoteStyles(context),
                             autoFocus: widget.autofocus,
                             expands: false,
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(AppTokens.spaceSMD),
                             placeholder:
                                 widget.hintText ??
                                 'כתוב כאן... (${ShortcutHelper.formatShortcutForDisplay('ctrl+enter')} לשמירה)',
                             customShortcuts: _rtlArrowShortcuts,
+                            // ignore: experimental_member_use
+                            onKeyPressed: widget.escapeDismisses
+                                ? _dismissOnEscape
+                                : null,
                             contextMenuBuilder: _touchContextMenu,
                           ),
                         ),
@@ -530,75 +565,124 @@ class _PersonalNoteToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 4,
-      children: [
-        IconButton(
-          tooltip: 'מודגש',
-          icon: const Icon(FluentIcons.text_bold_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.bold),
-        ),
-        IconButton(
-          tooltip: 'נטוי',
-          icon: const Icon(FluentIcons.text_italic_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.italic),
-        ),
-        IconButton(
-          tooltip: 'קו תחתי',
-          icon: const Icon(FluentIcons.text_underline_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.underline),
-        ),
-        IconButton(
-          tooltip: 'קו חוצה',
-          icon: const Icon(FluentIcons.text_strikethrough_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.strikeThrough),
-        ),
-        IconButton(
-          tooltip: 'הדגשה',
-          icon: const Icon(FluentIcons.circle_highlight_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(
-            const quill.BackgroundAttribute('#fff59d'),
+    final compact = AppDensity.of(context).isCompact;
+    // נבנה מחדש בכל שינוי בחירה, כדי שכפתורי העיצוב יראו מה פעיל בה.
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final selected = controller.getSelectionStyle().attributes;
+        ActionButtonData tool({
+          required ToolbarActionId id,
+          required String tooltip,
+          required IconData icon,
+          quill.Attribute? attribute,
+          VoidCallback? onPressed,
+        }) {
+          final action =
+              onPressed ??
+              (attribute == null ? null : () => _toggleAttribute(attribute));
+          return ActionButtonData(
+            widget: BarButton.icon(
+              tooltip: tooltip,
+              icon: icon,
+              iconSize: AppTokens.iconSM,
+              compact: compact,
+              selected:
+                  attribute != null && _isAttributeActive(attribute, selected),
+              onPressed: action,
+            ),
+            icon: icon,
+            tooltip: tooltip,
+            onPressed: action,
+            toolbarWidth: BarButton.toolbarWidth(compact),
+            actionId: id,
+          );
+        }
+
+        // שורה אחת תמיד (q12 Q6): מה שלא נכנס עובר ל"עוד פעולות", מהנדיר
+        // לנפוץ לפי toolbarOverflowOrder. ברוחב הדיאלוג עוברים "ציטוט"
+        // ו"כותרת"; בצפיפות קומפקטית כל 12 נכנסים.
+        return Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ResponsiveActionBar(
+            alwaysInMenu: const [],
+            actions: [
+              tool(
+                id: ToolbarActionId.noteBold,
+                tooltip: 'מודגש',
+                icon: FluentIcons.text_bold_24_regular,
+                attribute: quill.Attribute.bold,
+              ),
+              tool(
+                id: ToolbarActionId.noteItalic,
+                tooltip: 'נטוי',
+                icon: FluentIcons.text_italic_24_regular,
+                attribute: quill.Attribute.italic,
+              ),
+              tool(
+                id: ToolbarActionId.noteUnderline,
+                tooltip: 'קו תחתי',
+                icon: FluentIcons.text_underline_24_regular,
+                attribute: quill.Attribute.underline,
+              ),
+              tool(
+                id: ToolbarActionId.noteStrikethrough,
+                tooltip: 'קו חוצה',
+                icon: FluentIcons.text_strikethrough_24_regular,
+                attribute: quill.Attribute.strikeThrough,
+              ),
+              tool(
+                id: ToolbarActionId.noteHighlight,
+                tooltip: 'הדגשה',
+                icon: FluentIcons.circle_highlight_24_regular,
+                attribute: const quill.BackgroundAttribute('#fff59d'),
+              ),
+              tool(
+                id: ToolbarActionId.noteFontIncrease,
+                tooltip: 'הגדל כתב',
+                icon: FluentIcons.font_increase_24_regular,
+                onPressed: () => _adjustFontSize(_fontSizeStep),
+              ),
+              tool(
+                id: ToolbarActionId.noteFontDecrease,
+                tooltip: 'הקטן כתב',
+                icon: FluentIcons.font_decrease_24_regular,
+                onPressed: () => _adjustFontSize(-_fontSizeStep),
+              ),
+              tool(
+                id: ToolbarActionId.noteHeader,
+                tooltip: 'כותרת',
+                icon: FluentIcons.text_header_2_24_regular,
+                attribute: quill.Attribute.h2,
+              ),
+              tool(
+                id: ToolbarActionId.noteBulletList,
+                tooltip: 'רשימה',
+                icon: OtzariaIcons.text_bullet_list_24_regular,
+                attribute: quill.Attribute.ul,
+              ),
+              tool(
+                id: ToolbarActionId.noteNumberList,
+                tooltip: 'רשימה ממוספרת',
+                icon: OtzariaIcons.text_number_list_24_regular,
+                attribute: quill.Attribute.ol,
+              ),
+              tool(
+                id: ToolbarActionId.noteQuote,
+                tooltip: 'ציטוט',
+                icon: FluentIcons.text_quote_24_regular,
+                attribute: quill.Attribute.blockQuote,
+              ),
+              tool(
+                id: ToolbarActionId.noteLink,
+                tooltip: 'הוסף קישור',
+                icon: OtzariaIcons.link_24_regular,
+                onPressed: onInsertLink,
+              ),
+            ],
           ),
-        ),
-        IconButton(
-          tooltip: 'הגדל כתב',
-          icon: const Icon(FluentIcons.font_increase_24_regular, size: 18),
-          onPressed: () => _adjustFontSize(_fontSizeStep),
-        ),
-        IconButton(
-          tooltip: 'הקטן כתב',
-          icon: const Icon(FluentIcons.font_decrease_24_regular, size: 18),
-          onPressed: () => _adjustFontSize(-_fontSizeStep),
-        ),
-        IconButton(
-          tooltip: 'כותרת',
-          icon: const Icon(FluentIcons.text_header_2_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.h2),
-        ),
-        IconButton(
-          tooltip: 'רשימה',
-          icon: const Icon(OtzariaIcons.text_bullet_list_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.ul),
-        ),
-        IconButton(
-          tooltip: 'רשימה ממוספרת',
-          icon: const Icon(
-            OtzariaIcons.text_number_list_24_regular,
-            size: 18,
-          ),
-          onPressed: () => _toggleAttribute(quill.Attribute.ol),
-        ),
-        IconButton(
-          tooltip: 'ציטוט',
-          icon: const Icon(FluentIcons.text_quote_24_regular, size: 18),
-          onPressed: () => _toggleAttribute(quill.Attribute.blockQuote),
-        ),
-        IconButton(
-          tooltip: 'הוסף קישור',
-          icon: const Icon(OtzariaIcons.link_24_regular, size: 18),
-          onPressed: onInsertLink,
-        ),
-      ],
+        );
+      },
     );
   }
 }

@@ -21,3 +21,6 @@ assets/semantic/** -text
 # Assemble scripts are release assets that several jobs upload; every checkout must
 # hold the same bytes, Windows included.
 tool/release/assemble_split_asset.ps1 text eol=lf
+
+# ui_lint baseline - the CLI writes LF and ui_lint_test compares it byte-for-byte.
+tool/ui_lint/baseline.json text eol=lf

@@ -23,6 +23,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
@@ -252,6 +253,28 @@ void main() {
       expect(tester.getSize(pane).width, closeTo(0.17 * (1000 - 64), 0.001));
     });
   }
+
+  group('רוחב חלונית הצד לפי המסך עצמו, לא לפי החלון (MIG-21)', () {
+    // חלון 1600, המסך מקבל 800 (כמו בתצוגה מפוצלת).
+    double paneWidth(WidgetTester tester) => tester
+        .widget<AdaptiveSidePane>(find.byType(AdaptiveSidePane))
+        .paneWidth;
+
+    testWidgets('בלי רוחב שמור: ברירת המחדל 22% מרוחב המסך', (tester) async {
+      await pumpScreen(tester, sidePanesWidth: 800, width: 1600);
+      expect(paneWidth(tester), closeTo(0.22 * 800, 0.001));
+    });
+
+    testWidgets('רוחב שמור גדול מהתקרה נחתך בתצוגה ל-35% מהמסך, ונשמר', (
+      tester,
+    ) async {
+      await Settings.setValue<double>('page_shape_left_sidebar_width', 500);
+      await pumpScreen(tester, sidePanesWidth: 800, width: 1600);
+      // אחרת הגרירה הראשונה הייתה מכווצת את החלונית בקפיצה ל-280.
+      expect(paneWidth(tester), closeTo(0.35 * 800, 0.001));
+      expect(Settings.getValue<double>('page_shape_left_sidebar_width'), 500);
+    });
+  });
 }
 
 TextBookLoaded _loadedState(TextBook book) => TextBookLoaded(

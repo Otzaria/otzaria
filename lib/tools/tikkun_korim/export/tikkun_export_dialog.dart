@@ -66,8 +66,7 @@ Future<TikkunExportOptions?> showTikkunExportDialog({
     context: context,
     title: title,
     icon: FluentIcons.print_24_regular,
-    headerBand: true,
-    content: '',
+    size: AppDialogSize.medium,
     confirmText: confirmText,
     customContent: TikkunExportForm(
       initial: options,

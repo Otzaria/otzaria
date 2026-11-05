@@ -8,34 +8,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'updat_compat.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/controls/status_chip.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
-
-/// עוטף את צ'יפ העדכון בצבע פעולה בולט, בלי לצאת מצבעי התמה.
-Widget _updateChipSurface(BuildContext context, Widget child) {
-  final colorScheme = Theme.of(context).colorScheme;
-  return Material(
-    color: colorScheme.primaryContainer,
-    shape: RoundedRectangleBorder(
-      borderRadius: AppTokens.borderRadiusAll,
-      side: BorderSide(color: colorScheme.primary, width: 1.2),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: child,
-  );
-}
-
-ButtonStyle _updateChipButtonStyle(BuildContext context) {
-  final theme = Theme.of(context);
-  return TextButton.styleFrom(
-    foregroundColor: theme.colorScheme.onPrimaryContainer,
-    textStyle: theme.textTheme.labelLarge?.copyWith(
-      fontWeight: FontWeight.w700,
-    ),
-    minimumSize: const Size(0, 32),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  );
-}
 
 /// רכיב לחיצה (chip) בעברית - דומה ל-flatChip המקורי
 Widget hebrewFlatChip({
@@ -52,17 +26,11 @@ Widget hebrewFlatChip({
 }) {
   // אחרי האישור התהליך עוד חי כי חלון כלשהו לא נסגר — המעדכן כבר ממתין לו.
   if (awaitingClose) {
-    return Tooltip(
-      message: LibraryMessages.smallUpdateAwaitingCloseMessage,
-      child: _updateChipSurface(
-        context,
-        TextButton.icon(
-          onPressed: null,
-          style: _updateChipButtonStyle(context),
-          icon: const Icon(FluentIcons.hourglass_24_regular),
-          label: const Text(LibraryMessages.smallUpdateAwaitingCloseChip),
-        ),
-      ),
+    return StatusChip(
+      tooltip: LibraryMessages.smallUpdateAwaitingCloseMessage,
+      onPressed: null,
+      icon: const Icon(FluentIcons.hourglass_24_regular),
+      label: LibraryMessages.smallUpdateAwaitingCloseChip,
     );
   }
 
@@ -79,58 +47,39 @@ Widget hebrewFlatChip({
         openDialog();
       }
     });
-    return Tooltip(
-      message: 'עדכון לגרסה ${latestVersion!.toString()}',
-      child: _updateChipSurface(
-        context,
-        TextButton.icon(
-          onPressed: openDialog,
-          style: _updateChipButtonStyle(context),
-          icon: const Icon(FluentIcons.arrow_download_24_regular),
-          label: const Text('עדכון זמין'),
-        ),
-      ),
+    return StatusChip(
+      tooltip: 'עדכון לגרסה ${latestVersion!.toString()}',
+      onPressed: openDialog,
+      icon: const Icon(FluentIcons.arrow_download_24_regular),
+      label: 'עדכון זמין',
     );
   }
 
   if (UpdatStatus.downloading == status) {
-    return Tooltip(
-      message: 'אנא המתן...',
-      child: _updateChipSurface(
-        context,
-        TextButton.icon(
-          onPressed: () {},
-          style: _updateChipButtonStyle(context),
-          icon: SizedBox(
-            width: 15,
-            height: 15,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-          ),
-          label: const Text('מוריד...'),
+    return StatusChip.busy(
+      tooltip: 'אנא המתן...',
+      icon: SizedBox(
+        width: 15,
+        height: 15,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
         ),
       ),
+      label: 'מוריד...',
     );
   }
 
   if (UpdatStatus.readyToInstall == status) {
     // ההסבר המלא יושב כאן ולא בחלון קופץ: ברגע ה"מוכן" אין מה להפריע
     // למשתמש, והלחיצה ממילא פותחת את אותו נוסח בדיאלוג.
-    return Tooltip(
-      message: Platform.isWindows
+    return StatusChip(
+      tooltip: Platform.isWindows
           ? LibraryMessages.smallUpdateDialogContent
           : 'לחץ להתקנה',
-      child: _updateChipSurface(
-        context,
-        TextButton.icon(
-          onPressed: launchInstaller,
-          style: _updateChipButtonStyle(context),
-          icon: const Icon(FluentIcons.checkmark_circle_24_regular),
-          label: const Text('מוכן להתקנה'),
-        ),
-      ),
+      onPressed: launchInstaller,
+      icon: const Icon(FluentIcons.checkmark_circle_24_regular),
+      label: 'מוכן להתקנה',
     );
   }
 
@@ -163,8 +112,7 @@ void hebrewDefaultDialog({
       return AppDialog.twoActions(
         title: 'עדכון זמין',
         icon: FluentIcons.arrow_sync_24_regular,
-        headerBand: true,
-        content: '',
+        size: AppDialogSize.small,
         cancelText: 'מאוחר יותר',
         confirmText: 'עדכן כעת',
         customContent: SizedBox(

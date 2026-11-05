@@ -1,266 +1,96 @@
-# מדריך: תיקון שדות טקסט RTL
+# מדריך: `RtlTextField`
 
-## סקירה כללית
+`RtlTextField` (`lib/widgets/text/rtl_text_field.dart`) הוא שדה הקלט של האפליקציה. הוא עוטף `TextField` ומתקן בעיות של Flutter בשולחן העבודה עם טקסט בעברית: ניווט בחיצים, בחירה, הבהוב הסמן, תפריט הקשר וסמן בשורה רב־שורתית.
 
-רכיב `RtlTextField` מתקן בעיות ידועות ב-Flutter Desktop עם שדות טקסט בעברית:
+`TextField` גולמי מחוץ לקובץ הזה נכשל ב־UIL-011 (`tool/ui_lint/config.yaml`).
 
-1. **מקשי חיצים הפוכים** - חץ שמאל מזיז ימינה וחץ ימין מזיז שמאלה
-2. **Shift+חיצים לא עובד נכון** - בחירת טקסט עם Shift+חיצים מתנהגת הפוך
-3. **Collapse של Selection בכיוון הלא נכון** - כשיש טקסט מסומן ולוחצים חץ, הסמן קופץ לקצה הלא נכון
-4. **הסמן לא נראה מיד בניווט** - צריך לחכות למחזור ההבהוב כדי לראות את הסמן אחרי תזוזה
-5. **הבהוב אינסופי** - הסמן ממשיך להבהב גם כשלא עורכים (בניגוד ל-Word)
-6. **תפריט הקשר לא מתאים** - תפריט ברירת המחדל מרווח מדי ולא מעוצב
+## מתי להשתמש במה
 
-## התיקונים שבוצעו
+| צורך | רכיב |
+|---|---|
+| שדה חיפוש (אייקון, ניקוי, כפתורי סינון) | `OtzariaSearchField` (`lib/widgets/text/otzaria_search_field.dart`), שבנוי על `RtlTextField` |
+| דיאלוג עם שדה אחד | `showInputDialog` (`lib/widgets/dialogs/input_dialog.dart`) |
+| כל שדה קלט אחר: טופס, מספר, טקסט רב־שורתי | `RtlTextField` |
 
-### 1. תיקון חיצים בסיסי
-- חץ ימינה (ויזואלית) מזיז את הסמן ימינה (+1 offset)
-- חץ שמאלה (ויזואלית) מזיז את הסמן שמאלה (-1 offset)
+כללי העיצוב של השדות (`InputDecoration` מערכת הנושא, שדה מספרי): `docs/design-system/DESIGN_SYSTEM.md`.
 
-### 2. תיקון Shift+חיצים
-- Shift+חץ ימינה מרחיב את הבחירה ימינה (extent +1)
-- Shift+חץ שמאלה מרחיב את הבחירה שמאלה (extent -1)
-- base נשאר קבוע, extent זז - כמו בכל עורך טקסט סטנדרטי
-
-### 3. Collapse נכון של Selection
-כשיש טקסט מסומן ולוחצים חץ (ללא Shift):
-- חץ ימינה → הסמן קופץ לסוף הבחירה (offset גבוה יותר)
-- חץ שמאלה → הסמן קופץ לתחילת הבחירה (offset נמוך יותר)
-
-### 4. נראות מיידית של הסמן
-- בכל לחיצת חץ, הסמן מופיע מיד (reset blink)
-- לא צריך לחכות למחזור ההבהוב הבא
-
-### 5. הפסקת הבהוב לאחר Idle
-- אחרי 5 שניות ללא פעילות, הסמן מפסיק להבהב ונשאר גלוי
-- בלחיצת מקש הבאה, ההבהוב חוזר
-- התנהגות דומה ל-Microsoft Word
-
-## איך ליישם?
-
-### שלב 1: הוסף ייבוא
-
-בראש הקובץ, הוסף:
+## שימוש
 
 ```dart
-import 'package:otzaria/widgets/rtl_text_field.dart';
-```
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
-### שלב 2: החלף TextField ב-RtlTextField
-
-**לפני:**
-```dart
-TextField(
-  controller: myController,
-  focusNode: myFocusNode,
-  decoration: InputDecoration(
-    hintText: 'הקלד טקסט...',
-  ),
-  onChanged: (value) {
-    // הקוד שלך
-  },
-)
-```
-
-**אחרי:**
-```dart
 RtlTextField(
-  controller: myController,
-  focusNode: myFocusNode,
-  decoration: InputDecoration(
-    hintText: 'הקלד טקסט...',
-  ),
-  onChanged: (value) {
-    // הקוד שלך
-  },
+  controller: controller,
+  focusNode: focusNode,
+  decoration: const InputDecoration(hintText: 'הקלד טקסט...'),
+  onChanged: (value) { ... },
+  onSubmitted: (value) { ... },
 )
 ```
 
-זהו! פשוט החלף `TextField` ב-`RtlTextField` - כל הפרמטרים זהים.
+הפרמטרים הם תת־קבוצה של `TextField`:
 
-## פרמטרים נתמכים
+- `controller`, `focusNode`, `decoration`
+- `onChanged`, `onSubmitted`
+- `autofocus` (ברירת מחדל `false`), `enabled` (`true`)
+- `keyboardType`, `textInputAction`, `inputFormatters`, `obscureText` (`false`)
+- `maxLines` (ברירת מחדל `1`), `minLines`, `expands` (`false`; ממלא את הגובה הזמין, מחייב `maxLines: null` ו־`minLines: null`)
+- `style`, `textAlign` (`TextAlign.start`), `textAlignVertical`, `cursorColor`
+- `scrollController`
 
-`RtlTextField` תומך בכל הפרמטרים הנפוצים של `TextField`:
+פרמטר שחסר מוסיפים ל־`RtlTextField` עצמו, ומעבירים אותו ל־`TextField` הפנימי.
 
-- `controller` - TextEditingController
-- `focusNode` - FocusNode
-- `decoration` - InputDecoration
-- `onChanged` - ValueChanged<String>
-- `onSubmitted` - ValueChanged<String>
-- `autofocus` - bool
-- `keyboardType` - TextInputType
-- `textInputAction` - TextInputAction
-- `maxLines` - int
-- `minLines` - int
-- `enabled` - bool
-- `style` - TextStyle
-- `textAlign` - TextAlign
-- `inputFormatters` - List<TextInputFormatter>
+## מה השדה עושה
 
-## דוגמאות מהפרויקט
+### חיצים ובחירה (רק כשהכיוון RTL)
 
-### דוגמה 1: שדה חיפוש פשוט (ספרייה)
+כש־`Directionality.of(context)` הוא RTL, השדה עוטף את `TextField` ב־`CallbackShortcuts` לחיצים שמאלה וימינה:
 
-```dart
-RtlTextField(
-  controller: searchController,
-  focusNode: searchFocusNode,
-  autofocus: true,
-  decoration: InputDecoration(
-    prefixIcon: const Icon(FluentIcons.search_24_regular),
-    suffixIcon: IconButton(
-      onPressed: () => searchController.clear(),
-      icon: const Icon(FluentIcons.dismiss_24_regular),
-    ),
-    hintText: 'איתור ספר...',
-  ),
-  onChanged: (value) {
-    // טיפול בשינוי
-  },
-)
-```
+- **חץ:** מזיז את הסמן בתו אחד, וכשיש בחירה מכווץ אותה.
+- **Shift+חץ:** מרחיב או מצמצם את הבחירה בתו.
+- **Ctrl+חץ (Alt ב־macOS וב־iOS):** מזיז במילה, ועם Shift בוחר במילה. ההחלטה בין Ctrl ל־Alt היא `usesAltForWordNavigation` ב־`lib/widgets/text/rtl_selection_shortcuts.dart`.
 
-### דוגמה 2: שדה עם אימות (חיפוש - מרווח)
+השדה לא מחשב offset בעצמו. הוא מפעיל את ה־Intents המובנים של Flutter, `ExtendSelectionByCharacterIntent` ו־`ExtendSelectionToNextWordBoundaryIntent`, עם `forward` הפוך לכיוון החזותי. הכיוון נקבע לפי התו שליד הסמן: בתוך קטע LTR (אנגלית, ספרות) החץ זז בכיוון החזותי הרגיל. ב־LTR השדה מתנהג כמו `TextField` רגיל.
 
-```dart
-RtlTextField(
-  controller: spacingController,
-  focusNode: spacingFocusNode,
-  keyboardType: TextInputType.number,
-  inputFormatters: [
-    FilteringTextInputFormatter.digitsOnly,
-    FilteringTextInputFormatter.allow(RegExp(r'^([0-9]|[12][0-9]|30)$')),
-  ],
-  decoration: InputDecoration(
-    labelText: 'מרווח למילה הבאה',
-    hintText: '0-30',
-  ),
-  onChanged: (value) {
-    // טיפול בשינוי
-  },
-)
-```
+### הבהוב הסמן
 
-### דוגמה 3: שדה עם onSubmitted (איתור)
+- ההבהוב המובנה של Flutter כבוי לכל האפליקציה (`EditableText.debugDeterministicCursor = true` ב־`lib/main.dart`). השדה מחליף אותו בהחלפת `cursorColor` כל 500ms.
+- כל שינוי בטקסט או בבחירה, וכל קבלת פוקוס, מציגים את הסמן מיד ומתחילים מחזור חדש.
+- אחרי 8 שניות בלי פעולה ההבהוב נעצר והסמן **נעלם** עד הפעולה הבאה. גם ביציאה מהשדה הסמן נעלם.
+- הסמן ברוחב 1 (ברירת המחדל של Flutter היא 2).
 
-```dart
-RtlTextField(
-  controller: refController,
-  focusNode: refFocusNode,
-  autofocus: true,
-  decoration: InputDecoration(
-    hintText: 'הקלד מקור מדוייק...',
-    suffixIcon: IconButton(
-      icon: const Icon(FluentIcons.dismiss_24_regular),
-      onPressed: () => refController.clear(),
-    ),
-  ),
-  onChanged: (value) {
-    // חיפוש בזמן אמת
-  },
-  onSubmitted: (value) {
-    // פתיחת התוצאה
-  },
-)
-```
+### תפריט הקשר
 
-## מה קורה מאחורי הקלעים?
+- `contextMenuBuilder` מחזיר תפריט ריק, ולכן תפריט ברירת המחדל של Flutter לא מופיע.
+- לחיצה ימנית (`Listener`, כפתור 2) פותחת `showMenu` קומפקטי. במגע, לחיצה ארוכה פותחת אותו תפריט במקום סרגל הכלים של Flutter, בלי לקחת פוקוס.
+- הפריטים:
+  - "גזור" ו"העתק", כשיש בחירה.
+  - "הדבק", תמיד.
+  - קו מפריד ו"בחר הכל", כשיש טקסט בשדה.
+- מידות: פריט בגובה 36, ריפוד אופקי 12, אייקון 18 (Fluent), טקסט 14, פינות `AppTokens.borderRadiusAll`.
+- גזירה והדבקה מהתפריט קוראות ל־`onChanged` ידנית, כי שינוי ישיר של `controller.text` לא מפעיל אותו.
 
-1. **זיהוי RTL אוטומטי** - הרכיב בודק את `Directionality.of(context)`
-2. **תיקון חיצים מתקדם** - אם RTL, מוסיף `CallbackShortcuts` עם 4 bindings:
-   - חיצים רגילים (ללא Shift) - ניווט עם collapse נכון
-   - Shift+חיצים - הרחבת/צמצום בחירה
-3. **Reset Blink** - בכל לחיצת חץ, מאפס את ה-blink timer ומציג את הסמן מיד
-4. **Idle Timeout** - אחרי 5 שניות, מפסיק את ההבהוב (הסמן נשאר גלוי)
-5. **תפריט מותאם** - מוסיף `Listener` שתופס לחיצה ימנית ומציג תפריט קומפקטי
-6. **השבתת תפריט ברירת מחדל** - משתמש ב-`contextMenuBuilder` להשבתת התפריט המובנה
+### שורות בטקסט רב־שורתי
 
-## לוגיקת הטיפול בחיצים
+בשדה עם `maxLines` שאינו 1 השדה עוקף באג של מנוע Flutter (flutter/flutter#178945): סמן בשורת RTL שמסתיימת ב־`\n` מוצג במקום שגוי. השדה מחזיק controller פנימי שבו כל שבירת שורה היא `\r\n`, ומסנכרן אותו עם ה־controller שלך, שבו נשאר `\n`. `onChanged`, `onSubmitted`, ההעתקה וההדבקה מקבלים את הטקסט הנקי. המימוש: `lib/widgets/text/rtl_hard_break_workaround.dart`.
 
-### מצב 1: יש Selection פעיל + לוחצים חץ (ללא Shift)
-```dart
-// Collapse לקצה הנכון
-if (isRightArrow) {
-  // חץ ימינה -> קפוץ לסוף הבחירה (offset גבוה)
-  targetOffset = selection.end;
-} else {
-  // חץ שמאלה -> קפוץ לתחילת הבחירה (offset נמוך)
-  targetOffset = selection.start;
-}
-```
+- הבחירה מצוירת ב־`BoxWidthStyle.tight`, כדי שבחירה בטקסט RTL רב־שורתי לא תימתח עד הקצה השמאלי.
 
-### מצב 2: אין Selection או לוחצים Shift+חץ
-```dart
-// חישוב offset חדש
-offsetChange = isRightArrow ? 1 : -1;  // RTL: ימינה=+1, שמאלה=-1
-newOffset = (currentOffset + offsetChange).clamp(0, text.length);
+### Android
 
-if (extendSelection) {
-  // Shift לחוץ - מרחיבים בחירה
-  // base קבוע, extent זז
-  selection = TextSelection(
-    baseOffset: selection.baseOffset,
-    extentOffset: newOffset,
-  );
-} else {
-  // ניווט רגיל
-  selection = TextSelection.collapsed(offset: newOffset);
-}
-```
+ב־Android עם `focusNode` חיצוני, `autofocus` לא מועבר ל־`TextField`. במקומו השדה פותח את המקלדת אחרי הפריים הראשון (`requestKeyboard`), וכך גם כשה־`focusNode` כבר בפוקוס בבנייה.
 
-## תפריט ההקשר
+## בדיקות
 
-התפריט המותאם כולל:
+הבדיקות של השדה נמצאות ב־`test/widgets/text/`:
 
-**כשיש טקסט נבחר:**
-- גזור
-- העתק
-- הדבק
+- `rtl_text_field_editing_test.dart`
+- `rtl_text_field_word_selection_test.dart`
+- `rtl_text_field_cursor_blink_test.dart`
+- `rtl_text_field_context_menu_test.dart`
+- `rtl_text_field_hard_break_test.dart`
+- `rtl_text_field_expands_test.dart`
+- `rtl_text_field_selection_boxes_test.dart`
+- `rtl_selection_shortcuts_test.dart`
 
-**כשאין טקסט נבחר:**
-- הדבק
-- בחר הכל (רק אם יש טקסט בשדה)
-
-התפריט מעוצב בצורה קומפקטית:
-- גובה פריט: 36px (במקום 48px)
-- padding: 12px (במקום 16px)
-- גודל אייקון: 18px (במקום 20px)
-- גודל טקסט: 14px
-
-## שאלות נפוצות
-
-**ש: האם זה עובד גם ב-LTR?**  
-ת: כן! הרכיב זוהה אוטומטית את הכיוון. ב-LTR הוא מתנהג כמו TextField רגיל.
-
-**ש: האם אני צריך לשנות משהו בקוד הקיים?**  
-ת: לא! פשוט החלף `TextField` ב-`RtlTextField` - כל הפרמטרים זהים.
-
-**ש: מה אם אני צריך פרמטר שלא נתמך?**  
-ת: פתח issue או הוסף את הפרמטר ל-`RtlTextField` בקובץ `lib/widgets/rtl_text_field.dart`.
-
-**ש: האם זה משפיע על ביצועים?**  
-ת: לא. התיקונים מתבצעים רק כשצריך (RTL) ובצורה יעילה.
-
-## קבצים שכבר משתמשים ב-RtlTextField
-
-### שדות חיפוש ראשיים
-- ✅ `lib/library/view/library_browser.dart` - שדה חיפוש בספרייה
-- ✅ `lib/find_ref/find_ref_dialog.dart` - שדה איתור מקורות
-- ✅ `lib/search/view/search_dialog.dart` - שדות מרווח ומילה חילופית
-- ✅ `lib/search/view/enhanced_search_field.dart` - שדה החיפוש הראשי
-
-### שדות חיפוש בספרים
-- ✅ `lib/widgets/search_pane_base.dart` - בסיס לכל שדות החיפוש בספרים
-- ✅ `lib/text_book/view/commentary_list_base.dart` - חיפוש במפרשים
-- ✅ `lib/text_book/view/selected_line_links_view.dart` - חיפוש בקישורים
-- ✅ `lib/text_book/view/toc_navigator_screen.dart` - חיפוש בתוכן עניינים
-
-## סיכום
-
-החלפת `TextField` ב-`RtlTextField` היא פשוטה וישירה:
-
-1. הוסף ייבוא: `import 'package:otzaria/widgets/rtl_text_field.dart';`
-2. החלף `TextField(` ב-`RtlTextField(`
-3. זהו!
-
-הרכיב יטפל אוטומטית בתיקון החיצים ובתפריט ההקשר.
+בדיקת האכיפה של UIL-011: `test/design_system/ui_lint_test.dart`.

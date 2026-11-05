@@ -13,6 +13,7 @@ import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
@@ -27,7 +28,7 @@ Future<void> showAppInfoDialog(
   context: context,
   title: report.topic.title,
   icon: report.topic.icon,
-  headerBand: true,
+  size: AppDialogSize.medium,
   confirmText: 'סגירה',
   customContent: AppInfoDialogContent(report: report),
 );
@@ -101,7 +102,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
                     _prettyJson,
                     textDirection: TextDirection.ltr,
                     style: const TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: AppTextStyles.monospaceFamily,
                       fontSize: AppTokens.fontSM,
                       height: 1.4,
                     ),
@@ -116,17 +117,17 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
 
   Widget _buildHeader(ColorScheme cs) {
     // ברוחב טלפון התאריך והכפתור לא נכנסים בשורה אחת: הכפתור יורד מתחת.
-    final narrow = MediaQuery.sizeOf(context).width < 520;
-    final copyButton = TextButton.icon(
+    final narrow = WindowClass.of(context).isCompact;
+    final copyButton = ActionButton.ghost(
       onPressed: _copyJson,
-      icon: const Icon(FluentIcons.copy_24_regular, size: 18),
-      label: const Text('העתק JSON'),
+      icon: FluentIcons.copy_24_regular,
+      text: 'העתק JSON',
     );
     final date = Row(
       children: [
         Icon(
           FluentIcons.clock_24_regular,
-          size: AppTokens.fontLG,
+          size: AppTokens.iconSM,
           color: cs.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),
@@ -429,7 +430,7 @@ class _FolderTileState extends State<_FolderTile> {
                     : hidden
                     ? FluentIcons.eye_off_24_regular
                     : FluentIcons.folder_open_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: exists ? cs.primary : cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -465,7 +466,7 @@ class _FolderTileState extends State<_FolderTile> {
             children: [
               if (!exists)
                 const MetaChip(
-                  error: true,
+                  tone: MetaChipTone.error,
                   icon: FluentIcons.folder_prohibited_24_regular,
                   label: 'התיקייה לא נמצאה',
                 )
@@ -479,20 +480,19 @@ class _FolderTileState extends State<_FolderTile> {
                 ),
               if (hidden)
                 const MetaChip(
-                  outlined: true,
                   icon: FluentIcons.eye_off_24_regular,
                   label: 'מוסתרת',
                 ),
               if (folder['scanTruncated'] == true)
                 const MetaChip(
-                  outlined: true,
+                  tone: MetaChipTone.warning,
                   icon: FluentIcons.warning_24_regular,
                   label: 'סריקה חלקית',
                 ),
               if (types.isNotEmpty)
                 Directionality(
                   textDirection: TextDirection.ltr,
-                  child: MetaChip(outlined: true, label: types),
+                  child: MetaChip(label: types),
                 ),
             ],
           ),
@@ -505,21 +505,18 @@ class _FolderTileState extends State<_FolderTile> {
           ],
           if (shown.isNotEmpty) ...[
             const SizedBox(height: AppTokens.spaceSM),
-            Divider(
-              height: 1,
-              color: AppSurfaces.cardRowDivider(context),
-            ),
+            Divider(height: 1, color: AppSurfaces.subtleDivider(cs)),
             const SizedBox(height: AppTokens.spaceXS),
             for (final (i, file) in shown.indexed) ...[
               if (i > 0)
-                Divider(height: 1, color: AppSurfaces.cardRowDivider(context)),
+                Divider(height: 1, color: AppSurfaces.subtleDivider(cs)),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(
                   children: [
                     Icon(
                       FluentIcons.document_24_regular,
-                      size: AppTokens.fontMD,
+                      size: AppTokens.iconXS,
                       color: cs.onSurfaceVariant,
                     ),
                     const SizedBox(width: AppTokens.spaceSM),
@@ -587,7 +584,7 @@ class _AttachedLibraryTile extends StatelessWidget {
             children: [
               Icon(
                 FluentIcons.database_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: ok ? cs.primary : cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -620,7 +617,7 @@ class _AttachedLibraryTile extends StatelessWidget {
             children: [
               if (!ok)
                 MetaChip(
-                  error: true,
+                  tone: MetaChipTone.error,
                   icon: FluentIcons.warning_24_regular,
                   label: _statusLabel(status),
                 )
@@ -633,19 +630,16 @@ class _AttachedLibraryTile extends StatelessWidget {
                 ),
               if (library['hidden'] == true)
                 const MetaChip(
-                  outlined: true,
                   icon: FluentIcons.eye_off_24_regular,
                   label: 'מוסתר',
                 ),
               MetaChip(
-                outlined: true,
                 icon: library['mode'] == 'copy'
                     ? FluentIcons.copy_24_regular
                     : FluentIcons.link_24_regular,
                 label: library['mode'] == 'copy' ? 'עותק מנוהל' : 'קישור לקובץ',
               ),
               MetaChip(
-                outlined: true,
                 icon: FluentIcons.folder_24_regular,
                 label: library['placement'] == 'mergeIntoLibrary'
                     ? 'ממוזג לספרייה'
@@ -762,7 +756,7 @@ class _PluginRow extends StatelessWidget {
           Directionality(
             textDirection: TextDirection.ltr,
             child: MetaChip(
-              outlined: !enabled,
+              tone: enabled ? MetaChipTone.success : MetaChipTone.neutral,
               label: InfoValueFormat.pluginVersion(plugin),
             ),
           ),
@@ -793,7 +787,7 @@ class _ErrorTile extends StatelessWidget {
             children: [
               Icon(
                 FluentIcons.error_circle_24_regular,
-                size: AppTokens.fontXL,
+                size: AppTokens.iconSM,
                 color: cs.error,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -814,7 +808,6 @@ class _ErrorTile extends StatelessWidget {
                     Directionality(
                       textDirection: TextDirection.ltr,
                       child: MetaChip(
-                        outlined: true,
                         icon: FluentIcons.clock_24_regular,
                         label: timestamp,
                       ),

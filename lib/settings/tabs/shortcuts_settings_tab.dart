@@ -24,6 +24,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -633,8 +634,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ],
         ),
 
-        kSettingsCardSpacing,
-
         // ── ניווט כללי ────────────────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.nav',
@@ -710,8 +709,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
               ),
           ]),
         ),
-
-        kSettingsCardSpacing,
 
         // ── תצוגת ספר ─────────────────────────────────────────────────
         SettingsCard(
@@ -877,8 +874,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── לוח שנה ושמור וזכור ───────────────────────────────────────
         SettingsCard(
           cardId: 'shortcuts.calendar',
@@ -923,8 +918,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ]),
         ),
 
-        kSettingsCardSpacing,
-
         // ── תיקון קוראים ──────────────────────────────────────────────
         SettingsCard(
           title: context.settingsText('תיקון קוראים'),
@@ -946,7 +939,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פתיחת כלים (אופציונלי) — מוצג רק כשהוגדר קיצור לכלי אחד לפחות ──
         if (openToolTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.open_tools',
             title: context.settingsText('פתיחת כלים'),
@@ -959,7 +951,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פתיחת תוספים (אופציונלי) — מוצג רק כשהוגדר קיצור לתוסף אחד לפחות ──
         if (openPluginTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פתיחת תוספים'),
             subtitle: context.settingsText(
@@ -971,7 +962,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── העתקת קישורים (אופציונלי) — מוצג רק כשהוגדר קיצור אחד לפחות ──
         if (copyLinkTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             cardId: 'shortcuts.copy_links',
             title: context.settingsText('העתקת קישורים'),
@@ -983,7 +973,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
         ],
 
         if (pluginShortcutTiles.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('קיצורי תוספים'),
             subtitle: context.settingsText(
@@ -995,7 +984,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
         ],
 
         // ── קיצורים דינמיים: פעולה + פרמטרים שהמשתמש מגדיר ──────────────
-        kSettingsCardSpacing,
         SettingsCard(
           cardId: 'shortcuts.dynamic',
           title: context.settingsText('קיצורים דינמיים'),
@@ -1020,7 +1008,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
                     text: context.settingsText('ערוך'),
                     onPressed: () => _editDynamicShortcut(context, shortcut),
                   ),
-                  ActionButton.warning(
+                  ActionButton.warningSoft(
                     text: context.settingsText('מחק'),
                     onPressed: () =>
                         DynamicShortcutRegistry.instance.remove(shortcut.id),
@@ -1042,7 +1030,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
         // ── פעולות זמינות להגדרת קיצור ────────────────────────────────
         if (unconfiguredKeys.isNotEmpty) ...[
-          kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פעולות זמינות לקיצור'),
             subtitle: context.settingsText(
@@ -1197,7 +1184,9 @@ class _ShortcutTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle(
-      style: DefaultTextStyle.of(context).style.merge(kSettingsTitleStyle),
+      style: DefaultTextStyle.of(
+        context,
+      ).style.merge(AppTextStyles.settingTitle),
       child: ShortcutDropDownTile(
         settingKey: settingKey,
         title: label,
@@ -1229,8 +1218,7 @@ class _ShortcutTile extends StatelessWidget {
 ///
 /// הקומפוננטות הקנוניות ב-`app_dialogs.dart` (SingleActionDialog וכו') בנויות
 /// סביב כפתור confirm/cancel — לא מתאימות ל-picker שבו כל פריט הוא הפעולה
-/// עצמה. במקום זאת אנחנו מיישרים קו עם אותו AlertDialog + צבעי המשטח
-/// (`surfaceContainerHigh`) ואותו כפתור ביטול ([ActionButton.neutral]).
+/// עצמה, ולכן [AppDialogFrame] בגודל small עם כפתור ביטול בלבד.
 class _PickActionDialog extends StatelessWidget {
   final List<String> actionKeys;
 
@@ -1238,19 +1226,17 @@ class _PickActionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return AppDialogFrame(
-      backgroundColor: cs.surfaceContainerHigh,
       title: context.settingsText('בחר פעולה להוספת קיצור'),
       icon: FluentIcons.keyboard_24_regular,
-      width: 460,
+      size: AppDialogSize.small,
       actions: [
         ActionButton.neutral(
           text: context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
-      child: ListDialogCard(
+      child: AppCard(
         child: ListView.separated(
           shrinkWrap: true,
           itemCount: actionKeys.length,

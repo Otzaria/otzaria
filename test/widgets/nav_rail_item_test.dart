@@ -249,7 +249,7 @@ void main() {
       );
     });
 
-    testWidgets('arrow_left מוצג כ-arrow_right בהקשר RTL', (tester) async {
+    testWidgets('arrow_left משתקף ב-RTL (matchTextDirection)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Directionality(
@@ -270,10 +270,14 @@ void main() {
           matching: find.byType(Icon),
         ),
       );
+      expect(icon.icon, FluentIcons.arrow_left_24_regular);
       expect(
-        icon.icon,
-        FluentIcons.arrow_right_24_regular,
-        reason: 'חץ שמאל חייב להפוך לחץ ימין בממשק RTL',
+        find.descendant(
+          of: find.byType(Icon),
+          matching: find.byType(Transform),
+        ),
+        findsOneWidget,
+        reason: 'Icon משקף את החץ בעצמו; החלפה נוספת הייתה מבטלת את השיקוף',
       );
     });
 

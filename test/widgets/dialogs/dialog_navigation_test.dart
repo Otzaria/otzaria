@@ -66,7 +66,7 @@ void main() {
     });
   });
 
-  group('showTwoActionsDialog — hasUnsavedChanges', () {
+  group('showTwoActionsDialog — isDirty', () {
     late ValueNotifier<bool> hasChanges;
     late List<String> sounds;
     bool? result;
@@ -104,7 +104,7 @@ void main() {
                   context: context,
                   title: 'עריכה',
                   content: 'תוכן',
-                  hasUnsavedChanges: hasChanges,
+                  isDirty: hasChanges,
                 ),
                 child: const Text('פתח'),
               ),
@@ -127,7 +127,7 @@ void main() {
       expect(sounds, isEmpty);
     });
 
-    testWidgets('עם שינויים לחיצה מחוץ לדיאלוג חסומה ומשמיעה צליל', (
+    testWidgets('עם שינויים לחיצה מחוץ לדיאלוג וביטול שואלים לפני הסגירה', (
       tester,
     ) async {
       await open(tester);
@@ -136,14 +136,18 @@ void main() {
 
       await tester.tapAt(const Offset(5, 5));
       await tester.pumpAndSettle();
-
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text('המשך לערוך'));
+      await tester.pumpAndSettle();
       expect(find.text('עריכה'), findsOneWidget);
-      expect(sounds, ['SystemSoundType.alert']);
 
       await tester.tap(find.text('ביטול'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('סגור בלי לשמור'));
+      await tester.pumpAndSettle();
       expect(find.text('עריכה'), findsNothing);
       expect(result, isFalse);
+      expect(sounds, isNot(contains('SystemSoundType.alert')));
     });
   });
 }

@@ -193,6 +193,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     final confirmed = await showConfirmationDialog(
       context: context,
       title: context.settingsText('הסרת תיקייה'),
+      icon: FluentIcons.delete_24_regular,
       content: context.settingsText(
         'האם להסיר את התיקייה "{name}" מהספרייה?\n'
         'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
@@ -216,6 +217,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       final confirmed = await showConfirmationDialog(
         context: context,
         title: context.settingsText('שמירת עותק עצמאי בתוכנה'),
+        icon: FluentIcons.database_24_regular,
         content: context.settingsText(
           'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
           'אם הקבצים המקוריים יוזזו או יימחקו.\n'
@@ -458,7 +460,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       // הכפתור נשאר צמוד לטקסט תמיד — בניגוד ל-actions, לא גולש למטה במסך צר.
       pinnedTrailing: Builder(
         builder: (buttonContext) => IconButton(
-          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          icon: const Icon(
+            FluentIcons.more_vertical_24_regular,
+            size: AppTokens.iconSM,
+          ),
           onPressed: isSyncing
               ? null
               : () => _showFolderMenu(buttonContext, folder),
@@ -545,88 +550,70 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     ];
   }
 
-  /// דיאלוג מידע נוסף — מפרט את מצבי האחסון וסוגי הקבצים.
+  /// דיאלוג מידע נוסף — מפרט את מצבי האחסון וסוגי הקבצים, בשני מקטעים:
+  /// הספרים שבתיקייה, והנתונים שנוספים להם.
   Future<void> _showStorageInfoDialog() async {
-    final cs = Theme.of(context).colorScheme;
-    Widget item(IconData icon, String title, String subtitle) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 22, color: cs.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTextStyles.settingTitle.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: AppTextStyles.settingSubtitle.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
     await showSingleActionDialog(
       context: context,
       title: context.settingsText('הצגה או הוספה של הקבצים'),
       icon: FluentIcons.folder_24_regular,
-      headerBand: true,
+      // חמש פסקאות הסבר: ברוחב small השורות נשברות כל כמה מילים.
+      size: AppDialogSize.medium,
+      scrollable: true,
       confirmText: context.settingsText('סגור'),
-      customContent: SingleChildScrollView(
-        child: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              item(
-                FluentIcons.document_24_regular,
-                context.settingsText('הצגה', context: 'storage'),
-                context.settingsText(
+      // גוף הדיאלוג בהיר כולו, בגוון הדיאלוג: המקטעים נפרדים בכותרת ובקו
+      // דק, ולא בכרטיס על רקע כהה יותר.
+      customContent: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _StorageInfoSection(
+            title: context.settingsText('הספרים שבתיקייה'),
+            items: [
+              _StorageInfoItem(
+                icon: FluentIcons.document_24_regular,
+                title: context.settingsText('הצגה', context: 'storage'),
+                description: context.settingsText(
                   'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
                   'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
                 ),
               ),
-              item(
-                FluentIcons.database_24_regular,
-                context.settingsText('הוספה'),
-                context.settingsText(
+              _StorageInfoItem(
+                icon: FluentIcons.database_24_regular,
+                title: context.settingsText('הוספה'),
+                description: context.settingsText(
                   'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
                   'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
                 ),
               ),
-              item(
-                FluentIcons.info_24_regular,
-                context.settingsText('קבצים שאינם טקסט'),
-                context.settingsText(
+              _StorageInfoItem(
+                icon: FluentIcons.info_24_regular,
+                title: context.settingsText('קבצים שאינם טקסט'),
+                description: context.settingsText(
                   'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
                 ),
               ),
-              item(
-                OtzariaIcons.links_24_regular,
-                context.settingsText('דורות, קישורים, כותרות וגרסאות'),
-                context.settingsText(
+            ],
+          ),
+          const Divider(
+            height: AppTokens.spaceXL,
+            thickness: AppTokens.borderThin,
+          ),
+          _StorageInfoSection(
+            title: context.settingsText('נתונים נוספים'),
+            items: [
+              _StorageInfoItem(
+                icon: OtzariaIcons.links_24_regular,
+                title: context.settingsText('דורות, קישורים, כותרות וגרסאות'),
+                description: context.settingsText(
                   'קובץ "דורות.csv", וקבצים שמחוץ לתיקיית הספרים, מייבאים '
                   'בכפתור "ייבוא נתונים" שבהמשך.',
                 ),
               ),
-              item(
-                OtzariaIcons.books_stacked_high_24_regular,
-                context.settingsText('קישורים, כותרות וגרסאות בתיקייה'),
-                context.settingsText(
+              _StorageInfoItem(
+                icon: OtzariaIcons.books_stacked_high_24_regular,
+                title: context.settingsText('קישורים, כותרות וגרסאות בתיקייה'),
+                description: context.settingsText(
                   'קובץ "<שם הקובץ>.כותרות.csv" ליד ספר טקסט מוסיף לו את '
                   'לשונית "כותרות" (עמודות: מבנה, רמה, כותרת, שורה או טקסט). '
                   'קובץ "גרסאות.csv" בתיקייה מאחד כמה קבצים לספר אחד (עמודות: '
@@ -637,8 +624,68 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
               ),
             ],
           ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+/// מקטע בדיאלוג "הצגה או הוספה של הקבצים": כותרת, ומתחתיה הפריטים ישירות
+/// על גוף הדיאלוג, בלי כרטיס.
+class _StorageInfoSection extends StatelessWidget {
+  const _StorageInfoSection({required this.title, required this.items});
+
+  final String title;
+  final List<Widget> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: AppTokens.spaceMD,
+      children: [AppSectionLabel(title), ...items],
+    );
+  }
+}
+
+/// פריט בדיאלוג "הצגה או הוספה של הקבצים": אייקון בתחילת השורה, כותרת
+/// ומתחתיה הסבר.
+class _StorageInfoItem extends StatelessWidget {
+  const _StorageInfoItem({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: AppTokens.iconMD, color: cs.primary),
+        const SizedBox(width: AppTokens.spaceSMD),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: AppTokens.space2XS,
+            children: [
+              Text(title, style: theme.textTheme.titleSmall),
+              Text(
+                description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -711,7 +758,7 @@ class UserContentImportTile extends StatelessWidget {
             'כותרות משנה.',
           ),
           actions: [
-            ActionButton.warning(
+            ActionButton.warningSoft(
               text: context.settingsText('נקה הכל'),
               onPressed: isSyncing ? null : () => _clear(context),
             ),

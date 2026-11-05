@@ -292,7 +292,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
     );
     final theme = Theme.of(context);
     return [
-      SettingsActionTile.segmentedTile<TextDisplayBookClass>(
+      SettingsSegmentedTile<TextDisplayBookClass>(
         icon: OtzariaIcons.bookshelf_24_regular,
         title: t('ספרים'),
         currentValue: _bookClass,
@@ -305,7 +305,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
         ],
         onChanged: (v) => setState(() => _bookClass = v),
       ),
-      SettingsActionTile.segmentedTile<TextTarget>(
+      SettingsSegmentedTile<TextTarget>(
         icon: FluentIcons.book_open_24_regular,
         title: t('יעד'),
         currentValue: _target,
@@ -315,7 +315,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
         ],
         onChanged: (v) => setState(() => _target = v),
       ),
-      SettingsActionTile.segmentedTile<TextView>(
+      SettingsSegmentedTile<TextView>(
         icon: OtzariaIcons.book_open_tzurat_hadaf_24_regular,
         title: t('תצוגה'),
         currentValue: _view,
@@ -325,7 +325,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
         ],
         onChanged: (v) => setState(() => _view = v),
       ),
-      SettingsActionTile.segmentedTile<TextChannel>(
+      SettingsSegmentedTile<TextChannel>(
         icon: FluentIcons.channel_24_regular,
         title: t('ערוץ'),
         currentValue: _channel,
@@ -346,7 +346,7 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
             children: [
               Icon(
                 FluentIcons.info_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: AppTokens.spaceSM),

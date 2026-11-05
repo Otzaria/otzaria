@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// תגית המקור שעל כרטיס תוצאת חיפוש — 'אוצריא' לתוצאות המנוע המובנה, ושם
 /// המדור (`resultsTitle`) לתוצאות של ספק חיצוני מתוסף.
@@ -19,7 +20,7 @@ class SearchResultSourceTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: cs.tertiaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Text(
         label,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -140,7 +141,6 @@ TextStyle _libraryTooltipTextStyle(BuildContext context) {
   final theme = Theme.of(context);
   return (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
     color: theme.colorScheme.onSurface,
-    fontSize: 14,
     height: 1.3,
   );
 }
@@ -157,7 +157,7 @@ Widget _libraryInfoButton(
     height: 28,
     decoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppTokens.borderRadiusAll,
     ),
     child: IconButton(
       onPressed: onPressed,
@@ -259,18 +259,22 @@ class LibraryItemTitle extends StatelessWidget {
     this.maxLines = 2,
   });
 
+  /// סגנון הכותרת, גם למדידת גובה הכרטיס ([narrowCategoryCardHeight]).
+  static TextStyle? styleOf(BuildContext context, bool isFolder) {
+    final theme = Theme.of(context);
+    return theme.textTheme.titleMedium?.copyWith(
+      fontWeight: isFolder ? FontWeight.w700 : FontWeight.w600,
+      color: theme.textTheme.titleMedium?.color ?? theme.colorScheme.onSurface,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return LibraryOverflowTooltipText(
       text: text,
       maxLines: maxLines,
       textAlign: TextAlign.right,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: isFolder ? FontWeight.w700 : FontWeight.w600,
-        color:
-            theme.textTheme.titleMedium?.color ?? theme.colorScheme.onSurface,
-      ),
+      style: styleOf(context, isFolder),
     );
   }
 }
@@ -311,7 +315,7 @@ class CategoryGridItem extends StatelessWidget {
       child: Icon(
         FluentIcons.folder_24_regular,
         color: cs.onSecondaryContainer,
-        size: 16,
+        size: AppTokens.iconSM,
       ),
     );
     return AppCard(
@@ -323,6 +327,7 @@ class CategoryGridItem extends StatelessWidget {
       },
       selected: isSelected,
       child: Padding(
+        // הריפוד האנכי נכנס לחישוב ב-narrowCategoryCardHeight.
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           // שומר על סדר אייקונים משמאל וטקסט מימין בתוך ממשק RTL.
@@ -925,8 +930,39 @@ const double kLibraryGridSpacing = 14;
 /// ולטור האייקונים בלי גלישה.
 const double kNarrowGridCardMinHeight = 112;
 
+/// רצפת הגובה של כרטיס תיקייה בתצוגה צרה. כרטיס התיקייה הוא שורת ניווט,
+/// ובגובה של כרטיס ספר (112) נראו בטלפון רק שלוש תיקיות (q12 Q8, ss4).
+const double kNarrowCategoryCardHeight = 64;
+
+/// הריפוד האנכי של [CategoryGridItem] (שם הוא ליטרל ב-EdgeInsets).
+const double _kCategoryCardPaddingV = 10;
+
+/// גובה כרטיס תיקייה בתצוגה צרה: שם התיקייה בשתי שורות ([LibraryItemTitle])
+/// והריפוד, ולא פחות מ־[kNarrowCategoryCardHeight] כפול מידת הטקסט. גובה
+/// השורה נמדד בגופן בפועל, כי גופן הממשק הוא גופן המערכת (DD-01).
+double narrowCategoryCardHeight(BuildContext context) {
+  final textScaler = MediaQuery.textScalerOf(context);
+  final painter = TextPainter(
+    text: TextSpan(text: 'א', style: LibraryItemTitle.styleOf(context, true)),
+    textDirection: TextDirection.rtl,
+    textScaler: textScaler,
+    maxLines: 1,
+  )..layout();
+  final twoLines = 2 * painter.height;
+  painter.dispose();
+  return max(
+    textScaler.scale(kNarrowCategoryCardHeight),
+    (twoLines + 2 * _kCategoryCardPaddingV).ceilToDouble(),
+  );
+}
+
 /// השוליים של רשת הספרייה — משמשים גם בחישוב רוחב התא בפועל.
 const double _kGridPadding = 30;
+
+/// ספי הרוחב של יחס הגובה-רוחב של כרטיסי הרשת.
+const double _kGridWideMinWidth = 1400;
+const double _kGridMediumMinWidth = 1100;
+const double _kGridNarrowBelow = 800;
 
 /// השוליים העליונים מעט קטנים יותר, כדי שהשורה הראשונה לא תיראה נמוכה מדי
 /// מתחת לסרגל.
@@ -968,7 +1004,8 @@ class _FocusedGridItemKeepAliveState extends State<_FocusedGridItemKeepAlive>
 /// ניווט חיצים בין כרטיסי הרשת בלבד — הפוקוס עובר ברצף בין הכרטיסים
 /// ולא בורח לכפתורי הסרגל/הצד (המסלול הכיווני של Flutter אינו תחום לרשת).
 ///
-/// חיצי צד נעים ברצף על פני כל הפריטים (גם בין שורות); מעלה/מטה נעים בטור.
+/// חיצי צד נעים ברצף על פני כל הפריטים (גם בין שורות); מעלה/מטה נעים לשורה
+/// החזותית הסמוכה, לכרטיס שמרכזו הקרוב ביותר (ברשת אחידה: באותו טור).
 /// [onExitTop] נקרא בחץ-מעלה מהשורה הראשונה (חזרה לשדה החיפוש).
 class LibraryGridKeyNavigator extends StatelessWidget {
   final int crossAxisCount;
@@ -1059,17 +1096,74 @@ class LibraryGridKeyNavigator extends StatelessWidget {
         : cards.indexWhere((card) => card.node == primary);
     if (index < 0) return KeyEventResult.ignored;
 
-    var target = index + delta;
-    if (delta.abs() == 1) target = target.clamp(0, cards.length - 1);
-    if (target < 0) {
-      onExitTop?.call();
-      return KeyEventResult.handled;
+    final int target;
+    if (delta.abs() == 1) {
+      target = (index + delta).clamp(0, cards.length - 1);
+    } else {
+      final found = _verticalTarget(cards, index, down: delta > 0);
+      if (found == null) {
+        if (delta < 0) onExitTop?.call();
+        return KeyEventResult.handled;
+      }
+      target = found;
     }
-    if (target == index || target >= cards.length) {
-      return KeyEventResult.handled;
-    }
+    if (target == index) return KeyEventResult.handled;
     focusCard(cards[target].node);
     return KeyEventResult.handled;
+  }
+
+  /// הכרטיס שבשורה החזותית הבאה (או הקודמת) שמרכזו האופקי הקרוב ביותר
+  /// למרכז הכרטיס הנוכחי, לפי המיקום בפועל. ברשת אחידה זה הכרטיס שבאותו
+  /// טור; ברשת הפסים ([LibraryBandedGridDelegate]) שורת התיקיות האחרונה
+  /// יכולה להיות חלקית והספרים מתחילים בשורה חדשה, ולכן "אותו אינדקס ועוד
+  /// מספר העמודות" היה מדלג על שורה או נוחת בטור אחר.
+  ///
+  /// בשורה האחרונה ברשת, אם אין בה כרטיס מתחת לכרטיס הנוכחי, הפוקוס נשאר
+  /// במקומו, כמו קודם בשורה האחרונה החלקית של רשת אחידה.
+  /// מחזיר null כשאין שורה בכיוון הזה. [cards] ממוינים לפי שורה ואז לפי
+  /// סדר הקריאה.
+  static int? _verticalTarget(
+    List<({FocusNode node, Rect rect})> cards,
+    int index, {
+    required bool down,
+  }) {
+    const rowTolerance = 1.0;
+    final current = cards[index].rect;
+    // השורה הבאה: הכרטיסים שה-top שלהם הקרוב ביותר מעבר לשורה הנוכחית.
+    double? rowTop;
+    for (final card in cards) {
+      final top = card.rect.top;
+      final beyond = down
+          ? top > current.top + rowTolerance
+          : top < current.top - rowTolerance;
+      if (!beyond) continue;
+      if (rowTop == null || (down ? top < rowTop : top > rowTop)) {
+        rowTop = top;
+      }
+    }
+    if (rowTop == null) return null;
+
+    final centerX = current.center.dx;
+    int? best;
+    var bestDistance = double.infinity;
+    var hasCardBelow = false;
+    var isLastRow = true;
+    for (var i = 0; i < cards.length; i++) {
+      final rect = cards[i].rect;
+      if ((rect.top - rowTop).abs() > rowTolerance) {
+        if (down && rect.top > rowTop + rowTolerance) isLastRow = false;
+        continue;
+      }
+      if (rect.left <= centerX && centerX <= rect.right) hasCardBelow = true;
+      final distance = (rect.center.dx - centerX).abs();
+      // שוויון: הראשון בסדר הקריאה (cards כבר ממוינים כך).
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    }
+    if (down && isLastRow && !hasCardBelow) return index;
+    return best;
   }
 
   /// ממקד כרטיס וגולל אותו לתצוגה (requestFocus לבדו אינו גולל).
@@ -1093,6 +1187,11 @@ class MyGridView extends StatelessWidget {
   final VoidCallback? onExitTop;
   final double minItemHeight;
 
+  /// כמה מהפריטים הראשונים ב-[items] הם כרטיסי תיקייה. בתצוגה צרה הם
+  /// בשורות נמוכות משלהם ([kNarrowCategoryCardHeight]), והספרים שאחריהם
+  /// מתחילים בשורה חדשה בגובה הרגיל.
+  final int leadingCategoryCount;
+
   /// גולל בעצמו ובונה רק את הכרטיסים שבתצוגה; אחרת נבנים כולם בתוך גלילה חיצונית.
   final bool scrollable;
   final ScrollController? controller;
@@ -1102,6 +1201,7 @@ class MyGridView extends StatelessWidget {
     required this.items,
     this.onExitTop,
     this.minItemHeight = 0,
+    this.leadingCategoryCount = 0,
     this.scrollable = false,
     this.controller,
   });
@@ -1112,11 +1212,11 @@ class MyGridView extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1.0);
         final width = constraints.maxWidth;
-        final baseRatio = width >= 1400
+        final baseRatio = width >= _kGridWideMinWidth
             ? 2.1
-            : width >= 1100
+            : width >= _kGridMediumMinWidth
             ? 1.95
-            : width >= 800
+            : width >= _kGridNarrowBelow
             ? 1.8
             : 1.65;
         final textAdjustment = textScale <= 1.0
@@ -1131,7 +1231,7 @@ class MyGridView extends StatelessWidget {
             (gridWidth - kLibraryGridSpacing * (crossAxisCount - 1)) /
             crossAxisCount;
         final double childAspectRatio;
-        if (width < 800) {
+        if (width < _kGridNarrowBelow) {
           final halfHeight = cellWidth / (2 * baseRatio * textAdjustment);
           final minHeight = kNarrowGridCardMinHeight * textScale;
           childAspectRatio = cellWidth / max(minHeight, halfHeight);
@@ -1142,6 +1242,32 @@ class MyGridView extends StatelessWidget {
         final childHeight = minItemHeight > 0
             ? max(minItemHeight, cellWidth / childAspectRatio)
             : cellWidth / childAspectRatio;
+
+        // בתצוגה צרה כרטיסי התיקייה נמוכים מכרטיסי הספר (ss4).
+        final categoryCount = width < _kGridNarrowBelow && minItemHeight <= 0
+            ? min(leadingCategoryCount, items.length)
+            : 0;
+        final SliverGridDelegate gridDelegate = categoryCount > 0
+            ? LibraryBandedGridDelegate(
+                crossAxisCount: crossAxisCount,
+                bandCount: categoryCount,
+                bandExtent: narrowCategoryCardHeight(context),
+                restExtent: childHeight,
+                spacing: kLibraryGridSpacing,
+              )
+            : SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: childAspectRatio,
+                mainAxisExtent: minItemHeight > 0
+                    ? max(minItemHeight, cellWidth / childAspectRatio)
+                    : null,
+                crossAxisSpacing: kLibraryGridSpacing,
+                mainAxisSpacing: kLibraryGridSpacing,
+              );
+        double rowOffsetOf(int index) =>
+            gridDelegate is LibraryBandedGridDelegate
+            ? gridDelegate.scrollOffsetOf(index)
+            : (index ~/ crossAxisCount) * (childHeight + kLibraryGridSpacing);
 
         return LibraryGridKeyNavigator(
           crossAxisCount: crossAxisCount,
@@ -1156,10 +1282,7 @@ class MyGridView extends StatelessWidget {
                       ? null
                       : Scrollable.maybeOf(focusContext);
                   if (index == null || scrollableState == null) return false;
-                  final rowOffset =
-                      _kGridTopPadding +
-                      (index ~/ crossAxisCount) *
-                          (childHeight + kLibraryGridSpacing);
+                  final rowOffset = _kGridTopPadding + rowOffsetOf(index);
                   // כרטיס ממוקד שנשמר מחוץ ל-sliver חסר bounds עד לפריסת השורה.
                   scrollableState.position.jumpTo(
                     rowOffset.clamp(
@@ -1180,15 +1303,7 @@ class MyGridView extends StatelessWidget {
                 _kGridPadding,
                 _kGridPadding,
               ),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: childAspectRatio,
-                mainAxisExtent: minItemHeight > 0
-                    ? max(minItemHeight, cellWidth / childAspectRatio)
-                    : null,
-                crossAxisSpacing: kLibraryGridSpacing,
-                mainAxisSpacing: kLibraryGridSpacing,
-              ),
+              gridDelegate: gridDelegate,
               itemCount: items.length,
               itemBuilder: (context, index) => scrollable
                   ? _FocusedGridItemKeepAlive(child: items[index])
@@ -1200,6 +1315,129 @@ class MyGridView extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// רשת בשני פסים: [bandCount] הפריטים הראשונים (כרטיסי התיקייה) בשורות בגובה
+/// [bandExtent], ושאר הפריטים (הספרים) בשורות בגובה [restExtent], מהשורה
+/// שאחרי התיקייה האחרונה. אותו מספר עמודות ואותו ריווח בשני הפסים.
+/// כשמספר התיקיות אינו כפולה של [crossAxisCount] השורה האחרונה שלהן חלקית,
+/// ולכן מעלה/מטה ב-[LibraryGridKeyNavigator] נעים לפי מיקום הכרטיסים בפועל
+/// ולא לפי אינדקס ועוד מספר העמודות.
+@visibleForTesting
+class LibraryBandedGridDelegate extends SliverGridDelegate {
+  const LibraryBandedGridDelegate({
+    required this.crossAxisCount,
+    required this.bandCount,
+    required this.bandExtent,
+    required this.restExtent,
+    required this.spacing,
+  }) : assert(crossAxisCount > 0 && bandCount >= 0);
+
+  final int crossAxisCount;
+  final int bandCount;
+  final double bandExtent;
+  final double restExtent;
+  final double spacing;
+
+  int get _bandRows =>
+      bandCount == 0 ? 0 : (bandCount - 1) ~/ crossAxisCount + 1;
+
+  /// היכן מתחילה שורת הספרים הראשונה.
+  double get restStart => _bandRows * (bandExtent + spacing);
+
+  /// מיקום הפריט [index] בציר הגלילה.
+  double scrollOffsetOf(int index) => index < bandCount
+      ? (index ~/ crossAxisCount) * (bandExtent + spacing)
+      : restStart +
+            ((index - bandCount) ~/ crossAxisCount) * (restExtent + spacing);
+
+  @override
+  SliverGridLayout getLayout(SliverConstraints constraints) {
+    final usable = constraints.crossAxisExtent - spacing * (crossAxisCount - 1);
+    final childCrossExtent = max(0.0, usable / crossAxisCount);
+    return _LibraryBandedGridLayout(
+      delegate: this,
+      childCrossExtent: childCrossExtent,
+      crossStride: childCrossExtent + spacing,
+      reverseCrossAxis: axisDirectionIsReversed(constraints.crossAxisDirection),
+    );
+  }
+
+  @override
+  bool shouldRelayout(LibraryBandedGridDelegate oldDelegate) =>
+      oldDelegate.crossAxisCount != crossAxisCount ||
+      oldDelegate.bandCount != bandCount ||
+      oldDelegate.bandExtent != bandExtent ||
+      oldDelegate.restExtent != restExtent ||
+      oldDelegate.spacing != spacing;
+}
+
+class _LibraryBandedGridLayout extends SliverGridLayout {
+  const _LibraryBandedGridLayout({
+    required this.delegate,
+    required this.childCrossExtent,
+    required this.crossStride,
+    required this.reverseCrossAxis,
+  });
+
+  final LibraryBandedGridDelegate delegate;
+  final double childCrossExtent;
+  final double crossStride;
+  final bool reverseCrossAxis;
+
+  int get _cols => delegate.crossAxisCount;
+  double get _bandStride => delegate.bandExtent + delegate.spacing;
+  double get _restStride => delegate.restExtent + delegate.spacing;
+
+  @override
+  int getMinChildIndexForScrollOffset(double scrollOffset) {
+    final restStart = delegate.restStart;
+    if (scrollOffset < restStart) {
+      return _bandStride > 0 ? _cols * (scrollOffset ~/ _bandStride) : 0;
+    }
+    return delegate.bandCount +
+        (_restStride > 0
+            ? _cols * ((scrollOffset - restStart) ~/ _restStride)
+            : 0);
+  }
+
+  @override
+  int getMaxChildIndexForScrollOffset(double scrollOffset) {
+    final restStart = delegate.restStart;
+    if (scrollOffset <= restStart) {
+      final rows = _bandStride > 0 ? (scrollOffset / _bandStride).ceil() : 0;
+      return max(0, min(_cols * rows, delegate.bandCount) - 1);
+    }
+    final rows = _restStride > 0
+        ? ((scrollOffset - restStart) / _restStride).ceil()
+        : 0;
+    return max(0, delegate.bandCount + _cols * rows - 1);
+  }
+
+  @override
+  SliverGridGeometry getGeometryForChildIndex(int index) {
+    final inBand = index < delegate.bandCount;
+    final column = (inBand ? index : index - delegate.bandCount) % _cols;
+    final crossStart = column * crossStride;
+    return SliverGridGeometry(
+      scrollOffset: delegate.scrollOffsetOf(index),
+      crossAxisOffset: reverseCrossAxis
+          ? _cols * crossStride - crossStart - crossStride
+          : crossStart,
+      mainAxisExtent: inBand ? delegate.bandExtent : delegate.restExtent,
+      crossAxisExtent: childCrossExtent,
+    );
+  }
+
+  @override
+  double computeMaxScrollOffset(int childCount) {
+    if (childCount <= 0) return 0;
+    final last = childCount - 1;
+    final extent = last < delegate.bandCount
+        ? delegate.bandExtent
+        : delegate.restExtent;
+    return delegate.scrollOffsetOf(last) + extent;
   }
 }
 

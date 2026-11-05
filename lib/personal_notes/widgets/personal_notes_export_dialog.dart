@@ -110,7 +110,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
     return AppDialogFrame(
       title: widget.title,
       icon: FluentIcons.arrow_upload_24_regular,
-      width: 540,
+      size: AppDialogSize.medium,
       actions: [
         ActionButton.neutral(
           onPressed: () => Navigator.of(context).pop(),
@@ -182,7 +182,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
               const SizedBox(height: AppTokens.spaceSM),
               SizedBox(
                 height: 240,
-                child: ListDialogCard(
+                child: AppCard(
                   child: ListView.builder(
                     itemCount: filteredNotes.length,
                     itemBuilder: (context, index) {

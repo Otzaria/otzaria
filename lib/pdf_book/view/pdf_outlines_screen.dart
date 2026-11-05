@@ -6,6 +6,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 typedef PdfOutlineSearchEntry = ({
   PdfOutlineNode node,
@@ -259,13 +261,10 @@ class _OutlineViewState extends State<OutlineView>
           (viewportHeight / 2) +
           (itemHeight / 2);
 
-      _tocScrollController.animateTo(
-        target.clamp(
-          0.0,
-          _tocScrollController.position.maxScrollExtent,
-        ),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+      AppMotion.scrollPosition(
+        _tocScrollController.position,
+        target.clamp(0.0, _tocScrollController.position.maxScrollExtent),
+        AppTokens.animPanelSlide,
       );
     });
   }

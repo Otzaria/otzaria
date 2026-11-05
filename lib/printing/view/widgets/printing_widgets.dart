@@ -1,67 +1,10 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-
-/// רצועת הכותרת של דיאלוג ההדפסה: פקדי [leading] (ניווט ובורר עמוד) בתחילתה,
-/// אייקון ושם ממורכזים, וכפתור סגירה בסופה — באותו עיצוב של שאר הדיאלוגים
-/// הגדולים (רקע, קו חוצץ ותג אייקון).
-class PrintingAppBar extends StatelessWidget {
-  final String title;
-
-  /// פקדים בתחילת הרצועה (ימין ב-RTL) — למשל ניווט ובורר עמוד.
-  final Widget? leading;
-
-  /// false בזמן הדפסה: אי אפשר לסגור באמצע.
-  final bool closeEnabled;
-
-  const PrintingAppBar({
-    super.key,
-    required this.title,
-    this.leading,
-    this.closeEnabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Container(
-      height: kToolbarHeight + AppTokens.spaceSM,
-      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSM),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: NavigationToolbar(
-        leading: leading,
-        // מצטמצם עד שנעלם כשהפקדים בתחילת הרצועה תופסים את הרוחב (טלפון).
-        middle: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppDialogIconBadge(icon: FluentIcons.print_24_regular),
-              const SizedBox(width: AppTokens.spaceMD),
-              Text(title, maxLines: 1, style: theme.textTheme.titleLarge),
-            ],
-          ),
-        ),
-        trailing: IconButton(
-          icon: const Icon(FluentIcons.dismiss_24_regular),
-          tooltip: 'סגור',
-          onPressed: closeEnabled ? () => Navigator.of(context).pop() : null,
-        ),
-        centerMiddle: true,
-      ),
-    );
-  }
-}
 
 /// ריפוד אחיד לשורה בכרטיס — מוגדר בתוך כל שורה (ולא על הכרטיס), כדי שהריחוף
 /// של שורות אינטראקטיביות (מתגים) ימלא את כל רוחב הכרטיס כמו במסך ההגדרות.

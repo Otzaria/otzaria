@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -174,7 +175,9 @@ void main() {
     expect(selected, isFalse);
   });
 
-  testWidgets('AppCard with selected adds ColoredBox overlay', (tester) async {
+  testWidgets('AppCard with selected paints selectedRow on a Material', (
+    tester,
+  ) async {
     final key = GlobalKey();
     await tester.pumpWidget(
       MaterialApp(
@@ -184,9 +187,17 @@ void main() {
       ),
     );
     final cardFinder = find.byKey(key);
+    final cs = Theme.of(tester.element(cardFinder)).colorScheme;
+    // הצבע על Material מעל ה-InkWell, כדי שהריחוף והלחיצה ייראו (R3-1).
+    final materials = tester
+        .widgetList<Material>(
+          find.descendant(of: cardFinder, matching: find.byType(Material)),
+        )
+        .map((m) => m.color);
+    expect(materials, contains(AppSurfaces.selectedRow(cs)));
     expect(
       find.descendant(of: cardFinder, matching: find.byType(ColoredBox)),
-      findsWidgets,
+      findsNothing,
     );
   });
 

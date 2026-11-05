@@ -7,6 +7,8 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
@@ -97,6 +99,11 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   Future<void> send(WidgetTester tester) async {
     await tester.ensureVisible(find.byKey(const ValueKey('app-report-send')));
     await tester.tap(find.byKey(const ValueKey('app-report-send')));
@@ -116,6 +123,21 @@ void main() {
       expect(find.text(appReportTypeLabel(type)), findsOneWidget);
     }
     expect(find.text('saved@x.com'), findsOneWidget);
+  });
+
+  testSnack('השדות ממולאים במשטח הכרטיס, כמו בעריכת דיווח שמור (#3448)', (
+    tester,
+  ) async {
+    await pumpDialog(tester);
+    final fields = tester.widgetList<RtlTextField>(find.byType(RtlTextField));
+    expect(fields, hasLength(4));
+    final card = AppSurfaces.card(
+      tester.element(find.byType(RtlTextField).first),
+    );
+    for (final field in fields) {
+      expect(field.decoration?.filled, isTrue);
+      expect(field.decoration?.fillColor, card);
+    }
   });
 
   testSnack('בלי מייל — הדיווח נדחה מקומית ולא נשלח', (tester) async {
@@ -277,5 +299,23 @@ void main() {
     expect(find.byType(AppReportDialog), findsNothing);
     expect(service.sent, isEmpty);
     expect(popped, isNull);
+  });
+
+  testSnack('עם טקסט ביטול ו-X שואלים לפני הסגירה (DD-08)', (tester) async {
+    await pumpDialog(tester);
+    await fill(tester);
+    await tester.tap(find.byTooltip('סגור'));
+    await settle(tester);
+    expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+    await tester.tap(find.text('המשך לערוך'));
+    await settle(tester);
+    expect(find.byType(AppReportDialog), findsOneWidget);
+
+    await tester.tap(find.text('ביטול'));
+    await settle(tester);
+    await tester.tap(find.text('סגור בלי לשמור'));
+    await settle(tester);
+    expect(find.byType(AppReportDialog), findsNothing);
+    expect(service.sent, isEmpty);
   });
 }

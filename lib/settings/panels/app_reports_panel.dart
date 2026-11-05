@@ -11,6 +11,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -71,7 +72,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
             ),
           ],
         ),
-        SettingsActionTile.segmentedTile<AppCrashReportMode>(
+        SettingsSegmentedTile<AppCrashReportMode>(
           icon: FluentIcons.warning_24_regular,
           title: context.settingsText('דיווח אחרי קריסה או תקיעה'),
           subtitle: context.settingsText(
@@ -303,40 +304,12 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
   }
 
   Future<void> _editPending(AppReport report) async {
-    var edited = report;
-    final hasChanges = ValueNotifier(false);
-    final confirmed = await showTwoActionsDialog(
-      context: context,
-      title: context.settingsText('עריכת דיווח שמור'),
-      icon: FluentIcons.edit_24_regular,
-      headerBand: true,
-      content: '',
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('שמור'),
-      handleEnterKey: false,
-      customContent: SingleChildScrollView(
-        child: SizedBox(
-          width: 560,
-          child: AppReportEditFields(
-            report: report,
-            typeLabel: (type) => _typeLabel(context, type),
-            onChanged: (value) {
-              edited = value;
-              hasChanges.value =
-                  value.type != report.type ||
-                  value.title != report.title ||
-                  value.description != report.description ||
-                  value.stepsToReproduce != report.stepsToReproduce ||
-                  value.reporterEmail != report.reporterEmail ||
-                  !listEquals(value.images, report.images);
-            },
-          ),
-        ),
-      ),
-      hasUnsavedChanges: hasChanges,
+    final edited = await showAppReportEditDialog(
+      context,
+      report,
+      typeLabel: (type) => _typeLabel(context, type),
     );
-    hasChanges.dispose();
-    if (confirmed != true) return;
+    if (edited == null) return;
 
     // טקסט שהוקלד בעריכה עובר אותה הסתרה כמו בטופס המקורי.
     final redacted = edited.redactedWith(AppReportRedactor.fromPlatform());
@@ -369,6 +342,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('לסמן כנשלח?'),
+      icon: FluentIcons.mail_checkmark_24_regular,
       content: context.settingsText(
         'הדיווח יעבור להיסטוריית הדיווחים שנשלחו ויוסר מהתור, ללא שליחה לשרת. '
         'השתמשו בכך אם כבר שלחתם את הדיווח בדרך אחרת.',
@@ -415,6 +389,46 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
         _service.buildOfflineSendScript(reports, target: target),
     setBusy: (busy) => setState(() => _isExporting = busy),
   );
+}
+
+/// "עריכת דיווח שמור": השדות של [AppReportEditFields] בדיאלוג שהגוף שלו גולל,
+/// עם פס גלוי, והכפתורים קבועים בתחתית. מחזיר את הדיווח הערוך, או null
+/// בביטול.
+@visibleForTesting
+Future<AppReport?> showAppReportEditDialog(
+  BuildContext context,
+  AppReport report, {
+  required String Function(AppReportType type) typeLabel,
+}) async {
+  var edited = report;
+  final hasChanges = ValueNotifier(false);
+  final confirmed = await showTwoActionsDialog(
+    context: context,
+    title: context.settingsText('עריכת דיווח שמור'),
+    icon: FluentIcons.edit_24_regular,
+    size: AppDialogSize.medium,
+    cancelText: context.settingsText('ביטול'),
+    confirmText: context.settingsText('שמור'),
+    handleEnterKey: false,
+    scrollable: true,
+    customContent: AppReportEditFields(
+      report: report,
+      typeLabel: typeLabel,
+      onChanged: (value) {
+        edited = value;
+        hasChanges.value =
+            value.type != report.type ||
+            value.title != report.title ||
+            value.description != report.description ||
+            value.stepsToReproduce != report.stepsToReproduce ||
+            value.reporterEmail != report.reporterEmail ||
+            !listEquals(value.images, report.images);
+      },
+    ),
+    isDirty: hasChanges,
+  );
+  hasChanges.dispose();
+  return confirmed == true ? edited : null;
 }
 
 /// שדות העריכה של דיווח תוכנה שמור בתור; מדווח על כל שינוי כדיווח מעודכן.
@@ -493,7 +507,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           decoration: InputDecoration(
             labelText: context.settingsText('כותרת'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -501,14 +515,15 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           controller: _description,
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
+          // גדל עם הטקסט, כמו בטופס הדיווח: הגוף של הדיאלוג גולל.
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
             labelText: context.settingsText('תיאור'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -517,13 +532,13 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),
             alignLabelWithHint: true,
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         RtlTextField(
@@ -536,7 +551,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
                 ? context.settingsText('דואר אלקטרוני')
                 : context.settingsText('דואר אלקטרוני (לא חובה)'),
             isDense: true,
-          ),
+          ).filledOnDialog(context),
         ),
         const SizedBox(height: 12),
         AppReportImagesSection(

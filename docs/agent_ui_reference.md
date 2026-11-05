@@ -1,466 +1,379 @@
 # רכיבי ממשק והנחיות יישום לסוכנים
 
-קרא את הסעיף הרלוונטי רק בעת שינוי ממשק. כללי החובה המקוצרים נמצאים ב־`AGENTS.md`.
+קרא רק את הסעיף שאתה צריך. כללי החובה המקוצרים נמצאים בסעיף "UI rules" ב־`AGENTS.md`, והתקן המלא ב־`docs/design-system/DESIGN_SYSTEM.md` (טוקנים ב־§2, קטלוג הרכיבים ב־§3). כשמשהו כאן סותר את התקן, התקן גובר.
 
-## רכיבי ממשק
+**Imports.** `package:otzaria/widgets/widgets_exports.dart` re-exports the dialogs (with `AppDialogFrame`), `ActionButton`, `AppIconButton`, `BarButton`, `BarSplitButton`, `AppSegmentedControl`, `StatusChip`, `AppCard`, `ExpandableCard`, `OtzariaEmptyState`, `OtzariaErrorState`, `ExpandingChevron` and `AppSectionLabel`. Everything else is imported from its own file, given in each section below.
 
-### 1. Icons - `otzaria_icons` FIRST, `fluentui_system_icons` for the rest
-```dart
-import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
+## 1. Icons
 
-// First choice — the app's own set. ALWAYS plain Icon(), never RtlIcon:
-Icon(OtzariaIcons.book_pdf_24_regular)
-Icon(OtzariaIcons.otzaria_icon_2_page_24_regular)
-Icon(OtzariaIcons.calendar_24_regular)
-
-// Fallback — Fluent, only for what otzaria_icons does not have:
-Icon(FluentIcons.settings_24_regular)
-RtlIcon(FluentIcons.chevron_right_24_regular)     // in _fluentMirrorMap
-RtlIcon(FluentIcons.arrow_left_24_regular)        // in _fluentMirrorMap — auto-mirrors to arrow_right in RTL
-```
-
-**What `otzaria_icons` is for.** It is not a general-purpose set and does not try to cover Fluent. It exists for exactly four cases:
-
-1. An icon that **breaks when mirrored** for RTL — a geometric flip mangles it.
-2. An icon that is **always shown in an RTL context**, so it should simply be drawn that way.
-3. An icon **Fluent does not have** (`lectern`, `torah_scroll`, `calendar_yahrzeit`, the `alef_*`/`beit_*`/`tet_*` families).
-4. An icon Fluent has but whose form is **less suitable** for a seforim library (`book_pdf` over a generic document).
-
-Anything outside those four — generic UI chrome like `dismiss`, `delete`, `copy`, `folder`, `settings`, `add`, `edit` — stays on Fluent. Redrawing chrome buys nothing and costs consistency.
-
-**Which library — in this order:**
-
-| Does `otzaria_icons` have an icon for it? | Use |
+| Does `otzaria_icons` have the icon? | Use |
 |---|---|
-| Yes | `Icon(OtzariaIcons....)` — always plain `Icon` |
-| No | `fluentui_system_icons`, per the `RtlIcon` rule below |
-| Neither, but Material does | Draw it in `otzaria_icons` — **never** import Material |
+| Yes | `Icon(OtzariaIcons.…)`, always plain `Icon` |
+| No | `fluentui_system_icons`, with `Icon` or `RtlIcon` per the table below |
+| Only Material has it | Draw it in `otzaria_icons`. Never import Material or Cupertino icons (UIL-005) |
 
-`otzaria_icons` is purpose-built for a Hebrew seforim library, so prefer it even when Fluent has *something* close: `book_pdf` for a PDF book rather than a generic document, `search_in_book` / `search_in_library` / `search_in_settings` for scoped search, the `alef_*` / `beit_*` / `tet_*` families for nikud, punctuation and font settings, `lectern` / `torah_scroll` / `calendar_yahrzeit` where nothing in Fluent applies.
+**What `otzaria_icons` is for.** It is not a general-purpose set. It covers four cases:
+1. An icon that breaks when mirrored for RTL.
+2. An icon that is always shown in an RTL context, so it is simply drawn that way.
+3. An icon Fluent does not have (`lectern`, `torah_scroll`, `calendar_yahrzeit`, the `alef_*` / `beit_*` / `tet_*` families for nikud, punctuation and font settings).
+4. An icon whose Fluent form fits a seforim library less well (`book_pdf` for a PDF book rather than a generic document).
 
-**Deliberate exceptions — these stay on Fluent:**
+Generic chrome (`dismiss`, `delete`, `copy`, `folder`, `settings`, `add`, `edit`) stays on Fluent.
 
-| Case | Icon | Why |
-|---|---|---|
-| The seforim library itself | `FluentIcons.library_24_regular/filled` | The Fluent library is the app's established symbol for it |
-| In-book search action (toolbar button, side-panel tab, context-menu `חיפוש`) in `text_book/` and `pdf_book/` | `FluentIcons.search_24_regular/filled` | Recognized as *the* search affordance in the reading screen |
-| Search icon inside a **labeled** button (`ActionButton`, `FilledButton.icon` — e.g. `פתח חיפוש טקסט`, `חפש`) | `FluentIcons.search_24_regular` | Beside a label the Fluent glyph reads cleaner. Icon-only buttons and field prefixes are not affected |
-| A **direct link** to a book or a section (`קישור ישיר`, deep links, inserting a hyperlink) | `FluentIcons.link_24_regular` | Distinct from links *between* books |
-| The private-book badge on a library card (8px) | `FluentIcons.person_24_regular` | The Otzaria person is drawn for legible sizes; at 8px it turns to mush. `OtzariaIcons.person_24_regular` stays everywhere it renders at 16px+ |
+**Deliberate exceptions that stay on Fluent:**
 
-**Links between books** — the `קישורים` panel tab, the `קישורים` context-menu entry, `דורות וקישורים` — use `OtzariaIcons.link_24_regular`. The rule in practice: singular `קישור` / `קישור ישיר` is Fluent, plural `קישורים` is Otzaria. Two similar icons for the two meanings would be confusing, so keep the split.
-
-**Scoped search — pick the icon that names *what* is being searched.** A generic magnifier says nothing; these do. None of the scoped icons has a `filled` twin, so a selected/unselected pair reuses the same glyph and lets color carry the state.
-
-| Where | Icon |
+| Case | Icon |
 |---|---|
-| Library screen search, `סינון מפרשים`, `חפש בתוך המפרשים המוצגים`, שמור וזכור search | `search_in_library_24_regular` |
+| The seforim library itself | `FluentIcons.library_24_regular/filled` |
+| In-book search action (toolbar button, side-panel tab, context-menu `חיפוש`) in the text and PDF readers | `FluentIcons.search_24_regular/filled` |
+| Search icon inside a **labeled** button (`חפש`, `פתח חיפוש טקסט`) | `FluentIcons.search_24_regular` |
+| A direct link to a book or section (`קישור ישיר`, deep links, inserting a hyperlink) | `FluentIcons.link_24_regular` |
+| The 8px private-book badge on a library card | `FluentIcons.person_24_regular` (`OtzariaIcons.person_24_regular` everywhere it renders at 16px or more) |
+
+Links *between* books (the `קישורים` tab and menu entry, `דורות וקישורים`) use `OtzariaIcons.link_24_regular`: singular `קישור` is Fluent, plural `קישורים` is Otzaria.
+
+**Scoped search: pick the icon that names what is searched.** The scoped icons have no `filled` twin, so a selected/unselected pair reuses the glyph and colour carries the state.
+
+| Where | `OtzariaIcons.` |
+|---|---|
+| Library search, `סינון מפרשים`, `חפש בתוך המפרשים המוצגים`, שמור וזכור | `search_in_library_24_regular` |
 | Notes search, calendar `חפש גם בתיאור` | `search_in_document_24_regular` |
 | Calendar `חפש רק בכותרת` | `search_in_text_24_regular` |
 | `הוסף ספרים למעקב` dialog | `search_in_book_24_regular` |
 | Settings search | `search_in_settings_24_regular` |
-| `איתור כותרת` boxes (TOC, alt-TOC), bookmarks search, `חפש בתוך הקישורים המוצגים` | `search_in_titles_24_regular` |
+| `איתור כותרת` boxes, bookmarks search, `חפש בתוך הקישורים המוצגים` | `search_in_titles_24_regular` |
 | Gematria search | `search_in_numbered_list_24_regular` |
 
-The **navigation rail's `חיפוש`** item is the exception: it keeps plain `OtzariaIcons.search_24_regular` / `search_24_filled`, because it is the app-wide search entry point and not scoped to anything.
+The navigation rail's `חיפוש` keeps `OtzariaIcons.search_24_regular/filled`: it is the app-wide entry point. Pass the scoped icon through `OtzariaSearchField(icon:)` or `ItemsListView(searchIcon:)`; `OtzariaSearchField(leading:)` replaces the icon instead of styling it.
 
-Three shared widgets take an `icon:` / `searchIcon:` parameter for exactly this — `OtzariaSearchField`, `ItemsListView`, and any field's `prefixIcon`. Pass the scoped icon rather than wrapping the prefix in a `leading:` widget, which would drop `OtzariaSearchField`'s focus-color and sizing behaviour.
+**Finding an icon.** Open the `index.html` catalog (or `icon_manifest.yaml`) in the pinned `otzaria_icons` checkout; `pubspec.yaml` pins it by commit. Names follow the Fluent convention `<name>_24_<regular|filled>`, so look up the Fluent name first. If an icon from the upstream catalog is missing, the pinned commit predates it. Plugin icon names are resolved only through `pluginIconFromName` in `lib/plugins/utils/plugin_icon_resolver.dart`; `test/plugins/utils/plugin_icon_resolver_usage_test.dart` fails on other calls to `OtzariaIcons.allIcons` or `fluentIconFromName`.
 
-**Finding an icon:** 135 icons, listed in `OtzariaIcons.values` and in the package's `index.html` catalog. The names follow the Fluent convention (`<name>_24_<regular|filled>`), so a Fluent name is usually the right thing to look up first. `otzaria_icons` is pinned by commit in `pubspec.yaml` and `pubspec.lock`. If an icon in the catalog is undefined in your checkout, the pinned commit predates it.
+**Sizes.** `_24_` in a name is the drawing grid, not a size limit. The size comes from `AppTokens.iconXS…iconXL` (§10). For an "open book" regular/filled pair (nav rail) use `otzaria_icon_2_page_24_regular/filled`.
 
-**Sizes:** every icon is drawn on a 24px grid, and the `_24_` in the name is the grid, not a size limit — pass `size:` freely. But the `book_open_*` family is drawn at different weights for different display sizes; `otzaria_icon_2_page_24_regular/filled` is the general-purpose "open book" and the only one of them with a `filled` twin, so it is what a nav rail or any regular/filled pair needs.
+### `Icon` or `RtlIcon`
 
-**`OtzariaIcons` NEVER goes through `RtlIcon`.** Every icon in the set is drawn right-to-left already — `RtlIcon` would flip an icon that already faces the correct way. `test/widgets/rtl_icon_registered_usage_test.dart` fails the build on any `RtlIcon(OtzariaIcons....)`.
+`RtlIcon` (`lib/widgets/misc/rtl_icon.dart`) is not a generic mirror. In LTR, and for any icon declared `matchTextDirection: true`, it draws a plain `Icon`. In RTL it acts only on the icons it registers: an icon in `_fluentMirrorMap` is swapped for its opposite-direction Fluent glyph, and an icon in `_flippableIcons` is flipped geometrically. Any other icon is drawn unchanged.
 
-**When to use `RtlIcon` vs `Icon`:**
-
-| Icon | Use |
+| Icon | Write |
 |---|---|
-| Any `OtzariaIcons.…` | `Icon(...)` — always |
-| Fluent icon registered in `rtl_icon.dart` (`_fluentMirrorMap`, `_flippableIcons`) | `RtlIcon(...)` |
-| Any other Fluent icon | `Icon(...)` — plain, no wrapper |
+| Any `OtzariaIcons.…` | `Icon(...)`. `RtlIcon(OtzariaIcons.…)` fails UIL-006 |
+| Fluent icon with `matchTextDirection: true` (`chevron_left/right`, `arrow_left/right`, `arrow_previous/next`, `text_align_left/right` and others) | `Icon(<the LTR glyph>)`; Flutter mirrors it. Back = `arrow_left`, next/enter = `chevron_right` |
+| Fluent icon registered in `rtl_icon.dart` | `RtlIcon(...)` |
+| Any other Fluent icon | `Icon(...)`. UIL-006 rejects `RtlIcon` with an unregistered literal icon |
 
-**Icons currently registered in `lib/widgets/misc/rtl_icon.dart`:**
+Some widgets route an `IconData` through `RtlIcon` themselves: `ActionButton(icon:)`, `BarButton.icon(flipInRtl: true)`, `SettingsSliderTile`, and the `rtlIcon:` parameter of the settings tiles and `SegmentOption`. Where a widget offers both, pass `OtzariaIcons` and non-directional icons through `icon:` and only registered directional Fluent icons through `rtlIcon:`.
 
-*`_fluentMirrorMap` (swaps to opposite-direction variant in RTL):*
-- `chevron_right/left_24/20/16_regular`
-- `chevron_double_right/left_20/16_regular`
-- `arrow_right/left_24_regular`, `arrow_right/left_24_filled`
-- `arrow_previous/next_24_regular`
-- `calendar_24_regular/filled` → `calendar_rtl_*`
-- `panel_left/right_24_regular`, `panel_left/right_24_filled`
-- `text_align_right/left_24_regular`
+To mirror a Fluent icon that is not registered, prefer drawing it in `otzaria_icons`; adding it to `_flippableIcons` is the fallback, because a geometric flip also mirrors asymmetric detail. Registered entries with no call site in `lib/` stay: a plugin can still name them.
 
-*`_flippableIcons` (geometrically flipped in RTL — no opposite-direction variant in Fluent):*
-- `book_24_regular`, `book_24_filled`
-- `book_information_24_regular`
-- `text_align_distributed_24_regular`
-- `list_24_regular`
-- `calendar_week_start_24_regular/filled`, `calendar_month_24_regular/filled`
+**Never:**
+- Material or Cupertino icons, or any icon font other than `otzaria_icons` and `fluentui_system_icons`.
+- `Transform.flip` / `Transform.scale(scaleX: -1)` around an icon. On an `OtzariaIcons` icon it points the wrong way. UIL-006 catches a flip whose direct child is an `Icon`/`RtlIcon`, not one further up the tree, so check the call site when replacing an icon.
+- Comments explaining why `Icon` or `RtlIcon` was chosen.
+- Editing `lib/plugins/utils/fluent_icon_resolver.dart`: it is the generated Fluent-name map for plugins.
 
-`_flippableIcons` is a **stopgap, not a destination.** A geometric flip mirrors the whole glyph, including asymmetric detail that was never meant to mirror. When an icon looks wrong flipped, the fix is to draw it right-to-left in `otzaria_icons` and drop it from this set — that is what `book_star_24_regular` did. The remaining six are the open candidates.
+## 2. User messages: `UiSnack`
 
-There is no `_materialMirrorMap` any more: `lib/` contains **zero** Material icons, and nothing can feed one to `RtlIcon` (plugins declare icons by *Fluent* name through `fluentIconFromName`), so the map was dead code.
-
-Some Fluent entries here have no call site left in `lib/` — the app moved to the `OtzariaIcons` equivalent. **Do not delete those:** a plugin can still name a Fluent icon through `fluentIconFromName` in `lib/plugins/utils/fluent_icon_resolver.dart`, and it reaches `RtlIcon` as a variable.
-
-**If you need to flip a Fluent icon that is NOT yet registered:**
-Prefer drawing it in `otzaria_icons` — that is exactly what the package is for. Registering it in `_flippableIcons` is the fallback when you cannot. Either way, do NOT add manual `Transform.flip`/`Transform.scale` in feature files.
-
-**Never use:**
-- Material Icons — no exceptions. `lib/` is Material-free; if Material has something Fluent lacks, draw it in `otzaria_icons`
-- Cupertino Icons
-- Any icon font other than `otzaria_icons` and `fluentui_system_icons`
-- `RtlIcon` with an `OtzariaIcons` icon — it is already RTL
-- `mirrorIcon` parameter on any widget — **FORBIDDEN**, removed in commit 3b4d357
-- Manual `Transform.scale(scaleX: -1, ...)` or `Transform.flip(flipX: true, ...)` around icons — register in `rtl_icon.dart` instead. **On an `OtzariaIcons` icon this silently points it the wrong way**, and neither the analyzer nor `rtl_icon_registered_usage_test.dart` catches it — when replacing a Fluent icon, check the call site for a hand-rolled flip first
-- Comments explaining why `RtlIcon` or `Icon(...)` was chosen — the decision rule is documented here; do NOT repeat it inline in code
-- Editing `lib/plugins/utils/fluent_icon_resolver.dart` to point at `otzaria_icons` — it is the generated Fluent-name contract for plugins
-
-### 2. User Messages - ONLY via `UiSnack`
 ```dart
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 
 UiSnack.show(CommonMessages.savedSuccessfully);
 UiSnack.showError(ReportMessages.sendFailed);
-UiSnack.show(UiSnack.textCopied);          // Legacy alias → CommonMessages
+UiSnack.showWithAction(message: ..., actionLabel: ..., onAction: _undo);
 ```
 
-**Message texts are centralized (MANDATORY):** Never pass a hardcoded string literal to `UiSnack`. Every message lives in `lib/core/messages/` — one catalog per domain (`CommonMessages`, `ReportMessages`, `SettingsMessages`, `TextBookMessages`, `ToolsMessages`, `NotesMessages`, `LibraryMessages`, `PluginMessages`, `PdfMessages`). Fixed texts are `static const`; parameterized texts are static functions. Add new messages to the matching catalog (or `CommonMessages` if shared).
+Other entry points: `showSuccess`, `showWarning`, `showQuick`, and `showChecking` with `UiSnack.hide(owner:)` for a message that stays until hidden.
 
-**Never use:**
-- Hardcoded message strings at `UiSnack` call sites — add to `lib/core/messages/` instead
-- `ScaffoldMessenger.of(context).showSnackBar()`
-- Custom snackbar widgets
-- Toast packages
-- Alert dialogs for simple messages
+- Every text comes from a catalog in `lib/core/messages/`, one class per domain (`CommonMessages`, `SettingsMessages`, `ToolsMessages`, …). Fixed texts are `static const`, parameterized ones are static functions. A shared text goes into `CommonMessages`. A literal at a `UiSnack` call fails UIL-009.
+- Never show `e.toString()` to the user.
+- No `ScaffoldMessenger` or `SnackBar` (UIL-008), no toast packages, no dialog for a simple message.
+- `UiSnack` is not for critical information: use a dialog or an `AppInfoBanner`.
 
-### 3. Text Input - ONLY `RtlTextField`
+## 3. Text input, search and choice
+
 ```dart
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 RtlTextField(
   controller: _controller,
-  decoration: InputDecoration(labelText: 'חיפוש'),
-  onSubmitted: (value) => _handleSearch(),
-  autofocus: true,
-)
-```
-**NEVER use regular `TextField`** - it breaks RTL support!
-
-### 4. Dialogs - ONLY from `custom_ui_components`
-```dart
-import 'package:otzaria/widgets/widgets_exports.dart';
-
-// Single button dialog (confirm only)
-showSingleActionDialog(
-  context: context,
-  title: 'כותרת',
-  content: 'תוכן הדיאלוג',
-  confirmText: 'אישור',
+  decoration: const InputDecoration(labelText: 'שם השולחן'),
+  onSubmitted: (_) => _save(),
 );
-
-// Two-button dialog (cancel + confirm)
-showTwoActionsDialog(
-  context: context,
-  title: 'כותרת',
-  content: 'תוכן הדיאלוג',
-  cancelText: 'ביטול',
-  confirmText: 'אישור',
-);
-
-// Warning dialog (user should ideally cancel)
-showWarningDialog(
-  context: context,
-  title: 'אזהרה',
-  content: 'פעולה זו היא סופית',
-  subtitle: 'שים לב שלא ניתן לבטל פעולה זו',  // red text
-  cancelText: 'ביטול',
-  confirmText: 'המשך',
+OtzariaSearchField(
+  controller: _query,
+  hintText: 'חיפוש בהערות',
+  icon: OtzariaIcons.search_in_document_24_regular,
 );
 ```
 
-**Dialog Styling Rules (CRITICAL):**
-- **SingleActionDialog**: single button - FilledButton (primary/onPrimary)
-- **TwoActionsDialog**: 
-  - Cancel = FilledButton.tonal (surfaceContainerHighest/onSurface)
-  - Confirm = FilledButton (primary/onPrimary)
-- **WarningDialog**: 
-  - Cancel = FilledButton (primary/onPrimary) - recommended (safe choice)
-  - Confirm = TextButton (transparent background, error text color) - dangerous
-  - Subtitle = error color (red)
+- Raw `TextField` / `TextFormField` / `EditableText` fail UIL-011. The label is `InputDecoration.labelText`, a validation error is `InputDecoration.errorText`; the border comes from the theme.
+- A button inside a search field is `OtzariaSearchFieldButton` (`lib/widgets/text/otzaria_search_field_button.dart`). Inside a navigation panel the field is built by `NavPanelCollapsibleSearch` (§12).
+- One of a list: `AppDropdownField<T>(value:, entries:, onSelected:, decoration:)` (`lib/widgets/misc/app_dropdown_field.dart`). `decoration.labelText` shows above the field; in a toolbar use `semanticLabel:` instead.
+- Two to four options: `AppSegmentedControl<T>(options: [SegmentOption(value:, label:)], currentValue:, onChanged:)`.
+- Menus: `AppPopupMenuButton` or `showAnchoredAppMenu` (`lib/widgets/misc/app_popup_menu.dart`). Raw `PopupMenuButton`, `showMenu` and `MenuAnchor` fail UIL-014.
+- Filter chips: Material `FilterChip` / `ChoiceChip` styled by `chipTheme`, or `FilterChipsSelector` (`lib/widgets/lists/filter_chips_widget.dart`).
 
-**Never use:**
-- `showDialog` with custom `AlertDialog` directly
-- Material `SimpleDialog`
-- Custom dialog widgets without the standard styling
-- Hardcoded colors (Colors.red, Colors.blue, etc.)
+## 4. Dialogs
 
-### 5. Action Buttons - ONLY `ActionButton` named constructors
+All dialog building blocks live in `lib/widgets/dialogs/`. Every dialog has a header band and an icon badge, including `small`; a `small` dialog has no close X.
+
+| Need | Use | Buttons |
+|---|---|---|
+| Message that must be read | `showSingleActionDialog` | `recommended` |
+| Non-destructive yes/no | `showTwoActionsDialog` | `neutral` cancel + `recommended` confirm (focused) |
+| Destructive or irreversible action | `showWarningDialog` (error-tone header, `subtitle:` in `cs.error`) | `recommended` cancel (focused) + `warning` confirm |
+| Three or more equal actions | `showChoiceDialog` with `AppDialogChoice(value:, label:, recommended:)` | `neutral` cancel + one button per choice |
+| One text field | `showInputDialog` | cancel + confirm, Enter confirms |
+| One item from a list | `showSelectionDialog` with `SelectionItem` | — |
+| Blocking work longer than ~300ms | `runWithBlockingProgress(context:, title:, task:)` | optional cancel |
+| Form, list, tabs or anything custom | `AppDialogFrame(title:, icon:, size:, actions:, child:)` | your `ActionButton`s |
+
 ```dart
-import 'package:otzaria/widgets/widgets_exports.dart';
-
-// Recommended action button (Primary style)
-ActionButton.recommended(
-  text: 'שנה מיקום',
-  onPressed: () => _changeLocation(),
-  isLoading: false,  // optional - shows loading indicator
+final ok = await showWarningDialog(
+  context: context,
+  title: 'איפוס הגדרות',
+  content: 'כל ההגדרות יחזרו לברירת המחדל.',
+  subtitle: 'לא ניתן לבטל פעולה זו',
+  confirmText: 'אפס', // ברירת המחדל היא 'איפוס'; תמיד להעביר
 );
 
-// Neutral/non-recommended action button (Tonal style)
-ActionButton.neutral(
-  text: 'איפוס',
-  onPressed: () => _resetSettings(),
-  isLoading: false,  // optional - shows loading indicator
-);
-
-// Ghost (transparent, neutral)
-ActionButton.ghost(
-  text: 'ביטול',
-  onPressed: () => _cancel(),
-);
-
-// Warning (transparent background, error-color text — for destructive actions)
-ActionButton.warning(
-  text: 'מחק לצמיתות',
-  onPressed: () => _delete(),
+showDialogUntilTornDown(
+  context: context,
+  builder: (_) => AppDialogFrame(
+    title: 'ייבוא ספרים',
+    icon: FluentIcons.folder_add_24_regular,
+    size: AppDialogSize.medium,
+    scrollable: true,
+    actions: [
+      ActionButton.neutral(text: 'ביטול', onPressed: ...),
+      ActionButton.recommended(text: 'ייבא', onPressed: ...),
+    ],
+    child: _form(),
+  ),
 );
 ```
 
-**Button Styling Rules (CRITICAL):**
-- **ActionButton.recommended**: FilledButton (primary background, onPrimary text)
-- **ActionButton.neutral**: FilledButton.tonal (surfaceContainerHighest background, onSurface text)
-- **ActionButton.ghost**: TextButton (transparent, neutral color)
-- **ActionButton.warning**: TextButton (transparent, cs.error text — for destructive confirmations)
-- **NEVER use hardcoded colors** - always use `Theme.of(context).colorScheme`
+- **Size** (`AppDialogSize`): `small` 400 for a question, warning, input or selection; `medium` 560 for a form or a question with 3–4 actions; `large` 720 for lists and management; `full` for print preview. Below 600 the frame adapts by itself.
+- **Unsaved changes:** pass `isDirty:` to `AppDialogFrame` or `showTwoActionsDialog`; for other content use `DialogDismissGuard` / `confirmDiscardChanges` (`lib/widgets/dialogs/dialog_dismiss_guard.dart`).
+- **Opening:** through the `show*` helpers or `showDialogUntilTornDown`, not raw `showDialog` (UIL-028). In the settings screen wrap the builder in `settingsDialogBuilder` (§11).
+- `AlertDialog`, `Dialog` and `SimpleDialog` outside `lib/widgets/dialogs/` fail UIL-001.
 
-**When to use which button:**
-- `ActionButton.recommended` - recommended actions (change settings, choose location, update, add)
-- `ActionButton.neutral` - neutral or dangerous actions (reset, delete, remove, stop)
-- `ActionButton.ghost` - secondary inline text actions (cancel, close, skip)
-- `ActionButton.warning` - destructive confirmation (delete, clear, overwrite — matches WarningDialog's confirm button)
+Behaviour contract (Escape, Enter, focus, barrier): `DESIGN_SYSTEM.md` §3.1. Checklist for a new dialog: `DESIGN_SYSTEM.md` §8.2.
 
-**Never use:**
-- `ElevatedButton`, `TextButton`, `OutlinedButton` directly
-- Custom button widgets without the standard styling
-- Material `IconButton` for primary actions
-- Hardcoded colors
+## 5. Buttons
 
-### 6. Settings Cards - ONLY `SettingsCard`
+Labeled buttons are `ActionButton` named constructors (`lib/widgets/controls/action_buttons.dart`). Each takes `text`, `onPressed` (null = disabled), and optionally `icon`, `isLoading`, `tooltip`, `autofocus`.
+
+| Constructor | Look | Use for |
+|---|---|---|
+| `ActionButton.recommended` | `FilledButton`, `primary` / `onPrimary` | The main action; one per group |
+| `ActionButton.neutral` | `FilledButton.tonal` (`secondaryContainer`) | Secondary actions, and **Cancel in every dialog**. `errorText: true` gives red text for a destructive action that must sit in the same row |
+| `ActionButton.ghost` | `TextButton`, transparent, `primary` text | Quiet inline actions that are not Cancel ("דלג") |
+| `ActionButton.warning` | `FilledButton` on `cs.error`, `onError` text | The confirm button of a destructive action, inside a warning dialog or after confirmation |
+
+A first "delete" button in a list or card is `neutral` or an icon button; the irreversible step is confirmed with `showWarningDialog`. For a labeled button with an icon pass `icon:`; never build `FilledButton.icon` yourself.
+
+| Icon and bar buttons | Use |
+|---|---|
+| Icon-only, general | `AppIconButton(icon: Icon(...), tooltip:, onPressed:, size: AppIconButtonSize.small/medium/large)`; round, icon 16/20/24, `isSelected:` for a toggle |
+| Square, field height (next to a search field / in a floating toolbar) | `SquareIconButton.field` / `.toolbar` |
+| Top bar and action bar | `BarButton.icon(tooltip:, icon:, onPressed:)` / `BarButton.text(text:, onPressed:)` |
+| Action plus menu arrow | `BarSplitButton` |
+| On/off pill | `AppTogglePill(label:, value:, onChanged:)` (`lib/widgets/controls/toggle_pill.dart`) |
+| Status pill in the title bar | `StatusChip(icon:, label:, onPressed:, tooltip:)` |
+
+- `TextButton`, `FilledButton`, `OutlinedButton`, `ElevatedButton` outside `lib/widgets/controls/` fail UIL-002.
+- Every icon-only button has a `tooltip` (UIL-003 for `IconButton`). A shortcut goes in it as `"הדפסה (Ctrl+P)"`, via `ShortcutHelper.formatShortcutForDisplay`.
+
+## 6. Cards, lists and chips
+
+| Need | Use | File |
+|---|---|---|
+| Information card | `AppCard(child:, onTap:, padding:, tone: AppCardTone.normal/primary/error)` | `lib/widgets/layout/app_card.dart` |
+| Group of rows in one card | `AppCard.section(children:)`; rows are separated by a 1.5 transparent gap | same |
+| Search or tool result | `ResultCardFrame(child:)`; in tools `ToolResultCardShell(child:, onTap:)`; above the results `ToolResultsHeader(label:)` | `lib/widgets/layout/` |
+| History, bookmarks, short repeated data | `ItemsListView`, plain rows without cards | `lib/widgets/lists/items_list_view.dart` |
+| Expanding card | `ExpandableCard(header:, isExpanded:, children:)`; in settings `ExpandableSection` | `lib/widgets/layout/expandable_card.dart`, `lib/settings/widgets/expandable_settings_tile.dart` |
+| Expand arrow | `ExpandingChevron(isExpanded:, style: ExpandingChevronStyle.accordion/tree)` | `lib/widgets/misc/expanding_chevron.dart` |
+| Read-only tag or counter | `MetaChip(label:, tone: MetaChipTone.…, size: MetaChipSize.regular/small)` | `lib/widgets/layout/meta_chip.dart` |
+| Icon badge in a row | `ListIconBadge(icon:)` | `lib/widgets/lists/list_icon_badge.dart` |
+| Section heading | `AppSectionLabel('…')` | `lib/widgets/text/app_section_label.dart` |
+
+- An `AppCard` has radius 8, an `outlineVariant` border and no shadow. Do not rebuild it with `Container` + `BoxDecoration`. Raw `Card` fails UIL-012.
+- `MetaChipTone.success` is the neutral brown `secondaryContainer`, not green.
+
+## 7. Settings rows
+
+Settings cards and tiles are in `lib/settings/widgets/settings_card.dart` (all exported by `lib/settings/widgets/settings_widgets_exports.dart`).
+
 ```dart
-import 'package:otzaria/settings/settings_card.dart';
-
 SettingsCard(
-  title: 'כותרת הקטגוריה',
-  subtitle: 'תיאור אופציונלי',  // אופציונלי
+  title: context.settingsText('תצוגה'), // String או Widget
   children: [
-    ListTile(...),
-    // Divider is added automatically between items
-    SwitchListTile(...),
+    SettingsSwitchTile(
+      icon: FluentIcons.eye_24_regular,
+      title: context.settingsText('הצג ניקוד'),
+      value: state.showNikud,
+      onChanged: (v) => bloc.add(...),
+    ),
+    SettingsSegmentedTile<String>(
+      title: context.settingsText('הצגת הניקוד'),
+      options: [SegmentOption(value: 'always', label: context.settingsText('הצג תמיד')), ...],
+      currentValue: mode,
+      onChanged: (v) => bloc.add(...),
+    ),
   ],
 );
 ```
 
-**Card Styling Rules:**
-- Title: titleMedium, bold, primary color
-- Subtitle: bodySmall, onSurfaceVariant color (optional)
-- Card: surface color, rounded corners (20), subtle border
-- Dividers: Automatic between children, surfaceContainerHighest color, thickness 1.5
+| Row | Use |
+|---|---|
+| On/off | `SettingsSwitchTile(title:, value:, onChanged:)` |
+| One of a list | `SettingsDropdownTile<T>(title:, value:, entries:, onSelected:)` with `AppMenuEntry(value:, label:)` |
+| Two to four options | `SettingsSegmentedTile<T>(title:, options:, currentValue:, onChanged:)` |
+| Number range | `SettingsSliderTile(icon:, title:, valueLabel:, value:, min:, max:, onChanged:)` (`lib/settings/widgets/settings_slider_tile.dart`) |
+| Folder path | `SettingsPathTile(icon:, title:, currentPath:, onFolderChanged:, onOpenFolder:)` |
+| Anything else | `SettingsActionTile.text(title:, subtitle:, actions: [...])`, `SettingsActionTile.path(title:, path:, placeholder:)`, `SettingsActionTile.radioOption(title:, selected:, onTap:)`, or the default constructor with a `Widget` title |
 
-**Hover Effects:**
-- Remove hover from ListTile rows containing action buttons: `hoverColor: Colors.transparent`
-- Hover should ONLY appear on the action buttons themselves
-- This prevents double-hover effect and improves UX
+- A settings tab is `SettingsTabScrollView` + `SettingsCard`s. The spacing between cards comes from the card header; do not add spacers.
+- Tile icons: `icon:` draws a plain `Icon`, `rtlIcon:` goes through `RtlIcon` (§1).
+- Action buttons in a row are `ActionButton`s or `AppIconButton`s.
+- Every string goes through `context.settingsText` (§11).
 
-### 8. Color Overrides — FORBIDDEN outside `lib/theme/`
+## 8. Loading, empty, error and notices
 
-**NEVER add the following anywhere outside `lib/theme/`:**
-- `hoverColor` on `InkWell` / `ListTile` / any widget (except `Colors.transparent` on ListTile with action buttons)
-- `splashColor` on any widget
-- `overlayColor` on any widget
-- `.withValues(alpha: ...)` — color transparency overrides
+Files are in `lib/widgets/feedback/`.
 
-**Why:** These were used to work around a dark-mode color bug (fixed in commit f938a1860 via `ColorScheme.fromSeed`). Now the theme computes all interaction colors correctly. Adding them manually breaks theme consistency and will break again when themes change.
-
-**If you need to define a custom interaction color or transparency:**
-→ Define it in `lib/theme/app_theme_data.dart` or `lib/theme/app_surfaces.dart`, not in feature files.
-
-**Exceptions (the only allowed uses outside `lib/theme/`):**
-- `hoverColor: Colors.transparent` on a `ListTile` that contains action buttons in its trailing/leading (prevents double-hover)
-- `BoxShadow` colors with `.withValues(alpha: ...)` — shadows require transparency by nature
-- Loading overlays / semi-transparent backgrounds that are structural (not interaction feedback)
-
-### 7. Segmented Settings - ONLY `SegmentedSettingsTile`
 ```dart
-import 'package:otzaria/widgets/widgets_exports.dart';
-
-// Setting with 2-4 options
-SegmentedSettingsTile<String>(
-  icon: FluentIcons.text_font_info_24_regular,
-  title: 'הצגת הניקוד',
-  subtitle: 'הניקוד יוצג בכל הספרים',
-  options: const [
-    SegmentOption(value: 'always', label: 'הצג תמיד'),
-    SegmentOption(value: 'tanach_only', label: 'הצג בתנ"ך'),
-    SegmentOption(value: 'never', label: 'אל תציג'),
-  ],
-  currentValue: nikudDisplayMode,
-  onChanged: (value) {
-    // update BLoC
-  },
-);
+return switch (state) {
+  Loading() => const LoadingIndicator(),
+  Empty() => const OtzariaEmptyState(
+      icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
+      title: 'אין סימניות',
+      message: 'סמן קטע בספר כדי לשמור אותו כאן'),
+  Failed() => OtzariaErrorState(
+      title: 'טעינת הסימניות נכשלה',
+      actions: [ActionButton.neutral(text: 'נסה שוב', onPressed: _reload)]),
+  Loaded(:final items) => _list(items),
+};
 ```
 
-**When to use SegmentedSettingsTile:**
-- Settings with 2-4 mutually exclusive options
-- When the user needs to pick exactly one value from a small set
-- Modern alternative to a RadioButton group or multiple SwitchListTiles
+- Loading: `LoadingIndicator()`, `LoadingIndicator(message:)`, inside a row `LoadingIndicator.inline()`, skeleton `SkeletonLines(widths:)`. Raw `CircularProgressIndicator` fails UIL-013. Only the content area loads; the search field and toolbar stay.
+- Empty: `OtzariaEmptyState` (`isCompact: true` in a panel); a whole empty screen is `OtzariaEmptyState.large`.
+- Error: `OtzariaErrorState(title:, actions:)`, never red `Text`.
+- Banner inside a screen: `AppInfoBanner(message:, title:, tone: AppInfoBannerTone.info/warning/error/success)`.
+- A busy button: `ActionButton(isLoading: true)`.
 
-**Styling:**
-- Selected: primary color with 20% opacity background
-- Unselected: card color background
-- Rounded corners (8)
-- Fits in single row within SettingsCard
+## 9. Screen layout
 
-**Title can be:**
-- String - plain text
-- Widget - for advanced styling (e.g. RichText with mixed colors)
+| Pattern | Use |
+|---|---|
+| Panel screen (settings, library, tools) | `AppTopBar(leadingItems:, center:, trailingItems:)` on `AppSurfaces.panelBackground(context)`, content limited to `LayoutConstraints.panelContentMaxWidth` |
+| Screen title | `Text(title, style: AppTopBar.titleStyle(context))`, subtitle `AppTopBar.subtitleStyle(context)` |
+| Tool built around a search field | `ToolScaffold(topBar:, body:, filters:, footer:, loading:, loadError:, onRetry:)` (`lib/widgets/layout/tool_scaffold.dart`) |
+| Action bar that collapses | `ResponsiveActionBar` with `ActionButtonData`, items rendered as `BarButton` |
+| Navigation panel | `NavSidePanel` (§12) |
+| Other side or floating panel | `AdaptiveSidePane` / `ContextOverlayPanel` (`lib/widgets/layout/`) |
+| Scrollable or centered content | `PanelScrollableContent` / `CenteredScrollableState` |
+| Reader screens | `AppSurfaces.readerBackground(context)`, no cards around book text |
 
-**Never use:**
-- RadioButton groups for 2-4 options
-- Multiple SwitchListTile for mutually exclusive options
-- Custom segmented button implementations
+- Window-level decisions (dialog size, navigation style, column count) use `WindowClass.of(context)` (`lib/theme/layout_tokens.dart`). A decision about the space a widget got uses `LayoutBuilder` and a named `static const` threshold in that widget. Never orientation or `Platform.isX` for a width question, never a bare width literal (UIL-022).
+- Use `EdgeInsetsDirectional`, `AlignmentDirectional` and `start`/`end` (UIL-021).
+- Scrollbars sit on the physical right in every direction, in their own 12px lane when the content scrolls (`EdgeScrollbarBehavior.right()` on the `MaterialApp`). Do not add padding for the scrollbar. An explicit bar (fixed thumb, own controller) is `AppScrollbar(controller:, thumbVisibility:, contentInset:)` from `lib/widgets/feedback/app_scrollbar.dart`; raw `Scrollbar`/`RawScrollbar` fails UIL-031. `side: ScrollbarOrientation.left` only for a pane on the left of the content.
+- A widget that fits only one feature stays in that feature's `view/widgets/` folder, built from these components (`DESIGN_SYSTEM.md` §8.5).
 
-### 9. Settings Screen Text — ALWAYS Through `settingsText`
+## 10. Tokens
 
-The settings screen has an English mode (`lib/settings/l10n/`). **Every new user-visible string under `lib/settings/` must be wrapped** — an unwrapped string silently stays Hebrew when the user picks English.
+Tokens live in `lib/theme/` (`AppTokens` in `lib/theme/app_tokens.dart`, `AppSurfaces` in `lib/theme/app_surfaces.dart`). Values and rationale: `DESIGN_SYSTEM.md` §2.
+
+| Need | Use | Not |
+|---|---|---|
+| Colour | `ColorScheme` roles (`cs.onSurfaceVariant`, `cs.outlineVariant`, `cs.error`, …), then `AppSurfaces.*` | `Color(0x…)`, `Colors.<hue>` (UIL-015), `.withValues(alpha:)`/`withAlpha`/`withOpacity` (UIL-016), `theme.primaryColor` (UIL-004), `brightness == Brightness.dark` |
+| Surfaces | `AppSurfaces.panelBackground(context)`, `topBarBackground(context)`, `navPanelBackground(context)`, `card(context)`, `readerBackground(context)` | `cs.surface` + `BoxDecoration` |
+| Row states | `AppSurfaces.selectedRow(cs)` / `onSelectedRow(cs)`, `hoverRow(cs)`, `focusedRow(cs)`, `subtleDivider(cs)` | local alpha mixes |
+| Warning / success | `AppSurfaces.warning(context)`, `onWarning`, `warningContainer`, `onWarningContainer`; success = `cs.secondaryContainer` | `Colors.orange`, `Colors.green` |
+| Spacing | `AppTokens.space2XS` 2, `spaceXS` 4, `spaceSM` 8, `spaceSMD` 12, `spaceMD` 16, `spaceLG` 24, `spaceXL` 32; `cardPadding`, `listItemGap`, `dialogPadding` | other literals (UIL-020); off-scale rounds up, 6→8, 10→12, 14→16 |
+| Radius | `AppTokens.radius` (8), `borderRadiusAll`, `roundedShape` | `circular(n)`, `StadiumBorder` (UIL-019) |
+| Icon size | `AppTokens.iconXS` 14, `iconSM` 16, `iconMD` 20, `iconLG` 24, `iconXL` 48 | `size: 18` (UIL-029) |
+| Elevation / shadow | `0`, `AppTokens.elevation1`, `elevation2`; shadows from `AppShadows` (`lib/theme/app_shadows.dart`) | `elevation: 6`, `BoxShadow(` (UIL-030) |
+| Animation | `AppMotion.duration(context, AppTokens.animFast/animNormal/animPanelOpacity/animPanelSlide)` | `Duration(milliseconds: 250)` (UIL-023) |
+| Density | `AppDensity.of(context).isCompact` | `SettingsBloc` state's `compactMenuMode` in a widget |
+| UI text | `Theme.of(context).textTheme.<slot>`, `.copyWith(fontWeight:, color:)` | `fontSize:`, also `AppTokens.font*` (UIL-017); literal `fontFamily` (UIL-018) |
+| Monospace | `AppTextStyles.monospaceFamily` | `'monospace'` |
+
+- The only radius exceptions: an icon-only button is round, and `BarSplitButton` is a pill.
+- `hoverColor`, `splashColor` and `overlayColor` fail UIL-007. The one exception is `hoverColor: Colors.transparent` on a `ListTile` that has `onTap` and buttons in `trailing`.
+- Book text typography (font, size, line height) comes from the reading settings, not from `textTheme`. A UI message inside the reading area ("טוען…") uses `textTheme`.
+- Local colour is allowed only for content, export/print and OS-chrome imitation, with a `// ui-lint: allow UIL-xxx — <reason> (DD-24)` comment. The exception process is in `AGENTS.md`.
+
+## 11. Settings and chrome text: `settingsText`
+
+The settings screen has an English mode (`lib/settings/l10n/`). Every new user-visible string under `lib/settings/` is wrapped, or it stays Hebrew in English mode.
 
 ```dart
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 Text(context.settingsText('גודל גופן הספר'))
-
-// Placeholders — never string interpolation, so the translation can reorder them:
+// Placeholders, never interpolation, so the translation can reorder them:
 context.settingsText('יש כרגע {count} דיווחים שמורים בתור', args: {'count': pendingCount})
-
-// Identical Hebrew with different translations — separate with a context:
-context.settingsText('ספריה', context: 'titleBar')   // → "Library"
-context.settingsText('ספריה')                        // → "Seforim Library"
+// Identical Hebrew with different translations:
+context.settingsText('ספריה', context: 'titleBar')
 ```
 
-**The Hebrew source string IS the translation key.** Never invent a key like `'settings.font.size'`: a maintainer looking for a screen greps the Hebrew text they see on it, and that has to keep working. The English text lives only in `lib/settings/l10n/settings_en.arb`.
+- The Hebrew source string is the key. Never invent a key like `'settings.font.size'`. The English text lives only in `lib/settings/l10n/settings_en.arb`.
+- After adding or changing a string run `dart run tool/generate_settings_l10n.dart`; it writes `lib/settings/l10n/settings_catalogs.g.dart` (never edit it by hand). The build hook also runs it on `flutter run/build/test`, but not on hot reload.
+- Run `flutter test test/settings/l10n/`. `test/settings/l10n/settings_l10n_test.dart` reads literal `settingsText` arguments and fails on a key missing from the ARB, or an ARB entry no longer used.
+- A string that reaches `settingsText` through a variable is invisible to that scan: add a case to `test/settings/l10n/settings_variable_labels_test.dart`.
+- A dialog builds in the Navigator's overlay and inherits neither language nor direction. Open it with `settingsDialogBuilder`:
+  ```dart
+  showDialogUntilTornDown(context: context, builder: settingsDialogBuilder(context, (_) => const MyDialog()));
+  ```
+- Direction: `ChromeDirectionality` for app chrome, `ContentDirectionality` for library and reader content. No ad hoc `textDirection` or `Directionality` to fix English mode.
 
-**After adding or changing a string, regenerate the catalog:**
-```bash
-dart run tool/generate_settings_l10n.dart
-```
-It reads the ARB and writes the `const` map in `lib/settings/l10n/settings_catalogs.g.dart`. It also runs on `flutter run` / `flutter build` / `flutter test` via the build hook — but **not on hot reload**, so an ARB edit needs a restart to appear.
+Outside `lib/settings/`, `SettingsTextScope` in `lib/app.dart` makes `context.settingsText` available everywhere. Translate the interface labels (not book, category or plugin names) in:
+- `lib/navigation/`: the navigation rail and the title-bar screen names.
+- Main-screen chrome: the library browser, Find Sources dialog, library search dialog and tools launcher. Direction is covered by `test/navigation/chrome_direction_test.dart`.
+- `lib/tour/`: every tour step title/body and live-tip title/description needs an ARB entry. A step's `body` stays a plain string literal, with variable values as placeholders. See `docs/guided_tour_developer_guide.md`.
 
-The generator validates the ARB itself (duplicate keys, placeholder mismatch). What catches a *missing* translation is `test/settings/l10n/settings_l10n_test.dart`, which scans the code for `settingsText` calls and fails on any key absent from the ARB — plus the reverse, an ARB entry no longer used. Run it after touching any settings string:
-```bash
-flutter test test/settings/l10n/
-```
+## 12. Navigation side panel: `NavSidePanel`
 
-**Never do:**
-- A bare string literal on a settings widget's `title` / `subtitle` / `label` / `tooltip` / dialog text
-- String interpolation inside the key (`'שמור ${count} ספרים'`) — use `args:` instead
-- A non-Hebrew invented key
-- Editing `settings_catalogs.g.dart` by hand — it is generated, and your edit is lost on the next build
-- Ad hoc `textDirection` or `Directionality` to fix English mode — use `ChromeDirectionality` / `ContentDirectionality` for app chrome and reading content
-
-**Two traps that make a string render Hebrew even though it looks wrapped:**
-
-1. **A string reaching `settingsText` through a variable is invisible to the scanner.** It reads literal arguments only, so `context.settingsText(item.label)` passes the coverage test with no translation existing. When the text arrives via a variable, field, or table, add an explicit case to `test/settings/l10n/settings_variable_labels_test.dart`.
-
-2. **A dialog builds in the Navigator's Overlay, outside the settings widget tree**, so it inherits neither the language nor the direction. Open it through `settingsDialogBuilder`:
-   ```dart
-   showDialog(context: context, builder: settingsDialogBuilder(context, (_) => const MyDialog()));
-   ```
-
-Most strings outside `lib/settings/` remain Hebrew-only. The app-wide `SettingsTextScope` in `lib/app.dart` makes `context.settingsText` available in the translated interface chrome; only settings dialogs require `settingsDialogBuilder`. Translate interface labels in the following areas, while book titles, category titles, plugin names and content stay as they are:
-
-- **`lib/navigation/`** — the fixed navigation rail and the title-bar screen names, because the settings screen is reached from them.
-- **Main-screen interface chrome** — the library browser, Find Sources dialog, library search dialog and tools launcher. When `settingsText` receives a variable, cover its values in `test/settings/l10n/settings_variable_labels_test.dart`.
-- **Direction** — `ChromeDirectionality` applies the interface language direction to title bar, navigation rail, tabs column and tools launcher; `ContentDirectionality` keeps library and reader content RTL. Use directional padding/alignment, not fixed left/right, for new chrome. Covered by `test/navigation/chrome_direction_test.dart`.
-- **`lib/tour/`** — the guided tour and the live tips. **Every new tour step title/body and every live-tip title/description needs an ARB entry**, same as a settings string; see `docs/guided_tour_developer_guide.md`. Two rules specific to the tour: a step's `body` must stay a plain string literal (a variable value goes in as a placeholder — a keyboard shortcut via `shortcut:` filling `{shortcut}`), and coverage is guarded by `test/settings/l10n/settings_variable_labels_test.dart`, which builds the steps for real, so a step with no translation fails there rather than rendering Hebrew.
-
-
-### 10. Navigation Side Panel — ONLY `NavSidePanel`
-
-Every navigation panel in the app (search facets, notes, Shamor Zachor, text/PDF book, commentators tabs) uses the **same** widgets from `lib/widgets/navigation/nav_side_panel.dart`. It is the single source of truth for that panel's look — attachment to the top bar, background color, and the concave corner where it meets the content.
+Every navigation panel (search facets, notes, Shamor Zachor, text/PDF book, commentators tabs) uses the widgets in `lib/widgets/navigation/nav_side_panel.dart`. They own the panel's colour, its attachment to the top bar and the corner where it meets the content.
 
 ```dart
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 
-NavSidePanel(                      // wraps AdaptiveSidePane; never pass
-  isOpen: _isNavVisible,           // attachToTopEdge / paneColor / scrollbarTopMargin yourself
-  isPinned: _isPinned,             // omit on screens without a pin (defaults to docked)
+NavSidePanel(
+  isOpen: _isNavVisible,
+  isPinned: _isPinned,          // omit on screens without a pin (default: docked)
   onClose: () => setState(() => _isNavVisible = false),
   paneContent: _buildTree(),
   mainContent: _buildContent(),
 )
-
-NavPanelToggleButton(              // the ONE icon that opens/closes it — first leadingItems entry
-  isOpen: _isNavVisible,
-  onToggle: () => setState(() => _isNavVisible = !_isNavVisible),
-)
-
-NavPanelPinButton(                 // next leadingItems entry, only while the panel is open
-  isPinned: _isPinned,
-  onToggle: () => setState(() => _isPinned = !_isPinned),
-)
-
-NavPanelTabHeader(                 // tabs only — the pin is NOT here
-  controller: _tabController,
-  tabs: const [(icon: ..., iconFilled: ..., label: 'ניווט')],
-)
+NavPanelToggleButton(isOpen: _isNavVisible, onToggle: _toggleNav) // first leadingItems entry
+NavPanelPinButton(isPinned: _isPinned, onToggle: _togglePin)      // next, only while open
+NavPanelTabHeader(controller: _tabController, tabs: const [(icon: ..., iconFilled: ..., label: 'ניווט')])
 ```
 
-**Pinned vs. unpinned** (issues #1350, #1361): a pinned panel pushes the content; an unpinned one floats over it with a scrim and closes on a click on the content. Nothing closes a panel on scroll — never add a scroll listener that hides it. A panel that opens by itself with the book (default-open setting, opened from search) starts pinned, so the scrim never hides a book the user just opened. Switching pin state moves both contents between layouts by `GlobalKey` — never rebuild them.
+- A pinned panel pushes the content; an unpinned one floats with a scrim and closes on a click on the content. Nothing closes a panel on scroll. A panel that opens by itself with a book starts pinned. Switching pin state moves both contents by `GlobalKey`; never rebuild them.
+- **Search inside a panel** sits under the tab row, never in `AppTopBar` (`lib/widgets/navigation/nav_panel_search.dart`). The screen owns a `NavPanelSearchHost`, keeps its `activeTab` in sync with the `TabController`, wraps `paneContent` in `NavPanelSearchScope(host:)`, and wraps each tab in `NavPanelSearchSlot(index:)`.
+  - A tab that is all search (in-book search) draws its field permanently: `SearchPaneBase`.
+  - Any other tab with a search wraps its list in `NavPanelCollapsibleSearch(delegate: NavPanelSearchDelegate(...))` and puts `const NavPanelSearchToggle()` in the `trailing` of its `NavTreeHeader`.
+  - A tab without search shows no field. Never build a bare `OtzariaSearchField` or `RtlTextField` in a panel tab.
+  - Up/Down move focus from the field into the rows (`NavPanelSearchHost.paneFocusScope`). A delegate with `onArrowDown`/`onArrowUp` instead browses a highlight while focus stays in the field.
+- **Panel content** comes from `lib/widgets/lists/nav_tree_tile.dart`: `NavTreeHeader` for titles, `NavTreeTile.category` / `NavTreeTile.book` for tree rows, `NavTreeContentRow` for free-form rows, `NavTreeGroupCard(isGroupStart:, isGroupEnd:)` for a run of rows in one card, and `NavTreeFocusGroup` so Tab lands on the selected row. The horizontal inset is `kNavTreeSideInset` inside the card/header; a list passes only `kNavTreeListPadding`.
 
-**Search inside a panel** lives in the tab, under the tab row (`lib/widgets/navigation/nav_panel_search.dart`) — never in `AppTopBar`:
-- the screen owns a `NavPanelSearchHost`, keeps `activeTab` in sync with its `TabController`, and wraps `paneContent` in `NavPanelSearchScope`; each `TabBarView` child is wrapped in `NavPanelSearchSlot(index: i, …)`
-- a tab whose whole purpose is search (in-book search) draws its field permanently — `SearchPaneBase`
-- any other tab with a search wraps its list in `NavPanelCollapsibleSearch(delegate: NavPanelSearchDelegate(...))` and puts `const NavPanelSearchToggle()` in the `trailing` of its main `NavTreeHeader`. The field opens from that icon, and its X (or Escape) closes it and clears the filter. A filter that is already set keeps it open
-- a tab with no search shows nothing — no disabled field
-- never build a bare `OtzariaSearchField` inside a nav-panel tab
-- keyboard: Left/Right stay in the text; Up/Down move focus into the panel's rows (`NavPanelSearchHost.paneFocusScope`), and from there Flutter's directional traversal walks the rows and Enter activates — same behavior as the bookmarks/history dialogs. A tab whose delegate supplies `onArrowDown`/`onArrowUp` overrides this: the arrows browse a highlight through its results while focus stays in the field (find_ref model — the user keeps typing mid-browse), and Enter opens the highlighted result via `onSubmitted`
+**Never:** `AdaptiveSidePane` directly for a navigation panel; passing `paneColor` / `attachToTopEdge` yourself; a hand-rolled `TabBar` + `AnimatedPinButton` header; a per-screen open icon instead of `NavPanelToggleButton`; tree rows with `Border(bottom:)`, a `fontSize` or `primary` icons.
 
-**Panel content** is built from `lib/widgets/lists/nav_tree_tile.dart`:
-- `NavTreeHeader` — the main title above the list (primary color, bold) and any sub-tree root
-- `NavTreeTile.category` / `NavTreeTile.book` — tree rows; `NavTreeContentRow` for free-form rows (search snippets)
-- `NavTreeGroupCard` — a continuous run of rows shares one card (`isGroupStart` / `isGroupEnd` at its edges); a heading that owns sub-rows is its own standalone card
-- `NavTreeFocusGroup` — wrap the list so Tab lands on the **selected** row, not the first; it also sorts before the tab row, so Arrow-Down from the search field enters the rows
-- Horizontal inset comes from `kNavTreeSideInset` inside the card/header; lists pass only `kNavTreeListPadding`
+## 13. Middle-click autoscroll
 
-**Never:**
-- `AdaptiveSidePane` directly for a *navigation* panel — it is the mechanism (responsive layout, drag, overlay) and stays for other panel kinds
-- A hand-rolled `TabBar` + `AnimatedPinButton` row as a panel header
-- A per-screen open icon (`text_continuous`, `line_horizontal_3`, …) — the toggle is `NavPanelToggleButton`
-- Hand-built tree rows with `Border(bottom:)`, explicit `fontSize`, or `primary`-colored icons
-- Passing `paneColor` / `attachToTopEdge` to a nav panel — `NavSidePanel` owns them
-- Adding a per-panel list `padding` for the tree — the inset lives in `NavTreeGroupCard` / `NavTreeHeader` (`kNavTreeSideInset`), and lists use `kNavTreeListPadding`
-- A per-panel search field built from `RtlTextField` + `InputDecoration` — every field inside a nav panel is `OtzariaSearchField`
+`MiddleClickAutoScroll` wraps the whole app once in `lib/app.dart`, so every scrollable area already autoscrolls on middle-click. Never add a per-screen handler or a second `MiddleClickAutoScroll`.
 
-### 11. Middle-click autoscroll — already global, never re-implement
+Where middle-click has another meaning (a tab that closes on middle-click), wrap the region in `AutoScrollBarrier` from `lib/widgets/misc/middle_click_autoscroll.dart`:
 
-`MiddleClickAutoScroll` wraps the whole app once in `lib/app.dart`, so **every** scrollable area already supports middle-click autoscroll: lists, reading screens, the library, settings, dialogs, and the PDF viewer. It works by dispatching synthetic wheel events down the hit-test path captured on click, so anything that reacts to the mouse wheel reacts to it too — no per-screen wiring.
-
-**Never:**
-- Add a per-screen middle-click scroll handler, an anchor overlay, or an autoscroll timer — the global widget already covers it
-- Wrap a screen in a second `MiddleClickAutoScroll`
-
-**Do** wrap a region in `AutoScrollBarrier` when middle-click there is reserved for something else (a tab that closes on middle-click):
 ```dart
-import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
-
 Listener(
   onPointerDown: (e) { if (e.buttons == kMiddleMouseButton) closeTab(tab); },
   child: AutoScrollBarrier(child: tabContent),
 )
 ```
-A barrier anywhere in the hit-test path suppresses autoscroll for that click.
-

@@ -239,6 +239,172 @@ void main() {
     }
   });
 
+  // רשת הפסים (q12 Q8): שלוש תיקיות בשתי עמודות, כך ששורת התיקיות השנייה
+  // חלקית, והספרים מתחילים בשורה חדשה. מעלה/מטה הולכים לשורה הסמוכה בפועל,
+  // לכרטיס הקרוב ביותר אופקית, ולא לאינדקס ועוד מספר העמודות.
+  for (final direction in TextDirection.values) {
+    group('ניווט מעלה/מטה ברשת הפסים (${direction.name})', () {
+      const folders = 3;
+      const books = 4;
+      late List<FocusNode> nodes;
+      late int exitTopCount;
+
+      tearDown(() {
+        for (final node in nodes) {
+          node.dispose();
+        }
+      });
+
+      /// רוחב 600 → שתי עמודות; 0–2 תיקיות (שורות 1–2), 3–6 ספרים (שורות 3–4).
+      Widget buildGrid({int leadingCategoryCount = folders}) {
+        nodes = List.generate(
+          folders + books,
+          (i) => FocusNode(debugLabel: 'card$i'),
+        );
+        exitTopCount = 0;
+        return MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: Material(
+              child: Center(
+                child: SizedBox(
+                  width: 600,
+                  child: SingleChildScrollView(
+                    child: MyGridView(
+                      leadingCategoryCount: leadingCategoryCount,
+                      onExitTop: () => exitTopCount++,
+                      items: [
+                        for (var i = 0; i < folders + books; i++)
+                          CategoryGridItem(
+                            category: _category('פריט $i'),
+                            onCategoryClickCallback: () {},
+                            focusNode: nodes[i],
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      int? focusedIndex() {
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].hasPrimaryFocus) return i;
+        }
+        return null;
+      }
+
+      Future<int?> press(
+        WidgetTester tester,
+        int from,
+        LogicalKeyboardKey key,
+      ) async {
+        nodes[from].requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(key);
+        await tester.pump();
+        return focusedIndex();
+      }
+
+      Rect rectOf(WidgetTester tester, int i) =>
+          tester.getRect(find.byType(CategoryGridItem).at(i));
+
+      testWidgets('הפריסה: התיקייה השלישית לבדה בשורה, והספר הראשון בשורה '
+          'חדשה באותו טור', (tester) async {
+        await tester.pumpWidget(buildGrid());
+        // הטור הראשון בכיוון הקריאה: ימין ב-RTL, שמאל ב-LTR.
+        expect(rectOf(tester, 2).left, closeTo(rectOf(tester, 0).left, 0.5));
+        expect(rectOf(tester, 3).left, closeTo(rectOf(tester, 0).left, 0.5));
+        expect(rectOf(tester, 3).top, greaterThan(rectOf(tester, 2).bottom));
+        // פס התיקיות נמוך מהספרים — אחרת זו לא רשת הפסים.
+        expect(
+          rectOf(tester, 0).height,
+          lessThan(rectOf(tester, 3).height - 1),
+        );
+      });
+
+      testWidgets('מטה מכל תיקייה', (tester) async {
+        await tester.pumpWidget(buildGrid());
+        // תיקייה 1 (טור ראשון) → תיקייה 3 שמתחתיה.
+        expect(await press(tester, 0, LogicalKeyboardKey.arrowDown), 2);
+        // תיקייה 2 (טור שני) → תיקייה 3, השורה הבאה; לא מדלגים לספר 1.
+        expect(await press(tester, 1, LogicalKeyboardKey.arrowDown), 2);
+        // תיקייה 3 (טור ראשון) → ספר 1 שמתחתיה, ולא ספר 2 שבטור השני.
+        expect(await press(tester, 2, LogicalKeyboardKey.arrowDown), 3);
+      });
+
+      testWidgets('מעלה מכל תיקייה ומשורת הספרים הראשונה', (tester) async {
+        await tester.pumpWidget(buildGrid());
+        expect(await press(tester, 2, LogicalKeyboardKey.arrowUp), 0);
+        // ספר 1 (טור ראשון) → תיקייה 3 שמעליו, ולא תיקייה 2.
+        expect(await press(tester, 3, LogicalKeyboardKey.arrowUp), 2);
+        // ספר 2 (טור שני) → תיקייה 3, הכרטיס היחיד בשורה שמעליו.
+        expect(await press(tester, 4, LogicalKeyboardKey.arrowUp), 2);
+        // ספר 3 → ספר 1, באותו טור.
+        expect(await press(tester, 5, LogicalKeyboardKey.arrowUp), 3);
+
+        expect(await press(tester, 0, LogicalKeyboardKey.arrowUp), 0);
+        expect(exitTopCount, 1);
+        expect(await press(tester, 1, LogicalKeyboardKey.arrowUp), 1);
+        expect(exitTopCount, 2);
+      });
+
+      testWidgets('הספרים נעים באותו טור, ובסוף הרשת הפוקוס נשאר', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildGrid());
+        expect(await press(tester, 3, LogicalKeyboardKey.arrowDown), 5);
+        expect(await press(tester, 4, LogicalKeyboardKey.arrowDown), 6);
+        expect(await press(tester, 5, LogicalKeyboardKey.arrowDown), 5);
+        expect(await press(tester, 6, LogicalKeyboardKey.arrowDown), 6);
+      });
+
+      testWidgets('חיצי צד לא השתנו: ברצף לפי סדר הקריאה', (tester) async {
+        await tester.pumpWidget(buildGrid());
+        final next = direction == TextDirection.rtl
+            ? LogicalKeyboardKey.arrowLeft
+            : LogicalKeyboardKey.arrowRight;
+        final previous = direction == TextDirection.rtl
+            ? LogicalKeyboardKey.arrowRight
+            : LogicalKeyboardKey.arrowLeft;
+        expect(await press(tester, 2, next), 3);
+        expect(await press(tester, 3, previous), 2);
+        expect(await press(tester, 1, next), 2);
+      });
+
+      // הרשת האחידה (בלי פס תיקיות), אותם שבעה כרטיסים: שורה = שני אינדקסים,
+      // והשורה האחרונה החלקית מתנהגת כמו קודם.
+      testWidgets('רשת אחידה: מעלה/מטה כמו קודם (אינדקס ± מספר העמודות)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildGrid(leadingCategoryCount: 0));
+        expect(
+          rectOf(tester, 0).height,
+          closeTo(rectOf(tester, 3).height, 0.5),
+        );
+        for (var i = 0; i < folders + books; i++) {
+          final down = i + 2 < folders + books ? i + 2 : i;
+          expect(
+            await press(tester, i, LogicalKeyboardKey.arrowDown),
+            down,
+            reason: 'מטה מ-$i',
+          );
+          final up = i >= 2 ? i - 2 : i;
+          expect(
+            await press(tester, i, LogicalKeyboardKey.arrowUp),
+            up,
+            reason: 'מעלה מ-$i',
+          );
+        }
+        // מהשורה הראשונה מעלה יוצא לחיפוש (פעמיים: מ-0 ומ-1).
+        expect(exitTopCount, 2);
+      });
+    });
+  }
+
   group('resolveLibraryBackspaceAction', () {
     test('בשדה החיפוש הריק של הספרייה — עולים תיקייה', () {
       expect(

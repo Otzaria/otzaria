@@ -145,7 +145,7 @@ class CategoryPreviewPanel extends StatelessWidget {
                   ),
                   child: Icon(
                     FluentIcons.folder_24_regular,
-                    size: 24,
+                    size: AppTokens.iconLG,
                     color: cs.onSecondaryContainer,
                   ),
                 ),

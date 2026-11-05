@@ -22,6 +22,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/splited_view/splited_view_screen.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/bloc/tour_state.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
@@ -81,6 +82,9 @@ Future<void> main() async {
   }
 
   /// האם [term] צבוע כהדגשת חיפוש בתוך הטקסט המוצג שמכיל את [text].
+  ///
+  /// צבע ההדגשה הוא הטוקן [AppSurfaces.searchHit] של ערכת הנושא (DD-17),
+  /// ולא האדום הקבוע (#FF0000) שהיה לפני ההכרעה.
   bool isHighlightedIn(
     WidgetTester tester,
     String text, {
@@ -90,15 +94,16 @@ Future<void> main() async {
       (widget) =>
           widget is RichText && widget.text.toPlainText().contains(text),
     );
-    for (final widget in tester.widgetList<RichText>(paragraphs)) {
+    for (final element in paragraphs.evaluate()) {
+      final widget = element.widget as RichText;
+      final hit = AppSurfaces.searchHit(
+        Theme.of(element).colorScheme,
+      ).toARGB32();
       var highlighted = false;
       widget.text.visitChildren((span) {
-        final color = span.style?.color;
         if (span is TextSpan &&
             (span.text ?? '').contains(term) &&
-            color != null &&
-            color.r > 0.8 &&
-            color.g < 0.3) {
+            span.style?.color?.toARGB32() == hit) {
           highlighted = true;
         }
         return !highlighted;

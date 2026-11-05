@@ -139,9 +139,7 @@ void main() {
       );
     }
 
-    testWidgets('scrollable=true — ה-Scrollbar וה-ScrollbarTheme קיימים', (
-      tester,
-    ) async {
+    testWidgets('scrollable=true — ה-Scrollbar קיים', (tester) async {
       await tester.pumpWidget(buildPanel(scrollable: true));
       await tester.pump();
 
@@ -149,12 +147,6 @@ void main() {
         find.byType(Scrollbar),
         findsOneWidget,
         reason: 'ContextOverlayPanel עם scrollable=true חייב להכיל Scrollbar',
-      );
-      expect(
-        find.byType(ScrollbarTheme),
-        findsOneWidget,
-        reason:
-            'ScrollbarTheme מגדיר crossAxisMargin=2 — זהה ל-adaptive_side_pane',
       );
     });
 
@@ -281,11 +273,10 @@ void main() {
         reason: 'פס גלילה יחיד בלבד — האוטומטי מבוטל דרך ScrollConfiguration',
       );
 
-      final scrollbarContext = tester.element(find.byType(Scrollbar));
       expect(
-        Directionality.of(scrollbarContext),
-        TextDirection.ltr,
-        reason: 'כיוון ה-Scrollbar מהופך ל-LTR כדי להצמידו לימין, הרחק מהידית',
+        tester.widget<Scrollbar>(find.byType(Scrollbar)).scrollbarOrientation,
+        ScrollbarOrientation.right,
+        reason: 'הפס בקצה ימין, הרחק מהידית',
       );
 
       final contentContext = tester.element(find.byType(SingleChildScrollView));
@@ -304,11 +295,10 @@ void main() {
 
       expect(find.byType(Scrollbar), findsOneWidget);
 
-      final scrollbarContext = tester.element(find.byType(Scrollbar));
       expect(
-        Directionality.of(scrollbarContext),
-        TextDirection.rtl,
-        reason: 'משמאל הידית בקצה ימין — פס הגלילה נשאר בשמאל ללא היפוך',
+        tester.widget<Scrollbar>(find.byType(Scrollbar)).scrollbarOrientation,
+        ScrollbarOrientation.left,
+        reason: 'משמאל הידית בקצה ימין — פס הגלילה בשמאל, חריג מתועד',
       );
     });
   });

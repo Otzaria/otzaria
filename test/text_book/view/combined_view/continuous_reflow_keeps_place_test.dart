@@ -18,7 +18,7 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
-import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
 
@@ -339,7 +339,10 @@ void main() {
       [_targetLine],
     );
     final line = lines.singleWhere((line) => line.lineIndex == _targetLine);
-    expect(line.background, AppColors.permanentHighlight);
+    final scheme = Theme.of(
+      tester.element(find.byType(ContinuousReadingParagraph).first),
+    ).colorScheme;
+    expect(line.background, AppSurfaces.permanentMark(scheme));
     expect(line.style.backgroundColor, isNull);
   });
 }

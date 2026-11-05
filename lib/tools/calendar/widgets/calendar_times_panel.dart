@@ -401,7 +401,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                   // 24 ולא 20 כשאר הסרגל: השעון ב-clock_add אינו ממלא את
                   // הקנבס — הפלוס תופס את הפינה — ולכן הוא נקרא קטן
                   // משמעותית מאייקון פלואנט באותו גודל נומינלי.
-                  iconSize: 24,
+                  iconSize: AppTokens.iconLG,
                   compact: true,
                   onPressed: () => showZmanimSettingsDialog(context),
                 ),
@@ -466,7 +466,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                           ),
                           icon: Icon(
                             FluentIcons.info_24_regular,
-                            size: 18,
+                            size: AppTokens.iconSM,
                             color: theme.colorScheme.primary,
                           ),
                         ),
@@ -491,7 +491,8 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     final filteredTimesList = _buildCalendarTimeEntries(widget.state);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isSingleColumn = constraints.maxWidth < 290;
+        const singleColumnBelow = 290.0;
+        final isSingleColumn = constraints.maxWidth < singleColumnBelow;
         final columnCount = isSingleColumn ? 1 : 2;
         final spacing = 8.0;
         final arrangedTimesList = _arrangeEntriesForGrid(
@@ -582,7 +583,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         ? Icon(FluentIcons.alert_24_filled)
         : Icon(
             OtzariaIcons.mount_sinai_24_regular,
-            size: 20,
+            size: AppTokens.iconMD,
             color: cs.onPrimary,
           );
 
@@ -641,10 +642,7 @@ class _CityDropdown extends StatelessWidget {
       child: AppDropdownField<String>(
         value: cityName,
         enableSearch: true,
-        decoration: const InputDecoration(
-          labelText: 'עיר',
-          isDense: true,
-        ),
+        semanticLabel: 'עיר',
         entries: cityNames
             .map((city) => AppMenuEntry<String>(value: city, label: city))
             .toList(),
@@ -794,31 +792,19 @@ class _ZmanCard extends StatelessWidget {
     );
   }
 
-  double _titleFontSizeFor(CalendarTimeEntry entry) {
-    final base = entry.name.length > 28
-        ? 11.0
-        : entry.name.length > 20
-        ? 12.0
-        : entry.name.length > 16
-        ? 13.0
-        : 14.0;
-    return base + 1;
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final existingAlert = _existingAlert;
     final hasAlert = existingAlert != null;
     final bgColor = timeData.isHolidaySpecial
-        ? scheme.secondaryContainer.withValues(alpha: isDark ? 0.82 : 0.55)
+        ? AppSurfaces.calendarSpecialDayCard(scheme)
         : AppSurfaces.card(context);
     final primaryTextColor = timeData.isHolidaySpecial
-        ? scheme.onSecondaryContainer
+        ? AppSurfaces.onCalendarSpecialDayCard(scheme)
         : scheme.onSurface;
     final secondaryTextColor = timeData.isHolidaySpecial
-        ? scheme.onSecondaryContainer.withValues(alpha: isDark ? 0.94 : 0.78)
+        ? AppSurfaces.onCalendarSpecialDayCardVariant(scheme)
         : scheme.onSurfaceVariant;
 
     return Card(
@@ -843,7 +829,6 @@ class _ZmanCard extends StatelessWidget {
                   final nameStyle = Theme.of(context).textTheme.titleMedium
                       ?.copyWith(
                         fontWeight: FontWeight.w600,
-                        fontSize: _titleFontSizeFor(timeData),
                         color: primaryTextColor,
                       );
                   // כרטיס בודד עם תת-כותרת: שורת כותרת + שורת פירוט קטנה.
@@ -1156,7 +1141,6 @@ class _CompositeLabelValue extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: textColor,
-                fontSize: 12,
               ),
             ),
           ),

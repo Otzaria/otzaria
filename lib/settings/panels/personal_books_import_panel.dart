@@ -138,6 +138,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('ייבוא תיקייה'),
+      icon: FluentIcons.arrow_import_24_regular,
       content: context.settingsText(
         'נמצאו {count} קבצי ספרים ({size}). להעתיק אותם לספרייה?',
         args: {
@@ -305,7 +306,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
                 isLoading: isBusy,
               ),
               if (_isCopyingFolder)
-                ActionButton.warning(
+                ActionButton.warningSoft(
                   text: context.settingsText('בטל ייבוא'),
                   icon: FluentIcons.dismiss_24_regular,
                   onPressed: _folderImport.cancelCopy,
@@ -349,7 +350,6 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final cs = Theme.of(context).colorScheme;
     return ListTile(
       dense: true,
-      hoverColor: Colors.transparent,
       leading: Icon(
         OtzariaIcons.book_24_regular,
         color: cs.primary,
@@ -366,7 +366,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
         style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
       ),
       trailing: IconButton(
-        icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+        icon: const Icon(FluentIcons.delete_24_regular, size: AppTokens.iconSM),
         onPressed: isBusy ? null : () => _deleteBook(file),
         tooltip: context.settingsText('מחק ספר'),
       ),

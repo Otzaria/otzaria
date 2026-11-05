@@ -7,7 +7,7 @@ import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// כרטיס ההסכמה לשליחת נתוני שימוש של מצב החיפוש הסמנטי.
 /// כיבוי המתג מבטל את ההסכמה ומוחק אירועים שטרם נשלחו.
@@ -45,7 +45,7 @@ class SearchFeedbackPanel extends StatelessWidget {
         StreamBuilder<SearchFeedbackConsent>(
           stream: consentStore.changes,
           initialData: consentStore.consent,
-          builder: (context, snapshot) => SettingsActionTile.switchTile(
+          builder: (context, snapshot) => SettingsSwitchTile(
             key: const ValueKey('search-feedback-consent-switch'),
             icon: FluentIcons.data_usage_24_regular,
             title: context.settingsText('שיפור המנגנון'),
@@ -73,7 +73,7 @@ class SearchFeedbackPanel extends StatelessWidget {
                       context.settingsText(
                         'השליחה לשרת חסומה כעת ברשת שלך (ייתכן שעל ידי סינון). הנתונים נשמרים במחשב ויישלחו כשהגישה תיפתח.',
                       ),
-                      style: kSettingsSubtitleStyle,
+                      style: AppTextStyles.settingSubtitle,
                     ),
                   ),
           ),

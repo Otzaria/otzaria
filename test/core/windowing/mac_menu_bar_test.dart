@@ -11,7 +11,7 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/mac_menu_bar.dart';
@@ -95,9 +95,10 @@ void main() {
           context: tester.element(find.text('בית')),
           builder: (_) => ValueListenableBuilder<bool>(
             valueListenable: dismissible,
-            builder: (_, canDismiss, _) => AppCustomContentDialog(
+            builder: (_, canDismiss, _) => AppDialogFrame(
               title: 'התקנה פעילה',
-              canDismiss: canDismiss,
+              icon: Icons.extension,
+              closeEnabled: canDismiss,
               child: const SizedBox.shrink(),
             ),
           ),
@@ -105,7 +106,7 @@ void main() {
         await tester.pumpAndSettle();
         if (extraRoute) {
           showDialog<void>(
-            context: tester.element(find.byType(AppCustomContentDialog)),
+            context: tester.element(find.byType(AppDialogFrame)),
             builder: (_) => const AlertDialog(title: Text('שכבה נוספת')),
           );
           await tester.pumpAndSettle();

@@ -39,6 +39,7 @@ import 'package:otzaria/core/windowing/multiview/in_process_tab_drop.dart';
 import '../test_helpers/fake_view_window.dart';
 import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 /// סגירה מנומסת שומרת סשן לעדכון ומוחקת סשן בסגירת X רגילה.
 void main() {
@@ -390,6 +391,110 @@ void main() {
       expect(WindowTabsSession.current.slot, slot);
     },
   );
+
+  group('דיאלוג עם שינויים שלא נשמרו בזמן סגירת החלון (q11 Q3, DD-08)', () {
+    late ValueNotifier<bool> dirty;
+    late Future<void> closing;
+    var closeDone = false;
+
+    setUp(() => dirty = ValueNotifier(true));
+    tearDown(() => dirty.dispose());
+
+    Future<void> openDialog(WidgetTester tester) async {
+      ViewWindowOpener.instance.resetCloseQueueForTest();
+      await tester.pumpWidget(
+        BlocProvider<TabsBloc>.value(
+          value: _GuardTabs(
+            ToolTab(toolId: 'p', title: 'נקי', instanceId: 'dirty-dialog'),
+          ),
+          child: MaterialApp(
+            navigatorKey: navigatorKey,
+            home: const SizedBox(),
+          ),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+      unawaited(
+        showTwoActionsDialog(
+          context: navigatorKey.currentContext!,
+          title: 'עריכה',
+          content: 'תוכן',
+          isDirty: dirty,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// מקדם את הסגירה עד שהסתיימה, או עד שאלת הדיאלוג כש-[untilQuestion].
+    Future<void> advance(
+      WidgetTester tester, {
+      bool untilQuestion = false,
+    }) async {
+      bool reached() =>
+          closeDone ||
+          (untilQuestion &&
+              find.text('לסגור בלי לשמור?').evaluate().isNotEmpty);
+      final elapsed = Stopwatch()..start();
+      while (!reached() && elapsed.elapsed < const Duration(seconds: 5)) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 1)),
+        );
+      }
+      expect(reached(), isTrue);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> startClose(WidgetTester tester) async {
+      closeDone = false;
+      closing = AppWindowListener().handleWindowClose().whenComplete(
+        () => closeDone = true,
+      );
+      await advance(tester, untilQuestion: true);
+    }
+
+    Future<void> answer(WidgetTester tester, String button) async {
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      expect(runner.closeSelfCalls, 0, reason: 'החלון מחכה לתשובה');
+      await tester.tap(find.text(button));
+      await tester.pumpAndSettle();
+      await advance(tester);
+      await closing;
+    }
+
+    testWidgets('"המשך לערוך": החלון והדיאלוג נשארים, עם מה שהוקלד', (
+      tester,
+    ) async {
+      await openDialog(tester);
+      await startClose(tester);
+      await answer(tester, 'המשך לערוך');
+      expect(runner.closeSelfCalls, 0);
+      expect(find.text('עריכה'), findsOneWidget);
+      expect(WindowTabsSession.current.slot, isNotNull);
+    });
+
+    testWidgets('"סגור בלי לשמור": הדיאלוג נסגר, ואחריו החלון', (
+      tester,
+    ) async {
+      await openDialog(tester);
+      await startClose(tester);
+      await answer(tester, 'סגור בלי לשמור');
+      expect(runner.closeSelfCalls, 1);
+      expect(find.text('עריכה'), findsNothing);
+    });
+
+    testWidgets('דיאלוג בלי שינויים: החלון נסגר ישר, בלי שאלה', (
+      tester,
+    ) async {
+      dirty.value = false;
+      await openDialog(tester);
+      await startClose(tester);
+      expect(closeDone, isTrue);
+      expect(find.text('לסגור בלי לשמור?'), findsNothing);
+      await closing;
+      expect(runner.closeSelfCalls, 1);
+    });
+  });
 
   group('סשן תיקון בלשונית קורא', () {
     final service = PluginCorrectionSessionService.instance;

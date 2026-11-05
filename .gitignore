@@ -159,3 +159,6 @@ assets/bundled_plugins/*
 # ומגיע לעשרות אלפי שורות. אינו אמור להיכנס לגיט.
 build_log.txt
 isolate.pdf
+
+# תמונות השוואה של golden tests שנכשלו (test/goldens/<רכיב>/failures/).
+test/goldens/**/failures/

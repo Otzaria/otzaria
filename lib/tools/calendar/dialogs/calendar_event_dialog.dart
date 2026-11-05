@@ -20,6 +20,7 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  קבועים ופונקציות עזר
@@ -411,16 +412,12 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
-          title: Row(
-            children: [
-              const Expanded(child: Text('בחירת תאריך')),
-              CalendarTypeToggleButton(
-                showHebrew: showHebrew,
-                onPressed: () => setInnerState(() => showHebrew = !showHebrew),
-              ),
-            ],
+          title: 'בחירת תאריך',
+          icon: FluentIcons.calendar_24_regular,
+          headerTrailing: CalendarTypeToggleButton(
+            showHebrew: showHebrew,
+            onPressed: () => setInnerState(() => showHebrew = !showHebrew),
           ),
-          content: '',
           handleEnterKey: false,
           cancelText: 'ביטול',
           confirmText: 'אישור',
@@ -519,7 +516,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
           title: 'זמן התראה מותאם אישית',
-          content: '',
+          icon: FluentIcons.alert_24_regular,
           handleEnterKey: false,
           cancelText: 'ביטול',
           confirmText: 'אישור',
@@ -727,6 +724,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       context: context,
       builder: (dialogCtx) => AppDialog.singleAction(
         title: 'בחירת צבע',
+        icon: FluentIcons.color_24_regular,
         confirmText: 'סגור',
         customContent: _buildColorSwatches(
           onSelected: () => Navigator.of(dialogCtx).pop(),
@@ -793,7 +791,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RtlIcon(icon, size: 18),
+              RtlIcon(icon, size: AppTokens.iconSM),
               const SizedBox(width: 8),
               Text(label),
               if (trailing != null) ...[const SizedBox(width: 4), trailing],
@@ -948,7 +946,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     if (!_isDesktop) {
       final trailing = _selectedTime != null
           ? IconButton(
-              icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
+              icon: Icon(
+                FluentIcons.dismiss_24_regular,
+                size: AppTokens.iconSM,
+              ),
               tooltip: 'כל היום',
               visualDensity: VisualDensity.compact,
               onPressed: _setAllDay,
@@ -1010,7 +1011,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     final isEditMode = widget.existingEvent != null;
     final isRecurring = _selectedRecurrenceType != RecurrenceType.none;
 
-    return AppCustomContentDialog(
+    return AppDialogFrame(
+      size: AppDialogSize.medium,
+      fitTitle: true,
+      scrollable: true,
       title: isEditMode ? 'ערוך אירוע' : 'צור אירוע חדש',
       icon: isEditMode
           ? FluentIcons.calendar_edit_24_regular
@@ -1112,7 +1116,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
               ),
 
               // חזרה — DropDown כולל "ללא חזרה" כברירת מחדל
-              SettingsActionTile.dropdownTile<RecurrenceType>(
+              SettingsDropdownTile<RecurrenceType>(
                 icon: FluentIcons.arrow_repeat_all_24_regular,
                 title: 'חזרה',
                 subtitle: _recurrenceSubtitle(_selectedRecurrenceType),
@@ -1183,7 +1187,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           SettingsCard(
             title: 'מועד ההתראה',
             children: [
-              SettingsActionTile.dropdownTile<int>(
+              SettingsDropdownTile<int>(
                 icon: FluentIcons.alert_24_regular,
                 title: 'מועד ההתראה',
                 subtitle: _notificationSubtitle(_notificationMinutes),
@@ -1231,6 +1235,7 @@ class _ColorSwatch extends StatelessWidget {
       message: tooltip ?? '',
       child: InkWell(
         onTap: onTap,
+        // ui-lint: allow UIL-019 — עיגול צבע, רכיב עגול מטבעו (DESIGN_SYSTEM §2.3)
         customBorder: const CircleBorder(),
         // ריפוד סביב העיגול הנראה — מטרת לחיצה של 48dp לפחות
         child: Container(
@@ -1248,7 +1253,7 @@ class _ColorSwatch extends StatelessWidget {
           child: color == null
               ? Icon(
                   FluentIcons.line_horizontal_1_24_regular,
-                  size: 16,
+                  size: AppTokens.iconSM,
                   color: cs.onSurfaceVariant,
                 )
               : null,
@@ -1583,7 +1588,10 @@ class _InlineTimeEditorState extends State<_InlineTimeEditor> {
                 _onMinuteKey,
               ),
               IconButton(
-                icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
+                icon: Icon(
+                  FluentIcons.dismiss_24_regular,
+                  size: AppTokens.iconSM,
+                ),
                 tooltip: widget.clearTooltip,
                 visualDensity: VisualDensity.compact,
                 onPressed: widget.onClear,

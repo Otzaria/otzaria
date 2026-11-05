@@ -16,9 +16,11 @@ import 'package:otzaria/core/windowing/app_virtual_window_frame.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/mac_menu_bar.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -34,6 +36,7 @@ class App extends StatelessWidget {
         return previous.seedColor != current.seedColor ||
             previous.darkSeedColor != current.darkSeedColor ||
             previous.compactMenuMode != current.compactMenuMode ||
+            previous.compactMenuModeIsSet != current.compactMenuModeIsSet ||
             previous.followSystemTheme != current.followSystemTheme ||
             previous.isDarkMode != current.isDarkMode;
       },
@@ -53,92 +56,112 @@ class App extends StatelessWidget {
             (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
         // `VirtualWindowFrame` מאזין לחלון הראשי; לחלון Dart מסגרת משלו.
         final isViewWindow = AppWindowScope.roleOf(context).isViewWindow;
-        return ValueListenableBuilder<bool>(
-          valueListenable: DeveloperDiagnostics.instance.performanceOverlay,
-          builder: (context, showPerformanceOverlay, _) => MaterialApp(
-            showPerformanceOverlay: showPerformanceOverlay,
-            navigatorKey: AppWindowKeys.of(context).navigator,
-            localizationsDelegates: const [
-              GlobalCupertinoLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [
-              Locale("he", "IL"),
-            ],
-            locale: const Locale("he", "IL"),
-            title: 'אוצריא',
-            theme: AppThemeData.light(
-              lightColorScheme,
-              compactMenuMode: state.compactMenuMode,
-            ),
-            darkTheme: AppThemeData.dark(
-              darkColorScheme,
-              compactMenuMode: state.compactMenuMode,
-            ),
-            themeMode: state.followSystemTheme
-                ? ThemeMode.system
-                : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
-            builder: (context, child) {
-              // שפת ההגדרות זמינה לכל האפליקציה כדי שגם סרגל הניווט ופס
-              // הכותרת יתורגמו. הכיווניות נשארת RTL — רק מסך ההגדרות עובר
-              // ל-LTR מקומית.
-              Widget content =
-                  BlocSelector<SettingsBloc, SettingsState, String>(
-                    selector: (state) => state.settingsLanguageCode,
-                    builder: (context, languageCode) => SettingsTextScope(
-                      language: resolveSettingsLanguage(languageCode),
-                      child: child ?? const SizedBox.shrink(),
-                    ),
+        // "צפיפות ממשק" שלא נבחרה מצומצמת בחלון קטן; ערכת הנושא נבנית מחדש
+        // רק כשהחלון עובר את הסף.
+        return SmallWindowBuilder(
+          builder: (isSmallWindow) {
+            final compact = state.compactMenuModeFor(
+              isSmallWindow: isSmallWindow,
+            );
+            return ValueListenableBuilder<bool>(
+              valueListenable: DeveloperDiagnostics.instance.performanceOverlay,
+              builder: (context, showPerformanceOverlay, _) => MaterialApp(
+                showPerformanceOverlay: showPerformanceOverlay,
+                navigatorKey: AppWindowKeys.of(context).navigator,
+                localizationsDelegates: const [
+                  GlobalCupertinoLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                ],
+                supportedLocales: const [
+                  Locale("he", "IL"),
+                ],
+                locale: const Locale("he", "IL"),
+                title: 'אוצריא',
+                // פס הגלילה בימין הפיזי, ברצועה משלו, בכל האפליקציה (AppScrollbar).
+                scrollBehavior: const EdgeScrollbarBehavior.right(),
+                theme: AppThemeData.light(
+                  lightColorScheme,
+                  compactMenuMode: compact,
+                  variant: AppThemeVariant.ofSeed(state.seedColor),
+                ),
+                darkTheme: AppThemeData.dark(
+                  darkColorScheme,
+                  compactMenuMode: compact,
+                  variant: AppThemeVariant.ofSeed(state.darkSeedColor),
+                ),
+                themeMode: state.followSystemTheme
+                    ? ThemeMode.system
+                    : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
+                builder: (context, child) {
+                  // שפת הממשק זמינה לכל האפליקציה, גם לדיאלוגים שמעל ה-Navigator.
+                  // הכיווניות נשארת RTL; כרום הממשק (DESIGN_SYSTEM.md, DD-20) עובר
+                  // ל-LTR ב-ChromeDirectionality ובמסך ההגדרות.
+                  Widget navigator = child ?? const SizedBox.shrink();
+                  // בדסקטופ כפתורי החלון ואזורי הגרירה נשארים פעילים מעל שכבת
+                  // ההחשכה של דיאלוג (DD-16).
+                  if (useVirtualWindowFrame) {
+                    navigator = WindowCaptionHitTestScope(child: navigator);
+                  }
+                  Widget content =
+                      BlocSelector<SettingsBloc, SettingsState, String>(
+                        selector: (state) => state.settingsLanguageCode,
+                        builder: (context, languageCode) => SettingsTextScope(
+                          language: resolveSettingsLanguage(languageCode),
+                          child: navigator,
+                        ),
+                      );
+
+                  // קביעת צבע אייקוני פס הסטטוס לפי התמה הפעילה.
+                  // האפליקציה אינה משתמשת ב-AppBar רגיל, ולכן systemOverlayStyle
+                  // לא נקבע אוטומטית — מגדירים אותו כאן כדי שהשעה והאייקונים
+                  // יישארו נראים תמיד (בעיקר באנדרואיד במצב edge-to-edge).
+                  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    final overlayStyle = SystemUiOverlayStyle(
+                      statusBarColor: Colors.transparent,
+                      statusBarIconBrightness: isDark
+                          ? Brightness.light
+                          : Brightness.dark,
+                      statusBarBrightness: isDark
+                          ? Brightness.dark
+                          : Brightness.light,
+                    );
+                    content = AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: overlayStyle,
+                      child: content,
+                    );
+                  }
+
+                  // גלילה אוטומטית בלחיצת גלגל העכבר — עטיפה אחת לכל האפליקציה,
+                  // מתחת למסגרת החלון כדי שכפתורי המסגרת יישארו לחיצים.
+                  content = MiddleClickAutoScroll(child: content);
+
+                  content = MacMenuBar(child: content);
+                  content = FrameStatsOverlay(
+                    contextProvider: () => _diagnosticsContext(context),
+                    child: content,
                   );
 
-              // קביעת צבע אייקוני פס הסטטוס לפי התמה הפעילה.
-              // האפליקציה אינה משתמשת ב-AppBar רגיל, ולכן systemOverlayStyle
-              // לא נקבע אוטומטית — מגדירים אותו כאן כדי שהשעה והאייקונים
-              // יישארו נראים תמיד (בעיקר באנדרואיד במצב edge-to-edge).
-              if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                final overlayStyle = SystemUiOverlayStyle(
-                  statusBarColor: Colors.transparent,
-                  statusBarIconBrightness: isDark
-                      ? Brightness.light
-                      : Brightness.dark,
-                  statusBarBrightness: isDark
-                      ? Brightness.dark
-                      : Brightness.light,
-                );
-                content = AnnotatedRegion<SystemUiOverlayStyle>(
-                  value: overlayStyle,
-                  child: content,
-                );
-              }
+                  if (!useVirtualWindowFrame) {
+                    return content;
+                  }
 
-              // גלילה אוטומטית בלחיצת גלגל העכבר — עטיפה אחת לכל האפליקציה,
-              // מתחת למסגרת החלון כדי שכפתורי המסגרת יישארו לחיצים.
-              content = MiddleClickAutoScroll(child: content);
+                  if (isViewWindow) {
+                    return AppVirtualWindowFrame(child: content);
+                  }
 
-              content = MacMenuBar(child: content);
-              content = FrameStatsOverlay(
-                contextProvider: () => _diagnosticsContext(context),
-                child: content,
-              );
-
-              if (!useVirtualWindowFrame) {
-                return content;
-              }
-
-              if (isViewWindow) {
-                return AppVirtualWindowFrame(child: content);
-              }
-
-              return VirtualWindowFrame(
-                child: content,
-              );
-            },
-            home: MainWindowScreen(
-              key: AppWindowKeys.of(context).mainWindowScreen,
-            ),
-          ),
+                  return VirtualWindowFrame(
+                    child: content,
+                  );
+                },
+                home: MainWindowScreen(
+                  key: AppWindowKeys.of(context).mainWindowScreen,
+                ),
+              ),
+            );
+          },
         );
       },
     );

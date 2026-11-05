@@ -7,6 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// Widget that displays reporting numbers with copy functionality
 class ReportingNumbersWidget extends StatelessWidget {
@@ -29,19 +32,14 @@ class ReportingNumbersWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
+    return AppCard(
+      margin: const EdgeInsets.all(4),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'נתוני הדיווח:',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const AppSectionLabel('נתוני הדיווח:'),
             const SizedBox(height: 8),
 
             // Wrap מאפשר לנתונים להיות באותה שורה ולעבור לשורה הבאה אם אין מקום
@@ -139,12 +137,7 @@ class ReportingNumbersWidget extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
           children: [
-            Text(
-              'קו אוצריא:',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const AppSectionLabel('קו אוצריא:'),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -194,19 +187,19 @@ class ReportingNumbersWidget extends StatelessWidget {
                         ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
+                AppIconButton(
                   onPressed: () => _copyToClipboard(context, _phoneNumber),
-                  icon: const Icon(FluentIcons.copy_24_regular, size: 18),
+                  icon: const Icon(FluentIcons.copy_24_regular),
+                  size: AppIconButtonSize.small,
                   tooltip: 'העתק מספר טלפון',
-                  visualDensity: VisualDensity.compact,
                 ),
                 if (isMobile) ...[
                   const SizedBox(width: 4),
-                  IconButton(
+                  AppIconButton(
                     onPressed: () => _makePhoneCall(context),
-                    icon: const Icon(FluentIcons.phone_24_regular, size: 18),
+                    icon: const Icon(FluentIcons.phone_24_regular),
+                    size: AppIconButtonSize.small,
                     tooltip: 'התקשר',
-                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ],

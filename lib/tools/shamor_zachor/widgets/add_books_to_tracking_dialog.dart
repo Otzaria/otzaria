@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,10 +20,11 @@ import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import '../providers/shamor_zachor_data_provider.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 /// פותח דיאלוג לבחירת ספרים מעץ הספרייה והוספתם למעקב בשמור וזכור.
 ///
-/// [dataProvider] מועבר במפורש כי הוא Provider מקומי שאינו זמין מעל ה-Navigator.
+/// [dataProvider] מועבר במפורש, כך שהדיאלוג אינו תלוי ב־Provider שמעליו.
 Future<void> showAddBooksToTrackingDialog({
   required BuildContext context,
   required ShamorZachorDataProvider dataProvider,
@@ -182,13 +183,14 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                       alignment: AlignmentDirectional.centerStart,
                       child:
                           _selectedBooks.isEmpty ||
-                              MediaQuery.sizeOf(context).width < 520
+                              WindowClass.of(context).isCompact
                           ? null
                           : Padding(
                               padding: const EdgeInsetsDirectional.only(
                                 start: AppTokens.spaceSM,
                               ),
                               child: MetaChip(
+                                tone: MetaChipTone.success,
                                 icon: FluentIcons.checkmark_circle_24_regular,
                                 label: 'נבחרו ${_selectedBooks.length}',
                               ),
@@ -244,15 +246,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           return const LoadingIndicator();
         }
 
-        // Material and not a decorated box, so the tiles' ink is painted
-        // above the card colour.
-        return Material(
-          color: AppSurfaces.card(context),
-          shape: RoundedRectangleBorder(
-            borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
-          ),
-          clipBehavior: Clip.antiAlias,
+        return AppCard(
           child: _hasActiveSearch
               ? _buildSearchResults(library, colorScheme)
               : _buildTree(library, colorScheme),
@@ -307,10 +301,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             ),
             child: Row(
               children: [
-                RtlIcon(
+                Icon(
                   isExpanded
                       ? FluentIcons.chevron_down_24_regular
-                      : FluentIcons.chevron_left_24_regular,
+                      : FluentIcons.chevron_right_24_regular,
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -390,7 +384,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         children: [
           Icon(
             OtzariaIcons.book_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppTokens.spaceSM),
@@ -432,9 +426,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     )..sort((a, b) => a.title.compareTo(b.title));
 
     if (matches.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_in_library_24_regular,
-        message: 'לא נמצאו ספרים תואמים',
+        title: 'לא נמצאו ספרים תואמים',
       );
     }
 

@@ -155,7 +155,7 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
             children: [
               Icon(
                 FluentIcons.shield_task_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: AppTokens.spaceSM),
@@ -188,7 +188,7 @@ class _AttachmentTitle extends StatelessWidget {
       children: [
         Icon(
           icon,
-          size: 18,
+          size: AppTokens.iconSM,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),
@@ -227,7 +227,7 @@ class _PreviewBox extends StatelessWidget {
                   content,
                   textDirection: TextDirection.ltr,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
+                    fontFamily: AppTextStyles.monospaceFamily,
                   ),
                 ),
               ),

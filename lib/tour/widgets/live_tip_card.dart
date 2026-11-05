@@ -5,6 +5,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 class LiveTipCard extends StatelessWidget {
   /// הטקסט העברי, שהוא גם מפתח התרגום.
@@ -30,7 +31,8 @@ class LiveTipCard extends StatelessWidget {
     return Directionality(
       textDirection: SettingsTextScope.languageOf(context).textDirection,
       child: Material(
-        elevation: 10,
+        elevation: AppTokens.elevation2,
+        shadowColor: AppShadows.color(colorScheme),
         borderRadius: AppTokens.borderRadiusAll,
         child: Container(
           padding: const EdgeInsets.all(18),

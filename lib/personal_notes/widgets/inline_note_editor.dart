@@ -222,7 +222,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ActionButton.ghost(text: 'ביטול', onPressed: _handleCancel),
+            ActionButton.neutral(text: 'ביטול', onPressed: _handleCancel),
             const SizedBox(width: AppTokens.spaceSM),
             ActionButton.recommended(text: 'שמור', onPressed: _handleSave),
           ],
@@ -254,7 +254,7 @@ class InlineNoteEditorCard extends StatelessWidget {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppSurfaces.noteEditorBackground(context),
+        color: AppSurfaces.panelSectionAccent(context),
         borderRadius: AppTokens.borderRadiusAll,
         border: Border.all(color: primary, width: 2),
       ),

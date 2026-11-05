@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:flutter/material.dart';
@@ -7,10 +6,13 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// תוכן דיאלוג "זמנים נוספים" — טבלה קומפקטית מקובצת לפי קטגוריות של כל
 /// הזמנים הזמינים. כל שורה מציגה את שם הזמן ואת זמנו ביום הנוכחי;
@@ -84,19 +86,18 @@ class ZmanimSettingsContent extends StatelessWidget {
             children: [
               const _SourceCredit(),
               Expanded(
-                child: ListDialogCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _TableHeader(),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: Scrollbar(
+                child: AppCard(
+                  // הפס עוטף גם את הכותרת, כדי שהרצועה שלו תזיז את הכותרת ואת
+                  // השורות יחד והעמודות יישארו מיושרות.
+                  child: AppScrollbar(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _TableHeader(),
+                        const Divider(height: 1),
+                        Expanded(
                           child: ListView(
                             primary: true,
-                            // מרווח בקצה (שמאל ב-RTL) כדי שסרגל הגלילה לא יכסה
-                            // את אייקוני המידע.
-                            padding: const EdgeInsetsDirectional.only(end: 14),
                             children: [
                               for (final entry in categories.entries) ...[
                                 _CategoryHeader(title: entry.key),
@@ -118,8 +119,8 @@ class ZmanimSettingsContent extends StatelessWidget {
                             ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -332,7 +333,11 @@ class _ZmanInfoButton extends StatelessWidget {
         border: Border.all(color: scheme.outlineVariant),
       ),
       child: IconButton(
-        icon: Icon(FluentIcons.info_24_regular, size: 16, color: color),
+        icon: Icon(
+          FluentIcons.info_24_regular,
+          size: AppTokens.iconSM,
+          color: color,
+        ),
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
         constraints: const BoxConstraints.tightFor(width: 32, height: 32),
@@ -350,7 +355,7 @@ class _ZmanInfoButton extends StatelessWidget {
 /// עוזר להצגת הדיאלוג. ה-context חייב לכלול CalendarCubit ב-tree.
 /// עמודת השעה; ברוחב טלפון היא צרה, כדי ששם הזמן לא יישבר לשורה למילה.
 double _timeColumnWidth(BuildContext context) =>
-    MediaQuery.sizeOf(context).width < 520 ? 64 : 96;
+    WindowClass.of(context).isCompact ? 64 : 96;
 
 Future<void> showZmanimSettingsDialog(BuildContext context) {
   final cubit = context.read<CalendarCubit>();
@@ -361,7 +366,7 @@ Future<void> showZmanimSettingsDialog(BuildContext context) {
       child: const AppDialog.singleAction(
         title: 'זמנים נוספים',
         icon: FluentIcons.clock_24_regular,
-        headerBand: true,
+        size: AppDialogSize.medium,
         customContent: ZmanimSettingsContent(),
         confirmText: 'סגור',
       ),

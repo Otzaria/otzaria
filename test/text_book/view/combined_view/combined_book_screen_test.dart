@@ -638,22 +638,6 @@ void main() {
     });
   });
 
-  group('shouldShowPersonalNotePreview', () {
-    test('מציג תצוגה מקדימה כשטאב ההערות אינו פעיל', () {
-      expect(
-        shouldShowPersonalNotePreview(isPersonalNotesTabActive: false),
-        isTrue,
-      );
-    });
-
-    test('לא מציג תצוגה מקדימה כשטאב ההערות פעיל', () {
-      expect(
-        shouldShowPersonalNotePreview(isPersonalNotesTabActive: true),
-        isFalse,
-      );
-    });
-  });
-
   group('shouldShowOpenLinksPaneEntry', () {
     test('מחזירה true כשיש קישורים וטאב הקישורים אינו פעיל', () {
       expect(

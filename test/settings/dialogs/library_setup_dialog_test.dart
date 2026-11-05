@@ -34,6 +34,7 @@ import '../../empty_library/library_package_test_support.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 // navigatorKey — כדי ש-UiSnack ימצא Overlay להודעות השגיאה.
 Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
@@ -632,7 +633,7 @@ void main() {
         await tester.binding.handlePopRoute();
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pump();
-        expect(find.byType(AppCustomContentDialog), findsOneWidget);
+        expect(find.byType(AppDialogFrame), findsOneWidget);
         expect(bloc.isClosed, isFalse);
 
         gate.proceed.complete();
@@ -670,7 +671,7 @@ void main() {
           await tester.tap(find.text('ביטול'));
         }
         await tester.pumpAndSettle();
-        expect(find.byType(AppCustomContentDialog), findsNothing);
+        expect(find.byType(AppDialogFrame), findsNothing);
       });
     }
   });

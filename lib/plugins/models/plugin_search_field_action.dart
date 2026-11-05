@@ -61,6 +61,10 @@ enum PluginSearchFieldActionMode {
 class PluginSearchFieldAction {
   static const int maxActionsPerPlugin = 2;
 
+  /// אורך מרבי של [pluginOnlyLabel] ו-[libraryOnlyLabel]: תווית קצרה בתוך
+  /// שדה חיפוש.
+  static const int maxFilterLabelLength = 24;
+
   final String id;
   final String title;
   final String? icon;
@@ -69,6 +73,14 @@ class PluginSearchFieldAction {
   /// ב-[PluginSearchFieldActionMode.providerBooksFilter]: האייקון במצב
   /// "ספרי הספרייה בלבד". בלעדיו משמש [icon].
   final String? libraryOnlyIcon;
+
+  /// ב-[PluginSearchFieldActionMode.providerBooksFilter]: התווית שליד האייקון
+  /// במצב "ספרי התוסף בלבד" (למשל "רק בר אילן"). בלעדיה: "רק התוסף".
+  final String? pluginOnlyLabel;
+
+  /// ב-[PluginSearchFieldActionMode.providerBooksFilter]: התווית במצב "ספרי
+  /// הספרייה בלבד" (למשל "רק אוצריא"). בלעדיה: "רק הספרייה".
+  final String? libraryOnlyLabel;
   final Set<PluginSearchField> fields;
   final PluginSearchFieldActionVisibility visibleWhen;
   final PluginSearchFieldActionMode mode;
@@ -80,6 +92,8 @@ class PluginSearchFieldAction {
     this.icon,
     this.activeIcon,
     this.libraryOnlyIcon,
+    this.pluginOnlyLabel,
+    this.libraryOnlyLabel,
     this.visibleWhen = PluginSearchFieldActionVisibility.always,
     this.mode = PluginSearchFieldActionMode.session,
   });
@@ -104,6 +118,8 @@ class PluginSearchFieldAction {
       'icon',
       'activeIcon',
       'libraryOnlyIcon',
+      'pluginOnlyLabel',
+      'libraryOnlyLabel',
       'fields',
       'visibleWhen',
       'mode',
@@ -133,6 +149,12 @@ class PluginSearchFieldAction {
             field: 'libraryOnlyIcon',
             maxLength: 128,
           );
+    final pluginOnlyLabel = payload['pluginOnlyLabel'] == null
+        ? null
+        : _label(payload['pluginOnlyLabel'], field: 'pluginOnlyLabel');
+    final libraryOnlyLabel = payload['libraryOnlyLabel'] == null
+        ? null
+        : _label(payload['libraryOnlyLabel'], field: 'libraryOnlyLabel');
     final rawVisibleWhen = payload['visibleWhen'];
     final visibleWhen = rawVisibleWhen == null
         ? PluginSearchFieldActionVisibility.always
@@ -159,6 +181,11 @@ class PluginSearchFieldAction {
     if (libraryOnlyIcon != null && !isFilter) {
       throw const PluginSearchFieldActionException(
         'libraryOnlyIcon requires mode providerBooksFilter',
+      );
+    }
+    if ((pluginOnlyLabel != null || libraryOnlyLabel != null) && !isFilter) {
+      throw const PluginSearchFieldActionException(
+        'pluginOnlyLabel and libraryOnlyLabel require mode providerBooksFilter',
       );
     }
 
@@ -193,6 +220,8 @@ class PluginSearchFieldAction {
       icon: icon,
       activeIcon: activeIcon,
       libraryOnlyIcon: libraryOnlyIcon,
+      pluginOnlyLabel: pluginOnlyLabel,
+      libraryOnlyLabel: libraryOnlyLabel,
       fields: Set.unmodifiable(fields),
       visibleWhen: visibleWhen,
       mode: mode,
@@ -223,6 +252,15 @@ class PluginSearchFieldAction {
       );
     }
     return value;
+  }
+
+  /// תווית מוצגת: טקסט, לא ריק ולא רווחים בלבד, עד [maxFilterLabelLength].
+  static String _label(Object? value, {required String field}) {
+    final text = _text(value, field: field, maxLength: maxFilterLabelLength);
+    if (text.trim().isEmpty) {
+      throw PluginSearchFieldActionException('$field must not be blank');
+    }
+    return text;
   }
 }
 

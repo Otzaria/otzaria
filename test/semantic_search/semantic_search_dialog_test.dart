@@ -266,16 +266,16 @@ void main() {
   ) async {
     await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
 
-    double heightOf(String label) => tester
+    double heightOf(Finder label) => tester
         .getSize(
-          find
-              .ancestor(of: find.text(label), matching: find.byType(InkWell))
-              .first,
+          find.ancestor(of: label, matching: find.byType(InkWell)).first,
         )
         .height;
+    // התווית של המצב החכם לפי המפתח: בגופן הבדיקות היא נכנסת רק כ"חכם".
     final heights = {
-      for (final label in ['מדויק', 'מתקדם', 'מקורב', 'חיפוש חכם'])
-        label: heightOf(label),
+      for (final label in ['מדויק', 'מתקדם', 'מקורב'])
+        label: heightOf(find.text(label)),
+      'חכם': heightOf(_semanticSegment),
     };
     expect(heights.values.toSet(), hasLength(1), reason: '$heights');
 
@@ -325,9 +325,13 @@ void main() {
         ),
         findsOneWidget,
       );
+      // אייקון המצב החכם רק במקטע (כשיש לו מקום), לא בשדה.
       expect(
-        find.byIcon(OtzariaIcons.search_in_star_24_regular),
-        findsOneWidget,
+        find.descendant(
+          of: _queryField,
+          matching: find.byIcon(OtzariaIcons.search_in_star_24_regular),
+        ),
+        findsNothing,
       );
       expect(clear, findsOneWidget);
 

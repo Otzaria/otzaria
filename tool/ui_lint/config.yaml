@@ -1,0 +1,228 @@
+# החרגות ui_lint לפי נתיב. לכל החרגה נדרש reason.
+# החרגה של צומת בודד נכתבת בקוד: // ui-lint: allow UIL-xxx — נימוק
+# הפירוט: docs/design-system/CI_ENFORCEMENT.md §3.5–3.6.
+#
+# strict: true נועל כלל שהחוב שלו נגמר (CI_ENFORCEMENT.md §6, רמה 4): כל
+# חריגה בו חוסמת, בכל שלב, ו־--allow-growth לא כותב לו רשומות baseline.
+# ui_lint_test דורש strict לכל כלל שאין לו רשומות baseline.
+
+exclude:
+  - path: "**/*.g.dart"
+    reason: קוד שנוצר אוטומטית
+  - path: lib/plugins/utils/fluent_icon_resolver.dart
+    reason: מפת אייקונים שנוצרת אוטומטית
+
+rules:
+  UIL-004:
+    strict: true
+
+  UIL-005:
+    strict: true
+
+  UIL-009:
+    strict: true
+
+  UIL-022:
+    strict: true
+
+  UIL-001:
+    exclude:
+      - path: lib/widgets/dialogs/**
+        reason: הרכיבים המשותפים שבונים את הדיאלוגים
+
+  UIL-002:
+    strict: true
+    exclude:
+      - path: lib/widgets/controls/**
+        reason: רכיבי הכפתור המשותפים (ActionButton ועוד) בונים את כפתורי Material
+      - path: lib/widgets/misc/app_dropdown_field.dart
+        reason: הכפתור של AppDropdownField הוא FilledButton.tonal בצבעי השדה (DESIGN_SYSTEM §3.3)
+
+  UIL-006:
+    strict: true
+    exclude:
+      - path: lib/widgets/misc/rtl_icon.dart
+        reason: הרכיב עצמו מחזיק את הרשימה ומהפך בה
+
+  UIL-007:
+    strict: true
+    exclude:
+      - path: lib/theme/**
+        reason: ערכת הנושא מגדירה את צבעי המצב
+
+  UIL-011:
+    strict: true
+    exclude:
+      - path: lib/widgets/text/rtl_text_field.dart
+        reason: העטיפה שבונה את השדה ומוסיפה לו RTL
+
+  UIL-014:
+    exclude:
+      - path: lib/widgets/misc/**
+        reason: מערכת התפריטים המשותפת (app_popup_menu) עצמה
+
+  UIL-015:
+    strict: true
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
+      - path: lib/core/windowing/**
+        reason: כפתורי החלון מחקים את מערכת ההפעלה
+      - path: lib/pdf_book/utils/pdf_color_filter.dart
+        reason: צבע הנייר ומסנן ההיפוך של עמוד PDF (תוכן)
+      - path: lib/widgets/misc/app_cursors.dart
+        reason: ציור תמונת סמן העכבר, חיקוי של סמן המערכת
+      - path: lib/widgets/smart_text/**
+        reason: צבעי CSS של תוכן הספר
+      - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
+        reason: צבעי CSS של תוכן הספר
+
+  UIL-017:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/text_book/view/reader_line/**
+        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
+      - path: lib/widgets/smart_text/**
+        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
+      - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
+        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
+      - path: lib/widgets/commentary/links_list_view.dart
+        reason: גדלים יחסיים לגופן התוכן
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+
+  UIL-018:
+    strict: true
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים (AppThemeData, AppFonts)
+
+  UIL-019:
+    strict: true
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/widgets/controls/app_icon_button.dart
+        reason: כפתור אייקון בלבד עגול (CircleBorder), חריג מאושר (DD-04, q9 שאלה 3, q10 Q13)
+      - path: lib/widgets/controls/bar_button.dart
+        reason: כפתור אייקון בלבד בסרגל עגול (CircleBorder), חריג מאושר (DD-04, q10 Q13)
+      - path: lib/widgets/controls/bar_split_button.dart
+        reason: הגלולה של BarSplitButton, חריג מאושר (DD-04, q8 שאלה 7, q10 Q13)
+      - path: lib/printing/**
+        reason: פלט נייר
+
+  UIL-031:
+    strict: true
+    exclude:
+      - path: lib/widgets/feedback/app_scrollbar.dart
+        reason: AppScrollbar עצמו, שבונה את הפס בצד הקבוע ואת הרצועה
+
+  UIL-030:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+
+  UIL-016:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
+      - path: lib/core/windowing/**
+        reason: כפתורי החלון מחקים את מערכת ההפעלה
+      - path: lib/widgets/smart_text/**
+        reason: צבעי CSS של תוכן הספר
+      - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
+        reason: צבעי CSS של תוכן הספר
+
+  UIL-020:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
+
+  UIL-021:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
+        reason: פלט נייר
+
+  UIL-023:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+
+  UIL-029:
+    exclude:
+      - path: lib/theme/**
+        reason: שכבת הטוקנים
+      - path: lib/printing/**
+        reason: פלט נייר
+      - path: lib/tools/tikkun_korim/export/**
+        reason: פלט נייר
+      - path: lib/widgets/smart_text/**
+        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
+      - path: lib/text_book/view/reader_line/**
+        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
+
+  UIL-008:
+    strict: true
+    exclude:
+      - path: lib/core/ui_snack.dart
+        reason: UiSnack עצמו
+
+  UIL-010:
+    strict: true
+
+
+  UIL-012:
+    exclude:
+      - path: lib/widgets/layout/**
+        reason: רכיבי הכרטיס המשותפים (AppCard, ResultCardFrame)
+
+
+  UIL-013:
+    exclude:
+      - path: lib/widgets/feedback/**
+        reason: רכיבי המשוב המשותפים (LoadingIndicator)
+      - path: lib/widgets/controls/action_buttons.dart
+        reason: מצב הטעינה של ActionButton (isLoading)
+
+
+  UIL-025:
+    strict: true
+
+
+  UIL-026:
+    strict: true
+
+
+  UIL-028:
+    exclude:
+      - path: lib/widgets/dialogs/**
+        reason: העזרים המשותפים שבונים את הדיאלוגים (showDialogUntilTornDown)

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,12 +22,14 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     bool showOtzarHachochma = false,
     bool showHebrewBooks = false,
     bool showLocalHebrewBooks = true,
+    String hebrewBooksPath = '',
   }) : super(
          SettingsState.initial().copyWith(
            showExternalBooks: showExternalBooks,
            showOtzarHachochma: showOtzarHachochma,
            showHebrewBooks: showHebrewBooks,
            showLocalHebrewBooks: showLocalHebrewBooks,
+           hebrewBooksPath: hebrewBooksPath,
          ),
        ) {
     on<SettingsEvent>((event, emit) {
@@ -169,25 +173,40 @@ void main() {
     expect(find.text('אל תציג'), findsNothing);
   });
 
+  // הנתיב מגיע מ־SettingsState: כתיבה שלא עברה דרך הבלוק (הגדרת התיקייה
+  // בלשונית הספרייה) מגיעה אליו בזרם השינויים, כמו ב־AppScopeProviders.
   testWidgets('מתג הספרים המקומיים מוצג רק כשהוגדרה תיקיית היברובוקס', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
+    final changes = StreamController<String>.broadcast();
+    addTearDown(changes.close);
+    final repository = SettingsRepository();
+    final settingsBloc = SettingsBloc(
+      repository: repository,
+      initialSettings: repository.readSettings(),
+      externalChanges: changes.stream,
+      ensureFontLoaded: (_) async {},
+    );
+    addTearDown(settingsBloc.close);
+
+    await tester.pumpWidget(_wrap(settingsBloc));
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsNothing);
 
     await setHebrewBooksPath(r'C:\HebrewBooks');
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
+    changes.add(SettingsRepository.keyHebrewBooksPath);
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsOneWidget);
   });
 
   testWidgets('המתג מוסתר כשהיברובוקס כבר מוצג מהקטלוג', (tester) async {
-    await setHebrewBooksPath(r'C:\HebrewBooks');
-
     await tester.pumpWidget(
       _wrap(
-        _FakeSettingsBloc(showExternalBooks: true, showHebrewBooks: true),
+        _FakeSettingsBloc(
+          showExternalBooks: true,
+          showHebrewBooks: true,
+          hebrewBooksPath: r'C:\HebrewBooks',
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -196,8 +215,7 @@ void main() {
   });
 
   testWidgets('כיבוי המתג משדר UpdateShowLocalHebrewBooks', (tester) async {
-    await setHebrewBooksPath(r'C:\HebrewBooks');
-    final settingsBloc = _FakeSettingsBloc();
+    final settingsBloc = _FakeSettingsBloc(hebrewBooksPath: r'C:\HebrewBooks');
 
     await tester.pumpWidget(_wrap(settingsBloc));
     await tester.pumpAndSettle();

@@ -4,7 +4,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart' show normalizeBookTitle;
-import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -13,6 +12,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 import 'library_changes_store.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 enum LibraryChangesLineKind { title, subtitle, section, item, text }
 
@@ -162,6 +162,8 @@ class LibraryChangesDialog extends StatefulWidget {
 }
 
 class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
+  static const double _fullWidthBelow = 720;
+
   final _search = TextEditingController();
   // בדסקטופ הרשימה אינה יורשת את PrimaryScrollController — בלי בקר משותף
   // אי אפשר לגרור את פס הגלילה.
@@ -212,10 +214,10 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
     return AppDialog.singleAction(
       title: context.settingsText('מה חדש בספרים'),
       icon: FluentIcons.sparkle_24_regular,
-      headerBand: true,
+      size: AppDialogSize.large,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
-        width: size.width < 720 ? size.width * 0.9 : 640,
+        width: size.width < _fullWidthBelow ? size.width * 0.9 : 640,
         height: size.height * 0.6,
         child: Column(
           children: [
@@ -238,9 +240,10 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
                       title: context.settingsText('לא נמצאו ספרים'),
                     )
                   : ContentDirectionality(
-                      child: ListDialogCard(
-                        child: Scrollbar(
+                      child: AppCard(
+                        child: AppScrollbar(
                           controller: _scroll,
+                          contentInset: AppTokens.spaceMD,
                           // גבהי שורות משתנים דורשים SuperListView בקפיצת גלילה;
                           // המפתח מונע העברת גבהים שנמדדו בין סינונים.
                           child: SuperListView.builder(
