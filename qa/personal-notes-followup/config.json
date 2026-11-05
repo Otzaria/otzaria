@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "flutter_version": "3.47.7",
+  "base_sha": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+  "suite_selection": [
+    {
+      "path": "test/personal_notes/",
+      "reason": "Complete note models, persistence, drafts, manager, sorting, editor, import/export and marker regression suite."
+    },
+    {
+      "path": "test/printing/",
+      "reason": "Complete export/printing suite, including actual DOCX source relationships and PDF output."
+    },
+    {
+      "path": "test/settings/services/backup_service_test.dart",
+      "reason": "Actual backup/restore, including all 26 new PDF-anchor compatibility cases."
+    },
+    {
+      "path": "test/pdf_book/pdf_personal_note_anchor_test.dart",
+      "reason": "Exact point geometry and all four PDF rotations."
+    },
+    {
+      "path": "test/pdf_book/pdf_personal_note_viewer_test.dart",
+      "reason": "Real PDF viewer, precise marker navigation and document-session replacement race."
+    },
+    {
+      "path": "test/pdf_book/pdf_book_tab_test.dart",
+      "reason": "PDF note navigation requests and document identity."
+    },
+    {
+      "path": "test/pdf_book/pdf_navigation_history_native_test.dart",
+      "reason": "Existing real-PDF navigation restoration across the modified viewer readiness lifecycle."
+    },
+    {
+      "path": "test/pdf_book/pdf_reader_position_test.dart",
+      "reason": "Existing reader page/position and delayed-settings lifecycle regression coverage."
+    },
+    {
+      "path": "test/tabs/bloc/tabs_bloc_test.dart",
+      "reason": "Existing-tab propagation in both ordinary and split panes."
+    },
+    {
+      "path": "test/tabs/models/pdf_tab_from_preserves_state_test.dart",
+      "reason": "Existing PDF clone/from/JSON state preservation around the changed tab model."
+    },
+    {
+      "path": "test/tabs/reading_screen_notes_bloc_per_pane_test.dart",
+      "reason": "Per-pane personal-notes ownership while reader and manager remain independent."
+    },
+    {
+      "path": "test/text_book/view/combined_view/combined_view_note_entry_test.dart",
+      "reason": "Active note creation/commentary source routes."
+    },
+    {
+      "path": "test/text_book/view/page_shape/simple_text_viewer_test.dart",
+      "reason": "Simple-view creation, source positions and commentary routes."
+    },
+    {
+      "path": "test/text_book/view/reader_line/continuous_line_interaction_test.dart",
+      "reason": "Continuous reader marker/menu and entry behavior."
+    },
+    {
+      "path": "test/text_book/view/combined_view/combined_book_screen_test.dart",
+      "reason": "Combined pane integration and note visibility."
+    },
+    {
+      "path": "test/text_book/view/page_shape/page_shape_screen_settings_test.dart",
+      "reason": "Reader panel state and settings integration."
+    },
+    {
+      "path": "test/text_book/view/splited_view_toggle_commentators_pane_test.dart",
+      "reason": "Split-pane visibility used to decide dialog vs inline editor."
+    },
+    {
+      "path": "test/text_book/view/page_shape/simple_text_viewer_notes_sync_test.dart",
+      "reason": "Note data synchronization with active reader views."
+    },
+    {
+      "path": "test/text_book/utils/note_inline_render_test.dart",
+      "reason": "Inline marker presentation and note location mapping."
+    }
+  ],
+  "environment": {
+    "TZ": "Asia/Jerusalem",
+    "OTZARIA_REQUIRE_SEARCH_ENGINE": "1",
+    "CI": "true",
+    "FLUTTER_SUPPRESS_ANALYTICS": "true"
+  },
+  "red": {
+    "product_component": "lib/personal_notes/widgets/personal_notes_export_dialog.dart",
+    "baseline_component": "baseline/personal_notes_export_dialog_before_4292.dart",
+    "baseline_sha256": "b31fb1a70f6fb42af0152c61d7904df81461c3d84853af605b6392dc6575129f",
+    "test_file": "test/personal_notes/widgets/personal_notes_export_dialog_test.dart",
+    "expected_failures": [
+      {
+        "name": "manual export distinguishes the same page in different books",
+        "error_contains": "ברכות — דף סט:"
+      },
+      {
+        "name": "manual export shows a readable book without a location title",
+        "error_contains": "ברכות"
+      }
+    ]
+  },
+  "expected_platform_skip": {
+    "file": "test/settings/services/backup_service_test.dart",
+    "line": 294,
+    "condition": "!Platform.isWindows",
+    "reason": "Existing Windows-only open-file replacement/locking test."
+  },
+  "capture_files": [
+    "note_creation_capture_test.dart",
+    "note_sort_capture_test.dart",
+    "pdf_note_capture_test.dart",
+    "note_export_selection_capture_test.dart"
+  ],
+  "expected_pngs": [
+    "01-note-dialog.png",
+    "02-note-panel.png",
+    "03-note-manager-sort.png",
+    "04-pdf-note-point.png",
+    "05-export-selection-before.png",
+    "06-export-selection-after.png"
+  ],
+  "quill_scope": {
+    "application_dependency": "hosted flutter_quill 11.6.0, unchanged",
+    "external_patch_integrated": false,
+    "external_patch_sha256": "8bb310684f64e974c7c0d52d4bf74cba6a7e7ef34af82d21778e9e6b5e1c1091",
+    "external_patch_base": "e880534f8750072c879fecd72ada72d0902bc5e8",
+    "reported_separate_tests": "17/17 PASS; not application integration evidence"
+  },
+  "frozen_product": {
+    "sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+    "tree": "30e8224cb46e5788242d6bcfcfaf030f7f328809",
+    "parent": "2b7fd009ce054b778a132b5bb89470a4b9076cdc",
+    "code_branch": "qa/personal-notes-followup-code-20261105"
+  }
+}

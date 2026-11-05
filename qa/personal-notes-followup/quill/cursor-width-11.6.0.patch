@@ -1,0 +1,213 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e49fc4a..ae9dd88 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- Added `QuillEditorConfig.cursorWidth` to configure the caret width in logical pixels. The default remains `2.0`.
++
+ ## [11.6.0] - 2026-09-16
+ 
+ ### Added
+diff --git a/lib/src/editor/config/editor_config.dart b/lib/src/editor/config/editor_config.dart
+index 264143b..45dd653 100644
+--- a/lib/src/editor/config/editor_config.dart
++++ b/lib/src/editor/config/editor_config.dart
+@@ -39,6 +39,7 @@ class QuillEditorConfig {
+     this.disableClipboard = false,
+     this.textSelectionThemeData,
+     this.showCursor,
++    this.cursorWidth = 2,
+     this.paintCursorAboveText,
+     this.enableInteractiveSelection = true,
+     this.enableSelectionToolbar = true,
+@@ -88,7 +89,7 @@ class QuillEditorConfig {
+     this.onPerformAction,
+     @experimental this.customLeadingBlockBuilder,
+     this.showCodeBlockLineNumbers = true,
+-  });
++  }) : assert(cursorWidth >= 0 && cursorWidth < double.infinity);
+ 
+   @experimental
+   final LeadingBlockNodeBuilder? customLeadingBlockBuilder;
+@@ -256,6 +257,12 @@ class QuillEditorConfig {
+   ///
+   /// The cursor refers to the blinking caret when the editor is focused.
+   final bool? showCursor;
++
++  /// The width of the editing caret in logical pixels.
++  ///
++  /// Defaults to 2.0. Must be finite and non-negative.
++  final double cursorWidth;
++
+   final bool? paintCursorAboveText;
+ 
+   /// The [readOnlyMouseCursor] is used for Windows, macOS when [readOnly] is [true]
+@@ -520,6 +527,7 @@ class QuillEditorConfig {
+     Function(PointerDownEvent event, FocusNode focusNode)? onTapOutside,
+     KeyEventResult? Function(KeyEvent event, Node? node)? onKeyPressed,
+     bool? showCursor,
++    double? cursorWidth,
+     bool? paintCursorAboveText,
+     MouseCursor? readOnlyMouseCursor,
+     bool? enableInteractiveSelection,
+@@ -585,6 +593,7 @@ class QuillEditorConfig {
+       onTapOutsideEnabled: onTapOutsideEnabled ?? this.onTapOutsideEnabled,
+       onTapOutside: onTapOutside ?? this.onTapOutside,
+       showCursor: showCursor ?? this.showCursor,
++      cursorWidth: cursorWidth ?? this.cursorWidth,
+       paintCursorAboveText: paintCursorAboveText ?? this.paintCursorAboveText,
+       readOnlyMouseCursor: readOnlyMouseCursor ?? this.readOnlyMouseCursor,
+       enableInteractiveSelection:
+diff --git a/lib/src/editor/editor.dart b/lib/src/editor/editor.dart
+index 1466042..82217cd 100644
+--- a/lib/src/editor/editor.dart
++++ b/lib/src/editor/editor.dart
+@@ -297,7 +297,7 @@ class QuillEditorState extends State<QuillEditor>
+         cursorStyle: CursorStyle(
+           color: cursorColor,
+           backgroundColor: Colors.grey,
+-          width: 2,
++          width: config.cursorWidth,
+           radius: cursorRadius,
+           offset: cursorOffset,
+           paintAboveText: config.paintCursorAboveText ?? paintCursorAboveText,
+diff --git a/lib/src/editor/widgets/text/text_line.dart b/lib/src/editor/widgets/text/text_line.dart
+index 1ec5853..664e9db 100644
+--- a/lib/src/editor/widgets/text/text_line.dart
++++ b/lib/src/editor/widgets/text/text_line.dart
+@@ -943,6 +943,7 @@ class RenderEditableTextLine extends RenderEditableBox {
+     }
+ 
+     final containsSelection = containsTextSelection();
++    final wasAttachedToCursorController = _attachedToCursorController;
+     if (_attachedToCursorController) {
+       cursorCont.removeListener(markNeedsLayout);
+       cursorCont.color.removeListener(safeMarkNeedsPaint);
+@@ -956,6 +957,9 @@ class RenderEditableTextLine extends RenderEditableBox {
+       cursorCont.addListener(markNeedsLayout);
+       cursorCont.color.addListener(safeMarkNeedsPaint);
+       _attachedToCursorController = true;
++      if (!wasAttachedToCursorController) {
++        markNeedsLayout();
++      }
+     }
+ 
+     if (containsSelection || containsTextSelection()) {
+diff --git a/test/editor/cursor_width_test.dart b/test/editor/cursor_width_test.dart
+new file mode 100644
+index 0000000..a5be7cf
+--- /dev/null
++++ b/test/editor/cursor_width_test.dart
+@@ -0,0 +1,107 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_quill/flutter_quill.dart';
++import 'package:flutter_test/flutter_test.dart';
++
++void main() {
++  test('cursorWidth preserves the default and copyWith override', () {
++    const config = QuillEditorConfig();
++    expect(config.cursorWidth, 2.0);
++    expect(config.copyWith(cursorWidth: 1).cursorWidth, 1.0);
++    expect(config.copyWith(cursorWidth: 1).copyWith().cursorWidth, 1.0);
++    expect(config.copyWith(cursorWidth: 0).cursorWidth, 0);
++  });
++
++  test('cursorWidth rejects negative and non-finite values', () {
++    for (final width in [
++      -1.0,
++      double.infinity,
++      double.negativeInfinity,
++      double.nan,
++    ]) {
++      expect(() => QuillEditorConfig(cursorWidth: width), throwsAssertionError);
++      expect(
++        () => const QuillEditorConfig().copyWith(cursorWidth: width),
++        throwsAssertionError,
++      );
++    }
++  });
++
++  for (final direction in TextDirection.values) {
++    testWidgets(
++      '$direction applies and updates caret geometry across lines',
++      (tester) async {
++        final controller = QuillController.basic();
++        final focusNode = FocusNode();
++        final scrollController = ScrollController();
++        addTearDown(controller.dispose);
++        addTearDown(focusNode.dispose);
++        addTearDown(scrollController.dispose);
++        controller.document.insert(0, 'Sample\nטקסט');
++
++        Widget editor(double width) => MaterialApp(
++          localizationsDelegates:
++              FlutterQuillLocalizations.localizationsDelegates,
++          home: Directionality(
++            textDirection: direction,
++            child: QuillEditor(
++              controller: controller,
++              focusNode: focusNode,
++              scrollController: scrollController,
++              config: QuillEditorConfig(cursorWidth: width),
++            ),
++          ),
++        );
++
++        for (final width in [2.0, 1.0, 0.0]) {
++          controller.updateSelection(
++            const TextSelection.collapsed(offset: 2),
++            ChangeSource.local,
++          );
++          await tester.pump();
++          await tester.pumpWidget(editor(width));
++          focusNode.requestFocus();
++          await tester.pump();
++          expect(focusNode.hasFocus, isTrue);
++          final rawEditor = tester.widget<QuillRawEditor>(
++            find.byType(QuillRawEditor),
++          );
++          expect(rawEditor.config.cursorStyle.width, width);
++          final state = tester.state<QuillRawEditorState>(
++            find.byType(QuillRawEditor),
++          );
++          for (final offset in [2, 9]) {
++            controller.updateSelection(
++              TextSelection.collapsed(offset: offset),
++              ChangeSource.local,
++            );
++            await tester.pump();
++            final position = TextPosition(offset: offset);
++            final line = state.renderEditor.childAtPosition(position);
++            final prototype = line.getCaretPrototype(
++              line.globalToLocalPosition(position),
++            );
++            expect(prototype.width, width);
++            expect(prototype.height, greaterThan(0));
++            final caret = state.renderEditor.getLocalRectForCaret(position);
++            final nextCaret = state.renderEditor.getLocalRectForCaret(
++              TextPosition(offset: offset + 1),
++            );
++            expect(caret.width, closeTo(width, 1e-10));
++            expect(caret.isFinite, isTrue);
++            expect(
++              nextCaret.left,
++              offset == 2 ? greaterThan(caret.left) : lessThan(caret.left),
++            );
++          }
++        }
++
++        await tester.pumpWidget(const SizedBox.shrink());
++      },
++      variant: const TargetPlatformVariant({
++        TargetPlatform.linux,
++        TargetPlatform.macOS,
++        TargetPlatform.iOS,
++      }),
++    );
++  }
++}

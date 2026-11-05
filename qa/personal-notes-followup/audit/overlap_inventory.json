@@ -1,0 +1,168 @@
+[
+  {
+    "number": 4285,
+    "title": "תיקון issue #3509 — דיווח טעות מהערה הוא דיווח חופשי על ההערה",
+    "head": "95be20b7e99b0e9d51f215547a12c9bf97f1c16a",
+    "overlaps": [
+      "lib/text_book/view/page_shape/simple_text_viewer.dart"
+    ]
+  },
+  {
+    "number": 4284,
+    "title": "תיקון issue #2530 — ציטוטי לינקר בטורי המפרשים של צורת הדף",
+    "head": "29c89d7457924da80271820217703422b6da5122",
+    "overlaps": [
+      "lib/text_book/view/page_shape/page_shape_screen.dart",
+      "lib/text_book/view/page_shape/simple_text_viewer.dart",
+      "test/text_book/view/page_shape/simple_text_viewer_test.dart"
+    ]
+  },
+  {
+    "number": 4269,
+    "title": "מערכת עיצוב לאוצריא: טוקנים, רכיבים משותפים, אכיפה ותיקוני דיווחים",
+    "head": "d785e69044358d4f4be3ea4a95597bf4863435e5",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "lib/pdf_book/view/pdf_commentary_panel.dart",
+      "lib/personal_notes/view/personal_notes_screen.dart",
+      "lib/personal_notes/widgets/inline_note_editor.dart",
+      "lib/personal_notes/widgets/note_delta_preview.dart",
+      "lib/personal_notes/widgets/note_tile.dart",
+      "lib/personal_notes/widgets/personal_note_content_view.dart",
+      "lib/personal_notes/widgets/personal_note_editor.dart",
+      "lib/personal_notes/widgets/personal_note_editor_dialog.dart",
+      "lib/personal_notes/widgets/personal_note_styles.dart",
+      "lib/personal_notes/widgets/personal_notes_export_dialog.dart",
+      "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+      "lib/settings/services/backup_service.dart",
+      "lib/text_book/view/combined_view/combined_book_screen.dart",
+      "lib/text_book/view/page_shape/page_shape_screen.dart",
+      "lib/text_book/view/page_shape/simple_text_viewer.dart",
+      "lib/text_book/view/splited_view/splited_view_screen.dart",
+      "lib/text_book/view/text_book_screen.dart",
+      "lib/utils/ui/context_menu_utils.dart",
+      "test/personal_notes/imported_delta_preview_test.dart",
+      "test/printing/pdf_sheet_composer_test.dart",
+      "test/printing/printing_screen_output_test.dart",
+      "test/text_book/view/combined_view/combined_book_screen_test.dart",
+      "test/text_book/view/page_shape/simple_text_viewer_test.dart",
+      "test/text_book/view/reader_line/continuous_line_interaction_test.dart"
+    ]
+  },
+  {
+    "number": 4243,
+    "title": "Deep links: select flag gives a paragraph the focus of a click",
+    "head": "2e591c701ef186c1b8b2732b986051efb9704a6b",
+    "overlaps": [
+      "lib/tabs/bloc/tabs_bloc.dart",
+      "test/tabs/bloc/tabs_bloc_test.dart"
+    ]
+  },
+  {
+    "number": 4235,
+    "title": "תיקון issue #4126 — שאילתה שנשארה בטאב לא פותחת ונועצת בשחזור חלונית ניווט שנשמרה סגורה",
+    "head": "e4a14635484a73df6a79ef70cbb966a7211e77ac",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart"
+    ]
+  },
+  {
+    "number": 4224,
+    "title": "חיפוש בתוך ספר: פריסה צרה, קיצורי PDF והדגשות בתצוגה המקדימה",
+    "head": "30b78e329f4e65c1c82fc6a8a6eb5cddeb4ffff3",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart"
+    ]
+  },
+  {
+    "number": 4213,
+    "title": "גיבוי ושחזור: שמירת מצב הטיפים וחשיפת הגדרות גיבוי בחיפוש",
+    "head": "615c5d20f94079af9cc7fa890d510319ca4a352a",
+    "overlaps": [
+      "lib/settings/services/backup_service.dart"
+    ]
+  },
+  {
+    "number": 3926,
+    "title": "תיקון issue #3707 ו-#3871 — קישור בלי תג בגודל רגיל בתפריטים",
+    "head": "6d4d587e0dd784fce1c1b10fa490a1000b904f79",
+    "overlaps": [
+      "lib/utils/ui/context_menu_utils.dart"
+    ]
+  },
+  {
+    "number": 3442,
+    "title": "מפרשים: זיהוי אותו מפרש בין ספרים לפי שם האוסף, בלי התאמת קידומת (#2704)",
+    "head": "3a8275da92c0d634d19a4b9cdd0cba8a6c844770",
+    "overlaps": [
+      "lib/text_book/view/page_shape/page_shape_screen.dart"
+    ]
+  },
+  {
+    "number": 3403,
+    "title": "Windows: בקשות נגישות לא מדליקות את גשר הנגישות של ה-engine בלי קורא מסך (#3336, #3376, #3377)",
+    "head": "c2f9d7d2484f6c7229997f36fbf9c609fe2d1307",
+    "overlaps": [
+      "windows/runner/flutter_window.cpp"
+    ]
+  },
+  {
+    "number": 3036,
+    "title": "מרקר מובנה במקום תוסף המרקר",
+    "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "lib/pdf_book/view/pdf_commentary_panel.dart",
+      "lib/personal_notes/services/personal_notes_import_export_service.dart",
+      "lib/personal_notes/widgets/personal_note_editor_dialog.dart",
+      "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+      "lib/printing/print_content_models.dart",
+      "lib/printing/word_export_service.dart",
+      "lib/settings/services/backup_service.dart",
+      "lib/text_book/view/combined_view/combined_book_screen.dart",
+      "lib/text_book/view/page_shape/page_shape_screen.dart",
+      "lib/text_book/view/page_shape/simple_text_viewer.dart",
+      "lib/text_book/view/text_book_screen.dart",
+      "test/settings/services/backup_service_test.dart"
+    ]
+  },
+  {
+    "number": 2788,
+    "title": "תנ\"ך בקריאה רציפה: «כמסורה» — פרק ופסוק בגליון, פרשה ועלייה בצד, פסקה בפתוחה",
+    "head": "cf9096007504d38de5e129a47f63f72991236157",
+    "overlaps": [
+      "lib/text_book/view/combined_view/combined_book_screen.dart",
+      "lib/text_book/view/page_shape/simple_text_viewer.dart",
+      "lib/text_book/view/text_book_screen.dart"
+    ]
+  },
+  {
+    "number": 4315,
+    "title": "הדפסה: רינדור חלון נראה ומטמון ui.Image מוגבל בזיכרון",
+    "head": "bcac475ace7b000dbce1bd5cf528a8758885ef5b",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "test/printing/printing_screen_output_test.dart"
+    ]
+  },
+  {
+    "number": 4303,
+    "title": "הערות אישיות: שחרור עורכי Quill וטיפול בשינויי תוכן בלבד",
+    "head": "2b7fd009ce054b778a132b5bb89470a4b9076cdc",
+    "overlaps": [
+      "lib/personal_notes/widgets/inline_note_editor.dart",
+      "lib/personal_notes/widgets/personal_note_editor.dart",
+      "lib/personal_notes/widgets/personal_note_editor_dialog.dart",
+      "test/personal_notes/widgets/personal_note_editor_lifecycle_test.dart"
+    ]
+  },
+  {
+    "number": 4301,
+    "title": "ביצועי הדפסה: פתיחת PDF קיים מנתיב ללא טעינה מלאה לבתים",
+    "head": "1ea0fe98aca774156273ccbcd03c45fe205f438d",
+    "overlaps": [
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "test/printing/printing_screen_output_test.dart"
+    ]
+  }
+]

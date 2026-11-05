@@ -1,0 +1,113 @@
+[
+  {
+    "number": 4285,
+    "head": "95be20b7e99b0e9d51f215547a12c9bf97f1c16a",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4284,
+    "head": "29c89d7457924da80271820217703422b6da5122",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4269,
+    "head": "d785e69044358d4f4be3ea4a95597bf4863435e5",
+    "exit": 1,
+    "conflicts": [
+      "lib/personal_notes/widgets/note_tile.dart"
+    ]
+  },
+  {
+    "number": 4243,
+    "head": "2e591c701ef186c1b8b2732b986051efb9704a6b",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4235,
+    "head": "e4a14635484a73df6a79ef70cbb966a7211e77ac",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4224,
+    "head": "30b78e329f4e65c1c82fc6a8a6eb5cddeb4ffff3",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 3926,
+    "head": "6d4d587e0dd784fce1c1b10fa490a1000b904f79",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 3442,
+    "head": "3a8275da92c0d634d19a4b9cdd0cba8a6c844770",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 3403,
+    "head": "c2f9d7d2484f6c7229997f36fbf9c609fe2d1307",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 3036,
+    "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+    "exit": 1,
+    "conflicts": [
+      "lib/core/windowing/correction_storage_move.dart",
+      "lib/core/windowing/window_bus_host.dart",
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "lib/settings/dialogs/change_location_dialog.dart",
+      "lib/settings/l10n/settings_catalogs.g.dart",
+      "lib/settings/l10n/settings_en.arb",
+      "lib/settings/services/backup_service.dart",
+      "lib/text_book/utils/reader_plugin_menu_entries.dart",
+      "lib/text_book/view/reader_line/reader_line_spec.dart",
+      "lib/text_book/view/text_book_screen.dart",
+      "lib/widgets/smart_text/smart_text_widget.dart",
+      "test/settings/services/backup_service_test.dart"
+    ]
+  },
+  {
+    "number": 2788,
+    "head": "cf9096007504d38de5e129a47f63f72991236157",
+    "exit": 1,
+    "conflicts": [
+      "lib/settings/engine/settings_bloc.dart",
+      "lib/settings/engine/settings_repository.dart",
+      "lib/settings/engine/settings_state.dart",
+      "lib/settings/l10n/settings_catalogs.g.dart",
+      "lib/text_book/view/page_shape/simple_text_viewer.dart"
+    ]
+  },
+  {
+    "number": 4213,
+    "head": "615c5d20f94079af9cc7fa890d510319ca4a352a",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4301,
+    "head": "1ea0fe98aca774156273ccbcd03c45fe205f438d",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4303,
+    "head": "2b7fd009ce054b778a132b5bb89470a4b9076cdc",
+    "exit": 0,
+    "conflicts": []
+  },
+  {
+    "number": 4315,
+    "head": "bcac475ace7b000dbce1bd5cf528a8758885ef5b",
+    "exit": 0,
+    "conflicts": []
+  }
+]

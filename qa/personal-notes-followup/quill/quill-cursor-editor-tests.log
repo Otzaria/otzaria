@@ -1,0 +1,20 @@
+00:00 +0: loading /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart
+00:00 +0: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: cursorWidth preserves the default and copyWith override
+00:00 +1: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: cursorWidth rejects negative and non-finite values
+00:00 +2: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.rtl applies and updates caret geometry across lines (variant: TargetPlatform.linux)
+00:00 +3: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.rtl applies and updates caret geometry across lines (variant: TargetPlatform.macOS)
+00:00 +4: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.rtl applies and updates caret geometry across lines (variant: TargetPlatform.iOS)
+00:01 +5: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.ltr applies and updates caret geometry across lines (variant: TargetPlatform.linux)
+00:01 +6: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.ltr applies and updates caret geometry across lines (variant: TargetPlatform.macOS)
+00:01 +7: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/cursor_width_test.dart: TextDirection.ltr applies and updates caret geometry across lines (variant: TargetPlatform.iOS)
+00:01 +8: loading /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart
+00:02 +8: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor Keyboard entered text is stored in document
+00:02 +9: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor insertContent is handled correctly
+00:02 +10: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor custom context menu builder
+00:02 +11: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor QuillEditorOpenSearchAction should not throw an exception when the required localization delegates are provided
+00:03 +12: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor should throw MissingFlutterQuillLocalizationException if the delegate not provided
+00:03 +13: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor should not throw MissingFlutterQuillLocalizationException if the delegate is provided
+00:03 +14: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor transformLink replaces the default prefix logic when launching a link
+00:03 +15: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor when transformLink is null the default https:// prefix is added
+00:03 +16: /workspace/scratch/deb21adce400/flutter-quill-cursor/test/editor/editor_test.dart: QuillEditor should throw MissingFlutterQuillLocalizationException if the delegate is not provided
+00:03 +17: All tests passed!
