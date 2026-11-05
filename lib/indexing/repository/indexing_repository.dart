@@ -359,11 +359,10 @@ class IndexingRepository {
       _tantivyDataProvider.activeIndexPath,
     );
     final stored = await store?.read();
-    if (stored != null &&
-        (stored.checkLibrary || stored.checkKeys.isNotEmpty)) {
+    if (stored?.checkLibrary ?? false) {
       return true;
     }
-    final pending = stored?.keys ?? const <String>{};
+    final pending = {...?stored?.keys, ...?stored?.checkKeys};
     return booksForIndexing(
       library.getIndexableBooks(),
       includePdfBooks: true,
@@ -471,17 +470,17 @@ class IndexingRepository {
     );
     final stored = await pendingStore?.read();
     final storedPending = stored?.keys ?? const <String>{};
-    // בדיקה שנדחתה (ריצה שבוטלה לפני שבדקה) רצה בריצה הבאה: מלאה — בריצה על
+    final storedChecks = stored?.checkKeys ?? const <String>{};
+    // בדיקה או עדכון מטא־דאטה שלא נחתמו נבדקים שוב: בדיקה מלאה — בריצה על
     // כל הספרייה; של ספרים מסוימים — בכל ריצה.
     final deferredCheck = wholeLibrary && (stored?.checkLibrary ?? false);
     if (deferredCheck) {
       check = IndexCheckScope.library;
-    } else if (!check.wholeLibrary && (stored?.checkKeys.isNotEmpty ?? false)) {
-      final checkKeys = stored!.checkKeys;
+    } else if (!check.wholeLibrary && storedChecks.isNotEmpty) {
       check = IndexCheckScope.books([
         ...check.books,
         for (final book in libraryBooks)
-          if (checkKeys.contains(BookIdentity.indexedFilePath(book))) book,
+          if (storedChecks.contains(BookIdentity.indexedFilePath(book))) book,
       ]);
     }
     final checkKeys = {
@@ -500,9 +499,11 @@ class IndexingRepository {
       }
     }
     final pending = changedByKey.keys.toSet();
+    checkKeys.removeAll(pending);
+    final pendingChecks = {...checkKeys};
     if (!setEquals(pending, storedPending) ||
         (check.wholeLibrary && !deferredCheck) ||
-        !setEquals(checkKeys, stored?.checkKeys ?? const <String>{})) {
+        !setEquals(checkKeys, storedChecks)) {
       await pendingStore?.save(
         pending,
         checkLibrary: check.wholeLibrary ? true : null,
@@ -568,7 +569,11 @@ class IndexingRepository {
       pending
         ..clear()
         ..addAll(remaining);
-      await pendingStore?.save(pending);
+      pendingChecks.removeAll(_writtenThisRun);
+      await pendingStore?.save(
+        pending.difference(pendingChecks),
+        checkKeys: pendingChecks,
+      );
     }
 
     _runStarted();
@@ -580,11 +585,14 @@ class IndexingRepository {
             if (!changedByKey.containsKey(BookIdentity.indexedFilePath(book)))
               book,
         ];
+        final metadataChanged = <String>{};
         final detected = await changeDetector.detectChanged(
           candidates,
           library: library,
           isCancelled: () => !_tantivyDataProvider.isIndexing.value,
           waitWhilePaused: _waitWhilePaused,
+          onMetadataOnlyChanged: (book) =>
+              metadataChanged.add(BookIdentity.indexedFilePath(book)),
           onProgress: onScanProgress,
         );
         if (detected == null || !_tantivyDataProvider.isIndexing.value) {
@@ -594,21 +602,35 @@ class IndexingRepository {
             indexedBooks: 0,
           );
         }
-        for (final book in detected) {
+        final replacements = [
+          ...detected,
+          for (final book in candidates)
+            if (storedChecks.contains(BookIdentity.indexedFilePath(book)) &&
+                !isBookIndexed(book))
+              book,
+        ];
+        for (final book in replacements) {
           changedByKey.putIfAbsent(
             BookIdentity.indexedFilePath(book),
             () => book,
           );
         }
         if (changedByKey.length != pending.length) {
-          debugPrint('🔁 בדיקה: ${detected.length} ספרים השתנו — מוחלפים');
-          pending.addAll(changedByKey.keys);
-          replaceKeys.addAll(pending);
+          debugPrint(
+            '🔁 בדיקה: ${changedByKey.length - pending.length} ספרים השתנו — מוחלפים',
+          );
         }
+        // שינוי מטא־דאטה נשאר בדיקה עד commit: חזרה לקטגוריה המקורית
+        // עשויה לבטל אותו. שינוי תוכן ידוע נשאר החלפה מחייבת.
+        pendingChecks
+          ..clear()
+          ..addAll(metadataChanged.where((key) => !pending.contains(key)));
+        pending.addAll(changedByKey.keys);
+        replaceKeys.addAll(pending);
         await pendingStore?.save(
-          pending,
+          pending.difference(pendingChecks),
           checkLibrary: check.wholeLibrary ? false : null,
-          checkKeys: const {},
+          checkKeys: pendingChecks,
         );
         allBooks = buildWorkList();
         if (allBooks.isEmpty) {
@@ -2254,18 +2276,28 @@ class IndexingRepository {
   /// שומר לריצה הבאה את מה שריצה שבוטלה לפני שהתחילה הייתה מחליפה ובודקת.
   Future<void> rememberChangedBooks(
     List<Book> books, {
+    List<Book> checkBooks = const [],
     bool checkLibrary = false,
   }) async {
-    if (books.isEmpty && !checkLibrary) return;
+    if (books.isEmpty && checkBooks.isEmpty && !checkLibrary) return;
     await _tantivyDataProvider.engine;
     final store = PendingReindexStore.forIndex(
       _tantivyDataProvider.activeIndexPath,
     );
     if (store == null) return;
-    await store.save({
-      ...await store.load(),
+    final stored = await store.read();
+    final changedKeys = {
+      ...stored.keys,
       for (final book in books) BookIdentity.indexedFilePath(book),
-    }, checkLibrary: checkLibrary ? true : null);
+    };
+    await store.save(
+      changedKeys,
+      checkLibrary: checkLibrary ? true : null,
+      checkKeys: {
+        ...stored.checkKeys,
+        for (final book in checkBooks) BookIdentity.indexedFilePath(book),
+      }.difference(changedKeys),
+    );
   }
 
   /// Cancels the ongoing indexing process.
@@ -2655,6 +2687,7 @@ class StampChangeDetector implements IndexChangeDetector {
     required Library library,
     required bool Function() isCancelled,
     required Future<void> Function() waitWhilePaused,
+    void Function(Book book)? onMetadataOnlyChanged,
     void Function(int processed, int total)? onProgress,
   }) async {
     final engine = await _repository._tantivyDataProvider.engine;
@@ -2699,6 +2732,12 @@ class StampChangeDetector implements IndexChangeDetector {
       );
       if (stamp.metadataHash == BigInt.zero || stamp.metadataHash != metadata) {
         changed.add(book);
+        final sourceHash = IndexingRepository._dbSourceHash(book, sourceHashes);
+        if (sourceHash == null ||
+            stamp.sourceHash == BigInt.zero ||
+            sourceHash == stamp.sourceHash) {
+          onMetadataOnlyChanged?.call(book);
+        }
       } else {
         final sourceHash = IndexingRepository._dbSourceHash(book, sourceHashes);
         if (sourceHash != null && stamp.sourceHash != BigInt.zero) {

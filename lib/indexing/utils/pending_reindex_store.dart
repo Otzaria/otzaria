@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 /// מה שנשאר לריצת האינדוקס הבאה ושורד קריסה או ביטול: ספרים שמסמכיהם ממתינים
-/// להחלפה ([PendingReindex.keys]), ובדיקות שטרם רצו — של כל הספרייה או של ספרים.
+/// להחלפה ([PendingReindex.keys]), ובדיקות שטרם הושלמו ונחתמו — של ספרייה או ספרים.
 class PendingReindexStore {
   PendingReindexStore._(this._file);
 

@@ -10,6 +10,7 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
@@ -596,7 +597,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
           unawaited(
-            IndexFreshnessWarner.instance.warnIfContentDrifted(state.book),
+            IndexFreshnessWarner.instance.warnIfContentDrifted(
+              state.book,
+              indexingBloc: context.read<IndexingBloc?>(),
+            ),
           );
         }
       }

@@ -50,16 +50,18 @@ class RunIndexing extends IndexingWorkEvent {
 class DeferIndexing extends IndexingWorkEvent {
   final Library library;
   final List<Book> changedBooks;
+  final List<Book> checkBooks;
   final bool checkLibrary;
 
   const DeferIndexing(
     this.library, {
     required this.changedBooks,
+    this.checkBooks = const [],
     this.checkLibrary = false,
   });
 
   @override
-  List<Object?> get props => [library, changedBooks, checkLibrary];
+  List<Object?> get props => [library, changedBooks, checkBooks, checkLibrary];
 }
 
 /// אינדוקס כל הספרייה בבקשת המשתמש או בעלייה.

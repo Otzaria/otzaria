@@ -95,6 +95,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     if (event is DeferIndexing) {
       await _repository.rememberChangedBooks(
         event.changedBooks,
+        checkBooks: event.checkBooks,
         checkLibrary: event.checkLibrary,
       );
       await _onCheckIndexStatus(CheckIndexStatus(event.library), emit);
@@ -107,11 +108,11 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     if (event is RunIndexing &&
         (schemaBlocked ||
             (_enqueuedAtCancelCount[event] ?? _cancelCount) != _cancelCount)) {
-      // הריצה הבאה תחליף ותבדוק את מה שזו הייתה מטפלת בו; ספרים שנשלחו
-      // לבדיקה מוחלפים — החלפה מיותרת עדיפה על תוכן ישן.
+      // שינוי תוכן מחייב החלפה; שינוי מיקום שיחזור למצבו המקורי דורש בדיקה.
       try {
         await _repository.rememberChangedBooks(
-          [...event.changedBooks, ...event.check.books],
+          event.changedBooks,
+          checkBooks: event.check.books,
           checkLibrary: schemaBlocked || event.check.wholeLibrary,
         );
       } catch (e) {
