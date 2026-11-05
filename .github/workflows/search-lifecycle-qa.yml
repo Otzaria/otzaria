@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022]
+        os: [ubuntu-latest, windows-2022]
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: "1"
       OTZARIA_REQUIRE_CODEC_TESTS: "1"
@@ -41,15 +41,9 @@ jobs:
         run: python .qa/build_test_zstd.py
       - name: Analyze
         run: flutter analyze --no-pub
-      - name: Reproduce concurrent disposal before the lifecycle fix
-        if: runner.os == 'Linux'
-        run: python3 .qa/prove_provider_regression.py
-      - name: Reproduce the retained maintenance zone before the fix
-        if: runner.os == 'Linux'
-        run: python3 .qa/prove_maintenance_zone.py
-      - name: Identify the database lock left by the original test fixture
+      - name: Reproduce the missing Windows dialog owner
         if: runner.os == 'Windows'
-        run: python .qa/prove_fixture_cleanup.py
+        run: python .qa/prove_windows_owner.py
       - name: Lifecycle regression suites
         run: flutter test --no-pub --reporter expanded test/data/data_providers/tantivy_data_provider_lifecycle_test.dart test/data/data_providers/tantivy_data_provider_test.dart test/data/data_providers/tantivy_economy_indexing_test.dart test/data/data_providers/tantivy_economy_concurrency_test.dart test/search/lexical_cancellation_contract_test.dart test/search/search_bloc_cancellation_test.dart test/indexing/repository/indexing_lifecycle_test.dart test/indexing/repository/indexing_pause_economy_test.dart test/indexing/repository/indexing_repository_test.dart test/indexing/bloc/indexing_bloc_test.dart test/empty_library/library_package_import_bloc_test.dart test/empty_library/library_package_test.dart test/empty_library/raw_library_import_test.dart test/empty_library/import_schema_guard_test.dart test/empty_library/empty_library_access_gate_test.dart test/search/lexical_search_cancellation_test.dart test/data/data_providers/tantivy_data_provider_incompatible_index_test.dart test/data/data_providers/tantivy_data_provider_init_io_test.dart test/indexing/repository/library_batch_indexing_test.dart test/indexing/repository/economy_indexing_native_test.dart test/settings/dialogs/library_setup_dialog_test.dart
       - name: Preserve baseline evidence
@@ -61,4 +55,5 @@ jobs:
             provider-before.log
             maintenance-zone-before.log
             fixture-cleanup-before.log
+            windows-owner-before.log
           if-no-files-found: ignore
