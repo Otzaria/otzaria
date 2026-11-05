@@ -39,9 +39,7 @@ void main() {
 
   group('תצוגה מקדימה בפיתוח', () {
     test('דורשת פיתוח והסכמה, וחסרים מנוע או נתונים', () {
-      final missing = _availability(
-        SemanticAvailabilityPhase.needsDownload,
-      );
+      final missing = _availability(SemanticAvailabilityPhase.needsDownload);
       final hidden = _availability(
         SemanticAvailabilityPhase.hidden,
         hiddenReason: SemanticHiddenReason.engineNotInBuild,
@@ -144,6 +142,32 @@ void main() {
     test('התאמה לפי עניין בלבד — בלי קטעים מודגשים', () {
       final text = semanticSnippetText('כבד את אביך &amp; אמך');
       expect(text.plain, 'כבד את אביך & אמך');
+      expect(text.matched, isEmpty);
+    });
+
+    test('התאמה בהערה נשמרת גם אחרי התאמת הסגנון שלה', () {
+      final text = semanticSnippetText(
+        'גוף <otzaria-note-marker>12</otzaria-note-marker> '
+        '<otzaria-note>דבר <font>מפורש</font></otzaria-note> סוף',
+      );
+      expect(text.plain, 'גוף 12 [הערה: דבר מפורש] סוף');
+      expect(text.matched, ['מפורש']);
+    });
+
+    test('סמן מודגש וקטע סמנטי בהערה נשמרים בסנאפשוט', () {
+      final text = semanticSnippetText(
+        '<otzaria-note-marker><font>12</font></otzaria-note-marker> '
+        '<otzaria-note><mark>דבר מפורש</mark></otzaria-note>',
+      );
+      expect(text.plain, '12 [הערה: דבר מפורש]');
+      expect(text.matched, ['12', 'דבר מפורש']);
+    });
+
+    test('תווית ההערה אינה התאמה בפני עצמה', () {
+      final text = semanticSnippetText(
+        'גוף <otzaria-note>דבר מפורש</otzaria-note> סוף',
+      );
+      expect(text.plain, 'גוף [הערה: דבר מפורש] סוף');
       expect(text.matched, isEmpty);
     });
   });

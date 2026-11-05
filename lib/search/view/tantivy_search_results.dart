@@ -1233,10 +1233,14 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                       onPressed: !hasCopyableResultText(result)
                                           ? null
                                           : () {
-                                              final plainText = utils
-                                                  .stripHtmlPreservingBreaks(
+                                              final plainText =
+                                                  SnippetBuilder.annotatedPlainText(
                                                     rawHtml,
-                                                  );
+                                                  ) ??
+                                                  utils
+                                                      .stripHtmlPreservingBreaks(
+                                                        rawHtml,
+                                                      );
                                               // אותה התנהגות כמו העתקה ממסך הקריאה:
                                               // המקור והכותרת מצורפים לפי ההגדרות.
                                               // titleText כבר עבר החלפת שמות קודש.
