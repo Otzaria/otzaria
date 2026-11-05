@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:io';
@@ -54,6 +55,14 @@ class LibrarySettingsTab extends StatefulWidget {
       tab: SettingsTab.library,
       cardId: 'library.repository',
       keywords: ['נתיב', 'תיקיה', 'מאגר', 'אינדקס', 'חיפוש', 'שורש'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.search.indexing_resources',
+      title: 'משאבי אינדוקס',
+      subtitle: 'התאמה אוטומטית למחשב או בחירה במצב חסכוני',
+      tab: SettingsTab.library,
+      cardId: 'library.repository',
+      keywords: ['ביצועים', 'מעבד', 'זיכרון', 'חסכוני', 'אינדוקס'],
     ),
     SettingsSearchEntry(
       id: 'library.search.auto_index',
@@ -668,6 +677,34 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         onChanged: (mode) {
           context.read<SettingsBloc>().add(UpdateIndexUpdateMode(mode));
         },
+      ),
+      SettingsActionTile.segmentedTile<IndexingResourceMode>(
+        icon: FluentIcons.battery_saver_24_regular,
+        title: context.settingsText('משאבי אינדוקס'),
+        options: [
+          SegmentOption(
+            value: IndexingResourceMode.automatic,
+            label: context.settingsText('אוטומטי'),
+            subtitle: context.settingsText(
+              'מתאים למעבד ולזיכרון הזמין בתחילת האינדוקס',
+            ),
+          ),
+          SegmentOption(
+            value: IndexingResourceMode.economy,
+            label: context.settingsText('חסכוני'),
+            subtitle: context.settingsText(
+              'פחות זיכרון ועומס על המעבד; האינדוקס עשוי להימשך יותר זמן',
+            ),
+          ),
+          SegmentOption(
+            value: IndexingResourceMode.normal,
+            label: context.settingsText('רגיל'),
+            subtitle: context.settingsText('הכנה מקבילית לפי יכולות המעבד'),
+          ),
+        ],
+        currentValue: state.indexingResourceMode,
+        onChanged: (mode) =>
+            context.read<SettingsBloc>().add(UpdateIndexingResourceMode(mode)),
       ),
       BlocBuilder<IndexingBloc, IndexingState>(
         builder: (context, indexingState) {

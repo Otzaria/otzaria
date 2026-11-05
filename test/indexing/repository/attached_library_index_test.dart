@@ -20,6 +20,7 @@ const _slug = 'lib-a';
 final _attached = BookSource.attached(_slug);
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('מפתחות האינדקס של ספר ממסד מצורף', () {
     test('מפתח db: גם כשהמסד מצהיר על externalLibraryId', () {
       final book = TextBook(
@@ -367,6 +368,14 @@ class _Engine implements SearchEngine {
 }
 
 class _Provider implements TantivyDataProvider {
+  @override
+  bool isEconomyIndexing = false;
+
+  @override
+  Future<void> setEconomyIndexing(bool enabled) async {
+    isEconomyIndexing = enabled;
+  }
+
   _Provider(this._engine);
 
   final _Engine _engine;

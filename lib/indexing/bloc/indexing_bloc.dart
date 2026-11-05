@@ -23,7 +23,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   int _nextWorkId = 0;
   int? _activeWorkId;
   bool _isPaused = false;
-  bool _isEconomy = false;
   bool _isFinalizing = false;
 
   // ביטול מנקז את ריצות האינדוקס שכבר בתור: הן נשלחו לפני שהמשתמש עצר.
@@ -38,7 +37,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
        _showHiddenReconciliationError =
            showHiddenReconciliationError ?? UiSnack.showError,
        super(IndexingInitial()) {
-    _isEconomy = _repository.isEconomyIndexing;
     on<IndexingWorkEvent>((event, emit) async {
       try {
         await _onIndexingWork(event, emit);
@@ -84,7 +82,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     isCreatingIndex: isCreatingIndex,
     isScanning: isScanning,
     isPaused: _isPaused,
-    isEconomy: _isEconomy,
+    isEconomy: _repository.isEconomyIndexing,
     isFinalizing: _isFinalizing,
   );
 
@@ -429,10 +427,9 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     SetEconomyIndexing event,
     Emitter<IndexingState> emit,
   ) async {
-    if (_isEconomy == event.enabled) return;
+    if (_repository.isEconomyIndexing == event.enabled) return;
     try {
       await _repository.setEconomyIndexing(event.enabled);
-      _isEconomy = event.enabled;
       _reemitProgressFlags(emit);
     } catch (e) {
       debugPrint('⚠️ החלפת מצב אינדוקס חסכוני נכשלה: $e');

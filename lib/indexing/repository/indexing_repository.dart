@@ -1,3 +1,8 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
+import 'package:otzaria/indexing/services/indexing_resource_sampler.dart';
+import 'package:otzaria/indexing/utils/indexing_yield.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
@@ -83,7 +88,11 @@ class IndexingRepository {
     this._tantivyDataProvider, {
     this.hiddenStore = const HiddenLibraryStore(),
     this.indexUpdateMode = IndexUpdateMode.readStored,
+    this.sampleResources = IndexingResourceSampler.sample,
   });
+
+  final Future<IndexingResourcePolicy> Function() sampleResources;
+  IndexingResourcePolicy? _resources;
 
   /// הספרים שייכנסו לאינדוקס מתוך [ordered].
   ///
@@ -164,9 +173,39 @@ class IndexingRepository {
     _resumeGate = null;
   }
 
-  /// מצב חסכוני מגביל את הכנת הספרים ואת ה-writer; חל בגבול אצווה.
-  Future<void> setEconomyIndexing(bool enabled) =>
-      _tantivyDataProvider.setEconomyIndexing(enabled);
+  /// בחירה מפורשת נשמרת; המדיניות האוטומטית נבחרת מחדש בתחילת ריצה.
+  Future<void> setEconomyIndexing(bool enabled) async {
+    await _tantivyDataProvider.setEconomyIndexing(enabled);
+    if (Settings.isInitialized) {
+      await Settings.setValue(
+        SettingsRepository.keyIndexingResourceMode,
+        (enabled ? IndexingResourceMode.economy : IndexingResourceMode.normal)
+            .name,
+      );
+    }
+  }
+
+  @visibleForTesting
+  Future<void> prepareIndexingResources() async {
+    _resources = await sampleResources();
+    await _applyResourcePolicy();
+  }
+
+  Future<void> _applyResourcePolicy() async {
+    final resources = _resources;
+    if (resources == null) return;
+    final mode = IndexingResourceMode.fromStorage(
+      Settings.isInitialized
+          ? Settings.getValue<String>(
+              SettingsRepository.keyIndexingResourceMode,
+            )
+          : null,
+    );
+    final economy = resources.useEconomy(mode);
+    if (_tantivyDataProvider.isEconomyIndexing != economy) {
+      await _tantivyDataProvider.setEconomyIndexing(economy);
+    }
+  }
 
   Future<void> _waitWhilePaused() async {
     while (_paused && _tantivyDataProvider.isIndexing.value) {
@@ -644,6 +683,14 @@ class IndexingRepository {
       }
       final totalBooks = allBooks.length;
       final replacing = pending.isNotEmpty;
+      await prepareIndexingResources();
+      if (!_tantivyDataProvider.isIndexing.value) {
+        return IndexingRunResult.cancelled(
+          processedBooks: 0,
+          totalBooks: totalBooks,
+          indexedBooks: 0,
+        );
+      }
       onWorkListReady?.call(totalBooks);
 
       IndexingCrashCanary.start(
@@ -696,8 +743,15 @@ class IndexingRepository {
       for (var bookIndex = 0; bookIndex < allBooks.length; bookIndex++) {
         final book = allBooks[bookIndex];
         await _waitWhilePaused();
+        await yieldToIndexingForeground();
         if (!_tantivyDataProvider.isIndexing.value) {
           debugPrint('⚠️ אינדוקס בוטל על ידי המשתמש');
+          cancelled = true;
+          break;
+        }
+        await _applyResourcePolicy();
+        await _waitWhilePaused();
+        if (!_tantivyDataProvider.isIndexing.value) {
           cancelled = true;
           break;
         }
@@ -922,7 +976,7 @@ class IndexingRepository {
         }
 
         IndexingCrashCanary.current?.end(BookIdentity.indexedFilePath(book));
-        await Future.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
       }
 
       if (!cancelled) {
@@ -1156,6 +1210,10 @@ class IndexingRepository {
         !batches.attempted.contains(first) &&
         !isBookIndexed(first)) {
       await _waitWhilePaused();
+      await yieldToIndexingForeground();
+      if (!_tantivyDataProvider.isIndexing.value) break;
+      await _applyResourcePolicy();
+      await _waitWhilePaused();
       if (!_tantivyDataProvider.isIndexing.value) break;
       final canary = IndexingCrashCanary.current;
       // אחרי קריסה מאנדקסים ספר-ספר, כדי שרק האשם ייספר.
@@ -1182,19 +1240,24 @@ class IndexingRepository {
       await canary?.flush();
       if (picked.isEmpty) break;
 
-      onActualIndexingStarted?.call();
       final engine = await _tantivyDataProvider.engine;
+      await _waitWhilePaused();
+      if (!_tantivyDataProvider.isIndexing.value) break;
       final token = newCancellationToken();
       void cancelOnStop() {
-        if (!_tantivyDataProvider.isIndexing.value) token.cancel();
+        if (_paused || !_tantivyDataProvider.isIndexing.value) token.cancel();
       }
 
       _tantivyDataProvider.isIndexing.addListener(cancelOnStop);
       _libraryBatchToken = token;
+      cancelOnStop();
       final stopwatch = Stopwatch()..start();
       final List<LibraryBookResult> results;
       try {
+        onActualIndexingStarted?.call();
+        if (!_tantivyDataProvider.isIndexing.value) break;
         await engine.openIndexWriter();
+        if (!_tantivyDataProvider.isIndexing.value) break;
         await _dropReplacedDocs(replaceKeys, [
           for (final (book, _) in picked) book,
         ]);

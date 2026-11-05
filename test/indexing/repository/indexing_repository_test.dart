@@ -4636,10 +4636,15 @@ class _FakeSearchEngine implements SearchEngine {
 
 /// ספק עם מנוע יציב המקליט קריאות — לבדיקת ניקוי רשומות אינדקס שהועברו.
 class _RecordingTantivyDataProvider implements TantivyDataProvider {
-  _RecordingTantivyDataProvider(this._engine);
+  @override
+  bool isEconomyIndexing = false;
 
   @override
-  bool get isEconomyIndexing => false;
+  Future<void> setEconomyIndexing(bool enabled) async {
+    isEconomyIndexing = enabled;
+  }
+
+  _RecordingTantivyDataProvider(this._engine);
 
   final _RecordingSearchEngine _engine;
 

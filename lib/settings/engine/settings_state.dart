@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
@@ -46,6 +47,7 @@ class SettingsState extends Equatable {
   bool get defaultRemovePunctuation =>
       textDisplayPolicy.defaultRemovePunctuation;
   final IndexUpdateMode indexUpdateMode;
+  final IndexingResourceMode indexingResourceMode;
 
   /// ברירת מחדל להצגת הטקסט ברצף (מצב "קריאה רציפה"). חלה בפתיחת ספר על
   /// ספרים שתומכים בכך בלבד (תנ"ך ותלמוד); בשאר הספרים אין לה השפעה.
@@ -120,6 +122,7 @@ class SettingsState extends Equatable {
     required this.showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
     required this.indexUpdateMode,
+    this.indexingResourceMode = IndexingResourceMode.automatic,
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
@@ -220,6 +223,7 @@ class SettingsState extends Equatable {
     bool? replaceHolyNames,
     HolyNameStyle? holyNameStyle,
     IndexUpdateMode? indexUpdateMode,
+    IndexingResourceMode? indexingResourceMode,
     bool? defaultRemoveNikud,
     bool? removeNikudFromTanach,
     bool? defaultRemovePunctuation,
@@ -297,6 +301,7 @@ class SettingsState extends Equatable {
       showLocalHebrewBooks: showLocalHebrewBooks ?? this.showLocalHebrewBooks,
       showExternalBooks: showExternalBooks ?? this.showExternalBooks,
       indexUpdateMode: indexUpdateMode ?? this.indexUpdateMode,
+      indexingResourceMode: indexingResourceMode ?? this.indexingResourceMode,
       defaultContinuousReadingMode:
           defaultContinuousReadingMode ?? this.defaultContinuousReadingMode,
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
@@ -374,6 +379,7 @@ class SettingsState extends Equatable {
     showExternalBooks,
     textDisplayPolicy,
     indexUpdateMode,
+    indexingResourceMode,
     defaultContinuousReadingMode,
     defaultSidebarOpen,
     defaultCommentaryOpen,

@@ -670,6 +670,15 @@ Future<void> main() async {
 class _NativeIndex extends Fake implements TantivyDataProvider {
   _NativeIndex(this.value);
 
+  @override
+  bool isEconomyIndexing = false;
+
+  @override
+  Future<void> setEconomyIndexing(bool enabled) async {
+    await value.setEconomyIndexing(enabled: enabled);
+    isEconomyIndexing = enabled;
+  }
+
   final SearchEngine value;
   @override
   final indexedFilePaths = <String>{};
