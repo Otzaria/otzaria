@@ -4,6 +4,8 @@ name: UI Baseline Guard
 # (docs/design-system/CI_ENFORCEMENT.md §3.4, DD-23). הוא יכול רק לקטון:
 # `dart tool/ui_lint_cli.dart --update-baseline` מוחק רשומות שתוקנו. PR שמוסיף
 # מופע לכלל באותו קובץ ובאותו scope צריך את התווית ui-baseline, שמתחזק מוסיף.
+# גם החרגת נתיב חדשה או מורחבת ב־tool/ui_lint/config.yaml משתיקה חריגות בלי
+# baseline, ולכן גם היא צריכה את אותה תווית.
 
 on:
   pull_request:
@@ -58,15 +60,32 @@ jobs:
               if added > 0:
                   print(f"+{added} {key[0]} {key[1]} ({key[2]})")
           PY
-          if [ ! -s /tmp/growth.txt ]; then
-            echo "The ui_lint baseline did not grow."
+          # A new or edited path exclusion silences findings without a baseline
+          # entry. A changed glob shows up as an added line too.
+          config=tool/ui_lint/config.yaml
+          git diff --unified=0 "$BASE_SHA" HEAD -- "$config" \
+            | { grep -E '^\+[[:space:]]*(-[[:space:]]*)?path:' || true; } \
+            | sed -E 's/^\+[[:space:]]*(-[[:space:]]*)?/exclude /' > /tmp/excludes.txt
+          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ]; then
+            echo "The ui_lint baseline did not grow, and no path exclusion was added."
             exit 0
           fi
-          echo "Baseline additions:"
-          cat /tmp/growth.txt
+          if [ -s /tmp/growth.txt ]; then
+            echo "Baseline additions:"
+            cat /tmp/growth.txt
+          fi
+          if [ -s /tmp/excludes.txt ]; then
+            echo "Path exclusions added or changed in $config:"
+            cat /tmp/excludes.txt
+          fi
           if [ "$BASELINE_LABEL" = "true" ]; then
-            echo "Baseline growth approved with the 'ui-baseline' label."
+            echo "Baseline growth and exclusions approved with the 'ui-baseline' label."
             exit 0
           fi
-          echo "::error file=$path::This pull request adds entries to the ui_lint baseline. Fix the new violations, or mark a justified one with '// ui-lint: allow UIL-xxx — reason'. If the debt is intended, ask a maintainer to add the 'ui-baseline' label."
+          if [ -s /tmp/growth.txt ]; then
+            echo "::error file=$path::This pull request adds entries to the ui_lint baseline. Fix the new violations, or mark a justified one with '// ui-lint: allow UIL-xxx — reason'. If the debt is intended, ask a maintainer to add the 'ui-baseline' label."
+          fi
+          if [ -s /tmp/excludes.txt ]; then
+            echo "::error file=$config::This pull request adds or widens a path exclusion in the ui_lint config, which silences findings without a baseline entry. Prefer '// ui-lint: allow UIL-xxx — reason' on the single node, or ask a maintainer to add the 'ui-baseline' label."
+          fi
           exit 1
