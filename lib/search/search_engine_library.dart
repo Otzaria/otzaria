@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/utils/file/windows_library_preload.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 /// טעינת ספריית מנוע החיפוש הנייטיבית ואתחול [RustLib] ב-UI isolate.
@@ -35,10 +36,12 @@ abstract final class SearchEngineLibrary {
     );
   }
 
-  /// LoadLibrary של ה-DLL חוסם שניות במחשבים מסוננים (#3788). אחרי הטעינה כאן,
-  /// הפתיחה ב-RustLib.init רק מעלה את מונה ההפניות.
+  /// FFI מאפשר ל-GC להמשיך בזמן טעינת ה-DLL; DynamicLibrary.open ברקע עדיין עוצר אותו.
+  /// אחרי הטעינה כאן, RustLib.init רק מעלה את מונה ההפניות.
   @visibleForTesting
   static Future<void> preloadOnHelperIsolate(String path) => Isolate.run(() {
-    ExternalLibrary.open(path);
+    if (!preloadWindowsLibrary(path)) {
+      throw StateError('LoadLibraryW("$path") failed');
+    }
   });
 }
