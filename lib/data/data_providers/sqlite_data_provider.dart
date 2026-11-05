@@ -7,6 +7,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/read_worker_book_dao.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -134,6 +135,7 @@ class SqliteDataProvider {
         _dbPath,
         readOnly: true,
         official: true,
+        bookDaoFactory: ReadWorkerBookDao.new,
       );
       // מסד בסכמה חדשה משגרסה זו קוראת נחסם כולו, ולא נכשל ספר אחר ספר.
       final schema = await database.readDbSchemaVersion();

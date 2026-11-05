@@ -38,6 +38,7 @@ class MyDatabase {
 
   /// seforim.db הרשמי: רק בו מותר לבחור שאילתות שנשענות על האינדקסים שלו.
   final bool _official;
+  final BookDao Function(MyDatabase)? _bookDaoFactory;
 
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
@@ -64,7 +65,7 @@ class MyDatabase {
 
   // נוצרים בגישה הראשונה: הבנאי טוען שאילתות מ-QueryLoader.
   late final AuthorDao authorDao = AuthorDao(this);
-  late final BookDao bookDao = BookDao(this);
+  late final BookDao bookDao = _bookDaoFactory?.call(this) ?? BookDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
   late final DocxTextCacheDao docxTextCacheDao = DocxTextCacheDao(this);
   late final LineDao lineDao = LineDao(this);
@@ -90,6 +91,7 @@ class MyDatabase {
     String path, {
     this._readOnly = false,
     this._official = false,
+    this._bookDaoFactory,
   }) : _path = path,
        _untrusted = false,
        _immutable = false;
@@ -100,7 +102,8 @@ class MyDatabase {
     : _path = path,
       _readOnly = true,
       _untrusted = true,
-      _official = false;
+      _official = false,
+      _bookDaoFactory = null;
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
