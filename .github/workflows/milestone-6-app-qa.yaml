@@ -14,8 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         case:
-        - book-read
-        - external
+        - menu-capture-before
+        - menu-capture-after
     env:
       CARGO_BUILD_JOBS: '1'
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
