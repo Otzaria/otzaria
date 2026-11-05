@@ -60,6 +60,11 @@ void main() {
   });
 
   Future<TextBookTab> pumpScreen(WidgetTester tester) async {
+    // בברירת המחדל (800px) חלונית הצד צרה מדי ושורת הלחצנים של המפרשים גולשת.
+    tester.view.physicalSize = const Size(2000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final book = TextBook(title: bookTitle);
     final textBookBloc = _TestTextBookBloc(_loadedState(book));
     final personalNotesBloc = _TestPersonalNotesBloc(

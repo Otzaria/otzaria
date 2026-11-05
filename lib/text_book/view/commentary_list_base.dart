@@ -437,16 +437,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     return state.activeCommentators;
   }
 
-  List<String> _selectedCommentators(TextBookLoaded state) {
-    final selected = _allSelectedCommentators(state);
-    return selected
-        .where(
-          (title) =>
-              title != kNotesCommentatorTitle &&
-              !widget.hiddenCommentators.contains(title),
-        )
-        .toList();
-  }
+  bool _isRegularCommentator(String title) =>
+      title != kNotesCommentatorTitle &&
+      !widget.hiddenCommentators.contains(title);
+
+  List<String> _selectedCommentators(TextBookLoaded state) =>
+      _allSelectedCommentators(state).where(_isRegularCommentator).toList();
 
   String _buildGroupingSignature(List<Link> links) {
     return links
@@ -1888,18 +1884,18 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         final notesIsActive = _allSelectedCommentators(
           state,
         ).contains(kNotesCommentatorTitle);
-        // כש'הערות' פעיל הוא משמש מפרש ברירת מחדל, ולכן בדרך כלל אין לפתוח
-        // אוטומטית את בחירת המפרשים. חריג: כרטיסיית המפרשים מעבירה
-        // onFilterOpenRequested ופותחת את הבחירה בלשונית צד נפרדת שאינה
-        // מסתירה את ההערות — שם יש לפתוח גם כש'הערות' פעיל, אחרת כשאין
-        // מפרשים נבחרים המשתמש נתקע על הודעת "אין הערות לקטע זה".
+        // רק כשיש מפרש רגיל לבחירה; כש'הערות' פעיל — רק בכרטיסיית המפרשים,
+        // שם הבחירה נפתחת בלשונית נפרדת ואינה מסתירה את ההערות.
         final shouldAutoOpenOverrideFilter =
             widget.showSearch &&
             widget.onSelectedCommentatorsOverrideChanged != null &&
             selectedCommentators.isEmpty &&
             (widget.onFilterOpenRequested != null || !notesIsActive) &&
             !_autoFilterOpenNotified &&
-            !_showCommentatorsFilter;
+            !_showCommentatorsFilter &&
+            _commentatorGroups(state).any(
+              (group) => group.commentators.any(_isRegularCommentator),
+            );
 
         if (shouldAutoOpenOverrideFilter) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
