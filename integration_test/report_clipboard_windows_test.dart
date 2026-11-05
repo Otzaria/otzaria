@@ -2,19 +2,42 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
+import 'package:otzaria/app_report/bloc/app_report_state.dart';
+import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
+import 'package:otzaria/app_report/services/app_report_service.dart';
+import 'package:otzaria/app_report/view/app_report_dialog.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+import 'package:path/path.dart' as p;
 import 'package:super_clipboard/super_clipboard.dart';
 
-// Runs inside the native Windows application. Keyboard shortcuts and the
-// Windows clipboard-history UI are deliberately outside this roundtrip test.
+import '../test/test_helpers/memory_cache_provider.dart';
+import 'support/report_native_keyboard.dart';
+
+class _KeyboardReportCollector extends AppReportCollector {
+  @override
+  Future<AppReportAttachments> collect() async =>
+      const AppReportAttachments(diagnostics: {}, errorLog: '');
+}
+
+// Runs inside the native Windows application with the real clipboard plugin
+// and SendInput keyboard events. Win+V clipboard-history UI remains untested.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const sources = AppReportImageSources();
   late SystemClipboard clipboard;
   final passed = <String>[];
+  final nativeKeyboardPaths = <Map<String, Object?>>[];
   final png = base64Decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOwSdnyHwAEiAJU2GM8WwAAAABJRU5ErkJggg==',
   );
@@ -48,7 +71,8 @@ void main() {
       'reviewedHead': Platform.environment['REPORT_QA_REVIEWED_HEAD'],
       'passed': passed,
       'nativeClipboard': true,
-      'nativeKeyboardInput': false,
+      'nativeKeyboardInput': nativeKeyboardPaths.isNotEmpty,
+      'nativeKeyboardPaths': nativeKeyboardPaths,
       'windowsClipboardHistoryUi': false,
     };
     binding.reportData = evidence;
@@ -145,4 +169,162 @@ void main() {
       'Native empty text + PNG -> production image source retains PNG',
     );
   });
+
+  for (final shiftInsert in [false, true]) {
+    final shortcut = shiftInsert ? 'Shift+Insert' : 'Ctrl+V';
+    for (final textFocus in [false, true]) {
+      // Separate forms keep the text-only asynchronous clipboard read from
+      // overlapping a subsequent clipboard write for the PNG case.
+      for (final imagePayload in [false, true]) {
+        final payload = imagePayload ? 'PNG' : 'text';
+        testWidgets(
+          'OS $shortcut pastes $payload in AppReportDialog; text focus=$textFocus',
+          (tester) async {
+            final temporary = await Directory.systemTemp.createTemp(
+              'otzaria_native_report_keys_',
+            );
+            AppPaths.debugOverrideDataRootPath(temporary.path);
+            UserStateDatabase.instance.overridePath(
+              p.join(temporary.path, 'user_state.db'),
+            );
+            await Settings.init(cacheProvider: MemoryCacheProvider());
+            await Settings.setValue<bool>(
+              SettingsRepository.keyOfflineMode,
+              true,
+            );
+            await Settings.setValue<String>(
+              SettingsRepository.keySettingsLanguage,
+              'en',
+            );
+            const startingTitle = 'Title preserved: מקור ';
+            const text = 'Native paste: טקסט רגיל 😀';
+            final expectedTitle = textFocus && !imagePayload
+                ? '$startingTitle$text'
+                : startingTitle;
+            final service = AppReportService();
+            AppReportBloc? reportBloc;
+            try {
+              await tester.pumpWidget(
+                MaterialApp(
+                  navigatorKey: navigatorKey,
+                  home: Scaffold(
+                    body: Builder(
+                      builder: (context) => TextButton(
+                        onPressed: () => showAppReportDialog(
+                          context,
+                          createBloc: () => reportBloc = AppReportBloc(
+                            trigger: AppReportTrigger.manual,
+                            service: service,
+                            collector: _KeyboardReportCollector(),
+                            redactor: AppReportRedactor(environment: const {}),
+                            initialTitle: startingTitle,
+                            appVersion: 'native-keyboard-qa',
+                          ),
+                        ),
+                        child: const Text('Open actual report'),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              await tester.tap(find.text('Open actual report'));
+              await pumpNativeUntil(
+                tester,
+                () => reportBloc?.state is AppReportEditing,
+                reason:
+                    'The real report form must load its draft and attachments.',
+              );
+              await focusNativeReportWindow(tester);
+              final bloc = reportBloc!;
+              final title = find.byKey(const ValueKey('app-report-title'));
+              final editor = tester.widget<EditableText>(
+                find.descendant(of: title, matching: find.byType(EditableText)),
+              );
+              editor.controller.selection = TextSelection.collapsed(
+                offset: editor.controller.text.length,
+              );
+              if (textFocus) {
+                await tester.ensureVisible(title);
+                editor.focusNode.requestFocus();
+              } else {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+              await tester.pump();
+              expect(editor.focusNode.hasFocus, textFocus);
+              expect(
+                tester
+                    .widgetList<EditableText>(find.byType(EditableText))
+                    .any(
+                      (field) => field.focusNode.hasFocus,
+                    ),
+                textFocus,
+              );
+
+              final item = DataWriterItem(
+                suggestedName: imagePayload ? 'os-keyboard.png' : null,
+              );
+              if (imagePayload || textFocus) {
+                item.add(Formats.png(png));
+              }
+              if (!imagePayload) {
+                item.add(Formats.plainText(text));
+              }
+              await clipboard.write([item]);
+              await sendNativePaste(
+                tester,
+                shiftInsert: shiftInsert,
+                applied: () => imagePayload
+                    ? (bloc.state as AppReportEditing).images.length == 1
+                    : editor.controller.text == expectedTitle,
+              );
+              expect(editor.controller.text, expectedTitle);
+              expect((bloc.state as AppReportEditing).title, expectedTitle);
+              final images = (bloc.state as AppReportEditing).images;
+              if (imagePayload) {
+                expect(images, hasLength(1));
+                expect(images.single.bytes, png);
+                expect(images.single.mimeType, 'image/png');
+              } else {
+                expect(images, isEmpty);
+                expect(
+                  (await Clipboard.getData(Clipboard.kTextPlain))?.text,
+                  text,
+                );
+              }
+              expect(editor.focusNode.hasFocus, textFocus);
+              expect(await service.getPendingReports(), isEmpty);
+              nativeKeyboardPaths.add({
+                'shortcut': shortcut,
+                'payload': payload,
+                'textFieldFocus': textFocus,
+                'foregroundProcessId': pid,
+                'nativeNonSynthesizedKeyDownObserved': true,
+                'titlePreservedExactly': true,
+                'mixedTextAndImagePreservesTextPrecedence':
+                    textFocus && !imagePayload ? true : null,
+                'pngBytesPreservedInRealReportBloc': imagePayload ? true : null,
+                'keysReleased': true,
+              });
+              passed.add(
+                'OS $shortcut $payload -> AppReportDialog; text focus=$textFocus',
+              );
+            } finally {
+              final closed = reportBloc?.stream.drain<void>();
+              await tester.pumpWidget(const SizedBox.shrink());
+              if (closed != null) {
+                await closed.timeout(const Duration(seconds: 10));
+              }
+              await service.deleteDraft();
+              await AppReportService.suspendAutomaticFlush();
+              UiSnack.hide();
+              UserStateDatabase.instance.close();
+              AppPaths.debugOverrideDataRootPath(null);
+              await temporary.delete(recursive: true);
+            }
+          },
+          timeout: const Timeout(Duration(minutes: 1)),
+        );
+      }
+    }
+  }
 }

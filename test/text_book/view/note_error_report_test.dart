@@ -133,8 +133,9 @@ void main() {
   ) async {
     for (var i = 0; i < 200; i++) {
       if (find.byType(TabbedReportDialog).evaluate().isEmpty &&
-          (draft == null || draft.isClosed))
+          (draft == null || draft.isClosed)) {
         break;
+      }
       await tester.runAsync(() => Future<void>.delayed(_tick));
       await tester.pump(_tick);
     }

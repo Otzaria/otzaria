@@ -79,6 +79,7 @@ jobs:
           git diff --exit-code -- lib/settings/l10n/settings_catalogs.g.dart
 
       - name: Run reporting tests serially
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail

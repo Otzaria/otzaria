@@ -275,10 +275,15 @@ void main() {
           reportContent: const ['שורת האב שאין לדווח עליה'],
           reportNote: noteContext,
         );
-        // Allow native file/SQLite work preceding showDialog to finish.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
       });
-      await tester.pumpAndSettle();
+      await waitForReportDialog(
+        tester,
+        dialog: find.byType(TabbedReportDialog),
+      );
+      await waitForBookReportMetadata(
+        tester,
+        dialog: find.byType(TabbedReportDialog),
+      );
       expect(find.byType(TabbedReportDialog), findsOneWidget);
       final dialog = tester.widget<TabbedReportDialog>(
         find.byType(TabbedReportDialog),

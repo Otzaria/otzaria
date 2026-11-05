@@ -360,7 +360,7 @@ void main() {
       expect(
         find.text(
           'The proposal is identical to the original. Change the text or '
-          'select Delete this passage. If you have no correction, choose '
+          'select Delete passage. If you have no correction, choose '
           'Free-text report.',
         ),
         findsOneWidget,

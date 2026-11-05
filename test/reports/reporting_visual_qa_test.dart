@@ -375,7 +375,14 @@ void main() {
             reportContent: const ['טקסט מקורי לבדיקה'],
           );
         });
-        await nativeWork(tester);
+        await waitForReportDialog(
+          tester,
+          dialog: find.byType(TabbedReportDialog),
+        );
+        await waitForBookReportMetadata(
+          tester,
+          dialog: find.byType(TabbedReportDialog),
+        );
         expect(find.byType(TabbedReportDialog), findsOneWidget);
         final details = find.byKey(const ValueKey('report-details-field'));
         await tester.ensureVisible(details);
@@ -433,7 +440,14 @@ void main() {
             ],
           );
         });
-        await nativeWork(tester);
+        await waitForReportDialog(
+          tester,
+          dialog: find.byType(TabbedReportDialog),
+        );
+        await waitForBookReportMetadata(
+          tester,
+          dialog: find.byType(TabbedReportDialog),
+        );
         expect(find.byType(TabbedReportDialog), findsOneWidget);
         expect(
           Directionality.of(tester.element(find.byType(TabbedReportDialog))),
@@ -527,7 +541,10 @@ void main() {
           ),
         );
       });
-      await nativeWork(tester);
+      await waitForReportDialog(
+        tester,
+        dialog: find.byType(AppReportDialog),
+      );
       expect(find.byType(AppReportDialog), findsOneWidget);
       await tester.enterText(
         find.byKey(const ValueKey('app-report-title')),
@@ -546,8 +563,9 @@ void main() {
           .setMockMethodCallHandler(
             SystemChannels.platform,
             (call) async {
-              if (call.method == 'Clipboard.setData')
+              if (call.method == 'Clipboard.setData') {
                 copied = (call.arguments as Map)['text'] as String;
+              }
               return null;
             },
           );
@@ -1035,8 +1053,9 @@ void main() {
             SystemChannels.platform,
             (call) async {
               if (call.method == 'Clipboard.setData') {
-                if (failCopy)
+                if (failCopy) {
                   throw PlatformException(code: 'qa_clipboard_failure');
+                }
                 copied = (call.arguments as Map)['text'] as String;
               }
               return null;

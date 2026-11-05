@@ -457,7 +457,7 @@ jobs:
       - name: Engine SQLite integration test (Windows)
         run: flutter test integration_test/external_line_text_test.dart -d windows --timeout 5m
 
-      - name: Native report clipboard roundtrip (Windows)
+      - name: Native report clipboard and keyboard (Windows)
         shell: pwsh
         env:
           CI: 'true'

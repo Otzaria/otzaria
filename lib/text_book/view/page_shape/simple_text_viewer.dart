@@ -2629,7 +2629,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       reportContent: !widget.isBookNotesColumn
           ? widget.content
           : separateNote
-          ? [if (noteHtml != null) noteHtml]
+          ? [?noteHtml]
           : state.content,
       reportBook: widget.reportBook,
       reportNote: useNoteContext
