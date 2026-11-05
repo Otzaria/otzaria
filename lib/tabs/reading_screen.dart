@@ -72,6 +72,8 @@ class _ReadingScreenState extends State<ReadingScreen>
   // PageView ולא TabBarView: TabBarView מקבע לילדים מפתח לפי אינדקס, והזזת או
   // סגירת טאב סמוך הורסת את ה-State של ה-PDF (המסמך נטען מחדש).
   PageController? _pageController;
+  bool _routeWasCurrent = true;
+  OpenedTab? _paneBeforeModal;
 
   /// מהירות שחרור (פיקסלים לוגיים/שנייה) שמעליה ההחלקה נחשבת הנפה
   /// ומעבירה טאב גם לפני מחצית הדרך.
@@ -105,6 +107,19 @@ class _ReadingScreenState extends State<ReadingScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final routeIsCurrent = ModalRoute.isCurrentOf(context) ?? true;
+    final activePane = context.read<TabsBloc>().state.activePane;
+    if (_routeWasCurrent && !routeIsCurrent) {
+      _paneBeforeModal = activePane;
+    } else if (!_routeWasCurrent && routeIsCurrent) {
+      // היעד שהיה ממוקד לפני החלונית עשוי להיסגר או להפוך לטאב רקע.
+      if (activePane != null && !identical(activePane, _paneBeforeModal)) {
+        _requestTabContentFocus(activePane);
+      }
+      _paneBeforeModal = null;
+    }
+    _routeWasCurrent = routeIsCurrent;
+
     final viewId = View.maybeOf(context)?.viewId;
     if (_viewResolved && viewId == _viewId) return;
     _viewResolved = true;
@@ -112,6 +127,18 @@ class _ReadingScreenState extends State<ReadingScreen>
     // זריעה מיידית ולא רק מה-listener: בעלייה עם טאב תוסף משוחזר, קבוצה ריקה
     // הייתה גורמת ל-onForegroundInstanceReady להשהות מיד את התוסף שעל המסך.
     _syncVisiblePluginTabs(context.read<TabsBloc>().state);
+  }
+
+  void _requestTabContentFocus(OpenedTab pane) {
+    final focusRepository = context.read<FocusRepository>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          ModalRoute.isCurrentOf(context) == false ||
+          !identical(context.read<TabsBloc>().state.activePane, pane)) {
+        return;
+      }
+      focusRepository.requestTabContentFocus(pane);
+    });
   }
 
   void _onTextReaderChanged() {
@@ -371,10 +398,7 @@ class _ReadingScreenState extends State<ReadingScreen>
               // הפעילה כדי שהחיצים יגללו מיד; המסכים נרשמים לפוקוס לפי חלונית.
               final focusTarget = state.activePane;
               if (focusTarget != null) {
-                final focusRepo = context.read<FocusRepository>();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  focusRepo.requestTabContentFocus(focusTarget);
-                });
+                _requestTabContentFocus(focusTarget);
               }
             }
           },
@@ -393,10 +417,7 @@ class _ReadingScreenState extends State<ReadingScreen>
           listener: (context, state) {
             final pane = state.activePane;
             if (pane == null) return;
-            final focusRepo = context.read<FocusRepository>();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              focusRepo.requestTabContentFocus(pane);
-            });
+            _requestTabContentFocus(pane);
           },
         ),
         BlocListener<TabsBloc, TabsState>(
