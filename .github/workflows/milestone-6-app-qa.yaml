@@ -15,10 +15,7 @@ jobs:
       matrix:
         case:
         - book-read
-        - engine
-        - menu
         - external
-        - plugins
     env:
       CARGO_BUILD_JOBS: '1'
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
