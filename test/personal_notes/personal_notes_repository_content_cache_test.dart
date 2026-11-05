@@ -108,9 +108,46 @@ void main() {
     contentFormat: PersonalNoteContentFormat.plain,
   );
 
+  // קריאת 4097 שורות מפעילה checkpoint אחד בדיוק. המונה מודד קריאת תוכן
+  // אמיתית, בנפרד מהודעות איתור הספר שנוספו ל-worker ב-#4227.
+  Future<int Function()> countOfficialContentReads() async {
+    await provider.closeForExternalWrite();
+    try {
+      final db = sqlite3.sqlite3.open(dbPath);
+      try {
+        db.execute(
+          'WITH RECURSIVE c(i) AS (SELECT 3 UNION ALL SELECT i + 1 FROM c '
+          'WHERE i < 4096) INSERT INTO line (bookId, lineIndex, content) '
+          "SELECT 1, i, 'שורת מילוי' FROM c",
+        );
+      } finally {
+        db.close();
+      }
+    } finally {
+      await provider.reopenAfterExternalWrite();
+    }
+    DbReadWorker.disposeForTesting();
+    var reads = 0;
+    final checkpoints = ReceivePort();
+    final subscription = checkpoints.listen((message) {
+      reads++;
+      (message as SendPort).send(null);
+    });
+    DbReadWorker.bookReadCheckpointPort = checkpoints.sendPort;
+    addTearDown(() async {
+      await provider.dispose();
+      DbReadWorker.disposeForTesting();
+      await subscription.cancel();
+      checkpoints.close();
+    });
+    return () => reads;
+  }
+
   test('DB רשמי: הוספה, עריכה ושינוי מיקום משתמשים באותה קריאה', () async {
+    final contentReads = await countOfficialContentReads();
     const title = SeforimFixtureIds.bereshitTitle;
     await repository.loadNotes(title);
+    expect(contentReads(), 1);
     DbReadWorker.sentMessageCount = 0;
     final added = await addOfficial(repository);
     final updated = await repository.updateNote(
@@ -129,60 +166,78 @@ void main() {
     expect(added.single.displayTitle, 'שורה ב');
     expect(updated.single.contentPlain, 'חדש');
     expect(moved.single.displayTitle, 'שורה ג');
-    expect(DbReadWorker.sentMessageCount, 0);
+    expect(contentReads(), 1, reason: 'שלוש הפעולות משתמשות בתוכן שבמטמון');
+    expect(DbReadWorker.sentMessageCount, 3, reason: 'איתור ספר לכל פעולה');
   });
 
   test('חלונית חדשה משתמשת ברשומה המשותפת של אותו ספר רשמי', () async {
+    final contentReads = await countOfficialContentReads();
     await repository.loadNotes(
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
+    expect(contentReads(), 1);
     DbReadWorker.sentMessageCount = 0;
     final other = PersonalNotesRepository();
     final notes = await addOfficial(other);
 
     expect(notes.single.displayTitle, 'שורה ב');
-    expect(DbReadWorker.sentMessageCount, 0);
+    expect(contentReads(), 1, reason: 'החלונית החדשה אינה קוראת שוב תוכן');
+    expect(DbReadWorker.sentMessageCount, 1, reason: 'איתור ספר בלבד');
   });
 
   test('ספר מחלונית אחרת מפנה את הרשומה היחידה גם בחלונית הישנה', () async {
+    final contentReads = await countOfficialContentReads();
     await repository.loadNotes(
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
+    expect(contentReads(), 1);
     final other = PersonalNotesRepository();
     await other.loadNotes(SeforimFixtureIds.rashiTitle);
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository);
 
     expect(notes.single.displayTitle, 'שורה ב');
-    expect(DbReadWorker.sentMessageCount, 1);
+    expect(contentReads(), 2, reason: 'התוכן נטען שוב אחרי פינוי המטמון');
+    expect(DbReadWorker.sentMessageCount, 3, reason: 'שני איתורים וקריאת תוכן');
   });
 
   test('קריאה ראשונה בעריכה ממלאת מטמון, טעינה מפורשת מרעננת אותו', () async {
+    final contentReads = await countOfficialContentReads();
     await addOfficial(repository);
+    expect(contentReads(), 1);
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository, line: 3);
     expect(notes.last.displayTitle, 'שורה ג');
-    expect(DbReadWorker.sentMessageCount, 0);
+    expect(contentReads(), 1, reason: 'הוספה שנייה משתמשת במטמון');
+    expect(DbReadWorker.sentMessageCount, 1, reason: 'איתור ספר בלבד');
     await repository.loadNotes(
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
-    expect(DbReadWorker.sentMessageCount, 1);
+    expect(contentReads(), 2, reason: 'טעינה מפורשת קוראת שוב תוכן');
+    expect(
+      DbReadWorker.sentMessageCount,
+      4,
+      reason: 'הוספה: איתור אחד; רענון: שני איתורים ותוכן',
+    );
   });
 
   test('רענון ספרייה פוסל את המטמון גם כשהחיבור לא השתנה', () async {
+    final contentReads = await countOfficialContentReads();
     await repository.loadNotes(
       SeforimFixtureIds.bereshitTitle,
       categoryId: SeforimFixtureIds.torahCategoryId,
     );
+    expect(contentReads(), 1);
     BooksCache.instance.clear();
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository);
 
     expect(notes.single.displayTitle, 'שורה ב');
-    expect(DbReadWorker.sentMessageCount, 1);
+    expect(contentReads(), 2, reason: 'רענון הספרייה מחייב קריאת תוכן חדשה');
+    expect(DbReadWorker.sentMessageCount, 3, reason: 'שני איתורים וקריאת תוכן');
   });
 
   test('פתיחה מחדש אחרי עדכון רשמי מיישבת עוגן מול הספר החדש', () async {
@@ -302,7 +357,9 @@ void main() {
     DbReadWorker.disposeForTesting();
     final checkpoints = ReceivePort();
     final paused = Completer<SendPort>();
+    var contentReads = 0;
     final subscription = checkpoints.listen((message) {
+      contentReads++;
       final release = message as SendPort;
       if (!paused.isCompleted) {
         paused.complete(release);
@@ -324,11 +381,13 @@ void main() {
     BooksCache.instance.clear();
     release.send(null);
     await loading;
+    expect(contentReads, 1);
     DbReadWorker.sentMessageCount = 0;
     final notes = await addOfficial(repository);
 
     expect(notes.single.displayTitle, 'שורה ב');
-    expect(DbReadWorker.sentMessageCount, 1);
+    expect(contentReads, 2, reason: 'התוצאה הישנה לא מילאה את המטמון החדש');
+    expect(DbReadWorker.sentMessageCount, 3, reason: 'שני איתורים וקריאת תוכן');
   });
 
   test('טקסט ממערכת הקבצים משתנה בין טעינה לעריכה', () async {
