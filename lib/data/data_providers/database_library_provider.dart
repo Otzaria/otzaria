@@ -392,6 +392,37 @@ Future<ScanResult> _writeDiscoveredBooks(_ExternalWriteBatch args) async {
   }
 }
 
+typedef _SidecarSyncArgs = ({
+  String userDbPath,
+  String? officialDbPath,
+  String folderPath,
+  Map<String, Map<String, String>> queries,
+});
+
+Future<List<String>> _applySidecars(_SidecarSyncArgs args) async {
+  QueryLoader.seedCache(args.queries);
+  final userDb = MyDatabase.withPath(args.userDbPath);
+  final officialDb = args.officialDbPath == null
+      ? null
+      : MyDatabase.withPath(
+          args.officialDbPath!,
+          readOnly: true,
+          official: true,
+        );
+  try {
+    return await UserSidecarSync.applyForFolder(
+      userDb: userDb,
+      folderPath: args.folderPath,
+      officialRepository: officialDb == null
+          ? null
+          : SeforimRepository(officialDb),
+    );
+  } finally {
+    userDb.close();
+    officialDb?.close();
+  }
+}
+
 class _DiscoveredBook {
   const _DiscoveredBook({
     required this.book,
@@ -5429,13 +5460,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       failedDetails.addAll(written.failedDetails);
       updatedBookIds.addAll(written.updatedBookIds);
 
-      // קובצי הכותרות והגרסאות שבתיקייה נקלטים אחרי הספרים — הם מזוהים
-      // לפי נתיב הקובץ, שקיים ב-DB רק מכאן ואילך.
-      for (final error in await UserSidecarSync.applyForFolder(
-        userDb: repository.database,
+      // הקבצים הנלווים מזוהים לפי נתיב הספר, ולכן נקלטים רק אחריו. ב-isolate:
+      // אלפי קובצי קישורים ב-SQL סינכרוני היו תוקעים את ה-UI.
+      for (final error in await compute(_applySidecars, (
+        userDbPath: repository.database.path,
+        officialDbPath: _sqliteProvider.repository?.database.path,
         folderPath: folderPath,
-        officialRepository: _sqliteProvider.repository,
-      )) {
+        queries: QueryLoader.cacheSnapshot,
+      ))) {
         failedDetails.add((folderName, error));
       }
 

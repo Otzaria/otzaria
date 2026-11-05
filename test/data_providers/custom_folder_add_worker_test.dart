@@ -142,4 +142,41 @@ void main() {
     expect(result.addedBooks, 1);
     expect(await repo.getAllBooksLean(), hasLength(1));
   });
+
+  test('קובצי התיקייה הנלווים נקלטים ב-isolate ולא בחיבור הממשק', () async {
+    final repo = await UserBooksDatabaseHolder.instance.repository;
+    final dir = Directory(p.join(temp.path, 'books'))..createSync();
+    File(p.join(dir.path, 'ראשי.txt')).writeAsStringSync('<h1>א</h1>');
+    File(p.join(dir.path, 'משני.txt')).writeAsStringSync('<h1>ב</h1>');
+    final provider = DatabaseLibraryProvider.instance;
+    final first = await provider.scanAndAddExternalBooksFromFolder(
+      dir.path,
+      'books',
+      repo,
+    );
+    expect(first.addedBooks, 2);
+    File(
+      p.join(dir.path, 'גרסאות.csv'),
+    ).writeAsStringSync('ראשי,גרסה\nראשי.txt,משני.txt\nראשי.txt,חסר.txt\n');
+
+    final uiConnection = await repo.database.database;
+    int uiChanges() =>
+        uiConnection.select('SELECT total_changes() AS c').single['c'] as int;
+    final changesBefore = uiChanges();
+    final result = await provider.scanAndAddExternalBooksFromFolder(
+      dir.path,
+      'books',
+      repo,
+    );
+
+    expect(uiChanges(), changesBefore);
+    expect(result.fatalError, isNull);
+    expect(result.failedDetails, [
+      ('books', 'גרסאות.csv שורה 3: הספר "חסר.txt" לא נמצא'),
+    ]);
+    final versions = uiConnection.select(
+      'SELECT COUNT(*) AS c FROM user_book_version',
+    );
+    expect(versions.single['c'], 1);
+  });
 }
