@@ -12,6 +12,7 @@ import 'local_alpha_rule.dart';
 import 'material_icons_rule.dart';
 import 'physical_direction_rule.dart';
 import 'primary_color_rule.dart';
+import 'raw_button_rule.dart';
 import 'raw_card_rule.dart';
 import 'raw_dialog_rule.dart';
 import 'raw_menu_rule.dart';
@@ -32,6 +33,7 @@ import 'ui_snack_literal_rule.dart';
 /// הכללים הפעילים, לפי הסדר בקטלוג.
 const List<UiLintRule> uiLintRules = [
   RawDialogRule(),
+  RawButtonRule(),
   IconButtonTooltipRule(),
   PrimaryColorRule(),
   MaterialIconsRule(),
