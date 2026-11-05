@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -37,6 +38,39 @@ void main() {
   );
 
   tearDown(manager.resetForTesting);
+
+  for (final mapped in [false, true]) {
+    for (final lines in [false, true]) {
+      test('admission rejection propagates without provider fallback '
+          '(mapped=$mapped, lines=$lines)', () async {
+        final provider = _ScriptedProvider([
+          const DbReadWorkerBusy('test capacity'),
+          'תוכן שהתאושש',
+        ]);
+        final fallback = _ScriptedProvider(['תוכן מספק נוסף']);
+        final link = _link(9010 + (mapped ? 2 : 0) + (lines ? 1 : 0));
+        manager.seedMappingsForTesting(
+          mapping: {
+            if (mapped)
+              BookCompositeKey.create(title: link.path2, categoryId: 1):
+                  provider,
+          },
+          providers: [provider, fallback],
+        );
+
+        Future<Object?> read() async => lines
+            ? manager.getLinkContentLines(link)
+            : manager.getLinkContent(link);
+
+        await expectLater(read(), throwsA(isA<DbReadWorkerBusy>()));
+        expect(provider.calls, 1);
+        expect(fallback.calls, 0);
+        expect((await read()).toString(), contains('תוכן שהתאושש'));
+        expect(provider.calls, 2);
+        expect(fallback.calls, 0);
+      });
+    }
+  }
 
   test('תוצאת שגיאה אינה נשמרת במטמון — ניסיון נוסף טוען מחדש', () async {
     final provider = _ScriptedProvider(['שגיאה: מאגר לא מאותחל', 'תוכן רש"י']);

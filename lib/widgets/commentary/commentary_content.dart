@@ -96,6 +96,7 @@ class CommentaryContent extends StatefulWidget {
 class _CommentaryContentState extends State<CommentaryContent>
     with PanelAnchorLinksMixin<CommentaryContent> {
   late Future<String> content;
+  bool _contentFailed = false;
 
   @override
   Link get anchorSourceLink => widget.link;
@@ -126,7 +127,7 @@ class _CommentaryContentState extends State<CommentaryContent>
       openLinkTarget(link, (tab) => widget.openBookCallback(tab));
 
   void _loadContent() {
-    // Validate link before loading content
+    _contentFailed = false;
     if (widget.link.path2.isEmpty || widget.link.index2 <= 0) {
       content = Future<String>.error(
         StateError('Invalid link reference for commentary content'),
@@ -134,12 +135,21 @@ class _CommentaryContentState extends State<CommentaryContent>
     } else {
       content = widget.link.content;
     }
+    final pending = content;
+    void failed() {
+      if (identical(content, pending)) _contentFailed = true;
+    }
+
+    pending.then<void>((value) {
+      if (value.startsWith('שגיאה')) failed();
+    }, onError: (Object _) => failed());
   }
 
   @override
   void didUpdateWidget(CommentaryContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.link.contentIdentityKey != widget.link.contentIdentityKey ||
+    if (_contentFailed ||
+        oldWidget.link.contentIdentityKey != widget.link.contentIdentityKey ||
         oldWidget.link.heRef != widget.link.heRef ||
         oldWidget.displayProfile.showAnchorMarkers !=
             widget.displayProfile.showAnchorMarkers) {

@@ -12,6 +12,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
 import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:path/path.dart' as p;
 import 'package:positioned_sliver_list/positioned_list.dart';
 
@@ -126,6 +127,7 @@ class FrameStats {
     this.topRebuilds = const [],
     this.processes,
     this.estimates,
+    this.dbReads,
   });
 
   final int framesPerSecond;
@@ -148,6 +150,9 @@ class FrameStats {
   /// Estimate refreshes of the reader lists since the previous tick, if any.
   final EstimateRefreshWindow? estimates;
 
+  /// בייטים בתור הם אומדן תיאורי בקשות, ולא נפח תוצאות או זיכרון התהליך.
+  final Map<String, int>? dbReads;
+
   Map<String, Object?> toJson({bool includeProcesses = true}) => {
     'fps': framesPerSecond,
     'buildAvgMs': buildAvgMs,
@@ -162,6 +167,7 @@ class FrameStats {
       'rebuilds': {for (final e in topRebuilds) e.key: e.value},
     if (includeProcesses && processes != null) 'processes': processes!.toJson(),
     if (estimates != null) 'estimates': estimates!.toJson(),
+    if (dbReads != null) 'dbReads': dbReads,
   };
 }
 
@@ -175,6 +181,7 @@ FrameStats computeFrameStats(
   List<MapEntry<String, int>> topRebuilds = const [],
   ProcessTreeSample? processes,
   EstimateRefreshWindow? estimates,
+  Map<String, int>? dbReads,
 }) {
   double? avg(Iterable<double> v) =>
       v.isEmpty ? null : _round1(v.reduce((a, b) => a + b) / v.length);
@@ -197,6 +204,7 @@ FrameStats computeFrameStats(
     topRebuilds: topRebuilds,
     processes: processes,
     estimates: estimates == null || estimates.isEmpty ? null : estimates,
+    dbReads: dbReads,
   );
 }
 
@@ -511,6 +519,7 @@ class DeveloperDiagnostics {
     final top = _rebuildsInWindow.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     _rebuildsInWindow.clear();
+    final dbReads = _dbReadStats();
     final current = computeFrameStats(
       [for (final s in _samples) s.$2],
       window: window,
@@ -520,6 +529,7 @@ class DeveloperDiagnostics {
       topRebuilds: top.take(10).toList(),
       processes: _processes,
       estimates: _estimateRefreshesSinceLastTick(),
+      dbReads: dbReads,
     );
     stats.value = current;
     final freshProcesses = _processesFresh;
@@ -535,6 +545,9 @@ class DeveloperDiagnostics {
     if (current.framesPerSecond > 0 ||
         current.topRebuilds.isNotEmpty ||
         current.estimates != null ||
+        dbReads['activeWorkerReads']! > 0 ||
+        dbReads['activeFallbackReads']! > 0 ||
+        dbReads['queuedReads']! > 0 ||
         freshProcesses ||
         smartText != null) {
       _write({
@@ -554,6 +567,18 @@ class DeveloperDiagnostics {
       });
     }
     unawaited(_flush());
+  }
+
+  Map<String, int> _dbReadStats() {
+    final usage = DbReadWorker.resourceUsage;
+    return {
+      'liveWorkers': usage.liveWorkers,
+      'activeWorkerReads': usage.activeWorkerReads,
+      'activeFallbackReads': usage.activeFallbackReads,
+      'pendingWorkerReads': usage.pendingWorkerReads,
+      'queuedReads': usage.queuedReads,
+      'estimatedQueuedBytes': usage.estimatedQueuedBytes,
+    };
   }
 
   Map<String, Object?> _context() {
@@ -577,6 +602,7 @@ class DeveloperDiagnostics {
       't': _elapsedMs,
       'time': DateTime.now().toIso8601String(),
       ...stats.value.toJson(includeProcesses: false),
+      'dbReads': _dbReadStats(),
       'processes': ?_processes?.toJson(
         ageMs: processesAt == null
             ? null

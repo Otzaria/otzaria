@@ -106,6 +106,11 @@ class BookTextReader {
       } on DbReadWorkerUnavailable {
         return DbReadWorker.runFallbackOnFreshIsolate(
           _readOnTargetTask(database.readOnlyTarget, key, read),
+          requestArguments: {
+            'dbPath': database.path,
+            'bookId': key.id,
+            'title': key.title,
+          },
         );
       }
     }

@@ -423,6 +423,8 @@ class SqliteDataProvider {
         totalLines: book.totalLines,
         text: await _linesText(resolvedBook, normalizedStart, normalizedEnd),
       );
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e, st) {
       debugPrint(
         '[SqliteDataProvider] getBookTextRangeFromDb failed for '
@@ -464,6 +466,8 @@ class SqliteDataProvider {
         return null;
       }
       return text ?? (emptyWhenNoLines ? '' : null);
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e, st) {
       debugPrint(
         '[SqliteDataProvider] getBookTextFromDb failed for '
@@ -525,6 +529,8 @@ class SqliteDataProvider {
             : null,
         attachedBookId: source.isAttached && rowsAreLines ? book.id : null,
       );
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e, st) {
       debugPrint(
         '[SqliteDataProvider] getBookTextBytesFromDb failed for '

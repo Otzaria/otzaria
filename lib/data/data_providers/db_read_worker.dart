@@ -37,6 +37,16 @@ class DbReadWorkerUnavailable implements Exception {
   String toString() => 'DbReadWorkerUnavailable: $reason';
 }
 
+/// התור מלא או פג תוקפו; פתיחת חיבור חלופי רק תגדיל את העומס.
+class DbReadWorkerBusy implements Exception {
+  const DbReadWorkerBusy(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'DbReadWorkerBusy: $reason';
+}
+
 /// ה-worker מושהה לכתיבה חיצונית; אסור לפתוח את seforim.db עד השחרור.
 class DbReadWorkerSuspended implements Exception {
   const DbReadWorkerSuspended();
@@ -225,6 +235,7 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
   Future<SeforimRepository> repoFor(String path) async {
     if (repository != null && openPath == path) return repository!;
     database?.close();
+    openPath = null;
     resolvedBooks.clear();
     database = MyDatabase.withPath(path, readOnly: true, official: true);
     repository = SeforimRepository(database!);
@@ -250,6 +261,15 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
         }
         if (_bookLineMethods.contains(method)) {
           results.add({'result': await _readBookLines(repo, method, args)});
+          continue;
+        }
+        if (method == 'bookCatalog') {
+          results.add({
+            'result': (
+              books: await repo.getAllBooksLean(),
+              categories: await repo.getAllCategories(),
+            ),
+          });
           continue;
         }
         if (method == 'commentatorsByBook') {
@@ -294,11 +314,8 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
   }
 }
 
-/// שני isolates לקריאת seforim.db: טווחים וקישורים באחד, ספרים שלמים בשני.
-/// לכל אחד חיבור RO עצל; קריאת ספר לא מעכבת פתיחה וגלילה של ספר אחר.
-///
-/// נפרד מ-FindRefDbIsolate: חימום ה-AltToc שם אורך שניות, ופתיחת ספר לא
-/// תמתין מאחוריו. נוצר בעצלתיים בבקשה הראשונה, לעולם לא בעלייה.
+/// שני חיבורי RO עצלים: טווחים וקישורים באחד, ספרים שלמים בשני.
+/// קריאת ספר אינה מעכבת פתיחה וגלילה של ספר אחר.
 class DbReadWorker {
   DbReadWorker._(this._slot);
 
@@ -311,13 +328,28 @@ class DbReadWorker {
   static bool _closedUntilReopen = false;
   static final Set<Future<void>> _oneShotReads = {};
 
-  /// קריאות fallback שרצות יחד כשה-worker תקוע; השאר ממתינות בתור. שתיים ולא
-  /// אחת: קריאת ספר שלם איטית לא תחסום לבדה טווח קטן.
+  /// חיבורים זמניים שרצים יחד (fallback, קטלוג ודורות); השאר בתור. שתיים
+  /// ולא אחת: קריאת ספר שלם איטית לא תחסום לבדה טווח קטן.
   @visibleForTesting
   static int maxFallbackReads = 2;
   static int _activeFallbackReads = 0;
-  static int _fallbackSlotsEpoch = 0;
-  static final Queue<Completer<void>> _fallbackQueue = Queue();
+  static final Queue<_FallbackWaiter> _fallbackQueue = Queue();
+  static int _fallbackQueuedBytes = 0;
+
+  @visibleForTesting
+  static int maxQueuedFallbackReads = 32;
+
+  @visibleForTesting
+  static int maxPendingWorkerReads = 64;
+
+  /// אומדן זיכרון תיאורי הבקשות בלבד, ללא תוצאות או מטמון SQLite.
+  @visibleForTesting
+  static int maxPendingRequestBytes = 512 * 1024;
+
+  @visibleForTesting
+  static Duration admissionTimeout = const Duration(seconds: 10);
+
+  static const _maxBatchItems = 64;
 
   /// בקשה שלא נענתה בזמן הזה מסמנת את ה-worker כתקוע; עד שיענה, הבקשות
   /// עוברות למסלול חלופי מחוץ ל-UI isolate.
@@ -419,14 +451,17 @@ class DbReadWorker {
   late final StreamSubscription<dynamic> _exitSub;
   final Completer<void> _readyCompleter = Completer<void>();
   final Map<int, Completer<Object?>> _pending = {};
+  final Map<String, Future<Object?>> _maintenanceRequests = {};
   Isolate? _isolate;
   SendPort? _commandPort;
   int _nextId = 0;
   bool _disposed = false;
-  bool _stalled = false;
+  bool get _stalled => _slot.stalled;
+  set _stalled(bool value) => _slot.stalled = value;
 
-  /// שולח בקשה ל-worker. זורק [DbReadWorkerUnavailable] כשה-worker אינו
-  /// זמין או תקוע, ו-[DbReadWorkerSuspended] בזמן כתיבה חיצונית.
+  /// שולח בקשה ל-worker. [DbReadWorkerUnavailable] מציין worker שאינו זמין,
+  /// [DbReadWorkerBusy] מציין עומס שאין לעקוף ב-fallback, ו-[DbReadWorkerSuspended]
+  /// מציין כתיבה חיצונית.
   static Future<Object?> request(
     String method,
     Map<String, Object?> args,
@@ -439,31 +474,33 @@ class DbReadWorker {
     final slot = method == 'bookText' || method == 'bookTextBytes'
         ? _books
         : _ranges;
+    if (slot.stalled) throw const DbReadWorkerUnavailable('stalled');
+    final bytes = _requestBytes(args);
+    if (slot.reads.length >= maxPendingWorkerReads ||
+        slot.pendingBytes + bytes > maxPendingRequestBytes) {
+      throw const DbReadWorkerBusy('worker queue capacity');
+    }
+    final reservation = _ReadReservation(bytes);
+    slot.reads.add(reservation);
+    slot.pendingBytes += bytes;
+    final run = _requestOnSlot(slot, method, args, generation).whenComplete(() {
+      slot.reads.remove(reservation);
+      slot.pendingBytes -= bytes;
+      if (slot.reads.isEmpty && slot.instance == null) slot.stalled = false;
+    });
     try {
-      final service = await _instanceOrSpawn(slot);
-      // השהיה/סגירה שהגיעה בזמן ה-spawn: אסור לשלוח, אחרת ה-worker יפתח את הקובץ.
-      if (_suspendedForExternalWrite ||
-          _closedUntilReopen ||
-          generation != _generation) {
-        throw const DbReadWorkerSuspended();
-      }
-      if (service._stalled) {
-        throw const DbReadWorkerUnavailable('stalled');
-      }
-      final result = await service
-          ._send(method, args)
-          .timeout(
-            stallTimeout,
-            onTimeout: () {
-              if (generation != _generation) {
-                throw const DbReadWorkerSuspended();
-              }
-              service._stalled = true;
-              debugPrint('[DbReadWorker] "$method" stalled — using fallback');
-              _logStall(method, args, slot.name);
-              throw const DbReadWorkerUnavailable('timeout');
-            },
-          );
+      final result = await run.timeout(
+        stallTimeout,
+        onTimeout: () {
+          if (generation != _generation) {
+            throw const DbReadWorkerSuspended();
+          }
+          slot.stalled = true;
+          debugPrint('[DbReadWorker] "$method" stalled — using fallback');
+          _logStall(method, args, slot.name);
+          throw const DbReadWorkerUnavailable('timeout');
+        },
+      );
       if (generation != _generation) throw const DbReadWorkerSuspended();
       return result;
     } on _WorkerReadError catch (error) {
@@ -474,6 +511,21 @@ class DbReadWorker {
       if (generation != _generation) throw const DbReadWorkerSuspended();
       rethrow;
     }
+  }
+
+  static Future<Object?> _requestOnSlot(
+    _WorkerSlot slot,
+    String method,
+    Map<String, Object?> args,
+    int generation,
+  ) async {
+    final service = await _instanceOrSpawn(slot);
+    if (_suspendedForExternalWrite ||
+        _closedUntilReopen ||
+        generation != _generation) {
+      throw const DbReadWorkerSuspended();
+    }
+    return service._send(method, args);
   }
 
   static final Set<String> _loggedFailures = {};
@@ -578,69 +630,105 @@ class DbReadWorker {
     if (_suspendedForExternalWrite || _closedUntilReopen) {
       throw const DbReadWorkerSuspended();
     }
-    await QueryLoader.initialize();
-    final queryCache = QueryLoader.cacheSnapshot;
-    return runFallbackOnFreshIsolate(
-      () => _readBatchOnFreshConnection(items, queryCache),
+    final generation = _generation;
+    return trackFallbackRead(
+      () async {
+        await QueryLoader.initialize();
+        if (generation != _generation) throw const DbReadWorkerSuspended();
+        final queryCache = QueryLoader.cacheSnapshot;
+        return Isolate.run(
+          () => _readBatchOnFreshConnection(items, queryCache),
+        );
+      },
+      requestArguments: {'items': items},
     );
   }
 
-  /// מריץ קריאה על חיבור זמני ב-isolate חד-פעמי, כש-worker אינו זמין;
+  /// קריאה על חיבור זמני כפופה לאותו admission גם בקטלוג ובדורות הספרים.
   /// השהיה לכתיבה חיצונית ממתינה לה עד שתשחרר את הקובץ.
-  static Future<T> runOnFreshIsolate<T>(FutureOr<T> Function() read) =>
-      trackTemporaryRead(() => Isolate.run(read));
+  static Future<T> runOnFreshIsolate<T>(
+    FutureOr<T> Function() read, {
+    Map<String, Object?>? requestArguments,
+  }) => trackFallbackRead(
+    () => Isolate.run(read),
+    requestArguments: requestArguments,
+  );
 
-  /// כמו [runOnFreshIsolate], במגבלת [maxFallbackReads] של [trackFallbackRead].
-  static Future<T> runFallbackOnFreshIsolate<T>(FutureOr<T> Function() read) =>
-      trackFallbackRead(() => Isolate.run(read));
+  /// מסלול ההתאוששות משתמש באותה מכסת חיבורים זמניים.
+  static Future<T> runFallbackOnFreshIsolate<T>(
+    FutureOr<T> Function() read, {
+    Map<String, Object?>? requestArguments,
+  }) => runOnFreshIsolate(read, requestArguments: requestArguments);
 
-  /// [trackTemporaryRead] לקריאה שבמקום worker תקוע. ממתינה בתור כשרצות כבר
-  /// [maxFallbackReads]; קריאה שלא חזרה תוך [stallTimeout] מפנה את מקומה.
-  static Future<T> trackFallbackRead<T>(Future<T> Function() read) async {
+  /// הגבלת קריאות חיות: timeout אינו עוצר I/O ולכן אינו מפנה מקום.
+  /// ההמתנה בתור מוגבלת בנפח, בכמות וב-[admissionTimeout].
+  static Future<T> trackFallbackRead<T>(
+    Future<T> Function() read, {
+    Map<String, Object?>? requestArguments,
+  }) async {
     if (_suspendedForExternalWrite || _closedUntilReopen) {
       throw const DbReadWorkerSuspended();
     }
     final generation = _generation;
-    final epoch = _fallbackSlotsEpoch;
+    final bytes = _requestBytes(requestArguments);
+    if (bytes > maxPendingRequestBytes) {
+      throw const DbReadWorkerBusy('fallback request size');
+    }
     if (_activeFallbackReads < maxFallbackReads) {
       _activeFallbackReads++;
     } else {
-      final turn = Completer<void>();
+      if (_fallbackQueue.length >= maxQueuedFallbackReads ||
+          _fallbackQueuedBytes + bytes > maxPendingRequestBytes) {
+        throw const DbReadWorkerBusy('fallback queue capacity');
+      }
+      final turn = _FallbackWaiter(bytes);
       _fallbackQueue.add(turn);
-      await turn.future;
+      _fallbackQueuedBytes += bytes;
+      final deadline = Timer(admissionTimeout, () {
+        if (!_fallbackQueue.remove(turn)) return;
+        _fallbackQueuedBytes -= bytes;
+        turn.completer.completeError(
+          const DbReadWorkerBusy('fallback admission timeout'),
+        );
+      });
+      try {
+        await turn.completer.future;
+      } finally {
+        deadline.cancel();
+      }
     }
-    var holdsSlot = true;
-    void releaseSlot() {
-      if (!holdsSlot) return;
-      holdsSlot = false;
-      if (epoch != _fallbackSlotsEpoch) return;
+    try {
+      if (generation != _generation) throw const DbReadWorkerSuspended();
+      return await _trackTemporaryRead(read);
+    } finally {
       if (_fallbackQueue.isEmpty) {
         _activeFallbackReads--;
       } else {
-        _fallbackQueue.removeFirst().complete();
+        final next = _fallbackQueue.removeFirst();
+        _fallbackQueuedBytes -= next.bytes;
+        next.completer.complete();
       }
-    }
-
-    final stallRelease = Timer(stallTimeout, releaseSlot);
-    try {
-      if (generation != _generation) throw const DbReadWorkerSuspended();
-      return await trackTemporaryRead(read);
-    } finally {
-      stallRelease.cancel();
-      releaseSlot();
     }
   }
 
   // ממתין בתור עוד לא תפס מקום, ולכן אינו משחרר אחד.
-  static void _failQueuedFallbacks() {
+  static void _failQueuedReads() {
     while (_fallbackQueue.isNotEmpty) {
-      _fallbackQueue.removeFirst().completeError(const DbReadWorkerSuspended());
+      _fallbackQueue.removeFirst().completer.completeError(
+        const DbReadWorkerSuspended(),
+      );
     }
+    _fallbackQueuedBytes = 0;
+    for (final item in _batch) {
+      item.completer.completeError(const DbReadWorkerSuspended());
+    }
+    _batch.clear();
+    _batchBytes = 0;
   }
 
   /// עוקב אחר קריאה זמנית במסד הרשמי עד שהחיבור שלה נסגר.
   /// גם fallback שכבר יוצר isolate חייב להשתחרר לפני כתיבה חיצונית.
-  static Future<T> trackTemporaryRead<T>(Future<T> Function() read) async {
+  static Future<T> _trackTemporaryRead<T>(Future<T> Function() read) async {
     if (_suspendedForExternalWrite || _closedUntilReopen) {
       throw const DbReadWorkerSuspended();
     }
@@ -668,12 +756,26 @@ class DbReadWorker {
   }
 
   static final List<_BatchItem> _batch = [];
+  static int _batchBytes = 0;
 
   /// כמו [request], אבל בקשות שנשלחות באותו סבב סינכרוני (למשל כל המפרשים
   /// שנבנו באותו פריים) יוצאות ל-worker כבקשה אחת.
   static Future<Object?> batched(String method, Map<String, Object?> args) {
+    if (_suspendedForExternalWrite || _closedUntilReopen) {
+      return Future.error(const DbReadWorkerSuspended());
+    }
+    final bytes = _requestBytes({'method': method, 'args': args});
+    if (bytes > maxPendingRequestBytes) {
+      return Future.error(const DbReadWorkerBusy('batch item size'));
+    }
+    if (_batch.isNotEmpty &&
+        (_batch.length >= _maxBatchItems ||
+            _batchBytes + bytes > maxPendingRequestBytes ~/ 2)) {
+      unawaited(_flushBatch());
+    }
     final item = _BatchItem(method, args);
     _batch.add(item);
+    _batchBytes += bytes;
     if (_batch.length == 1) scheduleMicrotask(_flushBatch);
     return item.completer.future;
   }
@@ -714,8 +816,11 @@ class DbReadWorker {
           .cast<BookLineText>();
 
   static Future<void> _flushBatch() async {
+    if (_batch.isEmpty) return;
+    final generation = _generation;
     final items = List.of(_batch);
     _batch.clear();
+    _batchBytes = 0;
     try {
       final requests = [
         for (final item in items) {'method': item.method, 'args': item.args},
@@ -723,14 +828,17 @@ class DbReadWorker {
       List results;
       try {
         results = await request('batch', {'items': requests}) as List;
+        if (generation != _generation) throw const DbReadWorkerSuspended();
         if (results.any(
           (result) => result is Map && result.containsKey('error'),
         )) {
           results = await _batchOnFreshIsolate(requests);
         }
       } on DbReadWorkerUnavailable {
+        if (generation != _generation) throw const DbReadWorkerSuspended();
         results = await _batchOnFreshIsolate(requests);
       }
+      if (generation != _generation) throw const DbReadWorkerSuspended();
       for (var i = 0; i < items.length; i++) {
         final result = results[i] as Map;
         final completer = items[i].completer;
@@ -761,7 +869,7 @@ class DbReadWorker {
   static Future<bool> suspendForExternalWrite() async {
     _suspendedForExternalWrite = true;
     _generation++;
-    _failQueuedFallbacks();
+    _failQueuedReads();
     final released = await Future.wait([
       for (final service in _runningWorkers)
         service._lifecycle('suspend', const {}).then((value) => value == true),
@@ -784,7 +892,7 @@ class DbReadWorker {
   static Future<void> closeConnectionIfRunning({bool wait = true}) async {
     _closedUntilReopen = true;
     _generation++;
-    _failQueuedFallbacks();
+    _failQueuedReads();
     final closings = <Future<Object?>>[];
     for (final service in _runningWorkers) {
       final closing = service._send('close', const {});
@@ -840,14 +948,46 @@ class DbReadWorker {
     _closedUntilReopen = false;
     bookReadCheckpointPort = null;
     _generation++;
-    _failQueuedFallbacks();
-    _activeFallbackReads = 0;
-    _fallbackSlotsEpoch++;
+    _failQueuedReads();
     for (final slot in _slots) {
       slot.spawnFuture = null;
       slot.instance?._tearDown();
     }
   }
+
+  /// תמונת עומס ללא פתיחת חיבור. liveWorkers כולל workers מוכנים גם כשהם
+  /// בטלים; activeWorkerReads סופר slots עם reservation, כולל spawn ממתין.
+  /// אלו אינם OS threads. queuedReads סופר הודעות worker, callbacks חלופיים
+  /// ופריטים שטרם אוגדו. הבייטים הם אומדן תיאורי הבקשות שבתור, ללא תוצאות.
+  static ({
+    int liveWorkers,
+    int activeWorkerReads,
+    int activeFallbackReads,
+    int pendingWorkerReads,
+    int queuedReads,
+    int estimatedQueuedBytes,
+  })
+  get resourceUsage => (
+    liveWorkers: _runningWorkers.length,
+    activeWorkerReads: _slots.where((slot) => slot.reads.isNotEmpty).length,
+    activeFallbackReads: _activeFallbackReads,
+    pendingWorkerReads: _slots.fold(
+      0,
+      (count, slot) => count + slot.reads.length,
+    ),
+    queuedReads:
+        _batch.length +
+        _fallbackQueue.length +
+        _slots.fold(0, (count, slot) => count + slot.reads.skip(1).length),
+    estimatedQueuedBytes:
+        _batchBytes +
+        _fallbackQueuedBytes +
+        _slots.fold(
+          0,
+          (bytes, slot) =>
+              bytes + slot.reads.skip(1).fold(0, (n, r) => n + r.bytes),
+        ),
+  );
 
   Future<Object?> _lifecycle(String method, Map<String, Object?> args) =>
       _awaitLifecycle(_send(method, args), method);
@@ -871,7 +1011,22 @@ class DbReadWorker {
   @visibleForTesting
   static int sentMessageCount = 0;
 
-  Future<Object?> _send(String method, Map<String, Object?> args) async {
+  Future<Object?> _send(String method, Map<String, Object?> args) {
+    if (method != 'shrinkMemory' && method != 'clearBookCache') {
+      return _sendRequest(method, args);
+    }
+    final existing = _maintenanceRequests[method];
+    if (existing != null) return existing;
+    late final Future<Object?> run;
+    run = _sendRequest(method, args).whenComplete(() {
+      if (identical(_maintenanceRequests[method], run)) {
+        _maintenanceRequests.remove(method);
+      }
+    });
+    return _maintenanceRequests[method] = run;
+  }
+
+  Future<Object?> _sendRequest(String method, Map<String, Object?> args) async {
     if (_disposed) throw const DbReadWorkerUnavailable('disposed');
     if (!_readyCompleter.isCompleted) await _readyCompleter.future;
     sentMessageCount++;
@@ -969,6 +1124,47 @@ class _WorkerSlot {
   final String name;
   DbReadWorker? instance;
   Future<DbReadWorker>? spawnFuture;
+  bool stalled = false;
+  final Set<_ReadReservation> reads = {};
+  int pendingBytes = 0;
+}
+
+class _ReadReservation {
+  const _ReadReservation(this.bytes);
+
+  final int bytes;
+}
+
+class _FallbackWaiter {
+  _FallbackWaiter(this.bytes);
+
+  final int bytes;
+  final Completer<void> completer = Completer<void>();
+}
+
+int _requestBytes(Object? value) {
+  var bytes = 256;
+  void count(Object? value) {
+    if (bytes > DbReadWorker.maxPendingRequestBytes) return;
+    bytes += 32;
+    if (value is String) {
+      bytes += value.length * 2;
+    } else if (value is Map) {
+      for (final entry in value.entries) {
+        count(entry.key);
+        count(entry.value);
+        if (bytes > DbReadWorker.maxPendingRequestBytes) break;
+      }
+    } else if (value is Iterable) {
+      for (final item in value) {
+        count(item);
+        if (bytes > DbReadWorker.maxPendingRequestBytes) break;
+      }
+    }
+  }
+
+  count(value);
+  return bytes;
 }
 
 class _BatchItem {

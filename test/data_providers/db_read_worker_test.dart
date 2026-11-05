@@ -198,6 +198,9 @@ void main() {
 
   tearDown(() async {
     DbReadWorker.stallTimeout = const Duration(seconds: 10);
+    DbReadWorker.admissionTimeout = const Duration(seconds: 10);
+    DbReadWorker.maxPendingWorkerReads = 64;
+    DbReadWorker.maxPendingRequestBytes = 512 * 1024;
     await DbReadWorker.resumeAfterExternalWrite();
     DbReadWorker.disposeForTesting();
     try {
@@ -509,6 +512,25 @@ void main() {
     },
   );
 
+  test('כשל בהחלפת מסד באצוות fallback אינו מזהם את הפריט הבא', () async {
+    final dbPath = await seedDb('seforim');
+    final missingPath = path.join(tempDir.path, 'missing.db');
+    final results = await Future.wait([
+      for (final targetPath in [dbPath, missingPath, dbPath])
+        DbReadWorker.batched('heRef', {
+          'dbPath': targetPath,
+          'bookId': 1,
+          'lineIndex': 3,
+        }).then<Object?>((value) => value, onError: (Object error) => error),
+    ]);
+
+    expect(results.first, 'בראשית א, 4');
+    expect(results[1], isA<StateError>());
+    expect(results.last, 'בראשית א, 4');
+    expect(await DbReadWorker.suspendForExternalWrite(), isTrue);
+    await File(dbPath).delete();
+  });
+
   test('טווחי טקסט וקישורים מה-worker זהים לפונקציה על חיבור חדש', () async {
     final dbPath = await seedDb('seforim');
     final linksArgs = {
@@ -587,6 +609,120 @@ void main() {
       full.release.send(null);
     }
     expect(await result, isA<TransferableBookContent>());
+  });
+
+  test('תור worker מוגבל לפני שליחה ואינו מונע פקודת סגירה', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    DbReadWorker.maxPendingWorkerReads = 3;
+    final full = await pausedBookRead(dbPath);
+    final queued = [
+      for (var i = 0; i < 2; i++)
+        DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }).then<Object?>((value) => value, onError: (Object error) => error),
+    ];
+    try {
+      await expectLater(
+        DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }),
+        throwsA(isA<DbReadWorkerBusy>()),
+      );
+      expect(DbReadWorker.resourceUsage.pendingWorkerReads, 3);
+      expect(DbReadWorker.resourceUsage.queuedReads, 2);
+      expect(DbReadWorker.resourceUsage.estimatedQueuedBytes, greaterThan(0));
+      final closing = DbReadWorker.closeConnectionIfRunning();
+      full.release.send(null);
+      await closing;
+      expect(await full.result, isA<DbReadWorkerSuspended>());
+      expect(
+        await Future.wait(queued),
+        everyElement(isA<DbReadWorkerSuspended>()),
+      );
+      expect(DbReadWorker.resourceUsage.pendingWorkerReads, 0);
+      expect(DbReadWorker.resourceUsage.estimatedQueuedBytes, 0);
+    } finally {
+      full.release.send(null);
+    }
+  });
+
+  test('תקרת בייטים נבדקת לפני מילוי תור ה-worker', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    final full = await pausedBookRead(dbPath);
+    DbReadWorker.maxPendingRequestBytes = 4096;
+    final args = {
+      'dbPath': dbPath,
+      'bookId': 1,
+      'title': 'בראשית',
+      'padding': 'x' * 1000,
+    };
+    final queued = DbReadWorker.request(
+      'bookText',
+      args,
+    ).then<Object?>((value) => value, onError: (Object error) => error);
+    try {
+      await expectLater(
+        DbReadWorker.request('bookText', args),
+        throwsA(isA<DbReadWorkerBusy>()),
+      );
+      expect(DbReadWorker.resourceUsage.pendingWorkerReads, 2);
+      expect(
+        DbReadWorker.resourceUsage.estimatedQueuedBytes,
+        lessThanOrEqualTo(4096),
+      );
+    } finally {
+      full.release.send(null);
+    }
+    expect(await full.result, isA<TransferableBookContent>());
+    expect(await queued, List.generate(5, (i) => 'שורה $i').join('\n'));
+  });
+
+  test('פקודות פינוי חוזרות אינן נערמות אחרי timeout של פקודת בקרה', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    final full = await pausedBookRead(dbPath);
+    final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+    DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
+    final before = DbReadWorker.sentMessageCount;
+    try {
+      int? firstCount;
+      for (var i = 0; i < 4; i++) {
+        expect(await DbReadWorker.shrinkMemoryIfRunning(), isFalse);
+        DbReadWorker.clearBookCacheIfRunning();
+        firstCount ??= DbReadWorker.sentMessageCount - before;
+        expect(DbReadWorker.sentMessageCount - before, firstCount);
+      }
+      expect(firstCount, inInclusiveRange(1, 2));
+    } finally {
+      DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+      full.release.send(null);
+    }
+    expect(await full.result, isA<TransferableBookContent>());
+    await DbReadWorker.cacheSizeForTesting(dbPath, books: true);
+    expect(await DbReadWorker.shrinkMemoryIfRunning(), isTrue);
+  });
+
+  test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
+    final dbPath = await seedDb('seforim');
+    await DbReadWorker.batched('heRef', {
+      'dbPath': dbPath,
+      'bookId': 1,
+      'lineIndex': 1,
+    });
+    final before = DbReadWorker.sentMessageCount;
+    final results = await Future.wait([
+      for (var i = 0; i < 130; i++)
+        DbReadWorker.batched('heRef', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'lineIndex': i % 5,
+        }),
+    ]);
+    expect(results, List.generate(130, (i) => 'בראשית א, ${i % 5 + 1}'));
+    expect(DbReadWorker.sentMessageCount - before, 3);
   });
 
   test('השהיה קוטעת ספר שלם וסוגרת את שני החיבורים לפני החלפת DB', () async {
@@ -774,27 +910,26 @@ void main() {
     expect(await expectAtMostTwoFallbacks(5), 2);
   });
 
-  test(
-    'קריאה זמנית רגילה (קטלוג, דורות) אינה ממתינה בתור ה-fallback',
-    () async {
-      final gates = [Completer<void>(), Completer<void>()];
-      addTearDown(() {
-        for (final gate in gates) {
-          if (!gate.isCompleted) gate.complete();
-        }
-      });
+  test('קריאת קטלוג חד-פעמית ממתינה בתור וחוזרת אחרי שחרור חיבור', () async {
+    final gates = [Completer<void>(), Completer<void>()];
+    final active = [
+      for (final gate in gates)
+        DbReadWorker.trackFallbackRead(() => gate.future),
+    ];
+    addTearDown(() async {
       for (final gate in gates) {
-        DbReadWorker.trackFallbackRead(() => gate.future).ignore();
+        if (!gate.isCompleted) gate.complete();
       }
-      await pumpEventQueue();
-      expect(
-        await DbReadWorker.trackTemporaryRead(
-          () async => 7,
-        ).timeout(const Duration(seconds: 1)),
-        7,
-      );
-    },
-  );
+      await Future.wait(active);
+    });
+    final catalog = DbReadWorker.runOnFreshIsolate(() => 7);
+    await pumpEventQueue();
+    expect(DbReadWorker.resourceUsage.activeFallbackReads, 2);
+    expect(DbReadWorker.resourceUsage.queuedReads, 1);
+    gates.first.complete();
+    expect(await catalog, 7);
+    expect(DbReadWorker.resourceUsage.queuedReads, 0);
+  });
 
   test('השהיה מכשילה מיד fallback שבתור, גם כשהפעילות תקועות', () async {
     final gates = [Completer<void>(), Completer<void>()];
@@ -825,23 +960,32 @@ void main() {
     );
   });
 
-  test('fallback תקוע מפנה את מקומו אחרי stallTimeout, פעם אחת בלבד', () async {
-    DbReadWorker.stallTimeout = const Duration(milliseconds: 50);
+  test('fallback תקוע שומר מקום עד סיום הקריאה ולא עד timeout', () async {
+    DbReadWorker.stallTimeout = const Duration(milliseconds: 5);
+    DbReadWorker.admissionTimeout = const Duration(milliseconds: 30);
     final gates = [Completer<void>(), Completer<void>()];
+    final active = <Future<void>>[];
     for (final gate in gates) {
-      DbReadWorker.trackFallbackRead(() => gate.future).ignore();
+      active.add(DbReadWorker.trackFallbackRead(() => gate.future));
     }
-    expect(
-      await DbReadWorker.trackFallbackRead(
-        () async => 3,
-      ).timeout(const Duration(seconds: 2)),
-      3,
-    );
-    DbReadWorker.stallTimeout = const Duration(seconds: 10);
-    for (final gate in gates) {
-      gate.complete();
+    var queuedStarted = false;
+    try {
+      await expectLater(
+        DbReadWorker.trackFallbackRead(() async {
+          queuedStarted = true;
+        }),
+        throwsA(isA<DbReadWorkerBusy>()),
+      );
+      expect(queuedStarted, isFalse);
+      expect(DbReadWorker.resourceUsage.activeFallbackReads, 2);
+      expect(DbReadWorker.resourceUsage.queuedReads, 0);
+    } finally {
+      for (final gate in gates) {
+        gate.complete();
+      }
+      await Future.wait(active);
     }
-    await pumpEventQueue();
+    DbReadWorker.admissionTimeout = const Duration(seconds: 10);
     expect(await expectAtMostTwoFallbacks(4), 2);
   });
 
@@ -1526,6 +1670,62 @@ void main() {
         expect(lineSource.resumes, 1);
       },
     );
+
+    test('קטלוג אחרי timeout אינו חוזר לחיבור ה-UI', () async {
+      final provider = DatabaseLibraryProvider.instance;
+      provider.clearCache();
+      final mainDb =
+          await SqliteDataProvider.instance.repository!.database.database;
+      mainDb.execute('PRAGMA query_only=OFF');
+      mainDb.execute('CREATE TEMP TABLE book AS SELECT * FROM main.book');
+      mainDb.execute('DELETE FROM temp.book');
+      DbReadWorker.stallTimeout = Duration.zero;
+      final keys = await provider.getAvailableBookKeys();
+      expect(keys.map((key) => key.title), containsAll(['בראשית', 'מפרש']));
+      provider.clearCache();
+    });
+
+    test('עומס זמני אינו ספר ריק ואינו עוקף admission בקריאה ישירה', () async {
+      final provider = DatabaseLibraryProvider.instance;
+      addTearDown(provider.clearCache);
+      final sqlite = SqliteDataProvider.instance;
+      final repository = TextBookRepository(
+        fileSystem: FileSystemData.instance,
+      );
+      final book = TextBook(id: 1, title: 'בראשית', categoryId: 7);
+      final reads = <Future<Object?> Function()>[
+        () => provider.getBookTextRange(
+          'בראשית',
+          7,
+          'txt',
+          startLine: 0,
+          endLine: 2,
+        ),
+        () => repository.getBookContentRange(book, startLine: 0, endLine: 2),
+        () => sqlite.getBookTextRangeFromDb(
+          'בראשית',
+          startLine: 0,
+          endLine: 2,
+          categoryId: 7,
+          fileType: 'txt',
+        ),
+        () => sqlite.getBookTextFromDb('בראשית', 7, 'txt'),
+        () => sqlite.getBookTextBytesFromDb('בראשית', 7, 'txt'),
+        () => provider.getBookText('בראשית', 7, 'txt'),
+        () => provider.getLinkContent(link('מפרש', 2)),
+        () => provider.getLinkContentLines(link('מפרש', 2)),
+        () => provider.getAvailableBookKeys(),
+        () => provider.getDatabaseOnlyBookTitles(),
+      ];
+      for (final read in reads) {
+        provider.clearCache();
+        DbReadWorker.maxPendingWorkerReads = 0;
+        await expectLater(read(), throwsA(isA<DbReadWorkerBusy>()));
+        expect(DbReadWorker.resourceUsage.activeFallbackReads, 0);
+        DbReadWorker.maxPendingWorkerReads = 64;
+        expect(await read(), isNotNull);
+      }
+    });
 
     test(
       'a failed close releases the line source exactly once by default',
