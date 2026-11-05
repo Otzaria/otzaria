@@ -60,7 +60,19 @@ class _CountingDocument extends quill.Document {
 }
 
 class _ObservableFocusNode extends FocusNode {
-  bool get listening => hasListeners;
+  final callbacks = <VoidCallback>[];
+
+  @override
+  void addListener(VoidCallback listener) {
+    callbacks.add(listener);
+    super.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    callbacks.remove(listener);
+    super.removeListener(listener);
+  }
 }
 
 Widget _host(Widget child) => RepositoryProvider(
@@ -477,12 +489,15 @@ void main() {
         ),
       ),
     );
+    // Body registers before its children. Quill also registers a separate
+    // anonymous listener whose lifetime ends when the owner disposes the node.
+    final bodyFocusListener = first.callbacks.first;
     focus.value = second;
     await tester.pump();
-    expect(first.listening, isFalse);
-    expect(second.listening, isTrue);
+    expect(first.callbacks, isNot(contains(bodyFocusListener)));
+    expect(second.callbacks, contains(bodyFocusListener));
     await tester.pumpWidget(const SizedBox.shrink());
-    expect(second.listening, isFalse);
+    expect(second.callbacks, isNot(contains(bodyFocusListener)));
     expect(
       controller.quillController.document.documentChangeObserver.isClosed,
       isFalse,
@@ -542,6 +557,9 @@ void main() {
     for (var cycle = 0; cycle < 30; cycle++) {
       await _openDialog(tester);
       final controller = _quill(tester);
+      final focusNode = tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .focusNode;
       subscriptions.add(
         controller.changes.listen(null, onDone: () => closedDocuments++),
       );
@@ -551,6 +569,7 @@ void main() {
         await _tapAction(tester, 'ביטול');
       }
       expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+      expect(() => focusNode.addListener(() {}), throwsFlutterError);
     }
     expect(closedDocuments, 30);
     expect(tester.takeException(), isNull);
@@ -569,12 +588,16 @@ void main() {
     for (var cycle = 0; cycle < 30; cycle++) {
       await _pumpInline(tester);
       final controller = _quill(tester);
+      final focusNode = tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .focusNode;
       subscriptions.add(
         controller.changes.listen(null, onDone: () => closedDocuments++),
       );
       controller.document.insert(0, 'טיוטה $cycle');
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
+      expect(() => focusNode.addListener(() {}), throwsFlutterError);
       expect(
         (await drafts.loadDraft(
           bookId: 'test-book',
