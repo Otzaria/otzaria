@@ -63,6 +63,10 @@ class TextBookTab extends OpenedTab {
   /// הסעיף המודגש, שנשאר קבוע גם כשהמיקום הנוכחי משתנה; null משתמש ב-[index].
   final int? pinpointHighlightSectionIndex;
 
+  /// Line a deep link asked to select, as a click would. It is a one-shot
+  /// request of this opening, so it is not saved with the tab.
+  final int? linkSelectedLine;
+
   /// נבנה בגישה הראשונה בלבד: פענוח ושמירת שולחן עבודה אינם צריכים BLoC חי.
   TextBookBloc get bloc => _bloc ??= _createBloc();
   TextBookBloc? _bloc;
@@ -160,6 +164,7 @@ class TextBookTab extends OpenedTab {
     super.dedupeKey,
     this.pinpointHighlight,
     this.pinpointHighlightSectionIndex,
+    this.linkSelectedLine,
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
   }) : _index = initialReadingAnchor?.line ?? index,
@@ -222,6 +227,7 @@ class TextBookTab extends OpenedTab {
         // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
         initialState: _initialState,
         readingPosition: lines.position,
+        linkSelectedLine: linkSelectedLine,
       ),
     );
     if (_isDisposed) created.close();

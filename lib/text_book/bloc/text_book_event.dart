@@ -239,6 +239,18 @@ class ApplyMarkHighlight extends TextBookEvent {
   ];
 }
 
+/// Selects [line] as a click would, once the reader shows it (deep link
+/// `?select`). Sent to a tab that is already open; a new tab gets the line
+/// through the bloc constructor.
+class SelectLineWhenVisible extends TextBookEvent {
+  final int line;
+
+  const SelectLineWhenVisible(this.line);
+
+  @override
+  List<Object?> get props => [line];
+}
+
 class TogglePinLeftPane extends TextBookEvent {
   final bool pin;
 

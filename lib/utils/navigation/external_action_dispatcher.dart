@@ -18,6 +18,7 @@ void dispatchOpenBookAction({
     action.searchQuery ?? '',
     markSection: action.markSection,
     markText: action.markText,
+    selectLine: action.selectLine,
     explicitIndex: action.hasExplicitPosition,
     navigateToPositionIfReused: action.hasExplicitPosition,
   );

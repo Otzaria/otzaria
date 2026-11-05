@@ -72,6 +72,7 @@
 | `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה. ניתן לשלב עם `index`. |
 | `otzaria://open/book/<id>?index=<n>&mark` | פותח את הספר בסעיף `n` ומדגיש את כל רקע המקטע בצהוב. |
 | `otzaria://open/book/<id>?index=<n>&m=<text>` | פותח את הספר בסעיף `n` ומדגיש את הטקסט `text` בצהוב בתוך המקטע. |
+| `otzaria://open/book/<id>?index=<n>&select` | פותח את הספר בסעיף `n` ובוחר אותו כמו לחיצה על הפסקה, כך שהמפרשים מתיישרים אליו. עובד גם כשהספר כבר פתוח בטאב. בלי `index` הדגל מתעלם. ספרי טקסט בלבד. ניתן לשלב עם `mark`. |
 | `otzaria://open/pdf/<id>` | פותח ספר PDF רשמי לפי מזהה מסד הנתונים. |
 | `otzaria://open/pdf/<id>?source=user` | פותח ספר PDF אישי לפי מזהה מסד הנתונים. |
 | `otzaria://open/pdf/<id>?index=<n>` | פותח PDF רשמי בעמוד `n` (מספר עמוד חיובי). הוסף `source=user&` לפני `index` לספר אישי. |
@@ -120,6 +121,7 @@ otzaria://open/book/1234?index=42
 otzaria://open/book/1234?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/book/1234?index=42&mark
+otzaria://open/book/1234?index=42&select
 otzaria://open/book/1234?index=42&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/search?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/search?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA&mode=exact
@@ -463,7 +465,7 @@ _watchSub = _watchDirectory(queueFile.parent).listen((event) {
 | `OpenToolAction(String toolId, {ToolQuery? query})` | `otzaria://open/calendar`, `/shamor_zachor`, `/measurements`, `/tikkun_korim`, `/biographies`, `/aramaic_dictionary`, `/acronyms_dictionary`, `/gematria`, `/notes`, `/tool/<id>`, ... | לשונית כלי; `query` מ-`q=`/`from=` לכלים שתומכים בו |
 | `OpenPluginAction(String pluginId)` | `otzaria://open/plugin/<plugin-id>` | פתיחת תוסף ישירות (גם לא-מוצמד) |
 | `SwitchToTabAction(int index)` | `otzaria://open/tab/<index>` | מעבר לטאב פתוח קיים לפי מיקומו |
-| `OpenBookAction(int bookId, {bool isUserBook, int? index, String? searchQuery, bool markSection, String? markText})` | `otzaria://open/book/<id>?source=user&index=<n>&q=<text>&mark&m=<text>` | ספר בעיון; `source=user` נדרש לספר אישי, וקישור ללא `source` נשאר רשמי לתאימות לאחור |
+| `OpenBookAction(int bookId, {bool isUserBook, int? index, String? searchQuery, bool markSection, String? markText, bool selectLine})` | `otzaria://open/book/<id>?source=user&index=<n>&q=<text>&mark&m=<text>` | ספר בעיון; `source=user` נדרש לספר אישי, וקישור ללא `source` נשאר רשמי לתאימות לאחור |
 | `OpenSettingsTabAction({SettingsTab? tab})` | `otzaria://open/settings`, `/settings/design`, `/settings/text`, ... | פתיחת הגדרות, אופציונלית עם ניווט לטאב |
 | `OpenHistoryAction()` | `otzaria://open/history` | דיאלוג היסטוריה |
 | `OpenBookmarksAction()` | `otzaria://open/bookmarks` | דיאלוג סימניות |
