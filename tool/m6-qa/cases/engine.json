@@ -1,0 +1,76 @@
+{
+  "name": "engine",
+  "base": "bc398e6908004901cf8d38bbd5ed2dae1feb3a62",
+  "expected_tree": "19a7853e7cde8ee8db41c9cc0b03278fd3bc6105",
+  "patch": "diff --git a/lib/data/data_providers/tantivy_data_provider.dart b/lib/data/data_providers/tantivy_data_provider.dart\nindex 5dfcc2fc52fd8ad0951238734c3005f560bdaf5c..2a21ff33f06c2292caac8af0b5351b8fc6b1059b 100644\n--- a/lib/data/data_providers/tantivy_data_provider.dart\n+++ b/lib/data/data_providers/tantivy_data_provider.dart\n@@ -714,6 +714,12 @@ class TantivyDataProvider {\n   Future<void> dispose() async {\n     try {\n       final index = await engine;\n+      // שחרור ה-writer מחכה לתהליכוני האינדוקס; כאן הוא רץ ב-worker ולא חוסם את ה-UI.\n+      try {\n+        await index.closeIndexWriter();\n+      } catch (e) {\n+        debugPrint('⚠️ Error closing the index writer: $e');\n+      }\n       index.dispose();\n       await RustSearchEngineOperations.disposeCancellation(index);\n     } catch (e) {\ndiff --git a/pubspec.lock b/pubspec.lock\nindex 829dc75ea7789f3e5a58f5c7544ab81df6fb5d70..feba9b84b60d460d6f37d658356cf89d9f8ab8dc 100644\n--- a/pubspec.lock\n+++ b/pubspec.lock\n@@ -1201,10 +1201,11 @@ packages:\n   otzaria_search_engine:\n     dependency: \"direct main\"\n     description:\n-      name: otzaria_search_engine\n-      sha256: b4896cc59b3cc8e75f31e66580ca8fa3a9f9820785b136994cd09a107841ceb6\n-      url: \"https://pub.dev\"\n-    source: hosted\n+      path: \".\"\n+      ref: \"13f19d11eb5a4ba4c2e04a5c097e7500b4e6e827\"\n+      resolved-ref: \"13f19d11eb5a4ba4c2e04a5c097e7500b4e6e827\"\n+      url: \"https://github.com/Otzaria/otzaria_search_engine\"\n+    source: git\n     version: \"7.0.1\"\n   package_config:\n     dependency: transitive\ndiff --git a/pubspec.yaml b/pubspec.yaml\nindex f40e93c2caa9a0165526a8d64bfc168dded6fbbf..8e3f4bb192e71c37305e1465c8f1ddecd7e93c79 100644\n--- a/pubspec.yaml\n+++ b/pubspec.yaml\n@@ -110,7 +110,10 @@ dependencies:\n   googleapis_auth: ^2.3.5\n   characters: ^1.4.1\n   collection: ^1.19.1\n-  otzaria_search_engine: ^7.0.1\n+  otzaria_search_engine:\n+    git:\n+      url: https://github.com/Otzaria/otzaria_search_engine\n+      ref: 13f19d11eb5a4ba4c2e04a5c097e7500b4e6e827\n   # חוזה הדיווחים מול השרת, משותף עם \"עדכוני אוצריא\" (Dart טהור).\n   otzaria_report_contract:\n     path: packages/otzaria_report_contract\ndiff --git a/test/search/lexical_cancellation_contract_test.dart b/test/search/lexical_cancellation_contract_test.dart\nindex 0fabdb162fea5c8688755f585d55788bb88c60fa..4951af1a21ae2e1506f1cd13b3e16ac2de72a589 100644\n--- a/test/search/lexical_cancellation_contract_test.dart\n+++ b/test/search/lexical_cancellation_contract_test.dart\n@@ -86,6 +86,31 @@ void main() {\n     expect(engine.disposed, isTrue);\n   });\n \n+  test(\n+    'disposing closes the index writer before releasing the engine',\n+    () async {\n+      final engine = _Engine()..closeGate = Completer<void>();\n+      final provider = TantivyDataProvider.forTesting(Future.value(engine));\n+      final disposing = provider.dispose();\n+      await Future.any([engine.closeEntered.future, disposing]);\n+      expect(engine.calls, ['closeIndexWriter']);\n+      engine.closeGate!.complete();\n+      await disposing;\n+      expect(engine.calls, ['closeIndexWriter', 'dispose']);\n+    },\n+  );\n+\n+  test('a failed writer close still releases the engine', () async {\n+    final engine = _Engine()..closeGate = Completer<void>();\n+    final provider = TantivyDataProvider.forTesting(Future.value(engine));\n+    final disposing = provider.dispose();\n+    await Future.any([engine.closeEntered.future, disposing]);\n+    expect(engine.calls, ['closeIndexWriter']);\n+    engine.closeGate!.completeError(StateError('close failed'));\n+    await disposing;\n+    expect(engine.calls, ['closeIndexWriter', 'dispose']);\n+  });\n+\n   test(\n     'cancellation after a failed open does not retry engine initialization',\n     () async {\n@@ -174,6 +199,9 @@ class _Engine implements SearchEngine {\n   final detachGate = Completer<bool>();\n   final reloadGate = Completer<bool>();\n   final dictionaryPaths = <String>[];\n+  final calls = <String>[];\n+  final closeEntered = Completer<void>();\n+  Completer<void>? closeGate;\n   int handleRequests = 0;\n   bool disposed = false;\n \n@@ -195,7 +223,17 @@ class _Engine implements SearchEngine {\n   }\n \n   @override\n-  void dispose() => disposed = true;\n+  Future<void> closeIndexWriter() {\n+    calls.add('closeIndexWriter');\n+    if (!closeEntered.isCompleted) closeEntered.complete();\n+    return closeGate?.future ?? Future<void>.value();\n+  }\n+\n+  @override\n+  void dispose() {\n+    calls.add('dispose');\n+    disposed = true;\n+  }\n \n   @override\n   bool get isDisposed => disposed;\n",
+  "patch_sha256": "43b7eb4e74236bf38fc481745147f0ecba64810df75b69a673c6f87d68aef477",
+  "files": [
+    "lib/data/data_providers/tantivy_data_provider.dart",
+    "test/search/lexical_cancellation_contract_test.dart",
+    "pubspec.yaml",
+    "pubspec.lock"
+  ],
+  "after_commands": [
+    [
+      "dart",
+      "format",
+      "--output=none",
+      "--set-exit-if-changed",
+      "lib/data/data_providers/tantivy_data_provider.dart",
+      "test/search/lexical_cancellation_contract_test.dart"
+    ],
+    [
+      "flutter",
+      "analyze",
+      "--no-pub"
+    ],
+    [
+      "flutter",
+      "test",
+      "--no-pub",
+      "--concurrency=1",
+      "--reporter=json",
+      "test/search/lexical_cancellation_contract_test.dart",
+      "test/search/lexical_search_cancellation_test.dart",
+      "test/data/data_providers/tantivy_data_provider_test.dart",
+      "test/data/data_providers/tantivy_data_provider_init_io_test.dart",
+      "test/data/data_providers/tantivy_data_provider_incompatible_index_test.dart",
+      "test/data/data_providers/tantivy_economy_indexing_test.dart",
+      "test/data/data_providers/tantivy_economy_concurrency_test.dart",
+      "test/indexing/repository/indexing_pause_economy_test.dart",
+      "test/indexing/repository/economy_indexing_native_test.dart"
+    ]
+  ],
+  "before": {
+    "restore_files_from_base": [
+      "lib/data/data_providers/tantivy_data_provider.dart"
+    ],
+    "tests": [
+      "test/search/lexical_cancellation_contract_test.dart"
+    ],
+    "args": [
+      "--name",
+      "disposing closes the index writer before releasing the engine|a failed writer close still releases the engine"
+    ],
+    "expected_exit_code": 1,
+    "expected_assertion_failures": 2,
+    "expected_failure_description": "Both assertions expect closeIndexWriter before disposal, while the original provider records only dispose. closeEntered/disposing Future.any prevents a baseline hang. Keep the exact engine pin and new tests in both phases.",
+    "mode": "restore",
+    "commands": [
+      [
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=1",
+        "--reporter=json",
+        "test/search/lexical_cancellation_contract_test.dart",
+        "--name",
+        "disposing closes the index writer before releasing the engine|a failed writer close still releases the engine"
+      ]
+    ],
+    "expected_names": [
+      "disposing closes the index writer before releasing the engine",
+      "a failed writer close still releases the engine"
+    ]
+  }
+}

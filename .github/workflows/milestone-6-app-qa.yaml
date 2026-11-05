@@ -1,0 +1,62 @@
+name: Milestone 6 isolated app QA
+'on':
+  push:
+    branches:
+    - qa/milestone-6-app-regressions
+permissions:
+  contents: read
+jobs:
+  qa:
+    name: App QA (${{ matrix.case }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        case:
+        - book-read
+        - engine
+        - menu
+        - external
+        - plugins
+    env:
+      CARGO_BUILD_JOBS: '1'
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+    steps:
+    - name: Checkout validation inputs
+      uses: actions/checkout@v7.0.1
+      with:
+        path: harness
+        persist-credentials: false
+    - name: Checkout exact app base
+      uses: actions/checkout@v7.0.1
+      with:
+        repository: Otzaria/otzaria
+        ref: bc398e6908004901cf8d38bbd5ed2dae1feb3a62
+        path: app
+        persist-credentials: false
+    - name: Flutter 3.47.7
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: 3.47.7
+        cache: true
+    - name: Rust native hook fallback
+      uses: dtolnay/rust-toolchain@stable
+    - name: Native compiler dependencies
+      if: matrix.case == 'engine'
+      run: sudo apt-get update && sudo apt-get install -y clang libclang-dev pkg-config libssl-dev
+    - name: Validate exact source tree and regressions
+      run: python3 harness/tool/m6-qa/run_case.py "harness/tool/m6-qa/cases/${{ matrix.case }}.json" app "qa-logs/${{ matrix.case }}"
+    - name: Upload exact-tree results
+      if: always()
+      uses: actions/upload-artifact@v7.0.2
+      with:
+        name: m6-${{ matrix.case }}
+        path: 'qa-logs/
+
+          app/*-results.jsonl
+
+          before-*/*-results.jsonl'
+        retention-days: 14
+        if-no-files-found: warn
