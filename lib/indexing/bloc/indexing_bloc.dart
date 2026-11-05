@@ -54,7 +54,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     on<ActualIndexingStarted>(_onActualIndexingStarted);
     on<IndexingFinalizing>(_onFinalizing);
     on<UpdateIndexingProgress>(_onUpdateProgress);
-    on<ClearIndex>(_onEraseIndex);
   }
 
   /// Factory constructor that creates an IndexingBloc with a default repository
@@ -67,6 +66,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
 
   @override
   void add(IndexingEvent event) {
+    if (event is ClearIndex && !isClosed) _cancelWork();
     if (event is RunIndexing) _enqueuedAtCancelCount[event] = _cancelCount;
     super.add(event);
   }
@@ -92,6 +92,10 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     IndexingWorkEvent event,
     Emitter<IndexingState> emit,
   ) async {
+    if (event is ClearIndex) {
+      await _onEraseIndex(event, emit);
+      return;
+    }
     if (event is DeferIndexing) {
       await _repository.rememberChangedBooks(
         event.changedBooks,
@@ -403,11 +407,15 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     CancelIndexing event,
     Emitter<IndexingState> emit,
   ) {
+    _cancelWork();
+    emit(IndexingStopped());
+  }
+
+  void _cancelWork() {
     _activeWorkId = null;
     _isPaused = false;
     _cancelCount++;
     _repository.cancelIndexing();
-    emit(IndexingStopped());
   }
 
   void _onPauseIndexing(PauseIndexing event, Emitter<IndexingState> emit) {
@@ -457,8 +465,12 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     Emitter<IndexingState> emit,
   ) async {
     _activeWorkId = null;
-    if (!await _repository.clearIndex()) return;
-    emit(IndexingInitial());
+    try {
+      if (!await _repository.clearIndex()) return;
+      emit(IndexingInitial());
+    } catch (error) {
+      emit(IndexingError(error.toString()));
+    }
   }
 
   void _onUpdateProgress(

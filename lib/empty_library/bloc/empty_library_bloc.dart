@@ -18,6 +18,7 @@ import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
@@ -165,6 +166,22 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// מריץ ייבוא שמחליף את הספרייה. עם [backupPath] (עדכון במקום) המסד מושעה
   /// בתהליך, ה-DB הישן מגובה, ומשוחזר אם [body] לא הסתיים בבחירת ספרייה.
   Future<void> _replaceLibrarySafely(
+    Emitter<EmptyLibraryState> emit, {
+    required String? backupPath,
+    required Future<void> Function() body,
+    required EmptyLibraryState Function(Object error) onError,
+    Future<void> Function()? afterReplacement,
+  }) => IndexingRepository.withIndexingSuspended(
+    () => _replaceLibraryWithIndexingStopped(
+      emit,
+      backupPath: backupPath,
+      body: body,
+      onError: onError,
+      afterReplacement: afterReplacement,
+    ),
+  );
+
+  Future<void> _replaceLibraryWithIndexingStopped(
     Emitter<EmptyLibraryState> emit, {
     required String? backupPath,
     required Future<void> Function() body,

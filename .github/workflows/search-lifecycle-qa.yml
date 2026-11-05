@@ -1,0 +1,48 @@
+name: Search lifecycle QA
+
+on:
+  push:
+    branches: [qa/search-lifecycle-3964-20261105]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-lifecycle-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle:
+    name: App lifecycle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    env:
+      OTZARIA_REQUIRE_SEARCH_ENGINE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve exact dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze
+        run: flutter analyze --no-pub
+      - name: Reproduce concurrent disposal before the lifecycle fix
+        if: runner.os == 'Linux'
+        run: python3 .qa/prove_provider_regression.py
+      - name: Lifecycle regression suites
+        run: flutter test --no-pub --reporter expanded test/data/data_providers/tantivy_data_provider_lifecycle_test.dart test/data/data_providers/tantivy_data_provider_test.dart test/data/data_providers/tantivy_economy_indexing_test.dart test/data/data_providers/tantivy_economy_concurrency_test.dart test/search/lexical_cancellation_contract_test.dart test/search/search_bloc_cancellation_test.dart test/indexing/repository/indexing_lifecycle_test.dart test/indexing/repository/indexing_pause_economy_test.dart test/indexing/repository/indexing_repository_test.dart test/indexing/bloc/indexing_bloc_test.dart test/empty_library/library_package_import_bloc_test.dart test/empty_library/library_package_test.dart test/empty_library/raw_library_import_test.dart test/empty_library/import_schema_guard_test.dart test/empty_library/empty_library_access_gate_test.dart test/search/lexical_search_cancellation_test.dart test/data/data_providers/tantivy_data_provider_incompatible_index_test.dart test/data/data_providers/tantivy_data_provider_init_io_test.dart test/indexing/repository/library_batch_indexing_test.dart test/indexing/repository/economy_indexing_native_test.dart
+      - name: Preserve baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-lifecycle-${{ matrix.os }}
+          path: provider-before.log
+          if-no-files-found: ignore
