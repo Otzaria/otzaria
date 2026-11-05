@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
@@ -52,6 +53,7 @@ class InlineNoteEditor extends StatefulWidget {
 class _InlineNoteEditorState extends State<InlineNoteEditor> {
   late final PersonalNoteEditorController _controller;
   late final PersonalNoteEditorResult _initialResult;
+  late final StreamSubscription<quill.DocChange> _documentChanges;
   final FocusNode _focusNode = FocusNode(debugLabel: 'InlineNoteEditor');
   final ScrollController _scrollController = ScrollController();
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
@@ -70,16 +72,20 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
           ? widget.initialFormat
           : (widget.note?.contentFormat ?? PersonalNoteContentFormat.plain),
     );
-    // _initialResult מייצג את המצב ה"נקי" לפני עריכה — לא תוכן הטיוטה.
-    // כך _persistDraft לא ימחק את הטיוטה כשה-Quill מפעיל notifyListeners בהתחלה.
+    // משווים להערה השמורה, כדי שטיוטה משוחזרת תישאר שינוי שלא נשמר.
     final originalController = buildPersonalNoteEditorController(
       initialContent: widget.note?.content ?? '',
       initialFormat:
           widget.note?.contentFormat ?? PersonalNoteContentFormat.plain,
     );
-    _initialResult = originalController.buildResult();
-    originalController.quillController.dispose();
-    _controller.quillController.addListener(_scheduleDraftSave);
+    try {
+      _initialResult = originalController.buildResult();
+    } finally {
+      originalController.dispose();
+    }
+    _documentChanges = _controller.quillController.changes.listen(
+      (_) => _scheduleDraftSave(),
+    );
     widget.cancelRequest?.addListener(_handleCancelRequest);
     // autoFocus לא תמיד תופס בפאנל שנפתח דינמית: ה-post-frame עלול לקדום לסוף
     // אנימציית הפתיחה, ולכן ניסיון נוסף אחרי שהיא מסתיימת.
@@ -105,9 +111,11 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   void dispose() {
     _draftSaveTimer?.cancel();
     _focusRetryTimer?.cancel();
-    _controller.quillController.removeListener(_scheduleDraftSave);
+    unawaited(_documentChanges.cancel());
     widget.cancelRequest?.removeListener(_handleCancelRequest);
+    // _persistDraft אוסף את התוכן לפני ה-await הראשון, גם לפני ה-debounce.
     unawaited(_persistDraft());
+    _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -130,6 +138,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   }
 
   void _scheduleDraftSave() {
+    if (_isDone) return;
     _draftSaveTimer?.cancel();
     _draftSaveTimer = Timer(
       const Duration(milliseconds: 250),
@@ -181,9 +190,14 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     if (_isDone) return;
     if (_hasUnsavedChanges()) {
       final decision = await showNoteDraftDecisionDialog(context);
-      if (decision == null || decision == NoteDraftDecision.cancel) return;
+      if (!mounted ||
+          decision == null ||
+          decision == NoteDraftDecision.cancel) {
+        return;
+      }
       if (decision == NoteDraftDecision.saveDraft) {
         await _persistDraft();
+        if (!mounted) return;
         _isDone = true;
         widget.onCancel();
         return;
@@ -191,7 +205,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     }
     _isDone = true;
     await _clearDraft();
-    widget.onCancel();
+    if (mounted) widget.onCancel();
   }
 
   bool _hasUnsavedChanges() {

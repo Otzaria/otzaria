@@ -50,7 +50,6 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   late final ScrollController _scrollController;
   late final PersonalNoteEditorResult _initialResult;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
-  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -61,28 +60,15 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       initialFormat: widget.initialContentFormat,
     );
     _initialResult = _editorController.buildResult();
-    _editorController.quillController.addListener(_checkForChanges);
     registerDialogFocusRestorer(_textFieldFocusNode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _textFieldFocusNode.requestFocus();
+      if (mounted) _textFieldFocusNode.requestFocus();
     });
-  }
-
-  void _checkForChanges() {
-    final current = _editorController.buildResult();
-    final hasChanges =
-        current.contentPlain.trim() != _initialResult.contentPlain.trim() &&
-        current.contentPlain.trim().isNotEmpty;
-    if (hasChanges != _hasUnsavedChanges) {
-      setState(() {
-        _hasUnsavedChanges = hasChanges;
-      });
-    }
   }
 
   @override
   void dispose() {
-    _editorController.quillController.removeListener(_checkForChanges);
+    _editorController.dispose();
     _textFieldFocusNode.dispose();
     _cancelFocusNode.dispose();
     _saveFocusNode.dispose();
@@ -91,11 +77,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   }
 
   Future<bool> _confirmClose() async {
-    if (!_hasUnsavedChanges) {
+    final current = _editorController.buildResult();
+    if (current.content == _initialResult.content ||
+        current.contentPlain.trim().isEmpty) {
       return true;
     }
 
     final result = await showNoteDraftDecisionDialog(context);
+    if (!mounted) return false;
 
     if (result == NoteDraftDecision.saveDraft) {
       await _saveDraftIfPossible();
