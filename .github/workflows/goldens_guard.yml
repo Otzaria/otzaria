@@ -30,6 +30,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           APPROVED_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'goldens-approved') }}
         run: |
           set -euo pipefail
@@ -41,6 +42,14 @@ jobs:
           fi
           echo "Changed golden images:"
           echo "$changed"
+          # ה־PR שמכניס את תשתית ה־golden: ב־base אין אף תמונה, ולכן אין מה
+          # שהשתנה. תמונות חדשות נבדקות בסקירת ה־PR הזה עצמו.
+          base_count=$(gh api "repos/$REPO/git/trees/$BASE_SHA?recursive=1" \
+            --jq '[.tree[].path | select(test("^test/goldens/.*\\.png$"))] | length')
+          if [ "$base_count" = "0" ] && ! echo "$changed" | grep -qv '^added '; then
+            echo "The base has no golden images: this pull request introduces them."
+            exit 0
+          fi
           if [ "$APPROVED_LABEL" = "true" ]; then
             echo "Golden changes approved with the 'goldens-approved' label."
             exit 0

@@ -38,7 +38,13 @@ jobs:
         run: |
           set -euo pipefail
           path=tool/ui_lint/baseline.json
-          git show "$BASE_SHA:$path" > /tmp/base.json 2>/dev/null || echo '{"version":1,"rules":{}}' > /tmp/base.json
+          # ה־PR שמכניס את ui_lint: ב־base אין baseline ואין config, ולכן אין
+          # מול מה למדוד גידול. ה־baseline הראשון הוא רישום החוב (§3.4).
+          if ! git cat-file -e "$BASE_SHA:$path" 2>/dev/null; then
+            echo "The base has no $path: this pull request introduces the ui_lint baseline, so there is no growth to check."
+            exit 0
+          fi
+          git show "$BASE_SHA:$path" > /tmp/base.json
           python3 - /tmp/base.json "$path" > /tmp/growth.txt <<'PY'
           import json, sys
 
