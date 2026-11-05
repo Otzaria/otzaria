@@ -52,8 +52,7 @@ class PluginDownloadService {
     if (_disposed) throw StateError('PluginDownloadService is disposed');
     final abort = Completer<void>();
     _downloads.add(abort);
-    http.StreamedResponse? response;
-    var responseConsumed = false;
+    _DownloadResponse? response;
     try {
       final resolvedUri = PluginStoreLinkParser.appendAppVersion(
         downloadUri,
@@ -63,7 +62,6 @@ class PluginDownloadService {
       _checkActive(abort, downloadUri);
 
       if (response.statusCode >= 400 && resolvedUri != downloadUri) {
-        responseConsumed = true;
         final body = await utf8.decodeStream(
           response.stream.timeout(_stallTimeout),
         );
@@ -72,8 +70,8 @@ class PluginDownloadService {
         if (incompatible != null) throw incompatible;
 
         // סירוב שאינו אי-תאימות — מנסים את הכתובת המקורית ללא appVersion.
+        await response.cancel();
         response = await _sendFollowingRedirects(downloadUri, storeOnly, abort);
-        responseConsumed = false;
         _checkActive(abort, downloadUri);
       }
 
@@ -92,7 +90,6 @@ class PluginDownloadService {
       try {
         _checkActive(abort, downloadUri);
         sink = File(archivePath).openWrite();
-        responseConsumed = true;
         await sink.addStream(response.stream.timeout(_stallTimeout));
         await sink.flush();
         await sink.close();
@@ -116,9 +113,7 @@ class PluginDownloadService {
     } finally {
       if (!abort.isCompleted) abort.complete();
       _downloads.remove(abort);
-      if (response != null && !responseConsumed) {
-        await response.stream.listen(null).cancel();
-      }
+      await response?.cancel();
     }
   }
 
@@ -151,7 +146,7 @@ class PluginDownloadService {
   /// שולחת GET ועוקבת אחרי הפניות **ידנית**. מעקב אוטומטי היה מאפשר
   /// ל-redirect מהחנות להוציא את ההורדה לשרת זר, ובכך לרוקן את הגידור
   /// שנעשה בנקודת הקריאה.
-  Future<http.StreamedResponse> _sendFollowingRedirects(
+  Future<_DownloadResponse> _sendFollowingRedirects(
     Uri uri,
     bool storeOnly,
     Completer<void> abort,
@@ -169,12 +164,16 @@ class PluginDownloadService {
       )..followRedirects = false;
       final response = await _client
           .send(request)
-          .then((response) async {
+          .then<_DownloadResponse>((response) {
+            // רישום סינכרוני לפני החזרת התשובה: ביטול בזמן יצירת התיקייה
+            // חייב להגיע גם ל-body שעדיין לא התחיל להיכתב.
+            final body = _DownloadResponse(response);
             if (abort.isCompleted) {
-              await response.stream.listen(null).cancel();
-              throw http.RequestAbortedException(request.url);
+              return body.cancel().then<_DownloadResponse>(
+                (_) => throw http.RequestAbortedException(request.url),
+              );
             }
-            return response;
+            return body;
           })
           .timeout(_stallTimeout);
       final location = response.headers['location'];
@@ -183,7 +182,11 @@ class PluginDownloadService {
           response.statusCode < 400 &&
           location != null;
       if (!isRedirect) return response;
-      await response.stream.timeout(_stallTimeout).drain<void>();
+      try {
+        await response.stream.timeout(_stallTimeout).drain<void>();
+      } finally {
+        await response.cancel();
+      }
       current = current.resolve(location);
     }
     throw Exception('יותר מדי הפניות בהורדת התוסף');
@@ -201,6 +204,41 @@ class PluginDownloadService {
     }
 
     return sanitized;
+  }
+}
+
+/// מחזיק subscription מיד עם קבלת הכותרות, לפני כל IO נוסף. IOClient אינו
+/// מנתק body שטרם האזינו לו אם הביטול כבר הגיע; pause שומר על backpressure
+/// עד שהצרכן מוכן, והביטול משחרר את החיבור גם בכשל ביצירת תיקייה או קובץ.
+class _DownloadResponse {
+  _DownloadResponse(this._response) {
+    _subscription = _response.stream.listen(
+      _body.add,
+      onError: _body.addError,
+      onDone: _body.close,
+    )..pause();
+    _body
+      ..onListen = _subscription.resume
+      ..onPause = _subscription.pause
+      ..onResume = _subscription.resume
+      ..onCancel = _subscription.cancel;
+  }
+
+  final http.StreamedResponse _response;
+  final _body = StreamController<List<int>>(sync: true);
+  late final StreamSubscription<List<int>> _subscription;
+
+  int get statusCode => _response.statusCode;
+  Map<String, String> get headers => _response.headers;
+  Stream<List<int>> get stream => _body.stream;
+
+  Future<void> cancel() async {
+    try {
+      await _subscription.cancel();
+    } finally {
+      // בלי מאזין (למשל כש-mkdir נכשל), close ממתינה עד שיאזינו ל-stream.
+      unawaited(_body.close());
+    }
   }
 }
 

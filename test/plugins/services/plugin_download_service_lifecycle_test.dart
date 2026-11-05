@@ -70,6 +70,83 @@ class _FailingCleanupDirectory implements Directory {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _DeferredTempDirectory implements Directory {
+  _DeferredTempDirectory(this.directory, {this.failure});
+
+  final Directory directory;
+  final FileSystemException? failure;
+  final creating = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<Directory> createTemp([String? prefix]) async {
+    creating.complete();
+    await release.future;
+    if (failure != null) throw failure!;
+    return directory.createTemp(prefix);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<({Uri uri, Future<void> disconnected})> _servePendingDownload() async {
+  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final peers = <Socket>[];
+  final disconnected = Completer<void>();
+  addTearDown(() async {
+    for (final peer in peers) {
+      peer.destroy();
+    }
+    await server.close();
+  });
+  server.listen((socket) {
+    peers.add(socket);
+    final request = StringBuffer();
+    var replied = false;
+    var download = false;
+    void closed() {
+      if (download && !disconnected.isCompleted) disconnected.complete();
+      socket.destroy();
+    }
+
+    Future<void> respond() async {
+      try {
+        if (download) {
+          socket.write('HTTP/1.1 200 OK\r\nContent-Length: 100000\r\n\r\nx');
+          await socket.flush();
+        } else {
+          socket.write(
+            'HTTP/1.1 200 OK\r\nContent-Length: 15\r\n'
+            'Connection: close\r\n\r\nstill connected',
+          );
+          await socket.flush();
+          await socket.close();
+        }
+      } on SocketException {
+        closed();
+      }
+    }
+
+    socket.listen(
+      (bytes) {
+        if (replied) return;
+        request.write(String.fromCharCodes(bytes));
+        if (!request.toString().contains('\r\n\r\n')) return;
+        replied = true;
+        download = !request.toString().startsWith('GET /other ');
+        unawaited(respond());
+      },
+      onDone: closed,
+      onError: (Object _) => closed(),
+    );
+  });
+  return (
+    uri: Uri.parse('http://127.0.0.1:${server.port}/plugin.otzplugin'),
+    disconnected: disconnected.future,
+  );
+}
+
 Future<HttpServer> _serve(void Function(HttpRequest) handle) async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   server.listen(handle);
@@ -405,6 +482,55 @@ void main() {
     expect(HttpClientRegistry.registeredCount, registryBefore);
     expect(await downloads.list().isEmpty, isTrue);
   });
+
+  for (final failCreate in [false, true]) {
+    test(
+      failCreate
+          ? 'temporary directory creation failure closes an unread response'
+          : 'dispose before the file is ready closes only its response',
+      () async {
+        final failure = FileSystemException('cannot create directory');
+        final deferred = _DeferredTempDirectory(
+          downloads,
+          failure: failCreate ? failure : null,
+        );
+        final server = await _servePendingDownload();
+        final client = IOClient();
+        addTearDown(client.close);
+        final service = PluginDownloadService(client: client);
+        addTearDown(service.dispose);
+        final result = IOOverrides.runZoned(
+          () => service.downloadPluginArchive(server.uri),
+          getSystemTempDirectory: () => deferred,
+        );
+        final failed = expectLater(
+          result,
+          throwsA(
+            failCreate ? same(failure) : isA<http.RequestAbortedException>(),
+          ),
+        );
+        try {
+          await deferred.creating.future.timeout(const Duration(seconds: 5));
+          if (failCreate) {
+            deferred.release.complete();
+          } else {
+            service.dispose();
+          }
+          // The peer must disconnect before the blocked mkdir is released,
+          // without closing the caller's client to free the connection.
+          await server.disconnected.timeout(const Duration(seconds: 5));
+          final other = await client
+              .get(server.uri.resolve('/other'))
+              .timeout(const Duration(seconds: 5));
+          expect(other.body, 'still connected');
+        } finally {
+          if (!deferred.release.isCompleted) deferred.release.complete();
+          await failed.timeout(const Duration(seconds: 5));
+        }
+        expect(await downloads.list().isEmpty, isTrue);
+      },
+    );
+  }
 
   test(
     'dispose aborts all concurrent downloads owned by the service',
