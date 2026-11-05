@@ -20,8 +20,6 @@ jobs:
       # Replace this only after the product snapshot, including #4303, is frozen.
       PRODUCT_SHA: 'fe27937a7e368bfc3d7d51203fe9497b186fbcb4'
       BASE_SHA: '2ba2e6d76b53e7c72f37d048023f41d150f9702f'
-      QA_BUNDLE_DIR: ${{ runner.temp }}/personal-notes-qa-bundle
-      QA_OUT_DIR: ${{ runner.temp }}/personal-notes-qa-results
       TZ: Asia/Jerusalem
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CI: 'true'
@@ -43,13 +41,18 @@ jobs:
           product = os.environ['PRODUCT_SHA']
           if not re.fullmatch('[0-9a-f]{40}', product):
               raise SystemExit('Set PRODUCT_SHA to the frozen 40-character product commit.')
-          bundle = Path(os.environ['QA_BUNDLE_DIR'])
+          qa_temp = Path(os.environ['RUNNER_TEMP'])
+          bundle = qa_temp / 'personal-notes-qa-bundle'
+          output = qa_temp / 'personal-notes-qa-results'
           shutil.copytree('qa/personal-notes-followup', bundle)
           subprocess.run(['git', 'checkout', '--detach', product], check=True)
           actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           dirty = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all'], text=True).strip()
           if actual != product or dirty:
               raise SystemExit('The product checkout is not the requested clean snapshot: ' + dirty)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as export_file:
+              export_file.write(f'QA_BUNDLE_DIR={bundle}\n')
+              export_file.write(f'QA_OUT_DIR={output}\n')
           PY
 
       - name: Set up the repository's Flutter version
