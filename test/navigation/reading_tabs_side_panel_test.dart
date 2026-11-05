@@ -100,11 +100,9 @@ void main() {
               child: Directionality(
                 textDirection: TextDirection.rtl,
                 child: Scaffold(
-                  body: Row(
-                    children: [
-                      ReadingTabsSidePanel(show: show),
-                      const Expanded(child: SizedBox.expand()),
-                    ],
+                  body: ReadingTabsSidePanel(
+                    show: show,
+                    child: const SizedBox.expand(key: ValueKey('content')),
                   ),
                 ),
               ),
@@ -242,9 +240,7 @@ void main() {
   testWidgets('במצב מכווץ האייקונים ממורכזים ברוחב העמודה', (tester) async {
     await pumpPanel(tester, collapsed: true);
 
-    final panelCenter = tester
-        .getRect(find.byType(ReadingTabsSidePanel))
-        .center;
+    final panelCenter = _panelRect(tester).center;
     final iconCenter = tester
         .getRect(find.byType(VerticalReadingTabStrip))
         .center;
@@ -385,7 +381,7 @@ void main() {
     await pumpPanel(tester, collapsed: true);
 
     expect(
-      tester.getSize(find.byType(ReadingTabsSidePanel)).width,
+      _panelRect(tester).width,
       moreOrLessEquals(kCollapsedTabsColumnWidth, epsilon: 0.5),
     );
     expect(find.text('ספר א'), findsNothing);
@@ -396,13 +392,13 @@ void main() {
     await pumpPanel(tester, show: false);
 
     expect(find.byType(ReadingTabsSidePanel), findsOneWidget);
-    expect(tester.getSize(find.byType(ReadingTabsSidePanel)).width, 0);
+    expect(_panelRect(tester).width, 0);
   });
 
   testWidgets('גרירת הידית שומרת את הרוחב רק בסיום הגרירה', (tester) async {
     await pumpPanel(tester);
 
-    final panel = tester.getRect(find.byType(ReadingTabsSidePanel));
+    final panel = _panelRect(tester);
     // הידית בקצה הפנימי — שמאל ב-RTL. גרירה שמאלה מרחיבה את העמודה.
     final gesture = await tester.startGesture(
       Offset(panel.left + 2, panel.center.dy),
@@ -417,9 +413,7 @@ void main() {
       isEmpty,
       reason: 'בזמן הגרירה הרוחב מקומי בלבד',
     );
-    final draggedWidth = tester
-        .getSize(find.byType(ReadingTabsSidePanel))
-        .width;
+    final draggedWidth = _panelRect(tester).width;
     expect(draggedWidth, greaterThan(220));
 
     await gesture.up();
@@ -438,7 +432,7 @@ void main() {
       width: SettingsRepository.maxReadingTabsColumnWidth,
     );
 
-    final panel = tester.getRect(find.byType(ReadingTabsSidePanel));
+    final panel = _panelRect(tester);
     final gesture = await tester.startGesture(
       Offset(panel.left + 2, panel.center.dy),
     );
@@ -468,7 +462,7 @@ void main() {
     // הראשונה נמחקת והעמודה מפגרת אחרי הסמן.
     await pumpPanel(tester);
 
-    final panel = tester.getRect(find.byType(ReadingTabsSidePanel));
+    final panel = _panelRect(tester);
     final gesture = await tester.startGesture(
       Offset(panel.left + 2, panel.center.dy),
     );
@@ -477,7 +471,7 @@ void main() {
     await tester.pump();
 
     expect(
-      tester.getSize(find.byType(ReadingTabsSidePanel)).width,
+      _panelRect(tester).width,
       moreOrLessEquals(260, epsilon: 0.5),
     );
 
@@ -910,6 +904,12 @@ void main() {
       reason: 'RtlIcon ממיר את האייקון לגרסה ההפוכה ב-RTL',
     );
   });
+}
+
+Rect _panelRect(WidgetTester tester) {
+  final bounds = tester.getRect(find.byType(ReadingTabsSidePanel));
+  final content = tester.getRect(find.byKey(const ValueKey('content')));
+  return Rect.fromLTRB(content.right, bounds.top, bounds.right, bounds.bottom);
 }
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {

@@ -329,11 +329,9 @@ Future<_Env> _pumpStrip(
             textDirection: TextDirection.rtl,
             child: Scaffold(
               body: onSide
-                  ? const Row(
-                      children: [
-                        ReadingTabsSidePanel(show: true),
-                        Expanded(child: SizedBox.expand()),
-                      ],
+                  ? const ReadingTabsSidePanel(
+                      show: true,
+                      child: SizedBox.expand(),
                     )
                   : SizedBox(
                       width: 900,
