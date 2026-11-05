@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/info/settings_snapshot.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -116,6 +117,7 @@ class AppInfoCli {
     // נדרש לערוצי הפלטפורמה (PackageInfo, path_provider) — החלון נשאר מוסתר
     // כי main.cpp מזהה את הפקודה ובונה את FlutterWindow במצב headless.
     WidgetsFlutterBinding.ensureInitialized();
+    await warmUpOsVersion();
     final settingsLoaded = await SettingsSnapshot.initializeReadOnly();
 
     return AppInfoService.collect(

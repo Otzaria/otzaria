@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -70,5 +71,150 @@ void main() {
         ),
       );
     });
+  });
+
+  group('operating system details', () {
+    test(
+      'Linux includes distribution version and kernel, without machine ID',
+      () {
+        expect(
+          describeOperatingSystem('linux', '6.8.0', {
+            'prettyName': 'Ubuntu 24.04.1 LTS',
+            'machineId': 'private',
+          }),
+          'Ubuntu 24.04.1 LTS; kernel 6.8.0',
+        );
+        expect(
+          describeOperatingSystem('linux', '6.1', {
+            'name': 'Debian GNU/Linux',
+            'version': '12 (bookworm)',
+          }),
+          'Debian GNU/Linux 12 (bookworm); kernel 6.1',
+        );
+      },
+    );
+
+    test('Android includes release, API, model, build and security patch', () {
+      expect(
+        describeOperatingSystem('android', 'Linux kernel', {
+          'version': {
+            'release': '15',
+            'sdkInt': 35,
+            'securityPatch': '2025-03-05',
+          },
+          'display': 'AP4A.250305.002',
+          'manufacturer': 'Google',
+          'model': 'Pixel 9',
+          'id': 'not-needed',
+        }),
+        'Android 15; API 35; Google Pixel 9; build AP4A.250305.002; security patch 2025-03-05',
+      );
+    });
+
+    test('macOS and iOS report product versions rather than only Darwin', () {
+      expect(
+        describeOperatingSystem('macos', 'Darwin', {
+          'majorVersion': 15,
+          'minorVersion': 4,
+          'patchVersion': 1,
+          'osRelease': '24.4.0',
+          'computerName': 'private',
+        }),
+        'macOS 15.4.1; Darwin 24.4.0',
+      );
+      expect(
+        describeOperatingSystem('ios', 'Darwin', {
+          'systemName': 'iPadOS',
+          'systemVersion': '18.4',
+          'utsname': {
+            'release': '24.4.0',
+            'machine': 'iPad14,3',
+            'nodename': 'private',
+          },
+          'name': 'private',
+        }),
+        'iPadOS 18.4; iPad14,3; Darwin 24.4.0',
+      );
+    });
+
+    test('unknown platforms and incomplete details retain useful fallback', () {
+      expect(describeOperatingSystem('fuchsia', 'build123', {}), 'build123');
+      expect(describeOperatingSystem('android', '6.8', {}), 'Android 6.8');
+      expect(
+        describeOperatingSystem('macos', 'Version 14.1', {}),
+        'macOS Version 14.1',
+      );
+      expect(
+        describeOperatingSystem('ios', 'Version 18.1', {}),
+        'iOS Version 18.1',
+      );
+      expect(describeOperatingSystem('linux', '6.1', {}), 'Linux; kernel 6.1');
+      expect(
+        describeOperatingSystem('linux', 'x' * 300, {}).length,
+        200,
+      );
+    });
+  });
+
+  group('OS cache', () {
+    test(
+      'reads never wait and concurrent warmups share one collection',
+      () async {
+        var calls = 0;
+        final result = Completer<Map<String, dynamic>>();
+        final cache = OsDescriptionCache(
+          platform: 'linux',
+          rawVersion: '6.8',
+          readDetails: () {
+            calls++;
+            return result.future;
+          },
+        );
+        expect(cache.value, '6.8');
+        expect(calls, 0);
+        final first = cache.initialize();
+        final second = cache.initialize();
+        expect(cache.value, '6.8');
+        expect(calls, 1);
+        result.complete({'prettyName': 'Ubuntu 24.04'});
+        await Future.wait([first, second]);
+        expect(cache.value, 'Ubuntu 24.04; kernel 6.8');
+        await cache.initialize();
+        expect(calls, 1);
+      },
+    );
+
+    test('failure and timeout preserve fallback without retrying', () async {
+      for (final timesOut in [false, true]) {
+        var calls = 0;
+        final cache = OsDescriptionCache(
+          platform: 'linux',
+          rawVersion: '6.8',
+          timeout: Duration.zero,
+          readDetails: () {
+            calls++;
+            if (timesOut) return Completer<Map<String, dynamic>>().future;
+            throw StateError('plugin unavailable');
+          },
+        );
+        await cache.initialize();
+        await cache.initialize();
+        expect(cache.value, '6.8');
+        expect(calls, 1);
+      }
+    });
+
+    test(
+      'Windows keeps existing corrected edition and build without native IO',
+      () async {
+        final cache = OsDescriptionCache(
+          platform: 'windows',
+          rawVersion: '"Windows 10 Pro" 10.0 (Build 26100)',
+          readDetails: () => throw StateError('must not run'),
+        );
+        await cache.initialize();
+        expect(cache.value, '"Windows 11 Pro" 10.0 (Build 26100)');
+      },
+    );
   });
 }
