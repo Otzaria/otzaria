@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
     as zmanim_helpers;
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
@@ -110,7 +109,7 @@ abstract final class CalendarAlertPlanner {
           event.recurrenceType == RecurrenceType.annualHebrew;
       final candidates = annual ? 2 : eventScheduleDaysAhead + 1;
       for (int i = 0; i < candidates; i++) {
-        final occurrenceDate = _occurrenceCandidate(event, now, i, annual);
+        final occurrenceDate = event.occurrenceCandidate(now, i);
         if (occurrenceDate == null) continue;
         if (!event.startsOccurrenceOn(occurrenceDate)) continue;
         final time = event.eventTime;
@@ -129,39 +128,6 @@ abstract final class CalendarAlertPlanner {
       }
     }
     return plan;
-  }
-
-  static DateTime? _occurrenceCandidate(
-    CustomEvent event,
-    DateTime now,
-    int i,
-    bool annual,
-  ) {
-    if (!annual) return DateTime(now.year, now.month, now.day + i);
-    if (!event.recurOnHebrew) {
-      return DateTime(
-        now.year + i,
-        event.baseGregorianDate.month,
-        event.baseGregorianDate.day,
-      );
-    }
-    final targetHebrewYear = JewishDate.fromDateTime(now).getJewishYear() + i;
-    final yearStart = JewishDate()..setJewishDate(targetHebrewYear, 1, 1);
-    if (event.baseJewishMonth == 13 && !yearStart.isJewishLeapYear()) {
-      return null; // אדר ב' בשנה פשוטה
-    }
-    try {
-      final jd = JewishDate()
-        ..setJewishDate(
-          targetHebrewYear,
-          event.baseJewishMonth,
-          event.baseJewishDay,
-        );
-      return jd.getGregorianCalendar();
-    } catch (_) {
-      // תאריך שאינו קיים בשנה הזו, כמו ל' חשוון.
-      return null;
-    }
   }
 
   /// התראות זמני היום ל-[city] בחלון המתגלגל. עצל, כדי שהקורא יוכל לפנות

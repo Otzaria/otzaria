@@ -347,6 +347,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
 
                 return AppCard(
                   padding: const EdgeInsets.all(12),
+                  onTap: () => cubit.jumpToDate(
+                    event.nextOccurrenceFrom(cubit.state.selectedGregorianDate),
+                  ),
                   child: content,
                 );
               },
