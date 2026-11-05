@@ -9,6 +9,9 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -64,9 +67,11 @@ void main() {
         final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
         final tabs = _TabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
         final history = _HistoryBloc();
+        final navigation = _NavigationBloc();
         addTearDown(() async {
           await tabs.close();
           await history.close();
+          await navigation.close();
           await settings.close();
           await notes.close();
           tab.dispose();
@@ -118,12 +123,14 @@ void main() {
                 BlocProvider<PersonalNotesBloc>.value(value: notes),
                 BlocProvider<TabsBloc>.value(value: tabs),
                 BlocProvider<HistoryBloc>.value(value: history),
+                BlocProvider<NavigationBloc>.value(value: navigation),
               ],
               child: Scaffold(body: viewer),
             ),
           ),
         );
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
 
         final viewerFinder = find.byType(
           combined ? CombinedView : SimpleTextViewer,
@@ -132,7 +139,9 @@ void main() {
             .renderObjectList<RenderParagraph>(
               find.descendant(
                 of: viewerFinder,
-                matching: find.byType(RichText),
+                matching: find.byWidgetPredicate(
+                  (widget) => widget is RichText,
+                ),
               ),
             )
             .map((paragraph) => paragraph.text.toPlainText())
@@ -326,6 +335,16 @@ class _HistoryBloc extends Bloc<HistoryEvent, HistoryState>
     on<HistoryEvent>((event, emit) => received.add(event));
   }
   final received = <HistoryEvent>[];
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _NavigationBloc extends Bloc<NavigationEvent, NavigationState>
+    implements NavigationBloc {
+  _NavigationBloc()
+    : super(const NavigationState(currentScreen: Screen.reading)) {
+    on<NavigationEvent>((event, emit) {});
+  }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
