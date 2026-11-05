@@ -305,8 +305,9 @@ void main() {
         'פירוט טעות בהערה',
       );
       await tester.pump();
-      await tester.runAsync(draft.flush);
-      final record = await tester.runAsync(
+      await reportIo(tester, draft.flush);
+      final record = await reportIo(
+        tester,
         () => ReportDraftStore.instance.read(draft.id),
       );
       expect(record!.payload['target'], draft.target);
@@ -321,7 +322,8 @@ void main() {
         dialog: find.byType(TabbedReportDialog),
         reporting: reporting!,
       );
-      final saved = await tester.runAsync(
+      final saved = await reportIo(
+        tester,
         () => ReportDraftStore.instance.read(draft.id),
       );
       expect((saved!.payload['target'] as Map)['selectedText'], selected);

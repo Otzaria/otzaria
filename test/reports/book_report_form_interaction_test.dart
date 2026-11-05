@@ -53,59 +53,66 @@ void main() {
       initialForm: initialForm,
       store: store,
     );
-    addTearDown(draft.close);
-    final changes = <Map<String, dynamic>>[];
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SettingsTextScope(
-          language: SettingsLanguage.hebrew,
-          child: Scaffold(
-            body: RegularReportTab(
-              selectedText: 'קטע.',
-              fontSize: 18,
-              directReportTargetLabel: 'אוצריא',
-              initialForm: initialForm,
-              onDraftChanged: (form) {
-                changes.add(form);
-                draft.updateForm(form);
-              },
-              onActionSelected: (_, _) {},
-              onCancel: () {},
+    try {
+      final changes = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsTextScope(
+            language: SettingsLanguage.hebrew,
+            child: Scaffold(
+              body: RegularReportTab(
+                selectedText: 'קטע.',
+                fontSize: 18,
+                directReportTargetLabel: 'אוצריא',
+                initialForm: initialForm,
+                onDraftChanged: (form) {
+                  changes.add(form);
+                  draft.updateForm(form);
+                },
+                onActionSelected: (_, _) {},
+                onCancel: () {},
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final details = find.descendant(
-      of: find.byKey(const ValueKey('report-details-field')),
-      matching: find.byType(TextField),
-    );
-    final field = tester.widget<TextField>(details);
-    field.controller!.selection = const TextSelection.collapsed(offset: -1);
-    field.focusNode!.requestFocus();
-    await tester.pump();
-    field.controller!.selection = const TextSelection.collapsed(offset: 0);
-    await tester.pump(const Duration(milliseconds: 700));
+      );
+      await tester.pumpAndSettle();
+      final details = find.descendant(
+        of: find.byKey(const ValueKey('report-details-field')),
+        matching: find.byType(TextField),
+      );
+      final field = tester.widget<TextField>(details);
+      field.controller!.selection = const TextSelection.collapsed(offset: -1);
+      field.focusNode!.requestFocus();
+      await tester.pump();
+      field.controller!.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump(const Duration(milliseconds: 700));
 
-    expect(changes, isEmpty);
-    expect(draft.hasContent, isFalse);
-    expect(store.writes, 0);
-    await draft.flush();
-    expect(store.writes, 0);
+      expect(changes, isEmpty);
+      expect(draft.hasContent, isFalse);
+      expect(store.writes, 0);
+      await draft.flush();
+      expect(store.writes, 0);
 
-    await tester.enterText(details, 'פירוט חדש');
-    await tester.pump(const Duration(milliseconds: 700));
-    expect(changes, hasLength(1));
-    expect(changes.single['proposedText'], '');
-    expect(store.writes, 1);
-    field.controller!.selection = const TextSelection.collapsed(offset: 1);
-    await tester.pump();
-    field.controller!.selection = const TextSelection.collapsed(offset: 2);
-    await tester.pump(const Duration(milliseconds: 700));
-    expect(changes, hasLength(1));
-    expect(store.writes, 1);
-  });
+      await tester.enterText(details, 'פירוט חדש');
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(changes, hasLength(1));
+      expect(changes.single['proposedText'], '');
+      expect(store.writes, 1);
+      field.controller!.selection = const TextSelection.collapsed(offset: 1);
+      await tester.pump();
+      field.controller!.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(changes, hasLength(1));
+      expect(store.writes, 1);
+    } finally {
+      // Session futures were created in this fake-clock zone. Close the Cubit
+      // while the zone still pumps microtasks, rather than in addTearDown.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await draft.close();
+      expect(draft.isClosed, isTrue);
+    }
+  }, timeout: const Timeout(Duration(minutes: 1)));
 
   for (final (source, word, direction, reverse) in const [
     ('😀 first repeat second repeat last', 'repeat', TextDirection.ltr, true),
@@ -157,7 +164,9 @@ void main() {
         find.ancestor(of: quote, matching: find.byType(AppSelectionArea)),
         findsOneWidget,
       );
-      final paragraph = tester.renderObject<RenderParagraph>(quote);
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: quote, matching: find.byType(RichText)),
+      );
       expect(paragraph.text.toPlainText(), source);
       expect(paragraph.textDirection, direction);
       final start = source.lastIndexOf(word);
@@ -224,6 +233,6 @@ void main() {
       expect(changes.last['selectionStart'], isNull);
       expect(changes.last['selectionEnd'], isNull);
       expect(paragraph.text.toPlainText(), source);
-    });
+    }, timeout: const Timeout(Duration(minutes: 1)));
   }
 }

@@ -23,6 +23,8 @@ import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
+import '../../reports/reporting_test_pump.dart' show reportIo;
+
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _FakeSettingsBloc() : super(SettingsState.initial());
@@ -99,10 +101,14 @@ void main() {
   });
 
   Future<void> settleReports(WidgetTester tester) async {
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    });
-    await tester.pumpAndSettle();
+    for (var attempt = 0; attempt < 200; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      if (!tester.binding.hasScheduledFrame) return;
+    }
+    fail('Report animations and native I/O did not settle within 10 seconds.');
   }
 
   Future<void> addReport(
@@ -153,7 +159,8 @@ void main() {
         ).toJson(),
       ),
     };
-    await tester.runAsync(
+    await reportIo(
+      tester,
       () => PendingReportStore.instance.add(kind, {...payload, ...extra}),
     );
   }
@@ -255,13 +262,15 @@ void main() {
       expect(save.hitTestable(), findsOneWidget);
       await tester.tap(save);
       await settleReports(tester);
-      final reports = await tester.runAsync(
+      final reports = await reportIo(
+        tester,
         () => DirectErrorReportService().getPendingReports(),
       );
-      expect(reports!.single.selectedText, selected.trim());
+      expect(reports.single.selectedText, selected.trim());
       expect(reports.single.contextText, 'הקשר המעודכן נשמר במדויק');
       expect(tester.takeException(), isNull);
     },
+    timeout: const Timeout(Duration(minutes: 1)),
   );
 
   for (final tab in ReportsTab.values) {
@@ -293,8 +302,8 @@ void main() {
               await tapVisible(tester, 'סמן כנשלח');
               await tapVisible(tester, 'סמן כנשלח');
           }
-          final counts = await tester.runAsync(() => ReportCounts.load());
-          expect(counts!.pendingOf(tab), 0);
+          final counts = await reportIo(tester, ReportCounts.load);
+          expect(counts.pendingOf(tab), 0);
           expect(counts.sent, action == 'mark' ? 1 : 0);
           expect(find.text('$label (1)'), findsNothing);
           expect(find.text(label), findsOneWidget);
@@ -321,9 +330,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(AppReportDialog), findsOneWidget);
     await addReport(tester, ReportsTab.app);
-    final report = (await tester.runAsync(
+    final report = (await reportIo(
+      tester,
       () => AppReportService().getPendingReports(),
-    ))!.single;
+    )).single;
     Navigator.of(tester.element(find.byType(AppReportDialog))).pop(
       AppReportDeliveryResult(
         status: AppReportDeliveryStatus.queued,
@@ -384,7 +394,8 @@ void main() {
     final entry = SystemSettingsTab.searchEntries.singleWhere(
       (entry) => entry.id == 'system.reports.sent',
     );
-    await tester.runAsync(
+    await reportIo(
+      tester,
       () => SettingsSearchRegistry.instance.scrollAndHighlight(
         entry.cardId!,
         section: entry.expandSection,

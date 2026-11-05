@@ -40,37 +40,103 @@ Future<void> waitForBookReportMetadata(
   expect(tabs, findsNWidgets(2));
   if (originalIndex != 1) {
     await tester.tap(tabs.at(1));
-    await tester.pump(const Duration(milliseconds: 350));
+    // Start the ticker before advancing its clock. The phone page must actually
+    // appear before the absence of its progress indicator proves completion.
+    await tester.pump();
   }
 
   final loading = find.descendant(
     of: dialog,
     matching: find.byType(CircularProgressIndicator),
   );
-  for (
-    var attempt = 0;
-    attempt < 200 && loading.evaluate().isNotEmpty;
-    attempt++
-  ) {
+  var metadataFinished = false;
+  for (var attempt = 0; attempt < 200; attempt++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
     await tester.pump(const Duration(milliseconds: 50));
+    if (!tabBar.controller!.indexIsChanging &&
+        loading.evaluate().isEmpty &&
+        !SqliteDataProvider.instance.debugIsInitializing) {
+      metadataFinished = true;
+      break;
+    }
   }
+  expect(
+    metadataFinished,
+    isTrue,
+    reason:
+        'The phone tab transition and its native metadata read must finish.',
+  );
+  expect(tabBar.controller!.index, 1);
+  expect(tabBar.controller!.animation!.value, closeTo(1, 0.001));
   expect(loading, findsNothing);
   expect(SqliteDataProvider.instance.debugIsInitializing, isFalse);
 
   if (originalIndex != 1) {
     await tester.tap(tabs.at(originalIndex));
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
   }
-  expect(tabBar.controller!.index, originalIndex);
-  // Metadata is complete, so settling no longer competes with native I/O.
-  await tester.pumpAndSettle(
-    const Duration(milliseconds: 50),
-    EnginePhase.sendSemanticsUpdate,
-    const Duration(seconds: 5),
+  // Restoring the tab can resume widgets waiting on native I/O. Keep yielding
+  // that I/O while enforcing the same five-second settling bound.
+  var settled = false;
+  for (var attempt = 0; attempt < 100; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    if (!tester.binding.hasScheduledFrame &&
+        !tabBar.controller!.indexIsChanging &&
+        loading.evaluate().isEmpty &&
+        !SqliteDataProvider.instance.debugIsInitializing) {
+      settled = true;
+      break;
+    }
+  }
+  expect(
+    settled,
+    isTrue,
+    reason: 'The restored report tab must settle in five seconds.',
   );
+  expect(tabBar.controller!.index, originalIndex);
+  expect(tabBar.controller!.animation!.value, closeTo(originalIndex, 0.001));
+  expect(loading, findsNothing);
+  expect(SqliteDataProvider.instance.debugIsInitializing, isFalse);
+}
+
+/// A UI callback can queue a database future in FakeAsync. Awaiting that future
+/// inside runAsync stops the fake clock it needs to finish. Observe completion
+/// with a real-zone listener while advancing both frames and native I/O.
+Future<T> reportIo<T>(
+  WidgetTester tester,
+  Future<T> Function() operation,
+) async {
+  var completed = false;
+  late T value;
+  Object? failure;
+  StackTrace? failureStack;
+  await tester.runAsync(() async {
+    Future<T>.sync(operation).then<void>(
+      (result) {
+        value = result;
+        completed = true;
+      },
+      onError: (Object error, StackTrace stack) {
+        failure = error;
+        failureStack = stack;
+        completed = true;
+      },
+    );
+  });
+  for (var attempt = 0; attempt < 200 && !completed; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(completed, isTrue, reason: 'The real report operation must finish.');
+  if (failure != null) Error.throwWithStackTrace(failure!, failureStack!);
+  return value;
 }
 
 /// A report may finish native SQLite work after the first frame following a

@@ -634,7 +634,7 @@ void main() {
       final path = await writeBackupFile(
         timestamp: '2026-01-01T00-00-00.000',
         data: {
-          'version': '3.0',
+          'version': '4.0',
           'includes': {'settings': false},
         },
       );

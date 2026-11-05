@@ -69,7 +69,13 @@ void main() {
       'provider': 'Registered super_clipboard Windows plugin',
       'commit': Platform.environment['REPORT_QA_COMMIT'],
       'reviewedHead': Platform.environment['REPORT_QA_REVIEWED_HEAD'],
-      'passed': passed,
+      // Completed assertions alone do not mean the test passed: Flutter can
+      // report a layout failure after the test body returns.
+      'completedChecks': passed,
+      'allTestsPassed': binding.failureMethodsDetails.isEmpty,
+      'failedTests': [
+        for (final failure in binding.failureMethodsDetails) failure.methodName,
+      ],
       'nativeClipboard': true,
       'nativeKeyboardInput': nativeKeyboardPaths.isNotEmpty,
       'nativeKeyboardPaths': nativeKeyboardPaths,
@@ -204,6 +210,20 @@ void main() {
             final service = AppReportService();
             AppReportBloc? reportBloc;
             try {
+              // main() normally expands the hidden 240x240 startup window.
+              // Prepare the actual desktop viewport before laying out a form.
+              await tester.pumpWidget(const SizedBox.shrink());
+              await focusNativeReportWindow(tester);
+              await pumpNativeUntil(
+                tester,
+                () {
+                  final viewport =
+                      tester.view.physicalSize / tester.view.devicePixelRatio;
+                  return viewport.width >= 900 && viewport.height >= 600;
+                },
+                reason:
+                    'Windows must deliver the resized desktop viewport before the report opens.',
+              );
               await tester.pumpWidget(
                 MaterialApp(
                   navigatorKey: navigatorKey,
@@ -293,6 +313,11 @@ void main() {
               }
               expect(editor.focusNode.hasFocus, textFocus);
               expect(await service.getPendingReports(), isEmpty);
+              expect(
+                tester.takeException(),
+                isNull,
+                reason: 'The native report form must render without errors.',
+              );
               nativeKeyboardPaths.add({
                 'shortcut': shortcut,
                 'payload': payload,

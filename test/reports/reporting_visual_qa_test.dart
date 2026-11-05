@@ -233,10 +233,18 @@ void main() {
   }
 
   Future<void> nativeWork(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
+    // Sending and saving render a spinner while native SQLite work completes.
+    // A fake-time-only settle cannot finish that I/O on a busy runner.
+    for (var attempt = 0; attempt < 200; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      if (!tester.binding.hasScheduledFrame) {
+        return;
+      }
+    }
+    fail('The reporting UI must settle after native I/O completes.');
   }
 
   Future<void> capture(WidgetTester tester, String name) async {
@@ -467,8 +475,11 @@ void main() {
             'Copy',
           );
         }
-        await capture(tester, 'book-report-low-${language.code}-quote');
         final quote = find.byKey(const ValueKey('report-location-quote'));
+        await tester.ensureVisible(quote);
+        await tester.pumpAndSettle();
+        expect(quote.hitTestable(), findsOneWidget);
+        await capture(tester, 'book-report-low-${language.code}-quote');
         final quoteText = tester.widget<Text>(quote);
         expect(
           quoteText.textDirection,
