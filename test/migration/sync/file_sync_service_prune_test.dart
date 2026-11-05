@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite;
 import 'package:otzaria/migration/models/book.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -731,4 +733,72 @@ void main() {
       expect(await repository.getCategory(ambiguousCategoryId), isNull);
     },
   );
+  group('מחיקת ספרים אינה חוסמת את ה-isolate הקורא בזמן נעילת כותב', () {
+    late String folderPath;
+    late List<CustomFolder> folders;
+    late FileSyncService service;
+
+    setUp(() async {
+      folderPath = path.join(tempDir.path, 'נעילה');
+      await Directory(folderPath).create();
+      for (final name in ['א', 'ב']) {
+        await File(path.join(folderPath, '$name.txt')).writeAsString('תוכן');
+      }
+      folders = [
+        CustomFolder(
+          path: folderPath,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 11, 5),
+        ),
+      ];
+      service = (await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      ))!;
+      final imported = await service.syncCustomFoldersWithInputs(
+        customFolders: folders,
+      );
+      expect(imported.addedBooks, 2);
+    });
+
+    /// מחזיק נעילת כתיבה 300ms; טיימר משחרר אותה רק אם ה-isolate פנוי.
+    Future<void> whileWriterHoldsLock(Future<void> Function() body) async {
+      final writer = sqlite.sqlite3.open(database.path);
+      writer.execute('BEGIN IMMEDIATE');
+      var released = false;
+      final release = Timer(const Duration(milliseconds: 300), () {
+        writer.execute('ROLLBACK');
+        released = true;
+      });
+      addTearDown(() {
+        release.cancel();
+        if (!released) writer.execute('ROLLBACK');
+        writer.close();
+      });
+      final elapsed = Stopwatch()..start();
+      await body();
+      expect(released, isTrue);
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 3)));
+    }
+
+    test('הסרת תיקייה מההגדרות', () async {
+      await whileWriterHoldsLock(
+        () => service.refreshSourcesAndPruneRemovedCustomFolders(const []),
+      );
+      expect(await repository.getAllBooksLean(), isEmpty);
+    });
+
+    test('קובץ שנמחק מהתיקייה', () async {
+      await File(path.join(folderPath, 'א.txt')).delete();
+      await whileWriterHoldsLock(() async {
+        final result = await service.syncCustomFoldersWithInputs(
+          customFolders: folders,
+        );
+        expect(result.errors, isEmpty);
+      });
+      expect((await repository.getAllBooksLean()).map((b) => b.title), [
+        'ב',
+      ]);
+    });
+  });
 }

@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show compute, debugPrint, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
+import '../database/daos/database.dart';
+import '../database/query_loader.dart';
 import '../database/repository/seforim_repository.dart';
 import '../database/database_compaction.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
@@ -107,53 +110,40 @@ class FileSyncService {
     _instance = null;
   }
 
-  /// Recursively delete a category and all its contents from the
-  /// custom-folders DB (`user_books.db`).
-  Future<void> _deleteCategoryRecursive(int categoryId) async {
+  /// אוסף את ספרי [categoryId] וצאצאיה, ואת הקטגוריות עצמן מהעמוקה אל השורש.
+  Future<void> _collectCategoryTree(
+    int categoryId,
+    List<int> bookIds,
+    List<int> categoryIds,
+  ) async {
     final repo = _customFoldersRepo;
-    // First, delete all books in this category
-    final books = await repo.getBooksByCategory(categoryId);
-    debugPrint(
-      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books',
+    bookIds.addAll(
+      (await repo.getBooksByCategory(categoryId)).map((b) => b.id),
     );
-    for (final book in books) {
-      debugPrint(
-        '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"',
-      );
-      try {
-        await repo.deleteBookCompletely(book.id);
-      } catch (e, st) {
-        _log.warning(
-          'Failed to delete book ${book.id} ("${book.title}"), continuing',
-          e,
-          st,
-        );
-      }
+    for (final subCat in await repo.getCategoryChildren(categoryId)) {
+      await _collectCategoryTree(subCat.id, bookIds, categoryIds);
     }
+    categoryIds.add(categoryId);
+  }
 
-    // Then, recursively delete subcategories
-    final subCategories = await repo.getCategoryChildren(categoryId);
-    debugPrint(
-      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories',
-    );
-    for (final subCat in subCategories) {
-      debugPrint(
-        '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"',
-      );
-      try {
-        await _deleteCategoryRecursive(subCat.id);
-      } catch (e, st) {
-        _log.warning(
-          'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
-          e,
-          st,
-        );
+  /// מוחק את [bookIds] מ-`user_books.db` ב-isolate נפרד ומחזיר את מי שנמחק.
+  /// מחיקה סינכרונית על ה-UI isolate מקפיאה את החלון כל עוד כותב אחר מחזיק נעילה.
+  Future<List<int>> _deleteBooksOffUi(List<int> bookIds) async {
+    if (bookIds.isEmpty) return const [];
+    await QueryLoader.initialize();
+    try {
+      final result = await compute(_deleteBooksInWorker, (
+        dbPath: _customFoldersRepo.database.path,
+        bookIds: bookIds,
+        queries: QueryLoader.cacheSnapshot,
+      ));
+      for (final (id, error) in result.failed) {
+        _log.warning('Failed to remove book $id, continuing: $error');
       }
+      return result.deleted;
+    } finally {
+      bookIds.forEach(_customFoldersRepo.invalidateExternalBookToc);
     }
-
-    // Finally, delete this category
-    debugPrint('[FileSyncService]   deleting category itself: id=$categoryId');
-    await repo.deleteCategory(categoryId);
   }
 
   /// Clean up empty parent categories recursively
@@ -329,16 +319,20 @@ class FileSyncService {
       return;
     }
 
+    final bookIds = <int>[];
+    final categoryIds = <int>[];
     for (final staleCategory in staleFolderCategories) {
       _log.info(
         'Removing stale custom folder from DB: ${staleCategory.title} (${staleCategory.id})',
       );
-      await _deleteCategoryRecursive(staleCategory.id);
+      await _collectCategoryTree(staleCategory.id, bookIds, categoryIds);
+    }
+    await _deleteBooksOffUi(bookIds);
+    for (final categoryId in categoryIds) {
+      await repo.deleteCategory(categoryId);
     }
 
     await _cleanupEmptyParentCategories(personalCategory.id);
-    await repo.deleteOrphanedTocTexts();
-    await repo.deleteOrphanedLineToc();
   }
 
   /// מוחק מ-`user_books.db` ספרים שקובצם הפיזי כבר לא קיים בתיקייה.
@@ -429,8 +423,7 @@ class FileSyncService {
 
     final folderSourceName = _buildCustomFolderSourceName(folderPath);
 
-    final affectedCategoryIds = <int>{};
-    var removed = 0;
+    final categoryByBookId = <int, int>{};
     for (final entry in snap.booksByCategory.entries) {
       final categoryId = entry.key;
       for (final book in entry.value) {
@@ -491,24 +484,17 @@ class FileSyncService {
         _log.info(
           'Removing book from DB: "${currentBook.title}" (id=${currentBook.id})',
         );
-        try {
-          await repo.deleteBookCompletely(currentBook.id);
-          removed++;
-          affectedCategoryIds.add(categoryId);
-        } catch (e, st) {
-          _log.warning('Failed to remove book ${book.id}, continuing', e, st);
-        }
+        categoryByBookId[currentBook.id] = categoryId;
       }
     }
 
-    if (removed > 0) {
-      for (final categoryId in affectedCategoryIds) {
-        await _cleanupEmptyParentCategories(categoryId);
-      }
-      await repo.deleteOrphanedTocTexts();
-      await repo.deleteOrphanedLineToc();
+    final removed = await _deleteBooksOffUi(categoryByBookId.keys.toList());
+    for (final categoryId in {
+      for (final id in removed) categoryByBookId[id]!,
+    }) {
+      await _cleanupEmptyParentCategories(categoryId);
     }
-    return removed;
+    return removed.length;
   }
 
   Future<void> refreshSourcesAndPruneRemovedCustomFolders(
@@ -927,6 +913,39 @@ class FileSyncService {
   void _reportProgress(double progress, String message) {
     onProgress?.call(progress, message);
     _log.fine('Progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
+  }
+}
+
+typedef _DeleteBooksBatch = ({
+  String dbPath,
+  List<int> bookIds,
+  Map<String, Map<String, String>> queries,
+});
+
+Future<({List<int> deleted, List<(int, String)> failed})> _deleteBooksInWorker(
+  _DeleteBooksBatch args,
+) async {
+  QueryLoader.seedCache(args.queries);
+  final database = MyDatabase.withPath(args.dbPath);
+  final repository = SeforimRepository(database);
+  final deleted = <int>[];
+  final failed = <(int, String)>[];
+  try {
+    for (final bookId in args.bookIds) {
+      try {
+        await repository.deleteBookCompletely(bookId);
+        deleted.add(bookId);
+      } catch (e) {
+        failed.add((bookId, e.toString()));
+      }
+    }
+    if (deleted.isNotEmpty) {
+      await repository.deleteOrphanedTocTexts();
+      await repository.deleteOrphanedLineToc();
+    }
+    return (deleted: deleted, failed: failed);
+  } finally {
+    database.close();
   }
 }
 
