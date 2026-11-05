@@ -942,7 +942,7 @@ $detailsSection
   /// - [reportContent]: Optional content override for reports that target a secondary text
   /// - [reportBook]: Optional book override for reports that target a secondary text
   /// - [reportLine]: השורה הגולמית ב-[savedSelectedIndex] כש-[reportContent] אינו
-  ///   הספר כולו (מפרש); בלעדיה אין מסלול הצעת תיקון.
+  ///   הספר כולו (מפרש, הערה); בלעדיה אין מסלול הצעת תיקון.
   static Future<void> showErrorReportDialog({
     required BuildContext context,
     required String selectedText,
