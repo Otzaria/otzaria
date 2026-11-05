@@ -121,8 +121,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         filteredMissingNotes: isSameBook ? null : const [],
         searchQuery: isSameBook ? state.searchQuery : '',
         visibleLineIndices: isSameBook ? state.visibleLineIndices : [],
-        // איפוס בקשת פתיחת הערה, כדי שלא תיפתח אוטומטית הערה באותה שורה בספר החדש
-        clearExpandRequest: true,
+        clearExpandRequest: !isSameBook,
       ),
     );
 
@@ -161,7 +160,10 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         sourceSelectedText: event.sourceSelectedText,
         sourceSelectionOffset: event.sourceSelectionOffset,
         punctuationHidden: event.punctuationHidden,
-        categoryId: state.categoryId,
+        pdfAnchor: event.pdfAnchor,
+        categoryId:
+            event.categoryId ??
+            (event.bookId == state.bookId ? state.categoryId : null),
       );
       _emitNotes(event.bookId, notes, emit, clearCreatingState: true);
     } catch (e) {
@@ -221,7 +223,10 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         bookId: event.bookId,
         noteId: event.noteId,
         lineNumber: event.lineNumber,
-        categoryId: state.categoryId,
+        pdfAnchor: event.pdfAnchor,
+        categoryId:
+            event.categoryId ??
+            (event.bookId == state.bookId ? state.categoryId : null),
       );
       _emitNotes(event.bookId, notes, emit);
     } catch (e) {
@@ -236,6 +241,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     emit(
       state.copyWith(
         expandRequestLineNumber: event.lineNumber,
+        expandRequestPdfAnchor: event.pdfAnchor,
         expandRequestToken: state.expandRequestToken + 1,
       ),
     );
@@ -248,7 +254,10 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     emit(
       state.copyWith(
         isCreatingNewNote: true,
+        newNoteRequestToken: state.newNoteRequestToken + 1,
+        clearExpandRequest: true,
         clearNewNoteSourceSelection: true,
+        clearNewNotePdfAnchor: true,
         newNoteBookId: event.bookId,
         newNoteLineNumber: event.lineNumber,
         newNoteReferenceText: event.referenceText,
@@ -257,6 +266,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         newNoteSourceSelectedText: event.sourceSelectedText,
         newNoteSourceSelectionOffset: event.sourceSelectionOffset,
         newNotePunctuationHidden: event.punctuationHidden,
+        newNotePdfAnchor: event.pdfAnchor,
         newNoteInitialContent: event.initialContent,
         newNoteInitialFormat: event.initialFormat,
       ),

@@ -55,6 +55,8 @@ import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
@@ -288,6 +290,8 @@ class PdfCommentaryPanel extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final double fontSize;
   final VoidCallback? onClose;
+  final Future<void> Function(PersonalNote)? onReanchorNote;
+  final List<int>? visiblePdfPages;
   final int? initialTabIndex;
 
   /// רוחב מרבי לרשימת המפרשים (הגדרת רוחב הטקסט); null = ללא הגבלה.
@@ -350,6 +354,8 @@ class PdfCommentaryPanel extends StatefulWidget {
     required this.openBookCallback,
     required this.fontSize,
     this.onClose,
+    this.onReanchorNote,
+    this.visiblePdfPages,
     this.initialTabIndex,
     this.onTabChanged,
     this.openFilterRequest,
@@ -1991,15 +1997,31 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
   Widget _buildNotesView() {
     final bookId = personalNotesBookKey(widget.tab.book);
+    final library = context.watch<LibraryBloc?>()?.state.library;
+    final uniquePdf = library == null
+        ? null
+        : findPdfBookForPersonalNotesKey(library, bookId);
+    final documentId = pdfPersonalNoteDocumentId(widget.tab.book);
 
     return PersonalNotesSidebar(
       key: ValueKey(bookId),
       bookId: bookId,
       categoryId: widget.tab.book.categoryId,
       isPdf: true,
+      pdfDocumentId: documentId,
+      includeUnidentifiedPdfAnchors:
+          uniquePdf != null &&
+          pdfPersonalNoteDocumentId(uniquePdf) == documentId,
       pdfOutline: widget.tab.outline,
+      visiblePdfPages: widget.visiblePdfPages ?? [widget.tab.pageNumber],
+      onReanchorNote: widget.onReanchorNote,
       visibleLineIndices: _getVisibleLineIndicesForCurrentPage(),
       onNavigateToLine: (lineNumber, {note}) {
+        final anchor = note?.pdfAnchor;
+        if (anchor != null) {
+          widget.tab.requestPersonalNoteNavigation(anchor);
+          return;
+        }
         // lineNumber הוא מספר שורה לוגי — ממירים אותו לעמוד דרך ה-heading
         // הקרוב לפניו, ונופלים לפרשנות-עמוד-ישירה בספרים ללא headings.
         if (widget.tab.pdfHeadings != null) {

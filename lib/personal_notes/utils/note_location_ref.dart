@@ -25,14 +25,18 @@ String? personalNoteLocationRef(
 
   // ב-PDF הכתובת מחושבת ממספר עמוד ואינה תואמת לעוגן; כותרת (מילות הדף) כבר
   // מציינת את המיקום, ורק בלעדיה (PDF ללא טקסט) מציגים את הכתובת.
-  if (isPdf && (note.displayTitle?.isNotEmpty ?? false)) {
+  if (isPdf &&
+      note.pdfAnchor == null &&
+      (note.displayTitle?.isNotEmpty ?? false)) {
     return null;
   }
 
   String ref;
   if (isPdf) {
     if (pdfOutline == null) return null;
-    ref = referenceFromPageNumber(lineNumber, pdfOutline).trim();
+    final page = note.pdfAnchor?.pageNumber ?? lineNumber;
+    ref = referenceFromPageNumber(page, pdfOutline).trim();
+    if (ref.isEmpty && note.pdfAnchor != null) ref = 'עמוד $page';
   } else {
     if (tableOfContents == null) return null;
     // lineNumber הוא 1-based ואילו אינדקס ה-TOC הוא 0-based.

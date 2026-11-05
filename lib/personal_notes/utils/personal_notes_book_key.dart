@@ -1,6 +1,8 @@
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
+import 'package:otzaria/data/book_identity.dart';
 
 /// מפתח הספר של הערות אישיות. ספר רשמי ממופתח לפי הכותרת, כמו בהערות שכבר
 /// נשמרו; ספר אישי מקבל `title|user` וספר ממסד מצורף `title|db:<slug>`.
@@ -95,6 +97,49 @@ TextBook? findTextBookForPersonalNotesKey(Library library, String key) {
   if (direct is TextBook) return direct;
   final document = candidates.whereType<ConvertibleDocumentBook>().firstOrNull;
   return document?.toTextBook();
+}
+
+/// מזהה מסמך בתוך מקורו. קובץ שאינו רשומת קטלוג מזוהה לפי נתיבו, כדי ששתי
+/// מהדורות באותו שם בתיקיות שונות לא יקבלו זו את הערות הנקודה של זו.
+String pdfPersonalNoteDocumentId(PdfBook book) {
+  return '${book.source.wireKey}|'
+      '${Uri.encodeComponent(BookIdentity.indexedFilePath(book))}';
+}
+
+/// מהדורת ה-PDF מאותו מקור. בלי מזהה מסמך מותר להסיק רק התאמה יחידה.
+PdfBook? findPdfBookForPersonalNotesKey(
+  Library library,
+  String key, {
+  String? documentId,
+}) {
+  final parsed = parsePersonalNotesBookKey(key);
+  final byIdentity = <String, PdfBook>{};
+  for (final book in _candidates(
+    library,
+    parsed.title,
+    parsed.source,
+  ).whereType<PdfBook>()) {
+    final identity = pdfPersonalNoteDocumentId(book);
+    if (documentId == null || documentId == identity) {
+      byIdentity.putIfAbsent(identity, () => book);
+    }
+  }
+  return byIdentity.length == 1 ? byIdentity.values.single : null;
+}
+
+bool pdfPersonalNoteAnchorMatchesBook(
+  PdfNoteAnchor anchor,
+  PdfBook book, {
+  Library? library,
+}) {
+  final identity = pdfPersonalNoteDocumentId(book);
+  if (anchor.documentId != null) return anchor.documentId == identity;
+  if (library == null) return false;
+  final unique = findPdfBookForPersonalNotesKey(
+    library,
+    personalNotesBookKey(book),
+  );
+  return unique != null && pdfPersonalNoteDocumentId(unique) == identity;
 }
 
 /// תוכן העניינים של ספר הטקסט ש-[key] מצביע עליו, או null כשאינו בספרייה.

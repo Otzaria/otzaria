@@ -13,6 +13,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
 
 /// כרטיסיית קורא PDF עם מצב המשתמש ובקר התצוגה שלה.
 class PdfBookTab extends OpenedTab {
@@ -30,6 +31,25 @@ class PdfBookTab extends OpenedTab {
   /// The pdf viewer controller.
   PdfViewerController pdfViewerController = PdfViewerController();
   final navigationHistory = PdfLocationHistory();
+
+  PdfNoteAnchor? _pendingPersonalNoteAnchor;
+  final ValueNotifier<int> _personalNoteNavigationRequests = ValueNotifier(0);
+
+  /// בקשות לעוגן פיזי, גם כשאותה נקודה נפתחת שוב בכרטיסייה קיימת.
+  ValueListenable<int> get personalNoteNavigationRequests =>
+      _personalNoteNavigationRequests;
+
+  /// נשמר בזיכרון עד שהצפיין מוכן; אינו משוחזר עם היסטוריית הכרטיסיות.
+  void requestPersonalNoteNavigation(PdfNoteAnchor anchor) {
+    _pendingPersonalNoteAnchor = anchor;
+    _personalNoteNavigationRequests.value++;
+  }
+
+  PdfNoteAnchor? takePersonalNoteNavigationRequest() {
+    final anchor = _pendingPersonalNoteAnchor;
+    _pendingPersonalNoteAnchor = null;
+    return anchor;
+  }
 
   /// האם הדפים הנראים רחבים מהתצוגה, כך שנדרשת הזזה אופקית.
   /// סטייה בתוך השוליים אינה זום; סבילות של פיקסל מונעת שגיאות עיגול.
@@ -257,6 +277,7 @@ class PdfBookTab extends OpenedTab {
   /// Cleanup when the tab is disposed
   @override
   void dispose() {
+    _personalNoteNavigationRequests.dispose();
     searchController.dispose();
     outline.dispose();
     documentRef.dispose();

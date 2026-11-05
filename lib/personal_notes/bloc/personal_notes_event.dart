@@ -19,6 +19,7 @@ class LoadPersonalNotes extends PersonalNotesEvent {
 
 class AddPersonalNote extends PersonalNotesEvent {
   final String bookId;
+  final int? categoryId;
   final int lineNumber;
   final String content;
   final String contentPlain;
@@ -30,9 +31,11 @@ class AddPersonalNote extends PersonalNotesEvent {
   final String? sourceSelectedText;
   final int? sourceSelectionOffset;
   final bool punctuationHidden;
+  final PdfNoteAnchor? pdfAnchor;
 
   const AddPersonalNote({
     required this.bookId,
+    this.categoryId,
     required this.lineNumber,
     required this.content,
     required this.contentPlain,
@@ -42,11 +45,13 @@ class AddPersonalNote extends PersonalNotesEvent {
     this.sourceSelectedText,
     this.sourceSelectionOffset,
     this.punctuationHidden = false,
+    this.pdfAnchor,
   });
 
   @override
   List<Object?> get props => [
     bookId,
+    categoryId,
     lineNumber,
     content,
     contentPlain,
@@ -56,6 +61,7 @@ class AddPersonalNote extends PersonalNotesEvent {
     sourceSelectedText,
     sourceSelectionOffset,
     punctuationHidden,
+    pdfAnchor,
   ];
 }
 
@@ -98,26 +104,37 @@ class RepositionPersonalNote extends PersonalNotesEvent {
   final String bookId;
   final String noteId;
   final int lineNumber;
+  final PdfNoteAnchor? pdfAnchor;
+  final int? categoryId;
 
   const RepositionPersonalNote({
     required this.bookId,
     required this.noteId,
     required this.lineNumber,
+    this.pdfAnchor,
+    this.categoryId,
   });
 
   @override
-  List<Object?> get props => [bookId, noteId, lineNumber];
+  List<Object?> get props => [
+    bookId,
+    noteId,
+    lineNumber,
+    pdfAnchor,
+    categoryId,
+  ];
 }
 
 /// בקשה להרחיב (לפתוח) את ההערות המשויכות לשורה [lineNumber] (1-based),
 /// גם אם ההגדרה היא "סגור כברירת מחדל". נשלח בלחיצה על סימון הערה inline.
 class RequestExpandNotesForLine extends PersonalNotesEvent {
   final int lineNumber;
+  final PdfNoteAnchor? pdfAnchor;
 
-  const RequestExpandNotesForLine(this.lineNumber);
+  const RequestExpandNotesForLine(this.lineNumber, {this.pdfAnchor});
 
   @override
-  List<Object?> get props => [lineNumber];
+  List<Object?> get props => [lineNumber, pdfAnchor];
 }
 
 class StartCreatingPersonalNote extends PersonalNotesEvent {
@@ -129,6 +146,7 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
   final String? sourceSelectedText;
   final int? sourceSelectionOffset;
   final bool punctuationHidden;
+  final PdfNoteAnchor? pdfAnchor;
   final String? initialContent;
   final PersonalNoteContentFormat? initialFormat;
 
@@ -141,6 +159,7 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
     this.sourceSelectedText,
     this.sourceSelectionOffset,
     this.punctuationHidden = false,
+    this.pdfAnchor,
     this.initialContent,
     this.initialFormat,
   });
@@ -155,6 +174,7 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
     sourceSelectedText,
     sourceSelectionOffset,
     punctuationHidden,
+    pdfAnchor,
     initialContent,
     initialFormat,
   ];

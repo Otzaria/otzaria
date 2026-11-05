@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 
 Library _library(List<Book> books) {
@@ -21,6 +22,111 @@ Library _library(List<Book> books) {
 
 void main() {
   final attachedSource = BookSource.attached('lib-a');
+
+  test('PDF עם id שאול וכותרת זהה מובחן לפי הקובץ', () {
+    final first = PdfBook(id: 1, title: 'מסמך', path: '/one/document.pdf');
+    final second = PdfBook(id: 1, title: 'מסמך', path: '/two/document.pdf');
+    final library = _library([first, second]);
+    final identity = pdfPersonalNoteDocumentId(second);
+    expect(identity, isNot(pdfPersonalNoteDocumentId(first)));
+    expect(findPdfBookForPersonalNotesKey(library, 'מסמך'), isNull);
+    expect(
+      findPdfBookForPersonalNotesKey(library, 'מסמך', documentId: identity),
+      same(second),
+    );
+    final anchor = PdfNoteAnchor(
+      pageNumber: 3,
+      x: .4,
+      y: .7,
+      documentId: identity,
+    );
+    expect(
+      pdfPersonalNoteAnchorMatchesBook(anchor, first, library: library),
+      isFalse,
+    );
+    expect(
+      pdfPersonalNoteAnchorMatchesBook(anchor, second, library: library),
+      isTrue,
+    );
+  });
+
+  test('עוגן ללא זהות נפתר רק ל-PDF יחיד, גם כשאותו ספר נמצא פעמיים בעץ', () {
+    final book = PdfBook(title: 'מסמך', path: '/one/document.pdf');
+    final library = _library([book])..offTreeBooks = [book];
+    const anchor = PdfNoteAnchor(pageNumber: 3, x: .4, y: .7);
+    expect(findPdfBookForPersonalNotesKey(library, 'מסמך'), same(book));
+    expect(
+      pdfPersonalNoteAnchorMatchesBook(anchor, book, library: library),
+      isTrue,
+    );
+    library.offTreeBooks = [PdfBook(title: 'מסמך', path: '/two/document.pdf')];
+    expect(findPdfBookForPersonalNotesKey(library, 'מסמך'), isNull);
+    expect(
+      pdfPersonalNoteAnchorMatchesBook(anchor, book, library: library),
+      isFalse,
+    );
+  });
+
+  test('זהות PDF מכבדת מקור ומזהה קטלוג חיצוני או מסד מצורף', () {
+    final official = PdfBook(title: 'מסמך', path: '/same.pdf');
+    final user = PdfBook(
+      title: 'מסמך',
+      path: '/same.pdf',
+      source: BookSource.user,
+    );
+    expect(
+      pdfPersonalNoteDocumentId(official),
+      isNot(pdfPersonalNoteDocumentId(user)),
+    );
+    final first = PdfBook(
+      id: 3,
+      title: 'מסמך',
+      path: '/old.pdf',
+      source: attachedSource,
+    );
+    final moved = PdfBook(
+      id: 3,
+      title: 'מסמך',
+      path: '/new.pdf',
+      source: attachedSource,
+    );
+    expect(pdfPersonalNoteDocumentId(first), pdfPersonalNoteDocumentId(moved));
+    final external = PdfBook(
+      title: 'מסמך',
+      path: '/old.pdf',
+      externalLibraryId: 'fixture:17',
+    );
+    final externalMoved = PdfBook(
+      title: 'מסמך',
+      path: '/new.pdf',
+      externalLibraryId: 'fixture:17',
+    );
+    expect(
+      pdfPersonalNoteDocumentId(external),
+      pdfPersonalNoteDocumentId(externalMoved),
+    );
+    expect(
+      findPdfBookForPersonalNotesKey(
+        _library([moved]),
+        personalNotesBookKey(first),
+        documentId: pdfPersonalNoteDocumentId(first),
+      ),
+      same(moved),
+    );
+  });
+
+  test('נתיב PDF שהוחלף אינו מנווט אוטומטית לקובץ אחר באותה כותרת', () {
+    final old = PdfBook(title: 'מסמך', path: '/old.pdf');
+    final replacement = PdfBook(title: 'מסמך', path: '/replacement.pdf');
+    expect(
+      findPdfBookForPersonalNotesKey(
+        _library([replacement]),
+        'מסמך',
+        documentId: pdfPersonalNoteDocumentId(old),
+      ),
+      isNull,
+    );
+  });
 
   test('title key never resolves to an attached book of the same title', () {
     final attached = TextBook(id: 1, title: 'book', source: attachedSource);

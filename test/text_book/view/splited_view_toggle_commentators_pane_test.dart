@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
@@ -28,11 +29,8 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
-/// טסט רגרסיה לטוגל חלונית המפרשים מקיצור המקלדת (issue #1161).
-///
-/// בעבר נחסם הקיצור במצב "מפרשים מתחת" (`showSplitView: false`) תחת ההנחה
-/// השגויה שהחלונית אינה רלוונטית במצב זה. בפועל, החלונית מציגה את לשונית
-/// "סינון מפרשים" (בחירת מפרשים), והקיצור מאפשר לפתוח ולסגור אותה בנוחות.
+/// טוגל חלונית המפרשים חייב לעבוד גם במצב "מפרשים מתחת",
+/// שבו אותה חלונית משמשת לסינון ולבחירת מפרשים.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -112,6 +110,42 @@ void main() {
     await tester.pumpAndSettle();
     return tab;
   }
+
+  testWidgets('לחיצה חוזרת על הערת מפרש משמרת מקור ומבקשת חשיפה', (
+    tester,
+  ) async {
+    final tab = await pumpSplitedView(tester, showSplitView: true);
+    tab.toggleCommentatorsPaneNotifier.value++;
+    await tester.pumpAndSettle();
+    final bloc =
+        tester.element(find.byType(SplitedViewScreen)).read<PersonalNotesBloc>()
+            as _TestPersonalNotesBloc;
+    final link = Link(
+      heRef: 'מפרש בדיקה א',
+      index1: 1,
+      path2: 'מפרש בדיקה',
+      index2: 7,
+      connectionType: 'commentary',
+      targetSource: BookSource.user,
+      targetCategoryId: 9,
+    );
+
+    void openNote() => tester
+        .widget<TabbedCommentaryPanel>(find.byType(TabbedCommentaryPanel))
+        .onOpenPersonalNote!(link, 7);
+
+    openNote();
+    await tester.pumpAndSettle();
+    bloc.events.clear();
+    openNote();
+    await tester.pumpAndSettle();
+
+    expect(
+      bloc.events,
+      contains(const LoadPersonalNotes('מפרש בדיקה|user', categoryId: 9)),
+    );
+    expect(bloc.events, contains(const RequestExpandNotesForLine(7)));
+  });
 
   group('קיצור מפרשים (toggleCommentatorsPaneNotifier) במצב "מפרשים מתחת"', () {
     testWidgets(
@@ -224,8 +258,10 @@ class _TestPersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
+    on<PersonalNotesEvent>((event, emit) => events.add(event));
   }
+
+  final List<PersonalNotesEvent> events = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

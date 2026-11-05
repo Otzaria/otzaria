@@ -36,6 +36,7 @@ import 'package:otzaria/pdf_book/utils/pdf_color_filter.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/pdf_book/utils/pdf_plugin_menu_entries.dart';
+import 'package:otzaria/pdf_book/utils/pdf_personal_note_anchor.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/pdf_book/utils/pdf_scroll_physics_provider.dart';
 import 'package:otzaria/pdf_book/utils/pdf_text_selection_actions.dart';
@@ -70,9 +71,11 @@ import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
-import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
+import 'package:otzaria/personal_notes/utils/create_personal_note.dart';
+import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -661,6 +664,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final GlobalKey _pdfViewportBoundaryKey = GlobalKey();
   final _searchViewKey = GlobalKey<PdfBookSearchViewState>();
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
+  final PersonalNotesRepository _personalNotesRepository =
+      PersonalNotesRepository();
+  StreamSubscription<String>? _personalNotesSubscription;
+  List<PersonalNote> _pdfPointNotes = const [];
+  int _pdfNotesLoadGeneration = 0;
+  int _pdfNoteNavigationGeneration = 0;
+  int _pdfDocumentSession = 0;
+  bool _personalNoteViewerReady = false;
+  bool _isChoosingPersonalNotePoint = false;
+  PersonalNote? _noteToReanchor;
+  PdfNoteAnchor? _focusedPersonalNoteAnchor;
+  List<int> _lastVisiblePdfNotePages = const [];
+  bool _visiblePdfNotesRefreshScheduled = false;
   late final StreamSubscription<SettingsState> _settingsSub;
   StreamSubscription<LibraryState>? _libraryReloadSub;
   late final AnimationController _pageTurnController;
@@ -1151,6 +1167,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // קיצור Ctrl+Shift+P: מעבר למהדורת הטקסט — אותה פעולה כמו כפתור הטקסט.
     _toggleTextViewListener = () => _handleTextButtonPress(context);
     widget.tab.toggleTextViewNotifier.addListener(_toggleTextViewListener);
+    widget.tab.personalNoteNavigationRequests.addListener(
+      _onPersonalNoteNavigationRequested,
+    );
+    _personalNotesSubscription = PersonalNotesChanges.stream.listen((bookId) {
+      if (bookId == personalNotesBookKey(widget.tab.book)) {
+        unawaited(_loadPdfPointNotes());
+      }
+    });
   }
 
   /// מסמן ב-host את הלשונית הנבחרת. לשונית שנבחרה אוטומטית (ספר שנפתח מחיפוש)
@@ -1472,6 +1496,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final selection = selectedText == null
         ? null
         : ReaderMenuSelection(selectedText);
+    // שומרים את נקודת הלחיצה לפני שהתפריט או עורך ההערה משנים את התצוגה.
+    final noteAnchor = _pdfNoteAnchorAtGlobalPosition(tapPosition);
 
     return buildPdfContextMenuEntries(
       commentatorChildren: commentatorChildren,
@@ -1490,7 +1516,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       onSearchAllBooks: () => _searchAllBooksFromSelection(selection),
       onCopySelection: () => unawaited(_copyPdfTextSelection()),
       onAddBookmark: () => _handleBookmarkPress(menuContext),
-      onAddNote: () => _handleAddNotePress(menuContext),
+      onAddNote: () => _handleAddNotePress(
+        menuContext,
+        anchor: noteAnchor,
+        selectedText: selectedText,
+      ),
     )..addAll(
       _pdfPluginEntries(
         menuContext,
@@ -1700,7 +1730,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       scrollByArrowKey: 25.0,
       // ברירת המחדל של pdfrx היא 0.2; 1.0 זז כמו גלגלת בספר טקסט.
       scrollByMouseWheel: 1.0,
-      textSelectionParams: PdfTextSelectionParams(enabled: !_isHandMode),
+      textSelectionParams: PdfTextSelectionParams(
+        enabled: !_isHandMode && !_isChoosingPersonalNotePoint,
+      ),
       // נעילת הציר מתבצעת ב-TrackpadPanRecognizer; PanAxis נועל גם אלכסונים.
       panAxis: PanAxis.free,
       interactionDelegateProvider: _scrollPhysicsProvider,
@@ -1735,6 +1767,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       },
       onGeneralTap: (tapContext, _, details) {
+        if (_isChoosingPersonalNotePoint &&
+            details.type == PdfViewerGeneralTapType.tap) {
+          final hit = widget.tab.pdfViewerController.getPdfPageHitTestResult(
+            details.documentPosition,
+            useDocumentLayoutCoordinates: true,
+          );
+          final anchor = pdfNoteAnchorFromHit(
+            hit,
+            documentId: pdfPersonalNoteDocumentId(widget.tab.book),
+          );
+          if (anchor == null) {
+            UiSnack.show(NotesMessages.pdfNotePointUnavailable);
+          } else {
+            unawaited(_completePersonalNotePointSelection(anchor));
+          }
+          return true;
+        }
         if (details.type == PdfViewerGeneralTapType.secondaryTap) {
           return true;
         }
@@ -1779,7 +1828,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _viewerInputOverlay,
         _buildBookViewViewportMask(size),
         _buildBookViewStackDecoration(context, size),
+        if (_isChoosingPersonalNotePoint) _buildPersonalNotePointPrompt(),
       ],
+      pageOverlaysBuilder: _buildPersonalNoteMarkers,
       loadingBannerBuilder: (context, bytesDownloaded, totalBytes) => Center(
         child: CircularProgressIndicator(
           value: totalBytes != null ? bytesDownloaded / totalBytes : null,
@@ -1798,6 +1849,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           ? [textSearcher!.pageTextMatchPaintCallback]
           : null,
       onDocumentChanged: (document) async {
+        _personalNoteViewerReady = false;
+        _pdfDocumentSession++;
+        _pdfNoteNavigationGeneration++;
+        _focusedPersonalNoteAnchor = null;
+        final wasChoosingPoint = _isChoosingPersonalNotePoint;
+        _isChoosingPersonalNotePoint = false;
+        _noteToReanchor = null;
+        _isJumping = false;
+        if (wasChoosingPoint) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() {});
+          });
+        }
         _pdfTextSelectionActions.cancel();
         if (document == null) {
           widget.tab.documentRef.value = null;
@@ -1807,7 +1871,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       },
       onViewerReady: (document, controller) async {
-        if (!mounted) return;
+        if (!mounted ||
+            !controller.isReady ||
+            !identical(controller.document, document)) {
+          return;
+        }
+        final session = ++_pdfDocumentSession;
+        bool currentSession() =>
+            mounted &&
+            session == _pdfDocumentSession &&
+            controller.isReady &&
+            identical(controller.document, document);
+        _personalNoteViewerReady = false;
         // Only grab focus if neither of the pane text-fields is focused.
         // Unconditional requestFocus() here stole focus from open search/nav fields.
         if (!_searchFieldFocusNode.hasFocus &&
@@ -1831,6 +1906,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         final documentRef = controller.documentRef;
         widget.tab.documentRef.value = documentRef;
+        unawaited(_loadPdfPointNotes());
         final totalPages = document.pages.length;
         final initialTargetPage = widget.tab.pageNumber.clamp(1, totalPages);
         widget.tab.pageNumber = initialTargetPage;
@@ -1856,7 +1932,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           ),
         );
 
-        if (!mounted) return;
+        if (!currentSession()) return;
         // נבדק לפני כל await: אחריו גלילת המשתמש נראית כנחיתה שגויה ומוחזרת.
         final currentReadyPage = resolveReadyPdfPageNumber(
           isReady: controller.isReady,
@@ -1868,25 +1944,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           _isJumping = true;
           try {
             await WidgetsBinding.instance.endOfFrame;
-            if (mounted && controller.isReady) {
+            if (currentSession()) {
               await controller.goToPage(
                 pageNumber: initialTargetPage,
                 duration: Duration.zero,
               );
+              if (!currentSession()) return;
               await Future.delayed(const Duration(milliseconds: 200));
             }
           } finally {
-            _isJumping = false;
-            _initialPageNumber = null;
+            if (currentSession()) {
+              _isJumping = false;
+              _initialPageNumber = null;
+            }
           }
         } else {
           _initialPageNumber = null;
         }
 
-        if (!mounted) return;
+        if (!currentSession()) return;
         // בחירת המפרשים נטענת תמיד (לא תלוי ב-enablePerBookSettings); את הזום
         // מחיל LoadPerBookSettings בבלוק.
         final settings = await _loadPerBookSettings();
+        if (!currentSession()) return;
         if (settings?.activeCommentators != null) {
           widget.tab.activeCommentators.clear();
           widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
@@ -1898,18 +1978,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           screenWidth: mounted ? readingLayoutWidthOf(context) : null,
         );
         if (!shouldShowLeftPane) _runInitialSearchIfNeeded();
-        if (mounted) {
+        if (currentSession()) {
           if (shouldShowLeftPane) {
             // נעוצה: חלונית לא נעוצה הייתה מכסה את הספר בהצללה כבר בפתיחה.
             widget.tab.pinLeftPane.value = true;
             _setLeftPaneVisibility(true);
           } else {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
+              if (currentSession()) {
                 _pdfViewFocusNode.requestFocus();
               }
             });
           }
+          _personalNoteViewerReady = true;
+          _onPersonalNoteNavigationRequested();
         }
       },
     );
@@ -2025,6 +2107,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             if (!hasFocus) _pdfTextSelectionActions.cancel();
           },
           onKeyEvent: (FocusNode node, KeyEvent event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape &&
+                _isChoosingPersonalNotePoint) {
+              _cancelPersonalNotePointSelection();
+              return KeyEventResult.handled;
+            }
             if (event is KeyDownEvent) _pdfTextSelectionActions.cancel();
             if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
                 ShortcutHelper.matchesShortcut(
@@ -4129,6 +4217,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   @override
   void dispose() {
+    _pdfNotesLoadGeneration++;
+    _pdfNoteNavigationGeneration++;
+    _pdfDocumentSession++;
+    _personalNotesSubscription?.cancel();
+    widget.tab.personalNoteNavigationRequests.removeListener(
+      _onPersonalNoteNavigationRequested,
+    );
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pageTurnController.stop(canceled: false);
@@ -4251,6 +4346,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
+    _refreshVisiblePersonalNotePages();
 
     // Keep adjacent-spread pre-renders warm so page-turn animations can
     // open the cached snapshot instantly without waiting on goToPage + tile
@@ -4596,7 +4692,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   return ValueListenableBuilder<bool>(
                     valueListenable: widget.tab.pinLeftPane,
                     builder: (context, isPinned, _) => NavSidePanel(
-                      isOpen: showLeftPane,
+                      isOpen:
+                          showLeftPane &&
+                          (!_isChoosingPersonalNotePoint ||
+                              _leftPaneUsesPushLayout),
                       isPinned: isPinned,
                       alignment: AlignmentDirectional.centerEnd,
                       paneWidth: leftPaneWidth,
@@ -4607,7 +4706,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       maxPaneWidth: 600,
                       autoHandleResponsiveVisibility: false,
                       onLayoutModeChanged: (usesPushLayout) {
-                        _leftPaneUsesPushLayout = usesPushLayout;
+                        if (_isChoosingPersonalNotePoint &&
+                            _leftPaneUsesPushLayout != usesPushLayout) {
+                          setState(
+                            () => _leftPaneUsesPushLayout = usesPushLayout,
+                          );
+                        } else {
+                          _leftPaneUsesPushLayout = usesPushLayout;
+                        }
                       },
                       onPaneWidthChanged: (nextWidth) {
                         _draggedLeftPaneWidth = nextWidth;
@@ -4627,7 +4733,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       },
                       paneContent: _buildLeftPaneContent(showLeftPane),
                       mainContent: AdaptiveSidePane(
-                        isOpen: showRightPane,
+                        isOpen:
+                            showRightPane &&
+                            (!_isChoosingPersonalNotePoint ||
+                                _rightPaneUsesPushLayout),
                         alignment: AlignmentDirectional.centerStart,
                         paneWidth: rightPaneWidth,
                         minMainContentWidth: 200,
@@ -4637,7 +4746,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         maxPaneWidth: 600,
                         autoHandleResponsiveVisibility: false,
                         onLayoutModeChanged: (usesPushLayout) {
-                          _rightPaneUsesPushLayout = usesPushLayout;
+                          if (_isChoosingPersonalNotePoint &&
+                              _rightPaneUsesPushLayout != usesPushLayout) {
+                            setState(
+                              () => _rightPaneUsesPushLayout = usesPushLayout,
+                            );
+                          } else {
+                            _rightPaneUsesPushLayout = usesPushLayout;
+                          }
                         },
                         onPaneWidthChanged: (nextWidth) {
                           _draggedRightPaneWidth = nextWidth;
@@ -5042,6 +5158,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // המפרשים אינם תנ"ך, ולכן החרגות התנ"ך אינן חלות עליהם.
     final policy = settingsState.textDisplayPolicy;
     return PdfCommentaryPanel(
+      onReanchorNote: _beginPersonalNoteReanchor,
+      visiblePdfPages: _visiblePersonalNotePages(),
       openFilterRequest: _openFilterRequest,
       tab: widget.tab,
       linksCount: widget.tab.links.length,
@@ -5897,37 +6015,301 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return bestMatch?.title;
   }
 
-  Future<void> _handleAddNotePress(BuildContext context) async {
-    final currentPage = widget.tab.pdfViewerController.isReady
-        ? (widget.tab.pdfViewerController.pageNumber ?? 1)
-        : 1;
-    // עיגון למספר השורה הלוגי בטקסט המקביל (כמו מפרשים/קישורים), כדי שכותרת
-    // ההערה והסינון לפי עמוד נוכחי יתאימו. בספרים ללא טקסט מקביל
-    // currentTextLineNumber שווה ממילא לעמוד הפיזי.
-    final anchorLine = widget.tab.currentTextLineNumber ?? currentPage;
+  List<int> _visiblePersonalNotePages() {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return const [];
+    final visible = visiblePdfNotePageNumbers(
+      pageLayouts: controller.layout.pageLayouts,
+      visibleRect: controller.visibleRect,
+    );
+    if (!_isBookViewModeActive()) return visible;
+    final range = _spreadPageRangeFor(
+      _pageNumberNotifier.value ?? widget.tab.pageNumber,
+    );
+    // בתצוגת ספר המסכה מסתירה כפולות אחרות, גם אם הן בתוך מלבן הצפיין.
+    return visible
+        .where(
+          (page) => page >= range.startPage && page < range.endPageExclusive,
+        )
+        .toList();
+  }
 
-    final notesBloc = context.read<PersonalNotesBloc>();
+  void _refreshVisiblePersonalNotePages() {
+    final pages = _visiblePersonalNotePages();
+    if (listEquals(pages, _lastVisiblePdfNotePages)) return;
+    _lastVisiblePdfNotePages = pages;
+    if (_visiblePdfNotesRefreshScheduled) return;
+    _visiblePdfNotesRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visiblePdfNotesRefreshScheduled = false;
+      if (mounted) _pageDataRevision.value++;
+    });
+  }
 
-    final draftService = PersonalNoteDraftService();
-    final draft = await draftService.loadDraft(
+  Future<void> _loadPdfPointNotes() async {
+    final generation = ++_pdfNotesLoadGeneration;
+    try {
+      final notes = await _personalNotesRepository.loadStoredNotes(
+        personalNotesBookKey(widget.tab.book),
+      );
+      if (!mounted || generation != _pdfNotesLoadGeneration) return;
+      setState(() {
+        _pdfPointNotes = notes
+            .where((note) => note.pdfAnchor != null && note.hasLocation)
+            .toList();
+      });
+    } catch (error) {
+      debugPrint('PDF note markers could not be refreshed: $error');
+    }
+  }
+
+  PdfNoteAnchor? _pdfNoteAnchorAtGlobalPosition(Offset position) {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return null;
+    try {
+      final local = controller.globalToLocal(position);
+      if (local == null) return null;
+      return pdfNoteAnchorFromHit(
+        controller.getPdfPageHitTestResult(
+          local,
+          useDocumentLayoutCoordinates: false,
+        ),
+        documentId: pdfPersonalNoteDocumentId(widget.tab.book),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _personalNoteMatchesDocument(PdfNoteAnchor anchor) =>
+      pdfPersonalNoteAnchorMatchesBook(
+        anchor,
+        widget.tab.book,
+        library: context.read<LibraryBloc?>()?.state.library,
+      );
+
+  Future<void> _handleAddNotePress(
+    BuildContext context, {
+    PdfNoteAnchor? anchor,
+    String? selectedText,
+  }) async {
+    if (anchor == null) {
+      setState(() {
+        _noteToReanchor = null;
+        _isChoosingPersonalNotePoint = true;
+      });
+      _pdfViewFocusNode.requestFocus();
+      return;
+    }
+    final state = _bloc.state;
+    await createPersonalNote(
+      this.context,
+      isNotesPanelOpen:
+          state is PdfBookLoaded &&
+          state.showRightPane &&
+          _currentRightPaneTabIndex == _kPersonalNotesTabIndex,
       bookId: personalNotesBookKey(widget.tab.book),
       categoryId: widget.tab.book.categoryId,
-      lineNumber: anchorLine,
+      lineNumber: anchor.pageNumber,
+      referenceText: 'עמוד ${anchor.pageNumber}',
+      selectedText: selectedText,
+      pdfAnchor: anchor,
+      openNotesPanel: _openPersonalNotesPane,
+      repository: _personalNotesRepository,
     );
+  }
 
-    if (!mounted) return;
+  Future<void> _beginPersonalNoteReanchor(PersonalNote note) async {
+    setState(() {
+      _noteToReanchor = note;
+      _isChoosingPersonalNotePoint = true;
+    });
+    _pdfViewFocusNode.requestFocus();
+  }
 
-    notesBloc.add(
-      StartCreatingPersonalNote(
-        bookId: personalNotesBookKey(widget.tab.book),
-        lineNumber: anchorLine,
-        referenceText: 'עמוד $currentPage',
-        initialContent: draft?.content ?? '',
-        initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+  void _cancelPersonalNotePointSelection() {
+    setState(() {
+      _noteToReanchor = null;
+      _isChoosingPersonalNotePoint = false;
+    });
+  }
+
+  Future<void> _completePersonalNotePointSelection(PdfNoteAnchor anchor) async {
+    final note = _noteToReanchor;
+    _cancelPersonalNotePointSelection();
+    if (note == null) {
+      await _handleAddNotePress(context, anchor: anchor);
+      return;
+    }
+    try {
+      await _personalNotesRepository.repositionNote(
+        bookId: note.bookId,
+        noteId: note.id,
+        categoryId: widget.tab.book.categoryId,
+        lineNumber: anchor.pageNumber,
+        pdfAnchor: anchor,
+      );
+      if (!mounted) return;
+      setState(() => _focusedPersonalNoteAnchor = anchor);
+      UiSnack.showSuccess(NotesMessages.noteRepositioned);
+    } catch (error) {
+      if (mounted) UiSnack.showError(NotesMessages.noteRepositionFailed(error));
+    }
+  }
+
+  Widget _buildPersonalNotePointPrompt() => PositionedDirectional(
+    top: 12,
+    start: 12,
+    end: 12,
+    child: Center(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              const Text(NotesMessages.choosePdfNotePoint),
+              ActionButton.ghost(
+                text: 'ביטול',
+                icon: FluentIcons.dismiss_24_regular,
+                onPressed: _cancelPersonalNotePointSelection,
+              ),
+            ],
+          ),
+        ),
       ),
-    );
+    ),
+  );
 
-    _openPersonalNotesPane();
+  List<Widget> _buildPersonalNoteMarkers(
+    BuildContext context,
+    Rect pageRect,
+    PdfPage page,
+  ) {
+    if (!page.isLoaded) return const [];
+    final colors = Theme.of(context).colorScheme;
+    return [
+      for (final note in _pdfPointNotes)
+        if (note.pdfAnchor!.pageNumber == page.pageNumber &&
+            _personalNoteMatchesDocument(note.pdfAnchor!))
+          Builder(
+            builder: (context) {
+              final anchor = note.pdfAnchor!;
+              final offset = pdfNoteAnchorDocumentPosition(
+                anchor,
+                page: page,
+                pageRect: Offset.zero & pageRect.size,
+              );
+              final selected = anchor == _focusedPersonalNoteAnchor;
+              void openNote() {
+                if (_isChoosingPersonalNotePoint) return;
+                setState(() => _focusedPersonalNoteAnchor = anchor);
+                _openPersonalNotesPane();
+                final bloc = context.read<PersonalNotesBloc>();
+                openPersonalNotesTarget(
+                  bloc,
+                  bookId: note.bookId,
+                  categoryId: widget.tab.book.categoryId,
+                  lineNumber: note.lineNumber!,
+                  pdfAnchor: anchor,
+                );
+              }
+
+              return Positioned(
+                key: ValueKey('pdf-note-${note.id}'),
+                left: offset.dx - 12,
+                top: offset.dy - 12,
+                width: 24,
+                height: 24,
+                child: PdfOverlayInteractionRegion(
+                  onTap: (_) {
+                    if (_isChoosingPersonalNotePoint) return false;
+                    openNote();
+                    return true;
+                  },
+                  child: Semantics(
+                    button: true,
+                    label: note.contentPlain,
+                    onTap: openNote,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? colors.primary
+                            : colors.primaryContainer,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.primary, width: 2),
+                      ),
+                      child: Icon(
+                        FluentIcons.note_24_regular,
+                        size: 16,
+                        color: selected
+                            ? colors.onPrimary
+                            : colors.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+    ];
+  }
+
+  void _onPersonalNoteNavigationRequested() {
+    final controller = widget.tab.pdfViewerController;
+    if (!mounted || !_personalNoteViewerReady || !controller.isReady) return;
+    final anchor = widget.tab.takePersonalNoteNavigationRequest();
+    if (anchor == null) return;
+    unawaited(_navigateToPersonalNoteAnchor(anchor));
+  }
+
+  Future<void> _navigateToPersonalNoteAnchor(PdfNoteAnchor anchor) async {
+    final generation = ++_pdfNoteNavigationGeneration;
+    bool active() => mounted && generation == _pdfNoteNavigationGeneration;
+    final controller = widget.tab.pdfViewerController;
+    if (!_personalNoteMatchesDocument(anchor) ||
+        anchor.pageNumber > controller.pageCount) {
+      UiSnack.showError(NotesMessages.pdfNoteLocationUnavailable);
+      return;
+    }
+    _rememberPdfLocation();
+    try {
+      final state = _bloc.state;
+      final paneWasOpen = state is PdfBookLoaded && state.showRightPane;
+      _openPersonalNotesPane();
+      openPersonalNotesTarget(
+        context.read<PersonalNotesBloc>(),
+        bookId: personalNotesBookKey(widget.tab.book),
+        categoryId: widget.tab.book.categoryId,
+        lineNumber: anchor.pageNumber,
+        pdfAnchor: anchor,
+      );
+      if (!paneWasOpen) {
+        // פתיחת הפאנל משנה את רוחב המציג; מרכזים רק לאחר סיום ההנפשה.
+        await WidgetsBinding.instance.endOfFrame;
+        if (!active()) return;
+        await Future<void>.delayed(AppTokens.animPanelSlide);
+        if (!active()) return;
+        await WidgetsBinding.instance.endOfFrame;
+        if (!active()) return;
+      }
+      await _goToPageWithSpreadLock(anchor.pageNumber, duration: Duration.zero);
+      if (!active()) return;
+      final navigated = await navigateToPdfNoteAnchor(
+        controller,
+        anchor,
+        isActive: active,
+      );
+      if (!active()) return;
+      if (navigated) {
+        setState(() => _focusedPersonalNoteAnchor = anchor);
+      } else {
+        UiSnack.showError(NotesMessages.pdfNoteLocationUnavailable);
+      }
+    } catch (_) {
+      if (active()) UiSnack.showError(NotesMessages.pdfNoteLocationUnavailable);
+    }
   }
 
   Future<void> _handlePrintPress(BuildContext context) async {

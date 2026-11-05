@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
@@ -56,13 +57,48 @@ class PersonalNotesService {
     String? sourceSelectedText,
     int? sourceSelectionOffset,
     bool punctuationHidden = false,
+    PdfNoteAnchor? pdfAnchor,
+  }) async {
+    await createNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      lineNumber: lineNumber,
+      content: content,
+      contentPlain: contentPlain,
+      contentFormat: contentFormat,
+      selectedText: selectedText,
+      selectionColumn: selectionColumn,
+      sourceSelectedText: sourceSelectedText,
+      sourceSelectionOffset: sourceSelectionOffset,
+      punctuationHidden: punctuationHidden,
+      pdfAnchor: pdfAnchor,
+    );
+    return _database.loadNotes(bookId);
+  }
+
+  /// אישור השמירה תלוי בכתיבה בלבד; כשל ברענון אינו מצדיק הוספה חוזרת.
+  Future<PersonalNote> createNote({
+    required String bookId,
+    required String bookContent,
+    required int lineNumber,
+    required String content,
+    required String contentPlain,
+    required PersonalNoteContentFormat contentFormat,
+    String? selectedText,
+    int? selectionColumn,
+    String? sourceSelectedText,
+    int? sourceSelectionOffset,
+    bool punctuationHidden = false,
+    PdfNoteAnchor? pdfAnchor,
   }) async {
     final lines = splitBookContentIntoLines(bookContent);
     // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
     // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
-    final normalizedLineNumber = lines.isEmpty
-        ? max(1, lineNumber)
-        : lineNumber.clamp(1, lines.length);
+    final normalizedLineNumber =
+        pdfAnchor?.pageNumber ??
+        (lines.isEmpty
+            ? max(1, lineNumber)
+            : lineNumber.clamp(1, lines.length));
 
     // Use selectedText if provided, otherwise extract display text from the line
     // Always remove nikud and te'amim from the display title
@@ -71,6 +107,8 @@ class PersonalNotesService {
         trimmedSelectedText != null && trimmedSelectedText.isNotEmpty;
     final displayTitle = hasSelection
         ? removeHebrewDiacritics(trimmedSelectedText)
+        : pdfAnchor != null
+        ? ''
         : extractDisplayTextFromLines(
             lines,
             normalizedLineNumber,
@@ -84,7 +122,7 @@ class PersonalNotesService {
     String? anchorSuffix;
     int? anchorStart;
     int? anchorEnd;
-    if (hasSelection) {
+    if (hasSelection && lines.isNotEmpty && pdfAnchor == null) {
       final rawLine = lines[normalizedLineNumber - 1];
       final computed = computeAnchorForSelection(
         rawLine: rawLine,
@@ -118,6 +156,7 @@ class PersonalNotesService {
       anchorSuffix: anchorSuffix,
       anchorStart: anchorStart,
       anchorEnd: anchorEnd,
+      pdfAnchor: pdfAnchor,
       lastKnownLineNumber: null,
       status: PersonalNoteStatus.located,
       content: content.trimRight(),
@@ -128,8 +167,7 @@ class PersonalNotesService {
     );
 
     await _database.insertNote(newNote);
-
-    return await _database.loadNotes(bookId);
+    return newNote;
   }
 
   Future<List<PersonalNote>> updateNote({
@@ -140,23 +178,48 @@ class PersonalNotesService {
     String? contentPlain,
     PersonalNoteContentFormat? contentFormat,
   }) async {
+    await persistNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      noteId: noteId,
+      content: content,
+      contentPlain: contentPlain,
+      contentFormat: contentFormat,
+    );
+    return loadNotes(bookId: bookId, bookContent: bookContent);
+  }
+
+  /// העריכה נשמרת לפני אישור הסגירה, בלי לחייב רענון של יתר הערות הספר.
+  Future<PersonalNote> persistNote({
+    required String bookId,
+    required String bookContent,
+    required String noteId,
+    String? content,
+    String? contentPlain,
+    PersonalNoteContentFormat? contentFormat,
+  }) async {
     final note = await _database.getNote(noteId);
     if (note == null) {
-      return await _database.loadNotes(bookId);
+      throw StateError(NotesMessages.noteNoLongerExists);
+    }
+    if (note.bookId != bookId) {
+      throw StateError(NotesMessages.noteMovedToDifferentBook);
     }
 
     final now = DateTime.now();
-    final updatedNote = note.copyWith(
-      content: content?.trimRight() ?? note.content,
-      contentPlain: contentPlain?.trimRight() ?? note.contentPlain,
-      contentFormat: contentFormat ?? note.contentFormat,
-      updatedAt: now,
+    final updatedNote = _reconcileLocation(
+      note.copyWith(
+        content: content?.trimRight() ?? note.content,
+        contentPlain: contentPlain?.trimRight() ?? note.contentPlain,
+        contentFormat: contentFormat ?? note.contentFormat,
+        updatedAt: now,
+      ),
+      splitBookContentIntoLines(bookContent),
+      bookId,
     );
 
     await _database.updateNote(updatedNote);
-
-    // Reconcile all notes after update
-    return await loadNotes(bookId: bookId, bookContent: bookContent);
+    return updatedNote;
   }
 
   Future<List<PersonalNote>> deleteNote({
@@ -172,6 +235,7 @@ class PersonalNotesService {
     required String bookContent,
     required String noteId,
     required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
   }) async {
     final note = await _database.getNote(noteId);
     if (note == null) {
@@ -181,14 +245,18 @@ class PersonalNotesService {
     final lines = splitBookContentIntoLines(bookContent);
     // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
     // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
-    final normalizedLineNumber = lines.isEmpty
-        ? max(1, lineNumber)
-        : lineNumber.clamp(1, lines.length);
-    final newDisplayTitle = extractDisplayTextFromLines(
-      lines,
-      normalizedLineNumber,
-      excludeBookTitle: _bookTitle(bookId),
-    );
+    final normalizedLineNumber =
+        pdfAnchor?.pageNumber ??
+        (lines.isEmpty
+            ? max(1, lineNumber)
+            : lineNumber.clamp(1, lines.length));
+    final newDisplayTitle = pdfAnchor != null
+        ? ''
+        : extractDisplayTextFromLines(
+            lines,
+            normalizedLineNumber,
+            excludeBookTitle: _bookTitle(bookId),
+          );
     final now = DateTime.now();
 
     final updatedNote = note.copyWith(
@@ -196,6 +264,8 @@ class PersonalNotesService {
       displayTitle: newDisplayTitle,
       // מיקום ידני מחדש הופך את ההערה להערת-שורה-שלמה (אין עוד מילים מעוגנות).
       clearAnchor: true,
+      pdfAnchor: pdfAnchor,
+      clearPdfAnchor: pdfAnchor == null,
       clearLastKnownLineNumber: true,
       status: PersonalNoteStatus.located,
       updatedAt: now,
@@ -213,7 +283,7 @@ class PersonalNotesService {
   ) {
     // ספר ללא תוכן טקסטואלי (PDF): אין שורות לעגן אליהן — ה-lineNumber הוא
     // מספר עמוד ונשאר תקף, בלי לסמן 'חסר'.
-    if (lines.isEmpty) {
+    if (lines.isEmpty || note.pdfAnchor != null) {
       return note;
     }
 

@@ -180,10 +180,6 @@ List<Link> buildCombinedViewContextMenuLinksForParagraph({
   queriedLinks: queriedLinks,
 );
 
-@visibleForTesting
-bool shouldShowPersonalNotePreview({required bool isPersonalNotesTabActive}) =>
-    !isPersonalNotesTabActive;
-
 /// מחזירה האם לשורה [index] יש מפרשים להצגה במצב "מפרשים מתחת".
 ///
 /// מתחשבת גם במפרש ההערות הוירטואלי ([kNotesCommentatorTitle]): אם הוא
@@ -642,13 +638,6 @@ class _CombinedViewState extends State<CombinedView> {
       _handleNumberedNoteMarkerHover(url, globalPosition);
       return;
     }
-    if (url.startsWith('otzaria://note') &&
-        !shouldShowPersonalNotePreview(
-          isPersonalNotesTabActive:
-              widget.isPersonalNotesTabActive?.call() ?? false,
-        )) {
-      return;
-    }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
     _cancelPendingAnchorHover();
 
@@ -713,16 +702,10 @@ class _CombinedViewState extends State<CombinedView> {
     }
 
     if (url.startsWith('otzaria://note')) {
-      final line = int.tryParse(
-        Uri.tryParse(url)?.queryParameters['line'] ?? '',
+      final notes = personalNotesForPreview(
+        url,
+        context.read<PersonalNotesBloc>().state.locatedNotes,
       );
-      if (line == null) return;
-      final notes = context
-          .read<PersonalNotesBloc>()
-          .state
-          .locatedNotes
-          .where((note) => note.lineNumber == line + 1)
-          .toList();
       if (notes.isEmpty) return;
       LinkPreviewOverlay.showContent(
         context,
@@ -1840,34 +1823,20 @@ class _CombinedViewState extends State<CombinedView> {
           )
         : null;
 
-    // טען טיוטה אם קיימת
-    final draftService = PersonalNoteDraftService();
-    final draft = await draftService.loadDraft(
+    await createPersonalNote(
+      context,
+      isNotesPanelOpen: widget.isPersonalNotesTabActive?.call() ?? false,
       bookId: personalNotesBookKey(widget.tab.book),
       categoryId: widget.tab.book.categoryId,
       lineNumber: currentIndex + 1,
+      referenceText: referenceText,
+      selectedText: selectedText?.trim(),
+      selectionColumn: source.column,
+      sourceSelectedText: sourceSelection?.text,
+      sourceSelectionOffset: sourceSelection?.offset,
+      punctuationHidden: state.removePunctuation,
+      openNotesPanel: widget.onOpenPersonalNotes,
     );
-
-    if (!mounted) return;
-
-    // שלח event לפתיחת מצב יצירה בסיידבר
-    context.read<PersonalNotesBloc>().add(
-      StartCreatingPersonalNote(
-        bookId: personalNotesBookKey(widget.tab.book),
-        lineNumber: currentIndex + 1,
-        referenceText: referenceText,
-        selectedText: selectedText?.trim(),
-        selectionColumn: source.column,
-        sourceSelectedText: sourceSelection?.text,
-        sourceSelectionOffset: sourceSelection?.offset,
-        punctuationHidden: state.removePunctuation,
-        initialContent: draft?.content ?? '',
-        initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-      ),
-    );
-
-    // פתח את חלונית ההערות
-    widget.onOpenPersonalNotes?.call();
   }
 
   /// טיפול בלחיצה על סימון הערה אישית inline: מדגיש את השורה ופותח את החלונית.

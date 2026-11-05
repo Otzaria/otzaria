@@ -95,11 +95,20 @@ Future<T> _settle<T>(WidgetTester tester, Future<T> future) async {
 
 void main() {
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
+  final originalModulePath = Pdfrx.pdfiumModulePath;
   late PrintingPlatform originalPlatform;
   late Directory tempDir;
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
     originalPlatform = PrintingPlatform.instance;
     tempDir = Directory.systemTemp.createTempSync('otzaria-print-output-');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -110,6 +119,7 @@ void main() {
   });
 
   tearDownAll(() {
+    Pdfrx.pdfiumModulePath = originalModulePath;
     PrintingPlatform.instance = originalPlatform;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, null);

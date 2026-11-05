@@ -78,6 +78,7 @@ class PersonalNotesRepository {
     String? sourceSelectedText,
     int? sourceSelectionOffset,
     bool punctuationHidden = false,
+    PdfNoteAnchor? pdfAnchor,
     int? categoryId,
   }) async {
     final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
@@ -93,6 +94,39 @@ class PersonalNotesRepository {
       sourceSelectedText: sourceSelectedText,
       sourceSelectionOffset: sourceSelectionOffset,
       punctuationHidden: punctuationHidden,
+      pdfAnchor: pdfAnchor,
+    );
+  }
+
+  /// מסיים אחרי הכתיבה; המאזינים ל-PersonalNotesChanges מרעננים בנפרד.
+  Future<PersonalNote> createNote({
+    required String bookId,
+    required int lineNumber,
+    required String content,
+    required String contentPlain,
+    required PersonalNoteContentFormat contentFormat,
+    String? selectedText,
+    int? selectionColumn,
+    String? sourceSelectedText,
+    int? sourceSelectionOffset,
+    bool punctuationHidden = false,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) async {
+    final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
+    return _service.createNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      lineNumber: lineNumber,
+      content: content,
+      contentPlain: contentPlain,
+      contentFormat: contentFormat,
+      selectedText: selectedText,
+      selectionColumn: selectionColumn,
+      sourceSelectedText: sourceSelectedText,
+      sourceSelectionOffset: sourceSelectionOffset,
+      punctuationHidden: punctuationHidden,
+      pdfAnchor: pdfAnchor,
     );
   }
 
@@ -115,6 +149,25 @@ class PersonalNotesRepository {
     );
   }
 
+  Future<PersonalNote> persistNote({
+    required String bookId,
+    required String noteId,
+    required String content,
+    required String contentPlain,
+    required PersonalNoteContentFormat contentFormat,
+    int? categoryId,
+  }) async {
+    final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
+    return _service.persistNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      noteId: noteId,
+      content: content,
+      contentPlain: contentPlain,
+      contentFormat: contentFormat,
+    );
+  }
+
   Future<List<PersonalNote>> deleteNote({
     required String bookId,
     required String noteId,
@@ -124,6 +177,7 @@ class PersonalNotesRepository {
     required String bookId,
     required String noteId,
     required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
     int? categoryId,
   }) async {
     final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
@@ -132,6 +186,7 @@ class PersonalNotesRepository {
       bookContent: bookContent,
       noteId: noteId,
       lineNumber: lineNumber,
+      pdfAnchor: pdfAnchor,
     );
   }
 

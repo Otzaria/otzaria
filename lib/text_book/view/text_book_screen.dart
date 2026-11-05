@@ -244,7 +244,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   double? _pinchStartFontSize;
 
   // Key עבור PageShapeScreen
-  final Key _pageShapeKey = UniqueKey();
+  final GlobalKey _pageShapeKey = GlobalKey();
+  final GlobalKey _splitViewKey = GlobalKey();
 
   // בדיקת הכותרות החלופיות מסתיימת אחרי הבנייה ומשנה את מספר הלשוניות; בלי
   // מפתח גלובלי לשונית החיפוש נבנית מאפס ומה שהוקלד בה עד אז אובד (issue #1263).
@@ -1076,6 +1077,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TextBookBloc>().add(const ToggleSplitView(true));
   }
 
+  bool _isPersonalNotesPanelOpen(TextBookLoaded state) {
+    final Object? paneState =
+        (state.showPageShapeView ? _pageShapeKey : _splitViewKey).currentState;
+    return paneState is PersonalNotesPanelVisibility &&
+        paneState.isPersonalNotesPanelOpen;
+  }
+
   void _openLeftPaneTab(int index, {String? searchText}) {
     context.read<TextBookBloc>().add(const ToggleLeftPane(true));
 
@@ -1374,6 +1382,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   openSearchFromToolbar: _openSearchFromToolbar,
                   openNotesForCurrentView: () =>
                       _openPersonalNotesForCurrentView(state),
+                  isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
                   selectedTextForNote: _selectedTextForSearch,
                   selectedLineForNote: _selectedLineForNote,
                   selectedColumnForNote: _selectedColumnForNote,
@@ -2789,6 +2798,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               },
               pageShapeKey: _pageShapeKey,
+              splitViewKey: _splitViewKey,
               pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
               pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
               pageShapeOpenSettingsNotifier: _pageShapeOpenSettingsNotifier,
@@ -3024,6 +3034,7 @@ bool _handleGlobalKeyEvent(
   TextBookTab tab, {
   required VoidCallback openSearchFromToolbar,
   required VoidCallback openNotesForCurrentView,
+  required bool isNotesPanelOpen,
   String? selectedTextForNote,
   int? selectedLineForNote,
   int? selectedColumnForNote,
@@ -3138,6 +3149,7 @@ bool _handleGlobalKeyEvent(
       state,
       currentLine: tab.index,
       openNotesForCurrentView: openNotesForCurrentView,
+      isNotesPanelOpen: isNotesPanelOpen,
       selectedText: selectedTextForNote,
       selectedLineIndex: selectedLineForNote,
       selectionColumn: selectedColumnForNote,
@@ -3533,6 +3545,7 @@ Future<void> _addNoteFromKeyboard(
   TextBookLoaded state, {
   required int currentLine,
   required VoidCallback openNotesForCurrentView,
+  required bool isNotesPanelOpen,
   String? selectedText,
   int? selectedLineIndex,
   int? selectionColumn,
@@ -3567,33 +3580,20 @@ Future<void> _addNoteFromKeyboard(
         )
       : null;
 
-  // טען טיוטה אם קיימת
-  final draftService = PersonalNoteDraftService();
-  final draft = await draftService.loadDraft(
+  await createPersonalNote(
+    context,
+    isNotesPanelOpen: isNotesPanelOpen,
     bookId: personalNotesBookKey(state.book),
     categoryId: state.book.categoryId,
     lineNumber: currentIndex + 1,
+    referenceText: referenceText,
+    selectedText: hasSelection ? trimmedSelection : null,
+    selectionColumn: hasSelection ? selectionColumn : null,
+    sourceSelectedText: sourceSelection?.text,
+    sourceSelectionOffset: sourceSelection?.offset,
+    punctuationHidden: state.removePunctuation,
+    openNotesPanel: openNotesForCurrentView,
   );
-
-  if (!context.mounted) return;
-
-  // שלח event לפתיחת מצב יצירה בסיידבר
-  context.read<PersonalNotesBloc>().add(
-    StartCreatingPersonalNote(
-      bookId: personalNotesBookKey(state.book),
-      lineNumber: currentIndex + 1,
-      referenceText: referenceText,
-      selectedText: hasSelection ? trimmedSelection : null,
-      selectionColumn: hasSelection ? selectionColumn : null,
-      sourceSelectedText: sourceSelection?.text,
-      sourceSelectionOffset: sourceSelection?.offset,
-      punctuationHidden: state.removePunctuation,
-      initialContent: draft?.content ?? '',
-      initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-    ),
-  );
-
-  openNotesForCurrentView();
 }
 
 // [EDITING DISABLED]

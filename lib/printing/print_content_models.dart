@@ -29,12 +29,14 @@ class PrintBlock {
   final String text;
   final int? headingLevel;
   final List<PrintFootnote> footnotes;
+  final String? sourceLink;
 
   const PrintBlock({
     required this.kind,
     required this.text,
     this.headingLevel,
     this.footnotes = const [],
+    this.sourceLink,
   });
 
   Map<String, Object?> toJson() {
@@ -43,6 +45,7 @@ class PrintBlock {
       'text': text,
       'headingLevel': headingLevel,
       'footnotes': footnotes.map((footnote) => footnote.toJson()).toList(),
+      if (sourceLink != null) 'sourceLink': sourceLink,
     };
   }
 
@@ -52,6 +55,7 @@ class PrintBlock {
       kind: PrintBlockKind.values.byName(json['kind']! as String),
       text: json['text'] as String? ?? '',
       headingLevel: json['headingLevel'] as int?,
+      sourceLink: json['sourceLink'] as String?,
       footnotes: footnotesJson
           .whereType<Map<String, Object?>>()
           .map(PrintFootnote.fromJson)

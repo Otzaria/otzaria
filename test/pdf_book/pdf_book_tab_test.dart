@@ -28,6 +28,35 @@ void main() {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
 
+  test('בקשת נקודת הערה ממתינה לצפיין ונצרכת פעם אחת, גם באותה נקודה שוב', () {
+    final tab = _tab();
+    addTearDown(tab.dispose);
+    const anchor = PdfNoteAnchor(pageNumber: 5, x: .25, y: .8);
+    var requests = 0;
+    tab.personalNoteNavigationRequests.addListener(() => requests++);
+    tab.requestPersonalNoteNavigation(anchor);
+    expect(requests, 1);
+    expect(tab.takePersonalNoteNavigationRequest(), anchor);
+    expect(tab.takePersonalNoteNavigationRequest(), isNull);
+    tab.requestPersonalNoteNavigation(anchor);
+    expect(requests, 2);
+    expect(tab.takePersonalNoteNavigationRequest(), anchor);
+  });
+
+  test('בקשת נקודת הערה אינה נשמרת בסשן או בהעתקת כרטיסייה', () {
+    final tab = _tab();
+    addTearDown(tab.dispose);
+    const anchor = PdfNoteAnchor(pageNumber: 5, x: .25, y: .8);
+    tab.requestPersonalNoteNavigation(anchor);
+    final clone = tab.clone() as PdfBookTab;
+    final restored = PdfBookTab.fromJson(tab.toJson());
+    addTearDown(clone.dispose);
+    addTearDown(restored.dispose);
+    expect(clone.takePersonalNoteNavigationRequest(), isNull);
+    expect(restored.takePersonalNoteNavigationRequest(), isNull);
+    expect(tab.takePersonalNoteNavigationRequest(), anchor);
+  });
+
   group('הכרעת הזזה אופקית לפי רוחב הדפים הנראים', () {
     late PdfBookTab tab;
     late _GeometryController controller;

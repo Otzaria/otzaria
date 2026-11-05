@@ -9,6 +9,7 @@ export 'services/personal_notes_user_book_keys.dart';
 export 'repository/personal_notes_repository.dart';
 export 'storage/personal_notes_database.dart';
 export 'utils/note_text_utils.dart';
+export 'utils/create_personal_note.dart';
 export 'utils/open_personal_notes_target.dart';
 export 'utils/personal_notes_book_key.dart';
 export 'view/personal_notes_screen.dart';

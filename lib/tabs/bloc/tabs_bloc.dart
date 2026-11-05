@@ -870,6 +870,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       // עדכון pageNumber בטאב כך שיישמר ל-restore עתידי וכך שאם המסך עוד
       // לא הצטרף ל-controller, הטעינה הבאה תיפתח בעמוד הנכון.
       targetPdf.pageNumber = targetPage;
+      final noteAnchor = incomingTab.takePersonalNoteNavigationRequest();
+      if (noteAnchor != null) {
+        targetPdf.requestPersonalNoteNavigation(noteAnchor);
+        return;
+      }
       if (targetPdf.pdfViewerController.isReady) {
         targetPdf.pdfViewerController.goToPage(pageNumber: targetPage);
       }
