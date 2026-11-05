@@ -18,18 +18,14 @@ class AddWorkspace extends WorkspaceEvent {
   final List<OpenedTab> tabs;
   final int currentTabIndex;
 
-  /// צד החלונית הפעילה בטאב שב-[currentTabIndex] — ראו [Workspace.activePane].
-  final String? activePane;
-
   const AddWorkspace({
     required this.name,
     required this.tabs,
     required this.currentTabIndex,
-    this.activePane,
   });
 
   @override
-  List<Object?> get props => [name, tabs, currentTabIndex, activePane];
+  List<Object?> get props => [name, tabs, currentTabIndex];
 }
 
 /// Event to remove a workspace by its ID.

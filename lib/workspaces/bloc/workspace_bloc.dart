@@ -154,7 +154,6 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         name: event.name,
         tabs: _cloneTabs(event.tabs),
         activeTabIndex: event.currentTabIndex,
-        activePane: event.activePane,
       );
 
       final saved = await _repository.mutateWorkspaces(

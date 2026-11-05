@@ -93,7 +93,6 @@ class BookPart {
   final int startPage;
   final int endPage;
   final List<int> excludedPages;
-  final bool hasHalfPageAtEnd;
   final List<BookPart> children;
   final int level;
   final String? sectionId;
@@ -103,7 +102,6 @@ class BookPart {
     required this.startPage,
     required this.endPage,
     this.excludedPages = const [],
-    this.hasHalfPageAtEnd = false,
     this.children = const [],
     this.level = 1,
     this.sectionId,
@@ -180,17 +178,14 @@ class BookDetails {
               absoluteIndex: currentIndex++,
             ),
           );
-
-          if (!(part.hasHalfPageAtEnd && i == part.endPage)) {
-            items.add(
-              LearnableItem(
-                partName: part.name,
-                pageNumber: i,
-                amudKey: 'b',
-                absoluteIndex: currentIndex++,
-              ),
-            );
-          }
+          items.add(
+            LearnableItem(
+              partName: part.name,
+              pageNumber: i,
+              amudKey: 'b',
+              absoluteIndex: currentIndex++,
+            ),
+          );
         } else {
           items.add(
             LearnableItem(
