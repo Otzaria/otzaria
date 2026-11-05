@@ -149,6 +149,35 @@ Future<String?> _readLineRef(
 
 const _lineRefMethods = {'breadcrumb', 'heRef'};
 
+const _bookLookupMethods = {
+  'bookById',
+  'bookByTitle',
+  'bookByTitleAndCategory',
+  'bookByTitleCategoryAndFileType',
+};
+
+Future<db_models.Book?> _readBookLookup(
+  MyDatabase database,
+  String method,
+  Map<String, Object?> args,
+) {
+  final books = database.bookDao;
+  return switch (method) {
+    'bookById' => books.getBookById(args['bookId'] as int),
+    'bookByTitle' => books.getBookByTitle(args['title'] as String),
+    'bookByTitleAndCategory' => books.getBookByTitleAndCategory(
+      args['title'] as String,
+      args['categoryId'] as int,
+    ),
+    'bookByTitleCategoryAndFileType' => books.getBookByTitleCategoryAndFileType(
+      args['title'] as String,
+      args['categoryId'] as int,
+      args['fileType'] as String,
+    ),
+    _ => throw StateError('Unknown book lookup: $method'),
+  };
+}
+
 Future<List<Map<String, dynamic>>> _readSiblingCommentaryRows(
   SeforimRepository repository,
   Map<String, Object?> args,
@@ -192,6 +221,12 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
         }
         if (_bookLineMethods.contains(method)) {
           results.add({'result': await _readBookLines(repo, method, args)});
+          continue;
+        }
+        if (_bookLookupMethods.contains(method)) {
+          results.add({
+            'result': await _readBookLookup(repo.database, method, args),
+          });
           continue;
         }
         if (method == 'commentatorsByBook') {
@@ -1055,6 +1090,12 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'lineContents' || 'lines':
         final repo = await ensureRepo(args['dbPath'] as String);
         return _readBookLines(repo, method, args);
+      case 'bookById' ||
+          'bookByTitle' ||
+          'bookByTitleAndCategory' ||
+          'bookByTitleCategoryAndFileType':
+        final repo = await ensureRepo(args['dbPath'] as String);
+        return _readBookLookup(repo.database, method, args);
       case 'commentatorsByBook':
         final repo = await ensureRepo(args['dbPath'] as String);
         return repo.database.linkDao.selectCommentatorsByBook(

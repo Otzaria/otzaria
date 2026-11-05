@@ -1183,6 +1183,14 @@ void main() {
       AppPaths.debugOverrideDataRootPath(null);
     });
 
+    Future<void> shadowMainBookTable() async {
+      final mainDb =
+          await SqliteDataProvider.instance.repository!.database.database;
+      mainDb.execute('PRAGMA query_only=OFF');
+      mainDb.execute('CREATE TEMP TABLE book AS SELECT * FROM main.book');
+      mainDb.execute('DELETE FROM temp.book');
+    }
+
     Link link(String title, int index2, {int? index2End}) => Link(
       heRef: title,
       index1: 1,
@@ -1254,6 +1262,7 @@ void main() {
 
     test('רשימת המפרשים בפתיחת ספר נשלפת ב-worker', () async {
       addCommentaryLink(dbPath);
+      await shadowMainBookTable();
       final repository = TextBookRepository(
         fileSystem: FileSystemData.instance,
       );
@@ -1263,7 +1272,11 @@ void main() {
       );
       expect([for (final c in detailed.commentators) c.title], ['מפרש']);
       expect(detailed.commentators.single.linkCount, 1);
-      expect(DbReadWorker.sentMessageCount - before, 1);
+      expect(
+        DbReadWorker.sentMessageCount - before,
+        2,
+        reason: 'גם איתור הספר וגם שליפת המפרשים רצים ב-worker',
+      );
     });
 
     test('רשימת המפרשים לא רצה על ה-UI isolate כשה-worker אינו זמין', () async {
@@ -1310,6 +1323,7 @@ void main() {
 
     test('המפרשים הנוספים על שורה נשלפים ב-worker', () async {
       addCommentaryLink(dbPath);
+      await shadowMainBookTable();
       final repository = TextBookRepository(
         fileSystem: FileSystemData.instance,
       );
@@ -1323,7 +1337,11 @@ void main() {
       );
       expect([for (final link in links) link.path2], ['מפרש']);
       expect(links.single.index2, 2);
-      expect(DbReadWorker.sentMessageCount - before, 1);
+      expect(
+        DbReadWorker.sentMessageCount - before,
+        4,
+        reason: 'איתור המקור, שני נסיונות לאיתור הספר החסר ושאילתת הקישורים',
+      );
     });
 
     test(
