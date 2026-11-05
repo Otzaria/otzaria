@@ -733,6 +733,7 @@ void main() {
       expect(await repository.getCategory(ambiguousCategoryId), isNull);
     },
   );
+
   group('מחיקת ספרים אינה חוסמת את ה-isolate הקורא בזמן נעילת כותב', () {
     late String folderPath;
     late List<CustomFolder> folders;
@@ -761,8 +762,20 @@ void main() {
       expect(imported.addedBooks, 2);
     });
 
+    Future<int> uiConnectionWrites() async =>
+        (await database.database)
+                .select('SELECT total_changes() AS n')
+                .first['n']
+            as int;
+
+    Future<int> personalRootId() async => (await repository.getRootCategories())
+        .singleWhere((c) => c.title == 'ספרים אישיים')
+        .id;
+
     /// מחזיק נעילת כתיבה 300ms; טיימר משחרר אותה רק אם ה-isolate פנוי.
+    /// כל כתיבה של [body] חייבת לעבור בחיבור אחר מזה של ה-UI.
     Future<void> whileWriterHoldsLock(Future<void> Function() body) async {
+      final writesBefore = await uiConnectionWrites();
       final writer = sqlite.sqlite3.open(database.path);
       writer.execute('BEGIN IMMEDIATE');
       var released = false;
@@ -779,6 +792,7 @@ void main() {
       await body();
       expect(released, isTrue);
       expect(elapsed.elapsed, lessThan(const Duration(seconds: 3)));
+      expect(await uiConnectionWrites(), writesBefore);
     }
 
     test('הסרת תיקייה מההגדרות', () async {
@@ -786,6 +800,34 @@ void main() {
         () => service.refreshSourcesAndPruneRemovedCustomFolders(const []),
       );
       expect(await repository.getAllBooksLean(), isEmpty);
+      expect(await repository.getRootCategories(), isEmpty);
+    });
+
+    test('קטגוריה ריקה של תיקייה שהוסרה', () async {
+      final rootId = await personalRootId();
+      final staleId = await repository.insertCategory(
+        Category(title: 'ריקה', parentId: rootId, level: 1),
+      );
+      final staleChildId = await repository.insertCategory(
+        Category(title: 'בת', parentId: staleId, level: 2),
+      );
+
+      await whileWriterHoldsLock(
+        () => service.pruneRemovedCustomFoldersFromDatabase(folders),
+      );
+
+      expect(await repository.getCategory(staleChildId), isNull);
+      expect(await repository.getCategory(staleId), isNull);
+      expect(await repository.getCategory(rootId), isNotNull);
+      expect(await repository.getAllBooksLean(), hasLength(2));
+    });
+
+    test('הסרת תיקייה מהאפליקציה מוחקת את הקטגוריות שהתרוקנו', () async {
+      await whileWriterHoldsLock(
+        () => service.deleteFolderFromDatabase(folderPath),
+      );
+      expect(await repository.getAllBooksLean(), isEmpty);
+      expect(await repository.getRootCategories(), isEmpty);
     });
 
     test('קובץ שנמחק מהתיקייה', () async {

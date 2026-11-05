@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart'
-    show compute, debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
-import '../database/daos/database.dart';
-import '../database/query_loader.dart';
+import '../database/repository/off_ui_deletion.dart';
 import '../database/repository/seforim_repository.dart';
 import '../database/database_compaction.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
@@ -126,51 +124,26 @@ class FileSyncService {
     categoryIds.add(categoryId);
   }
 
-  /// מוחק את [bookIds] מ-`user_books.db` ב-isolate נפרד ומחזיר את מי שנמחק.
-  /// מחיקה סינכרונית על ה-UI isolate מקפיאה את החלון כל עוד כותב אחר מחזיק נעילה.
-  Future<List<int>> _deleteBooksOffUi(List<int> bookIds) async {
-    if (bookIds.isEmpty) return const [];
-    await QueryLoader.initialize();
-    try {
-      final result = await compute(_deleteBooksInWorker, (
-        dbPath: _customFoldersRepo.database.path,
-        bookIds: bookIds,
-        queries: QueryLoader.cacheSnapshot,
-      ));
-      for (final (id, error) in result.failed) {
-        _log.warning('Failed to remove book $id, continuing: $error');
-      }
-      return result.deleted;
-    } finally {
-      bookIds.forEach(_customFoldersRepo.invalidateExternalBookToc);
+  /// מוחק מ-`user_books.db` מחוץ ל-UI isolate (ראה [deleteOffUi]) ומחזיר את
+  /// הספרים שנמחקו.
+  Future<List<int>> _deleteOffUi({
+    List<int> bookIds = const [],
+    List<int> categoryIds = const [],
+    Iterable<int> emptyCategoryRoots = const [],
+  }) async {
+    final result = await deleteOffUi(
+      _customFoldersRepo,
+      bookIds: bookIds,
+      categoryIds: categoryIds,
+      emptyCategoryRoots: emptyCategoryRoots,
+    );
+    for (final (id, error) in result.failedBooks) {
+      _log.warning('Failed to remove book $id, continuing: $error');
     }
-  }
-
-  /// Clean up empty parent categories recursively
-  /// Starts from a category and checks if it's empty, if so deletes it
-  /// and continues up the hierarchy.
-  /// פועל על ה-DB של תיקיות מותאמות אישית.
-  Future<void> _cleanupEmptyParentCategories(int categoryId) async {
-    final repo = _customFoldersRepo;
-    // Get the category to check its parent
-    final category = await repo.getCategory(categoryId);
-    if (category == null) return;
-
-    // Check if this category has any children (books or subcategories)
-    final books = await repo.getBooksByCategory(categoryId);
-    final subCategories = await repo.getCategoryChildren(categoryId);
-
-    // If category is empty, delete it and check parent
-    if (books.isEmpty && subCategories.isEmpty) {
-      final parentId = category.parentId;
-      await repo.deleteCategory(categoryId);
-      _log.info('Deleted empty category: ${category.title}');
-
-      // If there's a parent, check if it's now empty too
-      if (parentId != null) {
-        await _cleanupEmptyParentCategories(parentId);
-      }
+    for (final title in result.deletedEmptyCategories) {
+      _log.info('Deleted empty category: $title');
     }
+    return result.deletedBooks;
   }
 
   /// Delete a folder from the database.
@@ -327,12 +300,11 @@ class FileSyncService {
       );
       await _collectCategoryTree(staleCategory.id, bookIds, categoryIds);
     }
-    await _deleteBooksOffUi(bookIds);
-    for (final categoryId in categoryIds) {
-      await repo.deleteCategory(categoryId);
-    }
-
-    await _cleanupEmptyParentCategories(personalCategory.id);
+    await _deleteOffUi(
+      bookIds: bookIds,
+      categoryIds: categoryIds,
+      emptyCategoryRoots: [personalCategory.id],
+    );
   }
 
   /// מוחק מ-`user_books.db` ספרים שקובצם הפיזי כבר לא קיים בתיקייה.
@@ -488,12 +460,11 @@ class FileSyncService {
       }
     }
 
-    final removed = await _deleteBooksOffUi(categoryByBookId.keys.toList());
-    for (final categoryId in {
-      for (final id in removed) categoryByBookId[id]!,
-    }) {
-      await _cleanupEmptyParentCategories(categoryId);
-    }
+    // קטגוריה שספרה נכשל במחיקה אינה ריקה, ולכן לא תימחק.
+    final removed = await _deleteOffUi(
+      bookIds: categoryByBookId.keys.toList(),
+      emptyCategoryRoots: categoryByBookId.values,
+    );
     return removed.length;
   }
 
@@ -913,39 +884,6 @@ class FileSyncService {
   void _reportProgress(double progress, String message) {
     onProgress?.call(progress, message);
     _log.fine('Progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
-  }
-}
-
-typedef _DeleteBooksBatch = ({
-  String dbPath,
-  List<int> bookIds,
-  Map<String, Map<String, String>> queries,
-});
-
-Future<({List<int> deleted, List<(int, String)> failed})> _deleteBooksInWorker(
-  _DeleteBooksBatch args,
-) async {
-  QueryLoader.seedCache(args.queries);
-  final database = MyDatabase.withPath(args.dbPath);
-  final repository = SeforimRepository(database);
-  final deleted = <int>[];
-  final failed = <(int, String)>[];
-  try {
-    for (final bookId in args.bookIds) {
-      try {
-        await repository.deleteBookCompletely(bookId);
-        deleted.add(bookId);
-      } catch (e) {
-        failed.add((bookId, e.toString()));
-      }
-    }
-    if (deleted.isNotEmpty) {
-      await repository.deleteOrphanedTocTexts();
-      await repository.deleteOrphanedLineToc();
-    }
-    return (deleted: deleted, failed: failed);
-  } finally {
-    database.close();
   }
 }
 

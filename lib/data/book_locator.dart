@@ -4,6 +4,7 @@ import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/migration/database/repository/off_ui_deletion.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_book;
 import 'package:otzaria/models/book_source.dart';
@@ -347,7 +348,15 @@ class BookLocator {
     }
 
     try {
-      await repository.deleteBookCompletely(location.book!.id);
+      final result = await deleteOffUi(
+        repository,
+        bookIds: [location.book!.id],
+        cleanupOrphans: false,
+      );
+      if (result.failedBooks.isNotEmpty) {
+        debugPrint('❌ Error deleting from database: ${result.failedBooks}');
+        return false;
+      }
       debugPrint('✅ Book deleted from database: ${location.book!.title}');
       return true;
     } catch (e) {
