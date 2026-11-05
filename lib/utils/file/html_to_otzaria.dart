@@ -100,7 +100,7 @@ String htmlToText(
   final dom.Document document;
   try {
     document = html_parser.parse(
-      _stripSelfClosingRawTextTags(_decodeHtmlBytes(bytes)),
+      stripSelfClosingRawTextTags(_decodeHtmlBytes(bytes)),
     );
   } catch (e) {
     throw CorruptedDocumentException(format: format, cause: e);
@@ -201,14 +201,14 @@ TextEncoding? _declaredCharset(Uint8List bytes) {
   return _charsetAliases[match.group(1)!.toLowerCase()];
 }
 
-/// תג raw-text סוגר-עצמו (`<script/>`, `<title/>`) — חוקי ב-XHTML, אך בפרסינג
-/// HTML התג נחשב פתוח וכל שאר המסמך נבלע כטקסט גולמי. תג כזה ריק ממילא.
 final RegExp _selfClosingRawTextTag = RegExp(
   r'<(?:script|style|title|textarea)\b[^<>]*/>',
   caseSensitive: false,
 );
 
-String _stripSelfClosingRawTextTags(String html) =>
+/// מסיר תג raw-text סוגר-עצמו (`<script/>`, `<title/>`), חוקי ב-XHTML: בפרסינג
+/// HTML הוא נחשב פתוח וכל שאר המסמך נבלע כטקסט גולמי. תג כזה ריק ממילא.
+String stripSelfClosingRawTextTags(String html) =>
     html.replaceAll(_selfClosingRawTextTag, '');
 
 // ── מצב ההמרה ─────────────────────────────────────────────────────────────
@@ -1500,7 +1500,7 @@ bool _emitFootnote(
   required int depth,
 }) {
   if (tag != 'sup' || !e.classes.contains(_footnoteMarkerClass)) return false;
-  final marker = _collapseWhitespace(e.text).trim();
+  final marker = collapseHtmlWhitespace(e.text).trim();
   if (marker.isEmpty) return false;
 
   // גוף ההערה הוא ה-`<i class="footnote">` שצמוד למסמן. הצמידות היא מה
@@ -1557,7 +1557,7 @@ dom.Element? _nextElementSibling(dom.Element e, _HtmlContext ctx) {
 
 String _renderText(String data, _HtmlContext ctx) {
   if (!ctx.preserveWhitespace) {
-    return escapeHtmlText(_collapseWhitespace(data));
+    return escapeHtmlText(collapseHtmlWhitespace(data));
   }
   // בתוך `<pre>` שורה חדשה היא תוכן — אבל שורת ספר אחת אינה יכולה להכיל
   // `\n`, ולכן היא הופכת ל-`<br>`.
@@ -1855,5 +1855,6 @@ final RegExp _whitespaceRun = RegExp(r'[ \t\r\n\f]+');
 /// רק כשיש באמת מה לכווץ — רווח בודד רגיל אינו מצדיק אלוקציה.
 final RegExp _collapsibleWhitespace = RegExp(r'[\t\r\n\f]| {2,}');
 
-String _collapseWhitespace(String s) =>
+/// רצף רווחי HTML לרווח אחד, כמו בדפדפן; NBSP אינו רווח HTML ונשמר.
+String collapseHtmlWhitespace(String s) =>
     s.contains(_collapsibleWhitespace) ? s.replaceAll(_whitespaceRun, ' ') : s;

@@ -9,6 +9,8 @@ import 'package:xml/xml.dart' as xml;
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/embedded_media.dart';
+import 'package:otzaria/utils/file/html_to_otzaria.dart'
+    show collapseHtmlWhitespace, stripSelfClosingRawTextTags;
 import 'package:otzaria/utils/file/zip_limits.dart';
 import 'package:otzaria/utils/text/html_escape.dart';
 import 'package:otzaria/utils/text/otzaria_markup.dart';
@@ -20,17 +22,6 @@ import 'package:otzaria/utils/file/toc_parser.dart' show kTocExcludeAttr;
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
 /// v15: חבילה שאינה קריאה זורקת חריגה מוקלדת במקום להחזיר כותרת בלבד.
 const int kEpubConverterVersion = 16;
-
-/// תג raw-text סוגר-עצמו (`<script/>`, `<title/>` וכד') — חוקי ב-XHTML אך
-/// בפרסינג HTML התג נחשב פתוח וכל שאר המסמך נבלע כטקסט גולמי. מסירים לפני
-/// הפרסינג (תג כזה ריק ממילא, אין אובדן תוכן).
-final RegExp _selfClosingRawTextTag = RegExp(
-  r'<(?:script|style|title|textarea)\b[^<>]*/>',
-  caseSensitive: false,
-);
-
-String _stripSelfClosingRawTextTags(String html) =>
-    html.replaceAll(_selfClosingRawTextTag, '');
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -126,7 +117,7 @@ String epubToText(
     final dom.Document doc;
     try {
       doc = html_parser.parse(
-        _stripSelfClosingRawTextTags(_decodeBytes(chapterBytes)),
+        stripSelfClosingRawTextTags(_decodeBytes(chapterBytes)),
       );
     } catch (_) {
       continue; // פרק פגום — ממשיכים לפרק הבא במקום לקרוס.
@@ -250,7 +241,7 @@ List<_TocRef> _parseTocEntries(
     final dom.Document doc;
     try {
       doc = html_parser.parse(
-        _stripSelfClosingRawTextTags(_decodeBytes(bytes)),
+        stripSelfClosingRawTextTags(_decodeBytes(bytes)),
       );
     } catch (_) {
       break;
@@ -278,7 +269,7 @@ List<_TocRef> _parseTocEntries(
           addEntry(
             navBase,
             link.attributes['href'] ?? '',
-            _collapseWhitespace(link.text).trim(),
+            collapseHtmlWhitespace(link.text).trim(),
             depth,
           );
         }
@@ -318,7 +309,7 @@ List<_TocRef> _parseTocEntries(
           addEntry(
             ncxBase,
             src,
-            _collapseWhitespace(text.innerText).trim(),
+            collapseHtmlWhitespace(text.innerText).trim(),
             depth,
           );
         }
@@ -659,7 +650,7 @@ final _noteMarkerRegExp = RegExp(
 );
 
 bool _isNoteMarkerText(String raw) {
-  final t = _collapseWhitespace(raw).trim();
+  final t = collapseHtmlWhitespace(raw).trim();
   if (t.isEmpty || t.length > 6) return false;
   return _noteMarkerRegExp.hasMatch(t);
 }
@@ -715,11 +706,11 @@ _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
     }
     if (block == null) return null;
     if (!isExplicit) {
-      final core = _collapseWhitespace(a.text).trim().replaceAll(
+      final core = collapseHtmlWhitespace(a.text).trim().replaceAll(
         _markerTrimRegExp,
         '',
       );
-      final lead = _collapseWhitespace(block.text).trimLeft();
+      final lead = collapseHtmlWhitespace(block.text).trimLeft();
       if (core.isEmpty || !lead.startsWith(core)) return null;
     }
     target = block;
@@ -749,14 +740,14 @@ String _extractNoteBody(dom.Element target, String marker) {
     final tag = node.localName ?? '';
     if (tag == 'script' || tag == 'style') return;
     if (tag == 'a') {
-      final t = _collapseWhitespace(node.text).trim();
+      final t = collapseHtmlWhitespace(node.text).trim();
       if (_isNoteMarkerText(t) || _backlinkSymbolRegExp.hasMatch(t)) return;
     }
     node.nodes.forEach(walk);
   }
 
   walk(target);
-  var text = _collapseWhitespace(buf.toString()).trim();
+  var text = collapseHtmlWhitespace(buf.toString()).trim();
 
   final core = marker.replaceAll(_markerTrimRegExp, '');
   if (core.isNotEmpty) {
@@ -767,14 +758,6 @@ String _extractNoteBody(dom.Element target, String marker) {
   }
   return text;
 }
-
-final _whitespaceRun = RegExp(r'[ \t\r\n\f]+');
-
-/// רק כשיש באמת מה לכווץ — רווח בודד רגיל אינו מצדיק אלוקציה.
-final _collapsibleWhitespace = RegExp(r'[\t\r\n\f]| {2,}');
-
-String _collapseWhitespace(String s) =>
-    s.contains(_collapsibleWhitespace) ? s.replaceAll(_whitespaceRun, ' ') : s;
 
 const _blockTags = {
   'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'section', 'article',
@@ -1084,7 +1067,7 @@ const _inlineKeepTags = {
 
 void _renderInlineNode(dom.Node node, _EpubContext ctx, StringBuffer buf) {
   if (node is dom.Text) {
-    buf.write(escapeHtmlText(_collapseWhitespace(node.data)));
+    buf.write(escapeHtmlText(collapseHtmlWhitespace(node.data)));
     return;
   }
   if (node is! dom.Element) return;
@@ -1129,7 +1112,7 @@ bool _renderNoteref(dom.Element a, _EpubContext ctx, StringBuffer buf) {
   final res = _resolveNoteref(a, ctx);
   if (res == null) return false;
 
-  final markerText = _collapseWhitespace(a.text).trim();
+  final markerText = collapseHtmlWhitespace(a.text).trim();
   final marker = markerText.isNotEmpty
       ? escapeHtmlText(markerText)
       : '${ctx.footnoteCounter++}';
