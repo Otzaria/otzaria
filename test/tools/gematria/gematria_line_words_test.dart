@@ -59,6 +59,11 @@ void main() {
         '&;',
         'abc\u00a0def',
         '\u0085\u05d0 \u05d1\u0085',
+        '|א||ב|',
+        'א\u0085ב ~ג',
+        'א\u007fב \u058fג \u0600ד',
+        'א\u200bב 😀ג',
+        'מ׳ ב״ק׃ [א] (ב)',
       ];
       for (final line in cases) {
         expect(
@@ -71,7 +76,8 @@ void main() {
 
     test('זהה למימוש הקודם על 20,000 שורות אקראיות', () {
       final pieces = [
-        ...'אבשךְּ֑֣ ־׀|<>&;#xa1\t\n\u00a0\u2009'.split(''),
+        ...'אבשךְּ֑֣ ־׀|<>&;#xa1\t\n\u00a0\u2009\u0085~\u007f\u058f\u0600\u05f3'
+            .split(''),
         ...'  |5D0|nbsp|lt|amp|<b>|</b>|<span class="c">|&nbsp;|&lt;|&gt;'
             .split('|'),
         ...'&amp;|&quot;|&#39;|&#1488;|&#x5D0;|&foo;'.split('|'),

@@ -401,9 +401,10 @@ class GimatriaSearch {
     // מספר הפסוק מהסוגריים בתחילת השורה; הוא והסוגריים המסולסלים מוסרים.
     final verseNumber =
         _leadingVerseCaptureRe.firstMatch(content)?.group(1) ?? '';
-    final cleanLine = content
-        .replaceFirst(_leadingVersePrefixRe, '')
-        .replaceAll(_curlyBracesRe, '');
+    var cleanLine = content.replaceFirst(_leadingVersePrefixRe, '');
+    if (cleanLine.contains('{')) {
+      cleanLine = cleanLine.replaceAll(_curlyBracesRe, '');
+    }
 
     final words = lineWords(cleanLine);
     if (words.isEmpty) return false;
@@ -649,8 +650,26 @@ class GimatriaSearch {
   static List<String> lineWords(String line) =>
       _splitWords(_stripHtml(line).trim());
 
-  static List<String> _splitWords(String line) =>
-      line.split(_wordSeparatorRe).where((w) => w.trim().isNotEmpty).toList();
+  /// פיצול ב-[_wordSeparatorRe] במעבר אחד על יחידות הקוד. תו שאינו עברית או
+  /// ASCII גלוי (רווח מיוחד, טאב) מעביר את השורה לפיצול ב-RegExp עצמו.
+  static List<String> _splitWords(String line) {
+    final words = <String>[];
+    var start = 0;
+    for (var i = 0; i < line.length; i++) {
+      final c = line.codeUnitAt(i);
+      if (c == 0x20 || c == 0x7C || c == 0x05BE || c == 0x05C0) {
+        if (i > start) words.add(line.substring(start, i));
+        start = i + 1;
+      } else if (c < 0x21 || (c > 0x7E && (c < 0x0590 || c > 0x05FF))) {
+        return line
+            .split(_wordSeparatorRe)
+            .where((w) => w.trim().isNotEmpty)
+            .toList();
+      }
+    }
+    if (start < line.length) words.add(line.substring(start));
+    return words;
+  }
 
   static String _cleanHtml(String s) =>
       _stripHtml(s).replaceAll(_whitespaceRe, ' ').trim();
