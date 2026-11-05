@@ -10,7 +10,10 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
+import 'package:otzaria/tools/biographies/data/biographies_downloader.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 void main() {
   late Directory tmp;
@@ -62,21 +65,33 @@ void main() {
     void Function()? invalidateLibrary,
     bool failExtraction = false,
     Object? extractionError,
+    CompanionTarExtractor? extractor,
+    int maxExtractedBytes = kDefaultMaxExtractedBytes,
   }) {
     return CompanionAssetsService(
       clientFactory: () => client ?? releaseClient(),
       catalogRepository: () => catalog ?? _FakeCatalogRepository(exists: true),
       dictionaryFactory: () => dictionary ?? _FakeDictionaryDownloader(),
-      extractTarArchive: (archive, outputDir, onProgress) async {
-        if (failExtraction) throw Exception('החילוץ נקטע');
-        if (extractionError != null) throw extractionError;
-        extractions?.add((archive: archive, outputDir: outputDir));
-        onProgress?.call(0.5);
-        onProgress?.call(1.0);
-        Directory(
-          p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-        ).createSync(recursive: true);
-      },
+      biographiesFactory: _FakeBiographiesDownloader.new,
+      maxExtractedBytes: maxExtractedBytes,
+      extractTarArchive:
+          extractor ??
+          (
+            archive,
+            outputDir,
+            onProgress, {
+            required maxOutputBytes,
+            isCancelled,
+          }) async {
+            if (failExtraction) throw const FormatException('הארכיון פגום');
+            if (extractionError != null) throw extractionError;
+            extractions?.add((archive: archive, outputDir: outputDir));
+            onProgress?.call(0.5);
+            onProgress?.call(1.0);
+            Directory(
+              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+            ).createSync(recursive: true);
+          },
       talmudDirsProvider: () =>
           talmudDirs ??
           [p.join(tmp.path, DatabaseConstants.talmudBavliFolderName)],
@@ -118,7 +133,7 @@ void main() {
   }
 
   group('תלמוד בבלי', () {
-    test('תיקייה חסרה → מוריד, מחלץ לתיקיית האב, וכותב סימון גרסה', () async {
+    test('תיקייה חסרה → מחלץ ל-staging ומתקין עם סימון גרסה', () async {
       final extractions = <({String archive, String outputDir})>[];
       final statuses = <({String message, CompanionAssetPhase phase})>[];
       final progress = <int>[];
@@ -134,7 +149,8 @@ void main() {
           );
 
       expect(extractions, hasLength(1));
-      expect(extractions.single.outputDir, tmp.path);
+      expect(p.dirname(extractions.single.outputDir), tmp.path);
+      expect(Directory(extractions.single.outputDir).existsSync(), isFalse);
       expect(readMarker(), tag);
       expect(
         changed,
@@ -151,14 +167,14 @@ void main() {
         statuses,
         contains((
           message: 'מחלץ את התלמוד הבבלי',
-          phase: CompanionAssetPhase.applying,
+          phase: CompanionAssetPhase.extracting,
         )),
       );
       expect(
         statuses,
         contains((
           message: 'פורס את קבצי התלמוד',
-          phase: CompanionAssetPhase.applying,
+          phase: CompanionAssetPhase.extracting,
         )),
       );
       expect(progress, contains(5000));
@@ -195,9 +211,11 @@ void main() {
       expect(readMarker(), tag);
     });
 
-    test('חילוץ שנקטע משאיר סימון-ביניים, והריצה הבאה מורידה מחדש', () async {
+    test('חילוץ שנכשל משמר את ההתקנה הישנה ומאפשר ניסיון נוסף', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
       await service(failExtraction: true).verifyAndUpdate();
-      expect(readMarker(), CompanionAssetsService.talmudInstallingMarker);
+      expect(readMarker(), 'v1.0.0');
+      expect(File(p.join(talmudDir(), 'ברכות.pdf')).readAsStringSync(), 'pdf');
 
       final extractions = <({String archive, String outputDir})>[];
       await service(extractions: extractions).verifyAndUpdate();
@@ -270,6 +288,7 @@ void main() {
 
     test('FileSystemException בשלב החילוץ משאיר את ה-temp — '
         'בלי הורדת גוף מלאה חוזרת', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
       final talmudTemp = File(
         p.join(
           Directory.systemTemp.path,
@@ -322,7 +341,7 @@ void main() {
         client: client,
         extractionError: const FileSystemException('קובץ נעול'),
       ).verifyAndUpdate();
-      expect(readMarker(), CompanionAssetsService.talmudInstallingMarker);
+      expect(readMarker(), 'v1.0.0');
       expect(
         talmudTemp.existsSync(),
         isTrue,
@@ -347,7 +366,7 @@ void main() {
     });
 
     test(
-      'קובץ יעד נעול באמת בזמן ניקוי הקבצים הישנים משאיר את ה-temp',
+      'קובץ יעד נעול בזמן החלפת התיקייה משאיר את ההתקנה ואת ה-temp',
       skip: Platform.isWindows ? null : 'נעילת קבצים חוסמת מחיקה רק ב-Windows',
       () async {
         final talmudTemp = File(
@@ -359,7 +378,7 @@ void main() {
         cleanupTalmudTemp(talmudTemp);
         addTearDown(() => cleanupTalmudTemp(talmudTemp));
 
-        // handle פתוח על קובץ קיים — deleteSync של ניקוי הישנים ייכשל עליו.
+        // handle פתוח על קובץ קיים — Windows אינו מאפשר להחליף את תיקייתו.
         createTalmudDir(markerTag: 'v1.0.0');
         final lock = File(p.join(talmudDir(), 'ברכות.pdf')).openSync();
         var locked = true;
@@ -368,7 +387,7 @@ void main() {
         });
 
         await service().verifyAndUpdate();
-        expect(readMarker(), CompanionAssetsService.talmudInstallingMarker);
+        expect(readMarker(), 'v1.0.0');
         expect(
           talmudTemp.existsSync(),
           isTrue,
@@ -433,12 +452,20 @@ void main() {
           clientFactory: () => client,
           catalogRepository: () => _FakeCatalogRepository(exists: true),
           dictionaryFactory: () => _FakeDictionaryDownloader(),
-          extractTarArchive: (archive, outputDir, onProgress) async {
-            archiveBytes = File(archive).readAsBytesSync();
-            Directory(
-              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-            ).createSync(recursive: true);
-          },
+          biographiesFactory: _FakeBiographiesDownloader.new,
+          extractTarArchive:
+              (
+                archive,
+                outputDir,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
+                archiveBytes = File(archive).readAsBytesSync();
+                Directory(
+                  p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+                ).createSync(recursive: true);
+              },
           talmudDirsProvider: () => [
             p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
           ],
@@ -510,12 +537,20 @@ void main() {
           clientFactory: () => client,
           catalogRepository: () => _FakeCatalogRepository(exists: true),
           dictionaryFactory: () => _FakeDictionaryDownloader(),
-          extractTarArchive: (archive, outputDir, onProgress) async {
-            archiveBytes = File(archive).readAsBytesSync();
-            Directory(
-              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-            ).createSync(recursive: true);
-          },
+          biographiesFactory: _FakeBiographiesDownloader.new,
+          extractTarArchive:
+              (
+                archive,
+                outputDir,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
+                archiveBytes = File(archive).readAsBytesSync();
+                Directory(
+                  p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+                ).createSync(recursive: true);
+              },
           talmudDirsProvider: () => [
             p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
           ],
@@ -588,12 +623,20 @@ void main() {
           clientFactory: () => client,
           catalogRepository: () => _FakeCatalogRepository(exists: true),
           dictionaryFactory: () => _FakeDictionaryDownloader(),
-          extractTarArchive: (archive, outputDir, onProgress) async {
-            archiveBytes = File(archive).readAsBytesSync();
-            Directory(
-              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-            ).createSync(recursive: true);
-          },
+          biographiesFactory: _FakeBiographiesDownloader.new,
+          extractTarArchive:
+              (
+                archive,
+                outputDir,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
+                archiveBytes = File(archive).readAsBytesSync();
+                Directory(
+                  p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+                ).createSync(recursive: true);
+              },
           talmudDirsProvider: () => [
             p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
           ],
@@ -670,12 +713,20 @@ void main() {
         clientFactory: () => client,
         catalogRepository: () => _FakeCatalogRepository(exists: true),
         dictionaryFactory: () => _FakeDictionaryDownloader(),
-        extractTarArchive: (archive, outputDir, onProgress) async {
-          archiveBytes = File(archive).readAsBytesSync();
-          Directory(
-            p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-          ).createSync(recursive: true);
-        },
+        biographiesFactory: _FakeBiographiesDownloader.new,
+        extractTarArchive:
+            (
+              archive,
+              outputDir,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              archiveBytes = File(archive).readAsBytesSync();
+              Directory(
+                p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+              ).createSync(recursive: true);
+            },
         talmudDirsProvider: () => [
           p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
         ],
@@ -739,12 +790,20 @@ void main() {
           clientFactory: () => client,
           catalogRepository: () => _FakeCatalogRepository(exists: true),
           dictionaryFactory: () => _FakeDictionaryDownloader(),
-          extractTarArchive: (archive, outputDir, onProgress) async {
-            archiveBytes = File(archive).readAsBytesSync();
-            Directory(
-              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-            ).createSync(recursive: true);
-          },
+          biographiesFactory: _FakeBiographiesDownloader.new,
+          extractTarArchive:
+              (
+                archive,
+                outputDir,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
+                archiveBytes = File(archive).readAsBytesSync();
+                Directory(
+                  p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+                ).createSync(recursive: true);
+              },
           talmudDirsProvider: () => [
             p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
           ],
@@ -753,11 +812,9 @@ void main() {
         );
         await svc.verifyAndUpdate();
 
-        expect(
-          ranges,
-          [null],
-          reason: 'id שונה → השריד נמחק, בקשה טרייה בלי Range (לא 416/דילוג)',
-        );
+        expect(ranges, [
+          null,
+        ], reason: 'id שונה → השריד נמחק, בקשה טרייה בלי Range (לא 416/דילוג)');
         expect(archiveBytes, [
           5,
           5,
@@ -765,6 +822,203 @@ void main() {
         ], reason: 'חולץ התוכן החדש שהועלה-מחדש, לא שריד הזהות הישנה');
       },
     );
+
+    test(
+      'עדכון משמר תיקיות משנה קיימות בלי לשמר קבצים ישירים שהוסרו',
+      () async {
+        createTalmudDir(markerTag: 'v1.0.0');
+        final userFile = File(p.join(talmudDir(), 'תוספות', 'הערות.pdf'));
+        await userFile.parent.create();
+        await userFile.writeAsString('user content');
+
+        await service().verifyAndUpdate();
+
+        expect(userFile.readAsStringSync(), 'user content');
+        expect(File(p.join(talmudDir(), 'ברכות.pdf')).existsSync(), isFalse);
+        expect(readMarker(), tag);
+      },
+    );
+
+    test('שמירת תתי־תיקיות מוגבלת יחד עם תוכן הארכיון החדש', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final userFile = File(p.join(talmudDir(), 'תוספות', 'notes.pdf'));
+      await userFile.parent.create();
+      await userFile.writeAsString('123456');
+      String? stagedPath;
+      final archive = File(
+        p.join(
+          Directory.systemTemp.path,
+          'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+        ),
+      );
+      cleanupTalmudTemp(archive);
+      addTearDown(() => cleanupTalmudTemp(archive));
+      final changed = await service(
+        maxExtractedBytes: 7,
+        extractor: (_, stage, _, {required maxOutputBytes, isCancelled}) async {
+          stagedPath = stage;
+          final next = Directory(
+            p.join(stage, DatabaseConstants.talmudBavliFolderName),
+          );
+          await next.create();
+          await File(p.join(next.path, 'new.pdf')).writeAsString('12');
+        },
+      ).verifyAndUpdate();
+
+      expect(changed, isFalse);
+      expect(readMarker(), 'v1.0.0');
+      expect(await userFile.readAsString(), '123456');
+      expect(File(p.join(talmudDir(), 'ברכות.pdf')).existsSync(), isTrue);
+      expect(Directory(stagedPath!).existsSync(), isFalse);
+      expect(archive.existsSync(), isTrue);
+    });
+
+    test('ביטול במהלך העתקת תת־תיקייה משמר מקור ומוחק staging', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final userFile = File(p.join(talmudDir(), 'תוספות', 'notes.pdf'));
+      await userFile.parent.create();
+      await userFile.writeAsBytes(List<int>.filled(256 << 10, 7));
+      var cancelled = false;
+      var copied = 0;
+      String? stagedPath;
+      final archive = File(
+        p.join(
+          Directory.systemTemp.path,
+          'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+        ),
+      );
+      cleanupTalmudTemp(archive);
+      addTearDown(() => cleanupTalmudTemp(archive));
+      final changed =
+          await service(
+            extractor:
+                (_, stage, _, {required maxOutputBytes, isCancelled}) async {
+                  stagedPath = stage;
+                  await Directory(
+                    p.join(stage, DatabaseConstants.talmudBavliFolderName),
+                  ).create();
+                },
+          ).verifyAndUpdate(
+            isCancelled: () => cancelled,
+            onDownloadProgress: (received, total) {
+              if (total == null && received > 0) {
+                copied = received;
+                cancelled = true;
+              }
+            },
+          );
+
+      expect(cancelled, isTrue);
+      expect(copied, greaterThan(0));
+      expect(copied, lessThan(256 << 10));
+      expect(changed, isFalse);
+      expect(readMarker(), 'v1.0.0');
+      expect(await userFile.length(), 256 << 10);
+      expect((await userFile.readAsBytes()).every((b) => b == 7), isTrue);
+      expect(Directory(stagedPath!).existsSync(), isFalse);
+      expect(archive.existsSync(), isTrue);
+    });
+
+    for (final cancelDuringExtraction in [true, false]) {
+      test(
+        'ביטול ${cancelDuringExtraction ? 'בחילוץ' : 'לפני commit'} משמר את התוכן והסימון הישנים',
+        () async {
+          createTalmudDir(markerTag: 'v1.0.0');
+          var cancelled = false;
+          String? stagePath;
+          final archive = File(
+            p.join(
+              Directory.systemTemp.path,
+              'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+            ),
+          );
+          cleanupTalmudTemp(archive);
+          addTearDown(() => cleanupTalmudTemp(archive));
+          final changed =
+              await service(
+                extractor:
+                    (
+                      source,
+                      stage,
+                      progress, {
+                      required maxOutputBytes,
+                      isCancelled,
+                    }) async {
+                      expect(maxOutputBytes, kDefaultMaxExtractedBytes);
+                      expect(isCancelled?.call(), isFalse);
+                      stagePath = stage;
+                      final output = Directory(
+                        p.join(stage, DatabaseConstants.talmudBavliFolderName),
+                      );
+                      await output.create(recursive: true);
+                      await File(
+                        p.join(output.path, 'new.pdf'),
+                      ).writeAsString('new');
+                      if (cancelDuringExtraction) cancelled = true;
+                    },
+              ).verifyAndUpdate(
+                isCancelled: () => cancelled,
+                onStatus: (message, phase) {
+                  if (!cancelDuringExtraction &&
+                      phase == CompanionAssetPhase.applying &&
+                      message == 'מתקין את התלמוד הבבלי') {
+                    cancelled = true;
+                  }
+                },
+              );
+
+          expect(cancelled, isTrue);
+          expect(changed, isFalse);
+          expect(readMarker(), 'v1.0.0');
+          expect(
+            File(p.join(talmudDir(), 'ברכות.pdf')).readAsStringSync(),
+            'pdf',
+          );
+          expect(File(p.join(talmudDir(), 'new.pdf')).existsSync(), isFalse);
+          expect(stagePath, isNotNull);
+          expect(Directory(stagePath!).existsSync(), isFalse);
+          expect(archive.existsSync(), isTrue);
+        },
+      );
+    }
+
+    test('חריגה ממגבלת הפלט משאירה התקנה ישנה שלמה', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final archive = File(
+        p.join(
+          Directory.systemTemp.path,
+          'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+        ),
+      );
+      cleanupTalmudTemp(archive);
+      addTearDown(() => cleanupTalmudTemp(archive));
+      var checked = false;
+      final changed = await service(
+        maxExtractedBytes: 123,
+        extractor: (_, _, _, {required maxOutputBytes, isCancelled}) async {
+          checked = true;
+          expect(maxOutputBytes, 123);
+          throw ZstdOutputLimitExceeded(maxOutputBytes);
+        },
+      ).verifyAndUpdate();
+
+      expect(checked, isTrue);
+      expect(changed, isFalse);
+      expect(readMarker(), 'v1.0.0');
+      expect(File(p.join(talmudDir(), 'ברכות.pdf')).readAsStringSync(), 'pdf');
+    });
+
+    test('תיקייה מגיבוי swap משוחזרת לפני ניסיון רשת שנכשל', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      await Directory(talmudDir()).rename('${talmudDir()}.update-old');
+
+      await service(
+        client: MockClient((_) async => http.Response('unavailable', 404)),
+      ).verifyAndUpdate();
+
+      expect(readMarker(), 'v1.0.0');
+      expect(File(p.join(talmudDir(), 'ברכות.pdf')).readAsStringSync(), 'pdf');
+    });
 
     test('עדכון מנקה קובץ ישן שהוסר ב-release החדש', () async {
       createTalmudDir(markerTag: 'v1.0.0');
@@ -807,7 +1061,7 @@ void main() {
       expect(
         File(p.join(talmudDir(), 'ברכות.pdf')).existsSync(),
         isFalse,
-        reason: 'הקבצים הישנים נמחקים לפני החילוץ',
+        reason: 'קבצים שהוסרו אינם שורדים התקנה מוצלחת',
       );
       expect(readMarker(), tag);
     });
@@ -1181,6 +1435,9 @@ class _FakeCatalogRepository extends ExternalCatalogRepository {
   @override
   Future<bool> updateDatabaseIfNeeded({
     void Function()? onUpdateAvailable,
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
   }) async {
     updateCalled = true;
     if (updateResult) onUpdateAvailable?.call();
@@ -1188,9 +1445,21 @@ class _FakeCatalogRepository extends ExternalCatalogRepository {
   }
 
   @override
-  Future<void> downloadLatestDatabase() async {
+  Future<void> downloadLatestDatabase({
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+  }) async {
     downloadCalled = true;
   }
+}
+
+class _FakeBiographiesDownloader extends BiographiesDownloader {
+  _FakeBiographiesDownloader()
+    : super(client: MockClient((_) async => http.Response('', 404)));
+
+  @override
+  Future<bool> ensureLatest({bool force = false}) async => false;
 }
 
 class _FakeDictionaryDownloader extends MagicDictionaryDownloader {
@@ -1233,6 +1502,13 @@ class _AsyncOnlyDirectory implements Directory {
   @override
   Future<Directory> create({bool recursive = false}) =>
       _real.create(recursive: recursive);
+
+  @override
+  Future<Directory> rename(String newPath) => _real.rename(newPath);
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      _real.delete(recursive: recursive);
 
   // משמש את המחלץ המדומה, לא את הקוד הנבדק.
   @override

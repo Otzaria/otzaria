@@ -75,8 +75,9 @@ void main() {
             _writeDb(output, 'old worker staging', version: 2);
             entered.complete();
             await releaseWorker.future;
-            if (isCancelled?.call() ?? false)
+            if (isCancelled?.call() ?? false) {
               throw const PatchDownloadCancelled();
+            }
           },
         );
         final second = _repository(

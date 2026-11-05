@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -218,6 +219,49 @@ void main() {
     );
 
     test(
+      'tar hardlinks count physical copies toward the output limit',
+      () async {
+        const payloadBytes = 1 << 20;
+        final tar = BytesBuilder()
+          ..add(_tarHeader('original.bin', payloadBytes))
+          ..add(Uint8List(payloadBytes))
+          ..add(_tarHeader('copy.bin', 0, link: 'original.bin'))
+          ..add(Uint8List(1024));
+        const limit = payloadBytes + (payloadBytes ~/ 2);
+        final tarBytes = tar.takeBytes();
+        expect(tarBytes.length, lessThan(limit));
+        final source = writeFrames('hardlinks.tar.zst', [tarBytes]);
+        final rejected = Directory(p.join(tmp.path, 'rejected'))..createSync();
+        await expectLater(
+          ZstdStreamExtractor.extractTarToDir(
+            source,
+            rejected.path,
+            maxOutputBytes: limit,
+          ),
+          throwsA(isA<ZstdOutputLimitExceeded>()),
+        );
+        final written = rejected
+            .listSync(recursive: true)
+            .whereType<File>()
+            .fold<int>(0, (sum, file) => sum + file.lengthSync());
+        expect(written, lessThanOrEqualTo(limit));
+        expect(File(source).existsSync(), isTrue);
+
+        final exact = Directory(p.join(tmp.path, 'exact'))..createSync();
+        await ZstdStreamExtractor.extractTarToDir(
+          source,
+          exact.path,
+          maxOutputBytes: 2 * payloadBytes,
+        );
+        expect(
+          File(p.join(exact.path, 'original.bin')).lengthSync(),
+          payloadBytes,
+        );
+        expect(File(p.join(exact.path, 'copy.bin')).lengthSync(), payloadBytes);
+      },
+    );
+
+    test(
       'source and output aliases are rejected without touching source',
       () async {
         final source = writeFrames('source.zst', [Uint8List(4096)]);
@@ -255,4 +299,26 @@ void main() {
       },
     );
   }, skip: skip);
+}
+
+Uint8List _tarHeader(String name, int size, {String? link}) {
+  final header = Uint8List(512);
+  header.setAll(0, ascii.encode(name));
+  if (link != null) header.setAll(157, ascii.encode(link));
+  void octal(int offset, int length, int value) => header.setAll(
+    offset,
+    ascii.encode('${value.toRadixString(8).padLeft(length - 1, '0')}\u0000'),
+  );
+  octal(100, 8, 420);
+  octal(124, 12, size);
+  octal(136, 12, 0);
+  header[156] = link == null ? 0x30 : 0x31;
+  header.setAll(257, ascii.encode('ustar\u000000'));
+  header.fillRange(148, 156, 0x20);
+  final sum = header.fold<int>(0, (a, b) => a + b);
+  header.setAll(
+    148,
+    ascii.encode('${sum.toRadixString(8).padLeft(6, '0')}\u0000 '),
+  );
+  return header;
 }

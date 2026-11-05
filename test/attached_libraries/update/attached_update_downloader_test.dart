@@ -76,15 +76,19 @@ void main() {
     }
     final output = p.join(temp.path, 'out.db');
     final progress = <(int, int)>[];
+    final extractionProgress = <(int, int)>[];
     await downloader().download(
       artifact(parts),
       combinedPath: p.join(temp.path, 'combined'),
       outputPath: output,
       onProgress: (received, total) => progress.add((received, total)),
+      onExtractionProgress: (written, total) =>
+          extractionProgress.add((written, total)),
     );
     expect(File(output).readAsBytesSync(), [...parts[0], ...parts[1]]);
     expect(progress.last, (0, 0));
     expect(progress, contains((71000, 71000)));
+    expect(extractionProgress.last, (71000, 71000));
   });
 
   test('cancel reaches the worker isolate', () async {
@@ -104,4 +108,81 @@ void main() {
     await expectLater(future, throwsA(isA<AttachedUpdateCancelled>()));
     expect(File(output).existsSync(), isFalse);
   });
+
+  test(
+    'cancel at final output progress keeps input and removes output before retry',
+    () async {
+      final bytes = List.generate(70000, (i) => i % 251);
+      bodies['/p0'] = bytes;
+      final cancel = AttachedUpdateCancelToken();
+      final combined = p.join(temp.path, 'combined');
+      final output = p.join(temp.path, 'out.db');
+      await expectLater(
+        downloader().download(
+          artifact([bytes]),
+          combinedPath: combined,
+          outputPath: output,
+          cancel: cancel,
+          onExtractionProgress: (written, total) {
+            if (written == total) cancel.cancel();
+          },
+        ),
+        throwsA(isA<AttachedUpdateCancelled>()),
+      );
+      expect(File(output).existsSync(), isFalse);
+      expect(await File(combined).readAsBytes(), bytes);
+      await downloader().download(
+        artifact([bytes]),
+        combinedPath: combined,
+        outputPath: output,
+      );
+      expect(await File(output).readAsBytes(), bytes);
+      expect(File(combined).existsSync(), isFalse);
+    },
+  );
+
+  test('throwing final extraction observer waits for worker cleanup', () async {
+    final bytes = List.filled(70000, 3);
+    bodies['/p0'] = bytes;
+    final combined = p.join(temp.path, 'combined');
+    final output = p.join(temp.path, 'out.db');
+    await expectLater(
+      downloader().download(
+        artifact([bytes]),
+        combinedPath: combined,
+        outputPath: output,
+        onExtractionProgress: (written, total) {
+          if (written == total) throw StateError('observer failed');
+        },
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(File(output).existsSync(), isFalse);
+    expect(await File(combined).readAsBytes(), bytes);
+  });
+
+  test(
+    'staging and lock aliases cannot overwrite an installed source',
+    () async {
+      final installed = File(p.join(temp.path, 'installed.db'));
+      await installed.writeAsString('installed');
+      final data = artifact([
+        [1, 2, 3],
+      ]);
+      for (final output in [installed.path, '${installed.path}.stage']) {
+        final base = output == installed.path ? installed.path : '$output.lock';
+        if (base != installed.path) await File(base).writeAsString('installed');
+        await expectLater(
+          downloader().download(
+            data,
+            combinedPath: p.join(temp.path, 'combined'),
+            outputPath: output,
+            basePath: base,
+          ),
+          throwsA(isA<ArgumentError>()),
+        );
+        expect(await File(base).readAsString(), 'installed');
+      }
+    },
+  );
 }

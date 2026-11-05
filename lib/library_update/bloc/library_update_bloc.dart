@@ -632,6 +632,8 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
                 CompanionAssetPhase.checking => LibraryUpdateStatus.checking,
                 CompanionAssetPhase.downloading =>
                   LibraryUpdateStatus.downloading,
+                CompanionAssetPhase.extracting =>
+                  LibraryUpdateStatus.downloading,
                 CompanionAssetPhase.applying => LibraryUpdateStatus.applying,
               },
               message: message,

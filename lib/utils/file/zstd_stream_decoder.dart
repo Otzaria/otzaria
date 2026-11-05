@@ -8,10 +8,8 @@ import 'package:zstandard_native/zstandard_native_bindings.dart';
 /// מפענח zstd בזרימה שמוזן בנתחים מכל מקור (חלקים, ערוץ SAF) ומוסר את
 /// הפלט לצרכן, בלי קובץ ביניים.
 class ZstdStreamDecoder {
-  ZstdStreamDecoder(
-    DynamicLibrary lib, {
-    this.requireContentChecksum = false,
-  }) : _zstd = ZstandardNativeBindings(lib) {
+  ZstdStreamDecoder(DynamicLibrary lib, {this.requireContentChecksum = false})
+    : _zstd = ZstandardNativeBindings(lib) {
     _inSize = zstdInputChunkBytes;
     _outSize = zstdOutputChunkBytes;
     _stream = _zstd.ZSTD_createDStream();
@@ -47,6 +45,10 @@ class ZstdStreamDecoder {
   Pointer<ZSTD_inBuffer_s> _inBuf = nullptr;
   Pointer<ZSTD_outBuffer_s> _outBuf = nullptr;
   int _lastRet = 0;
+  int _inputBytesConsumed = 0;
+
+  /// בייטים שהמפענח כבר צרך מכל הקריאות, גם בתוך נתח קלט דחוס יחיד.
+  int get inputBytesConsumed => _inputBytesConsumed;
   bool _fedAny = false;
   bool _disposed = false;
 
@@ -97,8 +99,10 @@ class ZstdStreamDecoder {
           ..dst = _outNative.cast()
           ..size = _outSize
           ..pos = 0;
+        final before = _inBuf.ref.pos;
         _lastRet = _zstd.ZSTD_decompressStream(_stream, _outBuf, _inBuf);
         _check(_lastRet, 'פענוח zstd');
+        _inputBytesConsumed += _inBuf.ref.pos - before;
         // libzstd עוצר בסוף כל frame, גם כשבאותו נתח מתחיל ה-frame הבא.
         if (_lastRet == 0) _frameHead.clear();
         if (_outBuf.ref.pos > 0) {

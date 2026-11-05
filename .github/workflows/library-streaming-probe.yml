@@ -7,10 +7,16 @@ on:
     paths:
       - '.github/workflows/library-streaming-probe.yml'
       - 'lib/utils/file/zstd_library.dart'
+      - 'lib/utils/file/tar_stream_extractor.dart'
       - 'lib/utils/file/zstd_stream_decoder.dart'
+      - 'lib/utils/file/zstd_patch_decoder.dart'
+      - 'lib/attached_libraries/repository/update/**'
       - 'lib/utils/file/zstd_stream_extractor*.dart'
       - 'lib/library_update/services/streaming_patch_downloader.dart'
       - 'test/utils/file/zstd_stream_extractor_adversarial_test.dart'
+      - 'test/utils/file/zstd_patch_decoder*_test.dart'
+      - 'test/utils/file/tar_stream_extractor_limits_test.dart'
+      - 'test/attached_libraries/update/**'
       - 'tool/perf_probe/zstd_streaming_probe.dart'
 
 permissions:
@@ -34,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Install native dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang libzstd-dev
+        run: sudo apt-get update && sudo apt-get install -y clang libzstd-dev zstd
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -53,7 +59,15 @@ jobs:
       - name: Run adversarial tests through the production isolate
         run: |
           set -o pipefail
-          flutter test test/utils/file/zstd_stream_extractor_adversarial_test.dart --reporter expanded 2>&1 | tee streaming-probe-results/adversarial-tests.log
+          flutter test --reporter expanded \
+            test/utils/file/zstd_stream_extractor_adversarial_test.dart \
+            test/utils/file/zstd_patch_decoder_safety_test.dart \
+            test/utils/file/zstd_patch_decoder_verified_test.dart \
+            test/utils/file/tar_stream_extractor_limits_test.dart \
+            test/attached_libraries/update/attached_update_downloader_test.dart \
+            test/attached_libraries/update/attached_update_fetcher_test.dart \
+            test/attached_libraries/update/attached_update_delta_applier_test.dart \
+            test/attached_libraries/update/attached_update_end_to_end_test.dart 2>&1 | tee streaming-probe-results/adversarial-tests.log
       - name: Compile the probe ahead of time
         run: |
           set -o pipefail

@@ -188,8 +188,9 @@ Uint8List _compress(Uint8List bytes) {
       ZSTD_cParameter.ZSTD_c_checksumFlag,
       1,
     );
-    if (zstd.ZSTD_isError(set) != 0)
+    if (zstd.ZSTD_isError(set) != 0) {
       throw StateError('ZSTD checksum configuration failed');
+    }
     final size = zstd.ZSTD_compress2(
       context,
       output.cast(),

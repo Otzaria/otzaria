@@ -250,6 +250,15 @@ class AttachedLibraryUpdateService {
           total: total,
         ),
       );
+      void reportExtraction(int written, int total) => _set(
+        path,
+        AttachedUpdateInProgress(
+          offer,
+          phase: AttachedUpdatePhase.assemble,
+          received: written,
+          total: total,
+        ),
+      );
       final plan = await planner.plan(
         verified.manifest,
         installedPath: path,
@@ -265,6 +274,7 @@ class AttachedLibraryUpdateService {
           basePath: plan.isDelta ? path : null,
           cancel: cancel,
           onProgress: report,
+          onExtractionProgress: reportExtraction,
         );
       } catch (e, st) {
         // דלתא חסרה או פגומה חוזרת למלא; ניתוק ושגיאת מדיניות אינם חוזרים.
@@ -287,6 +297,7 @@ class AttachedLibraryUpdateService {
           outputPath: staged,
           cancel: cancel,
           onProgress: report,
+          onExtractionProgress: reportExtraction,
         );
       }
       if (cancel.isCancelled) throw const AttachedUpdateCancelled();
@@ -401,9 +412,8 @@ class AttachedLibraryUpdateService {
   }
 
   // Static: an isolate closure must not capture the service's context.
-  static Future<void> _normalizeJournal(String path) => Isolate.run(
-    () => normalizeJournalModeForReadOnly(path, untrusted: true),
-  );
+  static Future<void> _normalizeJournal(String path) =>
+      Isolate.run(() => normalizeJournalModeForReadOnly(path, untrusted: true));
 
   /// Signature first, with the pinned key only; unsigned bytes are never
   /// parsed. Runs off the UI isolate (ed25519 over up to 1 MB).

@@ -13,7 +13,7 @@ class ZstdStreamExtractor {
     String archivePath,
     String outputPath, {
     void Function(double progress)? onProgress,
-    int? maxOutputBytes,
+    int? maxOutputBytes = kDefaultMaxExtractedBytes,
     bool Function()? isCancelled,
   }) => impl.extractToFile(
     archivePath,
@@ -44,7 +44,7 @@ class ZstdStreamExtractor {
     String archivePath,
     String outputDir, {
     void Function(double progress)? onProgress,
-    int? maxOutputBytes,
+    int? maxOutputBytes = kDefaultMaxExtractedBytes,
     bool Function()? isCancelled,
   }) => impl.extractTarToDir(
     archivePath,

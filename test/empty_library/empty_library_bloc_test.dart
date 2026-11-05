@@ -16,6 +16,7 @@ import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as path;
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
@@ -207,11 +208,14 @@ void main() {
         return http.Response('late', 200);
       });
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
         downloadConnectTimeout: const Duration(milliseconds: 20),
-        extractCompressedDatabase: (a, o, p) async {},
-        extractTarArchive: (a, o, p) async {},
+        extractCompressedDatabase:
+            (a, o, p, {required maxOutputBytes, isCancelled}) async {},
+        extractTarArchive:
+            (a, o, p, {required maxOutputBytes, isCancelled}) async {},
       );
       addTearDown(bloc.close);
 
@@ -244,6 +248,147 @@ void main() {
           '/github-production-release-asset/123/456',
         ),
         isNull,
+      );
+    });
+
+    test('חילוץ הורדה מקבל תקרה; חריגה משמרת מקור וספרייה קיימת', () async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      final target = await Directory.systemTemp.createTemp('download-limit-');
+      final database = File(path.join(target.path, 'seforim.db'))
+        ..writeAsStringSync('previous library');
+      final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
+        httpClient: fakeLibraryReleaseClient(() => 'compressed db'),
+        defaultLibraryPathOverride: target.path,
+        maxExtractedBytes: 4096,
+        extractCompressedDatabase:
+            (
+              archive,
+              output,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              expect(maxOutputBytes, 4096);
+              expect(isCancelled?.call(), isFalse);
+              await File(output).writeAsBytes(List.filled(maxOutputBytes, 1));
+              onProgress?.call(0.5);
+              throw ZstdOutputLimitExceeded(maxOutputBytes);
+            },
+        extractTarArchive: ignoreTarArchive,
+      );
+      addTearDown(bloc.close);
+      final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
+      bloc.add(DownloadLibraryRequested());
+      await failed.timeout(const Duration(seconds: 5));
+      expect(database.readAsStringSync(), 'previous library');
+      expect(File('${database.path}.new').existsSync(), isFalse);
+      expect(
+        File(
+          path.join(isolatedTemp.path, 'otzaria_seforim.db.zst'),
+        ).readAsStringSync(),
+        'compressed db',
+      );
+    });
+
+    test('ביטול תוך חילוץ הורדה מגיע למחלץ לפני פרסום וניקוי המקור', () async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      final target = await Directory.systemTemp.createTemp('download-cancel-');
+      final database = File(path.join(target.path, 'seforim.db'))
+        ..writeAsStringSync('previous library');
+      final entered = Completer<void>();
+      final resume = Completer<void>();
+      bool Function()? workerCancelled;
+      final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
+        httpClient: fakeLibraryReleaseClient(() => 'compressed db'),
+        defaultLibraryPathOverride: target.path,
+        maxExtractedBytes: 4096,
+        extractCompressedDatabase:
+            (
+              archive,
+              output,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              workerCancelled = isCancelled;
+              await File(output).writeAsString('partial');
+              onProgress?.call(0.5);
+              entered.complete();
+              await resume.future;
+              if (isCancelled?.call() ?? false) {
+                throw const PatchDownloadCancelled();
+              }
+              fail('cancellation was not forwarded to the active extractor');
+            },
+        extractTarArchive: ignoreTarArchive,
+      );
+      addTearDown(bloc.close);
+      addTearDown(() {
+        if (!resume.isCompleted) resume.complete();
+      });
+      final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
+      bloc.add(DownloadLibraryRequested());
+      await entered.future.timeout(const Duration(seconds: 5));
+      expect(
+        bloc.state,
+        isA<EmptyLibraryExtracting>().having(
+          (s) => s.cancellable,
+          'cancellable',
+          isTrue,
+        ),
+      );
+      bloc.add(CancelLibraryImportRequested());
+      await _eventually(() => workerCancelled?.call() ?? false);
+      resume.complete();
+      await failed.timeout(const Duration(seconds: 5));
+      expect(database.readAsStringSync(), 'previous library');
+      expect(File('${database.path}.new').existsSync(), isFalse);
+      expect(
+        File(
+          path.join(isolatedTemp.path, 'otzaria_seforim.db.zst'),
+        ).readAsStringSync(),
+        'compressed db',
+      );
+    });
+
+    test('hash דחוס שגוי ב־release נכשל לפני חילוץ או החלפת הספרייה', () async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      final target = await Directory.systemTemp.createTemp('download-hash-');
+      final database = File(path.join(target.path, 'seforim.db'))
+        ..writeAsStringSync('previous library');
+      var extracted = false;
+      final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
+        httpClient: fakeLibraryReleaseClient(
+          () => 'compressed db',
+          compressedSha256: '0' * 64,
+        ),
+        defaultLibraryPathOverride: target.path,
+        extractCompressedDatabase:
+            (
+              archive,
+              output,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              extracted = true;
+            },
+        extractTarArchive: ignoreTarArchive,
+      );
+      addTearDown(bloc.close);
+      final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
+      bloc.add(DownloadLibraryRequested());
+      await failed.timeout(const Duration(seconds: 5));
+      expect(extracted, isFalse);
+      expect(database.readAsStringSync(), 'previous library');
+      expect(
+        File(
+          path.join(isolatedTemp.path, 'otzaria_seforim.db.zst'),
+        ).existsSync(),
+        isFalse,
       );
     });
 
@@ -379,40 +524,62 @@ void main() {
       });
 
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
-          expect(archivePath, startsWith(Directory.systemTemp.path));
-          // יכול להיות גם seforim.db.zst וגם otzar-HB_catalog.db.zst
-          final basename = path.basename(archivePath);
-          if (basename == 'otzaria_seforim.db.zst') {
-            expect(await File(archivePath).readAsBytes(), downloadedBytes);
-            // הכתיבה אטומית: לשם הסופי מגיעים רק ב-rename שבסיום.
-            expect(
+        extractCompressedDatabase:
+            (
+              archivePath,
               outputPath,
-              path.join(
-                tempDir.path,
-                '${DatabaseConstants.databaseFileName}.new',
-              ),
-            );
-            await File(outputPath).writeAsBytes(const [1, 2, 3], flush: true);
-          } else if (basename == 'otzaria_otzar-HB_catalog.db.zst') {
-            expect(await File(archivePath).readAsBytes(), catalogBytes);
-            await File(outputPath).writeAsBytes(const [4, 5, 6], flush: true);
-          } else {
-            fail('Unexpected archive: $archivePath');
-          }
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {
-          expect(archivePath, startsWith(Directory.systemTemp.path));
-          expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
-          expect(await File(archivePath).readAsBytes(), talmudBytes);
-          // מדמים חילוץ: הארכיון האמיתי יוצר את תיקיית התלמוד ביעד.
-          Directory(
-            path.join(outputDir, DatabaseConstants.talmudBavliFolderName),
-          ).createSync(recursive: true);
-        },
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
+              expect(archivePath, startsWith(Directory.systemTemp.path));
+              // יכול להיות גם seforim.db.zst וגם otzar-HB_catalog.db.zst
+              final basename = path.basename(archivePath);
+              if (basename == 'otzaria_seforim.db.zst') {
+                expect(await File(archivePath).readAsBytes(), downloadedBytes);
+                // הכתיבה אטומית: לשם הסופי מגיעים רק ב-rename שבסיום.
+                expect(
+                  outputPath,
+                  path.join(
+                    tempDir.path,
+                    '${DatabaseConstants.databaseFileName}.new',
+                  ),
+                );
+                await File(
+                  outputPath,
+                ).writeAsBytes(const [1, 2, 3], flush: true);
+              } else if (basename == 'otzaria_otzar-HB_catalog.db.zst') {
+                expect(await File(archivePath).readAsBytes(), catalogBytes);
+                await File(
+                  outputPath,
+                ).writeAsBytes(const [4, 5, 6], flush: true);
+              } else {
+                fail('Unexpected archive: $archivePath');
+              }
+            },
+        extractTarArchive:
+            (
+              archivePath,
+              outputDir,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              expect(archivePath, startsWith(Directory.systemTemp.path));
+              expect(
+                path.basename(archivePath),
+                'otzaria_talmud_bavli.tar.zst',
+              );
+              expect(await File(archivePath).readAsBytes(), talmudBytes);
+              // מדמים חילוץ: הארכיון האמיתי יוצר את תיקיית התלמוד ביעד.
+              Directory(
+                path.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+              ).createSync(recursive: true);
+            },
       );
       addTearDown(bloc.close);
 
@@ -555,6 +722,7 @@ void main() {
 
         List<int>? extractedDb;
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           downloadSpaceChecker: (size) async {
             if (size != null) checkedSizes.add(size);
@@ -562,13 +730,19 @@ void main() {
           },
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (path.basename(archivePath) == 'otzaria_$name') {
                   extractedDb = await File(archivePath).readAsBytes();
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -669,16 +843,24 @@ void main() {
         });
 
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 await File(
                   outputPath,
                 ).writeAsBytes(const [1, 2, 3], flush: true);
               },
-          extractTarArchive: (a, o, p) async =>
-              fail('אסור לחלץ תלמוד כשהנכס לא קיים באף release'),
+          extractTarArchive:
+              (a, o, p, {required maxOutputBytes, isCancelled}) async =>
+                  fail('אסור לחלץ תלמוד כשהנכס לא קיים באף release'),
         );
         addTearDown(bloc.close);
 
@@ -757,12 +939,20 @@ void main() {
       });
 
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -873,13 +1063,20 @@ void main() {
         });
 
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -976,16 +1173,23 @@ void main() {
 
         int? seforimArchiveLen;
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
                   seforimArchiveLen = await File(archivePath).length();
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -1067,15 +1271,23 @@ void main() {
 
       List<int>? archiveBytes;
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
-            archiveBytes = await File(archivePath).readAsBytes();
-          }
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
+                archiveBytes = await File(archivePath).readAsBytes();
+              }
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -1146,17 +1358,25 @@ void main() {
       int? seforimArchiveLen;
       int? seforimFirstByte;
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
-            final bytes = await File(archivePath).readAsBytes();
-            seforimArchiveLen = bytes.length;
-            seforimFirstByte = bytes.first;
-          }
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
+                final bytes = await File(archivePath).readAsBytes();
+                seforimArchiveLen = bytes.length;
+                seforimFirstByte = bytes.first;
+              }
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -1235,18 +1455,25 @@ void main() {
 
         EmptyLibraryBloc makeBloc({required bool failSeforim}) =>
             EmptyLibraryBloc(
+              verifyDatabase: verifyFixtureDatabase,
               httpClient: client,
               defaultLibraryPathOverride: tempDir.path,
               extractCompressedDatabase:
-                  (archivePath, outputPath, onProgress) async {
+                  (
+                    archivePath,
+                    outputPath,
+                    onProgress, {
+                    required maxOutputBytes,
+                    isCancelled,
+                  }) async {
                     if (failSeforim &&
                         path.basename(archivePath) ==
                             'otzaria_seforim.db.zst') {
-                      throw Exception('החילוץ נכשל — הקובץ פגום');
+                      throw const FormatException('החילוץ נכשל — הקובץ פגום');
                     }
                     await File(outputPath).writeAsBytes(const [1], flush: true);
                   },
-              extractTarArchive: (archivePath, outputDir, onProgress) async {},
+              extractTarArchive: ignoreTarArchive,
             );
 
         // הרצה 1: ההורדה מדולגת (temp שלם), החילוץ נכשל → ה-temp חייב להימחק,
@@ -1323,19 +1550,27 @@ void main() {
       });
 
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
-            throw PathAccessException(
+        extractCompressedDatabase:
+            (
+              archivePath,
               outputPath,
-              const OSError('Operation not permitted', 1),
-              'Cannot open file',
-            );
-          }
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
+                throw PathAccessException(
+                  outputPath,
+                  const OSError('Operation not permitted', 1),
+                  'Cannot open file',
+                );
+              }
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
       final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
@@ -1421,16 +1656,23 @@ void main() {
 
         List<int>? seforimArchiveBytes;
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
                   seforimArchiveBytes = await File(archivePath).readAsBytes();
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -1517,16 +1759,23 @@ void main() {
 
         List<int>? seforimArchiveBytes;
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
                   seforimArchiveBytes = await File(archivePath).readAsBytes();
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -1616,16 +1865,23 @@ void main() {
 
         List<int>? seforimArchiveBytes;
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
                   seforimArchiveBytes = await File(archivePath).readAsBytes();
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -1708,12 +1964,20 @@ void main() {
       });
 
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -1789,12 +2053,20 @@ void main() {
       });
 
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -1866,17 +2138,25 @@ void main() {
       int? seforimArchiveLen;
       int? seforimFirstByte;
       final bloc = EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         httpClient: client,
         defaultLibraryPathOverride: tempDir.path,
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
-            final bytes = await File(archivePath).readAsBytes();
-            seforimArchiveLen = bytes.length;
-            seforimFirstByte = bytes.first;
-          }
-          await File(outputPath).writeAsBytes(const [1], flush: true);
-        },
-        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        extractCompressedDatabase:
+            (
+              archivePath,
+              outputPath,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
+                final bytes = await File(archivePath).readAsBytes();
+                seforimArchiveLen = bytes.length;
+                seforimFirstByte = bytes.first;
+              }
+              await File(outputPath).writeAsBytes(const [1], flush: true);
+            },
+        extractTarArchive: ignoreTarArchive,
       );
       addTearDown(bloc.close);
 
@@ -1942,13 +2222,20 @@ void main() {
         });
 
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: defaultDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -2219,6 +2506,36 @@ void main() {
         EmptyLibraryBloc.tempRootOverride = null;
         if (await tempRoot.exists()) await tempRoot.delete(recursive: true);
       });
+
+      for (final lockDatabase in [true, false]) {
+        test(
+          'recovery אינו מוחק staging של פעולה נעולה: db=$lockDatabase',
+          () async {
+            final libDir = await Directory.systemTemp.createTemp(
+              'active-recovery-',
+            );
+            final stagedDb = File(path.join(libDir.path, '$dbName.new'))
+              ..writeAsStringSync('in-progress db');
+            final stagedDir = Directory('${libDir.path}.import')..createSync();
+            final stagedAsset = File(path.join(stagedDir.path, 'asset'))
+              ..writeAsStringSync('in-progress asset');
+            final lockPath = lockDatabase
+                ? path.join(libDir.path, dbName)
+                : path.join(tempRoot.path, 'library-acquisition');
+            await withFileOperationLock(lockPath, () async {
+              await expectLater(
+                EmptyLibraryBloc.recoverOrphanedDbBackup(libDir.path),
+                throwsA(isA<PatchDownloadException>()),
+              );
+              expect(stagedDb.readAsStringSync(), 'in-progress db');
+              expect(stagedAsset.readAsStringSync(), 'in-progress asset');
+            });
+            await EmptyLibraryBloc.recoverOrphanedDbBackup(libDir.path);
+            expect(stagedDb.existsSync(), isFalse);
+            expect(stagedDir.existsSync(), isFalse);
+          },
+        );
+      }
 
       test(
         'בעלייה: ספרייה בלי DB + יתום עם DB → ה-DB חוזר והיתום נעלם',
@@ -2666,13 +2983,20 @@ void main() {
         });
 
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
 
@@ -2782,19 +3106,26 @@ void main() {
           return http.StreamedResponse(const Stream.empty(), 404);
         });
         final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
           httpClient: client,
           defaultLibraryPathOverride: tempDir.path,
           foregroundWork: foregroundWork,
           logError: (_, error, _) => loggedErrors.add(error),
           extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
+              (
+                archivePath,
+                outputPath,
+                onProgress, {
+                required maxOutputBytes,
+                isCancelled,
+              }) async {
                 if (failExtract &&
                     path.basename(archivePath) == 'otzaria_seforim.db.zst') {
                   throw Exception('החילוץ נכשל');
                 }
                 await File(outputPath).writeAsBytes(const [1], flush: true);
               },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+          extractTarArchive: ignoreTarArchive,
         );
         addTearDown(bloc.close);
         return bloc;
@@ -2940,6 +3271,7 @@ class _UpdateLibraryBloc extends EmptyLibraryBloc {
   _UpdateLibraryBloc(String? Function() db)
     : super(
         httpClient: fakeLibraryReleaseClient(db),
+        verifyDatabase: verifyFixtureDatabase,
         extractCompressedDatabase: copyAsExtracted,
         extractTarArchive: ignoreTarArchive,
       );

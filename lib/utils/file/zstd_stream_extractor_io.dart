@@ -22,13 +22,8 @@ Future<void> extractToFile(
     onProgress: onProgress,
     isCancelled: isCancelled,
     cleanupCompleted: () => File(outputPath).delete(),
-    runInIsolate: (port) => _fileInIsolate(
-      archivePath,
-      outputPath,
-      port,
-      maxOutputBytes,
-      false,
-    ),
+    runInIsolate: (port) =>
+        _fileInIsolate(archivePath, outputPath, port, maxOutputBytes, false),
   );
 }
 
@@ -42,13 +37,8 @@ Future<FileExtractionResult> extractVerifiedToFile(
   onBytesWritten: onProgress,
   isCancelled: isCancelled,
   cleanupCompleted: () => File(outputPath).delete(),
-  runInIsolate: (port) => _fileInIsolate(
-    archivePath,
-    outputPath,
-    port,
-    maxOutputBytes,
-    true,
-  ),
+  runInIsolate: (port) =>
+      _fileInIsolate(archivePath, outputPath, port, maxOutputBytes, true),
 );
 
 // רק פרמטרים הניתנים להעברה נלכדים ב-closure של ה-isolate.
@@ -81,12 +71,8 @@ Future<void> extractTarToDir(
 }) => _runWithProgress(
   onProgress: onProgress,
   isCancelled: isCancelled,
-  runInIsolate: (port) => _tarInIsolate(
-    archivePath,
-    outputDir,
-    port,
-    maxOutputBytes,
-  ),
+  runInIsolate: (port) =>
+      _tarInIsolate(archivePath, outputDir, port, maxOutputBytes),
 );
 
 Future<_WorkerOutcome<void>> _tarInIsolate(
@@ -325,8 +311,16 @@ Future<void> _extractTarWithLib(
   int? maxOutputBytes,
   bool Function()? isCancelled,
 }) async {
+  if (maxOutputBytes != null && maxOutputBytes <= 0) {
+    throw ArgumentError.value(maxOutputBytes, 'maxOutputBytes');
+  }
   final cancellation = _WorkerCancellation(progressPort, isCancelled);
-  final tar = TarStreamExtractor(outputDir, rootFolder: null);
+  final tar = TarStreamExtractor(
+    outputDir,
+    rootFolder: null,
+    maxOutputBytes: maxOutputBytes ?? kDefaultMaxExtractedBytes,
+    checkCancelled: cancellation.check,
+  );
   var totalWritten = 0;
   try {
     await _decodeFile(archivePath, dylib, progressPort, (output) async {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
@@ -7,6 +8,8 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_art
 import 'package:otzaria/attached_libraries/repository/update/attached_update_delta_applier.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_fetcher.dart';
 import 'package:otzaria/core/netfree_certificates.dart';
+import 'package:path/path.dart' as p;
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 /// Progress of [AttachedUpdateDownloader.download]; `total == 0` while the
 /// parts are assembled and hashed.
@@ -42,19 +45,83 @@ class AttachedUpdateDownloader {
     required String outputPath,
     String? basePath,
     AttachedUpdateProgress? onProgress,
+    AttachedUpdateProgress? onExtractionProgress,
     AttachedUpdateCancelToken? cancel,
   }) async {
-    if (cancel?.isCancelled ?? false) throw const AttachedUpdateCancelled();
+    AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+    await AttachedUpdateArtifactBuilder.ensureDistinctPaths([
+      combinedPath,
+      outputPath,
+      '$combinedPath.lock',
+      '$outputPath.lock',
+      if (basePath != null) basePath,
+    ]);
+    AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+    await Directory(p.dirname(combinedPath)).create(recursive: true);
+    await Directory(p.dirname(outputPath)).create(recursive: true);
+    await withFileOperationLock(
+      outputPath,
+      () => withFileOperationLock(
+        combinedPath,
+        () => _downloadLocked(
+          artifact,
+          combinedPath,
+          outputPath,
+          basePath,
+          onProgress,
+          onExtractionProgress,
+          cancel,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadLocked(
+    AttachedUpdateArtifact artifact,
+    String combinedPath,
+    String outputPath,
+    String? basePath,
+    AttachedUpdateProgress? onProgress,
+    AttachedUpdateProgress? onExtractionProgress,
+    AttachedUpdateCancelToken? cancel,
+  ) async {
+    AttachedUpdateArtifactBuilder.checkCancelled(cancel);
     final certs = await certificates();
+    AttachedUpdateArtifactBuilder.checkCancelled(cancel);
     final events = ReceivePort();
+    final drained = Completer<void>();
     SendPort? control;
-    final unsubscribe = cancel?.onCancel(() => control?.send(null));
-    events.listen((message) {
-      if (message is SendPort) {
+    Object? callbackError;
+    StackTrace? callbackStack;
+    var stopRequested = false;
+    void requestStop() {
+      stopRequested = true;
+      control?.send(null);
+    }
+
+    final unsubscribe = cancel?.onCancel(requestStop);
+    final subscription = events.listen((message) {
+      if (message == null) {
+        if (!drained.isCompleted) drained.complete();
+      } else if (message is SendPort) {
         control = message;
-        if (cancel?.isCancelled ?? false) message.send(null);
-      } else if (message is (int, int)) {
-        onProgress?.call(message.$1, message.$2);
+        if (stopRequested || (cancel?.isCancelled ?? false)) message.send(null);
+      } else if (callbackError == null) {
+        try {
+          if (message is (int, int)) {
+            onProgress?.call(message.$1, message.$2);
+          } else if (message is (int, int, bool)) {
+            if (onExtractionProgress != null) {
+              onExtractionProgress(message.$1, message.$2);
+            } else {
+              onProgress?.call(message.$1, 0);
+            }
+          }
+        } catch (error, stack) {
+          callbackError = error;
+          callbackStack = stack;
+          requestStop();
+        }
       }
     });
     final job = _Job(
@@ -69,16 +136,50 @@ class AttachedUpdateDownloader {
       events: events.sendPort,
       progressInterval: progressInterval,
     );
+    var completed = false;
     try {
-      await _spawn(job);
+      final outcome = await _spawn(job);
+      await drained.future;
+      completed = outcome.$1 == null;
+      if (callbackError != null) {
+        Error.throwWithStackTrace(callbackError!, callbackStack!);
+      }
+      if (outcome.$1 != null) {
+        Error.throwWithStackTrace(outcome.$1!, outcome.$2!);
+      }
+      AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+      if (stopRequested) throw const AttachedUpdateCancelled();
+      final input = File(combinedPath);
+      if (await input.exists()) await input.delete();
+    } catch (_) {
+      if (completed) {
+        try {
+          await File(outputPath).delete();
+        } on FileSystemException {
+          /* original error */
+        }
+      }
+      rethrow;
     } finally {
       unsubscribe?.call();
+      await subscription.cancel();
       events.close();
     }
   }
 
-  // Static so the closure captures only [job], not the caller's context.
-  static Future<void> _spawn(_Job job) => Isolate.run(() => _run(job));
+  // Outcome delivery is distinct from successful completion; the same-port
+  // sentinel guarantees that even the last progress callback is observed.
+  static Future<(Object?, StackTrace?)> _spawn(_Job job) =>
+      Isolate.run(() async {
+        try {
+          await _run(job);
+          return (null, null);
+        } catch (error, stack) {
+          return (error, stack);
+        } finally {
+          job.events.send(null);
+        }
+      });
 
   static Future<void> _run(_Job job) async {
     trustCertificates(job.certificates);
@@ -87,7 +188,19 @@ class AttachedUpdateDownloader {
     control.listen((_) => cancel.cancel());
     job.events.send(control.sendPort);
     try {
+      final previousOutput = File(job.outputPath);
+      if (await previousOutput.exists()) await previousOutput.delete();
       var last = DateTime.fromMillisecondsSinceEpoch(0);
+      void extractionProgress(int written) {
+        final now = DateTime.now();
+        if (written < job.artifact.size &&
+            now.difference(last) < job.progressInterval) {
+          return;
+        }
+        last = now;
+        job.events.send((written, job.artifact.size, true));
+      }
+
       await job.fetcher.downloadParts(
         job.artifact.parts,
         job.combinedPath,
@@ -103,6 +216,7 @@ class AttachedUpdateDownloader {
       );
       if (cancel.isCancelled) throw const AttachedUpdateCancelled();
       job.events.send((0, 0));
+      last = DateTime.fromMillisecondsSinceEpoch(0);
       if (job.artifact.compression == AttachedUpdateCompression.zstdPatch) {
         final base = job.basePath;
         if (base == null) {
@@ -116,10 +230,27 @@ class AttachedUpdateDownloader {
           base,
           job.outputPath,
           cancel: cancel,
+          onProgress: extractionProgress,
+          retainInput: true,
         );
       } else {
-        await job.builder.build(job.artifact, job.combinedPath, job.outputPath);
+        await job.builder.build(
+          job.artifact,
+          job.combinedPath,
+          job.outputPath,
+          cancel: cancel,
+          onProgress: extractionProgress,
+          retainInput: true,
+        );
       }
+      AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+    } catch (_) {
+      try {
+        await File(job.outputPath).delete();
+      } on FileSystemException {
+        /* original error */
+      }
+      rethrow;
     } finally {
       control.close();
     }

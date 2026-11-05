@@ -70,6 +70,7 @@ class _FakeDownloader extends AttachedUpdateDownloader {
     required String outputPath,
     String? basePath,
     AttachedUpdateProgress? onProgress,
+    AttachedUpdateProgress? onExtractionProgress,
     AttachedUpdateCancelToken? cancel,
   }) async {
     calls++;
@@ -288,9 +289,9 @@ void main() {
         "WHERE key = 'update_manifest_url'",
       );
       db.close();
-      File(path).setLastModifiedSync(
-        DateTime.now().add(const Duration(minutes: 1)),
-      );
+      File(
+        path,
+      ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
       await repository.rescan();
       expect(repository.libraries.single.updateSourceMismatch, isTrue);
       await service().runScheduledCheck();
@@ -436,9 +437,7 @@ void main() {
     test('the version on disk, not the cached one, blocks a replay', () async {
       final (svc, library) = await offered(database(version: '2'));
       final db = sqlite3.sqlite3.open(library.path);
-      db.execute(
-        "UPDATE schema_meta SET value = '3' WHERE key = 'db_version'",
-      );
+      db.execute("UPDATE schema_meta SET value = '3' WHERE key = 'db_version'");
       db.close();
       await svc.install(library);
       // Not an error: the stale offer is dropped and nothing is shown.
@@ -614,9 +613,9 @@ void main() {
     test('crash between the two renames ⇒ backup moved back', () async {
       final library = await attach(database());
       final before = File(library.path).readAsBytesSync();
-      File(library.path).renameSync(
-        AttachedUpdateFileSwap.backupPathFor(library.path),
-      );
+      File(
+        library.path,
+      ).renameSync(AttachedUpdateFileSwap.backupPathFor(library.path));
       await repository.recoverInterruptedUpdates();
       expect(File(library.path).readAsBytesSync(), before);
     });
@@ -625,9 +624,9 @@ void main() {
       'crash before the side files moved ⇒ they stay with the old file',
       () async {
         final library = await attach(database());
-        File(library.path).renameSync(
-          AttachedUpdateFileSwap.backupPathFor(library.path),
-        );
+        File(
+          library.path,
+        ).renameSync(AttachedUpdateFileSwap.backupPathFor(library.path));
         File('${library.path}-wal').writeAsBytesSync([9]);
         await repository.recoverInterruptedUpdates();
         expect(File('${library.path}-wal').readAsBytesSync(), [9]);

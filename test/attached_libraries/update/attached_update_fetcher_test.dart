@@ -125,10 +125,9 @@ void main() {
   test('follows redirects that stay within the policy', () async {
     s.files['/final'] = [9];
     s.redirects['/start'] = '/final';
-    expect(
-      await fetcher.fetchBytes(Uri.parse(s.url('/start')), maxBytes: 10),
-      [9],
-    );
+    expect(await fetcher.fetchBytes(Uri.parse(s.url('/start')), maxBytes: 10), [
+      9,
+    ]);
   });
 
   test('redirect to http or to an IP is rejected', () async {
@@ -277,6 +276,33 @@ void main() {
       throwsA(isA<AttachedUpdateNetworkException>()),
     );
   });
+
+  test(
+    'cancelling cached-input verification preserves the resume file',
+    () async {
+      final bytes = _data(512 * 1024, 9);
+      final target = File(p.join(temp.path, 'cached'));
+      await target.writeAsBytes(bytes);
+      final token = AttachedUpdateCancelToken();
+      var verified = 0;
+      await expectLater(
+        fetcher.downloadParts(
+          [_part(s, '/never-requested', bytes)],
+          target.path,
+          cancel: token,
+          onProgress: (done, total) {
+            verified = done;
+            if (done > 0) token.cancel();
+          },
+        ),
+        throwsA(isA<AttachedUpdateCancelled>()),
+      );
+      expect(verified, greaterThan(0));
+      expect(verified, lessThan(bytes.length));
+      expect(await target.readAsBytes(), bytes);
+      expect(s.ranges, isEmpty);
+    },
+  );
 
   test('cancellation aborts an in-flight download', () async {
     s.files['/a'] = _data(1000, 1);

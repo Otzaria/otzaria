@@ -4,6 +4,7 @@ import 'package:otzaria/indexing/utils/pending_reindex_store.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/empty_library/services/library_package/library_package.dart';
+import 'package:otzaria/empty_library/services/library_package/library_extraction_control.dart';
 import 'package:otzaria/empty_library/services/library_package/library_package_extractor.dart';
 import 'package:otzaria/empty_library/services/library_package/library_source.dart';
 import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
@@ -12,6 +13,8 @@ import 'package:otzaria/empty_library/services/library_space_estimate.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria/utils/file/zstd_patch_decoder.dart';
 import 'package:path/path.dart' as p;
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    show kDefaultMaxExtractedBytes;
 
 /// שחרור מנוע החיפוש לפני החלפת תיקיית האינדקס, ופתיחתו מחדש אחריה.
 class LibraryIndexHost {
@@ -65,15 +68,21 @@ class LibraryPackageImporter {
     RawAssetRunner? rawRunner,
     LibraryIndexHost? indexHost,
     Future<DiskSpaceInfo> Function(String path)? diskSpace,
+    this.maxOutputBytes = kDefaultMaxExtractedBytes,
   }) : _runner = runner ?? runPackageExtractionInIsolate,
        _rawRunner = rawRunner ?? runRawAssetJobInIsolate,
        _indexHost = indexHost ?? LibraryIndexHost.tantivy(),
-       _diskSpace = diskSpace ?? getDiskSpaceInfo;
+       _diskSpace = diskSpace ?? getDiskSpaceInfo {
+    if (maxOutputBytes <= 0) {
+      throw ArgumentError.value(maxOutputBytes, 'maxOutputBytes');
+    }
+  }
 
   final PackageExtractionRunner _runner;
   final RawAssetRunner _rawRunner;
   final LibraryIndexHost _indexHost;
   final Future<DiskSpaceInfo> Function(String path) _diskSpace;
+  final int maxOutputBytes;
 
   /// היכן יישב האינדקס: באנדרואיד תמיד באחסון הפנימי (Tantivy נועל ב-flock,
   /// ש-FUSE של כרטיס SD אינו תומך בו); אחרת ליד תיקיית הספרים.
@@ -230,16 +239,35 @@ class LibraryPackageImporter {
     required ZstdCancelFlag cancel,
   }) async {
     final root = stagingRootFor(booksTarget);
+    checkLibraryImportCancelled(cancel);
+    await verifySourceSeparation(
+      [root],
+      [
+        for (final asset in raw.assets.values) ...[
+          if (asset.directoryPath case final source?)
+            (path: source, directory: true),
+          for (final part in asset.parts)
+            if (asset.folder.localPath(part.entry) case final source?)
+              (path: source, directory: false),
+        ],
+      ],
+    );
+    checkLibraryImportCancelled(cancel);
     await _deleteDirectory(root);
     await Directory(root).create(recursive: true);
     final assets = raw.assets.values.toList()
       ..sort((a, b) => a.component.index.compareTo(b.component.index));
     try {
       await _rawRunner(
-        RawAssetJob(assets: assets, destination: root),
+        RawAssetJob(
+          assets: assets,
+          destination: root,
+          maxOutputBytes: maxOutputBytes,
+        ),
         onProgress: onProgress,
         cancel: cancel,
       );
+      checkLibraryImportCancelled(cancel);
     } catch (_) {
       await _deleteDirectory(root);
       rethrow;
@@ -262,6 +290,17 @@ class LibraryPackageImporter {
         ? null
         : indexStagingRootFor(booksTarget, indexTarget);
     final roots = {libraryRoot, ?indexRoot}.toList();
+    checkLibraryImportCancelled(cancel);
+    await verifySourceSeparation(
+      roots,
+      [
+        for (final package in [packages.library, ?packages.index])
+          for (final part in package.parts)
+            if (packages.folder.localPath(part.entry) case final source?)
+              (path: source, directory: false),
+      ],
+    );
+    checkLibraryImportCancelled(cancel);
     for (final root in roots) {
       await _deleteDirectory(root);
       await Directory(root).create(recursive: true);
@@ -279,10 +318,12 @@ class LibraryPackageImporter {
           packages: packages,
           libraryDestination: libraryRoot,
           indexDestination: indexRoot,
+          maxOutputBytes: maxOutputBytes,
         ),
         onProgress: onProgress,
         cancel: cancel,
       );
+      checkLibraryImportCancelled(cancel);
       final indexDir = staged.indexDir;
       if (indexDir != null &&
           !await File(
@@ -295,6 +336,42 @@ class LibraryPackageImporter {
       rethrow;
     }
     return staged;
+  }
+
+  /// ניקוי staging אינו רשאי למחוק מקור שנבחר או להעתיק תיקייה לתוך עצמה.
+  /// Validates local source paths before any managed file/directory is changed.
+  /// Callers that move existing databases before staging use the same check.
+  static Future<void> verifySourceSeparation(
+    List<String> roots,
+    List<({String path, bool directory})> sources,
+  ) async {
+    final canonicalRoots = [for (final root in roots) await _canonical(root)];
+    for (final source in sources) {
+      final canonicalSource = await _canonical(source.path);
+      for (final root in canonicalRoots) {
+        if (p.equals(root, canonicalSource) ||
+            p.isWithin(root, canonicalSource) ||
+            (source.directory && p.isWithin(canonicalSource, root))) {
+          throw ArgumentError('מקור הייבוא חופף לקובץ או לתיקייה שהייבוא משנה');
+        }
+      }
+    }
+  }
+
+  static Future<String> _canonical(String value) async {
+    var existing = p.normalize(p.absolute(value));
+    final suffix = <String>[];
+    while (await FileSystemEntity.type(existing, followLinks: false) ==
+        FileSystemEntityType.notFound) {
+      suffix.add(p.basename(existing));
+      final parent = p.dirname(existing);
+      if (parent == existing) break;
+      existing = parent;
+    }
+    return p.joinAll([
+      await File(existing).resolveSymbolicLinks(),
+      ...suffix.reversed,
+    ]);
   }
 
   /// משחרר את מנוע החיפוש ומחליף את [indexTarget] באינדקס שנפרס. בכשל
