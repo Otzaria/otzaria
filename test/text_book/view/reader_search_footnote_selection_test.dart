@@ -53,7 +53,7 @@ void main() {
       '${combined ? 'הקורא המשולב' : 'צורת הדף'} מחפש את המילה בלי סמן ההערה ושומר את הבחירה',
       (tester) async {
         const prefix = 'הרי שסמך על מקצת ';
-        const source = '${prefix}הודאתו<sup class="footnote-marker">3963</sup>';
+        const source = '$prefixהודאתו<sup class="footnote-marker">3963</sup>';
         const shownSuffix = 'הודאתו\u20663963\u2069';
         final book = TextBook(title: 'ספר בדיקה');
         final bloc = _TextBookBloc(_loaded(book, source, combined));
@@ -83,6 +83,8 @@ void main() {
             ? CombinedView(
                 data: const [source],
                 tab: tab,
+                textSize: 18,
+                showCommentaryAsExpansionTiles: true,
                 openBookCallback: (_) {},
                 openLeftPaneTab: (index, {searchText}) {
                   expect(index, 1);
@@ -189,7 +191,7 @@ void main() {
           tester.getCenter(menuFinder),
         );
         final search = entries.singleWhere(
-          (entry) => entry.label.endsWith('בספר זה'),
+          (entry) => entry.label?.endsWith('בספר זה') == true,
         );
         search.onTap!();
         expect(inBookQueries, hasLength(1));
