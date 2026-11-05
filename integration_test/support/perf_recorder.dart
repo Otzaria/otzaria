@@ -6,7 +6,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:vm_service/vm_service.dart';
+import 'package:vm_service/vm_service.dart' show IsolateRef, VmService;
 import 'package:vm_service/vm_service_io.dart';
 
 class PerfSkipped implements Exception {

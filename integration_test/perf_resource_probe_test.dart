@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

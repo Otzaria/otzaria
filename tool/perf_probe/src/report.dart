@@ -445,9 +445,7 @@ Map<String, dynamic> _snapshots(
       for (final key in keys)
         key: sampleDistribution([
           for (final phase in phases)
-            if (_number(_map(phase['$prefix$point'])[key], key)
-                case final value?)
-              value,
+            ?_number(_map(phase['$prefix$point'])[key], key),
         ]),
     },
 };
@@ -477,8 +475,9 @@ Map<String, dynamic> _resources(
     for (final sample in samples) {
       if (sample.launchIndex != phase['launchIndex'] ||
           sample.epochMs < start ||
-          sample.epochMs > end)
+          sample.epochMs > end) {
         continue;
+      }
       groups
           .putIfAbsent('${sample.epochMs}:${sample.monotonicMs}', () => [])
           .add(sample);
@@ -557,8 +556,9 @@ Map<String, dynamic> _resources(
     }
   }
   if (ticks == 0) unavailable.add('אין דגימות תהליך בתוך גבולות השלבים');
-  if (cpu.isEmpty)
+  if (cpu.isEmpty) {
     unavailable.add('אין שתי דגימות CPU תקינות סמוכות באותו שלב');
+  }
   if (private.isEmpty) unavailable.add('private memory לא נמדד');
   if (handles.isEmpty) unavailable.add('handles לא נמדדו');
   return {
@@ -589,11 +589,13 @@ Map<String, dynamic> compareProbeReports(
   final reasons = <String>{};
   for (final entry in {'baseline': baseline, 'candidate': candidate}.entries) {
     final report = entry.value;
-    if (report['sourceSchemaVersion'] != 2)
+    if (report['sourceSchemaVersion'] != 2) {
       reasons.add('${entry.key}:legacy_schema');
+    }
     if (report['complete'] != true) reasons.add('${entry.key}:incomplete_run');
-    if (report['successful'] != true)
+    if (report['successful'] != true) {
       reasons.add('${entry.key}:unsuccessful_run');
+    }
     for (final reason in report['comparisonEligibility'] as List? ?? const []) {
       reasons.add('${entry.key}:$reason');
     }
@@ -606,8 +608,9 @@ Map<String, dynamic> compareProbeReports(
   for (final key in _comparisonKeys) {
     if (beforeMeta[key] == null ||
         afterMeta[key] == null ||
-        !_same(beforeMeta[key], afterMeta[key]))
+        !_same(beforeMeta[key], afterMeta[key])) {
       reasons.add('metadata:$key');
+    }
   }
   final before = {
     for (final row in baseline['scenarios'] as List? ?? const [])
@@ -752,7 +755,9 @@ String renderProbeMarkdown(Map<String, dynamic> report) {
   final warnings = report['warnings'] as List;
   if (warnings.isNotEmpty) {
     out.writeln('\n## מגבלות המדידה\n');
-    for (final warning in warnings) out.writeln('- ${_cell(warning)}');
+    for (final warning in warnings) {
+      out.writeln('- ${_cell(warning)}');
+    }
   }
   return out.toString();
 }
@@ -857,8 +862,9 @@ num? _number(Object? value, String name) {
 
 int? _integer(Object? value, String name) {
   final n = _number(value, name);
-  if (n != null && n != n.truncate())
+  if (n != null && n != n.truncate()) {
     throw FormatException('$name חייב להיות שלם');
+  }
   return n?.toInt();
 }
 
@@ -883,7 +889,9 @@ bool _same(Object? a, Object? b) {
 
 Object? _at(Map<String, dynamic> row, String path) {
   Object? value = row;
-  for (final key in path.split('.')) value = _map(value)[key];
+  for (final key in path.split('.')) {
+    value = _map(value)[key];
+  }
   return value;
 }
 
