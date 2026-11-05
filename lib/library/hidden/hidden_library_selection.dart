@@ -102,9 +102,9 @@ HiddenLibrarySelection applyHiddenSelectionChange(
 
 /// מסדר כתיבות הסתרה באותו isolate כך ששתי בחירות לא ידרסו זו את זו.
 class HiddenLibraryUpdateQueue {
-  HiddenLibraryUpdateQueue._();
+  HiddenLibraryUpdateQueue();
 
-  static final instance = HiddenLibraryUpdateQueue._();
+  static final instance = HiddenLibraryUpdateQueue();
   final Queue<Future<void> Function()> _pending = Queue();
   bool _running = false;
 
