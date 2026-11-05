@@ -25,6 +25,7 @@ import '../../models/toc_entry.dart';
 import '../../models/toc_text.dart';
 import '../../models/topic.dart';
 import '../daos/database.dart';
+import '../book_read.dart';
 import '../db_capabilities.dart';
 import '../line_content_encoder.dart';
 import '../sqlite3_utils.dart';
@@ -194,15 +195,17 @@ class SeforimRepository {
       await _executeRawQuery('PRAGMA page_size=4096');
     }
 
-    // Check if the database is empty
     try {
-      final count = await _database.bookDao.countAllBooks();
-      _logger.info('Database contains $count books');
+      // ה-worker סופר בחיבור שלו; אין לפתוח אותו בשביל לוג בזמן אתחול ה-UI.
+      if (_database.bookReadDelegate == null) {
+        final count = await _database.bookDao.countAllBooks();
+        _logger.info('Database contains $count books');
+      }
 
       // Initialize connection types cache
       await initializeConnectionTypes();
     } catch (e) {
-      _logger.info('Error counting books: ${e.toString()}');
+      _logger.info('Error initializing book metadata: ${e.toString()}');
     }
   }
 
@@ -482,6 +485,13 @@ class SeforimRepository {
   /// @param id The ID of the book to retrieve
   /// @return The book if found, null otherwise
   Future<Book?> getBook(int id) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byId,
+        [id],
+        includeRelations: true,
+      );
+    }
     final bookData = await _database.bookDao.getBookById(id);
     if (bookData == null) return null;
 
@@ -503,6 +513,13 @@ class SeforimRepository {
   /// @param categoryId The ID of the category
   /// @return A list of books in the category
   Future<List<Book>> getBooksByCategory(int categoryId) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byCategory,
+        [categoryId],
+        includeRelations: true,
+      );
+    }
     final books = await _database.bookDao.getBooksByCategory(categoryId);
     return Future.wait(
       books.map((bookData) async {
@@ -656,6 +673,13 @@ class SeforimRepository {
   }
 
   Future<Book?> getBookByTitle(String title) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byTitle,
+        [title],
+        includeRelations: true,
+      );
+    }
     final bookData = await _database.bookDao.getBookByTitle(title);
     if (bookData == null) return null;
 
@@ -673,6 +697,13 @@ class SeforimRepository {
   }
 
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byTitleAndCategory,
+        [title, categoryId],
+        includeRelations: true,
+      );
+    }
     final bookData = await _database.bookDao.getBookByTitleAndCategory(
       title,
       categoryId,
@@ -697,6 +728,13 @@ class SeforimRepository {
     int categoryId,
     String fileType,
   ) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byTitleCategoryAndFileType,
+        [title, categoryId, fileType],
+        includeRelations: true,
+      );
+    }
     final bookData = await _database.bookDao.getBookByTitleCategoryAndFileType(
       title,
       categoryId,

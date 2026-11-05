@@ -1,5 +1,6 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../../models/book.dart';
+import '../book_read.dart';
 import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
 import '../query_loader.dart';
@@ -17,6 +18,14 @@ class BookDao {
   Future<sqlite3.Database> get database => _db.database;
 
   Future<DbCapabilities> get _capabilities => _db.capabilities;
+
+  Future<T> _read<T>(
+    BookReadOperation operation,
+    List<Object?> arguments,
+    Future<T> Function() localRead,
+  ) => _db.bookReadDelegate == null
+      ? localRead()
+      : _db.readBooks<T>(operation, arguments);
 
   /// ספר משורת `book`. במסד מצורף `filePath` נפתר יחסית לתיקיית המסד, ונתיב
   /// אסור הופך ל-null — כך אף צרכן אינו פותח קובץ מחוץ לתיקייה.
@@ -54,15 +63,14 @@ class BookDao {
         .toList();
   }
 
-  Future<List<Book>> getAllBooks() => _selectMany(_queries['selectAll']!, []);
+  Future<List<Book>> getAllBooks() => _read(
+    BookReadOperation.allBooks,
+    const [],
+    () => _selectMany(_queries['selectAll']!, []),
+  );
 
-  /// Gets minimal book data, optionally within an ongoing transaction.
-  /// Used by [DatabaseLibraryProvider] to load books and categories atomically.
-  /// Must be called synchronously inside a [withTransaction] block.
-  ///
-  /// [withFileColumns] שולף גם `fileType`/`filePath` עבור `user_books.db`, שבו
-  /// הספרים הם קבצים פיזיים. ל-seforim.db v3 אין עמודות אלה והברירת מחדל
-  /// (false) משמיטה אותן.
+  /// נתוני קטלוג על חיבור קיים, לקריאה סינכרונית בתוך טרנזקציה.
+  /// [withFileColumns] מוסיף נתוני קבצים ל-user_books.db; אינם קיימים ב-seforim.db v3.
   List<Map<String, dynamic>> getAllBooksMinimal(
     sqlite3.Database db, {
     bool withFileColumns = false,
@@ -139,6 +147,9 @@ class BookDao {
   /// השדות שהקאש המשותף של טבלת `book` צורך, כמפות. ההקרנה הרזה שומרת את
   /// ההעתקה קטנה כשהשורות חוצות גבול isolate (~7,300 ספרים).
   Future<List<Map<String, dynamic>>> selectAllLocalBooksSlim() async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.localBooksSlim, const []);
+    }
     final capabilities = await _capabilities;
     if (!capabilities.hasBooks) return const [];
     final db = await database;
@@ -162,12 +173,17 @@ class BookDao {
   }
 
   /// Gets all local books (excluding external catalog books).
-  Future<List<Book>> getAllLocalBooks() =>
-      _selectMany(_queries['selectAllIgnoreExternalCatalogs']!, []);
+  Future<List<Book>> getAllLocalBooks() => _read(
+    BookReadOperation.allLocalBooks,
+    const [],
+    () => _selectMany(_queries['selectAllIgnoreExternalCatalogs']!, []),
+  );
 
-  /// Gets all books with their relations (authors, topics, pubPlaces, pubDates) in a single optimized query.
-  /// This is much faster than calling getAllBooks() and then loading relations separately.
+  /// כל הספרים והיחסים שלהם, בשאילתה אחת לכל סוג יחס במקום שאילתות לכל ספר.
   Future<List<Map<String, dynamic>>> getAllBooksWithRelations() async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.allBooksWithRelations, const []);
+    }
     final capabilities = await _capabilities;
     if (!capabilities.hasBooks) return const [];
     final db = await database;
@@ -264,19 +280,34 @@ class BookDao {
     }).toList();
   }
 
-  Future<Book?> getBookById(int id) =>
-      _selectOne(_queries['selectById']!, [id]);
+  Future<Book?> getBookById(int id) => _read(
+    BookReadOperation.byId,
+    [id],
+    () => _selectOne(_queries['selectById']!, [id]),
+  );
 
   Future<List<Book>> getBooksByCategory(int categoryId) async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.byCategory, [categoryId]);
+    }
     if (!(await _capabilities).hasBookCategories) return const [];
     return _selectMany(_queries['selectByCategoryId']!, [categoryId]);
   }
 
-  Future<Book?> getBookByTitle(String title) =>
-      _selectOne(_queries['selectByTitle']!, [title]);
+  Future<Book?> getBookByTitle(String title) => _read(
+    BookReadOperation.byTitle,
+    [title],
+    () => _selectOne(_queries['selectByTitle']!, [title]),
+  );
 
   /// במסד בלי עמודת קטגוריה כל הספרים יושבים תחת שורש אחד — ההתאמה לפי כותרת.
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.byTitleAndCategory, [
+        title,
+        categoryId,
+      ]);
+    }
     if (!(await _capabilities).hasBookCategories) {
       return getBookByTitle(title);
     }
@@ -291,6 +322,13 @@ class BookDao {
     int categoryId,
     String fileType,
   ) async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.byTitleCategoryAndFileType, [
+        title,
+        categoryId,
+        fileType,
+      ]);
+    }
     final capabilities = await _capabilities;
     if (!capabilities.hasBookCategories ||
         !capabilities.hasColumn('book', 'fileType')) {
@@ -431,6 +469,9 @@ class BookDao {
 
   /// Gets an external book by its file path.
   Future<Book?> getBookByFilePath(String filePath) async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.byFilePath, [filePath]);
+    }
     final db = await database;
     final result = db.select(_queries['selectByFilePath']!, [
       filePath,
@@ -440,6 +481,9 @@ class BookDao {
   }
 
   Future<int> countAllBooks() async {
+    if (_db.bookReadDelegate != null) {
+      return _db.readBooks(BookReadOperation.count, const []);
+    }
     final db = await database;
     return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
   }
