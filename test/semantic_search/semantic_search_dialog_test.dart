@@ -672,7 +672,7 @@ void main() {
     await completionCheck;
     expect(tester.takeException(), isNull);
   });
-  testWidgets('ספר יחיד וממד נשלחים כמו שהם; ספר אישי מושמט מההיקף', (
+  testWidgets('ספר יחיד, ספר אישי וממד נשלחים כמו שהם בחיפוש משולב', (
     tester,
   ) async {
     final harness = await pumpDialog(
@@ -685,7 +685,7 @@ void main() {
       tester
           .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
           .officialBooksOnly,
-      isTrue,
+      isFalse,
     );
     final facet = FacetHelper.buildBookFacet(
       '/הלכה',
@@ -709,7 +709,7 @@ void main() {
             ).captured.whereType<AddTab>().single.tab
             as SemanticSearchTab;
     addTearDown(tab.dispose);
-    expect(tab.options.facets, ['/author/רש״י', facet]);
+    expect(tab.options.facets, ['/author/רש״י', '/uid:4', facet]);
     expect(tab.options.query, rawQuery);
   });
   testWidgets('תחביר @ מצמצם את החיפוש החכם לקטגוריה ונמחק מהשאילתה', (
@@ -803,6 +803,93 @@ void main() {
 
     const unsupportedMessage =
         'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+    testWidgets('היקף משולב שומר ספרים אישיים ומצורפים (issue #2538)', (
+      tester,
+    ) async {
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: scopeLibrary(),
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      final picker = tester.widget<SearchScopeMenuButton>(
+        find.byType(SearchScopeMenuButton),
+      );
+      expect(picker.officialBooksOnly, isFalse);
+      picker.onChanged({'/הלכה/uid:2', '/אוסף נוסף/db:lib:3'});
+      await tester.enterText(_queryField, 'טקסט לחיפוש');
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      final tab =
+          harness.addedEvents.whereType<AddTab>().single.tab
+              as SemanticSearchTab;
+      addTearDown(tab.dispose);
+      expect(tab.options.includeLexical, isTrue);
+      expect(tab.options.facets, ['/אוסף נוסף/db:lib:3', '/הלכה/uid:2']);
+    });
+
+    testWidgets('התאמת @ לשם רשמי ואישי אינה חוסמת חיפוש משולב (issue #3956)', (
+      tester,
+    ) async {
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: scopeLibrary(),
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.enterText(_queryField, 'טקסט לחיפוש@שם משותף');
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      final tab =
+          harness.addedEvents.whereType<AddTab>().single.tab
+              as SemanticSearchTab;
+      addTearDown(tab.dispose);
+      expect(tab.options.query, 'טקסט לחיפוש');
+      expect(tab.options.facets, ['/הלכה/id:5', '/הלכה/uid:6']);
+    });
+
+    testWidgets('כיבוי התאמה מילולית אינו מרחיב היקף אישי (issue #2538)', (
+      tester,
+    ) async {
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: scopeLibrary(),
+        showMessages: true,
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      tester
+          .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
+          .onChanged({'/הלכה/uid:2'});
+      await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+      await tester.enterText(_queryField, 'טקסט לחיפוש');
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      for (final event in harness.addedEvents.whereType<AddTab>()) {
+        addTearDown(event.tab.dispose);
+      }
+      expect(harness.addedEvents, isEmpty);
+      expect(find.text(unsupportedMessage), findsOneWidget);
+      expect(
+        tester
+            .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
+            .selected,
+        {'/הלכה/uid:2'},
+      );
+      UiSnack.hide();
+      await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      final tab =
+          harness.addedEvents.whereType<AddTab>().single.tab
+              as SemanticSearchTab;
+      addTearDown(tab.dispose);
+      expect(tab.options.facets, ['/הלכה/uid:2']);
+    });
+
     for (final suffix in [
       '@מחברת פרטית',
       '@שם משותף',
@@ -823,6 +910,10 @@ void main() {
           showMessages: true,
         );
         await tester.tap(_semanticSegment);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('semantic-include-lexical')),
+        );
         await tester.pumpAndSettle();
         tester
             .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))

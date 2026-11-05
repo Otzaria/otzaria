@@ -323,8 +323,9 @@ class SemanticModePanel extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SearchScopeMenuButton(
+                key: ValueKey(includeLexical),
                 selected: scopeSelection,
-                officialBooksOnly: true,
+                officialBooksOnly: !includeLexical,
                 onChanged: onScopeChanged,
               ),
               FilterChip(

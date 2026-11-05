@@ -10,10 +10,12 @@ import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/models/search_preview_target.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
+import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/search/utils/search_result_opener.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -44,7 +46,7 @@ import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticLexicalMode;
+    show MergedSibling, SemanticLexicalMode, TextStatus;
 
 /// האם לבנות מחדש את מסגרת המסך (סרגל, מסננים, תצוגה מקדימה). סימון קטע
 /// והצבעה משנים רק כרטיסים, והרשימה הפנימית מאזינה ל-bloc בעצמה.
@@ -87,6 +89,8 @@ class _SemanticSearchResultsScreenState
 
   Map<String, int> _facetCountsCache = const {};
   List<SemanticResultItem>? _facetCountsItems;
+  Future<void> _freshnessChecks = Future.value();
+  int _freshnessResultCount = 0;
   int _previewRequestId = 0;
 
   /// התוצאה שבתצוגה המקדימה; קובע אם להדגיש מילים בספר.
@@ -153,14 +157,25 @@ class _SemanticSearchResultsScreenState
 
   void _narrow(List<String> categories, List<String> dimensions) {
     final scope = FacetHelper.categoryFacetsOf(widget.tab.options.facets);
-    final facets = semanticScopeFacets(
-      [...(categories.isEmpty ? scope : categories), ...dimensions],
-      isOfficialCategory: officialCategoryFilter(
-        context.read<LibraryBloc>().state.library,
-      ),
+    final selection = [
+      ...(categories.isEmpty ? scope : categories),
+      ...dimensions,
+    ];
+    final isOfficialCategory = officialCategoryFilter(
+      context.read<LibraryBloc>().state.library,
     );
+    if (!selection.every(
+      (facet) => isSemanticScopeFacetSupported(
+        facet,
+        includeLexical: widget.tab.options.includeLexical,
+        isOfficialCategory: isOfficialCategory,
+      ),
+    )) {
+      UiSnack.showError(SemanticSearchMessages.unsupportedScope);
+      return;
+    }
     _clearPreview();
-    widget.tab.narrow(facets);
+    widget.tab.narrow(semanticScopeFacets(selection));
   }
 
   void _setFacet(String facet) {
@@ -196,6 +211,38 @@ class _SemanticSearchResultsScreenState
     );
   }
 
+  /// מאמת רק תוצאות חדשות, בתור סדרתי שאינו מעכב את הצגתן.
+  void _warnForStaleResults(SemanticResultsState state) {
+    final staleBooks = <String, String>{
+      for (final item in state.items.skip(_freshnessResultCount))
+        if (item.textStatus == TextStatus.stale && !item.isPdf)
+          item.filePath: item.title,
+    };
+    _freshnessResultCount = state.items.length;
+    if (staleBooks.isEmpty) return;
+    final searchId = state.searchId;
+    _freshnessChecks = _freshnessChecks
+        .then((_) async {
+          for (final MapEntry(key: filePath, value: title)
+              in staleBooks.entries) {
+            if (!mounted || searchId != _bloc.state.searchId) return;
+            final resolution = await widget.tab.searchBloc
+                .resolveBookForIndexedPath(
+                  filePath,
+                  indexedTitle: title,
+                );
+            if (!mounted || searchId != _bloc.state.searchId) return;
+            final book = resolution.book;
+            if (book is TextBook) {
+              await IndexFreshnessWarner.instance.warnIfContentDrifted(book);
+            }
+          }
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('[SemanticResults] freshness: $error\n$stackTrace');
+        });
+  }
+
   void _clearPreview() {
     _previewRequestId++;
     _previewItem = null;
@@ -218,7 +265,8 @@ class _SemanticSearchResultsScreenState
   /// גם תוצאה לפי עניין בלבד נפתחת עם השאילתה, כדי שהחיפוש בספר ידגיש את
   /// המילים היכן שהן מופיעות; הקטע שלה אינו התאמה, ולכן אינו מסומן כשורת תוצאה.
   bool _marksResultLine(SemanticResultItem? item) =>
-      !(item?.isSemanticOnly ?? false);
+      item == null ||
+      (item.textStatus == TextStatus.ok && !item.isSemanticOnly);
 
   Future<void> _openItem(
     int index,
@@ -435,10 +483,15 @@ class _SemanticSearchResultsScreenState
         ],
         child: BlocConsumer<SemanticResultsBloc, SemanticResultsState>(
           listenWhen: (previous, current) =>
-              previous.searchId != current.searchId,
+              previous.searchId != current.searchId ||
+              !identical(previous.items, current.items),
           listener: (context, state) {
-            _clearPreview();
-            if (_scrollController.hasClients) _scrollController.jumpTo(0);
+            if (state.status == SemanticResultsStatus.loading) {
+              _freshnessResultCount = 0;
+              _clearPreview();
+              if (_scrollController.hasClients) _scrollController.jumpTo(0);
+            }
+            _warnForStaleResults(state);
           },
           buildWhen: semanticLayoutNeedsRebuild,
           builder: (context, state) {
@@ -470,6 +523,7 @@ class _SemanticSearchResultsScreenState
               facetPane: SemanticFacetFiltering(
                 facetCounts: _facetCounts(state),
                 selectedFacets: _currentFacets,
+                scopeFacets: widget.tab.options.facets,
                 isLoading: loading,
                 hasResults: state.items.isNotEmpty,
                 onSetFacet: _setFacet,

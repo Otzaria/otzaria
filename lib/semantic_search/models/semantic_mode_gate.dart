@@ -40,21 +40,9 @@ bool isWholeLibraryScope(Iterable<String> selection) {
 final RegExp _nonOfficialBookKey = RegExp(r'^(uid|db):');
 final RegExp _bookKeySegment = RegExp(r'^(id|uid|ext|db):|\|');
 
-/// ההיקף שנשלח למנוע: הבחירה בלי ספרים אישיים ומצורפים, שאין להם וקטורים.
-/// [isOfficialCategory] מסנן קטגוריות שכל ספריהן ממסדים מצורפים שמוזגו לעץ.
-List<String> semanticScopeFacets(
-  Iterable<String> selection, {
-  bool Function(String facet)? isOfficialCategory,
-}) {
-  final facets = [
-    for (final facet in selection.toSet())
-      if (FacetHelper.isDimensionFacet(facet) ||
-          isSemanticScopeFacetSupported(
-            facet,
-            isOfficialCategory: isOfficialCategory,
-          ))
-        facet,
-  ];
+/// מנרמל את ההיקף בלי להשמיט בחירה מפורשת ולהרחיב אותה לכל הספרייה.
+List<String> semanticScopeFacets(Iterable<String> selection) {
+  final facets = selection.toSet().toList();
   if (facets.contains('/')) {
     facets.removeWhere((f) => f != '/' && !FacetHelper.isDimensionFacet(f));
   } else if (FacetHelper.categoryFacetsOf(facets).isEmpty) {
@@ -66,9 +54,12 @@ List<String> semanticScopeFacets(
 /// האם facet של ספר או קטגוריה נתמך, לפני נרמול של בחירת כל הספרייה.
 bool isSemanticScopeFacetSupported(
   String facet, {
+  bool includeLexical = false,
   bool Function(String facet)? isOfficialCategory,
 }) {
-  if (facet == '/') return true;
+  if (includeLexical || facet == '/' || FacetHelper.isDimensionFacet(facet)) {
+    return true;
+  }
   if (BookDatabaseResolver.likelySource(categoryPath: facet) !=
       BookSource.official) {
     return false;

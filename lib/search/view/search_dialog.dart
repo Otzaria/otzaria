@@ -1359,13 +1359,19 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
     final isOfficialCategory = officialCategoryFilter(library);
-    if (parsedCategory.categoryFound &&
-        !parsedCategory.facets!.toSet().every(
-          (facet) => isSemanticScopeFacetSupported(
-            facet,
-            isOfficialCategory: isOfficialCategory,
-          ),
-        )) {
+    final selection = parsedCategory.categoryFound
+        ? [
+            ...parsedCategory.facets!,
+            ...FacetHelper.dimensionFacetsOf(_scopeSelection),
+          ]
+        : _scopeSelection;
+    if (!selection.every(
+      (facet) => isSemanticScopeFacetSupported(
+        facet,
+        includeLexical: _semanticIncludeLexical,
+        isOfficialCategory: isOfficialCategory,
+      ),
+    )) {
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
       return;
     }
@@ -1374,17 +1380,7 @@ class _SearchDialogState extends State<SearchDialog> {
     SearchDefaults.rememberSessionSemantic(true);
     final options = SemanticQueryOptions(
       query: query,
-      facets: semanticScopeFacets(
-        parsedCategory.categoryFound
-            ? [
-                ...parsedCategory.facets!,
-                ...FacetHelper.dimensionFacetsOf(_scopeSelection),
-              ]
-            : _scopeSelection,
-        isOfficialCategory: parsedCategory.categoryFound
-            ? null
-            : isOfficialCategory,
-      ),
+      facets: semanticScopeFacets(selection),
       includeLexical: _semanticIncludeLexical,
       groupIdenticalText: _semanticGroupIdentical,
     );

@@ -85,7 +85,15 @@ void main() {
   });
 
   group('היקף החיפוש', () {
-    test('קטגוריות, ספרים רשמיים וממדים נשמרים; ספרים אישיים ומצורפים לא', () {
+    test('היקף אישי מפורש אינו מתרחב לכל הספרייה (issue #2538)', () {
+      expect(semanticScopeFacets({'/uid:4'}), ['/uid:4']);
+      expect(
+        semanticScopeFacets({'/uid:4', '/era/ראשונים'}),
+        ['/era/ראשונים', '/uid:4'],
+      );
+    });
+
+    test('הנרמול שומר קטגוריות, ממדים וספרים מכל המקורות', () {
       expect(
         semanticScopeFacets({
           '/תנ״ך',
@@ -96,19 +104,37 @@ void main() {
           '/uid:4',
           '/הלכה/db:lib:3',
         }),
-        ['/era/ראשונים', '/הלכה/שולחן ערוך', '/תנ״ך', '/תנ״ך/id:12'],
+        [
+          '/era/ראשונים',
+          '/uid:4',
+          '/הלכה/db:lib:3',
+          '/הלכה/שולחן ערוך',
+          '/ספרים אישיים/שלי',
+          '/תנ״ך',
+          '/תנ״ך/id:12',
+        ],
       );
     });
 
     test('בחירה ריקה או "הכול" — כל הספרייה', () {
       expect(semanticScopeFacets(const {}), ['/']);
       expect(semanticScopeFacets({'/', '/תנ״ך'}), ['/']);
-      expect(semanticScopeFacets({'/uid:4'}), ['/']);
+      expect(semanticScopeFacets({'/uid:4'}), ['/uid:4']);
       expect(semanticScopeFacets({'/', '/era/ראשונים', '/תנ״ך'}), [
         '/',
         '/era/ראשונים',
       ]);
       expect(semanticScopeFacets({'/era/ראשונים'}), ['/', '/era/ראשונים']);
+    });
+
+    test('ספרים אישיים ומצורפים נתמכים כשכוללים התאמה מילולית', () {
+      for (final facet in ['/ספרים אישיים/שלי', '/uid:4', '/הלכה/db:lib:3']) {
+        expect(isSemanticScopeFacetSupported(facet), isFalse);
+        expect(
+          isSemanticScopeFacetSupported(facet, includeLexical: true),
+          isTrue,
+        );
+      }
     });
   });
 
@@ -202,12 +228,25 @@ void main() {
       final filter = officialCategoryFilter(library);
 
       expect(
-        semanticScopeFacets({
+        {
           '/תנ״ך',
           '/אוסף מצורף',
           '/לא קיים',
-        }, isOfficialCategory: filter),
+        }.where(
+          (facet) => isSemanticScopeFacetSupported(
+            facet,
+            isOfficialCategory: filter,
+          ),
+        ),
         ['/תנ״ך'],
+      );
+      expect(
+        isSemanticScopeFacetSupported(
+          '/אוסף מצורף',
+          includeLexical: true,
+          isOfficialCategory: filter,
+        ),
+        isTrue,
       );
       expect(officialCategoryFilter(null), isNull);
     });

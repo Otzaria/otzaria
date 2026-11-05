@@ -303,11 +303,14 @@ Future<void> main() async {
     ];
 
     expect(
-      semanticScopeFacets(
-        selection,
-        isOfficialCategory: officialCategoryFilter(library),
+      selection.every(
+        (facet) => isSemanticScopeFacetSupported(
+          facet,
+          isOfficialCategory: officialCategoryFilter(library),
+        ),
       ),
-      selection..sort(),
+      isTrue,
     );
+    expect(semanticScopeFacets(selection), selection..sort());
   });
 }

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -26,6 +28,8 @@ import 'package:otzaria/semantic_search/services/semantic_dwell_binding.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/search_results_layout.dart';
+import 'package:otzaria/search/view/search_navigation_tree.dart';
+import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/semantic_search/view/semantic_search_results_screen.dart';
 import 'package:otzaria/semantic_search/view/widgets/semantic_facet_filtering.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -39,7 +43,12 @@ import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticResultSource, MergedSibling;
+    show
+        SemanticResultSource,
+        SemanticSearchResult,
+        MergedSibling,
+        TextStatus,
+        SearchEngine;
 
 import '../test_helpers/memory_cache_provider.dart';
 import 'semantic_ui_test_support.dart';
@@ -66,6 +75,51 @@ class _RecordingTabsBloc extends Bloc<TabsEvent, TabsState>
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+class _FingerprintEngine implements SearchEngine {
+  @override
+  Future<BigInt> getBookTextFingerprint({required String filePath}) async =>
+      BigInt.one;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _WarnerProvider implements TantivyDataProvider {
+  @override
+  final Future<SearchEngine> engine = Future.value(_FingerprintEngine());
+
+  @override
+  final ValueNotifier<bool> isIndexing = ValueNotifier(false);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+SemanticResultItem _engineItem(
+  int n,
+  TextStatus textStatus, {
+  SemanticResultSource source = SemanticResultSource.lexical,
+  String snippetHtml = 'טקסט שהשתנה',
+}) => SemanticResultItem.fromEngine(
+  SemanticSearchResult(
+    title: 'ספר $n',
+    reference: 'ספר $n, א',
+    snippetHtml: snippetHtml,
+    isHighlighted: textStatus == TextStatus.ok,
+    id: BigInt.from(n),
+    segment: BigInt.from(n),
+    isPdf: false,
+    filePath: 'id:$n',
+    mergedCount: 1,
+    merged: const [],
+    fusedScore: 0.01,
+    source: source,
+    needsHydration: false,
+    textStatus: textStatus,
+    matchedWindow: 0,
+  ),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -100,9 +154,14 @@ void main() {
     bool? replaceHolyNames,
     utils.HolyNameStyle? holyNameStyle,
     FakeResultsSource? injectedSource,
+    SemanticQueryOptions? initialOptions,
+    Library? library,
     double? paneWidth,
     bool platformSupported = true,
   }) async {
+    if (library != null) {
+      DataRepository.instance.library = Future.value(library);
+    }
     final recorder = RecordingRecorder();
     final items = [
       resultItem(1, source: SemanticResultSource.both),
@@ -113,7 +172,7 @@ void main() {
     final source = injectedSource ?? FakeResultsSource(items: items);
     final tab = SemanticSearchTab(
       runOnFirstShow: runOnFirstShow,
-      options: SemanticQueryOptions(query: query),
+      options: initialOptions ?? SemanticQueryOptions(query: query),
       createResultsBloc: (_) => buildResultsBloc(
         source: source,
         recorder: recorder,
@@ -140,7 +199,7 @@ void main() {
     whenListen(
       libraryBloc,
       const Stream<LibraryState>.empty(),
-      initialState: const LibraryState(),
+      initialState: LibraryState(library: library),
     );
     addTearDown(() async {
       await libraryBloc.close();
@@ -205,6 +264,127 @@ void main() {
     expect(find.text(kSemanticSourceBothLabel), findsWidgets);
     expect(find.text(kSemanticSourceSemanticLabel), findsOneWidget);
     expect(find.text(kSemanticSourceLexicalLabel), findsOneWidget);
+  });
+
+  testWidgets('תוצאה חכמה עבשָה מפעילה אזהרה בלי תווית התאמה (issue #3410)', (
+    tester,
+  ) async {
+    final warner = IndexFreshnessWarner.instance;
+    final provider = _WarnerProvider();
+    final checkedBooks = <String>[];
+    final notifications = <String>[];
+    warner
+      ..resetForTesting()
+      ..providerResolver = (() => provider)
+      ..debugBookVerifier = (book, _) async {
+        checkedBooks.add(book.title);
+        return false;
+      }
+      ..debugNotifier = notifications.add;
+    addTearDown(() {
+      warner.resetForTesting();
+      provider.isIndexing.dispose();
+    });
+    await pumpScreen(
+      tester,
+      injectedSource: FakeResultsSource(
+        items: [
+          _engineItem(1, TextStatus.stale),
+          _engineItem(1, TextStatus.stale, snippetHtml: ''),
+          _engineItem(2, TextStatus.ok),
+        ],
+      ),
+    );
+    expect(checkedBooks, ['ספר 1']);
+    expect(notifications, [LibraryMessages.searchResultContentDrifted]);
+    expect(find.text(kSemanticSourceLexicalLabel), findsOneWidget);
+  });
+
+  test('קטע שהשתנה אינו נשלח להדגשה סמנטית (issue #3410)', () {
+    expect(
+      _engineItem(
+        1,
+        TextStatus.stale,
+        source: SemanticResultSource.semantic,
+      ).wantsPassageHighlight,
+      isFalse,
+    );
+    expect(
+      _engineItem(
+        1,
+        TextStatus.ok,
+        source: SemanticResultSource.semantic,
+      ).wantsPassageHighlight,
+      isTrue,
+    );
+  });
+
+  testWidgets('בדיקת טריות בעמוד הבא מחכה לקודמת, בלי לחסום תוצאות', (
+    tester,
+  ) async {
+    final warner = IndexFreshnessWarner.instance;
+    final provider = _WarnerProvider();
+    final firstCheck = Completer<bool>();
+    final checkedBooks = <String>[];
+    warner
+      ..resetForTesting()
+      ..providerResolver = (() => provider)
+      ..debugBookVerifier = (book, _) {
+        checkedBooks.add(book.title);
+        return checkedBooks.length == 1
+            ? firstCheck.future
+            : Future.value(true);
+      };
+    addTearDown(() {
+      if (!firstCheck.isCompleted) firstCheck.complete(true);
+      warner.resetForTesting();
+      provider.isIndexing.dispose();
+    });
+    final harness = await pumpScreen(
+      tester,
+      injectedSource: FakeResultsSource(
+        items: [
+          for (var n = 1; n <= 31; n++)
+            _engineItem(
+              n,
+              n == 1 || n == 31 ? TextStatus.stale : TextStatus.ok,
+            ),
+        ],
+      ),
+    );
+    expect(harness.tab.resultsBloc.state.items, hasLength(30));
+    harness.tab.resultsBloc.add(const SemanticMoreResultsRequested());
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.items, hasLength(31));
+    expect(checkedBooks, ['ספר 1']);
+    firstCheck.complete(true);
+    await settle(tester);
+    expect(checkedBooks, ['ספר 1', 'ספר 31']);
+  });
+
+  testWidgets('כשל בפתרון ספר לבדיקת טריות אינו מפיל את מסך התוצאות', (
+    tester,
+  ) async {
+    final previousLibrary = DataRepository.instance.library;
+    final pendingLibrary = Completer<Library>();
+    DataRepository.instance.library = pendingLibrary.future;
+    addTearDown(() {
+      if (!pendingLibrary.isCompleted) {
+        pendingLibrary.complete(Library(categories: const []));
+      }
+      DataRepository.instance.library = previousLibrary;
+    });
+    final harness = await pumpScreen(
+      tester,
+      injectedSource: FakeResultsSource(
+        items: [_engineItem(1, TextStatus.stale)],
+      ),
+    );
+    pendingLibrary.completeError(StateError('library reload failed'));
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(harness.tab.resultsBloc.state.status, SemanticResultsStatus.loaded);
+    expect(find.byKey(const ValueKey('semantic-result-0')), findsOneWidget);
   });
 
   testWidgets('קטע לפי עניין מסומן ברקע בהיר, בלי הדגשה מודגשת', (
@@ -768,6 +948,84 @@ void main() {
     await settle(tester);
     expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
     expect(harness.recorder.searches.last.query, 'כבוד אב');
+  });
+
+  testWidgets('צמצום לספר אישי נשמר בחיפוש משולב (issue #2538)', (
+    tester,
+  ) async {
+    final harness = await pumpScreen(tester);
+    SemanticFacetFiltering tree() => tester.widget(
+      find.byType(SemanticFacetFiltering, skipOffstage: false),
+    );
+    tree().onSetFacet('/ספרים אישיים/uid:4');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [
+      '/ספרים אישיים/uid:4',
+    ]);
+    expect(tree().selectedFacets, ['/ספרים אישיים/uid:4']);
+    tree().onToggleDimension('/era/ראשונים');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [
+      '/era/ראשונים',
+      '/ספרים אישיים/uid:4',
+    ]);
+  });
+
+  testWidgets('עץ חכם מסתיר חברי היקף בלי תוצאות (issue #2702)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await (FontLoader(
+      'Roboto',
+    )..addFont(rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'))).load();
+    final library = Library(
+      categories: [
+        Category(
+          title: 'קבוצה',
+          description: '',
+          shortDescription: '',
+          order: 0,
+          subCategories: const [],
+          books: [
+            TextBook(id: 1, title: 'ספר 1', categoryPath: '/קבוצה'),
+            TextBook(id: 2, title: 'ספר 2', categoryPath: '/קבוצה'),
+          ],
+          parent: null,
+        ),
+      ],
+    );
+    final harness = await pumpScreen(
+      tester,
+      library: library,
+      injectedSource: FakeResultsSource(items: [resultItem(1)]),
+      initialOptions: const SemanticQueryOptions(
+        query: 'טקסט לחיפוש',
+        facets: ['/קבוצה/id:1', '/קבוצה/id:2'],
+      ),
+    );
+    harness.tab.isLeftPaneOpen.value = true;
+    await settle(tester);
+    final tree = find.byType(SearchNavigationTree);
+    expect(
+      find.descendant(of: tree, matching: find.text('ספר 1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: tree, matching: find.text('ספר 2')),
+      findsNothing,
+    );
+
+    final requests = harness.source.fetches.length;
+    final items = harness.tab.resultsBloc.state.items;
+    tester.widget<SearchNavigationTree>(tree).onToggleExpand('/קבוצה', true);
+    await settle(tester);
+    tester.widget<SearchNavigationTree>(tree).onToggleExpand('/קבוצה', false);
+    await settle(tester);
+    expect(harness.source.fetches, hasLength(requests));
+    expect(harness.tab.resultsBloc.state.items, same(items));
   });
 
   testWidgets('כרטיסיית מחשב ששוחזרה במכשיר לא נתמך אינה מריצה חיפוש', (
