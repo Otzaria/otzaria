@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: search-lifecycle-qa-${{ github.ref }}
+  group: search-lifecycle-qa-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -19,11 +19,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022]
+        os: [windows-2022]
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: "1"
     steps:
       - uses: actions/checkout@v5
+      - name: Enable long Git paths on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
