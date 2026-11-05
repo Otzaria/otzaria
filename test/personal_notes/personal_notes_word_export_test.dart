@@ -15,6 +15,8 @@ PersonalNote _note({
   String content = 'תוכן ההערה',
   String? contentPlain,
   PersonalNoteContentFormat contentFormat = PersonalNoteContentFormat.plain,
+  DateTime? createdAt,
+  DateTime? updatedAt,
 }) {
   return PersonalNote(
     id: id,
@@ -27,8 +29,8 @@ PersonalNote _note({
     content: content,
     contentPlain: contentPlain ?? content,
     contentFormat: contentFormat,
-    createdAt: DateTime(2025, 1, 1),
-    updatedAt: DateTime(2025, 3, 7),
+    createdAt: createdAt ?? DateTime(2025, 1, 1),
+    updatedAt: updatedAt ?? DateTime(2025, 3, 7),
   );
 }
 
@@ -113,6 +115,72 @@ void main() {
       expect(allText, isNot(contains('2025')));
     });
 
+    test('סדר היצירה נשמר באותה שורה ועריכה אינה מזיזה הערה', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'later',
+            bookId: 'ספר בדיקה',
+            lineNumber: 5,
+            content: 'מאוחרת',
+            createdAt: DateTime(2026, 2),
+          ),
+          _note(
+            id: 'same-time-b',
+            bookId: 'ספר בדיקה',
+            lineNumber: 5,
+            content: 'שנייה',
+          ),
+          _note(
+            id: 'same-time-a',
+            bookId: 'ספר בדיקה',
+            lineNumber: 5,
+            content: 'ראשונה',
+            updatedAt: DateTime(2026, 3),
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(
+        blocks.where((b) => b.kind == PrintBlockKind.text).map((b) => b.text),
+        ['ראשונה', 'שנייה', 'מאוחרת'],
+      );
+    });
+
+    test('חסרות מיקום נשארות אחרי הממוקמות ולפי העדכון האחרון', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'older',
+            bookId: 'ספר בדיקה',
+            status: PersonalNoteStatus.missing,
+            content: 'עדכון ישן',
+            createdAt: DateTime(2026, 2),
+          ),
+          _note(
+            id: 'newer',
+            bookId: 'ספר בדיקה',
+            status: PersonalNoteStatus.missing,
+            content: 'עדכון חדש',
+            updatedAt: DateTime(2026, 3),
+          ),
+          _note(
+            id: 'located',
+            bookId: 'ספר בדיקה',
+            lineNumber: 5,
+            content: 'ממוקמת',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(
+        blocks.where((b) => b.kind == PrintBlockKind.text).map((b) => b.text),
+        ['ממוקמת', 'עדכון חדש', 'עדכון ישן'],
+      );
+    });
+
     test('הערות ללא מיקום מקובצות בסוף הספר תחת כותרת משלהן', () {
       final blocks = service.buildWordExportBlocks(
         notes: [
@@ -153,6 +221,47 @@ void main() {
   });
 
   group('buildWordExportBlocks - דיבור המתחיל', () {
+    test('כותרת הערת שורה נשמרת כשאין בחירת מילים', () {
+      for (final anchor in [null, '', '   ']) {
+        final blocks = service.buildWordExportBlocks(
+          notes: [
+            _note(
+              id: 'whole-line',
+              bookId: 'ספר בדיקה',
+              lineNumber: 5,
+              displayTitle: '  כותרת <שלמה> & מקור  ',
+              anchorText: anchor,
+              content: 'תוכן ההערה',
+            ),
+          ],
+          locationRef: (_) => null,
+        );
+
+        expect(
+          blocks.last.text,
+          '<b>כותרת &lt;שלמה&gt; &amp; מקור.</b> תוכן ההערה',
+        );
+      }
+    });
+
+    test('בחירת המילים עדיפה על כותרת התצוגה', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'selection',
+            bookId: 'ספר בדיקה',
+            lineNumber: 5,
+            displayTitle: 'כותרת שלמה',
+            anchorText: 'בחירה מדויקת',
+            content: 'תוכן ההערה',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(blocks.last.text, '<b>בחירה מדויקת.</b> תוכן ההערה');
+    });
+
     test('הטקסט שסומן נפתח מודגש עם נקודה בסוף', () {
       final blocks = service.buildWordExportBlocks(
         notes: [

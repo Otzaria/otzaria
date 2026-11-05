@@ -4,6 +4,7 @@ import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
+import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 
 /// מסד SQLite להערות אישיות, עם אינדקסים לפי ספר ושורה.
@@ -125,10 +126,10 @@ class PersonalNotesDatabase {
   Future<List<PersonalNote>> loadNotes(String bookId) async {
     final db = await database;
     final maps = db.select(
-      'SELECT * FROM $_tableNotes WHERE $_columnBookId = ? ORDER BY $_columnLineNumber ASC, $_columnUpdatedAt DESC',
+      'SELECT * FROM $_tableNotes WHERE $_columnBookId = ?',
       [bookId],
     ).toMapList();
-    return maps.map((map) => _noteFromMap(map)).toList();
+    return sortPersonalNotes(maps.map((map) => _noteFromMap(map)).toList());
   }
 
   /// Insert a new note

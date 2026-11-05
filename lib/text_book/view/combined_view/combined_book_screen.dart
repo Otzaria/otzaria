@@ -180,10 +180,6 @@ List<Link> buildCombinedViewContextMenuLinksForParagraph({
   queriedLinks: queriedLinks,
 );
 
-@visibleForTesting
-bool shouldShowPersonalNotePreview({required bool isPersonalNotesTabActive}) =>
-    !isPersonalNotesTabActive;
-
 /// מחזירה האם לשורה [index] יש מפרשים להצגה במצב "מפרשים מתחת".
 ///
 /// מתחשבת גם במפרש ההערות הוירטואלי ([kNotesCommentatorTitle]): אם הוא
@@ -642,13 +638,6 @@ class _CombinedViewState extends State<CombinedView> {
       _handleNumberedNoteMarkerHover(url, globalPosition);
       return;
     }
-    if (url.startsWith('otzaria://note') &&
-        !shouldShowPersonalNotePreview(
-          isPersonalNotesTabActive:
-              widget.isPersonalNotesTabActive?.call() ?? false,
-        )) {
-      return;
-    }
     LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
     _cancelPendingAnchorHover();
 
@@ -713,16 +702,10 @@ class _CombinedViewState extends State<CombinedView> {
     }
 
     if (url.startsWith('otzaria://note')) {
-      final line = int.tryParse(
-        Uri.tryParse(url)?.queryParameters['line'] ?? '',
+      final notes = personalNotesForPreview(
+        url,
+        context.read<PersonalNotesBloc>().state.locatedNotes,
       );
-      if (line == null) return;
-      final notes = context
-          .read<PersonalNotesBloc>()
-          .state
-          .locatedNotes
-          .where((note) => note.lineNumber == line + 1)
-          .toList();
       if (notes.isEmpty) return;
       LinkPreviewOverlay.showContent(
         context,

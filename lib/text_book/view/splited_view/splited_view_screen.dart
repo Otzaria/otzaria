@@ -4,6 +4,8 @@ import 'package:otzaria/plugins/view/plugin_text_reader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
+import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -372,11 +374,18 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   }
 
   void _openCommentaryPersonalNote(Link link, int lineNumber) {
+    final bookId = personalNotesBookKeyFor(
+      utils.getTitleFromPath(link.path2),
+      link.targetSource,
+    );
+    openPersonalNotesTarget(
+      context.read<PersonalNotesBloc>(),
+      bookId: bookId,
+      categoryId: link.targetCategoryId,
+      lineNumber: lineNumber,
+    );
     setState(() {
-      _notesBookIdOverride = personalNotesBookKeyFor(
-        utils.getTitleFromPath(link.path2),
-        link.targetSource,
-      );
+      _notesBookIdOverride = bookId;
       _notesCategoryIdOverride = link.targetCategoryId;
       _notesFocusLineNumber = lineNumber;
       _paneOpen = true;
