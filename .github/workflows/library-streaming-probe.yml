@@ -31,9 +31,8 @@ jobs:
     name: Native streaming memory and cancellation (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Diagnostic measurements have no timing/RSS thresholds. Functional tests
-    # remain required by the regular test workflow.
-    continue-on-error: true
+    # Timing/RSS measurements are diagnostic and have no thresholds. Codec
+    # tests and output/hash/cancellation verification must fail this job.
     env:
       OTZARIA_REQUIRE_CODEC_TESTS: '1'
       OTZARIA_REQUIRE_PRODUCTION_CODEC_TESTS: '1'

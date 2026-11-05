@@ -607,7 +607,7 @@ void main() {
       test('כשל בשחזור נשמר ביומן ומתאושש לפני פנייה לרשת', () async {
         await _createCatalogDatabase(repository.databasePath, version: 3);
         final target = repository.databasePath;
-        final backup = '${target}.catalog-update-backup';
+        final backup = '$target.catalog-update-backup';
         var failedCommit = false;
         repository = ExternalCatalogRepository(
           httpClient: client(),

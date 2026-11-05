@@ -49,14 +49,12 @@ class ExternalCatalogRepository {
   ExternalCatalogRepository({
     http.Client? httpClient,
     @visibleForTesting ExternalCatalogExtractor? extractZst,
-    @visibleForTesting
-    void Function(String source, String destination)? beforeFileRename,
+    @visibleForTesting this._beforeFileRename,
     this.apiTimeout = defaultApiTimeout,
     this.downloadTimeout = defaultDownloadTimeout,
     this.maxOutputBytes = kDefaultMaxExtractedBytes,
     this.maxDownloadBytes = kDefaultMaxExtractedBytes,
   }) : _httpClient = httpClient ?? http.Client(),
-       _beforeFileRename = beforeFileRename,
        _extractZst = extractZst ?? ZstdStreamExtractor.extractToFile {
     if (maxOutputBytes <= 0 || maxDownloadBytes <= 0) {
       throw ArgumentError('Catalog size limits must be positive');

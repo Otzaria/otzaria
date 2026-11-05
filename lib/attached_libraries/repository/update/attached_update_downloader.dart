@@ -54,7 +54,7 @@ class AttachedUpdateDownloader {
       outputPath,
       '$combinedPath.lock',
       '$outputPath.lock',
-      if (basePath != null) basePath,
+      ?basePath,
     ]);
     AttachedUpdateArtifactBuilder.checkCancelled(cancel);
     await Directory(p.dirname(combinedPath)).create(recursive: true);

@@ -245,6 +245,7 @@ void main() {
         leftovers.map((entry) => p.basename(entry.path)),
         unorderedEquals([
           'update-pipeline.lock',
+          '${DatabaseConstants.databaseFileName}.zst.lock',
           '${DatabaseConstants.databaseFileName}.zst.part-000.lock',
           '${DatabaseConstants.databaseFileName}.zst.part-001.lock',
         ]),

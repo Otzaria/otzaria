@@ -764,6 +764,7 @@ void main() {
         expect(
           leftovers.map((e) => path.basename(e.path)),
           unorderedEquals([
+            'otzaria_$name.lock',
             for (var i = 0; i < parts.length; i++)
               'otzaria_${partName(i)}.lock',
           ]),
