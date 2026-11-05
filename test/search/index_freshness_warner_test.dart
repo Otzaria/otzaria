@@ -782,7 +782,7 @@ Uint8List utf8Bytes(String text) =>
     Uint8List.fromList(const Utf8Encoder().convert(text));
 
 class _RecordingIndexingBloc extends IndexingBloc {
-  _RecordingIndexingBloc(IndexingRepository repository) : super(repository);
+  _RecordingIndexingBloc(super.repository);
 
   final List<DeferIndexing> deferred = [];
 
