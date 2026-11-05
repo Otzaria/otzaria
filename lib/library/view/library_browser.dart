@@ -2870,6 +2870,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             onOpen: identical(category, previewState.currentCategory)
                 ? null
                 : () => _openCategory(category),
+            onOpenSubCategory: _openCategory,
           );
         }
         return BookPreviewPanel(
