@@ -1,0 +1,278 @@
+name: Personal notes overlap audit
+
+on: create
+
+permissions:
+  contents: read
+
+jobs:
+  overlap-audit:
+    if: >-
+      github.repository == 'Otzaria/otzaria' &&
+      github.event_name == 'create' &&
+      github.event.ref_type == 'branch' &&
+      github.event.ref == 'qa/personal-notes-overlaps-20261105-3'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Compare pinned PR merges without a checkout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import collections
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import signal
+          import subprocess
+          import time
+          import traceback
+
+          REPOSITORY = 'Otzaria/otzaria'
+          AUDIT_BRANCH = 'qa/personal-notes-overlaps-20261105-3'
+          URL = 'https://github.com/Otzaria/otzaria.git'
+          BASE = 'f4085b9efa12dbf6800c8641b0c5d52342a192ee'
+          PRODUCT = '58b749826c1251c5118b45fd51684929475819c6'
+          PRODUCT_TREE = '56c248c7cd482d9fbe8310fea333e593fb329d7e'
+          QA_BRANCH = 'qa/personal-notes-validation-20261105-3'
+          QA_HEAD = '4931634440fdeeda358536050cbba130c40688d2'
+          PRS = {
+              4157: '644728a7472370b34086a652bde0623b37b63c80',
+              3442: '3a8275da92c0d634d19a4b9cdd0cba8a6c844770',
+              3036: 'b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af',
+              2788: 'cf9096007504d38de5e129a47f63f72991236157',
+          }
+          TEMP = Path(os.environ['RUNNER_TEMP'])
+          OUT = TEMP / 'personal-notes-overlaps'
+          REPO = TEMP / 'otzaria-overlaps.git'
+          OUT.mkdir(parents=True, exist_ok=True)
+          DEADLINE = time.monotonic() + 17 * 60
+          ENV = dict(os.environ, GIT_TERMINAL_PROMPT='0',
+                     GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
+                     GIT_ALLOW_PROTOCOL='https', LC_ALL='C')
+          GIT = ['git', '-c', 'credential.helper=', '-c', 'core.hooksPath=/dev/null',
+                 '-c', 'gc.auto=0', '-c', 'maintenance.auto=false']
+          REPORT = {
+              'schema_version': 1,
+              'status': 'running',
+              'expected': {'repository': REPOSITORY, 'audit_branch': AUDIT_BRANCH,
+                           'base': BASE, 'product': PRODUCT, 'product_tree': PRODUCT_TREE,
+                           'qa_branch': QA_BRANCH, 'qa_head': QA_HEAD, 'pr_heads': PRS},
+              'comparison_scope': (
+                  'Exit codes, conflicted paths and stable Git conflict types with '
+                  'affected paths. Equal lists do not prove identical conflict hunks.'),
+              'commands': [], 'actual_refs': {}, 'comparisons': [], 'errors': [],
+          }
+
+          def save():
+              temporary = OUT / 'summary.json.tmp'
+              temporary.write_text(json.dumps(REPORT, indent=2, ensure_ascii=True) + '\n')
+              temporary.replace(OUT / 'summary.json')
+
+          def run(label, args, *, bare=True, timeout=300, allowed=(0,)):
+              remaining = DEADLINE - time.monotonic()
+              if remaining <= 0:
+                  raise TimeoutError('Overall audit deadline exceeded')
+              command = GIT + (['--git-dir', str(REPO)] if bare else []) + args
+              started = time.monotonic()
+              stdout_path = OUT / (label + '.stdout.bin')
+              stderr_path = OUT / (label + '.stderr.log')
+              timed_out = False
+              with stdout_path.open('wb') as stdout, stderr_path.open('wb') as stderr:
+                  process = subprocess.Popen(command, stdout=stdout, stderr=stderr,
+                                             env=ENV, start_new_session=True)
+                  try:
+                      code = process.wait(timeout=min(timeout, remaining))
+                  except subprocess.TimeoutExpired:
+                      timed_out = True
+                      os.killpg(process.pid, signal.SIGKILL)
+                      process.wait(timeout=10)
+                      code = 124
+              data = stdout_path.read_bytes()
+              (OUT / (label + '.stdout.log')).write_text(
+                  data.decode('utf-8', errors='replace').replace('\0', '\\0\n'))
+              metadata = {
+                  'label': label, 'command': command, 'exit_code': code,
+                  'timed_out': timed_out, 'seconds': round(time.monotonic() - started, 3),
+                  'stdout_sha256': hashlib.sha256(data).hexdigest(),
+                  'stdout': stdout_path.name, 'stderr': stderr_path.name,
+              }
+              REPORT['commands'].append(metadata)
+              save()
+              if timed_out:
+                  raise TimeoutError(label + ' timed out')
+              if allowed is not None and code not in allowed:
+                  raise RuntimeError(label + ': unexpected Git exit code ' + str(code))
+              return code, data
+
+          def value(label, args):
+              return run(label, args)[1].decode('utf-8').strip()
+
+          def remote_dev(label):
+              output = run(label, ['ls-remote', URL, 'refs/heads/dev'], bare=False)[1]
+              rows = output.decode('ascii').splitlines()
+              if len(rows) != 1 or rows[0].split()[1] != 'refs/heads/dev':
+                  raise RuntimeError('Unexpected dev reference response')
+              return rows[0].split()[0]
+
+          def parse_merge(code, output):
+              if code not in (0, 1):
+                  return {'exit_code': code, 'error': 'Git did not complete the merge'}
+              if not output.endswith(b'\0'):
+                  raise ValueError('Merge output is not NUL terminated')
+              tokens = output[:-1].decode('utf-8', errors='surrogateescape').split('\0')
+              tree = tokens.pop(0)
+              if re.fullmatch(r'[0-9a-f]{40}', tree) is None:
+                  raise ValueError('Invalid merge tree OID')
+              paths = []
+              while tokens and tokens[0]:
+                  paths.append(tokens.pop(0))
+              if tokens:
+                  tokens.pop(0)
+              messages = []
+              while tokens:
+                  count = int(tokens.pop(0))
+                  if count < 0 or len(tokens) < count + 2:
+                      raise ValueError('Invalid merge message record')
+                  affected = tokens[:count]
+                  del tokens[:count]
+                  kind, message = tokens[:2]
+                  del tokens[:2]
+                  messages.append({'type': kind, 'paths': affected, 'message': message})
+              conflicts = [m for m in messages if m['type'].startswith('CONFLICT')]
+              if code == 0 and (paths or conflicts):
+                  raise ValueError('Clean exit code disagrees with conflict output')
+              if code == 1 and not (paths or conflicts):
+                  raise ValueError('Conflict exit code has no conflict evidence')
+              return {'exit_code': code, 'clean': code == 0, 'tree': tree,
+                      'conflict_paths': sorted(set(paths)),
+                      'conflict_types': sorted({m['type'] for m in conflicts}),
+                      'conflicts': conflicts, 'messages': messages}
+
+          def conflict_counts(result):
+              return collections.Counter(
+                  (c['type'], tuple(sorted(c['paths']))) for c in result['conflicts'])
+
+          def records(counts):
+              return [{'type': kind, 'paths': list(paths), 'count': count}
+                      for (kind, paths), count in sorted(counts.items())]
+
+          save()
+          try:
+              event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+              guard = {
+                  'repository': os.environ.get('GITHUB_REPOSITORY'),
+                  'event_name': os.environ.get('GITHUB_EVENT_NAME'),
+                  'event_repository': event.get('repository', {}).get('full_name'),
+                  'ref_type': event.get('ref_type'), 'ref': event.get('ref'),
+                  'github_ref': os.environ.get('GITHUB_REF'),
+              }
+              REPORT['guard'] = guard
+              if not (
+                  guard['repository'] == REPOSITORY
+                  and guard['event_repository'] == REPOSITORY
+                  and guard['event_name'] == 'create'
+                  and guard['ref_type'] == 'branch'
+                  and guard['ref'] == AUDIT_BRANCH
+                  and guard['github_ref'] == 'refs/heads/' + AUDIT_BRANCH
+              ):
+                  raise RuntimeError('The exact repository/create/branch guard failed')
+              REPORT['git_version'] = run('git-version', ['--version'], bare=False)[1].decode().strip()
+              REPORT['remote_dev_start'] = remote_dev('remote-dev-start')
+              save()
+              run('clone', ['clone', '--bare', '--filter=blob:none', '--no-tags',
+                            '--single-branch', '--branch', 'dev', URL, str(REPO)],
+                  bare=False, timeout=300)
+              if value('verify-bare', ['rev-parse', '--is-bare-repository']) != 'true':
+                  raise RuntimeError('The audit repository is not bare')
+              REPORT['actual_refs']['cloned_dev'] = value(
+                  'cloned-dev', ['rev-parse', 'refs/heads/dev'])
+              refspecs = [
+                  '+refs/pull/' + str(n) + '/head:refs/heads/pr-' + str(n)
+                  for n in PRS
+              ] + ['+refs/heads/' + QA_BRANCH + ':refs/heads/qa-source']
+              run('fetch-pinned-refs', ['fetch', '--no-tags', '--filter=blob:none',
+                                       'origin'] + refspecs, timeout=300)
+              mismatches = []
+              for number, expected in PRS.items():
+                  actual = value('verify-pr-' + str(number),
+                                 ['rev-parse', 'refs/heads/pr-' + str(number)])
+                  REPORT['actual_refs']['pr-' + str(number)] = actual
+                  if actual != expected:
+                      mismatches.append('PR #' + str(number) + ' head moved')
+              actual_qa = value('verify-qa', ['rev-parse', 'refs/heads/qa-source'])
+              REPORT['actual_refs']['qa'] = actual_qa
+              if actual_qa != QA_HEAD:
+                  mismatches.append('QA branch head moved')
+              actual_tree = value('verify-product-tree', ['rev-parse', PRODUCT + '^{tree}'])
+              REPORT['actual_refs']['product_tree'] = actual_tree
+              if actual_tree != PRODUCT_TREE:
+                  mismatches.append('Product tree differs')
+              product_parents = value('verify-product-parents',
+                                      ['rev-list', '--parents', '-n', '1', PRODUCT]).split()
+              qa_parents = value('verify-qa-parents',
+                                 ['rev-list', '--parents', '-n', '1', QA_HEAD]).split()
+              REPORT['actual_refs']['product_parents'] = product_parents[1:]
+              REPORT['actual_refs']['qa_parents'] = qa_parents[1:]
+              if product_parents != [PRODUCT, BASE]:
+                  mismatches.append('Product is not a single commit directly on the pinned base')
+              if qa_parents != [QA_HEAD, PRODUCT]:
+                  mismatches.append('QA head does not directly descend from the pinned product')
+              save()
+              if mismatches:
+                  raise RuntimeError('; '.join(mismatches))
+              for number, head in PRS.items():
+                  comparison = {'pr': number, 'head': head}
+                  REPORT['comparisons'].append(comparison)
+                  for label, target in [('baseline', BASE), ('candidate', PRODUCT)]:
+                      code, output = run(
+                          'pr-' + str(number) + '-' + label,
+                          ['merge-tree', '--write-tree', '--messages', '--name-only',
+                           '-z', head, target], allowed=None, timeout=240)
+                      comparison[label] = {'commit': target, **parse_merge(code, output)}
+                      save()
+                  before, after = comparison['baseline'], comparison['candidate']
+                  if 'error' in before or 'error' in after:
+                      REPORT['errors'].append('PR #' + str(number) + ': merge command failed')
+                  else:
+                      before_counts, after_counts = conflict_counts(before), conflict_counts(after)
+                      comparison.update({
+                          'added_conflict_paths': sorted(set(after['conflict_paths']) - set(before['conflict_paths'])),
+                          'resolved_conflict_paths': sorted(set(before['conflict_paths']) - set(after['conflict_paths'])),
+                          'added_conflict_types': sorted(set(after['conflict_types']) - set(before['conflict_types'])),
+                          'resolved_conflict_types': sorted(set(before['conflict_types']) - set(after['conflict_types'])),
+                          'added_conflicts': records(after_counts - before_counts),
+                          'resolved_conflicts': records(before_counts - after_counts),
+                      })
+                      if comparison['added_conflict_paths'] or comparison['added_conflicts']:
+                          REPORT['errors'].append('PR #' + str(number) + ': additional conflict paths/types')
+                  save()
+              REPORT['remote_dev_end'] = remote_dev('remote-dev-end')
+              REPORT['dev_moved'] = any(
+                  sha != BASE for sha in [
+                      REPORT['remote_dev_start'], REPORT['actual_refs']['cloned_dev'],
+                      REPORT['remote_dev_end'],
+                  ])
+              if REPORT['dev_moved']:
+                  REPORT['errors'].append('Remote dev moved; this audit uses the pinned baseline')
+              REPORT['status'] = 'failed' if REPORT['errors'] else 'passed'
+          except Exception:
+              REPORT['status'] = 'failed'
+              REPORT['errors'].append(traceback.format_exc())
+          finally:
+              save()
+              print(json.dumps(REPORT, indent=2, ensure_ascii=True), flush=True)
+          raise SystemExit(0 if REPORT['status'] == 'passed' else 1)
+          PY
+
+      - name: Upload overlap evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: personal-notes-overlaps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/personal-notes-overlaps
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
