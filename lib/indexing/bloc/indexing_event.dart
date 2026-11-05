@@ -151,7 +151,7 @@ class CheckIndexStatus extends IndexingEvent {
   List<Object?> get props => [library];
 }
 
-class ClearIndex extends IndexingEvent {}
+class ClearIndex extends IndexingWorkEvent {}
 
 class CancelIndexing extends IndexingEvent {}
 

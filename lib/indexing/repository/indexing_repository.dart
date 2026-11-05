@@ -126,6 +126,9 @@ class IndexingRepository {
   bool _paused = false;
   Completer<void>? _resumeGate;
   IndexingCancellationToken? _libraryBatchToken;
+  static final _cancellationGenerations = Expando<int>();
+  int get _cancellationGeneration =>
+      _cancellationGenerations[_tantivyDataProvider] ?? 0;
 
   /// ניתן להחלפה בבדיקות שאינן טוענות את המנוע הנייטיבי.
   @visibleForTesting
@@ -208,8 +211,19 @@ class IndexingRepository {
   }
 
   Future<void> _waitWhilePaused() async {
-    while (_paused && _tantivyDataProvider.isIndexing.value) {
-      await (_resumeGate?.future ?? Future<void>.value());
+    if (!_paused) return;
+    final indexing = _tantivyDataProvider.isIndexing;
+    void resumeOnCancellation() {
+      if (!indexing.value) resumeIndexing();
+    }
+
+    indexing.addListener(resumeOnCancellation);
+    try {
+      while (_paused && indexing.value) {
+        await (_resumeGate?.future ?? Future<void>.value());
+      }
+    } finally {
+      indexing.removeListener(resumeOnCancellation);
     }
   }
 
@@ -359,18 +373,50 @@ class IndexingRepository {
     return true;
   }
 
-  static int _activeRuns = 0;
+  static final Map<IndexingRepository, int> _activeRuns = {};
   static Completer<void>? _idle;
+  static int _indexingSuspensions = 0;
+  static Future<void> _replacementTail = Future<void>.value();
+
+  /// מנקז ריצות ומונע התחלת ריצות חדשות עד להשלמת החלפת קובצי האינדקס.
+  /// הפעולות סדרתיות; אין לקרוא שוב ל-helper מתוך [action].
+  static Future<T> withIndexingSuspended<T>(Future<T> Function() action) {
+    _indexingSuspensions++;
+    final result = _replacementTail.then((_) async {
+      try {
+        for (final repository in _activeRuns.keys.toList()) {
+          repository.cancelIndexing();
+        }
+        await whenIdle();
+        return await action();
+      } finally {
+        _indexingSuspensions--;
+      }
+    });
+    _replacementTail = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
 
   /// מסתיים כשאין ריצת אינדוקס שכותבת למנוע. ביטול רק מסמן עצירה, וספר
   /// שבאמצע עוד נכתב ונחתם אחריו.
-  static Future<void> whenIdle() =>
-      _activeRuns == 0 ? Future.value() : (_idle ??= Completer<void>()).future;
+  static Future<void> whenIdle() => _activeRuns.isEmpty
+      ? Future.value()
+      : (_idle ??= Completer<void>()).future;
 
-  static void _runStarted() => _activeRuns++;
+  void _runStarted() => _activeRuns.update(
+    this,
+    (count) => count + 1,
+    ifAbsent: () => 1,
+  );
 
-  static void _runEnded() {
-    if (--_activeRuns > 0) return;
+  void _runEnded() {
+    final count = _activeRuns[this]!;
+    if (count == 1) {
+      _activeRuns.remove(this);
+    } else {
+      _activeRuns[this] = count - 1;
+    }
+    if (_activeRuns.isNotEmpty) return;
     _idle?.complete();
     _idle = null;
   }
@@ -446,6 +492,47 @@ class IndexingRepository {
   /// ושהשתנו, שמסמכיהם הישנים נמחקים רגע לפני כתיבתם ← commit ואיחוד אחד.
   Future<IndexingRunResult> runIndexing(
     Library library, {
+    List<Book>? books,
+    List<Book> changedBooks = const [],
+    IndexCheckScope check = IndexCheckScope.none,
+    bool includePdfBooks = true,
+    void Function(int processed, int total)? onScanProgress,
+    void Function(int total)? onWorkListReady,
+    void Function()? onActualIndexingStarted,
+    required void Function(int processed, int total) onProgress,
+    void Function()? onFinalizing,
+  }) async {
+    if (_indexingSuspensions != 0) {
+      return const IndexingRunResult.cancelled(
+        processedBooks: 0,
+        totalBooks: 0,
+        indexedBooks: 0,
+      );
+    }
+    final cancellationGeneration = _cancellationGeneration;
+    _runStarted();
+    try {
+      return await _runIndexing(
+        library,
+        cancellationGeneration: cancellationGeneration,
+        books: books,
+        changedBooks: changedBooks,
+        check: check,
+        includePdfBooks: includePdfBooks,
+        onScanProgress: onScanProgress,
+        onWorkListReady: onWorkListReady,
+        onActualIndexingStarted: onActualIndexingStarted,
+        onProgress: onProgress,
+        onFinalizing: onFinalizing,
+      );
+    } finally {
+      _runEnded();
+    }
+  }
+
+  Future<IndexingRunResult> _runIndexing(
+    Library library, {
+    required int cancellationGeneration,
     List<Book>? books,
     List<Book> changedBooks = const [],
     IndexCheckScope check = IndexCheckScope.none,
@@ -550,6 +637,15 @@ class IndexingRepository {
       );
     }
 
+    if (_indexingSuspensions != 0 ||
+        cancellationGeneration != _cancellationGeneration) {
+      return IndexingRunResult.cancelled(
+        processedBooks: 0,
+        totalBooks: scope.length,
+        indexedBooks: 0,
+      );
+    }
+
     // מפתחות שהוצאו מהמעקב וטרם נמחקו חוזרים אליו בסוף: מסמכיהם עדיין באינדקס.
     final removedFromIndexed = <String>{};
     List<Book> buildWorkList() {
@@ -615,7 +711,6 @@ class IndexingRepository {
       );
     }
 
-    _runStarted();
     try {
       if (!check.isNone) {
         final candidates = [
@@ -1032,7 +1127,6 @@ class IndexingRepository {
       prefetcher?.dispose();
       await IndexingCrashCanary.current?.finish();
       _tantivyDataProvider.isIndexing.value = false;
-      _runEnded();
       await LibraryLineSource.reportLibraryFallbacks();
     }
   }
@@ -2365,6 +2459,8 @@ class IndexingRepository {
 
   /// Cancels the ongoing indexing process.
   void cancelIndexing() {
+    _cancellationGenerations[_tantivyDataProvider] =
+        _cancellationGeneration + 1;
     _tantivyDataProvider.isIndexing.value = false;
     // ביטול בזמן השהיה מעיר את הלולאה כדי שתפגוש את דגל הביטול.
     resumeIndexing();
@@ -2376,8 +2472,10 @@ class IndexingRepository {
     if (schemaCheck is bool ? schemaCheck : await schemaCheck) {
       return false;
     }
-    await _tantivyDataProvider.clear();
-    return true;
+    return withIndexingSuspended(() async {
+      await _tantivyDataProvider.clear();
+      return true;
+    });
   }
 
   /// מסיר מהאינדקס את רשומות הספרים הנתונים — מחיקה מדויקת לפי מפתח

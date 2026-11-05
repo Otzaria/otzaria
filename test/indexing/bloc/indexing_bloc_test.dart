@@ -853,6 +853,54 @@ void main() {
       verify: (bloc) => expect(repositoryOf(bloc).clearCalls, 1),
     );
 
+    blocTest<IndexingBloc, IndexingState>(
+      'ClearIndex מציג כשל מחיקה ואינו מדווח איפוס מוצלח',
+      build: () => _FakeIndexingBloc(
+        _FakeIndexingRepository()..clearError = StateError('index locked'),
+      ),
+      act: (bloc) => bloc.add(ClearIndex()),
+      expect: () => [isA<IndexingError>()],
+    );
+
+    test(
+      'ClearIndex מנקז ריצה מושהית לפני מחיקה וחוסם את הריצה הבאה',
+      () async {
+        final repository = _FakeIndexingRepository()
+          ..finalizeGate = Completer<void>()
+          ..clearGate = Completer<void>();
+        final bloc = _FakeIndexingBloc(repository);
+        final library = libraryWithBooks();
+        final settled = Completer<void>();
+        bloc.add(StartIndexing(library));
+        await pumpEventQueue();
+        bloc.add(PauseIndexing());
+        await pumpEventQueue();
+        bloc
+          ..add(StartIndexing(library))
+          ..add(ClearIndex())
+          ..add(StartIndexing(library, onSettled: settled.complete));
+        await pumpEventQueue();
+        final clearCallsBeforeRunEnded = repository.clearCalls;
+        final cancellations = repository.cancelCalls;
+        final pausedAfterClear = repository.isPaused;
+
+        repository.finalizeGate!.complete();
+        await pumpEventQueue();
+        final runsDuringClear = repository.runs.length;
+        final clearCallsAfterRunEnded = repository.clearCalls;
+        repository.clearGate!.complete();
+        await settled.future.timeout(const Duration(seconds: 2));
+        await bloc.close();
+
+        expect(clearCallsBeforeRunEnded, 0);
+        expect(cancellations, 1);
+        expect(pausedAfterClear, isFalse);
+        expect(clearCallsAfterRunEnded, 1);
+        expect(runsDuringClear, 1);
+        expect(repository.runs, hasLength(2));
+      },
+    );
+
     // אינדוקס שמתחיל לפני שהמחיקה הסתיימה כותב לאינדקס שעומד להימחק.
     blocTest<IndexingBloc, IndexingState>(
       'ResetAndIndex מוחק את האינדקס ורק אחריו מאנדקס את כל הספרייה',
@@ -1125,6 +1173,7 @@ class _FakeIndexingRepository extends IndexingRepository {
   Completer<void>? statusGate;
   int statusChecks = 0;
   Completer<void>? clearGate;
+  Object? clearError;
   final reportedResults = <IndexingRunResult>[];
   final runs =
       <({List<Book>? books, List<Book> changedBooks, IndexCheckScope check})>[];
@@ -1284,6 +1333,7 @@ class _FakeIndexingRepository extends IndexingRepository {
   @override
   void cancelIndexing() {
     cancelCalls++;
+    resumeIndexing();
   }
 
   @override
@@ -1311,6 +1361,7 @@ class _FakeIndexingRepository extends IndexingRepository {
   Future<bool> clearIndex() async {
     clearCalls++;
     await clearGate?.future;
+    if (clearError != null) throw clearError!;
     runsAtClear = runs.length;
     manualReindex = false;
     indexedBooks.clear();

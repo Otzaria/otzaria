@@ -87,6 +87,31 @@ void main() {
   });
 
   test(
+    'disposing closes the index writer before releasing the engine',
+    () async {
+      final engine = _Engine()..closeGate = Completer<void>();
+      final provider = TantivyDataProvider.forTesting(Future.value(engine));
+      final disposing = provider.dispose();
+      await Future.any([engine.closeEntered.future, disposing]);
+      expect(engine.calls, ['closeIndexWriter']);
+      engine.closeGate!.complete();
+      await disposing;
+      expect(engine.calls, ['closeIndexWriter', 'dispose']);
+    },
+  );
+
+  test('a failed writer close still releases the engine', () async {
+    final engine = _Engine()..closeGate = Completer<void>();
+    final provider = TantivyDataProvider.forTesting(Future.value(engine));
+    final disposing = provider.dispose();
+    await Future.any([engine.closeEntered.future, disposing]);
+    expect(engine.calls, ['closeIndexWriter']);
+    engine.closeGate!.completeError(StateError('close failed'));
+    await disposing;
+    expect(engine.calls, ['closeIndexWriter', 'dispose']);
+  });
+
+  test(
     'cancellation after a failed open does not retry engine initialization',
     () async {
       final opening = Completer<SearchEngine>();
@@ -174,6 +199,9 @@ class _Engine implements SearchEngine {
   final detachGate = Completer<bool>();
   final reloadGate = Completer<bool>();
   final dictionaryPaths = <String>[];
+  final calls = <String>[];
+  final closeEntered = Completer<void>();
+  Completer<void>? closeGate;
   int handleRequests = 0;
   bool disposed = false;
 
@@ -195,7 +223,17 @@ class _Engine implements SearchEngine {
   }
 
   @override
-  void dispose() => disposed = true;
+  Future<void> closeIndexWriter() {
+    calls.add('closeIndexWriter');
+    if (!closeEntered.isCompleted) closeEntered.complete();
+    return closeGate?.future ?? Future<void>.value();
+  }
+
+  @override
+  void dispose() {
+    calls.add('dispose');
+    disposed = true;
+  }
 
   @override
   bool get isDisposed => disposed;
