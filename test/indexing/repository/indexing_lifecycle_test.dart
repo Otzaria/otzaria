@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/book_identity.dart';
@@ -148,6 +149,37 @@ void main() {
 
     expect(replaced, isTrue);
     expect(repository.preflights, 1);
+  });
+
+  test('an idle replacement queue does not retain its previous zone', () async {
+    final firstZone = FakeAsync();
+    final nextZone = FakeAsync();
+    var completed = 0;
+    try {
+      firstZone.run((_) {
+        unawaited(
+          IndexingRepository.withIndexingSuspended(() async {}).then((_) {
+            completed++;
+          }),
+        );
+      });
+      await _tick();
+      firstZone.flushMicrotasks();
+      expect(completed, 1);
+
+      nextZone.run((_) {
+        unawaited(
+          IndexingRepository.withIndexingSuspended(() async {}).then((_) {
+            completed++;
+          }),
+        );
+        nextZone.flushMicrotasks();
+      });
+      expect(completed, 2);
+    } finally {
+      firstZone.flushMicrotasks();
+      nextZone.flushMicrotasks();
+    }
   });
 }
 

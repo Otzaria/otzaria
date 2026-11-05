@@ -376,13 +376,13 @@ class IndexingRepository {
   static final Map<IndexingRepository, int> _activeRuns = {};
   static Completer<void>? _idle;
   static int _indexingSuspensions = 0;
-  static Future<void> _replacementTail = Future<void>.value();
+  static Future<void>? _replacementTail;
 
   /// מנקז ריצות ומונע התחלת ריצות חדשות עד להשלמת החלפת קובצי האינדקס.
   /// הפעולות סדרתיות; אין לקרוא שוב ל-helper מתוך [action].
   static Future<T> withIndexingSuspended<T>(Future<T> Function() action) {
     _indexingSuspensions++;
-    final result = _replacementTail.then((_) async {
+    final result = (_replacementTail ?? Future<void>.value()).then((_) async {
       try {
         for (final repository in _activeRuns.keys.toList()) {
           repository.cancelIndexing();
@@ -393,7 +393,13 @@ class IndexingRepository {
         _indexingSuspensions--;
       }
     });
-    _replacementTail = result.then<void>((_) {}, onError: (Object _) {});
+    final settled = result.then<void>((_) {}, onError: (Object _) {});
+    _replacementTail = settled;
+    unawaited(
+      settled.whenComplete(() {
+        if (identical(_replacementTail, settled)) _replacementTail = null;
+      }),
+    );
     return result;
   }
 
