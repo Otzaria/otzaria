@@ -1,0 +1,51 @@
+{
+  "reviewer": "independent agent /root/notes_search_followup",
+  "status": "PASS",
+  "target_sha": "18d160c82e2abf8a04d8af91da0da724a4acf5ae",
+  "target_tree": "ac4476e85a69c716a15b8d1d8630dfe3a09ef7d4",
+  "approved_product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+  "run_id": 42106093743,
+  "artifact_id": 13452227161,
+  "artifact_zip_sha256": "3c673cb3425d1037b2f5c774cf92723813030a0baf1767cf12ab279f4d6eb5f7",
+  "report_sha256": "463aa163c9bdb629f25274ed1e1ce69a71e17c738d0311618ad7bf056eced5d1",
+  "checksum_entries_verified": 15,
+  "counts": {
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "retry": false,
+  "full_analyze": "PASS; no issues",
+  "format": "PASS; 2 files, 0 changes",
+  "clean_before_and_after": true,
+  "source_snapshot_files_unchanged_during_run": 3631,
+  "prior_source_configuration_entries_compared": 3467,
+  "only_two_reviewed_test_files_differ_from_approved_product": true,
+  "lib_windows_dependencies_unchanged": true,
+  "test_file_blobs_verified": [
+    {
+      "path": "test/pdf_book/pdf_hand_mode_test.dart",
+      "old_blob": "31fbef4a106754dc8d9bcfda589703ea7946294d",
+      "new_blob": "d282812217a56712e26b8719b44d1803d3905897",
+      "status": "M"
+    },
+    {
+      "path": "test/pdf_book/pdf_personal_note_viewer_test.dart",
+      "old_blob": "9d8d4e5f0d1409090608ec9a0464062a22822d7f",
+      "new_blob": "0d779ea655751dc53300a347ef8e01e95a0c1d09",
+      "status": "M"
+    }
+  ],
+  "source_review": "PASS; actual PdfViewer.params checked after hand-mode toolbar and point-selection actions, with the other four existing tests preserved",
+  "machine_events_reviewed": "5 successful test completions, no skips, errors or duplicate completions; one successful terminal event",
+  "provenance_verified": true,
+  "inherited_gate_red_captures_not_rerun": true,
+  "inherited_review_sha256": "e12c4337d56a3147b459e12a96da2d141404e027aef065020e81439e1a865323",
+  "scope": "The inherited 1300-test gate, RED and six captures remain evidence for identical application code. This run validates only the two changed PDF test files plus full analysis.",
+  "limitations": [
+    "Linux CI/widget/native fixtures do not establish actual Windows Alt+Enter sound or native keyboard behavior; interactive Windows verification was not performed by this reviewer.",
+    "The external Quill cursor patch remains unintegrated. Its separate 17/17 tests are not application integration evidence; this product uses the unchanged hosted flutter_quill 11.6.0 dependency."
+  ],
+  "other_general_ci_failures": "This focused review does not classify or resolve unrelated plugin or ShamorZachor failures; parent triage remains separate.",
+  "note": "Read-only validation of completed CI evidence. No additional Flutter/Dart tests were run during this review."
+}

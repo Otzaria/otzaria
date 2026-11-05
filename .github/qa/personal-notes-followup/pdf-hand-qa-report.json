@@ -1,0 +1,234 @@
+{
+  "status": "PASS",
+  "target_sha": "18d160c82e2abf8a04d8af91da0da724a4acf5ae",
+  "approved_product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+  "started_utc": "2026-11-05T20:44:41.786526+00:00",
+  "stages": [
+    {
+      "name": "dependencies",
+      "command": [
+        "flutter",
+        "pub",
+        "get",
+        "--enforce-lockfile"
+      ],
+      "started_utc": "2026-11-05T20:44:41.809545+00:00",
+      "exit_code": 0,
+      "completed_utc": "2026-11-05T20:44:43.466068+00:00",
+      "log": "dependencies.log",
+      "log_sha256": "69963db7e9de813bb270c0076be2cc66f1997d3c26de02fa576230473d857c25"
+    },
+    {
+      "name": "flutter-version",
+      "command": [
+        "flutter",
+        "--version",
+        "--machine"
+      ],
+      "started_utc": "2026-11-05T20:44:43.482956+00:00",
+      "exit_code": 0,
+      "completed_utc": "2026-11-05T20:44:43.602964+00:00",
+      "log": "flutter-version.log",
+      "log_sha256": "4322aeb138356aa1d65d10275d629e648d0381daa1c445b7e2439e7f9b4b9acf"
+    },
+    {
+      "name": "format",
+      "command": [
+        "dart",
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "test/pdf_book/pdf_hand_mode_test.dart",
+        "test/pdf_book/pdf_personal_note_viewer_test.dart"
+      ],
+      "started_utc": "2026-11-05T20:44:43.710587+00:00",
+      "exit_code": 0,
+      "completed_utc": "2026-11-05T20:44:43.741855+00:00",
+      "log": "format.log",
+      "log_sha256": "43a0060b01f8d00290502db016cbde393b149f5a0971989771a4fe3fddc181e7"
+    },
+    {
+      "name": "analyze",
+      "command": [
+        "flutter",
+        "analyze",
+        "--no-pub",
+        "--fatal-infos"
+      ],
+      "started_utc": "2026-11-05T20:44:43.742085+00:00",
+      "exit_code": 0,
+      "completed_utc": "2026-11-05T20:46:02.465530+00:00",
+      "log": "analyze.log",
+      "log_sha256": "f36c59c3adc04f7e7aba8f2f3ba5245e572052312a2bfe1b23dd151de789a5ac"
+    },
+    {
+      "name": "targeted-tests",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub",
+        "--concurrency=1",
+        "--reporter",
+        "expanded",
+        "--file-reporter",
+        "json:/home/runner/work/_temp/pdf-hand-followup-results/targeted-tests.events.jsonl",
+        "test/pdf_book/pdf_hand_mode_test.dart",
+        "test/pdf_book/pdf_personal_note_viewer_test.dart"
+      ],
+      "started_utc": "2026-11-05T20:46:02.465856+00:00",
+      "exit_code": 0,
+      "completed_utc": "2026-11-05T20:47:06.478506+00:00",
+      "log": "targeted-tests.log",
+      "log_sha256": "28c96fe72745ff22427447e9a7c6bfbc7ad35befddf67b54aba265a9577e5509"
+    }
+  ],
+  "selected_test_files": [
+    "test/pdf_book/pdf_hand_mode_test.dart",
+    "test/pdf_book/pdf_personal_note_viewer_test.dart"
+  ],
+  "retry": false,
+  "delta": [
+    {
+      "path": "test/pdf_book/pdf_hand_mode_test.dart",
+      "old_blob": "31fbef4a106754dc8d9bcfda589703ea7946294d",
+      "new_blob": "d282812217a56712e26b8719b44d1803d3905897",
+      "status": "M"
+    },
+    {
+      "path": "test/pdf_book/pdf_personal_note_viewer_test.dart",
+      "old_blob": "9d8d4e5f0d1409090608ec9a0464062a22822d7f",
+      "new_blob": "0d779ea655751dc53300a347ef8e01e95a0c1d09",
+      "status": "M"
+    }
+  ],
+  "clean_before": true,
+  "all_product_paths_including_lib_windows_and_dependencies_identical_to_approved_product": true,
+  "provenance": {
+    "prior_review_sha256": "e12c4337d56a3147b459e12a96da2d141404e027aef065020e81439e1a865323",
+    "prior_review": {
+      "reviewer": "independent agent /root/notes_search_followup",
+      "status": "PASS",
+      "product_sha": "fe27937a7e368bfc3d7d51203fe9497b186fbcb4",
+      "product_tree": "30e8224cb46e5788242d6bcfcfaf030f7f328809",
+      "source_review": "PASS",
+      "gate": {
+        "run_id": 42099805004,
+        "artifact_id": 13450021903,
+        "passed": 1300,
+        "failed": 0,
+        "skipped": 1,
+        "skip_reason": "Existing Windows-only file-lock replacement test",
+        "format_dart_files": 89,
+        "format_changed_files": 0,
+        "full_analyze": "PASS; no issues",
+        "selected_test_files": 98,
+        "changed_files": 90,
+        "source_test_files": 3463
+      },
+      "red": {
+        "run_id": 42099805004,
+        "expected_failed_assertions": 2,
+        "unexpected_errors": 0,
+        "exact_product_bytes_restored": true
+      },
+      "captures": {
+        "run_id": 42102930723,
+        "artifact_id": 13450532724,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "error_events": 0,
+        "snapshot_unchanged": true,
+        "artifact_zip_sha256": "02344df46a686f6965a8cfe76263b55304929fcbe08f1681b89d2e3e39ded1aa",
+        "checksum_entries_verified": 48
+      },
+      "provenance_verified": true,
+      "gate_red_snapshot_and_support_logs_bytes_identical_to_original": true,
+      "gate_and_red_reused_not_rerun": true,
+      "six_pngs_visually_reviewed": [
+        {
+          "name": "01-note-dialog.png",
+          "sha256": "4b0c2fedd8ab393e8f1d24a2b356bcf57d8d89f3114dca7f20e5c751153d22f0",
+          "visual_review": "PASS"
+        },
+        {
+          "name": "02-note-panel.png",
+          "sha256": "bc6a53207d3159cbf96cc33903a6d53030bc7b6bb1ae85c6e24e0aadd89f4dcd",
+          "visual_review": "PASS"
+        },
+        {
+          "name": "03-note-manager-sort.png",
+          "sha256": "20cd27e755c71e517162a5142719d22d406c0fd7c55a7deb2a4805dc56f45f73",
+          "visual_review": "PASS"
+        },
+        {
+          "name": "04-pdf-note-point.png",
+          "sha256": "d47207567683db7afc29797ec37cbeb646ec9b5635f33c383eb4d30738e5d61d",
+          "visual_review": "PASS"
+        },
+        {
+          "name": "05-export-selection-before.png",
+          "sha256": "fd21083c8aef5f7f0436500984f4e1cd482527de9fb09bc3a087a3f62fd37426",
+          "visual_review": "PASS"
+        },
+        {
+          "name": "06-export-selection-after.png",
+          "sha256": "eb5245109a7daf606d4b2636c24de7c97d9f7bd25903a5d23e343b45ad6db51a",
+          "visual_review": "PASS"
+        }
+      ],
+      "visual_findings": "Dialog/inline panel, global timestamp order, PDF point marker and before/after book labels are readable; RTL, toolbars, controls and selection are intact. No visible rendering errors or overflow.",
+      "limitations": [
+        "Linux CI/widget/native fixtures do not establish actual Windows Alt+Enter sound or native keyboard behavior; interactive Windows verification was not performed by this reviewer.",
+        "The external Quill cursor patch remains unintegrated. Its separate 17/17 tests are not application integration evidence; this product uses the unchanged hosted flutter_quill 11.6.0 dependency."
+      ],
+      "note": "Records completed independent review only; no additional test run was performed to create this record."
+    },
+    "inherited_checks": [
+      "1300-test gate",
+      "#4292 RED",
+      "six UI captures"
+    ],
+    "rerun_in_this_job": false,
+    "basis": "The exact Git diff from the approved product contains only the two test-file modifications listed in this report; every other tracked path is identical.",
+    "current_run_id": "42106093743",
+    "current_qa_commit": "02fd3b20f5dffefc55c2fd92551dd837cce4a6b1"
+  },
+  "flutter_version": {
+    "frameworkVersion": "3.47.7",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "abaf9c523780a608bd46686fd5e53740a07077f8",
+    "frameworkCommitDate": "2026-10-08 09:51:21 -0700",
+    "engineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+    "engineCommitDate": "2026-10-07 17:09:12.000Z",
+    "engineContentHash": "d8a2d6c768c334d53e16277f837970ffa1e2de81",
+    "engineBuildDate": "2026-10-07 10:51:44.552",
+    "dartSdkVersion": "3.13.5",
+    "devToolsVersion": "2.60.0",
+    "flutterVersion": "3.47.7",
+    "flutterRoot": "/opt/hostedtoolcache/flutter/stable-3.47.7-x64/flutter"
+  },
+  "counts": {
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "error_events": 0,
+  "failed_events_including_loaders": 0,
+  "terminal_done_success": true,
+  "passed_per_file": {
+    "/home/runner/work/otzaria/otzaria/test/pdf_book/pdf_hand_mode_test.dart": 4,
+    "/home/runner/work/otzaria/otzaria/test/pdf_book/pdf_personal_note_viewer_test.dart": 1
+  },
+  "format_analyze_tests_exit_codes": [
+    0,
+    0,
+    0
+  ],
+  "clean_after": true,
+  "target_tree": "ac4476e85a69c716a15b8d1d8630dfe3a09ef7d4",
+  "source_and_test_file_count": 3631,
+  "source_snapshot_unchanged": true,
+  "completed_utc": "2026-11-05T20:47:06.608435+00:00"
+}
