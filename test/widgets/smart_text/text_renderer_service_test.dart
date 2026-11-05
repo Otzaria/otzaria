@@ -119,6 +119,17 @@ Future<void> main() async {
       expect(out, contains('style="color:red"'));
       expect(out, contains('title="note"'));
       expect(out, isNot(contains('class="raised-sup"')));
+      // רק style של צבע/משקל/נטייה עובר לנתיב המורם (issue #3239).
+      for (final style in [
+        'vertical-align: top',
+        'color: red; font-size: 2em',
+      ]) {
+        final styled = TextRendererService.processText(
+          'טקסט<sup style="$style">1</sup>',
+          settings,
+        );
+        expect(styled, contains('<sup style="$style">'));
+      }
     });
 
     test('sup ריק מוסר לחלוטין', () {

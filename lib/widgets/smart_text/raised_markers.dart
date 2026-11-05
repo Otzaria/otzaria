@@ -41,6 +41,10 @@ const String kFootnoteMarkerClass = 'footnote-marker-number';
 /// באותו יחס שבו `<sup>` הוצג קודם בשלושת מסלולי הרינדור.
 const String kRaisedSupClass = 'raised-sup';
 
+/// style פשוט של sup (צבע/משקל/נטייה) שעוטף את הסימון, והציור המורם נושא אותו.
+const String kRaisedSupStylePattern =
+    r'(?:\s*(?:color|font-weight|font-style)\s*:[^;"]*(?:;|(?=")))+';
+
 /// יחס גודל של מרקר הערה לגופן הטקסט.
 const double kFootnoteMarkerScale = 0.75;
 
@@ -135,10 +139,11 @@ class RaisedMarkers {
   // בסימוני processText תווי הבידוד תוחמים את כל התוכן, גם כשהחיפוש מוסיף span.
   // תגי טווח-ציטוט נסרקים בנפרד, כדי שטקסט הגוף לא ייבלע בין שני סימונים.
   static final RegExp _markerSpanRegex = RegExp(
+    '(?:<span style="($kRaisedSupStylePattern)">)?'
     '<span class="($kFootnoteMarkerClass|$kRaisedSupClass)">'
     '([\u2066-\u2068].*?\u2069|.*?)</span>'
     '|<a class="book-note-marker"[^>]*>(.*?)</a>'
-    '|<(a|span) class="link-anchor( [^"]*)?"[^>]*>(.*?)</\\4>'
+    '|<(a|span) class="link-anchor( [^"]*)?"[^>]*>(.*?)</\\5>'
     '|<a class="numbered-note-marker"[^>]*>'
     '<span class="$kRaisedSupClass">(.*?)</span></a>'
     '|(<a class="link-anchor-range"[^>]*>)|</a>',
@@ -215,8 +220,8 @@ class RaisedMarkers {
       }
       index = match.end;
 
-      if (match[8] != null || match[0]!.toLowerCase() == '</a>') {
-        inRangeAnchor = match[8] != null;
+      if (match[9] != null || match[0]!.toLowerCase() == '</a>') {
+        inRangeAnchor = match[9] != null;
         continue;
       }
 
@@ -228,33 +233,35 @@ class RaisedMarkers {
       int? variantIndex;
       var active = false;
 
-      if (match[1] != null) {
-        // תג סימון של processText — sup שהומר ל-span.
-        final isFootnote = match[1]!.toLowerCase() == kFootnoteMarkerClass;
-        rawContent = match[2] ?? '';
+      if (match[2] != null) {
+        // תג סימון של processText — sup שהומר ל-span, עם ה-style שעוטף אותו.
+        final isFootnote = match[2]!.toLowerCase() == kFootnoteMarkerClass;
+        rawContent = match[1] == null
+            ? match[3] ?? ''
+            : '<span style="${match[1]}">${match[3]}</span>';
         scale = isFootnote ? kFootnoteMarkerScale : kHtmlSmallerFontScale;
         italic = isFootnote;
         clickable = inRangeAnchor;
         useLinkColor = inRangeAnchor;
-      } else if (match[3] != null) {
+      } else if (match[4] != null) {
         // סימון הערה מוטמעת לחיץ — אותן מטריקות של מרקר הערה, עם הפניית
         // לחיצה/ריחוף לציור המורם.
-        rawContent = match[3]!;
+        rawContent = match[4]!;
         scale = kFootnoteMarkerScale;
         italic = true;
         clickable = true;
-      } else if (match[7] != null) {
+      } else if (match[8] != null) {
         // סמן-אות של הערה בספר אחר — מטריקות raised-sup, עם הפניית ריחוף.
-        rawContent = match[7]!;
+        rawContent = match[8]!;
         scale = kHtmlSmallerFontScale;
         clickable = true;
       } else {
         // אות מפרש — צבע קישור, וריאנט טיפוגרפי קבוע למפרש, רקע כשפעילה.
-        rawContent = match[6] ?? '';
+        rawContent = match[7] ?? '';
         scale = kLinkAnchorMarkerScale;
         clickable = true;
         useLinkColor = true;
-        final extraClasses = match[5] ?? '';
+        final extraClasses = match[6] ?? '';
         final variantMatch = _variantIndexRegex.firstMatch(extraClasses);
         final parsedVariant = variantMatch == null
             ? null

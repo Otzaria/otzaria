@@ -171,7 +171,7 @@ Future<void> main() async {
 
   testWidgets('WidgetSpan שאינו ניתן למיפוי נשאר בראש הפריט', (tester) async {
     final key = GlobalKey();
-    const content = 'אמר <sup style="font-weight:bold">אמר</sup>';
+    const content = 'אמר <sup class="custom">אמר</sup>';
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>

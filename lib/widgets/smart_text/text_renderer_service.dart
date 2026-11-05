@@ -151,6 +151,11 @@ class TextRendererService {
     r'\bclass\s*=\s*"[^"]*\bfootnote-marker\b[^"]*"',
     caseSensitive: false,
   );
+  // בלי attributes, או style פשוט בלבד — עיצוב שהציור המורם נושא.
+  static final RegExp _plainSupAttrsRegex = RegExp(
+    '^\\s*(?:style\\s*=\\s*"($kRaisedSupStylePattern)\\s*")?\\s*\$',
+    caseSensitive: false,
+  );
   static final RegExp _isolateStartRegex = RegExp(r'[\u2066\u2067\u2068]');
   static final RegExp _rtlCharRegex = RegExp(r'[\u0590-\u08FF]');
 
@@ -182,10 +187,11 @@ class TextRendererService {
           ? resolveDivineNameMarkers(originalInner, substituteOtherNames: false)
           : originalInner;
 
-      // sup סמנטי או מעוצב נשאר בנתיב ה-HTML כדי לא לאבד attributes וסגנונות
-      // מקוננים שהציור המורם אינו יכול לשחזר מ-TextStyle הבסיסי בלבד.
+      // sup סמנטי או עם תוכן מקונן נשאר בנתיב ה-HTML כדי לא לאבד attributes
+      // וסגנונות שהציור המורם אינו יכול לשחזר מ-TextStyle הבסיסי בלבד.
+      final plainAttrs = _plainSupAttrsRegex.firstMatch(attrs);
       if (!isFootnoteMarker &&
-          (attrs.trim().isNotEmpty || _htmlTagRegex.hasMatch(styledInner))) {
+          (plainAttrs == null || _htmlTagRegex.hasMatch(styledInner))) {
         return '<sup$attrs>$wrappedInner</sup>';
       }
 
@@ -197,7 +203,10 @@ class TextRendererService {
       // sup חשוף (אות הפניה מקובץ משתמש, או superscript תוכני) — 5/6 בלי
       // נטייה. גם הוא נפלט כ-span טקסט טהור ולא נשאר `<sup>`: מסלול ה-sup של
       // fwfh בונה WidgetSpan, וזה מה שהפך את הסדר כששני סימונים באותה פסקה.
-      return '<span class="$kRaisedSupClass">$wrappedInner</span>';
+      // style פשוט עוטף אותו מבחוץ, כדי שהגליף השקוף לא יקבל את הצבע.
+      final marker = '<span class="$kRaisedSupClass">$wrappedInner</span>';
+      final style = plainAttrs?[1];
+      return style == null ? marker : '<span style="$style">$marker</span>';
     });
   }
 

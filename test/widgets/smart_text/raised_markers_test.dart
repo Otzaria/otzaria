@@ -564,6 +564,15 @@ void main() {
       );
     }
 
+    test('רק style פשוט שעוטף סימון עובר לציור המורם (issue #3239)', () {
+      for (final style in const ['color: gray;', 'background-color: yellow']) {
+        final marker = RaisedMarkers.extract(
+          '<span style="$style"><span class="$kRaisedSupClass">1</span></span>',
+        ).single;
+        expect(marker.inlineHtml != null, style.startsWith('color'));
+      }
+    });
+
     test('SimpleInlineHtml: span זר ותג יתום כמו ב-fwfh, sup מעוצב נופל', () {
       const style = TextStyle(fontSize: 18);
       expect(
