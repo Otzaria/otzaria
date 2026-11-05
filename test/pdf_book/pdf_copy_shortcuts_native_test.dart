@@ -220,8 +220,15 @@ void main() {
         key == LogicalKeyboardKey.keyC ? 'ctrl+c' : 'ctrl+a',
       );
       await tester.tapAt(tester.getCenter(viewer));
+      // pdfrx מחכה להכרעת לחיצה כפולה לפני שהלחיצה הבודדת מבקשת פוקוס.
+      await settle();
+      expect(
+        Focus.of(tester.element(viewer), createDependency: false).hasFocus,
+        isTrue,
+        reason: 'PDF focus before ${key.debugName}',
+      );
       await chord([command], key);
-      expect(ShortcutHelper.isEditingText, isTrue);
+      expect(ShortcutHelper.isEditingText, isTrue, reason: key.debugName);
       expect(clipboard, hasLength(3));
       expect(selection.hasSelectedText, isFalse);
     }
