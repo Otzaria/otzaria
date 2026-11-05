@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -29,6 +30,7 @@ import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/pdf_sheet_composer.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
+import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
@@ -1231,172 +1233,171 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
     final fullBackFont = pw.Font.ttf(fallbackBytes.buffer.asByteData());
 
-    // Body text is shaped so nikud and te'amim come out as vector text. The
-    // registry is process-wide, so the isolate attaches by handle rather than
-    // parsing the fonts again.
-    final primaryShaper = ShaperFont.register(primaryBytes);
-    final fallbackShaper = ShaperFont.register(fallbackBytes);
-    final primaryHandle = primaryShaper.handle;
-    final fallbackHandle = fallbackShaper.handle;
-
-    final result = await Isolate.run(() async {
-      final pdfData = pw.Document(pageMode: PdfPageMode.outlines);
-      final shapedFonts = [
-        PdfShapedFont(
-          pdfData.document,
-          shaper: ShaperFont.attach(primaryHandle),
-          fontBytes: primaryBytes,
-        ),
-        PdfShapedFont(
-          pdfData.document,
-          shaper: ShaperFont.attach(fallbackHandle),
-          fontBytes: fallbackBytes,
-        ),
-      ];
-      pdfData.addPage(
-        pw.MultiPage(
-          theme: pw.ThemeData.withFont(
-            base: font,
-            fontFallback: [fullBackFont],
-          ),
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          textDirection: pw.TextDirection.rtl,
-          maxPages: 1000000,
-          margin: pw.EdgeInsets.all(pageMargin),
-          pageFormat: format,
-          header: (pw.Context context) {
-            return pw.Container(
-              alignment: pw.Alignment.topCenter,
-              margin: const pw.EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
-              child: pw.Text(
-                bookName,
-                style: pw.Theme.of(
-                  context,
-                ).defaultTextStyle.copyWith(color: PdfColors.grey),
+    // הגופנים נרשמים ומשתחררים ב-worker; אותם בתים משמשים גם להטמעה ב-PDF.
+    return Isolate.run(
+      () => withShaperFontPair(
+        createPrimary: () => ShaperFont.register(primaryBytes),
+        createFallback: () => ShaperFont.register(fallbackBytes),
+        action: (primary, fallback) async {
+          final pdfData = pw.Document(pageMode: PdfPageMode.outlines);
+          final shapedFonts = [
+            PdfShapedFont(
+              pdfData.document,
+              shaper: primary,
+              fontBytes: primaryBytes,
+            ),
+            PdfShapedFont(
+              pdfData.document,
+              shaper: fallback,
+              fontBytes: fallbackBytes,
+            ),
+          ];
+          pdfData.addPage(
+            pw.MultiPage(
+              theme: pw.ThemeData.withFont(
+                base: font,
+                fontFallback: [fullBackFont],
               ),
-            );
-          },
-          footer: (pw.Context context) {
-            return pw.Container(
-              alignment: pw.Alignment.bottomCenter,
-              margin: const pw.EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
-              child: pw.Text(
-                'עמוד ${context.pageNumber} מתוך ${context.pagesCount} - הודפס מתוכנת אוצריא',
-                style: pw.Theme.of(
-                  context,
-                ).defaultTextStyle.copyWith(color: PdfColors.grey),
-              ),
-            );
-          },
-          build: (pw.Context context) {
-            return blocks.expand((b) {
-              final kind = b['kind'];
-              final title = b['title'];
-              final text = (b['text'] ?? '').replaceAll('\n', '');
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              textDirection: pw.TextDirection.rtl,
+              maxPages: 1000000,
+              margin: pw.EdgeInsets.all(pageMargin),
+              pageFormat: format,
+              header: (pw.Context context) {
+                return pw.Container(
+                  alignment: pw.Alignment.topCenter,
+                  margin: const pw.EdgeInsets.only(
+                    top: 1.0 * PdfPageFormat.cm,
+                  ),
+                  child: pw.Text(
+                    bookName,
+                    style: pw.Theme.of(
+                      context,
+                    ).defaultTextStyle.copyWith(color: PdfColors.grey),
+                  ),
+                );
+              },
+              footer: (pw.Context context) {
+                return pw.Container(
+                  alignment: pw.Alignment.bottomCenter,
+                  margin: const pw.EdgeInsets.only(
+                    top: 1.0 * PdfPageFormat.cm,
+                  ),
+                  child: pw.Text(
+                    'עמוד ${context.pageNumber} מתוך ${context.pagesCount} - הודפס מתוכנת אוצריא',
+                    style: pw.Theme.of(
+                      context,
+                    ).defaultTextStyle.copyWith(color: PdfColors.grey),
+                  ),
+                );
+              },
+              build: (pw.Context context) {
+                return blocks.expand((b) {
+                  final kind = b['kind'];
+                  final title = b['title'];
+                  final text = (b['text'] ?? '').replaceAll('\n', '');
 
-              if (kind == 'commentaryTitle') {
-                return [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(
-                      top: 6,
-                      right: 8,
+                  if (kind == 'commentaryTitle') {
+                    return [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(
+                          top: 6,
+                          right: 8,
+                          left: 8,
+                        ),
+                        child: pw.Text(
+                          title ?? 'מפרשים',
+                          style: pw.TextStyle(
+                            fontSize: max(10.0, fontSize * 0.9),
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey800,
+                          ),
+                        ),
+                      ),
+                    ];
+                  }
+
+                  if (kind == 'commentaryGroupTitle') {
+                    return [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(
+                          top: 4,
+                          right: 12,
+                          left: 8,
+                        ),
+                        child: pw.Text(
+                          title ?? '',
+                          style: pw.TextStyle(
+                            fontSize: max(10.0, fontSize * 0.9),
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey900,
+                          ),
+                        ),
+                      ),
+                    ];
+                  }
+
+                  if (kind == 'noteTitle') {
+                    return [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(
+                          top: 6,
+                          right: 8,
+                          left: 8,
+                        ),
+                        child: pw.Text(
+                          title ?? 'הערות אישיות',
+                          style: pw.TextStyle(
+                            fontSize: max(10.0, fontSize * 0.9),
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey800,
+                          ),
+                        ),
+                      ),
+                    ];
+                  }
+
+                  final effectiveFontSize = switch (kind) {
+                    'commentary' || 'note' => max(10.0, fontSize * 0.9),
+                    _ => fontSize,
+                  };
+
+                  final padding = switch (kind) {
+                    'commentary' || 'note' => const pw.EdgeInsets.only(
+                      top: 2,
+                      bottom: 2,
+                      right: 18,
                       left: 8,
                     ),
-                    child: pw.Text(
-                      title ?? 'מפרשים',
-                      style: pw.TextStyle(
-                        fontSize: max(10.0, fontSize * 0.9),
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.grey800,
-                      ),
-                    ),
-                  ),
-                ];
-              }
-
-              if (kind == 'commentaryGroupTitle') {
-                return [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(
+                    'commentaryGroupTitle' => const pw.EdgeInsets.only(
                       top: 4,
+                      bottom: 2,
                       right: 12,
                       left: 8,
                     ),
-                    child: pw.Text(
-                      title ?? '',
-                      style: pw.TextStyle(
-                        fontSize: max(10.0, fontSize * 0.9),
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.grey900,
+                    _ => const pw.EdgeInsets.all(8.0),
+                  };
+                  return [
+                    pw.Padding(
+                      padding: padding,
+                      child: ShapedText(
+                        text,
+                        fonts: shapedFonts,
+                        fontSize: effectiveFontSize,
+                        align: ShapedTextAlign.justify,
+                        heightFactor: 1.35,
                       ),
                     ),
-                  ),
-                ];
-              }
+                  ];
+                }).toList();
+              },
+            ),
+          );
 
-              if (kind == 'noteTitle') {
-                return [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(
-                      top: 6,
-                      right: 8,
-                      left: 8,
-                    ),
-                    child: pw.Text(
-                      title ?? 'הערות אישיות',
-                      style: pw.TextStyle(
-                        fontSize: max(10.0, fontSize * 0.9),
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.grey800,
-                      ),
-                    ),
-                  ),
-                ];
-              }
-
-              final effectiveFontSize = switch (kind) {
-                'commentary' || 'note' => max(10.0, fontSize * 0.9),
-                _ => fontSize,
-              };
-
-              final padding = switch (kind) {
-                'commentary' || 'note' => const pw.EdgeInsets.only(
-                  top: 2,
-                  bottom: 2,
-                  right: 18,
-                  left: 8,
-                ),
-                'commentaryGroupTitle' => const pw.EdgeInsets.only(
-                  top: 4,
-                  bottom: 2,
-                  right: 12,
-                  left: 8,
-                ),
-                _ => const pw.EdgeInsets.all(8.0),
-              };
-              return [
-                pw.Padding(
-                  padding: padding,
-                  child: ShapedText(
-                    text,
-                    fonts: shapedFonts,
-                    fontSize: effectiveFontSize,
-                    align: ShapedTextAlign.justify,
-                    heightFactor: 1.35,
-                  ),
-                ),
-              ];
-            }).toList();
-          },
-        ),
-      );
-
-      return await pdfData.save();
-    });
-
-    primaryShaper.dispose();
-    fallbackShaper.dispose();
-    return result;
+          return await pdfData.save();
+        },
+      ),
+    );
   }
 
   Future<List<Link>> _loadLinksForPrintRange(

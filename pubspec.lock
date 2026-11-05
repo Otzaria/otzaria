@@ -1161,10 +1161,11 @@ packages:
   opentype_shaper:
     dependency: "direct main"
     description:
-      name: opentype_shaper
-      sha256: "0cd20a5499dba67d1681d618ae58a2acc229d55a4f6be95640216291cbc3b1cf"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "9ebf98621c4a7501a7480fa29d35374641e07635"
+      resolved-ref: "9ebf98621c4a7501a7480fa29d35374641e07635"
+      url: "https://github.com/Otzaria/opentype_shaper"
+    source: git
     version: "0.3.2"
   otzaria_ashurit:
     dependency: "direct main"
