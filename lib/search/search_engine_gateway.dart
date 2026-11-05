@@ -1095,6 +1095,29 @@ class RustSearchEngineOperations
 class SearchEngineGateway {
   const SearchEngineGateway();
 
+  static int _activeOperations = 0;
+
+  /// פעילות חיפוש בכל החלונות; משמשת לדחיית פינוי מטמונים יזום.
+  static bool get hasActiveOperations => _activeOperations != 0;
+
+  static Future<T> _track<T>(Future<T> Function() operation) async {
+    _activeOperations++;
+    try {
+      return await operation();
+    } finally {
+      _activeOperations--;
+    }
+  }
+
+  static Stream<T> _trackStream<T>(Stream<T> Function() operation) async* {
+    _activeOperations++;
+    try {
+      yield* operation();
+    } finally {
+      _activeOperations--;
+    }
+  }
+
   /// "יקוק" מחפש גם את שם הוי"ה ([text_utils.withHolyNameAlternatives]).
   /// מילים חלופיות קיימות רק במסלול המתקדם, ולכן חיפוש רגיל כזה מנותב אליו.
   static SearchEngineRequest _withHolyNames(SearchEngineRequest request) {
@@ -1123,55 +1146,68 @@ class SearchEngineGateway {
   Future<SemanticSearchResponse> searchSemantic(
     SemanticSearchEngineOperations engine,
     SemanticSearchRequest request,
-  ) {
+  ) => _track(() async {
     return engine.searchSemantic(request);
-  }
+  });
 
   Future<SemanticStatus> configureSemantic(
     SemanticSearchEngineOperations engine,
     SemanticConfigInput config,
-  ) {
+  ) => _track(() async {
     return engine.configureSemantic(config);
-  }
+  });
 
-  Future<void> disableSemantic(SemanticSearchEngineOperations engine) {
-    return engine.disableSemantic();
-  }
+  Future<void> disableSemantic(SemanticSearchEngineOperations engine) =>
+      _track(() async {
+        return engine.disableSemantic();
+      });
 
-  Future<SemanticStatus> semanticStatus(SemanticSearchEngineOperations engine) {
+  Future<SemanticStatus> semanticStatus(
+    SemanticSearchEngineOperations engine,
+  ) => _track(() async {
     return engine.semanticStatus();
-  }
+  });
 
   Future<SemanticIndexDiff> semanticIndexDiff(
     SemanticSearchEngineOperations engine,
-  ) {
+  ) => _track(() async {
     return engine.semanticIndexDiff();
-  }
+  });
 
   Future<SemanticIndexingSummary> semanticIndexBooks(
     SemanticSearchEngineOperations engine,
     List<SemanticBookInput> books,
-  ) {
+  ) => _track(() async {
     return engine.semanticIndexBooks(books);
-  }
+  });
 
   Future<SemanticRemoveResult> removeSemanticBooks(
     SemanticSearchEngineOperations engine,
     List<String> sourceBookKeys,
-  ) {
+  ) => _track(() async {
     return engine.removeSemanticBooks(sourceBookKeys);
-  }
+  });
 
   Future<SemanticResetResult> resetSemanticIndex(
     SemanticSearchEngineOperations engine,
-  ) {
+  ) => _track(() async {
     return engine.resetSemanticIndex();
-  }
+  });
+
+  Future<List<SearchResult>> searchLiteralPhrase(
+    SearchEngineOperations engine,
+    SearchEngineRequest request, {
+    required bool includeAdjacentLine,
+  }) => _track(
+    () => includeAdjacentLine
+        ? engine.searchExact(request)
+        : engine.searchInlineExact(request),
+  );
 
   Future<List<SearchResult>> search(
     SearchEngineOperations engine,
     SearchEngineRequest request,
-  ) async {
+  ) => _track(() async {
     if (UserRegexQuery.isValid(request.query)) {
       return (await _userRegexPage(engine, request)).results;
     }
@@ -1187,12 +1223,12 @@ class SearchEngineGateway {
       case SearchMode.fuzzy:
         return engine.searchFuzzy(request);
     }
-  }
+  });
 
   Future<SearchPageResult> searchAndCount(
     SearchEngineOperations engine,
     SearchEngineRequest request,
-  ) async {
+  ) => _track(() async {
     if (UserRegexQuery.isValid(request.query)) {
       return _userRegexPage(engine, request);
     }
@@ -1206,7 +1242,7 @@ class SearchEngineGateway {
       case SearchMode.fuzzy:
         return engine.searchAndCountFuzzy(request);
     }
-  }
+  });
 
   /// Stream משולב (תוצאות + ספירה כוללת + ספירה לפי ספר במעבר אחד);
   /// ראה [SearchEngineOperations.searchStreamWithCounts].
@@ -1214,7 +1250,7 @@ class SearchEngineGateway {
     SearchEngineOperations engine,
     SearchEngineRequest request, {
     required int chunkSize,
-  }) {
+  }) => _trackStream(() {
     if (UserRegexQuery.isValid(request.query)) {
       return _userRegexAsSearchUpdates(
         engine.searchUserRegexStream(request, chunkSize: chunkSize),
@@ -1223,12 +1259,12 @@ class SearchEngineGateway {
     request = _withHolyNames(request);
     engine.primeHighlightPattern(request);
     return engine.searchStreamWithCounts(request, chunkSize: chunkSize);
-  }
+  });
 
   Future<int> count(
     SearchEngineOperations engine,
     SearchEngineRequest request,
-  ) async {
+  ) => _track(() async {
     if (UserRegexQuery.isValid(request.query)) {
       return (await engine.countUserRegex(request)).count;
     }
@@ -1241,12 +1277,12 @@ class SearchEngineGateway {
       case SearchMode.fuzzy:
         return engine.countFuzzy(request);
     }
-  }
+  });
 
   Future<Map<String, int>> countByBook(
     SearchEngineOperations engine,
     SearchEngineRequest request,
-  ) async {
+  ) => _track(() async {
     if (UserRegexQuery.isValid(request.query)) {
       return (await engine.countByBookUserRegex(request)).counts;
     }
@@ -1259,13 +1295,13 @@ class SearchEngineGateway {
       case SearchMode.fuzzy:
         return engine.countByBookFuzzy(request);
     }
-  }
+  });
 
   Future<List<FacetCount>> getFacetCounts(
     SearchEngineOperations engine,
     SearchEngineRequest request, {
     required String facetPrefix,
-  }) async {
+  }) => _track(() async {
     if (UserRegexQuery.isValid(request.query)) {
       final result = await engine.getFacetCountsUserRegex(
         request,
@@ -1291,7 +1327,7 @@ class SearchEngineGateway {
           facetPrefix: facetPrefix,
         );
     }
-  }
+  });
 
   /// עמוד אחד של חיפוש `/…/`, עם הספירה הכוללת שבאירוע האחרון.
   static Future<SearchPageResult> _userRegexPage(

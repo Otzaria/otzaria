@@ -17,65 +17,184 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SqliteMemoryPressureObserver', () {
-    late int calls;
-    late SqliteMemoryPressureObserver observer;
-
-    setUp(() {
-      calls = 0;
-      observer = SqliteMemoryPressureObserver(release: () async => calls++);
-    });
-
-    testWidgets('לחץ זיכרון מהמערכת משחרר', (tester) async {
-      tester.binding.addObserver(observer);
-      addTearDown(() => tester.binding.removeObserver(observer));
-
-      tester.binding.handleMemoryPressure();
-      await tester.pump();
-
-      expect(calls, 1);
-    });
-
-    testWidgets('מעבר לרקע משחרר פעם אחת; איבוד פוקוס לא', (tester) async {
-      tester.binding.addObserver(observer);
-      addTearDown(() => tester.binding.removeObserver(observer));
-
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      await tester.pump();
-      expect(calls, 0, reason: 'inactive = איבוד פוקוס בדסקטופ');
-
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      await tester.pump();
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    testWidgets('מעבר לרקע אינו דוחה לחץ שכבר ממתין', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+      );
+      addTearDown(observer.dispose);
+      observer.didHaveMemoryPressure();
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
       await tester.pump();
       expect(calls, 1);
-
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pump();
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      await tester.pump();
-      expect(calls, 2);
     });
 
-    test('שחרור שעדיין רץ אינו מופעל שוב', () async {
-      final gate = Completer<void>();
-      final slow = SqliteMemoryPressureObserver(
+    testWidgets('לחץ ראשון אחרי פינוי רקע אינו ממתין ל-cooldown', (
+      tester,
+    ) async {
+      final background = Completer<void>();
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
         release: () {
           calls++;
-          return gate.future;
+          return calls == 1 ? background.future : Future<void>.value();
         },
+        isBusy: () => false,
+        windowCount: () => 1,
+        now: tester.binding.clock.now,
       );
-
-      slow.didHaveMemoryPressure();
-      slow.didHaveMemoryPressure();
+      addTearDown(observer.dispose);
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      await tester.pump(const Duration(seconds: 5));
       expect(calls, 1);
-
-      gate.complete();
-      await Future<void>.delayed(Duration.zero);
-      slow.didHaveMemoryPressure();
+      observer.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      observer.didHaveMemoryPressure();
+      background.complete();
+      await tester.pump();
+      await tester.pump();
       expect(calls, 2);
+    });
+
+    testWidgets('לחץ זיכרון משחרר גם בזמן פעילות ועם כמה חלונות', (
+      tester,
+    ) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+        isBusy: () => true,
+        windowCount: () => 3,
+      );
+      addTearDown(observer.dispose);
+      observer.didHaveMemoryPressure();
+      await tester.pump();
+      expect(calls, 1);
+    });
+
+    testWidgets('פינוי רקע ממתין לשקט ומאחד hidden ו-paused', (tester) async {
+      var busy = true;
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+        isBusy: () => busy,
+        windowCount: () => 1,
+      );
+      addTearDown(observer.dispose);
+      observer.didChangeAppLifecycleState(AppLifecycleState.inactive);
+      await tester.pump(const Duration(seconds: 10));
+      expect(calls, 0);
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      observer.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 5));
+      expect(calls, 0);
+      busy = false;
+      await tester.pump(const Duration(seconds: 2));
+      expect(calls, 1);
+      await tester.pump(const Duration(seconds: 20));
+      expect(calls, 1);
+    });
+
+    testWidgets('חזרה לחזית מבטלת פינוי רקע שטרם החל', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+        isBusy: () => false,
+        windowCount: () => 1,
+      );
+      addTearDown(observer.dispose);
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      await tester.pump(const Duration(seconds: 2));
+      observer.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump(const Duration(seconds: 10));
+      expect(calls, 0);
+    });
+
+    testWidgets('חלון נוסף מונע פינוי יזום של מטמונים משותפים', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+        isBusy: () => false,
+        windowCount: () => 2,
+      );
+      addTearDown(observer.dispose);
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      await tester.pump(const Duration(seconds: 5));
+      expect(calls, 0);
+      observer.didHaveMemoryPressure();
+      await tester.pump();
+      expect(calls, 1);
+    });
+
+    testWidgets('לחץ חוזר מוגבל למעבר יחיד בכל מרווח', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+        now: tester.binding.clock.now,
+      );
+      addTearDown(observer.dispose);
+      observer.didHaveMemoryPressure();
+      await tester.pump();
+      for (var i = 0; i < 50; i++) {
+        observer.didHaveMemoryPressure();
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(calls, 1);
+      await tester.pump(const Duration(seconds: 25));
+      expect(calls, 2);
+    });
+
+    testWidgets('פינוי תקוע אינו משחרר slot; לחץ ממתין לסיום האמיתי', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () {
+          calls++;
+          return calls == 1 ? gate.future : Future<void>.value();
+        },
+        now: tester.binding.clock.now,
+      );
+      addTearDown(observer.dispose);
+      observer.didHaveMemoryPressure();
+      await tester.pump();
+      observer.didHaveMemoryPressure();
+      await tester.pump(const Duration(minutes: 2));
+      expect(calls, 1);
+      gate.complete();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+      expect(calls, 2);
+    });
+
+    testWidgets('כשל סינכרוני אינו מרעיל ניסיון פינוי נוסף', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () {
+          calls++;
+          if (calls == 1) throw StateError('injected');
+          return Future<void>.value();
+        },
+        now: tester.binding.clock.now,
+      );
+      addTearDown(observer.dispose);
+      observer.didHaveMemoryPressure();
+      await tester.pump();
+      observer.didHaveMemoryPressure();
+      await tester.pump(const Duration(seconds: 30));
+      expect(calls, 2);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('dispose מבטל תזמון ואירועים מאוחרים', (tester) async {
+      var calls = 0;
+      final observer = SqliteMemoryPressureObserver(
+        release: () async => calls++,
+      );
+      observer.didHaveMemoryPressure();
+      observer.dispose();
+      observer.didHaveMemoryPressure();
+      await tester.pump(const Duration(minutes: 1));
+      expect(calls, 0);
     });
   });
 

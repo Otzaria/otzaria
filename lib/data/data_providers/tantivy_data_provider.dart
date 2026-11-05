@@ -82,8 +82,13 @@ class TantivyDataProvider {
   /// Track if index is being reopened to prevent concurrent reopens
   final ReopenGate _reopenGate = ReopenGate();
 
-  static final TantivyDataProvider _singleton = TantivyDataProvider._internal();
-  static TantivyDataProvider instance = _singleton;
+  static TantivyDataProvider? _instance;
+  static TantivyDataProvider get instance =>
+      _instance ??= TantivyDataProvider._internal();
+  static set instance(TantivyDataProvider value) => _instance = value;
+
+  /// מחזיר את הספק רק אם כבר נוצר; תחזוקת זיכרון אינה פותחת מנוע.
+  static TantivyDataProvider? get instanceIfCreated => _instance;
 
   /// תוצאת בדיקת התאימות של האינדקס, כפי שנקראה מהאינדקס עצמו
   /// (otzaria_index_meta.json או meta.json של Tantivy) דרך מנוע החיפוש.
@@ -545,6 +550,16 @@ class TantivyDataProvider {
     await indexDirectory.create(recursive: true);
 
     debugPrint('✅ Index reset completed');
+  }
+
+  /// מפנה מטמונים דרך ה-worker רק במנוע שכבר השלים אתחול ולא הוחלף.
+  Future<void> releaseMemoryIfInitialized() async {
+    if (!isInitialized.value) return;
+    final current = _engineInit.current;
+    if (current == null) return;
+    final index = await current;
+    if (!identical(current, _engineInit.current) || index.isDisposed) return;
+    await index.releaseMemory();
   }
 
   /// מבטל במנוע את קריאות החיפוש של [requestId]. מנוע שלא נפתח לא התחיל אותן.

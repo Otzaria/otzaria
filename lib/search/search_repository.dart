@@ -98,9 +98,11 @@ class SearchRepository {
       offset: offset,
       order: ResultsOrder.catalogue,
     );
-    return includeAdjacentLine
-        ? engine.searchExact(request)
-        : engine.searchInlineExact(request);
+    return _gateway.searchLiteralPhrase(
+      engine,
+      request,
+      includeAdjacentLine: includeAdjacentLine,
+    );
   }
 
   Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async =>
