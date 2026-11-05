@@ -34,9 +34,18 @@ void main() {
     dbPath = SeforimFixtureDb.create(directory, SeforimFixtureVariant.full);
     await Settings.init(cacheProvider: MemoryCacheProvider());
     AppPaths.debugOverrideDataRootPath('${directory.path}/data');
-    await Settings.setValue<String>(SettingsRepository.keyLibraryPath, directory.path);
-    await Settings.setValue<String>(SettingsRepository.keyLibraryFolderName, '');
-    await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, dbPath);
+    await Settings.setValue<String>(
+      SettingsRepository.keyLibraryPath,
+      directory.path,
+    );
+    await Settings.setValue<String>(
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
+    await Settings.setValue<String>(
+      SettingsRepository.keyDbEffectivePath,
+      dbPath,
+    );
     await SqliteDataProvider.instance.dispose();
     await SqliteDataProvider.instance.initialize();
   });
@@ -48,7 +57,10 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
-  Future<void> replaceLibraryData(String sql, [List<Object?> args = const []]) async {
+  Future<void> replaceLibraryData(
+    String sql, [
+    List<Object?> args = const [],
+  ]) async {
     // Follow the existing library replacement lifecycle, which invalidates
     // readers before replacing or editing database content.
     await SqliteDataProvider.instance.dispose();
@@ -66,7 +78,9 @@ void main() {
     'QA source check accepts the frozen exact row and rejects a changed build',
     () async {
       expect(await ErrorReportHelper.draftSourceMatches(target), isTrue);
-      await replaceLibraryData("UPDATE schema_meta SET value='2' WHERE key='db_version'");
+      await replaceLibraryData(
+        "UPDATE schema_meta SET value='2' WHERE key='db_version'",
+      );
       expect(await ErrorReportHelper.draftSourceMatches(target), isFalse);
     },
   );
@@ -75,10 +89,16 @@ void main() {
     'QA source check rejects a changed raw line even when the build is unchanged',
     () async {
       expect(await ErrorReportHelper.draftSourceMatches(target), isTrue);
-      await replaceLibraryData('UPDATE line SET content=? WHERE bookId=1 AND lineIndex=0',
-        ['<b>בראשית</b> א']);
-      expect(await ErrorReportHelper.draftSourceMatches(target), isFalse,
-        reason: 'Equal rendered text is insufficient: raw HTML must match exactly.');
+      await replaceLibraryData(
+        'UPDATE line SET content=? WHERE bookId=1 AND lineIndex=0',
+        ['<b>בראשית</b> א'],
+      );
+      expect(
+        await ErrorReportHelper.draftSourceMatches(target),
+        isFalse,
+        reason:
+            'Equal rendered text is insufficient: raw HTML must match exactly.',
+      );
     },
   );
 
@@ -86,14 +106,25 @@ void main() {
     'QA source check rejects a changed reference or missing source instead of retargeting',
     () async {
       expect(await ErrorReportHelper.draftSourceMatches(target), isTrue);
-      await replaceLibraryData('UPDATE line SET heRef=? WHERE bookId=1 AND lineIndex=0',
-        ['בראשית א, ב']);
+      await replaceLibraryData(
+        'UPDATE line SET heRef=? WHERE bookId=1 AND lineIndex=0',
+        ['בראשית א, ב'],
+      );
       expect(await ErrorReportHelper.draftSourceMatches(target), isFalse);
-      expect(await ErrorReportHelper.draftSourceMatches({...target, 'source': null}), isFalse);
-      expect(await ErrorReportHelper.draftSourceMatches({
-        ...target,
-        'source': {...Map<String, dynamic>.from(target['source'] as Map), 'bookId': 2},
-      }), isFalse);
+      expect(
+        await ErrorReportHelper.draftSourceMatches({...target, 'source': null}),
+        isFalse,
+      );
+      expect(
+        await ErrorReportHelper.draftSourceMatches({
+          ...target,
+          'source': {
+            ...Map<String, dynamic>.from(target['source'] as Map),
+            'bookId': 2,
+          },
+        }),
+        isFalse,
+      );
     },
   );
 }

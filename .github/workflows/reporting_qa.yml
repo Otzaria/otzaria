@@ -21,7 +21,6 @@ on:
       - 'lib/services/*report*'
       - 'packages/otzaria_report_contract/**'
       - 'test/reports/**'
-      - 'tool/reporting_qa/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
 
@@ -101,9 +100,13 @@ jobs:
             test/settings/l10n \
             test/widgets/text/rtl_text_field_context_menu_test.dart \
             test/widgets/text/rtl_text_field_editing_test.dart \
+            test/widgets/app_selection_area_test.dart \
+            test/widgets/text/app_selection_migrations_test.dart \
+            test/text_book/view/combined_view/combined_view_note_entry_test.dart \
             test/text_book/view/text_correction_html_contract_test.dart \
             test/text_book/view/text_correction_editor_test.dart \
             test/text_book/utils/book_note_report_test.dart \
+            test/text_book/view/note_error_report_test.dart \
             test/text_book/view/error_report_dialog_test.dart \
             2>&1 | tee build/reporting_qa/tests.log
 
@@ -124,7 +127,7 @@ jobs:
           git worktree add --detach "$legacy_root" "$REPORT_QA_LEGACY_SHA"
           trap 'git -C "$GITHUB_WORKSPACE" worktree remove --force "$legacy_root"' EXIT
           mkdir -p "$legacy_root/test/reports"
-          cp tool/reporting_qa/legacy_backup_gate_test.dart "$legacy_root/test/reports/qa_legacy_backup_gate_test.dart"
+          cp test/reports/fixtures/legacy_backup_gate.dart "$legacy_root/test/reports/qa_legacy_backup_gate_test.dart"
           cd "$legacy_root"
           flutter pub get --enforce-lockfile 2>&1 | tee "$GITHUB_WORKSPACE/build/reporting_qa/legacy-dependencies.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \

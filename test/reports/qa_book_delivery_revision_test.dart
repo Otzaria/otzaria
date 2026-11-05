@@ -38,7 +38,10 @@ void main() {
       SettingsRepository.keyErrorReportSenderEmail,
       'qa@example.com',
     );
-    await Settings.setValue<String>(SettingsRepository.keySettingsLanguage, 'he');
+    await Settings.setValue<String>(
+      SettingsRepository.keySettingsLanguage,
+      'he',
+    );
     service = DirectErrorReportService();
   });
 
@@ -54,17 +57,24 @@ void main() {
 
   Future<BuildContext> mount(WidgetTester tester) async {
     late BuildContext result;
-    await tester.pumpWidget(MaterialApp(
-      navigatorKey: navigatorKey,
-      home: Scaffold(body: Builder(builder: (context) {
-        result = context;
-        return const SizedBox.shrink();
-      })),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              result = context;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
     return result;
   }
 
-  Future<({BookReportDraftCubit first, BookReportDraftCubit second})> pair() async {
+  Future<({BookReportDraftCubit first, BookReportDraftCubit second})>
+  pair() async {
     final first = BookReportDraftCubit(
       target: target,
       initialForm: initial,
@@ -81,8 +91,11 @@ void main() {
       autosaveDelay: const Duration(days: 1),
     );
     live.add(second);
-    expect(second.id, first.id,
-        reason: 'These are two real sessions of the same persisted draft.');
+    expect(
+      second.id,
+      first.id,
+      reason: 'These are two real sessions of the same persisted draft.',
+    );
     second.updateForm({...initial, 'details': secondText});
     await second.flush();
     return (first: first, second: second);
@@ -126,38 +139,48 @@ void main() {
     });
   }
 
-  qa('QA old book delivery can finish without deleting a newer draft revision', (tester) async {
-    final context = await mount(tester);
-    await tester.runAsync(() async {
-      final drafts = await pair();
-      expect(await queue(context, drafts.first), isTrue);
-      await drafts.first.complete();
-      expect(drafts.first.isCompleted, isTrue);
-      drafts.first.updateForm({...initial, 'details': 'late old callback'});
-      await PreCloseRegistry.runAll();
-      final retained = await ReportDraftStore.instance.read(drafts.second.id);
-      expect(retained, isNotNull);
-      expect((retained!.payload['form'] as Map)['details'], secondText);
-      final pending = await service.getPendingReports();
-      expect(pending, hasLength(1));
-      expect(pending.single.errorDetails, firstText);
-    });
-  });
+  qa(
+    'QA old book delivery can finish without deleting a newer draft revision',
+    (tester) async {
+      final context = await mount(tester);
+      await tester.runAsync(() async {
+        final drafts = await pair();
+        expect(await queue(context, drafts.first), isTrue);
+        await drafts.first.complete();
+        expect(drafts.first.isCompleted, isTrue);
+        drafts.first.updateForm({...initial, 'details': 'late old callback'});
+        await PreCloseRegistry.runAll();
+        final retained = await ReportDraftStore.instance.read(drafts.second.id);
+        expect(retained, isNotNull);
+        expect((retained!.payload['form'] as Map)['details'], secondText);
+        final pending = await service.getPendingReports();
+        expect(pending, hasLength(1));
+        expect(pending.single.errorDetails, firstText);
+      });
+    },
+  );
 
-  qa('QA both deliberate book queue actions preserve their distinct content', (tester) async {
+  qa('QA both deliberate book queue actions preserve their distinct content', (
+    tester,
+  ) async {
     final context = await mount(tester);
     await tester.runAsync(() async {
       final drafts = await pair();
-      expect(drafts.first.reportId, isNot(drafts.second.reportId),
-          reason: 'New content must not reuse the previous delivery identity.');
+      expect(
+        drafts.first.reportId,
+        isNot(drafts.second.reportId),
+        reason: 'New content must not reuse the previous delivery identity.',
+      );
       expect(await queue(context, drafts.first), isTrue);
       await drafts.first.complete();
       expect(await queue(context, drafts.second), isTrue);
       await drafts.second.complete();
 
       final pending = await service.getPendingReports();
-      expect(pending.map((report) => report.errorDetails),
-          unorderedEquals([firstText, secondText]));
+      expect(
+        pending.map((report) => report.errorDetails),
+        unorderedEquals([firstText, secondText]),
+      );
       expect(pending.map((report) => report.id).toSet(), hasLength(2));
       expect(await ReportDraftStore.instance.list(), isEmpty);
       await PreCloseRegistry.runAll();
@@ -165,7 +188,9 @@ void main() {
     });
   });
 
-  qa('QA a colliding book queue id cannot acknowledge unqueued new content', (tester) async {
+  qa('QA a colliding book queue id cannot acknowledge unqueued new content', (
+    tester,
+  ) async {
     final context = await mount(tester);
     bool? acknowledged;
     Object? failure;
@@ -188,8 +213,11 @@ void main() {
       }
     });
     await tester.pump();
-    expect(acknowledged, isNot(true),
-        reason: 'A queue-id collision must not finalize the unsaved newer draft.');
+    expect(
+      acknowledged,
+      isNot(true),
+      reason: 'A queue-id collision must not finalize the unsaved newer draft.',
+    );
     if (failure != null) {
       expect(failure.toString(), contains(ReportMessages.reportIdConflict));
     } else {

@@ -120,6 +120,27 @@ void main() {
     expect(target!.contextText, contains('הטקסט <b> הוא חלק מההערה & נשמר'));
   });
 
+  test(
+    'literal selected markup identifies its note without a second parse',
+    () {
+      final notes = BookNotesBuilder()
+        ..add(0, 0, null, 'הטקסט &lt;b&gt; בהערה הראשונה')
+        ..add(0, 1, null, 'הטקסט בהערה השנייה');
+      final target = bookNoteReportTarget(
+        content: const ['אב'],
+        bookNotes: notes.build(),
+        lineIndexes: [0],
+        selectedText: '<b>',
+      );
+      expect(target!.contextText, contains('הראשונה'));
+      expect(target.contextText, isNot(contains('השנייה')));
+      expect(
+        bookNoteReportText('<b>מקור</b><br>&lt;b&gt; &amp;amp;'),
+        'מקור\n<b> &amp;',
+      );
+    },
+  );
+
   const source = ReportSourceSnapshot(
     bookId: 7,
     lineIndex: 3,

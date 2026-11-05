@@ -3,7 +3,11 @@ import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' show removeVolwels;
 
-typedef BookNoteReportTarget = ({int lineIndex, String contextText});
+typedef BookNoteReportTarget = ({
+  int lineIndex,
+  String contextText,
+  String? singleNoteHtml,
+});
 
 /// מזהה הערה רק בין ההערות המוצגות; בחירה עמומה שומרת את כולן עם מיקומן.
 BookNoteReportTarget? bookNoteReportTarget({
@@ -17,7 +21,12 @@ BookNoteReportTarget? bookNoteReportTarget({
   for (final line in lineIndexes.toSet()) {
     final lineNotes = notes.notesForLines(content, [line], dbNotes: bookNotes);
     for (final (index, html) in lineNotes.indexed) {
-      candidates.add((line: line, note: index, html: html, text: _plain(html)));
+      candidates.add((
+        line: line,
+        note: index,
+        html: html,
+        text: bookNoteReportText(html),
+      ));
     }
   }
   if (candidates.isEmpty) return null;
@@ -32,6 +41,7 @@ BookNoteReportTarget? bookNoteReportTarget({
   final targets = exact.length == 1 ? exact : candidates;
   return (
     lineIndex: targets.first.line,
+    singleNoteHtml: exact.length == 1 ? exact.single.html : null,
     contextText: targets
         .map(
           (note) =>
@@ -41,7 +51,9 @@ BookNoteReportTarget? bookNoteReportTarget({
   );
 }
 
-String _plain(String html) =>
+/// Decode a raw note for the display-only fallback when no text was selected.
+/// Text supplied by the selection renderer must not be decoded a second time.
+String bookNoteReportText(String html) =>
     html_parser
         .parseFragment(
           html.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n'),
@@ -51,4 +63,4 @@ String _plain(String html) =>
     '';
 
 String _matchText(String text) =>
-    removeVolwels(_plain(text)).replaceAll(RegExp(r'\s+'), ' ').trim();
+    removeVolwels(text).replaceAll(RegExp(r'\s+'), ' ').trim();

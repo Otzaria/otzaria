@@ -39,8 +39,6 @@
   "לא נמצאו הגדרות תואמות": "No matching settings found",
   "נסה לחפש מילים אחרות": "Try searching for different words",
   "שפת ההגדרות": "Settings Language",
-  "שפת התצוגה של מסך ההגדרות בלבד; שאר התוכנה נשארת בעברית": "Display language for the settings screen only; the rest of Otzaria stays in Hebrew",
-  "שפת התצוגה של מסך ההגדרות בלבד": "Display language for the settings screen only",
   "לפי שפת מערכת ההפעלה": "Use device language",
   "מעקב אחר צבע המערכת": "Follow system color",
   "התאמת ערכת הנושא לצבע מערכת ההפעלה": "Match the theme to your device's color",
@@ -1647,5 +1645,6 @@
   "ספריא": "Sefaria",
   "גזור": "Cut",
   "העתק": "Copy",
-  "הדבק": "Paste"
+  "הדבק": "Paste",
+  "הטקסט הועתק": "Text copied"
 }

@@ -380,7 +380,8 @@ class _AppReportDialogState extends State<AppReportDialog> {
           includeErrorLog: state.includeErrorLog,
           minidump: state.minidump,
           includeMinidump: state.includeMinidump,
-          onMinidumpChanged: (include) => bloc.add(AppReportMinidumpToggled(include)),
+          onMinidumpChanged: (include) =>
+              bloc.add(AppReportMinidumpToggled(include)),
           enabled: enabled,
           onDiagnosticsChanged: (include) =>
               bloc.add(AppReportDiagnosticsToggled(include)),

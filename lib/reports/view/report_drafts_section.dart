@@ -135,8 +135,12 @@ class _ReportDraftsSectionState extends State<ReportDraftsSection> {
                 : draft.payload['description'])
             as String? ??
         '';
+    final lineLabel = context.settingsText(
+      'שורה {number}',
+      args: {'number': target?['lineNumber'] ?? ''},
+    );
     final location = isBook
-        ? '${target?['currentRef'] ?? ''} · ${context.settingsText('שורה {number}', args: {'number': target?['lineNumber'] ?? ''})}'
+        ? '${target?['currentRef'] ?? ''} · $lineLabel'
         : '';
     final localizations = MaterialLocalizations.of(context);
     final date = localizations.formatCompactDate(draft.updatedAt.toLocal());

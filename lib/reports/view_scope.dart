@@ -72,8 +72,8 @@ String reportTargetText(BuildContext context, String target) =>
 /// unchanged. HTML is inspected only to choose the display direction.
 TextDirection reportContentDirection(String text, {bool isHtml = false}) =>
     Bidi.detectRtlDirectionality(text, isHtml: isHtml)
-        ? TextDirection.rtl
-        : TextDirection.ltr;
+    ? TextDirection.rtl
+    : TextDirection.ltr;
 
 /// Localizes only known delivery-service messages, keeping their parameter
 /// values and user-authored report text untouched.

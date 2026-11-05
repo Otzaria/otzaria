@@ -209,47 +209,60 @@ void main() {
     expect(find.byType(ErrorReportsPanel), findsOneWidget);
   });
 
-  testWidgets('free book editing keeps English scope and scrolls in a low window', (
-    tester,
-  ) async {
-    final selected = 'מקור ארוך בשורה נפרדת\n' * 10;
-    await addReport(tester, ReportsTab.books, extra: {
-      'selectedText': selected,
-      'errorDetails': 'פרטי הטעות בשורה נפרדת\n' * 10,
-      'contextText': 'הקשר בשורה נפרדת\n' * 10,
-    });
-    await pumpDialog(tester, ReportsTab.books, language: SettingsLanguage.english);
-    await tapVisible(tester, 'Manage saved reports');
-    await tapVisible(tester, 'Edit');
-    await tester.binding.setSurfaceSize(const Size(1100, 360));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'free book editing keeps English scope and scrolls in a low window',
+    (
+      tester,
+    ) async {
+      final selected = 'מקור ארוך בשורה נפרדת\n' * 10;
+      await addReport(
+        tester,
+        ReportsTab.books,
+        extra: {
+          'selectedText': selected,
+          'errorDetails': 'פרטי הטעות בשורה נפרדת\n' * 10,
+          'contextText': 'הקשר בשורה נפרדת\n' * 10,
+        },
+      );
+      await pumpDialog(
+        tester,
+        ReportsTab.books,
+        language: SettingsLanguage.english,
+      );
+      await tapVisible(tester, 'Manage saved reports');
+      await tapVisible(tester, 'Edit');
+      await tester.binding.setSurfaceSize(const Size(1100, 360));
+      await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('Edit a Saved Report'), findsOneWidget);
-    expect(find.text('The Selected Text'), findsOneWidget);
-    expect(find.text('What needs to be corrected?'), findsOneWidget);
-    expect(find.text('Context'), findsOneWidget);
-    final scroll = find.byKey(const ValueKey('book-report-edit-scroll'));
-    expect(scroll, findsOneWidget);
-    final state = tester.state<ScrollableState>(
-      find.descendant(of: scroll, matching: find.byType(Scrollable)).first,
-    );
-    expect(state.position.maxScrollExtent, greaterThan(0));
-    final contextField = find.byKey(const ValueKey('book-report-edit-context'));
-    await tester.ensureVisible(contextField);
-    await tester.enterText(contextField, 'הקשר המעודכן נשמר במדויק');
-    await tester.pump();
-    final save = find.text('Save');
-    expect(save.hitTestable(), findsOneWidget);
-    await tester.tap(save);
-    await settleReports(tester);
-    final reports = await tester.runAsync(
-      () => DirectErrorReportService().getPendingReports(),
-    );
-    expect(reports!.single.selectedText, selected.trim());
-    expect(reports.single.contextText, 'הקשר המעודכן נשמר במדויק');
-    expect(tester.takeException(), isNull);
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.text('Edit a Saved Report'), findsOneWidget);
+      expect(find.text('The Selected Text'), findsOneWidget);
+      expect(find.text('What needs to be corrected?'), findsOneWidget);
+      expect(find.text('Context'), findsOneWidget);
+      final scroll = find.byKey(const ValueKey('book-report-edit-scroll'));
+      expect(scroll, findsOneWidget);
+      final state = tester.state<ScrollableState>(
+        find.descendant(of: scroll, matching: find.byType(Scrollable)).first,
+      );
+      expect(state.position.maxScrollExtent, greaterThan(0));
+      final contextField = find.byKey(
+        const ValueKey('book-report-edit-context'),
+      );
+      await tester.ensureVisible(contextField);
+      await tester.enterText(contextField, 'הקשר המעודכן נשמר במדויק');
+      await tester.pump();
+      final save = find.text('Save');
+      expect(save.hitTestable(), findsOneWidget);
+      await tester.tap(save);
+      await settleReports(tester);
+      final reports = await tester.runAsync(
+        () => DirectErrorReportService().getPendingReports(),
+      );
+      expect(reports!.single.selectedText, selected.trim());
+      expect(reports.single.contextText, 'הקשר המעודכן נשמר במדויק');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final tab in ReportsTab.values) {
     final label = switch (tab) {

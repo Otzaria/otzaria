@@ -10,6 +10,8 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/text_book/utils/book_note_report.dart';
+import 'package:otzaria/text_book/view/text_correction_editor.dart'
+    show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
@@ -3074,14 +3076,31 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
       lineIndexes: widget.reportLineIndexes,
       selectedText: selected,
     );
+    final lineIndex = target?.lineIndex ?? widget.reportLineIndex;
+    final noteHtml = target?.singleNoteHtml;
+    // A displayed word may match only the parent after punctuation is hidden.
+    // Require an exact visible selection in the note as well as in its row.
+    final useNoteContext =
+        !widget.state.bookNotes.isEmpty ||
+        noteHtml == null ||
+        !buildCorrectionTemplate(noteHtml, selected).hasSelection ||
+        lineIndex < 0 ||
+        lineIndex >= widget.state.content.length ||
+        !buildCorrectionTemplate(
+          widget.state.content[lineIndex],
+          selected,
+        ).hasSelection;
     return ErrorReportHelper.showErrorReportDialog(
       context: reportContext,
       selectedText: selected,
       state: widget.state,
       fontSize: widget.fontSize,
       bookTitle: widget.state.book.title,
-      savedSelectedIndex: target?.lineIndex ?? widget.reportLineIndex,
-      reportNote: target?.contextText ?? selected,
+      savedSelectedIndex: lineIndex,
+      // PR #4285: inline notes still belong to the exact source row. Only
+      // line_note or an ambiguous inline selection uses frozen note context.
+      reportContent: widget.state.bookNotes.isEmpty ? null : widget.notes,
+      reportNote: useNoteContext ? target?.contextText ?? selected : null,
     );
   }
 

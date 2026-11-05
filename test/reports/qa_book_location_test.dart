@@ -9,7 +9,6 @@ import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/reports/book_report_selection.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
-import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 // ignore: depend_on_referenced_packages
@@ -72,7 +71,8 @@ void main() {
     expect(
       completed,
       isFalse,
-      reason: 'A successful launch does not prove that the user sent the email.',
+      reason:
+          'A successful launch does not prove that the user sent the email.',
     );
   });
 
@@ -128,8 +128,12 @@ void main() {
         contextText: '$text\n\n${data.selectionContext}',
         libraryVersion: 'v1',
       );
-      final temporary = Directory.systemTemp.createTempSync('qa_book_location_');
-      final database = UserStateDatabase.openAt('${temporary.path}/user_state.db');
+      final temporary = Directory.systemTemp.createTempSync(
+        'qa_book_location_',
+      );
+      final database = UserStateDatabase.openAt(
+        '${temporary.path}/user_state.db',
+      );
       final client = http.Client();
       final service = DirectErrorReportService(
         client: client,
@@ -186,7 +190,8 @@ void main() {
           )
           .replaceFirst(
             RegExp(r'if command -v zenity[\s\S]*?\nfi\n'),
-            r'cat "$tmp"' '\n',
+            r'cat "$tmp"'
+            '\n',
           );
       final file = File('${temporary.path}/send.sh');
       await file.writeAsString(script);
@@ -194,7 +199,11 @@ void main() {
           ? r'C:\Program Files\Git\bin\bash.exe'
           : 'bash';
       final process = await Process.run(bash, [file.path]);
-      expect(process.exitCode, 0, reason: '${process.stdout}\n${process.stderr}');
+      expect(
+        process.exitCode,
+        0,
+        reason: '${process.stdout}\n${process.stderr}',
+      );
       expect(received, hasLength(1));
       expect(jsonDecode(received.single), report.toApiPayload());
       final artifactDirectory = Directory('build/reporting_qa');

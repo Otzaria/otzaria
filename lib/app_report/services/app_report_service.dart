@@ -319,7 +319,9 @@ class AppReportService {
         ? null
         : AppReportDraft.fromJson({...row.payload, ...row.attachments});
     if (row != null && _lastDraft == null) {
-      throw const FormatException('The saved report draft could not be decoded.');
+      throw const FormatException(
+        'The saved report draft could not be decoded.',
+      );
     }
     return _lastDraft;
   }

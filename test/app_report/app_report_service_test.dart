@@ -158,14 +158,28 @@ void main() {
     expect(await ReportDraftStore.forDatabase(db).list(), hasLength(1));
   });
 
-  test('a malformed existing draft cannot be treated as an empty new form', () async {
-    final service = build(MockClient((_) async => _json(500, {})));
-    final drafts = ReportDraftStore.forDatabase(db);
-    await drafts.write(id: 'malformed', kind: ReportDraftStore.appKind,
-      title: 'saved work', payload: {'title': 42, 'description': 'keep this text'}, revision: 0);
-    await expectLater(service.loadDraft(draftId: 'malformed'), throwsFormatException);
-    expect((await drafts.read('malformed'))!.payload['description'], 'keep this text');
-  });
+  test(
+    'a malformed existing draft cannot be treated as an empty new form',
+    () async {
+      final service = build(MockClient((_) async => _json(500, {})));
+      final drafts = ReportDraftStore.forDatabase(db);
+      await drafts.write(
+        id: 'malformed',
+        kind: ReportDraftStore.appKind,
+        title: 'saved work',
+        payload: {'title': 42, 'description': 'keep this text'},
+        revision: 0,
+      );
+      await expectLater(
+        service.loadDraft(draftId: 'malformed'),
+        throwsFormatException,
+      );
+      expect(
+        (await drafts.read('malformed'))!.payload['description'],
+        'keep this text',
+      );
+    },
+  );
 
   for (final status in [413, 422]) {
     test(
@@ -531,8 +545,14 @@ void main() {
         'transient',
         'after',
       ]);
-      expect(pending.singleWhere((r) => r.title == 'conflict').reportId, isNot(conflict.reportId));
-      expect(pending.singleWhere((r) => r.title == 'rejected').reportId, rejected.reportId);
+      expect(
+        pending.singleWhere((r) => r.title == 'conflict').reportId,
+        isNot(conflict.reportId),
+      );
+      expect(
+        pending.singleWhere((r) => r.title == 'rejected').reportId,
+        rejected.reportId,
+      );
       expect((await service.getSentReports()).single.issueNumber, 9);
     },
   );
@@ -552,51 +572,62 @@ void main() {
     expect((await service.getPendingReports()).single.description, 'אחר');
   });
 
-  for (final bytes in [8 * 1024 * 1024, 10 * 1024 * 1024, 10 * 1024 * 1024 + 1]) {
-    test('explicit legacy edit adopts v2 attachment limits: $bytes bytes', () async {
-      var requests = 0;
-      final service = build(MockClient((_) async {
-        requests++;
-        return http.Response('', 500);
-      }));
-      final original = _report().copyWith(schema: 1);
-      await store.add(AppReportService.legacyPendingKind, original.toJson());
-      final imageBytes = Uint8List(bytes);
-      imageBytes[0] = 7;
-      imageBytes[bytes - 1] = 9;
-      final edited = original.copyWith(images: [
-        AppReportImage(
-          bytes: imageBytes,
-          fileName: 'edited.png',
-          mimeType: 'image/png',
-        ),
-      ]);
-      expect(edited.schema, 1);
-
-      if (bytes > AppReportImage.maxBytes) {
-        await expectLater(
-          service.updatePendingReport(edited),
-          throwsA(isA<FormatException>()),
+  for (final bytes in [
+    8 * 1024 * 1024,
+    10 * 1024 * 1024,
+    10 * 1024 * 1024 + 1,
+  ]) {
+    test(
+      'explicit legacy edit adopts v2 attachment limits: $bytes bytes',
+      () async {
+        var requests = 0;
+        final service = build(
+          MockClient((_) async {
+            requests++;
+            return http.Response('', 500);
+          }),
         );
-        final unchanged = (await service.getPendingReports()).single;
-        expect(unchanged.reportId, original.reportId);
-        expect(unchanged.schema, 1);
-        expect(unchanged.images, isEmpty);
-      } else {
-        final saved = (await service.updatePendingReport(edited))!;
-        expect(saved.schema, AppReport.schemaVersion);
-        expect(saved.reportId, isNot(original.reportId));
-        final restored = (await service.getPendingReports()).single;
-        expect(restored.schema, AppReport.schemaVersion);
-        expect(restored.reportId, saved.reportId);
-        expect(restored.images.single.bytes.length, bytes);
-        expect(restored.images.single.bytes.first, 7);
-        expect(restored.images.single.bytes.last, 9);
-      }
-      expect(await store.countByKind(AppReportService.legacyPendingKind), 0);
-      expect(await store.countByKind(AppReportService.pendingKind), 1);
-      expect(requests, 0);
-    });
+        final original = _report().copyWith(schema: 1);
+        await store.add(AppReportService.legacyPendingKind, original.toJson());
+        final imageBytes = Uint8List(bytes);
+        imageBytes[0] = 7;
+        imageBytes[bytes - 1] = 9;
+        final edited = original.copyWith(
+          images: [
+            AppReportImage(
+              bytes: imageBytes,
+              fileName: 'edited.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        );
+        expect(edited.schema, 1);
+
+        if (bytes > AppReportImage.maxBytes) {
+          await expectLater(
+            service.updatePendingReport(edited),
+            throwsA(isA<FormatException>()),
+          );
+          final unchanged = (await service.getPendingReports()).single;
+          expect(unchanged.reportId, original.reportId);
+          expect(unchanged.schema, 1);
+          expect(unchanged.images, isEmpty);
+        } else {
+          final saved = (await service.updatePendingReport(edited))!;
+          expect(saved.schema, AppReport.schemaVersion);
+          expect(saved.reportId, isNot(original.reportId));
+          final restored = (await service.getPendingReports()).single;
+          expect(restored.schema, AppReport.schemaVersion);
+          expect(restored.reportId, saved.reportId);
+          expect(restored.images.single.bytes.length, bytes);
+          expect(restored.images.single.bytes.first, 7);
+          expect(restored.images.single.bytes.last, 9);
+        }
+        expect(await store.countByKind(AppReportService.legacyPendingKind), 0);
+        expect(await store.countByKind(AppReportService.pendingKind), 1);
+        expect(requests, 0);
+      },
+    );
   }
 
   test(

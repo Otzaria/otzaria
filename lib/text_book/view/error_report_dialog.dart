@@ -37,6 +37,8 @@ import 'package:otzaria/widgets/misc/phone_report_tab.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart'
+    show rtlSelectionPriming;
 import 'package:otzaria/utils/text/ref_helper.dart';
 
 /// נתוני הדיווח שנאספו מתיבת סימון הטקסט + פירוט הטעות שהמשתמש הקליד.
@@ -1590,39 +1592,39 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         child: ExcludeFocus(
           excluding: _leaving,
           child: Dialog(
-          clipBehavior: Clip.antiAlias,
-          insetPadding: isCompact ? const EdgeInsets.all(8) : null,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: minWidth,
-              maxWidth: maxWidth,
-              minHeight: minHeight,
-              maxHeight: maxHeight,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildHeader(context),
-                TabBar(
-                  controller: _tabController,
-                  splashBorderRadius: AppTokens.borderRadiusAll,
-                  tabs: [
-                    Tab(text: context.settingsText('שליחת דיווח')),
-                    Tab(text: context.settingsText('דיווח דרך קו אוצריא')),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
+            clipBehavior: Clip.antiAlias,
+            insetPadding: isCompact ? const EdgeInsets.all(8) : null,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: minWidth,
+                maxWidth: maxWidth,
+                minHeight: minHeight,
+                maxHeight: maxHeight,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeader(context),
+                  TabBar(
                     controller: _tabController,
-                    children: [
-                      _buildRegularReportTab(),
-                      _buildPhoneReportTab(),
+                    splashBorderRadius: AppTokens.borderRadiusAll,
+                    tabs: [
+                      Tab(text: context.settingsText('שליחת דיווח')),
+                      Tab(text: context.settingsText('דיווח דרך קו אוצריא')),
                     ],
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildRegularReportTab(),
+                        _buildPhoneReportTab(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           ),
         ),
       ),
@@ -1810,6 +1812,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
       Theme.of(context).brightness == Brightness.dark;
 
   final TextEditingController _detailsController = TextEditingController();
+  final _quoteSelectionNotifier = SelectionListenerNotifier();
+  final _quoteSelectionKey = GlobalKey();
   late _ReportMode _mode;
   late String _editorText;
   late ProposalMode _proposalMode;
@@ -1847,6 +1851,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   @override
   void initState() {
     super.initState();
+    _quoteSelectionNotifier.addListener(_handleQuoteSelectionChanged);
     final form = widget.initialForm;
     _mode = widget.correctionTemplate == null || form?['mode'] == 'freeText'
         ? _ReportMode.freeText
@@ -1872,12 +1877,11 @@ class _RegularReportTabState extends State<RegularReportTab> {
         editedText: _editorText,
       );
     }
-    _detailsController.addListener(_handleDetailsChanged);
   }
 
   @override
   void dispose() {
-    _detailsController.removeListener(_handleDetailsChanged);
+    _quoteSelectionNotifier.dispose();
     _detailsController.dispose();
     super.dispose();
   }
@@ -1904,15 +1908,43 @@ class _RegularReportTabState extends State<RegularReportTab> {
   Map<String, dynamic> get _form => {
     'mode': _mode.name,
     'details': _detailsController.text,
-    'proposedText': widget.correctionTemplate == null ? null : _editorText,
+    'proposedText': _editorText,
     'proposalMode': _proposalMode.name,
     'selectionStart': _selection?.start,
     'selectionEnd': _selection?.end,
   };
 
+  void _handleQuoteSelectionChanged() {
+    if (!mounted ||
+        rtlSelectionPriming ||
+        !_quoteSelectionNotifier.registered) {
+      return;
+    }
+    final selected = _quoteSelectionNotifier.selection.range;
+    if (selected == null) return;
+    final range = BookReportSelection(
+      math.min(selected.startOffset, selected.endOffset),
+      math.max(selected.startOffset, selected.endOffset),
+    );
+    if (!range.isValidFor(_selectionSource) ||
+        (_selection?.start == range.start && _selection?.end == range.end)) {
+      return;
+    }
+    setState(() => _selection = range);
+    _draftChanged();
+  }
+
+  void _clearQuoteSelection() {
+    _quoteSelectionKey.currentContext
+        ?.findAncestorStateOfType<SelectableRegionState>()
+        ?.clearSelection();
+    setState(() => _selection = null);
+    _draftChanged();
+  }
+
   void _draftChanged() => widget.onDraftChanged?.call(_form);
 
-  void _handleDetailsChanged() {
+  void _handleDetailsChanged(String _) {
     if (mounted) {
       setState(() {});
       _draftChanged();
@@ -2088,10 +2120,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     ),
                     if (_selection != null)
                       TextButton(
-                        onPressed: () {
-                          setState(() => _selection = null);
-                          _draftChanged();
-                        },
+                        onPressed: _clearQuoteSelection,
                         child: Text(context.settingsText('נקה סימון')),
                       ),
                     Container(
@@ -2116,56 +2145,53 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         borderRadius: AppTokens.borderRadiusAll,
                       ),
                       child: SingleChildScrollView(
-                        child: SelectableText.rich(
-                          TextSpan(
-                            children: [
-                              if (_selection == null)
-                                TextSpan(text: _selectionSource)
-                              else ...[
-                                TextSpan(
-                                  text: _selectionSource.substring(
-                                    0,
-                                    _selection!.start,
-                                  ),
+                        child: AppSelectionArea(
+                          child: SelectionListener(
+                            key: _quoteSelectionKey,
+                            selectionNotifier: _quoteSelectionNotifier,
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  if (_selection == null)
+                                    TextSpan(text: _selectionSource)
+                                  else ...[
+                                    TextSpan(
+                                      text: _selectionSource.substring(
+                                        0,
+                                        _selection!.start,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: _selection!.selectedText(
+                                        _selectionSource,
+                                      ),
+                                      style: TextStyle(
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primaryContainer,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: _selectionSource.substring(
+                                        _selection!.end,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              key: const ValueKey('report-location-quote'),
+                              textDirection: _quoteDirection,
+                              style: TextStyle(
+                                fontSize: widget.fontSize,
+                                fontFamily: AppFonts.renderFontFamily(
+                                  Settings.getValue('key-font-family') ??
+                                      AppFonts.defaultFont,
                                 ),
-                                TextSpan(
-                                  text: _selection!.selectedText(
-                                    _selectionSource,
-                                  ),
-                                  style: TextStyle(
-                                    backgroundColor: Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: _selectionSource.substring(
-                                    _selection!.end,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          key: const ValueKey('report-location-quote'),
-                          textDirection: _quoteDirection,
-                          onSelectionChanged: (selection, cause) {
-                            final range = BookReportSelection(
-                              selection.start,
-                              selection.end,
-                            );
-                            if (!range.isValidFor(_selectionSource)) return;
-                            setState(() => _selection = range);
-                            _draftChanged();
-                          },
-                          style: TextStyle(
-                            fontSize: widget.fontSize,
-                            fontFamily: AppFonts.renderFontFamily(
-                              Settings.getValue('key-font-family') ??
-                                  AppFonts.defaultFont,
+                              ),
+                              textAlign: TextAlign.start,
                             ),
                           ),
-                          textAlign: TextAlign.start,
                         ),
                       ),
                     ),
@@ -2178,6 +2204,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   RtlTextField(
                     key: const ValueKey('report-details-field'),
                     controller: _detailsController,
+                    onChanged: _handleDetailsChanged,
                     minLines: 2,
                     maxLines: 6,
                     autofocus: !_isCorrection,

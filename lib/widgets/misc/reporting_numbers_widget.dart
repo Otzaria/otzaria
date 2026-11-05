@@ -238,7 +238,9 @@ class ReportingNumbersWidget extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError(context.settingsText(CommonMessages.clipboardCopyError));
+        UiSnack.showError(
+          context.settingsText(CommonMessages.clipboardCopyError),
+        );
       }
     }
   }
@@ -250,12 +252,16 @@ class ReportingNumbersWidget extends StatelessWidget {
         await launchUrl(phoneUri);
       } else {
         if (context.mounted) {
-          UiSnack.showError(context.settingsText(CommonMessages.cannotOpenPhoneApp));
+          UiSnack.showError(
+            context.settingsText(CommonMessages.cannotOpenPhoneApp),
+          );
         }
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError(context.settingsText(CommonMessages.phoneAppOpenError));
+        UiSnack.showError(
+          context.settingsText(CommonMessages.phoneAppOpenError),
+        );
       }
     }
   }

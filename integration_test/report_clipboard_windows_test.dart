@@ -23,11 +23,17 @@ void main() {
   );
 
   setUpAll(() {
-    expect(Platform.isWindows, isTrue,
-        reason: 'Run this integration test with -d windows.');
+    expect(
+      Platform.isWindows,
+      isTrue,
+      reason: 'Run this integration test with -d windows.',
+    );
     final native = SystemClipboard.instance;
-    expect(native, isNotNull,
-        reason: 'The actual registered Windows clipboard plugin is required.');
+    expect(
+      native,
+      isNotNull,
+      reason: 'The actual registered Windows clipboard plugin is required.',
+    );
     clipboard = native!;
   });
 
@@ -46,24 +52,34 @@ void main() {
       'windowsClipboardHistoryUi': false,
     };
     binding.reportData = evidence;
-    final file = File(Platform.environment['REPORT_QA_NATIVE_OUTPUT'] ??
-        'build/reporting_qa/native-clipboard.json');
+    final file = File(
+      Platform.environment['REPORT_QA_NATIVE_OUTPUT'] ??
+          'build/reporting_qa/native-clipboard.json',
+    );
     await file.parent.create(recursive: true);
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(evidence));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(evidence),
+    );
   });
 
-  testWidgets('native Flutter text is readable by the reporting clipboard provider', (tester) async {
-    const text = 'טקסט רגיל בעברית + English 😀';
-    await Clipboard.setData(const ClipboardData(text: text));
-    final reader = await clipboard.read();
-    expect(await reader.readValue(Formats.plainText), text);
-    expect(await sources.readClipboard(skipIfText: true), isEmpty);
-    expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
-    passed.add('Flutter text -> native provider -> unchanged Flutter text');
-  });
+  testWidgets(
+    'native Flutter text is readable by the reporting clipboard provider',
+    (tester) async {
+      const text = 'טקסט רגיל בעברית + English 😀';
+      await Clipboard.setData(const ClipboardData(text: text));
+      final reader = await clipboard.read();
+      expect(await reader.readValue(Formats.plainText), text);
+      expect(await sources.readClipboard(skipIfText: true), isEmpty);
+      expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
+      passed.add('Flutter text -> native provider -> unchanged Flutter text');
+    },
+  );
 
-  testWidgets('native PNG reaches the production report source unchanged', (tester) async {
-    final item = DataWriterItem(suggestedName: 'native.png')..add(Formats.png(png));
+  testWidgets('native PNG reaches the production report source unchanged', (
+    tester,
+  ) async {
+    final item = DataWriterItem(suggestedName: 'native.png')
+      ..add(Formats.png(png));
     await clipboard.write([item]);
     for (final skipIfText in [false, true]) {
       final images = await sources.readClipboard(skipIfText: skipIfText);
@@ -74,25 +90,30 @@ void main() {
     passed.add('Native PNG -> production source, both text-precedence modes');
   });
 
-  testWidgets('native two-frame GIF wins over PNG without losing animation bytes', (tester) async {
-    final item = DataWriterItem(suggestedName: 'animated.gif')
-      ..add(Formats.gif(gif))
-      ..add(Formats.png(png));
-    await clipboard.write([item]);
-    final images = await sources.readClipboard();
-    expect(images, hasLength(1));
-    expect(images.single.mimeType, 'image/gif');
-    expect(images.single.bytes, gif);
-    final codec = await ui.instantiateImageCodec(images.single.bytes);
-    try {
-      expect(codec.frameCount, 2);
-    } finally {
-      codec.dispose();
-    }
-    passed.add('Native GIF + PNG -> exact GIF bytes with two decoded frames');
-  });
+  testWidgets(
+    'native two-frame GIF wins over PNG without losing animation bytes',
+    (tester) async {
+      final item = DataWriterItem(suggestedName: 'animated.gif')
+        ..add(Formats.gif(gif))
+        ..add(Formats.png(png));
+      await clipboard.write([item]);
+      final images = await sources.readClipboard();
+      expect(images, hasLength(1));
+      expect(images.single.mimeType, 'image/gif');
+      expect(images.single.bytes, gif);
+      final codec = await ui.instantiateImageCodec(images.single.bytes);
+      try {
+        expect(codec.frameCount, 2);
+      } finally {
+        codec.dispose();
+      }
+      passed.add('Native GIF + PNG -> exact GIF bytes with two decoded frames');
+    },
+  );
 
-  testWidgets('native mixed text and PNG preserves ordinary text precedence', (tester) async {
+  testWidgets('native mixed text and PNG preserves ordinary text precedence', (
+    tester,
+  ) async {
     const text = 'טקסט להדבקה רגילה';
     final item = DataWriterItem()
       ..add(Formats.png(png))
@@ -103,10 +124,14 @@ void main() {
     final explicit = await sources.readClipboard();
     expect(explicit.single.bytes, png);
     expect((await Clipboard.getData(Clipboard.kTextPlain))?.text, text);
-    passed.add('Native text + PNG -> ordinary text precedence without changing clipboard');
+    passed.add(
+      'Native text + PNG -> ordinary text precedence without changing clipboard',
+    );
   });
 
-  testWidgets('native advertised empty text does not hide its PNG', (tester) async {
+  testWidgets('native advertised empty text does not hide its PNG', (
+    tester,
+  ) async {
     final item = DataWriterItem()
       ..add(Formats.png(png))
       ..add(Formats.plainText(''));
@@ -116,6 +141,8 @@ void main() {
     final images = await sources.readClipboard(skipIfText: true);
     expect(images, hasLength(1));
     expect(images.single.bytes, png);
-    passed.add('Native empty text + PNG -> production image source retains PNG');
+    passed.add(
+      'Native empty text + PNG -> production image source retains PNG',
+    );
   });
 }

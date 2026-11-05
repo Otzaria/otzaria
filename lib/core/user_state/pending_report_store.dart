@@ -181,20 +181,22 @@ class PendingReportStore {
     }
   }
 
-  Future<void> writeFlushCursor(String kind, int rowId) =>
-      _database.enqueueWrite([
-        (
-          'INSERT INTO lists (box,key,payload_json,updated_at) VALUES (?,?,?,?) '
+  Future<void> writeFlushCursor(
+    String kind,
+    int rowId,
+  ) => _database.enqueueWrite([
+    (
+      'INSERT INTO lists (box,key,payload_json,updated_at) VALUES (?,?,?,?) '
           'ON CONFLICT(box,key) DO UPDATE SET '
           'payload_json=excluded.payload_json,updated_at=excluded.updated_at',
-          [
-            _flushCursorBox,
-            kind,
-            jsonEncode(rowId),
-            DateTime.now().millisecondsSinceEpoch,
-          ],
-        ),
-      ]);
+      [
+        _flushCursorBox,
+        kind,
+        jsonEncode(rowId),
+        DateTime.now().millisecondsSinceEpoch,
+      ],
+    ),
+  ]);
 
   /// מזהי השורות מסוג [kind] שהשדה [field] בתוכן שלהן שווה ל-[value].
   Future<List<int>> idsWhere(String kind, String field, Object? value) async {

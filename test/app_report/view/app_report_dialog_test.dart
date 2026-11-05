@@ -145,11 +145,18 @@ void main() {
       find.descendant(of: title, matching: find.byType(EditableText)),
     );
     expect(field.controller.text, 'טקסט בעברית נשמר בדיוק');
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('app-report-discard-draft')),
+    final discard = find.byKey(const ValueKey('app-report-discard'));
+    expect(
+      find.descendant(of: discard, matching: find.text('Discard draft')),
+      findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('app-report-discard-draft')));
+    await tester.ensureVisible(discard);
+    await tester.tap(discard);
     await tester.pumpAndSettle();
+    expect(find.byType(AppReportDialog), findsNothing);
+    expect(service.sent, isEmpty);
+    expect(service.queued, isEmpty);
+    expect(service.draft, isNull);
   });
 
   testSnack('הטופס מוצג עם ארבעת הסוגים והמייל השמור', (tester) async {

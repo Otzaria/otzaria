@@ -21,6 +21,8 @@ import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
+import 'reporting_test_pump.dart';
+
 // Independent QA probes. Exercise the public backup and dialog entry points;
 // do not substitute the implementations' private filtering helpers.
 void main() {
@@ -141,8 +143,12 @@ void main() {
       expect(raw, isNot(contains('report_drafts')));
       expect(raw, isNot(contains('report_draft_attachments')));
       final exported = jsonDecode(raw) as Map<String, dynamic>;
-      expect(exported['version'], '3.0',
-          reason: 'An older restorer must reject v2 app reports before placing them in its legacy transport queue.');
+      expect(
+        exported['version'],
+        '3.0',
+        reason:
+            'An older restorer must reject v2 app reports before placing them in its legacy transport queue.',
+      );
       final fixture = File('build/reporting_qa/app-report-backup-schema2.json');
       await fixture.parent.create(recursive: true);
       await fixture.writeAsString(raw);
@@ -211,8 +217,9 @@ void main() {
 
       // A backup containing only the old schema remains usable by old clients.
       // Export it through the same public entry point for the pinned legacy probe.
-      final currentRow = (await store.listByKind(AppReportService.pendingKind))
-          .singleWhere((row) => row.payload['reportId'] == newReport.reportId);
+      final currentRow = (await store.listByKind(
+        AppReportService.pendingKind,
+      )).singleWhere((row) => row.payload['reportId'] == newReport.reportId);
       await store.deleteIds([currentRow.id]);
       final legacyOnlyResult = await BackupService.createBackup(
         includeSettings: true,
@@ -226,13 +233,14 @@ void main() {
       final legacyOnlyRaw = await File(legacyOnlyResult.path).readAsString();
       final legacyOnly = jsonDecode(legacyOnlyRaw) as Map<String, dynamic>;
       expect(legacyOnly['version'], '2.0');
-      final legacyOnlyQueue = (legacyOnly['reportQueues'] as Map)[
-        AppReportService.queueBoxName
-      ] as Map;
+      final legacyOnlyQueue =
+          (legacyOnly['reportQueues'] as Map)[AppReportService.queueBoxName]
+              as Map;
       expect(legacyOnlyQueue['pending'], unorderedEquals(legacyPending));
       expect(legacyOnlyQueue['pendingV2'] ?? const [], isEmpty);
-      await File('build/reporting_qa/app-report-backup-legacy-only.json')
-          .writeAsString(legacyOnlyRaw);
+      await File(
+        'build/reporting_qa/app-report-backup-legacy-only.json',
+      ).writeAsString(legacyOnlyRaw);
     },
   );
 
@@ -303,16 +311,16 @@ void main() {
         find.byKey(const ValueKey('book-report-save-draft')),
       );
       await tester.tap(find.byKey(const ValueKey('book-report-save-draft')));
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      });
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => reporting!);
-      expect(find.byType(TabbedReportDialog), findsNothing);
+      await finishReportDialog(
+        tester,
+        dialog: find.byType(TabbedReportDialog),
+        reporting: reporting!,
+      );
       final saved = await tester.runAsync(
         () => ReportDraftStore.instance.read(draft.id),
       );
       expect((saved!.payload['target'] as Map)['selectedText'], selected);
     },
+    timeout: const Timeout(Duration(minutes: 1)),
   );
 }

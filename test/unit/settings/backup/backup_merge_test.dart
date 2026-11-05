@@ -393,44 +393,52 @@ void main() {
       );
     });
 
-    test('archive keeps current app reports outside the legacy queue field', () {
-      final legacy = {'reportId': 'legacy'};
-      final current = {
-        'reportId': 'current',
-        'schema': 2,
-        'attachments': {'errorLog': 'exact payload'},
-      };
-      final original = <String, dynamic>{
-        'version': '2.0',
-        'reportQueues': {
-          'app_reports_queue': {
-            'pending': [legacy, current],
-            'sent': [],
+    test(
+      'archive keeps current app reports outside the legacy queue field',
+      () {
+        final legacy = {'reportId': 'legacy'};
+        final current = {
+          'reportId': 'current',
+          'schema': 2,
+          'attachments': {'errorLog': 'exact payload'},
+        };
+        final original = <String, dynamic>{
+          'version': '2.0',
+          'reportQueues': {
+            'app_reports_queue': {
+              'pending': [legacy, current],
+              'sent': [],
+            },
           },
-        },
-      };
-      for (final result in [merge({}, original), merge(original, {})]) {
-        expect(result['version'], '3.0');
-        final queue = result['reportQueues']['app_reports_queue'];
-        expect(queue['pending'], [legacy]);
-        expect(queue['pendingV2'], [current]);
-        final secondMerge = merge(result, {});
-        expect(secondMerge['version'], '3.0');
-        expect(secondMerge['reportQueues'], result['reportQueues']);
-      }
-      expect(original['reportQueues']['app_reports_queue']['pending'], [legacy, current]);
-      final legacyOnly = merge(original, {
-        'reportQueues': {
-          'app_reports_queue': {
-            'pending': [legacy],
-            'sent': [current],
+        };
+        for (final result in [merge({}, original), merge(original, {})]) {
+          expect(result['version'], '3.0');
+          final queue = result['reportQueues']['app_reports_queue'];
+          expect(queue['pending'], [legacy]);
+          expect(queue['pendingV2'], [current]);
+          final secondMerge = merge(result, {});
+          expect(secondMerge['version'], '3.0');
+          expect(secondMerge['reportQueues'], result['reportQueues']);
+        }
+        expect(original['reportQueues']['app_reports_queue']['pending'], [
+          legacy,
+          current,
+        ]);
+        final legacyOnly = merge(original, {
+          'reportQueues': {
+            'app_reports_queue': {
+              'pending': [legacy],
+              'sent': [current],
+            },
           },
-        },
-      });
-      expect(legacyOnly['version'], '2.0');
-      expect(legacyOnly['reportQueues']['app_reports_queue']['pending'], [legacy]);
-      expect(merge({}, {})['version'], '2.0');
-    });
+        });
+        expect(legacyOnly['version'], '2.0');
+        expect(legacyOnly['reportQueues']['app_reports_queue']['pending'], [
+          legacy,
+        ]);
+        expect(merge({}, {})['version'], '2.0');
+      },
+    );
 
     test('user_books.db נלקח מהחדש, ומהישן כשאין חדש', () {
       final newer = 'sha256:${'b' * 64}';

@@ -107,14 +107,23 @@ void main() {
     'QA pre-close persists a new book draft before its debounce fires',
     () async {
       final current = draft();
-      current.updateForm({...initial, 'details': 'last keystroke before close'});
+      current.updateForm({
+        ...initial,
+        'details': 'last keystroke before close',
+      });
       expect(await store.list(), isEmpty);
       await exitFlush();
       // Deliberately do not call Cubit.close before checking durability.
       final saved = await store.read(current.id);
-      expect(saved, isNotNull,
-        reason: 'Normal app shutdown must flush a live dialog before exit(0).');
-      expect((saved!.payload['form'] as Map)['details'], 'last keystroke before close');
+      expect(
+        saved,
+        isNotNull,
+        reason: 'Normal app shutdown must flush a live dialog before exit(0).',
+      );
+      expect(
+        (saved!.payload['form'] as Map)['details'],
+        'last keystroke before close',
+      );
       expect(saved.payload['target'], current.target);
     },
   );
@@ -131,11 +140,17 @@ void main() {
       var flushed = false;
       final closing = exitFlush().then((_) => flushed = true);
       await Future<void>.delayed(Duration.zero);
-      expect(flushed, isFalse, reason: 'The exit flush cannot overtake disk I/O.');
+      expect(
+        flushed,
+        isFalse,
+        reason: 'The exit flush cannot overtake disk I/O.',
+      );
       store.allowWrite!.complete();
       await closing;
-      expect(((await store.read(current.id))!.payload['form'] as Map)['details'],
-        'newer final text');
+      expect(
+        ((await store.read(current.id))!.payload['form'] as Map)['details'],
+        'newer final text',
+      );
     },
   );
 
@@ -143,7 +158,10 @@ void main() {
     'QA pre-close waits for a pending explicit completion and cannot resurrect it',
     () async {
       final current = draft();
-      current.updateForm({...initial, 'details': 'ready for send or explicit discard'});
+      current.updateForm({
+        ...initial,
+        'details': 'ready for send or explicit discard',
+      });
       await current.flush();
       store.deleteStarted = Completer<void>();
       store.allowDelete = Completer<void>();
@@ -153,8 +171,11 @@ void main() {
       var flushed = false;
       final closing = exitFlush().then((_) => flushed = true);
       await Future<void>.delayed(Duration.zero);
-      expect(flushed, isFalse,
-        reason: 'A completed form must still wait for its durable deletion.');
+      expect(
+        flushed,
+        isFalse,
+        reason: 'A completed form must still wait for its durable deletion.',
+      );
       store.allowDelete!.complete();
       await Future.wait([completing, closing]);
       await exitFlush();
@@ -169,7 +190,11 @@ void main() {
       current.updateForm({...initial, 'details': 'must not claim saved'});
       store.failWrites = true;
       await expectLater(exitFlush(), throwsA(isA<PreCloseFlushFailure>()));
-      expect(store.writeAttempts, 2, reason: 'The existing registry retries once.');
+      expect(
+        store.writeAttempts,
+        2,
+        reason: 'The existing registry retries once.',
+      );
       expect(current.state.saveFailed, isTrue);
       expect(current.state.form['details'], 'must not claim saved');
     },

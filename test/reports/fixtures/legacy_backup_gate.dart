@@ -29,11 +29,15 @@ void main() {
 
   setUpAll(() {
     fixturePath = Platform.environment['REPORT_QA_BACKUP_FIXTURE']!;
-    legacyFixturePath = Platform.environment['REPORT_QA_LEGACY_BACKUP_FIXTURE']!;
+    legacyFixturePath =
+        Platform.environment['REPORT_QA_LEGACY_BACKUP_FIXTURE']!;
     expect(File(fixturePath).existsSync(), isTrue);
     expect(File(legacyFixturePath).existsSync(), isTrue);
-    expect(AppReportService.pendingKind, 'app_reports_queue/pending_reports',
-        reason: 'This probe must run against the actual legacy client.');
+    expect(
+      AppReportService.pendingKind,
+      'app_reports_queue/pending_reports',
+      reason: 'This probe must run against the actual legacy client.',
+    );
   });
 
   setUp(() async {
@@ -45,8 +49,14 @@ void main() {
     UserStateDatabase.instance.overridePath(p.join(temp.path, 'user_state.db'));
     await Settings.init(cacheProvider: HiveCache());
     await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, true);
-    await Settings.setValue<String>(SettingsRepository.keyBackupPath, p.join(temp.path, 'backups'));
-    await Settings.setValue<String>(SettingsRepository.keyDatabasesPath, p.join(temp.path, 'databases'));
+    await Settings.setValue<String>(
+      SettingsRepository.keyBackupPath,
+      p.join(temp.path, 'backups'),
+    );
+    await Settings.setValue<String>(
+      SettingsRepository.keyDatabasesPath,
+      p.join(temp.path, 'databases'),
+    );
   });
 
   tearDown(() async {
@@ -60,37 +70,55 @@ void main() {
     await temp.delete(recursive: true);
   });
 
-  test('the legacy restorer rejects the actual new backup before changing SQLite', () async {
-    final backup = jsonDecode(await File(fixturePath).readAsString()) as Map;
-    expect(backup['version'], '3.0');
-    const local = {'reportId': 'existing-local-report', 'title': 'Keep this queue entry'};
-    final store = PendingReportStore.instance;
-    await store.add(AppReportService.pendingKind, local);
-    final before = await store.listByKind(AppReportService.pendingKind);
+  test(
+    'the legacy restorer rejects the actual new backup before changing SQLite',
+    () async {
+      final backup = jsonDecode(await File(fixturePath).readAsString()) as Map;
+      expect(backup['version'], '3.0');
+      const local = {
+        'reportId': 'existing-local-report',
+        'title': 'Keep this queue entry',
+      };
+      final store = PendingReportStore.instance;
+      await store.add(AppReportService.pendingKind, local);
+      final before = await store.listByKind(AppReportService.pendingKind);
 
-    await expectLater(
-      BackupService.restoreFromBackup(fixturePath),
-      throwsA(predicate((Object error) => error.toString().contains('גרסת גיבוי לא נתמכת'))),
-    );
+      await expectLater(
+        BackupService.restoreFromBackup(fixturePath),
+        throwsA(
+          predicate(
+            (Object error) => error.toString().contains('גרסת גיבוי לא נתמכת'),
+          ),
+        ),
+      );
 
-    final after = await store.listByKind(AppReportService.pendingKind);
-    expect(after, hasLength(1));
-    expect(after.single.id, before.single.id);
-    expect(after.single.payload, local);
-    expect(await store.listByKind('app_reports_queue/pending_reports_v2'), isEmpty);
-  });
+      final after = await store.listByKind(AppReportService.pendingKind);
+      expect(after, hasLength(1));
+      expect(after.single.id, before.single.id);
+      expect(after.single.payload, local);
+      expect(
+        await store.listByKind('app_reports_queue/pending_reports_v2'),
+        isEmpty,
+      );
+    },
+  );
 
   for (final rewrite in ['merge-as-newer', 'merge-as-older', 'convert']) {
     test('legacy $rewrite cannot place schema2 into its old send queue', () async {
       final original = await File(fixturePath).readAsString();
       final exported = jsonDecode(original) as Map<String, dynamic>;
-      final originalQueue = (exported['reportQueues'] as Map)[
-        AppReportService.queueBoxName
-      ] as Map;
-      final originalCurrent = List<Object?>.from(originalQueue['pendingV2'] as List);
+      final originalQueue =
+          (exported['reportQueues'] as Map)[AppReportService.queueBoxName]
+              as Map;
+      final originalCurrent = List<Object?>.from(
+        originalQueue['pendingV2'] as List,
+      );
       expect(originalCurrent, hasLength(1));
       expect((originalCurrent.single as Map)['schema'], 2);
-      expect(((originalCurrent.single as Map)['errorLog'] as String).length, 250001);
+      expect(
+        ((originalCurrent.single as Map)['errorLog'] as String).length,
+        250001,
+      );
 
       late Map<String, dynamic> rewritten;
       if (rewrite == 'convert') {
@@ -111,11 +139,15 @@ void main() {
           now: stamp,
         );
       }
-      expect(rewritten['version'], '2.0',
-          reason: 'This must exercise the actual old writer that resets the version.');
-      final rewrittenQueue = (rewritten['reportQueues'] as Map)[
-        AppReportService.queueBoxName
-      ] as Map;
+      expect(
+        rewritten['version'],
+        '2.0',
+        reason:
+            'This must exercise the actual old writer that resets the version.',
+      );
+      final rewrittenQueue =
+          (rewritten['reportQueues'] as Map)[AppReportService.queueBoxName]
+              as Map;
       expect(rewrittenQueue['pendingV2'], originalCurrent);
       final legacy = List<Object?>.from(rewrittenQueue['pending'] as List);
       expect(legacy, hasLength(2));
@@ -131,33 +163,53 @@ void main() {
       await rewrittenFile.writeAsString(serialized);
       await BackupService.restoreFromBackup(rewrittenFile.path);
 
-      final rows = await PendingReportStore.instance.listByKind(AppReportService.pendingKind);
+      final rows = await PendingReportStore.instance.listByKind(
+        AppReportService.pendingKind,
+      );
       expect(rows.map((row) => row.payload), unorderedEquals(legacy));
       expect(rows.any((row) => row.payload['schema'] == 2), isFalse);
-      expect(await PendingReportStore.instance.listByKind('app_reports_queue/pending_reports_v2'), isEmpty);
-      expect(await rewrittenFile.readAsString(), serialized,
-          reason: 'The schema2 report remains intact in the backup for a supported reader.');
+      expect(
+        await PendingReportStore.instance.listByKind(
+          'app_reports_queue/pending_reports_v2',
+        ),
+        isEmpty,
+      );
+      expect(
+        await rewrittenFile.readAsString(),
+        serialized,
+        reason:
+            'The schema2 report remains intact in the backup for a supported reader.',
+      );
       expect(await File(fixturePath).readAsString(), original);
     });
   }
 
-  test('the actual new legacy-only backup remains restorable by the old client', () async {
-    final exported = jsonDecode(await File(legacyFixturePath).readAsString()) as Map<String, dynamic>;
-    expect(exported['version'], '2.0');
-    final queue = (exported['reportQueues'] as Map)[AppReportService.queueBoxName] as Map;
-    final legacy = List<Object?>.from(queue['pending'] as List);
-    expect(legacy, hasLength(2));
-    expect(queue['pendingV2'] ?? const [], isEmpty);
-    exported['settings'] = <String, dynamic>{};
-    exported['perBookSettings'] = <String, dynamic>{};
-    exported.remove('userBooks');
-    final receivingFile = File(p.join(temp.path, 'legacy-only.json'));
-    await receivingFile.writeAsString(jsonEncode(exported));
+  test(
+    'the actual new legacy-only backup remains restorable by the old client',
+    () async {
+      final exported =
+          jsonDecode(await File(legacyFixturePath).readAsString())
+              as Map<String, dynamic>;
+      expect(exported['version'], '2.0');
+      final queue =
+          (exported['reportQueues'] as Map)[AppReportService.queueBoxName]
+              as Map;
+      final legacy = List<Object?>.from(queue['pending'] as List);
+      expect(legacy, hasLength(2));
+      expect(queue['pendingV2'] ?? const [], isEmpty);
+      exported['settings'] = <String, dynamic>{};
+      exported['perBookSettings'] = <String, dynamic>{};
+      exported.remove('userBooks');
+      final receivingFile = File(p.join(temp.path, 'legacy-only.json'));
+      await receivingFile.writeAsString(jsonEncode(exported));
 
-    await BackupService.restoreFromBackup(receivingFile.path);
+      await BackupService.restoreFromBackup(receivingFile.path);
 
-    final rows = await PendingReportStore.instance.listByKind(AppReportService.pendingKind);
-    expect(rows.map((row) => row.payload), unorderedEquals(legacy));
-    expect(rows.every((row) => (row.payload['schema'] ?? 1) == 1), isTrue);
-  });
+      final rows = await PendingReportStore.instance.listByKind(
+        AppReportService.pendingKind,
+      );
+      expect(rows.map((row) => row.payload), unorderedEquals(legacy));
+      expect(rows.every((row) => (row.payload['schema'] ?? 1) == 1), isTrue);
+    },
+  );
 }

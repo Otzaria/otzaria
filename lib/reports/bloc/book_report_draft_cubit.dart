@@ -30,7 +30,8 @@ class BookReportDraftCubit extends Cubit<BookReportDraftState> {
          revision: restored?.revision ?? 0,
        ),
        _reportId = restored?.payload['reportId'] as String? ?? restored?.id,
-       _lastSavedReportId = restored?.payload['reportId'] as String? ?? restored?.id,
+       _lastSavedReportId =
+           restored?.payload['reportId'] as String? ?? restored?.id,
        _lastSaved = restored == null
            ? null
            : Map<String, dynamic>.from(

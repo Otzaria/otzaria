@@ -127,18 +127,21 @@ void main() {
     },
   );
 
-  test('a queued submit callback after leaving cannot send the saved draft', () async {
-    final service = _ControlledService();
-    final bloc = await open(service);
-    await fill(bloc);
-    await change(bloc, const AppReportDraftSaved(), (s) => s.draftSaved);
-    bloc.add(const AppReportSubmitted());
-    await pumpEventQueue();
-    expect(service.sent, isEmpty);
-    expect(service.queued, isEmpty);
-    expect(service.draft!.description, 'description');
-    await bloc.close();
-  });
+  test(
+    'a queued submit callback after leaving cannot send the saved draft',
+    () async {
+      final service = _ControlledService();
+      final bloc = await open(service);
+      await fill(bloc);
+      await change(bloc, const AppReportDraftSaved(), (s) => s.draftSaved);
+      bloc.add(const AppReportSubmitted());
+      await pumpEventQueue();
+      expect(service.sent, isEmpty);
+      expect(service.queued, isEmpty);
+      expect(service.draft!.description, 'description');
+      await bloc.close();
+    },
+  );
 
   test('closing an untouched form does not create a draft', () async {
     final service = _ControlledService();

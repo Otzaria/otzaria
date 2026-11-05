@@ -183,7 +183,9 @@ void main() {
         kind: ReportDraftStore.appKind,
         title: 'newer',
         payload: {'description': 'newer work'},
-        attachments: {'images': ['new exact bytes']},
+        attachments: {
+          'images': ['new exact bytes'],
+        },
       );
       final newer = (await store.read('one'))!;
 
