@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
+import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
 /// UIL-005: אייקוני Material/Cupertino.
@@ -37,5 +38,17 @@ class _Visitor extends RecursiveAstVisitor<void> {
       file.report(rule, node);
     }
     super.visitPrefixedIdentifier(node);
+  }
+
+  /// `m.Icons.close`, כש־m הוא prefix של ייבוא Flutter.
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    final target = node.target;
+    if (target is PrefixedIdentifier &&
+        MaterialIconsRule._sets.contains(target.identifier.name) &&
+        flutterImportPrefixes(node.root).contains(target.prefix.name)) {
+      file.report(rule, node);
+    }
+    super.visitPropertyAccess(node);
   }
 }

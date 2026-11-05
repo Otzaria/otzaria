@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' as m;
 
 Widget text(VoidCallback f) => TextButton(onPressed: f, child: const Text('ביטול')); // LINT
 Widget constText() => const TextButton(onPressed: null, child: Text('ביטול')); // LINT
@@ -11,3 +12,4 @@ Widget withIcon(VoidCallback f) => TextButton.icon( // LINT
   icon: const Icon(null),
   label: const Text('הוסף'),
 );
+Widget prefixed(VoidCallback f) => m.TextButton(onPressed: f, child: const Text('ביטול')); // LINT
