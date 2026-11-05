@@ -895,6 +895,56 @@ final LinkedHashMap<String, _CompiledHighlightPattern> _primedHighlightCache =
     LinkedHashMap();
 const int _maxPrimedHighlightEntries = 8;
 final Set<String> _primedHighlightInFlight = <String>{};
+final Map<String, int> _retainedHighlightPatterns = <String, int>{};
+
+void _trimPrimedHighlightCache() {
+  for (final key in _primedHighlightCache.keys.toList()) {
+    if (_primedHighlightCache.length <= _maxPrimedHighlightEntries) break;
+    if (!_retainedHighlightPatterns.containsKey(key)) {
+      _primedHighlightCache.remove(key);
+    }
+  }
+}
+
+/// Keeps a visible reader's index pattern available across unrelated searches.
+/// The caller releases it when the query changes, the tab hides, or it closes.
+/// Only retained patterns may exceed the normal cache bound.
+VoidCallback retainHighlightPattern({
+  required String searchQuery,
+  required Map<String, Map<String, bool>> searchOptions,
+  required Map<int, List<String>> alternativeWords,
+  required Map<String, String> spacingValues,
+  required int searchDistance,
+  required bool isFuzzy,
+  bool anyOrder = false,
+}) {
+  final key = _highlightRequestKey(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
+    anyOrder,
+  );
+  _retainedHighlightPatterns.update(
+    key,
+    (count) => count + 1,
+    ifAbsent: () => 1,
+  );
+  var released = false;
+  return () {
+    if (released) return;
+    released = true;
+    final count = _retainedHighlightPatterns[key]!;
+    if (count == 1) {
+      _retainedHighlightPatterns.remove(key);
+      _trimPrimedHighlightCache();
+    } else {
+      _retainedHighlightPatterns[key] = count - 1;
+    }
+  };
+}
 
 // כל שורה עם חיפוש מאזינה לזה; ראו [ManyListenerValueNotifier].
 final ManyListenerValueNotifier<int> _highlightPatternRevision =
@@ -958,9 +1008,7 @@ Future<void> primeHighlightPattern({
     // וחוסמת גם ניסיון הזנה חוזר — לשאילתה לא הייתה נשארת שום הדגשה.
     if (compiled != null) {
       _primedHighlightCache[key] = compiled;
-      while (_primedHighlightCache.length > _maxPrimedHighlightEntries) {
-        _primedHighlightCache.remove(_primedHighlightCache.keys.first);
-      }
+      _trimPrimedHighlightCache();
       // תבנית מדויקת חדשה זמינה — מאותת לרינדור להתרנן מחדש.
       _highlightPatternRevision.value++;
     }
