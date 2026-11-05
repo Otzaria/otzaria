@@ -101,6 +101,7 @@ class PersonalNoteEditorResult {
   });
 }
 
+/// בעל בקר Quill והמסמך שלו; יוצר העורך משחרר אותם ב-[dispose].
 class PersonalNoteEditorController {
   final quill.QuillController quillController;
 
@@ -115,6 +116,8 @@ class PersonalNoteEditorController {
       contentFormat: PersonalNoteContentFormat.quillDelta,
     );
   }
+
+  void dispose() => quillController.dispose();
 }
 
 class PersonalNoteEditorBody extends StatefulWidget {
@@ -157,6 +160,15 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
   void initState() {
     super.initState();
     widget.focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant PersonalNoteEditorBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_handleFocusChange);
+      widget.focusNode.addListener(_handleFocusChange);
+    }
   }
 
   @override
@@ -263,7 +275,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
         notes: widget.linkableNotes,
       ),
     );
-    if (result == null) return;
+    if (!mounted || result == null) return;
 
     final controller = widget.controller.quillController;
     final selection = controller.selection;
@@ -432,6 +444,38 @@ const _noteControllerConfig = quill.QuillControllerConfig(
   clipboardConfig: _noteClipboardConfig,
 );
 
+class _PersonalNoteQuillController extends quill.QuillController {
+  _PersonalNoteQuillController(quill.Document document)
+    : super(
+        document: document,
+        selection: const TextSelection.collapsed(offset: 0),
+        config: _noteControllerConfig,
+      ) {
+    // קריאת הלוח יכולה להסתיים אחרי סגירת העורך והמסמך שלו.
+    onReplaceText = (_, _, _) => !_disposed;
+  }
+
+  bool _disposed = false;
+
+  @override
+  Future<bool> clipboardPaste({VoidCallback? updateEditor}) async {
+    if (_disposed) return false;
+    // ignore: experimental_member_use
+    final handled = await super.clipboardPaste(
+      updateEditor: () {
+        if (!_disposed) updateEditor?.call();
+      },
+    );
+    return !_disposed && handled;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
 PersonalNoteEditorController buildPersonalNoteEditorController({
   required String initialContent,
   required PersonalNoteContentFormat initialFormat,
@@ -442,11 +486,7 @@ PersonalNoteEditorController buildPersonalNoteEditorController({
       final decoded = jsonDecode(initialContent) as List<dynamic>;
       final document = quill.Document.fromJson(decoded);
       return PersonalNoteEditorController(
-        quillController: quill.QuillController(
-          document: document,
-          selection: const TextSelection.collapsed(offset: 0),
-          config: _noteControllerConfig,
-        ),
+        quillController: _PersonalNoteQuillController(document),
       );
     } catch (_) {}
   }
@@ -454,11 +494,7 @@ PersonalNoteEditorController buildPersonalNoteEditorController({
   final document = quill.Document()
     ..insert(0, initialContent.trimRight().isEmpty ? '' : '$initialContent\n');
   return PersonalNoteEditorController(
-    quillController: quill.QuillController(
-      document: document,
-      selection: const TextSelection.collapsed(offset: 0),
-      config: _noteControllerConfig,
-    ),
+    quillController: _PersonalNoteQuillController(document),
   );
 }
 
