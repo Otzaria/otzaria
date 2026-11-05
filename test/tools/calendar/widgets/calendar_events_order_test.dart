@@ -263,6 +263,59 @@ void main() {
     });
   });
 
+  group('CalendarEventsPanel — לחיצה על אירוע (issue #2494)', () {
+    testWidgets('קופצת למופע הקרוב; עריכה ומחיקה לא קופצות', (tester) async {
+      cubit.jumpToDate(_date);
+      await cubit.addEvent(
+        title: 'אירוע מסונכרן',
+        baseGregorianDate: DateTime(2026, 10, 20),
+        recurrenceType: RecurrenceType.none,
+      );
+      await cubit.updateEvent(
+        cubit.state.events.single.copyWith(googleEventId: 'google-1'),
+      );
+      await cubit.addEvent(
+        title: 'יום הולדת',
+        baseGregorianDate: DateTime(2024, 9, 10),
+        recurrenceType: RecurrenceType.annualGregorian,
+      );
+      await pumpEventsPanel(tester);
+      await tester.tap(find.text('הצג הכל'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('ערוך אירוע').first);
+      await tester.tap(find.text('מחק').first);
+      await tester.pumpAndSettle();
+      expect(find.text('אישור מחיקה'), findsOneWidget);
+      await tester.tap(find.text('ביטול'));
+      await tester.pumpAndSettle();
+      expect(cubit.state.selectedGregorianDate, _date);
+
+      await tester.tap(find.text('יום הולדת'));
+      await tester.pumpAndSettle();
+      expect(cubit.state.selectedGregorianDate, DateTime(2026, 9, 10));
+
+      await tester.tap(find.text('אירוע מסונכרן'));
+      await tester.pumpAndSettle();
+      expect(cubit.state.selectedGregorianDate, DateTime(2026, 10, 20));
+      expect(cubit.state.currentGregorianDate, DateTime(2026, 10, 20));
+
+      // שנתי עברי: בתשפ"ט ובתש"ץ אין ל' חשוון, והתא בלוח מציג אותו בתשצ"א.
+      await cubit.addEvent(
+        title: 'ל׳ חשוון',
+        baseGregorianDate: DateTime(2024, 12, 1),
+        recurrenceType: RecurrenceType.annualHebrew,
+      );
+      cubit.jumpToDate(DateTime(2028, 10, 1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ל׳ חשוון'));
+      await tester.pumpAndSettle();
+      final target = DateTime(2030, 11, 26);
+      expect(cubit.state.selectedGregorianDate, target);
+      expect(cubit.eventsForDate(target).map((e) => e.title), ['ל׳ חשוון']);
+    });
+  });
+
   group('DayExtras — אירועי תא היום', () {
     testWidgets('בתא נבחר נקודת אירוע נשארת קריאה', (tester) async {
       await cubit.addEvent(
