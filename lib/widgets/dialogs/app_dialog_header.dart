@@ -26,6 +26,7 @@ class AppDialogHeader extends StatelessWidget {
     this.closeEnabled = true,
     this.closeTooltip = 'סגור',
     this.compact = false,
+    this.titleMaxLines,
     this.subtitleMaxLines,
     this.fitTitle = false,
   });
@@ -52,6 +53,9 @@ class AppDialogHeader extends StatelessWidget {
 
   /// ריפוד אנכי קטן יותר, לכותרות שאינן מחזיקות תיאור ארוך.
   final bool compact;
+
+  /// מגביל כותרת ארוכה ומציג את הטקסט המלא ברמז; null ללא הגבלה.
+  final int? titleMaxLines;
 
   /// null = בלי הגבלה. כותרות עם שם ספר ארוך מגבילות לשורה אחת.
   final int? subtitleMaxLines;
@@ -104,6 +108,16 @@ class AppDialogHeader extends StatelessWidget {
                         maxLines: 1,
                         style: theme.textTheme.titleLarge,
                       ),
+                    ),
+                  )
+                else if (titleMaxLines != null)
+                  Tooltip(
+                    message: title,
+                    child: Text(
+                      title,
+                      maxLines: titleMaxLines,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge,
                     ),
                   )
                 else

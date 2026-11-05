@@ -1880,7 +1880,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
     final dialogHeight = math.min(
       maxHeight,
-      (screenSize.height * 0.84).clamp(480.0, 700.0),
+      (screenSize.height * 0.7).clamp(440.0, 560.0),
     );
 
     final isCompact = screenSize.width < 600;

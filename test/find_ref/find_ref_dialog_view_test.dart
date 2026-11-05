@@ -448,14 +448,25 @@ void main() {
       of: find.widgetWithText(InputChip, label),
       matching: find.byTooltip('הסר'),
     );
-    await tester.tap(deleteOf('רמב"ם תשובה ב'));
+    final firstDelete = deleteOf('רמב"ם תשובה ב');
+    await tester.drag(
+      find.ancestor(of: firstDelete, matching: find.byType(Scrollable)),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
+    expect(firstDelete.hitTestable(), findsOneWidget);
+    await tester.tap(firstDelete);
     await tester.pumpAndSettle();
 
     expect(FindRefRecentStore.load(), ['בראשית פרק א']);
     expect(_chipLabels(tester), ['בראשית פרק א']);
     expect(find.text('האיתורים האחרונים'), findsOneWidget);
 
-    await tester.tap(deleteOf('בראשית פרק א'));
+    final lastDelete = deleteOf('בראשית פרק א');
+    await tester.ensureVisible(lastDelete);
+    await tester.pumpAndSettle();
+    expect(lastDelete.hitTestable(), findsOneWidget);
+    await tester.tap(lastDelete);
     await tester.pumpAndSettle();
 
     expect(FindRefRecentStore.load(), isEmpty);
@@ -1351,6 +1362,61 @@ void main() {
   });
 
   group('התאמה לגדלי מסך', () {
+    testWidgets('חלונית קומפקטית נשארת יציבה לאורך החיפוש והגלילה', (
+      tester,
+    ) async {
+      final repo = _GatedRepository(
+        first: [_ref('מקור 1')],
+        second: [for (var i = 1; i <= 40; i++) _ref('מקור $i')],
+      );
+      await _pumpDialog(
+        tester,
+        repository: repo,
+        screenSize: const Size(1200, 900),
+      );
+      final panel = find.byKey(AppWindowKeys.current.tour.findRefDialog);
+      final initialRect = tester.getRect(panel);
+      final initialFieldRect = tester.getRect(find.byType(TextField));
+      expect(initialRect.height, lessThan(600));
+
+      await tester.enterText(find.byType(TextField), 'מקור');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      expect(find.text('מקור 1'), findsOneWidget);
+      expect(tester.getRect(panel), initialRect);
+      expect(tester.getRect(find.byType(TextField)), initialFieldRect);
+
+      await tester.enterText(find.byType(TextField), 'מקור נוסף');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      expect(repo.calls, 2);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.getRect(panel), initialRect);
+
+      repo.gate.complete();
+      await tester.pumpAndSettle();
+      expect(tester.getRect(panel), initialRect);
+      expect(tester.getRect(find.byType(TextField)), initialFieldRect);
+      await tester.scrollUntilVisible(
+        find.text('מקור 40'),
+        300,
+        scrollable: find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('מקור 40').hitTestable(), findsOneWidget);
+      expect(tester.getRect(panel), initialRect);
+
+      await tester.tap(find.byTooltip('נקה'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsNothing);
+      expect(tester.getRect(panel), initialRect);
+      expect(tester.getRect(find.byType(TextField)), initialFieldRect);
+      expect(tester.takeException(), isNull);
+    });
+
     const sizes = <String, Size>{
       'טלפון לאורך': Size(360, 720),
       'טלפון קטן': Size(320, 568),
