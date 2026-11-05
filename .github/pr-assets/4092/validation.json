@@ -1,0 +1,40 @@
+{
+  "issue": "https://github.com/Otzaria/otzaria/issues/4092",
+  "source_commit": "c3a5812295f7fdd761882e80e270acda41861e3c",
+  "base_commit": "bc398e6908004901cf8d38bbd5ed2dae1feb3a62",
+  "author": "palmoni5",
+  "flutter": "3.47.7",
+  "dart": "3.13.5",
+  "checks": {
+    "related_tests_passed": 230,
+    "new_permanent_hover_tests": 20,
+    "additional_independent_qa_tests_passed": 15,
+    "independent_qa_combined_tests_passed": 35,
+    "flutter_analyze": "No issues found",
+    "pre_commit": "format + analyze passed",
+    "screenshots": 4,
+    "hover_content_translation_pixels": 0,
+    "hover_content_resize_pixels": 0
+  },
+  "scope": {
+    "production_files": 2,
+    "total_source_files": 5,
+    "windows_native_app_run": false,
+    "screenshot_environment": "Actual production Flutter widgets in a headless demo harness, Windows theme; neutral sample content"
+  },
+  "overlapping_prs": [
+    {
+      "number": 4216,
+      "head": "6f1e525872a52508520d34f1a035698c5bc064bd",
+      "merge_tree": "clean"
+    },
+    {
+      "number": 4269,
+      "head": "a27a12b8db04f215dbb74601f91c3fbeb68e708c",
+      "merge_tree": "conflict",
+      "files": [
+        "lib/navigation/view/reading_tabs_side_panel.dart"
+      ]
+    }
+  ]
+}

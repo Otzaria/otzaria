@@ -1,0 +1,348 @@
+No Visual Studio installation found with the requested Microsoft.VisualStudio.Component.VC.Tools.x86.x64 component.
+
+00:00 +0: loading otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart
+00:00 +0: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף צף בלי להזיז את התוכן לאורך ההנפשה: TextDirection.rtl
+00:01 +1: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כותרת ו-X בשטח הצף מקבלים לחיצות: TextDirection.rtl
+00:01 +2: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף צף בלי להזיז את התוכן לאורך ההנפשה: TextDirection.ltr
+00:01 +3: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כותרת ו-X בשטח הצף מקבלים לחיצות: TextDirection.ltr
+00:02 +4: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: מעבר קצר אינו פותח, ולחיצה מהירה על אייקון בוחרת כרטיסייה
+00:02 +5: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף משאיר את אותה הכרטיסייה ואת כפתורי הכותרת תחת הסמן
+00:02 +6: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.touch אינם מרחיבים את העמודה
+00:02 +7: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.stylus אינם מרחיבים את העמודה
+00:02 +8: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.invertedStylus אינם מרחיבים את העמודה
+00:02 +9: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: חזרה לפני תום השהיית הסגירה שומרת את העמודה פתוחה
+00:02 +10: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: התוכן שמחוץ לעמודה הצפה נשאר לחיץ
+00:03 +11: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כפתור ההרחבה בזמן ריחוף נועץ את ההעדפה הקבועה
+00:03 +12: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גלילת הכרטיסיות ו-State נשמרים לאורך ריחוף והסתרה
+00:03 +13: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גרירה מהשטח הצף ממשיכה לפיצול גם אחרי יציאה ממושכת
+00:03 +14: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גרירה החוזרת לשטח הצף מסדרת כרטיסיות במקום לפצל
+00:03 +15: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: יעד גרירה מחלון אחר נמדד גם בשטח שמעל התוכן
+00:04 +16: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: תפריט ההקשר נשאר פעיל מחוץ לשטח העמודה
+00:04 +17: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: הסרת המעטפת מבטלת שעון סגירה ממתין
+00:04 +18: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: שחרור מצביע אחרי פירוק העמודה אינו קורא context מפורק
+00:04 +19: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ביטול מצביע אחרי פירוק העמודה אינו קורא context מפורק
+00:04 +20: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: (tearDownAll)
+00:04 +20: loading otzaria/test/navigation/reading_tabs_side_panel_test.dart
+00:06 +20: otzaria/test/navigation/reading_tabs_side_panel_test.dart: (setUpAll)
+00:06 +20: otzaria/test/navigation/reading_tabs_side_panel_test.dart: header buttons still occupy both edges without plugins
+00:07 +21: otzaria/test/navigation/reading_tabs_side_panel_test.dart: העמודה מציגה את כל הכרטיסיות בזו אחר זו
+00:07 +22: otzaria/test/navigation/reading_tabs_side_panel_test.dart: לחיצה על כרטיסיה שולחת SetCurrentTab עם האינדקס שלה
+00:07 +23: otzaria/test/navigation/reading_tabs_side_panel_test.dart: לחיצת עכבר בדסקטופ בוחרת כרטיסיה ולא נבלעת כגרירה
+00:07 +24: otzaria/test/navigation/reading_tabs_side_panel_test.dart: tooltip מוצג רק כשהכותרת נחתכת
+00:08 +25: otzaria/test/navigation/reading_tabs_side_panel_test.dart: tooltip של טאב טקסט שטרם נבנה כולל את המיקום מה-DB
+00:08 +26: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במצב מכווץ אין ידית לשינוי רוחב
+00:08 +27: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במצב מכווץ האייקונים ממורכזים ברוחב העמודה
+00:08 +28: otzaria/test/navigation/reading_tabs_side_panel_test.dart: כפתור חיפוש הכרטיסיות זמין בשני מצבי העמודה
+00:08 +29: otzaria/test/navigation/reading_tabs_side_panel_test.dart: קו מפריד בין כפתורי הכותרת לכרטיסיות (issue #1503)
+00:08 +30: otzaria/test/navigation/reading_tabs_side_panel_test.dart: לחיצת גלגלת סוגרת את הכרטיסיה ורושמת אותה בהיסטוריה
+00:08 +31: otzaria/test/navigation/reading_tabs_side_panel_test.dart: כפתור ה-X של הכרטיסיה הפעילה סוגר אותה
+00:08 +32: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במצב מכווץ ריחוף מציג X בפינה השמאלית והוא סוגר (issue #1938)
+00:08 +33: otzaria/test/navigation/reading_tabs_side_panel_test.dart: כפתור הכיווץ משדר את ההגדרה
+00:08 +34: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במצב מכווץ העמודה צרה ואין כותרות
+00:08 +35: otzaria/test/navigation/reading_tabs_side_panel_test.dart: העמודה נשארת בעץ ברוחב 0 כשהיא מוסתרת
+00:09 +36: otzaria/test/navigation/reading_tabs_side_panel_test.dart: גרירת הידית שומרת את הרוחב רק בסיום הגרירה
+00:09 +37: otzaria/test/navigation/reading_tabs_side_panel_test.dart: גרירת הרוחב חסומה בתקרה
+00:09 +38: otzaria/test/navigation/reading_tabs_side_panel_test.dart: עמודה ללא כרטיסיות פתוחות אינה בונה רשימה
+00:09 +39: otzaria/test/navigation/reading_tabs_side_panel_test.dart: שתי תזוזות באותו פריים מצטברות זו על זו
+00:09 +40: otzaria/test/navigation/reading_tabs_side_panel_test.dart: הגדלת סקייל הטקסט מחזירה tooltip לכותרת שנחתכה
+00:09 +41: otzaria/test/navigation/reading_tabs_side_panel_test.dart: ctrl+לחיצה משדר ToggleTabSelection
+00:09 +42: otzaria/test/navigation/reading_tabs_side_panel_test.dart: shift+לחיצה משדר SelectTabRange
+00:09 +43: otzaria/test/navigation/reading_tabs_side_panel_test.dart: נעצי כרטיסיות מוצמדות מיושרים גם כשהפעילה מציגה X
+🔧 PdfBookTab created: book=ספר PDF, pageNumber=1
+00:09 +44: otzaria/test/navigation/reading_tabs_side_panel_test.dart: לחיצה ימנית על כרטיסיה פותחת את תפריט ההקשר
+00:10 +45: otzaria/test/navigation/reading_tabs_side_panel_test.dart: "סגור את האחרים" שומר את הכרטיסייה שנלחצה, לא את הפעילה
+00:10 +46: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במגע הכרטיסיות נגררות בלחיצה ארוכה
+00:10 +47: otzaria/test/navigation/reading_tabs_side_panel_test.dart: במגע לחיצה ארוכה פותחת את תפריט ההקשר ואינה מסדרת מחדש
+00:10 +48: otzaria/test/navigation/reading_tabs_side_panel_test.dart: לחיצה ארוכה במגע על ה-X פותחת את תפריט הכרטיסיה (issue #2518) (variant: TargetPlatform.windows)
+00:10 +49: otzaria/test/navigation/reading_tabs_side_panel_test.dart: גרירה קצרה במגע אינה מסדרת מחדש
+00:10 +50: otzaria/test/navigation/reading_tabs_side_panel_test.dart: השהיית גרירה מעל כרטיסיה אחרת פותחת אותה
+00:10 +51: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=false, PointerDeviceKind.touch (variant: TargetPlatform.windows)
+00:10 +52: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=false, PointerDeviceKind.touch (variant: TargetPlatform.windows)
+00:11 +53: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=false, PointerDeviceKind.stylus (variant: TargetPlatform.windows)
+00:11 +54: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=false, PointerDeviceKind.stylus (variant: TargetPlatform.windows)
+00:11 +55: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=false, PointerDeviceKind.invertedStylus (variant: TargetPlatform.windows)
+00:11 +56: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=false, PointerDeviceKind.invertedStylus (variant: TargetPlatform.windows)
+00:11 +57: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=true, PointerDeviceKind.touch (variant: TargetPlatform.windows)
+00:11 +58: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=true, PointerDeviceKind.touch (variant: TargetPlatform.windows)
+00:11 +59: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=true, PointerDeviceKind.stylus (variant: TargetPlatform.windows)
+00:12 +60: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=true, PointerDeviceKind.stylus (variant: TargetPlatform.windows)
+00:12 +61: otzaria/test/navigation/reading_tabs_side_panel_test.dart: משיכה לרוחב ואז לאורך מסדרת כרטיסיה: collapsed=true, PointerDeviceKind.invertedStylus (variant: TargetPlatform.windows)
+00:12 +62: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלקה אנכית ואלכסונית גוללות כרטיסיות: collapsed=true, PointerDeviceKind.invertedStylus (variant: TargetPlatform.windows)
+00:12 +63: otzaria/test/navigation/reading_tabs_side_panel_test.dart: בדסקטופ לחיצה ארוכה במגע שומרת את תפריט ההקשר (variant: TargetPlatform.windows)
+00:12 +64: otzaria/test/navigation/reading_tabs_side_panel_test.dart: בדסקטופ לחיצה ארוכה בעמודה מכווצת שומרת את ה־Tooltip (variant: TargetPlatform.windows)
+00:12 +65: otzaria/test/navigation/reading_tabs_side_panel_test.dart: כרטיסיה מפוצלת מוצגת עם אייקון הפיצול ושם משולב
+00:12 +66: otzaria/test/navigation/reading_tabs_side_panel_test.dart: החלפת החלונית הפעילה אינה בונה מחדש את העמודה, ושינויי הכרטיסיות עצמן מתעדכנים בה
+00:12 +67: otzaria/test/navigation/reading_tabs_side_panel_test.dart: אייקון הכיווץ מתהפך לפי מצב העמודה
+00:12 +68: otzaria/test/navigation/reading_tabs_side_panel_test.dart: (tearDownAll)
+00:12 +68: loading otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart
+00:14 +68: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: שתי כרטיסיות נבחרות עוברות יחד לשולחן אחר (issue #3868)
+00:15 +69: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: כל הכרטיסיות עוברות בסדר הרצועה, לא בסדר הבחירה (issue #3868)
+00:16 +70: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: כרטיסיה שאינה בבחירה עוברת לבדה (issue #3868)
+00:16 +71: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1, 2], פעילה 2, תפריט 2
+00:17 +72: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1, 2], פעילה 3, תפריט 2
+00:17 +73: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 2], פעילה 2, תפריט 2
+00:17 +74: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1], פעילה 3, תפריט 2
+00:18 +75: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: הפעילה השמורה תואמת לרצועה לאחר העברת [3, 4], פעילה 4, תפריט 4
+00:18 +76: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: רצועה עליונה: מידע שלא נשמר בכרטיסיה נבחרת אחרת — ביטול עוצר את כל ההעברה (issue #3868)
+00:19 +77: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: שתי כרטיסיות נבחרות עוברות יחד לשולחן אחר (issue #3868)
+00:19 +78: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: כל הכרטיסיות עוברות בסדר הרצועה, לא בסדר הבחירה (issue #3868)
+00:19 +79: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: כרטיסיה שאינה בבחירה עוברת לבדה (issue #3868)
+00:20 +80: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1, 2], פעילה 2, תפריט 2
+00:20 +81: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1, 2], פעילה 3, תפריט 2
+00:20 +82: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 2], פעילה 2, תפריט 2
+00:20 +83: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: הפעילה השמורה תואמת לרצועה לאחר העברת [0, 1], פעילה 3, תפריט 2
+00:21 +84: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: הפעילה השמורה תואמת לרצועה לאחר העברת [3, 4], פעילה 4, תפריט 4
+00:21 +85: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: עמודה בצד: מידע שלא נשמר בכרטיסיה נבחרת אחרת — ביטול עוצר את כל ההעברה (issue #3868)
+00:21 +86: otzaria/test/navigation/move_selected_tabs_to_workspace_test.dart: (tearDownAll)
+00:21 +86: loading otzaria/test/navigation/reading_tab_strip_test.dart
+00:23 +86: otzaria/test/navigation/reading_tab_strip_test.dart: פתיחת כרטיסיה בהשהיית גרירה השהייה מעל כרטיסיה אחרת פותחת אותה
+00:23 +87: otzaria/test/navigation/reading_tab_strip_test.dart: פתיחת כרטיסיה בהשהיית גרירה מעבר חטוף מעל כרטיסיה אינו פותח אותה
+00:23 +88: otzaria/test/navigation/reading_tab_strip_test.dart: פתיחת כרטיסיה בהשהיית גרירה השהייה מעל הכרטיסיה הנגררת עצמה אינה פותחת דבר
+00:24 +89: otzaria/test/navigation/reading_tab_strip_test.dart: פתיחת כרטיסיה בהשהיית גרירה יציאה מהרצועה לפני תום ההשהיה מבטלת את הפתיחה
+00:24 +90: otzaria/test/navigation/reading_tab_strip_test.dart: פתיחת כרטיסיה בהשהיית גרירה השהייה ארוכה פותחת פעם אחת בלבד
+00:24 +91: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש גרירה שמאלה ב-RTL מזיזה את הכרטיסיה קדימה ברשימה
+00:24 +92: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש גרירה למקום שלא זז אינה שולחת סידור מחדש
+00:24 +93: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש היעד מדווח בקונבנציית הסרה-ואז-הכנסה
+00:24 +94: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש רצועה רחבה מהכרטיסיות: הגרירה מסדרת לפי מקום המצביע
+00:24 +95: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש רצועה רחבה: גרירה על עצמה אינה מזיזה
+00:24 +96: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש רצועה רחבה ב-LTR מסדרת לכיוון הנגדי
+00:24 +97: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש ב-LTR הכיוון מתהפך
+00:24 +98: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש רוחבים לא אחידים שומרים על יעד הגרירה ב-RTL
+00:24 +99: otzaria/test/navigation/reading_tab_strip_test.dart: סידור מחדש רוחבים לא אחידים שומרים על יעד הגרירה ב-LTR
+00:24 +100: otzaria/test/navigation/reading_tab_strip_test.dart: חיווי מיקום ההכנסה קו החיווי מופיע בגרירה מעל הרצועה ונעלם בשחרור
+00:24 +101: otzaria/test/navigation/reading_tab_strip_test.dart: גרירה אל חלונית קריאה שחרור מעל אזור הקריאה מפצל ואינו מסדר מחדש
+00:24 +102: otzaria/test/navigation/reading_tab_strip_test.dart: גרירה אל חלונית קריאה תחילת גרירה מדווחת פעם אחת
+00:24 +103: otzaria/test/navigation/reading_tab_strip_test.dart: פלטפורמה בדסקטופ הגרירה מיידית
+00:25 +104: otzaria/test/navigation/reading_tab_strip_test.dart: פלטפורמה במגע נדרשת לחיצה ארוכה
+00:25 +105: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גרירה מטה מעבירה את הכרטיסיה אחורה ברשימה
+00:25 +106: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גרירה מעלה מעבירה את הכרטיסיה לראש הרשימה
+00:25 +107: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי הכיוון האנכי זהה ב-RTL וב-LTR — אין היפוך
+00:25 +108: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי שחרור מעל אזור הקריאה מפצל ואינו מסדר מחדש
+00:25 +109: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי משיכה לרוחב ברצועה האנכית מאפשרת פיצול ב־PointerDeviceKind.touch
+00:25 +110: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי ביטול חיצוני מסיים גרירה במגע מהעמודה ב־PointerDeviceKind.touch
+00:25 +111: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי משיכה לרוחב ברצועה האנכית מאפשרת פיצול ב־PointerDeviceKind.stylus
+00:25 +112: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי ביטול חיצוני מסיים גרירה במגע מהעמודה ב־PointerDeviceKind.stylus
+00:25 +113: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה גרירה אל הקצה התחתון גוללת את הרשימה
+00:25 +114: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה הגלילה נעצרת בסוף הרשימה ואינה משאירה שעון פעיל
+00:25 +115: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה חזרה למרכז הרצועה עוצרת את הגלילה
+00:25 +116: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה גלילת הקצה מאפשרת להעביר כרטיסיה אל סוף רשימה ארוכה
+00:25 +117: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה החלקה אלכסונית שרובה אנכית גוללת במגע
+00:25 +118: otzaria/test/navigation/reading_tab_strip_test.dart: ציר אנכי גלילה אוטומטית בגרירה בדסקטופ גרירת מגע גוללת את הרשימה ואינה גוררת כרטיסיה (issue #2307)
+00:26 +119: otzaria/test/navigation/reading_tab_strip_test.dart: מקרי קצה כרטיסיה יחידה אינה מסדרת מחדש
+00:26 +120: otzaria/test/navigation/reading_tab_strip_test.dart: מקרי קצה רצועה ריקה נבנית בלי שגיאה
+00:26 +121: otzaria/test/navigation/reading_tab_strip_test.dart: (tearDownAll)
+00:26 +121: loading otzaria/test/navigation/reading_tab_strip_drag_preview_test.dart
+00:27 +121: otzaria/test/navigation/reading_tab_strip_drag_preview_test.dart: מוק הגרירה מציג את תוכן הכרטיסיה הנגררת כרטיסיה שאינה מוצגת מצטלמת בתוכן שלה, לא של הפעילה
+00:28 +122: otzaria/test/navigation/reading_tab_strip_drag_preview_test.dart: מוק הגרירה מציג את תוכן הכרטיסיה הנגררת הכרטיסיה הפעילה מצטלמת בתוכן שלה
+00:28 +123: otzaria/test/navigation/reading_tab_strip_drag_preview_test.dart: מוק הגרירה מציג את תוכן הכרטיסיה הנגררת כרטיסיה שלא נפתחה מעולם מקבלת מוק חלון ולא ראש כרטיסיה
+00:28 +124: otzaria/test/navigation/reading_tab_strip_drag_preview_test.dart: (tearDownAll)
+00:28 +124: loading otzaria/test/navigation/reading_tab_strip_mini_preview_test.dart
+00:30 +124: otzaria/test/navigation/reading_tab_strip_mini_preview_test.dart: התצוגה הנגררת מציגה תוכן כבר בפעימות הראשונות
+00:31 +125: otzaria/test/navigation/reading_tab_strip_mini_preview_test.dart: גם כרטיסיה שאינה הפעילה מקבלת תוכן מיד
+00:31 +126: otzaria/test/navigation/reading_tab_strip_mini_preview_test.dart: כרטיסיה שלא נפתחה מעולם מקבלת מוק ולא ראש כרטיסיה
+00:31 +127: otzaria/test/navigation/reading_tab_strip_mini_preview_test.dart: (tearDownAll)
+00:31 +127: loading otzaria/test/navigation/chrome_direction_test.dart
+00:32 +127: otzaria/test/navigation/chrome_direction_test.dart: כיווניות כרום התוכנה שפה RTL — הכרום נשאר RTL
+00:33 +128: otzaria/test/navigation/chrome_direction_test.dart: כיווניות כרום התוכנה שפה LTR — הכרום עובר ל-LTR
+00:33 +129: otzaria/test/navigation/chrome_direction_test.dart: כיווניות כרום התוכנה ללא scope — RTL, כך שאר האפליקציה אינה משתנה
+00:33 +130: otzaria/test/navigation/chrome_direction_test.dart: כיווניות כרום התוכנה תוכן המסכים נשאר RTL בתוך כרום LTR
+00:33 +131: otzaria/test/navigation/chrome_direction_test.dart: ContextOverlayPanel — הצד הפיזי לפי הכיווניות centerStart ב-RTL — הפאנל בצד ימין
+00:33 +132: otzaria/test/navigation/chrome_direction_test.dart: ContextOverlayPanel — הצד הפיזי לפי הכיווניות centerStart ב-LTR — הפאנל בצד שמאל
+00:33 +133: otzaria/test/navigation/chrome_direction_test.dart: (tearDownAll)
+00:33 +133: loading otzaria/test/navigation/main_window_orientation_regression_test.dart
+00:34 +133: otzaria/test/navigation/main_window_orientation_regression_test.dart: Main window orientation regression שומר על העמוד הפעיל כשכיוון ה-PageView משתנה בעקבות החלפת אוריינטציה
+00:35 +134: otzaria/test/navigation/main_window_orientation_regression_test.dart: (tearDownAll)
+00:35 +134: loading otzaria/test/navigation/main_window_page_transition_test.dart
+00:37 +134: otzaria/test/navigation/main_window_page_transition_test.dart: shouldResyncMainPage PageView שהתאפס לספרייה בעוד המצב "עיון" — מסונכרן מחדש
+00:37 +135: otzaria/test/navigation/main_window_page_transition_test.dart: shouldResyncMainPage מוצג ומסומן על היעד — אין מה לעשות
+00:37 +136: otzaria/test/navigation/main_window_page_transition_test.dart: shouldResyncMainPage המצב הלוגי פיגר אחרי ה-controller — מסונכרן
+00:37 +137: otzaria/test/navigation/main_window_page_transition_test.dart: excludeOffscreenPagesFromFocus בלי ההחרגה Tab גולל לעמוד חי שמחוץ למסך (בקרה)
+00:38 +138: otzaria/test/navigation/main_window_page_transition_test.dart: excludeOffscreenPagesFromFocus Tab נשאר בעמוד המוצג (issue #1349)
+00:38 +139: otzaria/test/navigation/main_window_page_transition_test.dart: פוקוס לחיפוש הספרייה במעבר למסך (issue #1723) בקשה באותו אירוע שבו העמוד מתחלף נדחית (בקרה)
+00:38 +140: otzaria/test/navigation/main_window_page_transition_test.dart: פוקוס לחיפוש הספרייה במעבר למסך (issue #1723) אחרי החלפת העמוד שדה החיפוש מקבל פוקוס
+00:39 +141: otzaria/test/navigation/main_window_page_transition_test.dart: פוקוס לחיפוש הספרייה במעבר למסך (issue #1723) במעבר בין עמודים רחוקים — אחרי סיום ההחלקה
+00:39 +142: otzaria/test/navigation/main_window_page_transition_test.dart: MainWindowScreenState.buildTransitionPages במנוחה (ללא מעבר) מחזיר את הסדר הקנוני כמות שהוא
+00:39 +143: otzaria/test/navigation/main_window_page_transition_test.dart: MainWindowScreenState.buildTransitionPages ספריה→כלים (0→2, slot=1): היעד מוצב בשכן, כל המסכים נשמרים
+00:39 +144: otzaria/test/navigation/main_window_page_transition_test.dart: MainWindowScreenState.buildTransitionPages הגדרות→ספריה (3→0, slot=2): מסך הכלים נשאר בעץ ואינו נדחק
+00:39 +145: otzaria/test/navigation/main_window_page_transition_test.dart: MainWindowScreenState.buildTransitionPages ספריה→הגדרות (0→3, slot=1): הכלים אינם מעורבים ונשארים במקומם
+00:39 +146: otzaria/test/navigation/main_window_page_transition_test.dart: MainWindowScreenState.buildTransitionPages כל מעבר חוצה מחזיר תמורה של הסדר הקנוני (אורך ותוכן נשמרים)
+00:39 +147: otzaria/test/navigation/main_window_page_transition_test.dart: resolvePageTransition עמוד היעד הוא העמוד המוצג — קפיצה מיישרת, בלי החלקה
+00:39 +148: otzaria/test/navigation/main_window_page_transition_test.dart: resolvePageTransition עמודים סמוכים — החלקה רגילה
+00:39 +149: otzaria/test/navigation/main_window_page_transition_test.dart: resolvePageTransition עמודים לא-סמוכים — החלקה חוצה
+00:39 +150: otzaria/test/navigation/main_window_page_transition_test.dart: resolvePageTransition כל מעבר שמוכרז כחוצה מייצר עמוד-שכן חוקי
+00:39 +151: otzaria/test/navigation/main_window_page_transition_test.dart: שימור State במהלך slide חוצה (PageView אמיתי) מסך ממותג (GlobalKey) שזז בעץ דרך swap עובר reparent ולא נבנה מחדש
+00:39 +152: otzaria/test/navigation/main_window_page_transition_test.dart: שימור State במהלך slide חוצה (PageView אמיתי) בלי GlobalKey אותו מסך נבנה מחדש — מאמת שה-key הכרחי לשימור ה-State
+00:39 +153: otzaria/test/navigation/main_window_page_transition_test.dart: (tearDownAll)
+00:39 +153: loading otzaria/test/navigation/main_window_lazy_library_build_test.dart
+00:40 +153: otzaria/test/navigation/main_window_lazy_library_build_test.dart: resolveLibraryPageBuildDecision מחזיר placeholder כשמסך הפתיחה אינו ספרייה והדף האמיתי עוד לא נבנה
+00:40 +154: otzaria/test/navigation/main_window_lazy_library_build_test.dart: resolveLibraryPageBuildDecision בונה את הדף האמיתי כשנכנסים לראשונה למסך הספרייה
+00:40 +155: otzaria/test/navigation/main_window_lazy_library_build_test.dart: resolveLibraryPageBuildDecision שומר את הדף הקיים לאחר שהדף האמיתי כבר נבנה
+00:40 +156: otzaria/test/navigation/main_window_lazy_library_build_test.dart: resolveLibraryPageBuildDecision שומר את הדף הקיים גם כשחוזרים למסך הספרייה
+00:40 +157: otzaria/test/navigation/main_window_lazy_library_build_test.dart: (tearDownAll)
+00:40 +157: loading otzaria/test/tabs/tab_strip_split_integration_test.dart
+00:42 +157: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה גרירה אופקית ב־PointerDeviceKind.touch יוצרת פיצול בפועל
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:43 +158: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה גרירה אופקית ב־PointerDeviceKind.stylus יוצרת פיצול בפועל
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:43 +159: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה שחרור בחצי הימני ב-RTL מכניס את הנגררת מימין
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:43 +160: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה שחרור בחצי השמאלי ב-RTL מכניס את הנגררת משמאל
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:43 +161: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה הגובה שבו משחררים אינו משנה
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:43 +162: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה קו האמצע מפריד בין הצדדים גם בשחרור סמוך לו
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +163: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה טאב שכבר מפוצל אינו מקבל כרטיסייה שלישית
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+🔧 PdfBookTab created: book=ג, pageNumber=1
+DEBUG: החלפת כל הטאבים - 3 טאבים חדשים
+00:44 +164: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירה משורת הכרטיסיות אל אזור הקריאה גרירת הכרטיסיה המוצגת על עצמה אינה משנה דבר
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +165: otzaria/test/tabs/tab_strip_split_integration_test.dart: שימור מצב הקריאה פיצול אינו בונה מחדש את החלונית שהייתה מוצגת
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +166: otzaria/test/tabs/tab_strip_split_integration_test.dart: שימור מצב הקריאה סגירת חלונית אינה בונה מחדש את אחותה
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +167: otzaria/test/tabs/tab_strip_split_integration_test.dart: שימור מצב הקריאה פירוק הפיצול אינו בונה מחדש את שתי החלוניות
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +168: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירת חלונית חזרה אל הרצועה שחרור הידית ברצועה מפרק את החלונית לכרטיסייה
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +169: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירת חלונית חזרה אל הרצועה ההפרדה בגרירה אינה בונה מחדש את הספרים
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +170: otzaria/test/tabs/tab_strip_split_integration_test.dart: גרירת חלונית חזרה אל הרצועה בטאב שאינו מפוצל אין ידית גרירה
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +171: otzaria/test/tabs/tab_strip_split_integration_test.dart: שחרור בתוך הרצועה מסדר מחדש ואינו מפצל
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +172: otzaria/test/tabs/tab_strip_split_integration_test.dart: שחרור בתוך הרצועה שחרור באזור הריק של הרצועה אינו מפצל ואינו מסדר
+🔧 PdfBookTab created: book=א, pageNumber=1
+🔧 PdfBookTab created: book=ב, pageNumber=1
+DEBUG: החלפת כל הטאבים - 2 טאבים חדשים
+00:44 +173: otzaria/test/tabs/tab_strip_split_integration_test.dart: (tearDownAll)
+00:45 +173: loading otzaria/test/core/windowing/cross_window_tab_drag_test.dart
+00:46 +173: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: שחרור מעל החלון עצמו אינו עושה דבר
+00:46 +174: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: שחרור מעל שורת המשימות מבוטל ואינו פותח חלון
+גרירה שוחררה מעל שורת המשימות — מבוטלת
+00:46 +175: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: שחרור מעל שולחן העבודה פותח חלון והכרטיסיה עוברת
+00:46 +176: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: החלון נפתח בנקודת השחרור ולא בהיסט מהפינה
+00:46 +177: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: הרוח שהוקפאה במקום השחרור סיום גרירה מקפיא ואינו מסתיר
+00:46 +178: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: הרוח שהוקפאה במקום השחרור פתיחת חלון Dart מסתירה אותה — ה-runner אינו מכיר אותו
+00:46 +179: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: הרוח שהוקפאה במקום השחרור שחרור לחלון קיים מסתיר מיד — אין מה להחליף
+00:46 +180: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: הרוח שהוקפאה במקום השחרור כל מסלול שאינו פותח חלון מסתיר
+גרירה שוחררה מעל שורת המשימות — מבוטלת
+00:46 +181: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: כשל פתיחה משאיר את הכרטיסיה במקומה
+00:46 +182: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: גם הכרטיסיה האחרונה יוצאת לחלון חדש — חלון המקור נשאר על הספרייה
+00:46 +183: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: שחרור מעל חלון אחר שולח אליו, והכרטיסיה מוסרת רק אחרי אישור
+00:46 +184: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: חלון יעד שלא אישר — הכרטיסיה נשארת ואינה נעלמת משני הצדדים
+⚠️ UiSnack: navigatorKey.currentContext is null
+00:46 +185: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) יציאה מחלון המקור מוסרת את הגרירה ומבטלת את זו של Flutter
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:47 +186: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) ⚠️ אינה פותחת חלון בזמן הגרירה
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:48 +187: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור מוצמד פותח את החלון **במסגרת** שההצמדה נתנה
+גרירה הסתיימה: snapped=true rect=960,0 960×1040 slot=null isSelf=false tray=false
+00:49 +188: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור בלי הצמדה: החלון נפתח בפינה שבה התצוגה נעצרה
+גרירה הסתיימה: snapped=false rect=500,300 176×40 slot=null isSelf=false tray=false
+00:49 +189: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור מעל חלון אוצריא אחר מעביר אליו ואינו פותח חלון
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=2 isSelf=false tray=false
+00:50 +190: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) ⚠️ הצמדה פותחת חלון גם כשחלון המקור תחת הסמן
+גרירה הסתיימה: snapped=true rect=0,0 960×1040 slot=1 isSelf=true tray=false
+00:50 +191: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) הצמדה גוברת גם על חלון אוצריא אחר שתחת הסמן
+גרירה הסתיימה: snapped=true rect=960,0 960×1040 slot=2 isSelf=false tray=false
+00:51 +192: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור חזרה מעל חלון המקור מבוטל
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=1 isSelf=true tray=false
+00:52 +193: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור מעל שורת המשימות מבוטל
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=true
+גרירה שוחררה מעל שורת המשימות — מבוטלת
+00:52 +194: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) גם הכרטיסיה האחרונה יוצאת לחלון חדש
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:53 +195: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) שחרור אחרי המסירה אינו מטפל בכרטיסיה פעמיים
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:54 +196: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) הסמן בתוך החלון אינו מוסר דבר
+00:54 +197: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) בלי bloc אין מסירה — הגרירה נשארת כשהייתה
+00:55 +198: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירת הגרירה ל-Windows (Snap Layouts) תשובת מיקום מגרירה קודמת אינה מוסרת את הגרירה הבאה
+00:55 +199: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה ⚠️ נשלח מיד ולא נדחה ליציאה מהחלון
+00:55 +200: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה הצילום מקדים את המסירה למערכת
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:55 +201: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה יציאה מהירה אינה מוסרת למערכת לפני שהמוק נשלח
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:56 +202: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה מוק שלא מגיע אינו תוקע את הגרירה — המסירה יוצאת אחרי חלון החסד
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:57 +203: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה כשל בשליחת מוק ממתין לחלון החסד ואז מוסר למערכת
+setTabDragImage failed: PlatformException(set-image-failed, null, null, null)
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=null isSelf=false tray=false
+00:57 +204: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה מוק מגרירה קודמת נדחה אחרי שגרירה חדשה התחילה
+00:57 +205: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: צילום הכרטיסיה שליחת מוק ישן אינה מאשרת מסירה של גרירה חדשה
+00:57 +206: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון נסיעה מעלה אל אזור ההתקרבות מוסרת את הגרירה למערכת
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=1 isSelf=true tray=false
+00:58 +207: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ המסירה מקדימה את הקצה ומשאירה נסיעה ללולאת ההזזה
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=1 isSelf=true tray=false
+00:58 +208: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ההצמדה שנבחרה פותחת חלון במסגרת שלה
+גרירה הסתיימה: snapped=true rect=960,0 960×1040 slot=1 isSelf=true tray=false
+00:59 +209: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון שחרור בלי הצמדה מעל חלון המקור — הכרטיסיה נשארת במקומה
+גרירה הסתיימה: snapped=false rect=0,0 623×678 slot=1 isSelf=true tray=false
+00:59 +210: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ סידור אופקי עם סחיפה מעלה בתוך הרצועה אינו נמסר
+00:59 +211: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ סידור ברצועה האנכית — שעולה מעצמו — אינו נמסר
+01:00 +212: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ סידור של כרטיסיה שאינה ניתנת להעברה אינו מציג שגיאה
+canTransfer failed for _UnserializableTab: FormatException: Unknown tab type: DefinitelyNotATabType
+01:00 +213: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ כרטיסיה שאינה ניתנת להעברה אינה נמסרת גם אחרי יציאה
+canTransfer failed for _UnserializableTab: FormatException: Unknown tab type: DefinitelyNotATabType
+01:00 +214: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ סידור כרטיסיות ברצועה אינו נחטף
+01:01 +215: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ תפיסה שכבר ליד ראש המסך, בלי נסיעה, אינה נמסרת
+01:01 +216: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ⚠️ ממתינה למוק החלון, ואינה מוסרת עם שרטוט
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=1 isSelf=true tray=false
+01:02 +217: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: מסירה מוקדמת בדרך מעלה, בעוד הסמן בתוך החלון ירידה לאזור הקריאה וחזרה מעלה נחשבת נסיעה מעלה
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=1 isSelf=true tray=false
+01:02 +218: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: כרטיסיה שאינה שורדת סריאליזציה נחסמת לפני כל ניסיון העברה
+canTransfer failed for _UnserializableTab: FormatException: Unknown tab type: DefinitelyNotATabType
+⚠️ UiSnack: navigatorKey.currentContext is null
+01:02 +219: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: כרטיסיה שאינה שורדת סריאליזציה ⚠️ הגרירה נעצרת בפעימה הראשונה בחוץ ואינה חוזרת בלולאה
+canTransfer failed for _UnserializableTab: FormatException: Unknown tab type: DefinitelyNotATabType
+⚠️ UiSnack: navigatorKey.currentContext is null
+01:03 +220: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו (setUpAll)
+01:03 +220: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון אחר: כתיבה ממתינה שמסתיימת בזמן השמירה — בלי דיאלוג
+01:04 +221: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון אחר: כתיבה שנכשלת — דיאלוג, וביטול משאיר הכל
+01:05 +222: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון אחר: כתיבה שנכשלת — "סגור בכל זאת" מעביר
+01:05 +223: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון אחר: טיוטה שנשמרה — בלי דיאלוג
+01:05 +224: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון חדש: כתיבה ממתינה שמסתיימת בזמן השמירה — בלי דיאלוג
+01:06 +225: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון חדש: כתיבה שנכשלת — דיאלוג, וביטול משאיר הכל
+01:06 +226: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון חדש: כתיבה שנכשלת — "סגור בכל זאת" מעביר
+01:07 +227: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו לחלון חדש: טיוטה שנשמרה — בלי דיאלוג
+01:07 +228: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו מסירה ל-Windows: כתיבה שנכשלת — ביטול בדיאלוג משאיר הכל
+גרירה הסתיימה: snapped=false rect=0,0 176×40 slot=2 isSelf=false tray=false
+01:08 +229: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: העברה של לשונית עם תיקוני תוסף שלא נשמרו (tearDownAll)
+01:08 +229: otzaria/test/core/windowing/cross_window_tab_drag_test.dart: (tearDownAll)
+01:08 +229: loading otzaria/test/core/windowing/external_tab_drag_test.dart
+01:09 +229: otzaria/test/core/windowing/external_tab_drag_test.dart: גרירה שמגיעה לחלון אחד אינה נראית בחלון אחר
+01:09 +230: otzaria/test/core/windowing/external_tab_drag_test.dart: (tearDownAll)
+01:09 +230: All tests passed!

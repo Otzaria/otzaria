@@ -1,0 +1,100 @@
+{
+  "issue": "https://github.com/Otzaria/otzaria/issues/4092",
+  "captureType": "Flutter headless app runner with widget-test API; RenderRepaintBoundary capture",
+  "runCommand": "FLUTTER_SUPPRESS_ANALYTICS=true flutter --suppress-analytics --no-version-check run --no-pub --no-track-widget-creation -d flutter-tester -t test/_capture_4092_test.dart --dart-define=SCREENSHOT_OUTPUT=build/qa4092",
+  "flutterVersion": "3.47.7",
+  "dartVersion": "3.13.5",
+  "productionWidget": "ReadingTabsSidePanel and its real vertical tab strip",
+  "fullApplicationScreenshot": false,
+  "hostPlatform": "linux",
+  "themePlatform": "windows",
+  "readerContent": "Neutral sample document; no personal data",
+  "theme": "AppThemeData light/dark with each default AppSeedColors seed",
+  "fonts": {
+    "ui": "Bundled Rubik loaded as Roboto and host default font-family aliases; normal Linux font fallback enabled for unspecified families",
+    "reader": "Bundled FrankRuhlCLM",
+    "icons": "Actual FluentSystemIcons Regular and Filled assets"
+  },
+  "verified": [
+    "Reader Rect is exactly equal before and after hover in both themes",
+    "Hover emits no settings event",
+    "Persistent expansion is activated through the actual header button"
+  ],
+  "captures": [
+    {
+      "file": "01-collapsed.png",
+      "state": "collapsed",
+      "brightness": "light",
+      "size": [
+        1200.0,
+        780.0
+      ],
+      "readerRect": [
+        0.0,
+        44.0,
+        1152.0,
+        736.0
+      ],
+      "sha256": "c034c0131a761558103d6f32d2713b55152f92085eae2c6dce02d35549dc11d7",
+      "bytes": 78866
+    },
+    {
+      "file": "02-hover-floating.png",
+      "state": "hover-floating",
+      "brightness": "light",
+      "size": [
+        1200.0,
+        780.0
+      ],
+      "readerRect": [
+        0.0,
+        44.0,
+        1152.0,
+        736.0
+      ],
+      "sha256": "64f585367c616e2903e6b5303ecf124b08a3adac807b2baf5c6e6b9368563438",
+      "bytes": 83213
+    },
+    {
+      "file": "03-pinned.png",
+      "state": "pinned",
+      "brightness": "light",
+      "size": [
+        1200.0,
+        780.0
+      ],
+      "readerRect": [
+        0.0,
+        44.0,
+        940.0,
+        736.0
+      ],
+      "sha256": "84bb0b96b59fdb3ceae8fb04d725fbde278b9e7f07f8882265db49f33a41b467",
+      "bytes": 98387
+    },
+    {
+      "file": "04-hover-floating-dark.png",
+      "state": "hover-floating",
+      "brightness": "dark",
+      "size": [
+        1200.0,
+        780.0
+      ],
+      "readerRect": [
+        0.0,
+        44.0,
+        1152.0,
+        736.0
+      ],
+      "sha256": "58c764fdcfefc89adcf5515d994b93362acfcb5a7355f50917767fdf23087cca",
+      "bytes": 81204
+    }
+  ],
+  "reproduction": [
+    "Copy capture_4092_test.dart into test/_capture_4092_test.dart in the repository checkout.",
+    "Use Flutter 3.47.7 and run the command recorded in runCommand. The default SCREENSHOT_OUTPUT, if omitted, is build/qa4092.",
+    "Use flutter run -d flutter-tester: flutter test forces a test font for unspecified font families, which would replace Hebrew tab titles with boxes.",
+    "After All tests passed, press q to terminate the headless app. Remove the temporary test source afterwards."
+  ],
+  "harnessSha256": "d75b0041832de379652cf05058983054639164a6d74ddf085ea5db437de0f33d"
+}

@@ -1,0 +1,9 @@
+4cdf587151491c7177af7c068468893893d9e8a4
+100644 274712bbcb1833e36bd48fdb2982d79fbc3f672f 1	lib/navigation/view/reading_tabs_side_panel.dart
+100644 81cf6fd86d1332b5b31c1094a131f2c684776106 2	lib/navigation/view/reading_tabs_side_panel.dart
+100644 0f0fea29db30d686ce3b1241f8035e546588ba9a 3	lib/navigation/view/reading_tabs_side_panel.dart
+
+Auto-merging lib/navigation/view/main_window_screen.dart
+Auto-merging lib/navigation/view/reading_tabs_side_panel.dart
+CONFLICT (content): Merge conflict in lib/navigation/view/reading_tabs_side_panel.dart
+Auto-merging test/navigation/reading_tabs_side_panel_test.dart

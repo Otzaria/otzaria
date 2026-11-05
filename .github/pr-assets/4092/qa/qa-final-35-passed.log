@@ -1,0 +1,42 @@
+No Visual Studio installation found with the requested Microsoft.VisualStudio.Component.VC.Tools.x86.x64 component.
+
+00:00 +0: loading otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart
+00:00 +0: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף צף בלי להזיז את התוכן לאורך ההנפשה: TextDirection.rtl
+00:01 +1: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כותרת ו-X בשטח הצף מקבלים לחיצות: TextDirection.rtl
+00:01 +2: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף צף בלי להזיז את התוכן לאורך ההנפשה: TextDirection.ltr
+00:02 +3: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כותרת ו-X בשטח הצף מקבלים לחיצות: TextDirection.ltr
+00:02 +4: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: מעבר קצר אינו פותח, ולחיצה מהירה על אייקון בוחרת כרטיסייה
+00:02 +5: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף משאיר את אותה הכרטיסייה ואת כפתורי הכותרת תחת הסמן
+00:02 +6: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.touch אינם מרחיבים את העמודה
+00:02 +7: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.stylus אינם מרחיבים את העמודה
+00:02 +8: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ריחוף וגלילה ב-PointerDeviceKind.invertedStylus אינם מרחיבים את העמודה
+00:02 +9: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: חזרה לפני תום השהיית הסגירה שומרת את העמודה פתוחה
+00:02 +10: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: התוכן שמחוץ לעמודה הצפה נשאר לחיץ
+00:03 +11: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: כפתור ההרחבה בזמן ריחוף נועץ את ההעדפה הקבועה
+00:03 +12: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גלילת הכרטיסיות ו-State נשמרים לאורך ריחוף והסתרה
+00:03 +13: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גרירה מהשטח הצף ממשיכה לפיצול גם אחרי יציאה ממושכת
+00:04 +14: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: גרירה החוזרת לשטח הצף מסדרת כרטיסיות במקום לפצל
+00:04 +15: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: יעד גרירה מחלון אחר נמדד גם בשטח שמעל התוכן
+00:04 +16: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: תפריט ההקשר נשאר פעיל מחוץ לשטח העמודה
+00:04 +17: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: הסרת המעטפת מבטלת שעון סגירה ממתין
+00:04 +18: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: שחרור מצביע אחרי פירוק העמודה אינו קורא context מפורק
+00:04 +19: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: ביטול מצביע אחרי פירוק העמודה אינו קורא context מפורק
+00:05 +20: otzaria/test/navigation/reading_tabs_side_panel_hover_test.dart: (tearDownAll)
+00:05 +20: loading otzaria/test/navigation/_qa_4092_test.dart
+00:07 +20: otzaria/test/navigation/_qa_4092_test.dart: QA hover preserves reader keyboard focus and live state
+00:08 +21: otzaria/test/navigation/_qa_4092_test.dart: QA header focus survives hover and Enter pins once
+00:08 +22: otzaria/test/navigation/_qa_4092_test.dart: QA hidden panel is lazy and excluded from focus and semantics
+00:08 +23: otzaria/test/navigation/_qa_4092_test.dart: QA hiding before opening delay cancels stale hover work
+00:08 +24: otzaria/test/navigation/_qa_4092_test.dart: QA hiding during closing delay does not reopen when shown
+00:08 +25: otzaria/test/navigation/_qa_4092_test.dart: QA down before opening delay freezes collapse until release
+00:09 +26: otzaria/test/navigation/_qa_4092_test.dart: QA native pointer cancellation unfreezes hover without a drop
+00:09 +27: otzaria/test/navigation/_qa_4092_test.dart: QA all active pointers must finish before the preview retracts
+00:09 +28: otzaria/test/navigation/_qa_4092_test.dart: QA constrained host and large text remain bounded: TextDirection.rtl
+00:09 +29: otzaria/test/navigation/_qa_4092_test.dart: QA constrained host and large text remain bounded: TextDirection.ltr
+00:10 +30: otzaria/test/navigation/_qa_4092_test.dart: QA resize while floating preserves content state and saved width
+00:10 +31: otzaria/test/navigation/_qa_4092_test.dart: QA search popup keeps focus and responds after hover retracts
+00:11 +32: otzaria/test/navigation/_qa_4092_test.dart: QA late pointer finish after panel disposal cancel=false
+00:11 +33: otzaria/test/navigation/_qa_4092_test.dart: QA late pointer finish after panel disposal cancel=true
+00:11 +34: otzaria/test/navigation/_qa_4092_test.dart: QA mouse collapse clears preview and does not re-open itself
+00:12 +35: otzaria/test/navigation/_qa_4092_test.dart: (tearDownAll)
+00:12 +35: All tests passed!
