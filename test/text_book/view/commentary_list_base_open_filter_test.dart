@@ -17,7 +17,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -331,6 +333,85 @@ void main() {
       },
     );
   });
+
+  group('חלונית צד: הערות כבויות ובחירה ריקה (issue #3514)', () {
+    const emptyMessage = 'לא נמצאו מפרשים לקטע הנבחר';
+    final notes = (BookNotesBuilder()..add(0, 0, '*', 'הערה על שורה א'))
+        .build();
+
+    testWidgets(
+      'רק "הערות" זמינות — מוצגת הודעה בקטע עם הערה ובלעדיו, וסינון שנפתח נסגר',
+      (tester) async {
+        TextBookLoaded at(int line) => _loadedStateWithCommentators(
+          [],
+          available: const [kNotesCommentatorTitle],
+          bookNotes: notes,
+          line: line,
+        );
+        final bloc = _TestTextBookBloc(at(0));
+        addTearDown(bloc.close);
+
+        await _pumpWithOverride(
+          tester,
+          textBookBloc: bloc,
+          settingsBloc: settingsBloc,
+        );
+        expect(find.text('בחירת מפרשים'), findsNothing);
+        expect(find.text(emptyMessage), findsOneWidget);
+
+        bloc.emit(at(1));
+        await tester.pumpAndSettle();
+        expect(find.text('בחירת מפרשים'), findsNothing);
+        expect(find.text(emptyMessage), findsOneWidget);
+
+        await tester.tap(find.byType(CommentatorsFilterButton));
+        await tester.pumpAndSettle();
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+        await tester.tap(find.byTooltip('חזרה למפרשים'));
+        await tester.pumpAndSettle();
+        expect(find.text('בחירת מפרשים'), findsNothing);
+        expect(find.text(emptyMessage), findsOneWidget);
+      },
+    );
+
+    testWidgets('יש גם מפרש רגיל לבחירה — הבחירה נפתחת אוטומטית', (
+      tester,
+    ) async {
+      final bloc = _TestTextBookBloc(
+        _loadedStateWithCommentators([], bookNotes: notes),
+      );
+      addTearDown(bloc.close);
+
+      await _pumpWithOverride(
+        tester,
+        textBookBloc: bloc,
+        settingsBloc: settingsBloc,
+      );
+      expect(find.text('בחירת מפרשים'), findsOneWidget);
+    });
+
+    testWidgets('כרטיסיית המפרשים: רק "הערות" זמינות — לא נפתחת לשונית בחירה', (
+      tester,
+    ) async {
+      final bloc = _TestTextBookBloc(
+        _loadedStateWithCommentators(
+          [kNotesCommentatorTitle],
+          available: const [kNotesCommentatorTitle],
+          bookNotes: notes,
+        ),
+      );
+      addTearDown(bloc.close);
+      var openRequests = 0;
+
+      await _pumpWithOverride(
+        tester,
+        textBookBloc: bloc,
+        settingsBloc: settingsBloc,
+        onFilterOpenRequested: () => openRequests++,
+      );
+      expect(openRequests, 0);
+    });
+  });
 }
 
 Future<void> _pump(
@@ -401,23 +482,31 @@ TextBookLoaded _loadedState() {
   );
 }
 
-TextBookLoaded _loadedStateWithCommentators(List<String> active) {
+TextBookLoaded _loadedStateWithCommentators(
+  List<String> active, {
+  List<String> available = const ['מפרש בדיקה', kNotesCommentatorTitle],
+  BookNotes bookNotes = BookNotes.empty,
+  int line = 0,
+}) {
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
     showLeftPane: false,
-    content: const ['שורה א'],
+    content: const ['שורה א', 'שורה ב'],
     fontSize: 18,
     showSplitView: false,
     activeCommentators: active,
-    commentatorGroups: const [],
-    availableCommentators: const ['מפרש בדיקה', kNotesCommentatorTitle],
+    commentatorGroups: [
+      CommentatorGroup(title: 'שאר מפרשים', commentators: available),
+    ],
+    availableCommentators: available,
+    bookNotes: bookNotes,
     links: const [],
     visibleLinks: const [],
     linksByLine: const {},
     tableOfContents: const [],
     removeNikud: false,
-    visibleIndices: const [0],
-    selectedIndex: 0,
+    visibleIndices: [line],
+    selectedIndex: line,
     pinLeftPane: false,
     searchText: '',
   );
@@ -427,6 +516,7 @@ Future<void> _pumpWithOverride(
   WidgetTester tester, {
   required TextBookBloc textBookBloc,
   required SettingsBloc settingsBloc,
+  VoidCallback? onFilterOpenRequested,
 }) async {
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -449,6 +539,7 @@ Future<void> _pumpWithOverride(
             // מדמה מצב override (כרטיסיית מפרשים) שבו הפאנל נפתח אוטומטית
             // כשאין מפרשים נבחרים — אלא אם notesIsActive מונע זאת.
             onSelectedCommentatorsOverrideChanged: (_) {},
+            onFilterOpenRequested: onFilterOpenRequested,
           ),
         ),
       ),
