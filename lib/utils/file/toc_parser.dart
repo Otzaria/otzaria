@@ -23,7 +23,6 @@ class TocParser {
     return _buildHierarchy(headers);
   }
 
-  /// Internal representation of a detected heading line.
   static List<_Header> _extractHeaders(String content) {
     final List<_Header> headers = [];
 
@@ -111,6 +110,7 @@ class TocParser {
   }
 }
 
+/// Internal representation of a detected heading line.
 class _Header {
   final String text;
   final int index;
