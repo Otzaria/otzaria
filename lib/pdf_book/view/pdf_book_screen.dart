@@ -807,15 +807,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   late final VoidCallback _toggleCommentatorsPaneListener;
   late final VoidCallback _toggleTextViewListener;
 
-  /// לשונית החיפוש מחפשת בעצמה כשהיא נבנית; בחלונית סגורה (מסך צר) היא לא
-  /// נבנית, ובלי החיפוש כאן השאילתה שהגיעה עם הספר לא מודגשת.
-  void _runInitialSearchIfNeeded() {
-    final query = widget.tab.searchController.text.trim();
-    if (query.isEmpty) return;
-    textSearcher?.startTextSearch(
-      query,
-      goToFirstMatch: false,
-    );
+  void _onSearchQueryChanged() {
+    if (widget.tab.searchController.text.isEmpty ||
+        _searchViewKey.currentState != null) {
+      return;
+    }
+    _leftPaneTabController!.index = 1;
+    setState(() {});
   }
 
   void _ensureSearchTabIsActive() {
@@ -1087,8 +1085,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       });
     }
 
-    // לשונית החיפוש שנבחרה אוטומטית ממוקדת רק ב-didChangeDependencies, ורק
-    // כשהשדה מורם לסרגל שמעל החלונית.
+    // לשונית החיפוש האוטומטית ממוקדת רק ב-didChangeDependencies.
     if (!_searchTabAutoSelected) {
       _navigationFieldFocusNode.requestFocus();
     }
@@ -1115,22 +1112,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
     };
     _leftPaneTabController!.addListener(_leftPaneTabControllerListener);
+    widget.tab.searchController.addListener(_onSearchQueryChanged);
 
     _showLeftPaneListener = () {
-      if (widget.tab.showLeftPane.value) {
-        if (_leftPaneTabController!.index == 1) {
-          _searchFieldFocusNode.requestFocus();
-        } else if (_leftPaneTabController!.index == 0) {
-          _navigationFieldFocusNode.requestFocus();
-        }
-      } else {
-        // כשסוגרים את חלונית הצד, החזר focus ל-PDF
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _pdfViewFocusNode.requestFocus();
+      // החלונית חייבת להיבנות פתוחה לפני ש-ExcludeFocus יאפשר למקד שדה.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.tab.showLeftPane.value) {
+          if (_leftPaneTabController!.index == 1) {
+            _searchFieldFocusNode.requestFocus();
+          } else if (_leftPaneTabController!.index == 0) {
+            _navigationFieldFocusNode.requestFocus();
           }
-        });
-      }
+        } else {
+          _pdfViewFocusNode.requestFocus();
+        }
+      });
     };
     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
 
@@ -1179,8 +1176,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     });
   }
 
-  /// מסמן ב-host את הלשונית הנבחרת. לשונית שנבחרה אוטומטית (ספר שנפתח מחיפוש)
-  /// ממוקדת רק אם המסך היה רחב מלכתחילה — אחרת המקלדת נפתחת בלי שביקשו.
+  /// ממקד לשונית חיפוש אוטומטית רק בחלונית פתוחה ובמסך רחב.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -1193,7 +1189,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       return;
     }
     _searchHost.activeTab = _leftPaneTabController!.index;
-    if (_searchTabAutoSelected && isFirstResolution) {
+    if (_searchTabAutoSelected &&
+        isFirstResolution &&
+        widget.tab.showLeftPane.value) {
       _searchFieldFocusNode.requestFocus();
     }
   }
@@ -1976,10 +1974,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         final shouldShowLeftPane = resolveInitialReadingLeftPaneVisibility(
           explicitOpen: widget.tab.showLeftPane.value,
-          hasSearchText: widget.tab.searchText.isNotEmpty,
           screenWidth: mounted ? readingLayoutWidthOf(context) : null,
         );
-        if (!shouldShowLeftPane) _runInitialSearchIfNeeded();
         if (currentSession()) {
           if (shouldShowLeftPane) {
             // נעוצה: חלונית לא נעוצה הייתה מכסה את הספר בהצללה כבר בפתיחה.
@@ -4243,6 +4239,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _pageDataRevision.dispose();
     pdfController.removeListener(_onPdfViewerControllerUpdate);
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
+    widget.tab.searchController.removeListener(_onSearchQueryChanged);
     widget.tab.showLeftPane.removeListener(_showLeftPaneListener);
     widget.tab.toggleNavPaneNotifier.removeListener(_toggleNavPaneListener);
     widget.tab.toggleCommentatorsPaneNotifier.removeListener(
@@ -4686,6 +4683,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   return ValueListenableBuilder<bool>(
                     valueListenable: widget.tab.pinLeftPane,
                     builder: (context, isPinned, _) => NavSidePanel(
+                      maintainState:
+                          widget.tab.searchController.text.isNotEmpty,
                       isOpen:
                           showLeftPane &&
                           (!_isChoosingPersonalNotePoint ||
@@ -4725,7 +4724,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           );
                         }
                       },
-                      paneContent: _buildLeftPaneContent(showLeftPane),
+                      paneContent: ExcludeFocus(
+                        excluding: !showLeftPane,
+                        child: TickerMode(
+                          enabled: showLeftPane,
+                          child: _buildLeftPaneContent(showLeftPane),
+                        ),
+                      ),
                       mainContent: AdaptiveSidePane(
                         isOpen:
                             showRightPane &&

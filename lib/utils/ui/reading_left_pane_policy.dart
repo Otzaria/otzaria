@@ -43,8 +43,14 @@ bool isCompactReadingLayout({double? screenWidth}) {
   return effectiveWidth < LayoutBreakpoints.compact;
 }
 
-bool shouldAutoOpenReadingLeftPane({double? screenWidth}) {
+/// [hasSearchText] — טאב חדש שנפתח מחיפוש. אתחול הקורא אינו מחליט זאת שוב:
+/// הוא רץ גם בשחזור טאב, ושם קובע המצב השמור (issue #4126).
+bool shouldAutoOpenReadingLeftPane({
+  double? screenWidth,
+  bool hasSearchText = false,
+}) {
   final isDefaultOpen =
+      hasSearchText ||
       (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
       (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
   if (!isDefaultOpen) {
@@ -56,7 +62,6 @@ bool shouldAutoOpenReadingLeftPane({double? screenWidth}) {
 
 bool resolveInitialReadingLeftPaneVisibility({
   required bool explicitOpen,
-  required bool hasSearchText,
   double? screenWidth,
 }) {
   // הנעיצה אינה עוקפת מסך צר: שם החלונית היא overlay עם scrim שחוסם את
@@ -66,15 +71,7 @@ bool resolveInitialReadingLeftPaneVisibility({
     return true;
   }
 
-  if (explicitOpen) {
-    return true;
-  }
-
-  if (isCompactReadingLayout(screenWidth: screenWidth)) {
-    return false;
-  }
-
-  return hasSearchText;
+  return explicitOpen;
 }
 
 bool resolveRestoredReadingLeftPaneState(

@@ -133,6 +133,11 @@ void main() {
       (opened.single.bloc.state as TextBookInitial).searchOrigin,
       InBookSearchOrigin.globalResult,
     );
+    expect(
+      (opened.single.bloc.state as TextBookInitial).showLeftPane,
+      isTrue,
+      reason: 'תוצאת חיפוש פותחת את חלונית הניווט במסך רחב',
+    );
     addTearDown(opened.single.dispose);
     return opened.single;
   }

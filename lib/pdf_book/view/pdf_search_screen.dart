@@ -310,7 +310,11 @@ class PdfBookSearchView extends StatefulWidget {
   State<PdfBookSearchView> createState() => PdfBookSearchViewState();
 }
 
-class PdfBookSearchViewState extends State<PdfBookSearchView> {
+class PdfBookSearchViewState extends State<PdfBookSearchView>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool _isSearching = false;
@@ -656,8 +660,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     _isSearching = false;
     _searchErrorMessage = null;
     _pendingSimpleSearchScrollFor = null;
-    if (!_isSimpleSearch &&
-        searchableInBookQuery(widget.searchController.text) != null) {
+    if (searchableInBookQuery(widget.searchController.text) != null) {
       final generation = _searchGeneration;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _searchGeneration == generation) {
@@ -1168,6 +1171,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (!identical(_groupedSource, _searchResults)) {
       _groupedSource = _searchResults;
       _groupedItems.clear();

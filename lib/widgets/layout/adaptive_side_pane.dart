@@ -19,6 +19,9 @@ import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 /// ב-[onDragEnd] — לא במהלך הגרירה. כך הגרירה חלקה גם כשחוצים את הסף.
 class AdaptiveSidePane extends StatefulWidget {
   final bool isOpen;
+
+  /// בונה תוכן גם לפני הפתיחה הראשונה, כשיש לו עבודה ברקע.
+  final bool maintainState;
   final Widget mainContent;
   final Widget paneContent;
   final double paneWidth;
@@ -62,6 +65,7 @@ class AdaptiveSidePane extends StatefulWidget {
   const AdaptiveSidePane({
     super.key,
     required this.isOpen,
+    this.maintainState = false,
     required this.mainContent,
     required this.paneContent,
     this.paneWidth = 340,
@@ -101,9 +105,8 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   // snapshot של מצב תחילת גרירה
   bool? _dragStartedInWideMode;
 
-  // אופטימיזציית ביצועים: דחיית בנייה ראשונה של תוכן הפאנל עד שהוא נפתח לראשונה.
-  // זה מונע בנייה כבדה של התוכן (TocViewer וכו') כשהפאנל סגור מההתחלה.
-  // אחרי הפתיחה הראשונה, התוכן נשמר במגדל הוויידג'טים גם בזמן סגירה כדי לשמור state.
+  // דוחים תוכן כבד עד הפתיחה, אלא אם הוא נחוץ לעבודה ברקע.
+  // תוכן שכבר נבנה נשמר גם בסגירה כדי לשמור state.
   bool _paneEverOpened = false;
 
   // שלוש הפריסות בונות עצים שונים; המפתח מעביר את התוכן ביניהן בלי לבנות אותו
@@ -147,7 +150,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   void initState() {
     super.initState();
     _livePaneWidth = ValueNotifier<double>(widget.paneWidth);
-    _paneEverOpened = widget.isOpen;
+    _paneEverOpened = widget.isOpen || widget.maintainState;
   }
 
   @override
@@ -157,7 +160,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     if (!_isDragging && oldWidget.paneWidth != widget.paneWidth) {
       _livePaneWidth.value = widget.paneWidth;
     }
-    if (widget.isOpen && !_paneEverOpened) {
+    if ((widget.isOpen || widget.maintainState) && !_paneEverOpened) {
       _paneEverOpened = true;
     }
   }
@@ -426,10 +429,6 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         final currentWidth = liveWidth;
         final currentOccupied =
             currentWidth + _wideOuterSideGap + _wideInnerSideGap;
-        // אופטימיזציית ביצועים: לא לבנות את תוכן הפאנל לפני שנפתח לראשונה.
-        // לפני האופטימיזציה, paneContent (כולל TocViewer עם אלפי ערכים)
-        // היה נבנה תמיד גם בפאנל סגור, מה שיצר frame של 12+ שניות.
-        // אחרי הפתיחה הראשונה התוכן נשמר במגדל גם בסגירה כדי לשמור state.
         final Widget paneSlotContent;
         if (!_paneEverOpened) {
           paneSlotContent = const SizedBox.shrink();

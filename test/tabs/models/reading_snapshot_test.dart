@@ -1,9 +1,19 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/links.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -11,6 +21,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
+import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -188,6 +199,137 @@ void main() {
     addTearDown(restored.dispose);
 
     expect(restored.toJson()['showLeftPane'], isTrue);
+  });
+
+  group('שמירה, שחזור וטעינת הקורא במסך רחב (issue #4126)', () {
+    const wide = 1400.0;
+    final opener = BookOpenCoordinator(
+      tabsBloc: _TabsBloc(),
+      historyBloc: _HistoryBloc(),
+      navigationBloc: _NavigationBloc(),
+      layoutWidth: () => wide,
+    );
+
+    Future<TextBookLoaded> loadText(TextBookBloc bloc, double fontSize) async {
+      bloc.add(
+        LoadContent(
+          fontSize: fontSize,
+          showSplitView: false,
+          removeNikud: false,
+          loadCommentators: false,
+          preserveState: bloc.state is TextBookLoaded,
+          screenWidth: wide,
+        ),
+      );
+      return await bloc.stream.firstWhere(
+            (s) => s is TextBookLoaded && s.fontSize == fontSize,
+          )
+          as TextBookLoaded;
+    }
+
+    Future<PdfBookLoaded> loadPdf(PdfBookTab tab) async {
+      final bloc = PdfBookBloc(
+        tab: tab,
+        initialState: PdfBookInitial(
+          book: tab.book,
+          initialPageNumber: tab.pageNumber,
+          searchText: tab.searchText,
+        ),
+        pdfrxInit: () async {},
+      );
+      addTearDown(bloc.close);
+      bloc.add(
+        DocumentReady(
+          documentRef: _DocumentRef(),
+          totalPages: 5,
+          screenWidth: wide,
+        ),
+      );
+      return await bloc.stream.firstWhere((s) => s is PdfBookLoaded)
+          as PdfBookLoaded;
+    }
+
+    test('טקסט: שאילתה שנשארה אינה פותחת ונועצת חלונית שנשמרה סגורה', () async {
+      for (final query in ['מקור', '']) {
+        for (final pinned in [false, true]) {
+          final saved = TextBookTab(
+            book: TextBook(title: 'בראשית'),
+            index: 0,
+            blocOverride: _StateBloc(
+              (_state('loaded', null) as TextBookLoaded).copyWith(
+                searchText: query,
+                searchMode: SearchMode.exact,
+                pinLeftPane: pinned,
+              ),
+            ),
+          );
+          addTearDown(saved.dispose);
+          final restored = TextBookTab.fromJson(saved.toJson());
+          addTearDown(restored.dispose);
+          final bloc = TextBookBloc(
+            repository: _Repository(),
+            initialState: restored.blocState as TextBookInitial,
+          );
+          addTearDown(bloc.close);
+
+          // טעינה ראשונה, ואז רענון הגדרות שאינו חיפוש חדש.
+          for (final fontSize in [18.0, 19.0]) {
+            final loaded = await loadText(bloc, fontSize);
+            expect(loaded.searchText, query);
+            expect(
+              [loaded.showLeftPane, loaded.pinLeftPane],
+              [pinned, pinned],
+              reason: 'query="$query" pinned=$pinned fontSize=$fontSize',
+            );
+          }
+        }
+      }
+
+      final fresh =
+          opener.buildTab(TextBook(title: 'בראשית'), 0, 'מקור') as TextBookTab;
+      addTearDown(fresh.dispose);
+      final bloc = TextBookBloc(
+        repository: _Repository(),
+        initialState: fresh.blocState as TextBookInitial,
+      );
+      addTearDown(bloc.close);
+      final opened = await loadText(bloc, 18);
+      expect([opened.showLeftPane, opened.pinLeftPane], [true, true]);
+    });
+
+    test('PDF: שאילתה שנשארה אינה פותחת חלונית שנשמרה סגורה', () async {
+      final book = PdfBook(title: 'ספר', path: '/a.pdf');
+      for (final query in ['בדיקה', '']) {
+        for (final pinned in [false, true]) {
+          final saved = PdfBookTab(
+            book: book,
+            pageNumber: 1,
+            openLeftPane: true,
+            searchText: query,
+          )..pinLeftPane.value = pinned;
+          addTearDown(saved.dispose);
+          final restored = PdfBookTab.fromJson(saved.toJson());
+          addTearDown(restored.dispose);
+
+          final loaded = await loadPdf(restored);
+          expect(loaded.searchText, query);
+          expect(
+            [
+              loaded.showLeftPane,
+              restored.showLeftPane.value,
+              restored.pinLeftPane.value,
+            ],
+            [pinned, pinned, pinned],
+            reason: 'query="$query" pinned=$pinned',
+          );
+        }
+      }
+
+      final fresh = opener.buildTab(book, 1, 'בדיקה') as PdfBookTab;
+      addTearDown(fresh.dispose);
+      final opened = await loadPdf(fresh);
+      expect([opened.showLeftPane, fresh.showLeftPane.value], [true, true]);
+    });
   });
 
   test('מצב טעון שנוקה אינו מחזיר חיפוש או הדגשות משדות הטאב', () {
@@ -424,4 +566,55 @@ class _PageController extends PdfViewerController {
 
   @override
   int? get pageNumber => 23;
+}
+
+class _TabsBloc extends Fake implements TabsBloc {}
+
+class _NavigationBloc extends Fake implements NavigationBloc {}
+
+class _HistoryBloc extends Fake implements HistoryBloc {
+  @override
+  HistoryState get state => HistoryLoaded(const []);
+}
+
+class _DocumentRef extends Fake implements PdfDocumentRef {}
+
+class _Repository extends TextBookRepository {
+  _Repository() : super(fileSystem: FileSystemData.instance);
+
+  static final _lines = List.generate(20, (i) => 'שורה $i');
+
+  @override
+  Future<String> getBookContent(TextBook book) async => _lines.join('\n');
+
+  @override
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    final start = startLine.clamp(0, _lines.length - 1);
+    final end = endLine.clamp(start, _lines.length - 1);
+    return BookContentRange(
+      startLine: start,
+      endLine: end,
+      totalLines: _lines.length,
+      lines: _lines.sublist(start, end + 1),
+    );
+  }
+
+  @override
+  Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];
+
+  @override
+  Future<List<Link>> getBookLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+    Iterable<String>? targetBookTitles,
+  }) async => const [];
+
+  @override
+  Future<List<String>> getAvailableCommentators(TextBook book) async =>
+      const [];
 }

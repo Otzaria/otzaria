@@ -106,7 +106,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
 
   final String pageFullText;
   final List<Pattern> searches = [];
-  final calls = <({bool searchImmediately})>[];
+  final calls = <({bool searchImmediately, bool goToFirstMatch})>[];
   List<PdfTextSearchResult> fakeMatches = const [];
 
   @override
@@ -134,6 +134,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     searches.add(pattern);
     calls.add((
       searchImmediately: searchImmediately,
+      goToFirstMatch: goToFirstMatch,
     ));
   }
 
@@ -382,6 +383,37 @@ Future<void> main() async {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
+
+  for (final query in ['שלום', '/שלום/']) {
+    testWidgets(
+      'replacing the PDF searcher restarts $query with the same semantics',
+      (tester) async {
+        final first = await _pumpSearchView(
+          tester,
+          pageFullText: 'שלום',
+          initialQuery: query,
+        );
+        expect(first.searches, hasLength(1));
+        final view = tester.state(find.byType(PdfBookSearchView));
+        for (var i = 0; i < 2; i++) {
+          final next = await _pumpSearchView(
+            tester,
+            pageFullText: 'שלום',
+            initialQuery: query,
+          );
+          await tester.pump();
+          expect(tester.state(find.byType(PdfBookSearchView)), same(view));
+          expect(next.searches, hasLength(1));
+          expect(next.searches.single, isA<RegExp>());
+          expect(next.searches.single.allMatches('שָׁלוֹם'), isNotEmpty);
+          expect(next.calls.single.searchImmediately, isTrue);
+          expect(next.calls.single.goToFirstMatch, isFalse);
+          expect(next.navigatedTo, isEmpty);
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
 
   group('buildAdvancedHighlightPattern - תבנית הדגשה על דפי PDF', () {
     test('תוצאות בלי תגי הדגשה מחזירות null', () {

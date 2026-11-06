@@ -292,7 +292,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     final showLeftPane = resolveInitialReadingLeftPaneVisibility(
       explicitOpen: tab.showLeftPane.value,
-      hasSearchText: searchText.isNotEmpty,
       screenWidth: event.screenWidth,
     );
     // בלי סנכרון ה-notifier, כפתור הסגירה בסרגל מחשב כיוון הפוך ונתקע (issue #869)
