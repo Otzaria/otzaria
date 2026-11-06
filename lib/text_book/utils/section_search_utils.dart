@@ -618,18 +618,22 @@ void _searchWorkerMain(SendPort mainSendPort) {
 
 @visibleForTesting
 class SectionSearchWorkerRuntime {
-  SectionSearchWorkerRuntime(this._mainSendPort);
+  SectionSearchWorkerRuntime(
+    this._mainSendPort, {
+    this.cleanLine = cleanLineForSearch,
+  });
+
+  final String Function(String) cleanLine;
 
   final SendPort _mainSendPort;
   Map<String, dynamic>? _queuedRequest;
   bool _isProcessing = false;
 
-  // Cache של ספר אחד (LRU=1): התוכן הגולמי והשורות לאחר ניקוי. הניקוי
-  // (הסרת ניקוד/HTML/הערות) אינו תלוי בשאילתה, ולכן מחושב פעם אחת לכל ספר
-  // ולא מחדש בכל הקלדה. מתחלף כשמגיע תוכן עם מזהה שונה.
+  // מטמון של ספר אחד: null מסמן שורה שטרם נוקתה, גם מחרוזת ריקה נשמרת.
+  // הניקוי אינו תלוי בשאילתה; החלפת מזהה התוכן מפנה את כל השורות.
   int? _cachedContentId;
   List<String>? _cachedRawContent;
-  List<String>? _cachedCleanLines;
+  List<String?>? _cachedCleanLines;
 
   /// אינדקסי השורות שמעדכנות את כתובת התוצאה (כותרות מתחת ל-h1), בסדר עולה.
   List<int>? _cachedHeadingLines;
@@ -694,6 +698,8 @@ class SectionSearchWorkerRuntime {
 
           final cleanLines = _cachedCleanLines!;
           final sourceLines = _cachedRawContent!;
+          String cleanLineAt(int i) =>
+              cleanLines[i] ??= cleanLine(sourceLines[i]);
           final headingLines = _cachedHeadingLines!;
           var nextHeading = 0;
 
@@ -716,9 +722,10 @@ class SectionSearchWorkerRuntime {
           }
 
           for (int i = rangeStart; i < rangeEnd; i++) {
+            final line = cleanLineAt(i);
             if (results.length >= _maxSearchResults) {
               if (pattern
-                  .allMatches(cleanLines[i])
+                  .allMatches(line)
                   .any((match) => match.end > match.start)) {
                 truncated = true;
                 break;
@@ -746,7 +753,7 @@ class SectionSearchWorkerRuntime {
             // לקיבולת שנותרה, עם התאמה עודפת אחת שמשמשת רק כגבול ל-snippet.
             final remainingCapacity = _maxSearchResults - results.length;
             final lineMatches = pattern
-                .allMatches(cleanLines[i])
+                .allMatches(line)
                 .where((m) => m.end > m.start)
                 .take(remainingCapacity + 1)
                 .toList(growable: false);
@@ -759,19 +766,19 @@ class SectionSearchWorkerRuntime {
               results.add({
                 'index': i,
                 'snippet': _snippetAroundMatch(
-                  cleanLines[i],
+                  line,
                   (start: match.start, end: match.end),
                   lowerBound: m > 0
                       ? (lineMatches[m - 1].end + match.start) ~/ 2
                       : 0,
                   upperBound: m < lineMatches.length - 1
                       ? (match.end + lineMatches[m + 1].start) ~/ 2
-                      : cleanLines[i].length,
+                      : line.length,
                 ),
                 'address': cleanAddress,
                 'query': query,
                 'matchOffset': match.start,
-                'lineLength': cleanLines[i].length,
+                'lineLength': line.length,
               });
               if (results.length >= _maxSearchResults) {
                 truncated = m < lineMatches.length - 1;
@@ -789,8 +796,8 @@ class SectionSearchWorkerRuntime {
                 crossPattern,
                 rawLine: rawLine,
                 rawNextLine: sourceLines[i + 1],
-                line: cleanLines[i],
-                nextLine: cleanLines[i + 1],
+                line: line,
+                nextLine: cleanLineAt(i + 1),
               );
               if (crossing != null) {
                 cleanAddress ??= utils.removeVolwels(
@@ -802,7 +809,7 @@ class SectionSearchWorkerRuntime {
                   'address': cleanAddress,
                   'query': query,
                   'matchOffset': crossing.offset,
-                  'lineLength': cleanLines[i].length,
+                  'lineLength': line.length,
                   'continuesToNextLine': true,
                 });
                 if (results.length >= _maxSearchResults) continue;
@@ -845,18 +852,13 @@ class SectionSearchWorkerRuntime {
     }
   }
 
-  /// מנקה את כל שורות הספר פעם אחת ושומר ב-cache. הניקוי כבד ואינו תלוי
-  /// בשאילתה, ולכן מבוצע רק כשמתחלף הספר. ה-yield התקופתי מונע חסימה ארוכה
-  /// של ה-isolate ומאפשר לקלוט בקשות חדשות בזמן הבנייה.
-  /// מחזיר `false` אם הבנייה הופסקה באמצע כי בינתיים הגיעה בקשה לתוכן אחר
-  /// (contentId שונה); במקרה כזה לא נשמר cache חלקי. שינוי שאילתה בלבד על
-  /// אותו ספר אינו מפסיק את הבנייה — היא עדיין שימושית לשאילתה החדשה.
+  /// אוסף כותרות מכל הספר לכתובות התוצאות; השורות ינוקו רק בתוך טווח החיפוש.
+  /// תוכן אחר שמגיע בנקודת yield מבטל את הבנייה בלי לשמור מטמון חלקי.
   Future<bool> _buildCache(int? contentId, List<String> content) async {
-    final clean = List<String>.filled(content.length, '', growable: false);
+    final clean = List<String?>.filled(content.length, null, growable: false);
     final headingLines = <int>[];
     for (int i = 0; i < content.length; i++) {
       final rawLine = content[i];
-      clean[i] = cleanLineForSearch(rawLine);
       if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
         headingLines.add(i);
       }
