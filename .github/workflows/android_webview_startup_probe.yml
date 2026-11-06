@@ -1,0 +1,106 @@
+name: Android WebView startup contracts
+
+on:
+  pull_request:
+    branches: [main, dev, 'y-ploni/webview-*']
+    paths:
+      - '.github/workflows/android_webview_startup_probe.yml'
+      - 'android/app/build.gradle'
+      - 'integration_test/android_webview_startup_probe_test.dart'
+      - 'integration_test/support/android_startup_*.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'test/tool/perf_probe/android_startup_*_test.dart'
+      - 'test/tool/perf_probe/perf_fixture*_test.dart'
+      - 'tool/perf_probe/*android_startup*'
+      - 'lib/main.dart'
+      - 'lib/plugins/view/webview_environment_holder.dart'
+      - 'lib/plugins/view/plugin_background_host.dart'
+      - 'lib/plugins/view/plugin_tab_page.dart'
+      - 'lib/plugins/view/plugin_sdk_scripts.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-webview-startup-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Protocol and real SDK fixture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate host runner contracts
+        run: python3 -m unittest tool/perf_probe/test_android_startup_probe.py
+      - name: Validate fixture, SDK and existing coordinator contracts
+        run: |
+          node --version
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub --concurrency=1 \
+            test/tool/perf_probe/android_startup_protocol_test.dart \
+            test/tool/perf_probe/android_startup_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
+            test/plugins/view/webview_android_prewarm_test.dart \
+            test/plugins/view/webview_environment_holder_test.dart
+
+  android:
+    name: Actual app / Android emulator / debug contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Free disk space for NDK, native engine and emulator
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run all five cases with AB/BA order in one dedicated APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: >-
+            python3 tool/perf_probe/android_startup_probe.py
+            --device emulator-5554 --mode debug --repetitions 2 --observation-ms 1000
+            --output build/android-startup-contracts
+      - name: Retain raw reports and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: android-startup-debug-contracts
+          path: build/android-startup-contracts
+          if-no-files-found: warn
