@@ -756,6 +756,50 @@ void main() {
     expect(await DbReadWorker.shrinkMemoryIfRunning(), isTrue);
   });
 
+  test(
+    'lifecycle admission stays bounded and recovers the latest state',
+    () async {
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+      DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
+      final before = DbReadWorker.sentMessageCount;
+      try {
+        for (var i = 0; i < 20; i++) {
+          await DbReadWorker.closeConnectionIfRunning(wait: false);
+          DbReadWorker.allowReopen();
+        }
+        expect(
+          DbReadWorker.sentMessageCount - before,
+          lessThanOrEqualTo(4),
+          reason:
+              'DB_LIFECYCLE_CONTROL_BOUND: a held worker must retain at most '
+              'four sent lifecycle commands.',
+        );
+        await expectLater(
+          DbReadWorker.closeConnectionIfRunning(),
+          throwsA(isA<DbReadWorkerBusy>()),
+        );
+        expect(await DbReadWorker.suspendForExternalWrite(), isFalse);
+        await DbReadWorker.resumeAfterExternalWrite();
+        DbReadWorker.allowReopen();
+        final reading = DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        });
+        full.release.send(null);
+        expect(await full.result, isA<DbReadWorkerSuspended>());
+        expect(await reading, List.generate(5, (i) => 'שורה $i').join('\n'));
+        expect(DbReadWorker.resourceUsage.pendingWorkerReads, 0);
+      } finally {
+        DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+        full.release.send(null);
+        await full.result;
+      }
+    },
+  );
+
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
     final dbPath = await seedDb('seforim');
     await DbReadWorker.batched('heRef', {
