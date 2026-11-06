@@ -146,6 +146,8 @@ List<String> _facetsForName(
     return scopes.any((scope) => normalized.startsWith('$scope/'));
   }
 
+  final books = library.getAllBooks();
+  final categories = library.getAllCategories();
   final nameWords = normalizedName.split(' ');
   final tiers = [<String>[], <String>[], <String>[], <String>[]];
 
@@ -153,60 +155,71 @@ List<String> _facetsForName(
   final asWords = RegExp(
     '(?:^| )[הובכלמ]?${RegExp.escape(normalizedName)}(?: |\$)',
   );
-  // הכינויים במסד חלקיים — כינוי זהה לא יכול לגבור על השם שבכותרת.
-  int? tierOf(List<String> texts) {
-    if (texts.any(asWords.hasMatch)) return 1;
-    if (texts.any((text) => text.contains(normalizedName))) return 2;
-    final searchText = texts.join(' ');
-    if (nameWords.every(
-      (word) => bookSearchWordMatchesFuzzy(
-        word,
-        searchText,
-        matchBookTitleSpellingVariants: false,
-      ),
-    )) {
-      return 3;
+  // שגיאות כתיב נבדקות רק כשכל השכבות המילוליות ריקות.
+  for (final matchFuzzy in [false, true]) {
+    // הכינויים במסד חלקיים — כינוי זהה לא יכול לגבור על השם שבכותרת.
+    int? tierOf(String title, [List<String> acronyms = const []]) {
+      if (!matchFuzzy) {
+        if (asWords.hasMatch(title) || acronyms.any(asWords.hasMatch)) return 1;
+        if (title.contains(normalizedName) ||
+            acronyms.any((text) => text.contains(normalizedName))) {
+          return 2;
+        }
+        return null;
+      }
+      final searchText = acronyms.isEmpty
+          ? title
+          : '$title ${acronyms.join(' ')}';
+      if (nameWords.every(
+        (word) => bookSearchWordMatchesFuzzy(
+          word,
+          searchText,
+          matchBookTitleSpellingVariants: false,
+        ),
+      )) {
+        return 3;
+      }
+      return null;
     }
-    return null;
-  }
 
-  for (final book in library.getAllBooks()) {
-    final id = book.id;
-    final acronyms = id == null
-        ? const <String>[]
-        : AcronymsCache.instance.acronymsFor(book.source, id) ??
-              const <String>[];
-    String? facet;
-    if (within != null) {
-      facet = FacetHelper.buildBookFacet(
-        FacetHelper.resolveCategoryPath(book),
-        book,
-      );
-      if (!inScope(facet)) continue;
+    for (final book in books) {
+      final id = book.id;
+      final acronyms = id == null
+          ? const <String>[]
+          : AcronymsCache.instance.acronymsFor(book.source, id) ??
+                const <String>[];
+      String? facet;
+      if (within != null) {
+        facet = FacetHelper.buildBookFacet(
+          FacetHelper.resolveCategoryPath(book),
+          book,
+        );
+        if (!inScope(facet)) continue;
+      }
+      final title = normalizeFindText(book.title);
+      final tier = title == normalizedName ? 0 : tierOf(title, acronyms);
+      if (tier != null) {
+        tiers[tier].add(
+          facet ??
+              FacetHelper.buildBookFacet(
+                FacetHelper.resolveCategoryPath(book),
+                book,
+              ),
+        );
+      }
     }
-    final title = normalizeFindText(book.title);
-    final tier = title == normalizedName ? 0 : tierOf([title, ...acronyms]);
-    if (tier != null) {
-      tiers[tier].add(
-        facet ??
-            FacetHelper.buildBookFacet(
-              FacetHelper.resolveCategoryPath(book),
-              book,
-            ),
-      );
+    for (final category in categories) {
+      if (within != null && !inScope(category.path)) continue;
+      final title = normalizeFindText(category.title);
+      final tier = tiers[0].isNotEmpty && title == normalizedName
+          ? 0
+          : tierOf(title);
+      if (tier != null) tiers[tier].add(FacetHelper.categoryFacet(category));
     }
-  }
-  for (final category in library.getAllCategories()) {
-    if (within != null && !inScope(category.path)) continue;
-    final title = normalizeFindText(category.title);
-    final tier = tiers[0].isNotEmpty && title == normalizedName
-        ? 0
-        : tierOf([title]);
-    if (tier != null) tiers[tier].add(FacetHelper.categoryFacet(category));
-  }
 
-  for (final tier in tiers) {
-    if (tier.isNotEmpty) return tier;
+    for (final tier in tiers) {
+      if (tier.isNotEmpty) return tier;
+    }
   }
   return const [];
 }
