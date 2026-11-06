@@ -385,10 +385,8 @@ class _OutlineViewState extends State<OutlineView>
   }) {
     final itemKey = _tocItemKeys.putIfAbsent(node, () => GlobalKey());
     Future<void> navigateToEntry() async {
-      setState(() {
-        _isManuallyScrolling = false;
-        _lastScrolledPage = null;
-      });
+      _isManuallyScrolling = false;
+      _lastScrolledPage = null;
       final targetPage = node.dest?.pageNumber;
       if (targetPage == null) {
         return;
