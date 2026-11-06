@@ -1,32 +1,32 @@
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 
-/// עוגני מפרשי-המפרש בעמודת מפרש בצורת הדף — למשל אותיות שער הציון בתוך
-/// המשנה ברורה (במסד: קישור COMMENTARY שמקורו במשנה ברורה, עם עוגן-אות).
-/// המפרש-על אינו מוגדר כמפרש של הספר הראשי; רק סמני האותיות שלו מוזרקים
-/// לטקסט המפרש, עם פופאפ צפייה (issue #1069).
+/// עוגני ספר המפרש בטור מפרש בצורת הדף: אותיות מפרשי-המפרש (שער הציון בתוך
+/// המשנה ברורה, issue #1069) וציטוטי הלינקר. המפרש-על אינו מפרש של הספר הראשי.
 
-/// שמות הספרים התלויים בספר המפרש (מפרשיו שלו), מתוך סיכום קישורי הספר.
-/// LINKER והפניות צדדיות מוחרגים — רק טקסט תלוי מקבל סמן-אות.
+/// שמות הספרים שעוגניהם מוצגים בטור המפרש, מתוך סיכום קישורי הספר.
 Set<String> commentaryAnchorTargetTitles(List<LinkTargetSummary> targets) {
   return {
     for (final target in targets)
-      if (LinkTypes.isDependentTextLink(target.connectionType))
-        target.targetTitle,
+      if (_isColumnAnchorType(target.connectionType)) target.targetTitle,
   };
 }
 
-/// מסנן מקישורי הטווח את עוגני מפרשי-המפרש בלבד — קישור תלוי-טקסט שנושא
+/// מסנן מקישורי הטווח את עוגני הטור בלבד — קישור תלוי-טקסט או לינקר שנושא
 /// מיקום עוגן בתוך השורה.
 List<Link> filterCommentaryAnchorLinks(Iterable<Link> links) {
   return links
       .where(
         (link) =>
             link.anchorStart != null &&
-            LinkTypes.isDependentTextLink(link.connectionType),
+            _isColumnAnchorType(link.connectionType),
       )
       .toList();
 }
+
+bool _isColumnAnchorType(String? type) =>
+    LinkTypes.isDependentTextLink(type) ||
+    LinkTypes.normalize(type) == LinkTypes.linker;
 
 /// ממזג קישורי עוגן שנשלפו לטווח שורות אל המפה הקיימת (מפתח: מספר שורה
 /// 1-based, כמו [Link.index1]). מחזיר מפה חדשה — הקיימת אינה משתנה, כדי

@@ -1894,8 +1894,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       ScrollOffsetController();
   List<Link> _relevantLinks = [];
 
-  // עוגני מפרשי-המפרש (שער הציון וכד') בתוך טקסט המפרש — נטענים פר-חלון
-  // שורות רק לספרי DB שיש להם מפרשים משלהם. null עד שהסיכום נבדק.
+  // עוגני מפרשי-המפרש (שער הציון וכד') והלינקר בתוך טקסט המפרש — נטענים
+  // פר-חלון שורות רק לספרי DB שיש להם יעדים כאלה. null עד שהסיכום נבדק.
   Set<String>? _commentaryAnchorTargets;
   Map<int, List<Link>> _anchorLinksByLine = const {};
   // הערות ספר המפרש: עוגניו נמדדים על השורה המלאה, עם גופי ההערות.
@@ -2182,8 +2182,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     return '${book.title}|${book.categoryId}|${book.categoryPath ?? ''}|$preferDatabase';
   }
 
-  /// בודק אם לספר המפרש יש מפרשים משלו (שער הציון על המשנה ברורה וכד'), ואם
-  /// כן טוען את עוגניהם לטווחים שכבר בזיכרון. בלי יעדים כאלה — אין עוד שליפות.
+  /// בודק אם לספר המפרש יש מפרשים משלו (שער הציון על המשנה ברורה וכד') או
+  /// לינקר, ואם כן טוען את עוגניהם לטווחים שבזיכרון. בלי יעדים — אין שליפות.
   Future<void> _initCommentaryAnchors(TextBook book) async {
     final requested = widget.commentatorName;
     final categoryId = book.categoryId;
@@ -2212,7 +2212,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     }
   }
 
-  /// טוען את עוגני מפרשי-העל לטווח שורות, אם עוד לא נטענו. השאילתה מסוננת
+  /// טוען את עוגני מפרשי-העל והלינקר לטווח שורות, אם עוד לא נטענו. השאילתה מסוננת
   /// בצד המסד לספרי היעד בלבד, ולכן זולה גם במפרשים עתירי קישורים.
   Future<void> _ensureAnchorLinksLoaded(
     int startLine,

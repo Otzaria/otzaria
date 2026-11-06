@@ -445,8 +445,8 @@ class SimpleTextViewer extends StatefulWidget {
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   final VoidCallback? onOpenCommentatorsPaneWithFilter;
 
-  /// קישורי עוגן של ספר המפרש עצמו אל מפרשי-העל שלו (מפתח: מספר שורה
-  /// 1-based) — סמני אותיות שער הציון וכד' בעמודת מפרש בצורת הדף.
+  /// קישורי העוגן של ספר המפרש עצמו (מפתח: מספר שורה 1-based) — סמני אותיות
+  /// שער הציון וכד' וציטוטי הלינקר בעמודת מפרש.
   /// בטקסט הראשי נשאר null: העוגנים שם נקראים מ-state.linksByLine.
   final Map<int, List<Link>>? anchorLinksByLine;
 
@@ -645,7 +645,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return links.where((link) => link.anchorStart != null).toList();
   }
 
-  /// סמני עוגן של מפרש-על (שער הציון וכד') בעמודת מפרש — מקור הקישורים הוא
+  /// עוגני מפרש-על (שער הציון וכד') ולינקר בעמודת מפרש — מקור הקישורים הוא
   /// המפה שסופקה לחלונית, לא ה-state של הספר הראשי.
   String _injectOwnAnchorMarkers(
     String rawLine,

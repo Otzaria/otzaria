@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_anchor_links.dart';
 
@@ -20,7 +21,7 @@ Link _link({
 
 void main() {
   group('commentaryAnchorTargetTitles', () {
-    test('מחזיר יעדים תלויי-טקסט (COMMENTARY, SUPER_COMMENTARY), עם נרמול', () {
+    test('מחזיר יעדים תלויי-טקסט וציטוטי לינקר, עם נרמול (issue #2530)', () {
       const targets = [
         LinkTargetSummary(
           targetTitle: 'שער הציון',
@@ -43,10 +44,14 @@ void main() {
           linkCount: 67,
         ),
       ];
-      expect(commentaryAnchorTargetTitles(targets), {'שער הציון', 'מפרש-על'});
+      expect(commentaryAnchorTargetTitles(targets), {
+        'שער הציון',
+        'מפרש-על',
+        'בראשית',
+      });
     });
 
-    test('ריק כשאין יעדים תלויי-טקסט', () {
+    test('ריק כשאין יעדים תלויי-טקסט או לינקר', () {
       const targets = [
         LinkTargetSummary(
           targetTitle: 'שולחן ערוך, יורה דעה',
@@ -56,10 +61,26 @@ void main() {
       ];
       expect(commentaryAnchorTargetTitles(targets), isEmpty);
     });
+
+    test('מפרש בלי מפרשי-על: יעדי הלינקר לבדם נטענים (issue #2530)', () {
+      const targets = [
+        LinkTargetSummary(
+          targetTitle: 'בראשית',
+          connectionType: 'linker',
+          linkCount: 3,
+        ),
+        LinkTargetSummary(
+          targetTitle: 'שולחן ערוך, יורה דעה',
+          connectionType: 'OTHER',
+          linkCount: 146,
+        ),
+      ];
+      expect(commentaryAnchorTargetTitles(targets), {'בראשית'});
+    });
   });
 
   group('filterCommentaryAnchorLinks', () {
-    test('משאיר רק קישורים תלויי-טקסט שנושאים עוגן', () {
+    test('משאיר קישורים תלויי-טקסט ולינקר שנושאים עוגן (issue #2530)', () {
       final links = [
         _link(index1: 1, anchorStart: 4),
         _link(index1: 2), // בלי עוגן — אין היכן להציב סמן
@@ -68,7 +89,9 @@ void main() {
         _link(index1: 5, connectionType: 'SUPER_COMMENTARY', anchorStart: 9),
       ];
       final filtered = filterCommentaryAnchorLinks(links);
-      expect(filtered.map((link) => link.index1), [1, 5]);
+      expect(filtered.map((link) => link.index1), [1, 3, 5]);
+      // הלינקר נטען לטור בלי להפוך למפרש בסיווג הכללי.
+      expect(LinkTypes.isDependentTextLink(LinkTypes.linker), isFalse);
     });
   });
 
