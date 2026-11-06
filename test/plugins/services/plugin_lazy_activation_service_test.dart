@@ -110,10 +110,13 @@ void main() {
         service.queueTargetedEvent('p1', 'click', {'n': 2});
         final newGeneration = service.activationGeneration('p1');
         final deactivationsBeforeReady = deactivations.length;
+        final runtime = service.attachBackgroundInstance('p1');
 
         await service.onBackgroundInstanceReady(
           'p1',
           generation: oldGeneration,
+          runtimeToken: runtime,
+          isCurrent: () => true,
         );
         expect(service.isBootPending('p1'), isTrue);
         expect(deactivations, hasLength(deactivationsBeforeReady));
@@ -121,6 +124,8 @@ void main() {
         await service.onBackgroundInstanceReady(
           'p1',
           generation: newGeneration,
+          runtimeToken: runtime,
+          isCurrent: () => true,
         );
         expect(delivered.map((event) => event.$3['n']), [2]);
       },
@@ -166,31 +171,41 @@ void main() {
       expect(delivered.map((event) => event.$3['n']), [1, 3]);
     },
   );
-  test('replacement stops the old runtime pending event flush', () async {
-    service.syncPlugin(
-      'p1',
-      broadcastTopics: const {},
-      scheduleStartup: false,
+  for (final replaceRuntime in [false, true]) {
+    test(
+      '${replaceRuntime ? "runtime" : "page"} replacement stops pending event flush',
+      () async {
+        service.syncPlugin(
+          'p1',
+          broadcastTopics: const {},
+          scheduleStartup: false,
+        );
+        final oldOwner = service.attachBackgroundInstance('p1');
+        var pageCurrent = true;
+        final firstDelivery = Completer<void>();
+        service.deliverOverride = (pluginId, topic, payload) async {
+          delivered.add((pluginId, topic, payload));
+          await firstDelivery.future;
+        };
+        service.queueTargetedEvent('p1', 'click', {'n': 1});
+        service.queueTargetedEvent('p1', 'click', {'n': 2});
+        final flush = service.onBackgroundInstanceReady(
+          'p1',
+          generation: service.activationGeneration('p1'),
+          runtimeToken: oldOwner,
+          isCurrent: () => pageCurrent,
+        );
+        final newOwner = replaceRuntime
+            ? service.attachBackgroundInstance('p1')
+            : oldOwner;
+        if (!replaceRuntime) pageCurrent = false;
+        firstDelivery.complete();
+        await flush;
+        expect(delivered.map((event) => event.$3['n']), [1]);
+        service.onBackgroundInstanceClosed('p1', runtimeToken: newOwner);
+      },
     );
-    final oldOwner = service.attachBackgroundInstance('p1');
-    final firstDelivery = Completer<void>();
-    service.deliverOverride = (pluginId, topic, payload) async {
-      delivered.add((pluginId, topic, payload));
-      await firstDelivery.future;
-    };
-    service.queueTargetedEvent('p1', 'click', {'n': 1});
-    service.queueTargetedEvent('p1', 'click', {'n': 2});
-    final flush = service.onBackgroundInstanceReady(
-      'p1',
-      generation: service.activationGeneration('p1'),
-      runtimeToken: oldOwner,
-    );
-    final newOwner = service.attachBackgroundInstance('p1');
-    firstDelivery.complete();
-    await flush;
-    expect(delivered.map((event) => event.$3['n']), [1]);
-    service.onBackgroundInstanceClosed('p1', runtimeToken: newOwner);
-  });
+  }
 
   test('app.startup fires once per session, even after re-sync', () async {
     service.syncPlugin(
