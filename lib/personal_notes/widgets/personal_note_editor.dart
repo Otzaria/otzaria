@@ -4,6 +4,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -213,6 +214,55 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
         alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
       );
     });
+  }
+
+  KeyEventResult? _handleEmptyLineBackspace(KeyEvent event, quill.Node? node) {
+    final controller = widget.controller.quillController;
+    if (controller.readOnly ||
+        !controller.selection.isCollapsed ||
+        node is! quill.Line ||
+        node.length != 1) {
+      return null;
+    }
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.windows &&
+        const SingleActivator(
+          LogicalKeyboardKey.backspace,
+          alt: true,
+        ).accepts(event, HardwareKeyboard.instance)) {
+      // מחיקה עד תחילת שורה ריקה היא טווח ריק. Quill מנסה לקרוא תיבת
+      // טקסט שאינה קיימת; בתחילת המסמך נשמר ניקוי עיצוב הבלוק שלו.
+      if (controller.selection.start == 0) {
+        final style = controller.document.collectStyle(0, 0);
+        final blockAttributes = controller
+            .getSelectionStyle()
+            .values
+            .where((attribute) => attribute.scope == quill.AttributeScope.block)
+            .toList();
+        for (final attribute in blockAttributes) {
+          controller.formatSelection(quill.Attribute.clone(attribute, null));
+          style.attributes.remove(attribute.key);
+        }
+        controller.forceToggledStyle(style);
+      }
+      return KeyEventResult.handled;
+    }
+    if (!const SingleActivator(
+      LogicalKeyboardKey.backspace,
+    ).accepts(event, HardwareKeyboard.instance)) {
+      return null;
+    }
+    final attributes = node.toDelta().last.attributes;
+    if (attributes?[quill.Attribute.list.key] == null) return null;
+    final indent = attributes?[quill.Attribute.indent.key] as int? ?? 0;
+    if (indent > 0) {
+      controller.indentSelection(false);
+    } else {
+      controller.formatSelection(
+        quill.Attribute.clone(quill.Attribute.list, null),
+      );
+    }
+    return KeyEventResult.handled;
   }
 
   /// Quill מבקש תפריט גם בסיום גרירה בעכבר, ושם לא מציגים כלום; לחיצה ימנית
@@ -437,6 +487,8 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                                       widget.onCancelShortcut!,
                                     ),
                                   },
+                            // ignore: experimental_member_use
+                            onKeyPressed: _handleEmptyLineBackspace,
                             contextMenuBuilder: _touchContextMenu,
                           ),
                         ),
