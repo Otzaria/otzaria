@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 void main() {
   group('libraryDisplayPath', () {
@@ -194,6 +195,39 @@ void main() {
     });
   });
 
+  group('descriptionSpans', () {
+    const base = 14.0;
+    const muted = Color(0xFF888888);
+
+    test('text without parentheses stays a single span', () {
+      final spans = descriptionSpans('פירוש על התורה', base, muted);
+      expect(spans, hasLength(1));
+      expect((spans.single as TextSpan).text, equals('פירוש על התורה'));
+    });
+
+    test('round is smaller and muted, square is slightly smaller', () {
+      final spans = descriptionSpans('א (ב) ג [ד] ה', base, muted);
+      expect(
+        spans.map((s) => (s as TextSpan).text),
+        equals(['א ', '(ב)', ' ג ', '[ד]', ' ה']),
+      );
+      final round = (spans[1] as TextSpan).style!;
+      final square = (spans[3] as TextSpan).style!;
+      expect(round.fontSize, closeTo(base * 0.78, 0.001));
+      expect(round.color, equals(muted));
+      expect(round.fontWeight, equals(FontWeight.normal));
+      expect(square.fontSize, closeTo(base * 0.92, 0.001));
+      expect(square.color, isNull);
+      expect(square.fontWeight, equals(FontWeight.normal));
+    });
+
+    test('a text that is only parenthetical is a single span', () {
+      final spans = descriptionSpans('(א)', base, muted);
+      expect(spans, hasLength(1));
+      expect((spans.single as TextSpan).text, equals('(א)'));
+    });
+  });
+
   group('hebrewPublicationDate', () {
     test('converts a bare Gregorian year to a Hebrew year', () {
       expect(hebrewPublicationDate('1884'), equals('ה׳תרמ״ד (1884)'));
@@ -282,5 +316,69 @@ void main() {
 
     expect(find.text('תקופה'), findsOneWidget);
     expect(find.text('אחרונים'), findsOneWidget);
+  });
+
+  testWidgets('בתיאור הקצר בהדגשה מעודנת וההמשך מוקטן, והתווית היא מדף', (
+    tester,
+  ) async {
+    final book = TextBook(
+      title: 'משנה ברורה',
+      heCategories: 'הלכה',
+      heShortDesc: 'ביאור על התורה.',
+      heDesc: "ביאור על התורה. חובר בצפת (בערך ה'ש\"ך).",
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showBookDetailsDialog(
+              context,
+              book,
+              information: BookInformation(
+                book: book,
+                databaseBook: null,
+                source: 'Sefaria',
+                generation: 'אחרונים',
+                fileDetails: const {
+                  'נתיב הקובץ': BookDetailsService.bookNotFoundText,
+                },
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('מדף'), findsOneWidget);
+    expect(find.text('קטגוריות'), findsNothing);
+
+    final description = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText().startsWith('ביאור על'),
+      ),
+    );
+    // visitChildren מדלג על קטעים שאין להם טקסט משלהם, ולכן עוברים ידנית.
+    final spans = <TextSpan>[];
+    void collect(InlineSpan span) {
+      if (span is! TextSpan) return;
+      spans.add(span);
+      span.children?.forEach(collect);
+    }
+
+    collect(description.text);
+    final lead = spans.firstWhere(
+      (s) =>
+          s.toPlainText() == 'ביאור על התורה.' &&
+          s.style?.fontWeight == FontWeight.w600,
+    );
+    final rest = spans.firstWhere(
+      (s) => s.toPlainText().startsWith('חובר') && s.style?.fontSize != null,
+    );
+    expect(lead.style!.fontWeight, equals(FontWeight.w600));
+    expect(rest.style!.fontSize, lessThan(AppTokens.fontMD));
+    expect(rest.style!.fontWeight, isNull);
   });
 }

@@ -223,7 +223,8 @@ class DetailsInfoSection extends StatelessWidget {
   }
 }
 
-/// פסקת טקסט חופשית בתוך [DetailsCard], למשל תיאור. [bold] להדגשת פתיחה קצרה.
+/// פסקת טקסט חופשית בתוך [DetailsCard], למשל תיאור. [bold] להדגשה מעודנת של
+/// פתיחה קצרה, באותו משקל של ערכי שורות הפרטים.
 class DetailsText extends StatelessWidget {
   const DetailsText(this.text, {super.key, this.bold = false});
 
@@ -239,7 +240,7 @@ class DetailsText extends StatelessWidget {
         style: TextStyle(
           fontSize: AppTokens.fontMD,
           height: 1.4,
-          fontWeight: bold ? FontWeight.bold : null,
+          fontWeight: bold ? FontWeight.w600 : null,
           color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
