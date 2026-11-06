@@ -97,8 +97,8 @@ InAppWebViewSettings buildPluginTabWebViewSettings({
     supportZoom: false,
     pinchZoomEnabled: false,
     cacheEnabled: !isDevelopment,
-    // Android dispose ממתין ל-about:blank; אחרי מות renderer אין הבטחת destroy.
-    useOnRenderProcessGone: false,
+    // הפורק מנתק והורס renderer מת ומשלים את בקשות ה-JavaScript הממתינות.
+    useOnRenderProcessGone: true,
     isInspectable: isDevelopment || kDebugMode,
     resourceCustomSchemes: pluginAssetSchemeEnabled
         ? const [pluginAssetScheme]
@@ -703,8 +703,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     if (contentBlockers == null) return const SizedBox.shrink();
     if (!_crashGuardArmed()) return const LoadingIndicator();
     final crashGuardOwner = _crashGuardOwner;
+    final webViewKey = _webViewKey;
     bool currentAttempt() =>
-        mounted && identical(_crashGuardOwner, crashGuardOwner);
+        mounted &&
+        identical(_webViewKey, webViewKey) &&
+        identical(_crashGuardOwner, crashGuardOwner);
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -870,7 +873,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             ),
           );
           if (stale()) return;
-          await adapter.applyBootEventOptions(booted);
+          await adapter.applyBootEventOptions(
+            booted,
+            isCurrent: () => !stale(),
+          );
           if (stale()) return;
           await _pushHostShortcuts(controller);
           if (stale()) return;

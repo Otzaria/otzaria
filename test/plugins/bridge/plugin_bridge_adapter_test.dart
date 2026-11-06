@@ -6935,6 +6935,49 @@ Future<void> main() async {
       );
     });
 
+    for (final replaceInstance in [false, true]) {
+      test(
+        'boot options stop after ${replaceInstance ? "instance replacement" : "navigation"} during permission lookup',
+        () async {
+          final dispatcher = PluginRuntimeDispatcher.instance;
+          final gate = Completer<void>();
+          repository.permissionGate = gate;
+          var current = true;
+          final options = [
+            {'topic': 'reader.selection_changed', 'rawDivineNames': true},
+            {'topic': 'theme.changed', 'rawDivineNames': true},
+          ];
+          final pending = adapter.applyBootEventOptions(
+            options,
+            isCurrent: () => current,
+          );
+          try {
+            current = false;
+            if (replaceInstance) {
+              dispatcher.unregisterController(pluginId);
+              dispatcher.registerController(
+                pluginId,
+                _RecordingWebViewController(),
+              );
+            }
+            gate.complete();
+            await pending;
+            expect(dispatcher.rawDivineNamesTopicsOf(pluginId), isEmpty);
+
+            await adapter.applyBootEventOptions(options, isCurrent: () => true);
+            expect(dispatcher.rawDivineNamesTopicsOf(pluginId), {
+              'reader.selection_changed',
+              'theme.changed',
+            });
+          } finally {
+            if (!gate.isCompleted) gate.complete();
+            await pending;
+            repository.permissionGate = null;
+          }
+        },
+      );
+    }
+
     test('אפשרויות מה-boot חלות לפני מסירת האירוע שהעיר את התוסף', () async {
       const lazyId = 'events.options.lazy';
       const topic = 'reader.selection_changed';

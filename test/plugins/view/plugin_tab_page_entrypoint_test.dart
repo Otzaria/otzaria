@@ -402,6 +402,7 @@ Future<void> _runBoot(
     () => Directory.systemTemp.createTemp('plugin_boot_generation_'),
   ))!;
   final previousFontSource = debugPluginFontsFromFileServer;
+  PluginRuntimeDispatcher.instance.resetVisibilityForTesting();
   debugPluginFontsFromFileServer = true;
   PluginCrashGuard.resetForTesting();
   AppPaths.debugOverrideDataRootPath(root.path);
@@ -421,6 +422,7 @@ Future<void> _runBoot(
       await root.delete(recursive: true);
     });
     AppPaths.debugOverrideDataRootPath(null);
+    PluginRuntimeDispatcher.instance.resetVisibilityForTesting();
     debugPluginFontsFromFileServer = previousFontSource;
   }
 }
@@ -690,6 +692,120 @@ void main() {
       },
     );
   }
+
+  testWidgets('boot שהושלם אחרי קריסה ולפני frame אינו מאבד אירוע ממתין', (
+    tester,
+  ) async {
+    await _runBoot(tester, (platform) async {
+      final view = platform.views.last;
+      final native = platform.controller;
+      final controller = InAppWebViewController.fromPlatform(platform: native);
+      final host =
+          tester.state(find.byType(PluginTabPage)) as PluginWebViewHost;
+      final dispatcher = PluginRuntimeDispatcher.instance;
+      host.webViewController = controller;
+      dispatcher.setVisiblePluginInstances({
+        (pluginId: 'test.plugin', instanceId: 'tab-1'),
+      });
+      dispatcher.setReaderScreenVisible(true);
+      dispatcher.setWindowShown(true);
+      dispatcher.registerController(
+        'test.plugin',
+        controller,
+        instanceId: 'tab-1',
+      );
+      await tester.idle();
+      final first = await _startBoot(
+        tester,
+        view,
+        native,
+        controller,
+        WebUri('file:///install/path/index.html'),
+        holdBoot: true,
+      );
+      await tester.runAsync(() async {
+        native.fontLoads.single.complete(
+          CallAsyncJavaScriptResult(value: true),
+        );
+        await native.bootStarted!.future;
+        view.onRenderProcessGone!(
+          controller,
+          RenderProcessGoneDetail(didCrash: true),
+        );
+        await dispatcher.dispatchEventToPlugin(
+          'test.plugin',
+          'click',
+          {'requestId': 'after-crash'},
+          instanceId: 'tab-1',
+        );
+        // ניתוק renderer משלים eval ממתין ב-null, לפני ציור ה-WebView החדש.
+        native.bootGate!.complete(null);
+        await first.done;
+      });
+      await tester.idle();
+      final replacement = _FakeController();
+      final replacementController = InAppWebViewController.fromPlatform(
+        platform: replacement,
+      );
+      dispatcher.registerController(
+        'test.plugin',
+        replacementController,
+        instanceId: 'tab-1',
+      );
+      try {
+        var readyDone = false;
+        final ready = dispatcher
+            .onForegroundInstanceReady('test.plugin', instanceId: 'tab-1')
+            .then((_) => readyDone = true);
+        for (var i = 0; i < 8 && !readyDone; i++) {
+          await tester.idle();
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+        expect(readyDone, isTrue);
+        await ready;
+        expect(
+          replacement.scripts.where(
+            (s) => s.contains('"requestId":"after-crash"'),
+          ),
+          hasLength(1),
+          reason: 'אירוע שממתין לשחזור נמסר פעם אחת, רק למופע החדש',
+        );
+      } finally {
+        dispatcher.unregisterController('test.plugin', instanceId: 'tab-1');
+      }
+    });
+  });
+
+  testWidgets('onLoadStop שמתחיל אחרי קריסה ולפני frame אינו מאתחל מופע מת', (
+    tester,
+  ) async {
+    await _runBoot(tester, (platform) async {
+      final view = platform.views.last;
+      final native = platform.controller;
+      final controller = InAppWebViewController.fromPlatform(platform: native);
+      final host =
+          tester.state(find.byType(PluginTabPage)) as PluginWebViewHost;
+      host.webViewController = controller;
+      view.onRenderProcessGone!(
+        controller,
+        RenderProcessGoneDetail(didCrash: true),
+      );
+      late Future<void> done;
+      await tester.runAsync(() async {
+        native.fontStarted = Completer<void>();
+        done =
+            Function.apply(view.onLoadStop!, [
+                  controller,
+                  WebUri('file:///install/path/index.html'),
+                ])
+                as Future<void>;
+        await Future.any([native.fontStarted!.future, done]);
+      });
+      expect(native.fontLoads, isEmpty);
+      await tester.runAsync(() => done);
+      expect(native.boots, isEmpty);
+    });
+  });
 
   testWidgets('onLoadStart של ניסיון קודם אינו מבטל boot של הניסיון הנוכחי', (
     tester,

@@ -36,6 +36,17 @@ class _FakeRegistryRepo extends Fake implements PluginRegistryRepository {
       this.permission;
 }
 
+class _EnabledGateRepo extends _FakeRegistryRepo {
+  final entered = Completer<void>();
+  final result = Completer<bool>();
+
+  @override
+  Future<bool> getIsEnabled(String pluginId) {
+    if (!entered.isCompleted) entered.complete();
+    return result.future;
+  }
+}
+
 class _TabClosingRepo extends Fake implements PluginRegistryRepository {
   _TabClosingRepo({this.onFirstEnabledCheck, this.onPermissionCheck});
   final VoidCallback? onFirstEnabledCheck;
@@ -283,6 +294,115 @@ void main() {
     // שבדיקות הבאות (כמו reloadPlugin) לא יידחו על ידי בדיקת shutdownMode.
     dispatcher.registerController('__test_reset__', _FakeController());
     dispatcher.unregisterController('__test_reset__');
+  });
+
+  for (final waitAtSafeMode in [true, false]) {
+    test(
+      'old lazy boot cannot retarget or requeue after ${waitAtSafeMode ? "safe mode" : "enabled lookup"} await',
+      () async {
+        const pluginId = 'lazy-generation-regression';
+        final lazy = PluginLazyActivationService.instance;
+        final oldController = _LifecycleFakeController();
+        final newController = _LifecycleFakeController();
+        final safeModeGate = Completer<void>();
+        final repository = _EnabledGateRepo();
+        dispatcher.repositoryForTesting = waitAtSafeMode
+            ? _FakeRegistryRepo()
+            : repository;
+        if (waitAtSafeMode) PluginSafeMode.ready = safeModeGate.future;
+        lazy.syncPlugin(
+          pluginId,
+          broadcastTopics: const {},
+          scheduleStartup: false,
+        );
+        lazy.backgroundActivator = (_) async {};
+        dispatcher.registerController(
+          pluginId,
+          oldController,
+          instanceId: PluginInstanceIds.background,
+        );
+        Future<void>? flushing;
+        try {
+          lazy.queueTargetedEvent(pluginId, 'click', {'n': 1});
+          final oldGeneration = lazy.activationGeneration(pluginId);
+          flushing = lazy.onBackgroundInstanceReady(
+            pluginId,
+            generation: oldGeneration,
+          );
+          if (waitAtSafeMode) {
+            await pumpEventQueue();
+          } else {
+            await repository.entered.future;
+          }
+          lazy.onBackgroundProcessGone(pluginId, generation: oldGeneration);
+          dispatcher.unregisterController(
+            pluginId,
+            instanceId: PluginInstanceIds.background,
+          );
+          dispatcher.registerController(
+            pluginId,
+            newController,
+            instanceId: PluginInstanceIds.background,
+          );
+          lazy.queueTargetedEvent(pluginId, 'click', {'n': 2});
+          if (waitAtSafeMode) {
+            safeModeGate.complete();
+          } else {
+            repository.result.complete(true);
+          }
+          await flushing;
+          expect(oldController.jsEvents, isEmpty);
+          expect(newController.jsEvents, isEmpty);
+          expect(lazy.isBootPending(pluginId), isTrue);
+
+          await lazy.onBackgroundInstanceReady(
+            pluginId,
+            generation: lazy.activationGeneration(pluginId),
+          );
+          expect(newController.jsEvents, hasLength(1));
+          expect(newController.jsEvents.single, contains('"n":2'));
+        } finally {
+          if (!safeModeGate.isCompleted) safeModeGate.complete();
+          if (!repository.result.isCompleted) repository.result.complete(true);
+          await flushing;
+          lazy.backgroundActivator = null;
+          lazy.removePlugin(pluginId);
+          dispatcher.unregisterController(
+            pluginId,
+            instanceId: PluginInstanceIds.background,
+          );
+          dispatcher.repositoryForTesting = PluginRegistryRepository();
+          PluginSafeMode.resetForTesting();
+        }
+      },
+    );
+  }
+
+  test('lazy boot flush never falls back to a foreground instance', () async {
+    const pluginId = 'lazy-background-only';
+    final lazy = PluginLazyActivationService.instance;
+    final foreground = _LifecycleFakeController();
+    dispatcher.repositoryForTesting = _FakeRegistryRepo();
+    lazy.syncPlugin(
+      pluginId,
+      broadcastTopics: const {},
+      scheduleStartup: false,
+    );
+    lazy.backgroundActivator = (_) async {};
+    dispatcher.registerController(pluginId, foreground);
+    try {
+      lazy.queueTargetedEvent(pluginId, 'click', {'n': 1});
+      await lazy.onBackgroundInstanceReady(
+        pluginId,
+        generation: lazy.activationGeneration(pluginId),
+      );
+      expect(foreground.jsEvents, isEmpty);
+    } finally {
+      lazy.backgroundActivator = null;
+      lazy.removePlugin(pluginId);
+      dispatcher.unregisterController(pluginId);
+      dispatcher.repositoryForTesting = PluginRegistryRepository();
+    }
   });
 
   test(

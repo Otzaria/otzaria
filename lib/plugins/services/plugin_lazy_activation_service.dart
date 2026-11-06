@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
+import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
@@ -322,13 +323,12 @@ class PluginLazyActivationService {
   Future<void> onBackgroundInstanceReady(
     String pluginId, {
     int? generation,
+    bool Function()? isCurrent,
   }) async {
-    if (generation != null && !isActivationCurrent(pluginId, generation)) {
-      if (_activating[pluginId] == generation) _activating.remove(pluginId);
-      _pending.remove(pluginId);
-      backgroundDeactivator?.call(pluginId);
-      return;
-    }
+    bool stale() =>
+        (generation != null && !isActivationCurrent(pluginId, generation)) ||
+        (isCurrent != null && !isCurrent());
+    if (stale()) return;
     _activating.remove(pluginId);
     if (_idleTracked.contains(pluginId) && !_keepAlive.contains(pluginId)) {
       _restartIdleTimer(pluginId);
@@ -336,6 +336,7 @@ class PluginLazyActivationService {
     final pending = _pending.remove(pluginId);
     if (pending == null) return;
     for (final event in pending) {
+      if (stale()) return;
       final deliver = deliverOverride;
       if (deliver != null) {
         await deliver(pluginId, event.topic, event.payload);
@@ -344,7 +345,8 @@ class PluginLazyActivationService {
           pluginId,
           event.topic,
           event.payload,
-          preferBackground: true,
+          instanceId: PluginInstanceIds.background,
+          isCurrent: () => !stale(),
         );
       }
     }

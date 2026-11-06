@@ -25,6 +25,7 @@ import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_headless_shell.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -136,6 +137,81 @@ class _SpyFile implements File {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _BootPlatform extends InAppWebViewPlatform {
+  final environment = _BootEnvironment();
+
+  @override
+  PlatformWebViewEnvironment createPlatformWebViewEnvironmentStatic() =>
+      environment;
+
+  @override
+  PlatformInAppWebViewWidget createPlatformInAppWebViewWidget(
+    PlatformInAppWebViewWidgetCreationParams params,
+  ) => _BootWebView(params);
+}
+
+class _BootEnvironment extends PlatformWebViewEnvironment {
+  _BootEnvironment()
+    : super.implementation(const PlatformWebViewEnvironmentCreationParams());
+
+  @override
+  Future<PlatformWebViewEnvironment> create({
+    WebViewEnvironmentSettings? settings,
+  }) async => this;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _BootWebView extends PlatformInAppWebViewWidget {
+  _BootWebView(super.params) : super.implementation();
+
+  @override
+  T controllerFromPlatform<T>(PlatformInAppWebViewController controller) =>
+      params.controllerFromPlatform!(controller) as T;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+
+  @override
+  void dispose() {}
+}
+
+class _BootController extends PlatformInAppWebViewController {
+  _BootController(String id)
+    : super.implementation(
+        PlatformInAppWebViewControllerCreationParams(id: id),
+      );
+
+  final bootResults = <Completer<Object?>>[];
+  Completer<void>? nextBootStarted;
+
+  @override
+  Future<dynamic> evaluateJavascript({
+    required String source,
+    ContentWorld? contentWorld,
+  }) async {
+    if (!source.contains('return window.Otzaria._boot(')) return null;
+    final result = Completer<Object?>();
+    bootResults.add(result);
+    nextBootStarted?.complete();
+    nextBootStarted = null;
+    return result.future;
+  }
+
+  @override
+  void addJavaScriptHandler({
+    required String handlerName,
+    required Function callback,
+  }) {}
+
+  @override
+  Future<InAppWebViewSettings?> getSettings() async => null;
+
+  @override
+  dynamic getViewId() => params.id;
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 InstalledPlugin _plugin({
@@ -183,13 +259,14 @@ InstalledPlugin _plugin({
 
 /// מחשבת את ה-ValueKey שנבנה בפועל ב-PluginBackgroundHost עבור תוסף נתון.
 /// חייבת להיות זהה לנוסחה ב-plugin_background_host.dart.
-String backgroundKey(InstalledPlugin p) =>
+String backgroundKey(InstalledPlugin p, {int? generation}) =>
     'background_${p.pluginId}'
     '_${p.version}'
     '_${p.installPath}'
     '_${p.entrypointPath}'
     '_${p.backgroundEntrypointPath}'
-    '_${p.devRootPath ?? ""}';
+    '_${p.devRootPath ?? ""}'
+    '_$generation';
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
@@ -616,6 +693,241 @@ void main() {
         expect(find.byType(InAppWebView, skipOffstage: false), findsNothing);
       },
     );
+
+    testWidgets(
+      'crash and retry in the same frame creates a new background runner',
+      (tester) async {
+        final io = _EntryFileSpy('/install/');
+        final plugin = _plugin(
+          permissions: const [pluginRunOnStartupPermission],
+        );
+        await tester.runAsync(
+          () => PluginRegistryRepository().setPermission(
+            plugin.pluginId,
+            pluginRunOnStartupPermission,
+            true,
+          ),
+        );
+        final lazy = PluginLazyActivationService.instance;
+        lazy.syncPlugin(
+          plugin.pluginId,
+          broadcastTopics: const {},
+          scheduleStartup: false,
+        );
+        try {
+          await IOOverrides.runWithIOOverrides(() async {
+            bloc.testEmit(PluginSystemLoaded([plugin]));
+            await pumpHost(tester);
+            lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 1});
+            await tester.pumpAndSettle();
+            expect(io.existsCalls, hasLength(1));
+            final runnerFinder = find.byWidgetPredicate(
+              (widget) =>
+                  widget.runtimeType.toString() == '_BackgroundPluginRunner',
+              skipOffstage: false,
+            );
+            final oldRunner = tester.state(runnerFinder);
+            lazy.onBackgroundProcessGone(
+              plugin.pluginId,
+              generation: lazy.activationGeneration(plugin.pluginId),
+            );
+            lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 2});
+            // Microtasks finish the new activation before Flutter rebuilds the old child.
+            await tester.idle();
+            await tester.pumpAndSettle();
+            expect(io.existsCalls, hasLength(2));
+            expect(oldRunner.mounted, isFalse);
+            expect(identical(tester.state(runnerFinder), oldRunner), isFalse);
+            expect(lazy.isBootPending(plugin.pluginId), isTrue);
+          }, io);
+        } finally {
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+          lazy.removePlugin(plugin.pluginId);
+        }
+      },
+    );
+
+    for (final crash in [false, true]) {
+      testWidgets(
+        'late background boot after ${crash ? "crash and retry" : "navigation"} cannot change options or flush events',
+        (tester) async {
+          final previousPlatform = InAppWebViewPlatform.instance;
+          final platform = _BootPlatform();
+          InAppWebViewPlatform.instance = platform;
+          final plugin = _plugin(
+            permissions: const [pluginRunOnStartupPermission],
+          );
+          final io = _EntryFileSpy('/install/')
+            ..initialResult = Future.value(true);
+          final lazy = PluginLazyActivationService.instance;
+          final dispatcher = PluginRuntimeDispatcher.instance;
+          final delivered = <int>[];
+          final nativeControllers = <_BootController>[];
+          final loads = <Future<void>>[];
+          lazy.deliverOverride = (_, _, payload) async =>
+              delivered.add(payload['n'] as int);
+          lazy.syncPlugin(
+            plugin.pluginId,
+            broadcastTopics: const {},
+            scheduleStartup: false,
+          );
+          await tester.runAsync(
+            () => PluginRegistryRepository().setPermission(
+              plugin.pluginId,
+              pluginRunOnStartupPermission,
+              true,
+            ),
+          );
+
+          Future<void> startLoad(
+            PlatformInAppWebViewWidgetCreationParams params,
+            _BootController native,
+            InAppWebViewController controller,
+          ) async {
+            await tester.runAsync(() async {
+              final started = Completer<void>();
+              native.nextBootStarted = started;
+              final done =
+                  Function.apply(params.onLoadStop!, [
+                        controller,
+                        WebUri('file:///install/path/index.html'),
+                      ])
+                      as Future<void>;
+              loads.add(done);
+              await started.future.timeout(const Duration(seconds: 5));
+            });
+          }
+
+          Future<void> pumpWebView() async {
+            await tester.pumpAndSettle();
+            // ensurePort awaits a cached Future created by real-async setUp.
+            await tester.runAsync(PluginFileServer.instance.ensurePort);
+            await tester.pumpAndSettle();
+          }
+
+          try {
+            if (Platform.isWindows) {
+              WebViewEnvironmentHolder.debugOverrideInitialize(null);
+              await tester.runAsync(
+                () => WebViewEnvironmentHolder.initialize(
+                  dataFolderChecked: true,
+                ),
+              );
+            }
+            await IOOverrides.runWithIOOverrides(() async {
+              bloc.testEmit(PluginSystemLoaded([plugin]));
+              await pumpHost(tester);
+              lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 1});
+              await pumpWebView();
+              final webViewFinder = find.byType(
+                InAppWebView,
+                skipOffstage: false,
+              );
+              expect(webViewFinder, findsOneWidget);
+              final oldParams = tester
+                  .widget<InAppWebView>(webViewFinder)
+                  .platform
+                  .params;
+              final oldNative = _BootController('old');
+              nativeControllers.add(oldNative);
+              final oldController = InAppWebViewController.fromPlatform(
+                platform: oldNative,
+              );
+              oldParams.onWebViewCreated!(oldController);
+              expect(
+                dispatcher.ownsController(
+                  plugin.pluginId,
+                  oldController,
+                  instanceId: PluginInstanceIds.background,
+                ),
+                isTrue,
+              );
+              await startLoad(oldParams, oldNative, oldController);
+
+              var currentParams = oldParams;
+              var currentNative = oldNative;
+              var currentController = oldController;
+              if (crash) {
+                oldParams.onRenderProcessGone!(
+                  oldController,
+                  RenderProcessGoneDetail(didCrash: true),
+                );
+                lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 2});
+                await tester.idle();
+                await pumpWebView();
+                currentParams = tester
+                    .widget<InAppWebView>(webViewFinder)
+                    .platform
+                    .params;
+                currentNative = _BootController('replacement');
+                nativeControllers.add(currentNative);
+                currentController = InAppWebViewController.fromPlatform(
+                  platform: currentNative,
+                );
+                currentParams.onWebViewCreated!(currentController);
+              } else {
+                oldParams.onLoadStart?.call(
+                  oldController,
+                  WebUri('file:///install/path/next.html'),
+                );
+                lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 2});
+              }
+
+              oldNative.bootResults.single.complete([
+                {'topic': 'theme.changed', 'rawDivineNames': true},
+              ]);
+              await tester.runAsync(() => loads.first);
+              await tester.pump();
+              expect(
+                dispatcher.rawDivineNamesTopicsOf(
+                  plugin.pluginId,
+                  instanceId: PluginInstanceIds.background,
+                ),
+                isEmpty,
+              );
+              expect(lazy.isBootPending(plugin.pluginId), isTrue);
+              expect(delivered, isEmpty);
+
+              await startLoad(currentParams, currentNative, currentController);
+              currentNative.bootResults.last.complete([
+                {'topic': 'theme.changed', 'rawDivineNames': true},
+              ]);
+              await tester.runAsync(() => loads.last);
+              await tester.pump();
+              expect(
+                dispatcher.rawDivineNamesTopicsOf(
+                  plugin.pluginId,
+                  instanceId: PluginInstanceIds.background,
+                ),
+                {'theme.changed'},
+              );
+              expect(lazy.isBootPending(plugin.pluginId), isFalse);
+              expect(delivered, crash ? [2] : [1, 2]);
+            }, io);
+          } finally {
+            for (final controller in nativeControllers) {
+              for (final result in controller.bootResults) {
+                if (!result.isCompleted) result.complete(null);
+              }
+            }
+            await tester.runAsync(() => Future.wait(loads));
+            await tester.pumpWidget(const SizedBox());
+            await tester.pumpAndSettle();
+            lazy.deliverOverride = null;
+            lazy.removePlugin(plugin.pluginId);
+            if (Platform.isWindows) {
+              await tester.runAsync(
+                WebViewEnvironmentHolder.disposeForAppRestart,
+              );
+            }
+            if (previousPlatform != null) {
+              InAppWebViewPlatform.instance = previousPlatform;
+            }
+          }
+        },
+      );
+    }
 
     for (final (headless, lateInitial) in [
       (false, false),

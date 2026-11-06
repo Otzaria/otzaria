@@ -7800,8 +7800,9 @@ class PluginBridgeAdapter {
   /// `events.setOptions` — אפשרויות המסירה של נושא למופע הזה, עד טעינה מחדש
   /// של הדף. הרשאת `events.subscribe:<topic>` נבדקת כאן, לפי הנושא.
   Future<Map<String, dynamic>> _setEventOptions(
-    Map<String, dynamic> args,
-  ) async {
+    Map<String, dynamic> args, {
+    bool Function()? isCurrent,
+  }) async {
     // נלכד לפני ה-await: בקשה של דף שנטען מחדש בינתיים לא תחול על הדף החדש.
     final generation = PluginRuntimeDispatcher.instance.eventOptionsGeneration(
       plugin.pluginId,
@@ -7826,7 +7827,8 @@ class PluginBridgeAdapter {
         await _pluginRepo.getPermission(plugin.pluginId, permission) != true) {
       throw Exception('error.forbidden: $permission is required');
     }
-    if (generation == null ||
+    if ((isCurrent != null && !isCurrent()) ||
+        generation == null ||
         !PluginRuntimeDispatcher.instance.setEventRawDivineNames(
           plugin.pluginId,
           instanceId,
@@ -7841,12 +7843,19 @@ class PluginBridgeAdapter {
 
   /// אפשרויות האירועים שה-boot החזיר. המארח מחכה להן לפני מסירת אירועים
   /// שהמתינו לדף, כדי שגם האירוע שהעיר את התוסף יכבד אותן.
-  Future<void> applyBootEventOptions(Object? bootResult) async {
+  Future<void> applyBootEventOptions(
+    Object? bootResult, {
+    bool Function()? isCurrent,
+  }) async {
     if (bootResult is! List) return;
     for (final options in bootResult.take(64)) {
+      if (isCurrent != null && !isCurrent()) return;
       if (options is! Map) continue;
       try {
-        await _setEventOptions(Map<String, dynamic>.from(options));
+        await _setEventOptions(
+          Map<String, dynamic>.from(options),
+          isCurrent: isCurrent,
+        );
       } catch (e) {
         debugPrint('Plugin ${plugin.pluginId}: boot event options: $e');
       }

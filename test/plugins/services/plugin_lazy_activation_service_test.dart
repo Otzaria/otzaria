@@ -81,6 +81,89 @@ void main() {
     expect(activations, ['declared']);
   });
 
+  for (final revoke in [false, true]) {
+    test(
+      'late ready after ${revoke ? "revocation" : "crash"} preserves retry queue',
+      () async {
+        final deactivations = <String>[];
+        service.backgroundDeactivator = deactivations.add;
+        service.syncPlugin(
+          'p1',
+          broadcastTopics: const {},
+          scheduleStartup: false,
+        );
+        service.queueTargetedEvent('p1', 'click', {'n': 1});
+        final oldGeneration = service.activationGeneration('p1');
+        if (revoke) {
+          service.removePlugin('p1');
+          service.syncPlugin(
+            'p1',
+            broadcastTopics: const {},
+            scheduleStartup: false,
+          );
+        } else {
+          service.onBackgroundProcessGone('p1', generation: oldGeneration);
+        }
+        service.queueTargetedEvent('p1', 'click', {'n': 2});
+        final newGeneration = service.activationGeneration('p1');
+        final deactivationsBeforeReady = deactivations.length;
+
+        await service.onBackgroundInstanceReady(
+          'p1',
+          generation: oldGeneration,
+        );
+        expect(service.isBootPending('p1'), isTrue);
+        expect(deactivations, hasLength(deactivationsBeforeReady));
+        expect(delivered, isEmpty);
+        await service.onBackgroundInstanceReady(
+          'p1',
+          generation: newGeneration,
+        );
+        expect(delivered.map((event) => event.$3['n']), [2]);
+      },
+    );
+  }
+
+  test(
+    'crash while flushing stops remaining events from the old generation',
+    () async {
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      service.deliverOverride = (pluginId, topic, payload) async {
+        delivered.add((pluginId, topic, payload));
+        if (payload['n'] == 1) {
+          entered.complete();
+          await gate.future;
+        }
+      };
+      service.syncPlugin(
+        'p1',
+        broadcastTopics: const {},
+        scheduleStartup: false,
+      );
+      service.queueTargetedEvent('p1', 'click', {'n': 1});
+      service.queueTargetedEvent('p1', 'click', {'n': 2});
+      final oldGeneration = service.activationGeneration('p1');
+      final flushing = service.onBackgroundInstanceReady(
+        'p1',
+        generation: oldGeneration,
+      );
+      await entered.future;
+      service.onBackgroundProcessGone('p1', generation: oldGeneration);
+      service.queueTargetedEvent('p1', 'click', {'n': 3});
+      gate.complete();
+      await flushing;
+
+      expect(delivered.map((event) => event.$3['n']), [1]);
+      expect(service.isBootPending('p1'), isTrue);
+      await service.onBackgroundInstanceReady(
+        'p1',
+        generation: service.activationGeneration('p1'),
+      );
+      expect(delivered.map((event) => event.$3['n']), [1, 3]);
+    },
+  );
+
   test('app.startup fires once per session, even after re-sync', () async {
     service.syncPlugin(
       'p1',
