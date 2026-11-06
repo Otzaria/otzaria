@@ -12,11 +12,26 @@ import '../../helpers/memory_settings_cache.dart';
 class _DelayedCatalogRepository extends DataRepository {
   final catalogRequested = Completer<void>();
   final catalog = Completer<List<ExternalLibraryBook>>();
+  int catalogLoads = 0;
 
   @override
   Future<List<ExternalLibraryBook>> getOtzarBooks() {
-    catalogRequested.complete();
+    catalogLoads++;
+    if (!catalogRequested.isCompleted) catalogRequested.complete();
     return catalog.future;
+  }
+}
+
+class _CountedCatalogBook extends ExternalLibraryBook {
+  _CountedCatalogBook(int id)
+    : super(title: 'ספר חיצוני $id', id: id, link: '');
+
+  int titleReads = 0;
+
+  @override
+  String get title {
+    titleReads++;
+    return super.title;
   }
 }
 
@@ -93,4 +108,164 @@ void main() {
       },
     );
   }
+
+  test('superseded catalog searches do not materialize book entries', () async {
+    final key = Object();
+    final olderChecks = <Future<void>>[];
+    for (var i = 0; i < 4; i++) {
+      olderChecks.add(
+        expectLater(
+          repository.findBooksAndCategories(
+            'ישן $i',
+            category,
+            includeOtzar: true,
+            includeLocalHebrewBooks: false,
+            supersedeKey: key,
+          ),
+          throwsA(isA<BookSearchSupersededException>()),
+        ),
+      );
+    }
+    await repository.catalogRequested.future;
+    final newer = await repository.findBooksAndCategories(
+      'בית',
+      category,
+      includeLocalHebrewBooks: false,
+      supersedeKey: key,
+    );
+    expect(newer.books.map((book) => book.title), ['מבחן בית']);
+
+    final books = List.generate(32, _CountedCatalogBook.new);
+    repository.catalog.complete(books);
+    await Future.wait(olderChecks);
+
+    expect(books.map((book) => book.titleReads), everyElement(0));
+    expect(repository.catalogLoads, 1);
+    expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+  });
+
+  test('the latest search still uses the shared catalog load', () async {
+    final key = Object();
+    final olderCheck = expectLater(
+      repository.findBooksAndCategories(
+        'ישן',
+        category,
+        includeOtzar: true,
+        includeLocalHebrewBooks: false,
+        supersedeKey: key,
+      ),
+      throwsA(isA<BookSearchSupersededException>()),
+    );
+    await repository.catalogRequested.future;
+    final newer = repository.findBooksAndCategories(
+      'חיצוני',
+      category,
+      includeOtzar: true,
+      includeLocalHebrewBooks: false,
+      sortByRatio: false,
+      supersedeKey: key,
+    );
+    final books = List.generate(32, _CountedCatalogBook.new);
+    repository.catalog.complete(books);
+
+    await olderCheck;
+    final result = await newer;
+    expect(books.map((book) => book.titleReads), everyElement(1));
+    expect(result.books, orderedEquals(books));
+    expect(result.categories, isEmpty);
+    expect(repository.catalogLoads, 1);
+    expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+  });
+
+  for (final useKeys in [false, true]) {
+    test(
+      'independent catalog searches both complete (keys: $useKeys)',
+      () async {
+        final older = repository.findBooksAndCategories(
+          'חיצוני',
+          category,
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+          sortByRatio: false,
+          supersedeKey: useKeys ? Object() : null,
+        );
+        await repository.catalogRequested.future;
+        final newer = repository.findBooksAndCategories(
+          'חיצוני',
+          category,
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+          sortByRatio: false,
+          supersedeKey: useKeys ? Object() : null,
+        );
+        final books = List.generate(32, _CountedCatalogBook.new);
+        repository.catalog.complete(books);
+
+        final results = await Future.wait([older, newer]);
+        expect(books.map((book) => book.titleReads), everyElement(2));
+        for (final result in results) {
+          expect(result.books, orderedEquals(books));
+          expect(result.categories, isEmpty);
+        }
+        expect(repository.catalogLoads, 1);
+        expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+      },
+    );
+  }
+
+  test(
+    'supersession while collecting categories keeps the latest token',
+    () async {
+      final key = Object();
+      late Future<({List<Book> books, List<Category> categories})> newer;
+      category.onCategories = () {
+        newer = repository.findBooksAndCategories(
+          'בית',
+          category,
+          includeLocalHebrewBooks: false,
+          supersedeKey: key,
+        );
+      };
+      await expectLater(
+        repository.findBooksAndCategories(
+          'אלף',
+          category,
+          includeLocalHebrewBooks: false,
+          supersedeKey: key,
+        ),
+        throwsA(isA<BookSearchSupersededException>()),
+      );
+
+      expect((await newer).books.map((book) => book.title), ['מבחן בית']);
+      expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+    },
+  );
+
+  test('a catalog load failure keeps its error after supersession', () async {
+    final key = Object();
+    final error = StateError('catalog failed');
+    final olderCheck = expectLater(
+      repository.findBooksAndCategories(
+        'אלף',
+        category,
+        includeOtzar: true,
+        includeLocalHebrewBooks: false,
+        supersedeKey: key,
+      ),
+      throwsA(same(error)),
+    );
+    await repository.catalogRequested.future;
+    final newer = await repository.findBooksAndCategories(
+      'בית',
+      category,
+      includeLocalHebrewBooks: false,
+      supersedeKey: key,
+    );
+    repository.catalog.completeError(error);
+
+    await olderCheck;
+    expect(newer.books.map((book) => book.title), ['מבחן בית']);
+    expect(repository.catalogLoads, 1);
+    expect(repository.bookSearchWorkerForTesting.indexUploads, 1);
+  });
 }
