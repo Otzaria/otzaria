@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
 import 'package:otzaria/plugins/services/plugin_headless_shell.dart';
+import 'package:otzaria/plugins/services/plugin_font_scheme.dart';
 import 'package:path/path.dart' as p;
 
 /// הסכימה שדרכה מוגשים קובצי התוסף במקום `file://`.
@@ -52,12 +53,19 @@ Future<CustomSchemeResponse?> servePluginAsset({
   required String rootPath,
   String? headlessEntrypoint,
   String? contentSecurityPolicy,
+  PluginFontSchemeLease? fontLease,
 }) async {
   final headers = contentSecurityPolicy == null
       ? null
       : {pluginContentSecurityPolicyHeader: contentSecurityPolicy};
   // host אחר הוא origin אחר — התוסף אינו רשאי לייצר לעצמו כאלה.
-  if (url.host != pluginAssetHost(pluginId)) return null;
+  if (url.scheme != pluginAssetScheme ||
+      url.host != pluginAssetHost(pluginId)) {
+    return null;
+  }
+  if (isPluginFontSchemeRoute(url)) {
+    return fontLease?.responseFor(url, headers: headers);
+  }
   if (headlessEntrypoint != null &&
       url.path == '/$pluginHeadlessShellFileName') {
     return CustomSchemeResponse(
@@ -68,7 +76,12 @@ Future<CustomSchemeResponse?> servePluginAsset({
       headers: headers,
     );
   }
-  final file = resolvePluginAssetFile(urlPath: url.path, rootPath: rootPath);
+  File? file;
+  try {
+    file = resolvePluginAssetFile(urlPath: url.path, rootPath: rootPath);
+  } on FormatException {
+    return null;
+  }
   if (file == null) return null;
   try {
     return CustomSchemeResponse(
