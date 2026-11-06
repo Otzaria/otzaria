@@ -844,7 +844,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         categoryId: widget.categoryId,
       ),
     );
-    UiSnack.show(NotesMessages.noteAssignedToLine(selectedLineNumber));
   }
 
   Future<void> _reanchorNote(
