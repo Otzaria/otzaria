@@ -60,9 +60,11 @@ import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
+import 'package:otzaria/personal_notes/utils/create_personal_note.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
@@ -112,7 +114,8 @@ class PageShapeScreen extends StatefulWidget {
   State<PageShapeScreen> createState() => _PageShapeScreenState();
 }
 
-class _PageShapeScreenState extends State<PageShapeScreen> {
+class _PageShapeScreenState extends State<PageShapeScreen>
+    implements PersonalNotesPanelVisibility {
   String? _leftCommentator;
   String? _rightCommentator;
   String? _bottomCommentator;
@@ -123,6 +126,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   bool _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
   bool _isLeftSidebarOpen = false;
   int _leftSidebarTabIndex = 0;
+
+  @override
+  bool get isPersonalNotesPanelOpen =>
+      _isLeftSidebarOpen && _leftSidebarTabIndex == kNotesTabIndex;
   String? _notesBookIdOverride;
   int? _notesCategoryIdOverride;
   int? _notesFocusLineNumber;
@@ -896,7 +903,20 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     String bookId,
     int? categoryId,
     int lineNumber,
+  ) => revealPersonalNotesTarget(bookId, categoryId, lineNumber);
+
+  @override
+  void revealPersonalNotesTarget(
+    String bookId,
+    int? categoryId,
+    int lineNumber,
   ) {
+    openPersonalNotesTarget(
+      context.read<PersonalNotesBloc>(),
+      bookId: bookId,
+      categoryId: categoryId,
+      lineNumber: lineNumber,
+    );
     if (!_isLeftSidebarOpen) _reanchorMainText();
     setState(() {
       _notesBookIdOverride = bookId;

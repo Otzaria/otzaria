@@ -2,6 +2,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/widgets/note_draft_decision_dialog.dart';
@@ -22,6 +25,9 @@ class PersonalNoteEditorDialog extends StatefulWidget {
   final int? categoryId;
   final List<PersonalNote> linkableNotes;
   final int? draftLineNumber;
+  final String? draftNoteId;
+  final PdfNoteAnchor? pdfAnchor;
+  final Future<void> Function(PersonalNoteEditorResult)? onSave;
 
   const PersonalNoteEditorDialog({
     super.key,
@@ -34,6 +40,9 @@ class PersonalNoteEditorDialog extends StatefulWidget {
     this.categoryId,
     this.linkableNotes = const [],
     this.draftLineNumber,
+    this.draftNoteId,
+    this.pdfAnchor,
+    this.onSave,
   });
 
   @override
@@ -50,7 +59,8 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   late final ScrollController _scrollController;
   late final PersonalNoteEditorResult _initialResult;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
-  bool _hasUnsavedChanges = false;
+  bool _isSaving = false;
+  bool _isClosing = false;
 
   @override
   void initState() {
@@ -61,28 +71,15 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       initialFormat: widget.initialContentFormat,
     );
     _initialResult = _editorController.buildResult();
-    _editorController.quillController.addListener(_checkForChanges);
     registerDialogFocusRestorer(_textFieldFocusNode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _textFieldFocusNode.requestFocus();
+      if (mounted) _textFieldFocusNode.requestFocus();
     });
-  }
-
-  void _checkForChanges() {
-    final current = _editorController.buildResult();
-    final hasChanges =
-        current.contentPlain.trim() != _initialResult.contentPlain.trim() &&
-        current.contentPlain.trim().isNotEmpty;
-    if (hasChanges != _hasUnsavedChanges) {
-      setState(() {
-        _hasUnsavedChanges = hasChanges;
-      });
-    }
   }
 
   @override
   void dispose() {
-    _editorController.quillController.removeListener(_checkForChanges);
+    _editorController.dispose();
     _textFieldFocusNode.dispose();
     _cancelFocusNode.dispose();
     _saveFocusNode.dispose();
@@ -91,11 +88,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   }
 
   Future<bool> _confirmClose() async {
-    if (!_hasUnsavedChanges) {
+    final current = _editorController.buildResult();
+    if (current.content == _initialResult.content ||
+        current.contentPlain.trim().isEmpty) {
       return true;
     }
 
     final result = await showNoteDraftDecisionDialog(context);
+    if (!mounted) return false;
 
     if (result == NoteDraftDecision.saveDraft) {
       await _saveDraftIfPossible();
@@ -103,6 +103,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     }
 
     if (result == NoteDraftDecision.discard) {
+      await _clearDraftIfPossible();
       return true;
     }
 
@@ -110,54 +111,96 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   }
 
   Future<void> _handleCancel() async {
-    if (await _confirmClose()) {
+    if (_isSaving || _isClosing) return;
+    _isClosing = true;
+    try {
+      if (await _confirmClose() && mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) UiSnack.showError(NotesMessages.noteDraftUpdateError(error));
+    } finally {
+      _isClosing = false;
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_isSaving || _isClosing) return;
+    final result = _editorController.buildResult();
+    if (result.contentPlain.trim().isEmpty) return;
+    setState(() {
+      _isSaving = true;
+      _editorController.quillController.readOnly = true;
+    });
+    var completed = false;
+    try {
+      if (!await verifySaferModePassword(context) || !mounted) return;
+      await widget.onSave?.call(result);
+      if (widget.onSave == null) {
+        await _clearDraftIfPossible();
+      } else {
+        // ההערה כבר נכתבה. כשל בניקוי טיוטה אינו כשל שמירה, ואסור
+        // להשאיר כפתור שמירה פעיל שייצור עותק נוסף של אותה הערה.
+        try {
+          await _clearDraftIfPossible();
+          if (mounted) UiSnack.showSuccess(NotesMessages.noteSaved);
+        } catch (_) {
+          if (mounted) {
+            UiSnack.showWarning(NotesMessages.noteSavedDraftCleanupFailed);
+          }
+        }
+      }
+      completed = true;
+      if (mounted) Navigator.of(context).pop(result);
+    } catch (error) {
       if (mounted) {
-        Navigator.of(context).pop();
+        UiSnack.showError(TextBookMessages.noteSaveError(error));
+      }
+    } finally {
+      if (mounted && !completed) {
+        setState(() {
+          _isSaving = false;
+          _editorController.quillController.readOnly = false;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _textFieldFocusNode.requestFocus();
+        });
       }
     }
   }
 
-  void _submit() async {
-    // במצב סייפר, נדרוש סיסמה לפני שמירה
-    if (!await verifySaferModePassword(context) || !mounted) {
-      return;
-    }
-
-    final result = _editorController.buildResult();
-    if (result.contentPlain.trim().isEmpty) {
-      return;
-    }
-    _clearDraftIfPossible();
-    Navigator.of(context).pop(result);
-  }
-
   Future<void> _saveDraftIfPossible() async {
     final bookId = widget.bookId;
-    final lineNumber = widget.draftLineNumber;
-    if (bookId == null || lineNumber == null) return;
+    final noteId = widget.draftNoteId;
+    final lineNumber = noteId == null ? widget.draftLineNumber : null;
+    if (bookId == null || (lineNumber == null && noteId == null)) return;
     final result = _editorController.buildResult();
     if (result.contentPlain.trim().isEmpty) return;
     await _draftService.saveDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,
+      noteId: noteId,
       draft: PersonalNoteDraft(
         content: result.content,
         contentPlain: result.contentPlain,
         contentFormat: result.contentFormat,
         updatedAt: DateTime.now(),
+        referenceText: widget.referenceText,
+        pdfAnchor: widget.pdfAnchor,
       ),
     );
   }
 
   Future<void> _clearDraftIfPossible() async {
     final bookId = widget.bookId;
-    final lineNumber = widget.draftLineNumber;
-    if (bookId == null || lineNumber == null) return;
+    final noteId = widget.draftNoteId;
+    final lineNumber = noteId == null ? widget.draftLineNumber : null;
+    if (bookId == null || (lineNumber == null && noteId == null)) return;
     await _draftService.clearDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,
+      noteId: noteId,
+      pdfAnchor: widget.pdfAnchor,
     );
   }
 
@@ -167,6 +210,11 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;
+        }
+
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _handleCancel();
+          return KeyEventResult.handled;
         }
 
         // Ctrl+Enter (במק Cmd+Enter) / Alt+Enter (תאימות לאחור) -
@@ -202,12 +250,6 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
           }
         }
 
-        // Escape - ביטול
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          _handleCancel();
-          return KeyEventResult.handled;
-        }
-
         return KeyEventResult.ignored;
       },
       child: PopScope(
@@ -237,6 +279,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
                   title: widget.title,
                   compact: true,
                   onClose: _handleCancel,
+                  closeEnabled: !_isSaving,
                 ),
                 Flexible(
                   child: SingleChildScrollView(
@@ -246,15 +289,22 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
                       AppTokens.spaceLG,
                       0,
                     ),
-                    child: PersonalNoteEditorBody(
-                      controller: _editorController,
-                      focusNode: _textFieldFocusNode,
-                      scrollController: _scrollController,
-                      autofocus: true,
-                      referenceText: widget.referenceText,
-                      bookId: widget.bookId,
-                      linkableNotes: widget.linkableNotes,
-                      onSaveShortcut: _submit,
+                    child: ExcludeFocus(
+                      excluding: _isSaving,
+                      child: AbsorbPointer(
+                        absorbing: _isSaving,
+                        child: PersonalNoteEditorBody(
+                          controller: _editorController,
+                          focusNode: _textFieldFocusNode,
+                          scrollController: _scrollController,
+                          autofocus: true,
+                          referenceText: widget.referenceText,
+                          bookId: widget.bookId,
+                          linkableNotes: widget.linkableNotes,
+                          onSaveShortcut: _submit,
+                          onCancelShortcut: _handleCancel,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -266,13 +316,13 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
                       ActionButton.neutral(
                         focusNode: _cancelFocusNode,
                         text: 'ביטול',
-                        onPressed: _handleCancel,
+                        onPressed: _isSaving ? null : _handleCancel,
                       ),
                       const SizedBox(width: AppTokens.spaceSM),
                       ActionButton.recommended(
                         focusNode: _saveFocusNode,
                         text: 'שמור',
-                        onPressed: _submit,
+                        onPressed: _isSaving ? null : _submit,
                       ),
                     ],
                   ),

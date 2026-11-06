@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
 
 /// מציג עיצובים נתמכים ב-RichText, לפי סגנונות Quill וללא קלט.
 class NoteDeltaPreview extends StatelessWidget {
@@ -45,7 +46,7 @@ class NoteDeltaPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final styles = quill.DefaultStyles.getInstance(context);
+    final styles = personalNoteStyles(context);
     final direction = Directionality.of(context);
     final children = [
       for (final line in document.root.children.whereType<quill.Line>())

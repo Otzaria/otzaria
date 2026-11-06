@@ -14,6 +14,8 @@ import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -24,6 +26,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -638,21 +641,105 @@ void main() {
     });
   });
 
-  group('shouldShowPersonalNotePreview', () {
-    test('מציג תצוגה מקדימה כשטאב ההערות אינו פעיל', () {
-      expect(
-        shouldShowPersonalNotePreview(isPersonalNotesTabActive: false),
-        isTrue,
+  for (final pageShape in [false, true]) {
+    for (final notesTabActive in [false, true]) {
+      testWidgets(
+        'ריחוף מציג רק הערות העוגן: צורת הדף=$pageShape, חלונית פתוחה=$notesTabActive',
+        (tester) async {
+          addTearDown(LinkPreviewOverlay.dismiss);
+          final loaded = _loadedState().copyWith(
+            content: const ['ראשונה שנייה'],
+          );
+          final textBloc = _RecordingTextBookBloc(loaded);
+          final tab = TextBookTab(
+            book: loaded.book,
+            index: 0,
+            blocOverride: textBloc,
+          );
+          addTearDown(tab.dispose);
+          PersonalNote note(String id, String anchor) => PersonalNote(
+            id: id,
+            bookId: loaded.book.title,
+            lineNumber: 1,
+            displayTitle: anchor,
+            anchorText: anchor,
+            lastKnownLineNumber: 1,
+            status: PersonalNoteStatus.located,
+            content: 'תוכן $id',
+            contentPlain: 'תוכן $id',
+            contentFormat: PersonalNoteContentFormat.plain,
+            createdAt: DateTime(2026),
+            updatedAt: DateTime(2026),
+          );
+          final notes = [note('first', 'ראשונה'), note('second', 'שנייה')];
+          final notesBloc = _TestPersonalNotesBloc(
+            const PersonalNotesState.initial().copyWith(
+              bookId: loaded.book.title,
+              locatedNotes: notes,
+            ),
+          );
+          final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+          addTearDown(notesBloc.close);
+          addTearDown(settingsBloc.close);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: MultiBlocProvider(
+                providers: [
+                  BlocProvider<TextBookBloc>.value(value: textBloc),
+                  BlocProvider<PersonalNotesBloc>.value(value: notesBloc),
+                  BlocProvider<SettingsBloc>.value(value: settingsBloc),
+                ],
+                child: Scaffold(
+                  body: pageShape
+                      ? SimpleTextViewer(
+                          content: loaded.content,
+                          fontSize: 18,
+                          openBookCallback: (_) {},
+                          isMainText: true,
+                          isPersonalNotesTabActive: notesTabActive,
+                        )
+                      : CombinedView(
+                          data: loaded.content,
+                          tab: tab,
+                          openBookCallback: (_) {},
+                          openLeftPaneTab: (_, {searchText}) {},
+                          textSize: 18,
+                          showCommentaryAsExpansionTiles: false,
+                          isPersonalNotesTabActive: () => notesTabActive,
+                        ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final text = tester
+              .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+              .firstWhere((text) => text.text.contains('otzaria://note?'));
+          final urls = RegExp(r'href="([^"]+)"')
+              .allMatches(text.text)
+              .map((match) => match.group(1)!)
+              .where((url) => url.startsWith('otzaria://note?'))
+              .toList();
+          expect(urls, hasLength(2));
+          for (var i = 0; i < urls.length; i++) {
+            text.onAnchorHover!(urls[i], const Offset(100, 100));
+            await tester.pump(const Duration(milliseconds: 279));
+            expect(find.byType(PersonalNotesListView), findsNothing);
+            await tester.pump(const Duration(milliseconds: 2));
+            await tester.pump();
+            final preview = tester.widget<PersonalNotesListView>(
+              find.byType(PersonalNotesListView),
+            );
+            expect(preview.notes.map((note) => note.id), [notes[i].id]);
+            LinkPreviewOverlay.dismiss();
+            await tester.pump();
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
       );
-    });
-
-    test('לא מציג תצוגה מקדימה כשטאב ההערות פעיל', () {
-      expect(
-        shouldShowPersonalNotePreview(isPersonalNotesTabActive: true),
-        isFalse,
-      );
-    });
-  });
+    }
+  }
 
   group('shouldShowOpenLinksPaneEntry', () {
     test('מחזירה true כשיש קישורים וטאב הקישורים אינו פעיל', () {

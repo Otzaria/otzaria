@@ -15,6 +15,10 @@ class NotesSearchHeader extends StatefulWidget {
   final int? categoryId;
   final bool isPdf;
   final List<int> visibleLineIndices;
+  final List<int>? visiblePdfPages;
+  final String? pdfDocumentId;
+  final Set<String> pdfDocumentIds;
+  final bool includeUnidentifiedPdfAnchors;
 
   const NotesSearchHeader({
     super.key,
@@ -22,6 +26,10 @@ class NotesSearchHeader extends StatefulWidget {
     this.categoryId,
     this.isPdf = false,
     required this.visibleLineIndices,
+    this.visiblePdfPages,
+    this.pdfDocumentId,
+    this.pdfDocumentIds = const {},
+    this.includeUnidentifiedPdfAnchors = false,
   });
 
   @override
@@ -52,14 +60,30 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
   Widget build(BuildContext context) {
     return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
       builder: (context, state) {
+        final allNotes = filterPersonalNotes(
+          locatedNotes: state.locatedNotes,
+          missingNotes: state.missingNotes,
+          searchQuery: '',
+          showOnlyVisible: false,
+          visibleLineIndices: const [],
+          isPdf: widget.isPdf,
+          pdfDocumentId: widget.pdfDocumentId,
+          pdfDocumentIds: widget.pdfDocumentIds,
+          includeUnidentifiedPdfAnchors: widget.includeUnidentifiedPdfAnchors,
+        );
         final totalNotes =
-            state.locatedNotes.length + state.missingNotes.length;
+            allNotes.locatedNotes.length + allNotes.missingNotes.length;
         final filtered = filterPersonalNotes(
           locatedNotes: state.locatedNotes,
           missingNotes: state.missingNotes,
           searchQuery: state.searchQuery,
           showOnlyVisible: state.showOnlyVisible,
           visibleLineIndices: widget.visibleLineIndices,
+          isPdf: widget.isPdf,
+          visiblePdfPages: widget.visiblePdfPages,
+          pdfDocumentId: widget.pdfDocumentId,
+          pdfDocumentIds: widget.pdfDocumentIds,
+          includeUnidentifiedPdfAnchors: widget.includeUnidentifiedPdfAnchors,
         );
         final visibleNotes =
             filtered.locatedNotes.length + filtered.missingNotes.length;

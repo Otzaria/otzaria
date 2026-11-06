@@ -28,7 +28,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
-import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -288,30 +287,6 @@ class ContextMenuUtils {
         ? utils.removeVolwels(selectedText!)
         : utils.stripHtmlIfNeeded(rawContent);
     final notesKey = personalNotesBookKeyFor(bookTitle, link.targetSource);
-    final draftService = PersonalNoteDraftService();
-    final draft = await draftService.loadDraft(
-      bookId: notesKey,
-      categoryId: link.targetCategoryId,
-      lineNumber: link.index2,
-    );
-    if (!context.mounted) return;
-
-    final result = await showDialog<PersonalNoteEditorResult>(
-      context: context,
-      builder: (_) => PersonalNoteEditorDialog(
-        title: 'הערה חדשה - $bookTitle',
-        referenceText: referenceText,
-        icon: FluentIcons.note_add_24_regular,
-        bookId: notesKey,
-        categoryId: link.targetCategoryId,
-        draftLineNumber: link.index2,
-        initialContent: draft?.content ?? '',
-        initialContentFormat:
-            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-      ),
-    );
-    if (result == null || result.contentPlain.trim().isEmpty) return;
-
     final sourceSelection = selectedText?.isNotEmpty == true
         ? mapPersonalNoteSourceSelection(
             bookId: notesKey,
@@ -322,24 +297,27 @@ class ContextMenuUtils {
           )
         : null;
 
-    try {
-      await PersonalNotesRepository().addNote(
-        bookId: notesKey,
-        lineNumber: link.index2,
-        content: result.content,
-        contentPlain: result.contentPlain,
-        contentFormat: result.contentFormat,
-        selectedText: selectedText,
-        sourceSelectedText: sourceSelection?.text,
-        sourceSelectionOffset: sourceSelection?.offset,
-        categoryId: link.targetCategoryId,
-      );
-      if (context.mounted) UiSnack.showSuccess(TextBookMessages.noteSaved);
-    } catch (e) {
-      if (context.mounted) {
-        UiSnack.showError(TextBookMessages.noteSaveError(e));
-      }
-    }
+    final panel = findPersonalNotesPanel(context);
+    await createPersonalNote(
+      context,
+      isNotesPanelOpen: panel?.isPersonalNotesPanelOpen ?? false,
+      title: 'הערה חדשה - $bookTitle',
+      bookId: notesKey,
+      categoryId: link.targetCategoryId,
+      lineNumber: link.index2,
+      referenceText: referenceText,
+      selectedText: selectedText,
+      sourceSelectedText: sourceSelection?.text,
+      sourceSelectionOffset: sourceSelection?.offset,
+      punctuationHidden: displayProfile.removePunctuation,
+      openNotesPanel: panel == null
+          ? null
+          : () => panel.revealPersonalNotesTarget(
+              notesKey,
+              link.targetCategoryId,
+              link.index2,
+            ),
+    );
   }
 
   /// ממפה מפרש ([link] + תוכנו [rawContent]) לפרמטרי דיווח הטעות: הדיווח מופנה

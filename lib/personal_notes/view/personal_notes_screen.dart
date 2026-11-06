@@ -7,28 +7,31 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/models/personal_notes_sort_order.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:pdf/pdf.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_user_book_keys.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/personal_notes/utils/personal_note_source_link.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -36,8 +39,10 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
@@ -77,8 +82,10 @@ class _PersonalNotesManagerScreenState
   final Map<String, PersonalNotesState> _bookStates = {};
   final Map<String, bool> _expansionState = {};
   int _notesLoadGeneration = 0;
-  StreamSubscription<PersonalNotesState>? _notesLoadSubscription;
-  Completer<void>? _notesLoadCompleter;
+  late final StreamSubscription<String> _notesChangesSubscription;
+  bool _isLoadingNotes = true;
+  bool _isRefreshingChangedBooks = false;
+  final Set<String> _changedBooks = {};
   // קאש ל-TOC לכל ספר, לחישוב כתובת המיקום של ההערות. נטען עצלן פעם אחת.
   final Map<String, Future<List<TocEntry>?>> _tocFutureByBook = {};
   bool _isNavigationVisible = true;
@@ -91,104 +98,162 @@ class _PersonalNotesManagerScreenState
   double _navigationWidth = 250.0;
   // טווח תאריכים לסינון לפי תאריך עדכון ההערה. null = ללא סינון תאריכים.
   DateTimeRange? _dateRange;
+  late PersonalNotesSortOrder _sortOrder;
 
   @override
   void initState() {
     super.initState();
+    _sortOrder = loadPersonalNotesSortOrder();
     _repository = widget.repository ?? PersonalNotesRepository();
     _importExportService =
         widget.importExportService ?? PersonalNotesImportExportService();
+    _notesChangesSubscription = PersonalNotesChanges.stream.listen((bookId) {
+      _changedBooks.add(bookId);
+      unawaited(_refreshChangedBooks());
+    });
     _loadBooks();
   }
 
   Future<void> _loadBooks() async {
-    // בריענון - לא מציגים ספינר אם כבר יש ספרים
-    // בטעינה ראשונה - נשאר במצב טעינה
-    final isRefresh = _books.isNotEmpty;
-
-    if (!isRefresh) {
-      setState(() {
-        _isLoadingBooks = true;
-        _booksError = null;
-      });
-    } else if (_booksError != null) {
-      setState(() {
-        _booksError = null;
-      });
-    }
+    final generation = ++_notesLoadGeneration;
+    setState(() {
+      _isLoadingBooks = _books.isEmpty;
+      _isLoadingNotes = true;
+      _booksError = null;
+    });
 
     try {
       final books = await _repository.listBooksWithNotes();
-      if (!mounted) return;
+      if (!mounted || generation != _notesLoadGeneration) return;
       setState(() {
         _books = books;
         _isLoadingBooks = false;
         _booksError = null;
+        final keys = books.map((book) => book.bookId).toSet();
+        _bookStates.removeWhere((key, _) => !keys.contains(key));
       });
-      _scheduleNotesLoad(books);
+      await _loadNotesSequence(books, generation);
     } catch (e) {
-      if (!mounted) return;
-      if (_books.isEmpty) {
-        setState(() {
-          _booksError = e.toString();
-          _isLoadingBooks = false;
-        });
-      } else {
+      if (!mounted || generation != _notesLoadGeneration) return;
+      setState(() {
+        _booksError = e.toString();
+        _isLoadingBooks = false;
+      });
+      if (_books.isNotEmpty) {
         UiSnack.showError(NotesMessages.notesListLoadError(e));
       }
+    } finally {
+      if (mounted && generation == _notesLoadGeneration) {
+        setState(() => _isLoadingNotes = false);
+        unawaited(_refreshChangedBooks());
+      }
     }
-  }
-
-  void _scheduleNotesLoad(List<BookNotesInfo> books) {
-    final generation = ++_notesLoadGeneration;
-    _cancelPendingNotesLoad();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || generation != _notesLoadGeneration) return;
-      unawaited(_loadNotesSequence(books, generation));
-    });
-  }
-
-  void _cancelPendingNotesLoad() {
-    final subscription = _notesLoadSubscription;
-    final completer = _notesLoadCompleter;
-    _notesLoadSubscription = null;
-    _notesLoadCompleter = null;
-    if (completer != null && !completer.isCompleted) completer.complete();
-    if (subscription != null) unawaited(subscription.cancel());
   }
 
   Future<void> _loadNotesSequence(
     List<BookNotesInfo> books,
     int generation,
   ) async {
-    if (!mounted || generation != _notesLoadGeneration) return;
-    final bloc = context.read<PersonalNotesBloc>();
     for (final book in books) {
-      if (generation != _notesLoadGeneration) return;
-      final completer = Completer<void>();
-      void completeLoad() {
-        if (!completer.isCompleted) completer.complete();
-      }
-
-      final subscription = bloc.stream.listen(
-        (state) {
-          if (state.bookId == book.bookId && !state.isLoading) completeLoad();
-        },
-        onError: (_, _) => completeLoad(),
-        onDone: completeLoad,
-      );
-      _notesLoadSubscription = subscription;
-      _notesLoadCompleter = completer;
-      bloc.add(LoadPersonalNotes(book.bookId));
-      await completer.future;
-      if (identical(_notesLoadSubscription, subscription)) {
-        _notesLoadSubscription = null;
-        _notesLoadCompleter = null;
-      }
-      unawaited(subscription.cancel());
       if (!mounted || generation != _notesLoadGeneration) return;
+      try {
+        // הקורא טוען ספרים במקביל; מצב ה-BLoC המשותף אינו תור טעינה למנהל.
+        final notes = await _repository.loadNotes(book.bookId);
+        if (!mounted || generation != _notesLoadGeneration) return;
+        _storeBookNotes(book.bookId, notes);
+      } catch (error) {
+        if (!mounted || generation != _notesLoadGeneration) return;
+        setState(() {
+          _bookStates[book.bookId] =
+              (_bookStates[book.bookId] ?? const PersonalNotesState.initial())
+                  .copyWith(
+                    bookId: book.bookId,
+                    errorMessage: error.toString(),
+                  );
+        });
+      }
     }
   }
+
+  void _storeBookNotes(String bookId, List<PersonalNote> notes) {
+    setState(() {
+      _bookStates[bookId] = PersonalNotesState(
+        bookId: bookId,
+        isLoading: false,
+        locatedNotes: notes.where((note) => note.hasLocation).toList(),
+        missingNotes: notes.where((note) => !note.hasLocation).toList(),
+        errorMessage: null,
+      );
+    });
+  }
+
+  Future<void> _refreshChangedBooks() async {
+    if (!mounted ||
+        _isLoadingNotes ||
+        _isRefreshingChangedBooks ||
+        _changedBooks.isEmpty) {
+      return;
+    }
+    setState(() => _isRefreshingChangedBooks = true);
+    final generation = _notesLoadGeneration;
+    try {
+      while (_changedBooks.isNotEmpty) {
+        final changed = Set<String>.of(_changedBooks);
+        _changedBooks.clear();
+        for (final bookId in changed) {
+          try {
+            final notes = await _repository.loadStoredNotes(bookId);
+            if (!mounted) return;
+            if (generation != _notesLoadGeneration) {
+              _changedBooks.addAll(changed);
+              return;
+            }
+            _storeBookNotes(bookId, notes);
+          } catch (error) {
+            if (!mounted || generation != _notesLoadGeneration) return;
+            setState(() {
+              _bookStates[bookId] =
+                  (_bookStates[bookId] ?? const PersonalNotesState.initial())
+                      .copyWith(bookId: bookId, errorMessage: error.toString());
+            });
+          }
+        }
+        final books = await _repository.listBooksWithNotes();
+        if (!mounted) return;
+        if (generation != _notesLoadGeneration) {
+          _changedBooks.addAll(changed);
+          return;
+        }
+        setState(() {
+          _books = books;
+          _booksError = null;
+          final keys = books.map((book) => book.bookId).toSet();
+          _bookStates.removeWhere((key, _) => !keys.contains(key));
+        });
+      }
+    } catch (error) {
+      if (mounted && generation == _notesLoadGeneration) {
+        setState(() => _booksError = error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingChangedBooks = false);
+        if (_changedBooks.isNotEmpty && !_isLoadingNotes) {
+          unawaited(_refreshChangedBooks());
+        }
+      }
+    }
+  }
+
+  bool get _hasNotesLoadError =>
+      _booksError != null ||
+      _bookStates.values.any((state) => state.errorMessage != null);
+
+  bool get _canExportNotes =>
+      !_isLoadingNotes &&
+      !_isRefreshingChangedBooks &&
+      _changedBooks.isEmpty &&
+      !_hasNotesLoadError;
 
   void _onFilterChanged(String? filter) {
     setState(() {
@@ -276,7 +341,7 @@ class _PersonalNotesManagerScreenState
   @override
   void dispose() {
     _notesLoadGeneration++;
-    _cancelPendingNotesLoad();
+    unawaited(_notesChangesSubscription.cancel());
     _searchController.dispose();
     _searchQuery.dispose();
     _searchFocusNode.dispose();
@@ -321,61 +386,57 @@ class _PersonalNotesManagerScreenState
           focusNode: _windowFocusNode,
           autofocus: true,
           onKeyEvent: _handleWindowKeyEvent,
-          child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
-            listener: (context, state) {
-              // Store the state for each book and trigger rebuild
-              if (state.bookId != null && !state.isLoading) {
-                setState(() {
-                  _bookStates[state.bookId!] = state;
-                });
-
-                // If this is a new book (not in _books list), refresh the books list
-                final bookExists = _books.any(
-                  (book) => book.bookId == state.bookId,
-                );
-                if (!bookExists &&
-                    (state.locatedNotes.isNotEmpty ||
-                        state.missingNotes.isNotEmpty)) {
-                  _loadBooks();
-                }
-              }
-            },
-            child: Column(
-              children: [
-                // שורת כלים עליונה לכל רוחב העמוד
-                _buildTopBar(),
-                // תוכן העמוד
-                Expanded(
-                  child: NavSidePanel(
-                    isOpen: _isNavigationVisible,
-                    alignment: AlignmentDirectional
-                        .centerEnd, // ימין בעברית (RTL) - סרגל ניווט
-                    mainContent: Column(
-                      children: [
-                        if (_dateRange != null) _buildDateFilterBanner(),
-                        Expanded(
-                          child: ValueListenableBuilder<String>(
-                            valueListenable: _searchQuery,
-                            builder: (context, _, _) => _buildAllNotesList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    paneWidth: _navigationWidth,
-                    minMainContentWidth: 320,
-                    onClose: () => setState(() => _isNavigationVisible = false),
-                    onOpen: () => setState(() => _isNavigationVisible = true),
-                    isResizable: true,
-                    minPaneWidth: 150,
-                    maxPaneWidth: 500,
-                    onPaneWidthChanged: (nextWidth) {
-                      _navigationWidth = nextWidth;
-                    },
-                    paneContent: _buildNotesTree(),
+          child: Column(
+            children: [
+              // שורת כלים עליונה לכל רוחב העמוד
+              _buildTopBar(),
+              if (_isLoadingNotes) const LinearProgressIndicator(),
+              if (_hasNotesLoadError)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(NotesMessages.notesLoadIncomplete),
+                      ),
+                      ActionButton.recommended(
+                        text: 'נסה שוב',
+                        onPressed: _loadBooks,
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              // תוכן העמוד
+              Expanded(
+                child: NavSidePanel(
+                  isOpen: _isNavigationVisible,
+                  alignment: AlignmentDirectional
+                      .centerEnd, // ימין בעברית (RTL) - סרגל ניווט
+                  mainContent: Column(
+                    children: [
+                      if (_dateRange != null) _buildDateFilterBanner(),
+                      Expanded(
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: _searchQuery,
+                          builder: (context, _, _) => _buildAllNotesList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  paneWidth: _navigationWidth,
+                  minMainContentWidth: 320,
+                  onClose: () => setState(() => _isNavigationVisible = false),
+                  onOpen: () => setState(() => _isNavigationVisible = true),
+                  isResizable: true,
+                  minPaneWidth: 150,
+                  maxPaneWidth: 500,
+                  onPaneWidthChanged: (nextWidth) {
+                    _navigationWidth = nextWidth;
+                  },
+                  paneContent: _buildNotesTree(),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -408,6 +469,25 @@ class _PersonalNotesManagerScreenState
           ),
           trailingItems: [
             AppTopBarItem(
+              widget: AppPopupMenuButton<PersonalNotesSortOrder>(
+                iconData: FluentIcons.arrow_sort_24_regular,
+                tooltip: 'מיון הערות',
+                highlighted: _sortOrder != PersonalNotesSortOrder.bookLocation,
+                initialValue: _sortOrder,
+                entries: [
+                  for (final order in PersonalNotesSortOrder.values)
+                    AppMenuEntry(value: order, label: order.label),
+                ],
+                onSelected: (order) {
+                  setState(() => _sortOrder = order);
+                  unawaited(savePersonalNotesSortOrder(order));
+                  if (_contentScrollController.hasClients) {
+                    _contentScrollController.jumpTo(0);
+                  }
+                },
+              ),
+            ),
+            AppTopBarItem(
               widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: _dateRange != null
@@ -432,7 +512,7 @@ class _PersonalNotesManagerScreenState
                 compact: isCompact,
                 tooltip: 'גיבוי הערות',
                 icon: FluentIcons.arrow_download_24_regular,
-                onPressed: _exportNotes,
+                onPressed: _canExportNotes ? _exportNotes : null,
               ),
             ),
             AppTopBarItem(
@@ -440,7 +520,7 @@ class _PersonalNotesManagerScreenState
                 compact: isCompact,
                 tooltip: 'ייצוא לטקסט',
                 icon: OtzariaIcons.document_download_24_regular,
-                onPressed: _exportNotesToText,
+                onPressed: _canExportNotes ? _exportNotesToText : null,
               ),
             ),
             AppTopBarItem(
@@ -448,7 +528,7 @@ class _PersonalNotesManagerScreenState
                 compact: isCompact,
                 tooltip: 'ייצוא לוורד',
                 icon: OtzariaIcons.document_word_24_regular,
-                onPressed: _exportNotesToWord,
+                onPressed: _canExportNotes ? _exportNotesToWord : null,
               ),
             ),
             AppTopBarItem(
@@ -498,12 +578,14 @@ class _PersonalNotesManagerScreenState
     required Future<Uint8List?> Function(NotesExportSelection selection)
     buildBytes,
   }) async {
+    if (!_canExportNotes) return;
     if (!await verifySaferModePassword(context)) return;
-    if (!mounted) return;
+    if (!mounted || !_canExportNotes) return;
+    final exportSnapshot = _collectAllNotes();
     final selection = await showDialog<NotesExportSelection>(
       context: context,
       builder: (context) => PersonalNotesExportDialog(
-        allNotes: _collectAllNotes(),
+        allNotes: exportSnapshot,
         title: title,
         confirmText: confirmText,
       ),
@@ -575,23 +657,81 @@ class _PersonalNotesManagerScreenState
 
   Future<Uint8List?> _buildWordExport(NotesExportSelection selection) async {
     final fontFamily = context.read<SettingsBloc>().state.fontFamily;
+    final library = context.read<LibraryBloc>().state.library;
+    final pdfLinkCandidatesById = <(String, int), List<PdfBook>>{};
+    if (library != null) {
+      for (final book in library.getIndexableBooks().whereType<PdfBook>()) {
+        if (book.id != null) {
+          pdfLinkCandidatesById
+              .putIfAbsent((book.source.wireKey, book.id!), () => [])
+              .add(book);
+        }
+      }
+    }
 
-    // כתובת המיקום (פרק/דף) לכל הערה נגזרת מתוכן העניינים של ספרה.
     final notesByBook = <String, List<PersonalNote>>{};
     for (final note in selection.notes) {
       notesByBook.putIfAbsent(note.bookId, () => []).add(note);
     }
     final refByNoteId = <String, String?>{};
+    final sourceLinkByNoteId = <String, String?>{};
     for (final entry in notesByBook.entries) {
-      final toc = await _tocFor(entry.key);
+      if (!mounted) return null;
+      final book = library == null
+          ? null
+          : findBookForPersonalNotesKey(library, entry.key);
+      final pdfBooks = <String?, PdfBook?>{};
+      final dbRefByLine = <int, Future<String?>>{};
       for (final note in entry.value) {
-        refByNoteId[note.id] = personalNoteLocationRef(
+        if (!mounted) return null;
+        if (!note.hasLocation) continue;
+        final lineNumber = note.lineNumber!;
+        final sourceBook = note.pdfAnchor == null
+            ? book
+            : pdfBooks.putIfAbsent(
+                note.pdfAnchor?.documentId,
+                () => library == null
+                    ? null
+                    : findPdfBookForPersonalNotesKey(
+                        library,
+                        entry.key,
+                        documentId: note.pdfAnchor?.documentId,
+                      ),
+              );
+        final link = personalNoteSourceLink(
+          sourceBook,
           note,
-          isPdf: false,
-          bookTitle: parsePersonalNotesBookKey(entry.key).title,
-          tableOfContents: toc,
-          includeBookTitle: false,
+          pdfLinkCandidates: sourceBook is PdfBook
+              ? pdfLinkCandidatesById[(
+                  sourceBook.source.wireKey,
+                  sourceBook.id,
+                )]
+              : null,
         );
+        sourceLinkByNoteId[note.id] = link;
+        if (sourceBook is PdfBook || note.pdfAnchor != null) {
+          refByNoteId[note.id] =
+              'עמוד ${note.pdfAnchor?.pageNumber ?? lineNumber}';
+          continue;
+        }
+        // heRef כולל את כתובת השורה; תוכן העניינים עשוי להסתיים בפרק.
+        final dbRef = sourceBook is! TextBook || lineNumber < 1
+            ? null
+            : await dbRefByLine.putIfAbsent(
+                lineNumber,
+                () => heRefFromDbLine(sourceBook, lineNumber - 1),
+              );
+        if (!mounted) return null;
+        refByNoteId[note.id] =
+            dbRef ??
+            personalNoteLocationRef(
+              note,
+              isPdf: false,
+              bookTitle: parsePersonalNotesBookKey(entry.key).title,
+              tableOfContents: await _tocFor(entry.key),
+              includeBookTitle: false,
+            ) ??
+            (link == null ? null : 'שורה $lineNumber');
       }
     }
     if (!mounted) return null;
@@ -599,6 +739,7 @@ class _PersonalNotesManagerScreenState
     final blocks = _importExportService.buildWordExportBlocks(
       notes: selection.notes,
       locationRef: (note) => refByNoteId[note.id],
+      sourceLink: (note) => sourceLinkByNoteId[note.id],
     );
     return WordExportService.createWordDocument(
       title: 'הערות אישיות',
@@ -723,8 +864,10 @@ class _PersonalNotesManagerScreenState
           rootCategory,
           _getNotesCountForBook,
         );
-        final totalNotesCount =
-            categoryCounts[rootCategory]! + _getMissingNotesCount();
+        final totalNotesCount = _books.fold<int>(
+          0,
+          (sum, book) => sum + book.noteCount,
+        );
 
         // שיטוח לרשימת שורות + ListView.builder (בנייה עצלה) — ספריית ההערות
         // דינמית ועלולה להיות ארוכה; בנייה מוקדמת של כל העץ הכבידה.
@@ -1018,17 +1161,8 @@ class _PersonalNotesManagerScreenState
           .toList();
     }
 
-    // Filter missing notes if not showing missing filter
-    final displayNotes = _selectedFilter == '__missing__'
-        ? filteredNotes
-        : filteredNotes;
-
-    // Sort by book and line number
-    displayNotes.sort((a, b) {
-      final bookCompare = a.bookId.compareTo(b.bookId);
-      if (bookCompare != 0) return bookCompare;
-      return (a.note.lineNumber ?? 0).compareTo(b.note.lineNumber ?? 0);
-    });
+    final displayNotes = filteredNotes
+      ..sort((a, b) => _sortOrder.compare(a.note, b.note));
 
     if (displayNotes.isEmpty) {
       return const ToolEmptyState(
@@ -1037,7 +1171,7 @@ class _PersonalNotesManagerScreenState
       );
     }
 
-    // Group notes by book for headers - always show book names
+    // קיבוץ של ספרים סמוכים בלבד שומר על המיון הכרונולוגי בין כל הספרים.
     final groupedNotes = <_NotesGroup>[];
     String? currentBookId;
     List<_NoteWithBook> currentGroup = [];
@@ -1112,7 +1246,7 @@ class _PersonalNotesManagerScreenState
               );
             }
             return FutureBuilder<List<TocEntry>?>(
-              key: ValueKey((group.bookId, start)),
+              key: ValueKey((group.bookId, group.notes.first.note.id, start)),
               future: _tocFor(group.bookId),
               builder: (context, tocSnapshot) => Padding(
                 padding: EdgeInsets.only(top: start == 0 ? 0 : spacing),
@@ -1189,10 +1323,19 @@ class _PersonalNotesManagerScreenState
     List<TocEntry>? tableOfContents,
   }) {
     final cs = Theme.of(context).colorScheme;
-    final hebrewDate = getHebrewDateFormattedAsString(note.updatedAt);
+    final displayedDate =
+        (_sortOrder.usesCreationDate ? note.createdAt : note.updatedAt)
+            .toLocal();
+    final hebrewDate = getHebrewDateFormattedAsString(displayedDate);
+    final dateLabel = _sortOrder.usesCreationDate ? 'נכתב' : 'עודכן';
+    final time =
+        '${displayedDate.hour.toString().padLeft(2, '0')}:'
+        '${displayedDate.minute.toString().padLeft(2, '0')}';
     // שם הספר כבר מוצג ככותרת הקבוצה, לכן כאן מציגים רק את הדף/העמוד.
     final locationRef = isMissing
         ? null
+        : note.pdfAnchor != null
+        ? 'עמוד ${note.pdfAnchor!.pageNumber}'
         : personalNoteLocationRef(
             note,
             isPdf: false,
@@ -1262,14 +1405,18 @@ class _PersonalNotesManagerScreenState
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _InfoChip(
-                      icon: OtzariaIcons.calendar_24_regular,
-                      text: hebrewDate,
-                      // גוון בהיר מזה של הכפתורים, כדי שהתאריך לא ייראה לחיץ.
-                      backgroundColor: cs.secondaryContainer.withValues(
-                        alpha: 0.45,
+                    Tooltip(
+                      message: '$dateLabel: $hebrewDate $time',
+                      child: _InfoChip(
+                        icon: OtzariaIcons.calendar_24_regular,
+                        text: _sortOrder == PersonalNotesSortOrder.bookLocation
+                            ? hebrewDate
+                            : '$hebrewDate $time',
+                        backgroundColor: cs.secondaryContainer.withValues(
+                          alpha: 0.45,
+                        ),
+                        foregroundColor: cs.onSecondaryContainer,
                       ),
-                      foregroundColor: cs.onSecondaryContainer,
                     ),
                     if (isMissing && note.lastKnownLineNumber != null)
                       _InfoChip(
@@ -1297,7 +1444,9 @@ class _PersonalNotesManagerScreenState
                 const SizedBox(height: 6),
                 if (isMissing)
                   SecondaryIconButton(
-                    tooltip: 'מיקום מחדש',
+                    tooltip: note.pdfAnchor != null
+                        ? 'פתח PDF לשינוי המיקום'
+                        : 'מיקום מחדש',
                     icon: FluentIcons.location_24_regular,
                     onPressed: () => _repositionMissing(note),
                   )
@@ -1322,37 +1471,38 @@ class _PersonalNotesManagerScreenState
   }
 
   Future<void> _editNote(PersonalNote note) async {
-    final result = await showDialog<PersonalNoteEditorResult>(
+    final library = context.read<LibraryBloc>().state.library;
+    final categoryId = library == null
+        ? null
+        : personalNoteSourceBook(library, note)?.categoryId;
+    final draft = await PersonalNoteDraftService().loadDraft(
+      bookId: note.bookId,
+      categoryId: categoryId,
+      noteId: note.id,
+    );
+    if (!mounted) return;
+    await showDialog<PersonalNoteEditorResult>(
       context: context,
       builder: (context) => PersonalNoteEditorDialog(
         title: 'ערוך הערה',
-        initialContent: note.content,
-        initialContentFormat: note.contentFormat,
+        initialContent: draft?.content ?? note.content,
+        initialContentFormat: draft?.contentFormat ?? note.contentFormat,
         referenceText: note.displayTitle,
         icon: FluentIcons.edit_24_regular,
         bookId: note.bookId,
+        categoryId: categoryId,
+        draftNoteId: note.id,
         linkableNotes: _collectAllNotes(),
+        onSave: (result) => _repository.persistNote(
+          bookId: note.bookId,
+          categoryId: categoryId,
+          noteId: note.id,
+          content: result.content,
+          contentPlain: result.contentPlain,
+          contentFormat: result.contentFormat,
+        ),
       ),
     );
-    if (result == null) return;
-
-    final trimmed = result.contentPlain.trim();
-    if (trimmed.isEmpty) {
-      UiSnack.show(NotesMessages.emptyNoteNotSaved);
-      return;
-    }
-
-    if (!mounted) return;
-    context.read<PersonalNotesBloc>().add(
-      UpdatePersonalNote(
-        bookId: note.bookId,
-        noteId: note.id,
-        content: result.content,
-        contentPlain: result.contentPlain,
-        contentFormat: result.contentFormat,
-      ),
-    );
-    UiSnack.show(NotesMessages.noteUpdated);
   }
 
   Future<void> _deleteNote(PersonalNote note) async {
@@ -1366,17 +1516,20 @@ class _PersonalNotesManagerScreenState
 
     if (shouldDelete == true) {
       if (!mounted) return;
-      context.read<PersonalNotesBloc>().add(
-        DeletePersonalNote(
-          bookId: note.bookId,
-          noteId: note.id,
-        ),
-      );
-      UiSnack.show(NotesMessages.noteDeleted);
+      try {
+        await _repository.deleteNote(bookId: note.bookId, noteId: note.id);
+        if (mounted) UiSnack.show(NotesMessages.noteDeleted);
+      } catch (error) {
+        if (mounted) UiSnack.showError(NotesMessages.noteDeleteFailed(error));
+      }
     }
   }
 
   Future<void> _repositionMissing(PersonalNote note) async {
+    if (note.pdfAnchor != null) {
+      await _openNoteInBook(note);
+      return;
+    }
     final result = await showInputDialog(
       context: context,
       title: 'מיקום מחדש של הערה',
@@ -1392,19 +1545,23 @@ class _PersonalNotesManagerScreenState
 
     if (newLine != null) {
       if (!mounted) return;
-      context.read<PersonalNotesBloc>().add(
-        RepositionPersonalNote(
+      try {
+        await _repository.repositionNote(
           bookId: note.bookId,
           noteId: note.id,
           lineNumber: newLine,
-        ),
-      );
-      UiSnack.show(NotesMessages.noteMovedToLine(newLine));
+        );
+        if (mounted) UiSnack.show(NotesMessages.noteMovedToLine(newLine));
+      } catch (error) {
+        if (mounted) {
+          UiSnack.showError(NotesMessages.noteRepositionFailed(error));
+        }
+      }
     }
   }
 
   Future<void> _openNoteInBook(PersonalNote note) async {
-    if (note.lineNumber == null) {
+    if (note.lineNumber == null && note.pdfAnchor == null) {
       UiSnack.show(NotesMessages.noteHasNoLocation);
       return;
     }
@@ -1416,13 +1573,30 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
-    final book = findBookForPersonalNotesKey(library, note.bookId);
+    final book = personalNoteSourceBook(library, note);
     if (book == null) {
       UiSnack.show(
         NotesMessages.bookNotFound(
           parsePersonalNotesBookKey(note.bookId).title,
         ),
       );
+      return;
+    }
+
+    if (book is PdfBook) {
+      final coordinator = bookOpenCoordinatorOf(context);
+      final tab =
+          coordinator.buildTab(
+                book,
+                note.pdfAnchor?.pageNumber ?? note.lineNumber!,
+                '',
+                ignoreHistory: true,
+              )
+              as PdfBookTab;
+      if (note.pdfAnchor case final anchor?) {
+        tab.requestPersonalNoteNavigation(anchor);
+      }
+      coordinator.openTab(tab, navigateToPositionIfReused: true);
       return;
     }
 

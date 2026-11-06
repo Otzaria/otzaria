@@ -1,4 +1,7 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
+
+export 'pdf_note_anchor.dart';
 
 /// Indicates whether a personal note currently has a valid location in the book.
 enum PersonalNoteStatus {
@@ -51,6 +54,9 @@ class PersonalNote extends Equatable {
   /// מיקום תווי (offset) של סוף הביטוי בשורה הגולמית — רמז/fast-path.
   final int? anchorEnd;
 
+  /// מיקום פיזי ב-PDF, שאינו תלוי במיפוי לשורות של מהדורת הטקסט.
+  final PdfNoteAnchor? pdfAnchor;
+
   /// If the note lost its anchor, we keep the previous line number for UI hints.
   final int? lastKnownLineNumber;
 
@@ -84,6 +90,7 @@ class PersonalNote extends Equatable {
     this.anchorSuffix,
     this.anchorStart,
     this.anchorEnd,
+    this.pdfAnchor,
     required this.lastKnownLineNumber,
     required this.status,
     required this.content,
@@ -105,6 +112,11 @@ class PersonalNote extends Equatable {
       anchorSuffix: json['anchorSuffix'] as String?,
       anchorStart: json['anchorStart'] as int?,
       anchorEnd: json['anchorEnd'] as int?,
+      pdfAnchor: json['pdfAnchor'] == null
+          ? null
+          : PdfNoteAnchor.fromJson(
+              Map<String, dynamic>.from(json['pdfAnchor'] as Map),
+            ),
       lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
       status: PersonalNoteStatus.values.byName(json['status'] as String),
       content: json['content'] as String,
@@ -130,6 +142,7 @@ class PersonalNote extends Equatable {
       'anchorSuffix': anchorSuffix,
       'anchorStart': anchorStart,
       'anchorEnd': anchorEnd,
+      'pdfAnchor': pdfAnchor?.toJson(),
       'lastKnownLineNumber': lastKnownLineNumber,
       'status': status.name,
       'content': content,
@@ -161,6 +174,8 @@ class PersonalNote extends Equatable {
     int? anchorStart,
     int? anchorEnd,
     bool clearAnchor = false,
+    PdfNoteAnchor? pdfAnchor,
+    bool clearPdfAnchor = false,
     int? lastKnownLineNumber,
     bool clearLastKnownLineNumber = false,
     PersonalNoteStatus? status,
@@ -182,6 +197,7 @@ class PersonalNote extends Equatable {
       anchorSuffix: clearAnchor ? null : (anchorSuffix ?? this.anchorSuffix),
       anchorStart: clearAnchor ? null : (anchorStart ?? this.anchorStart),
       anchorEnd: clearAnchor ? null : (anchorEnd ?? this.anchorEnd),
+      pdfAnchor: clearPdfAnchor ? null : (pdfAnchor ?? this.pdfAnchor),
       lastKnownLineNumber: clearLastKnownLineNumber
           ? null
           : (lastKnownLineNumber ?? this.lastKnownLineNumber),
@@ -205,6 +221,7 @@ class PersonalNote extends Equatable {
     anchorSuffix,
     anchorStart,
     anchorEnd,
+    pdfAnchor,
     lastKnownLineNumber,
     status,
     content,

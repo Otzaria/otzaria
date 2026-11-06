@@ -65,11 +65,22 @@ void main() {
   });
 
   group('composePdfSheets', () {
+    final originalModulePath = Pdfrx.pdfiumModulePath;
     setUpAll(() async {
+      final moduleName = Platform.isWindows
+          ? 'pdfium.dll'
+          : Platform.isMacOS
+          ? 'libpdfium.dylib'
+          : 'libpdfium.so';
+      Pdfrx.pdfiumModulePath = File(
+        'build/native_assets/${Platform.operatingSystem}/$moduleName',
+      ).absolute.path;
       // Skips the path_provider lookup, which a plain test has no plugin for.
       Pdfrx.cacheDirectoryPath = Directory.systemTemp.path;
       await pdfrxFlutterInitialize();
     });
+
+    tearDownAll(() => Pdfrx.pdfiumModulePath = originalModulePath);
 
     test('שני עמודים בגיליון נשארים טקסט, הראשון מימין', () async {
       final source = await PdfDocument.openData(await _numberedPdf(5));

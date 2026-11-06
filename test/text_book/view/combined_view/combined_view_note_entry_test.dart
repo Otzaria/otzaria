@@ -458,6 +458,7 @@ Future<_Fixture> _pumpView(
             textSize: 18,
             showCommentaryAsExpansionTiles: true,
             onOpenPersonalNotes: () {},
+            isPersonalNotesTabActive: () => true,
             onSelectedTextChanged: (text, line, column) {
               fixture.selectedText = text;
               fixture.selectedLine = line;

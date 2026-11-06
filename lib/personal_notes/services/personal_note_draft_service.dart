@@ -13,6 +13,7 @@ class PersonalNoteDraft {
   final int? lineNumber;
   final String? noteId;
   final String? referenceText;
+  final PdfNoteAnchor? pdfAnchor;
 
   const PersonalNoteDraft({
     required this.content,
@@ -22,6 +23,7 @@ class PersonalNoteDraft {
     this.lineNumber,
     this.noteId,
     this.referenceText,
+    this.pdfAnchor,
   });
 
   Map<String, dynamic> toJson() => {
@@ -32,6 +34,7 @@ class PersonalNoteDraft {
     'lineNumber': lineNumber,
     'noteId': noteId,
     'referenceText': referenceText,
+    if (pdfAnchor != null) 'pdfAnchor': pdfAnchor!.toJson(),
   };
 
   factory PersonalNoteDraft.fromJson(Map<String, dynamic> json) {
@@ -47,6 +50,11 @@ class PersonalNoteDraft {
       lineNumber: json['lineNumber'] as int?,
       noteId: json['noteId'] as String?,
       referenceText: json['referenceText'] as String?,
+      pdfAnchor: json['pdfAnchor'] == null
+          ? null
+          : PdfNoteAnchor.fromJson(
+              Map<String, dynamic>.from(json['pdfAnchor'] as Map),
+            ),
     );
   }
 }
@@ -61,10 +69,18 @@ class PersonalNoteDraftService {
     int? categoryId,
     int? lineNumber,
     String? noteId,
+    PdfNoteAnchor? pdfAnchor,
   }) {
     assert((lineNumber == null) != (noteId == null));
     final prefix = _bookPrefix(bookId, categoryId: categoryId);
-    return noteId != null ? '${prefix}note:$noteId' : '$prefix$lineNumber';
+    if (noteId != null) return '${prefix}note:$noteId';
+    if (pdfAnchor != null) {
+      final document = pdfAnchor.documentId == null
+          ? ''
+          : '${Uri.encodeComponent(pdfAnchor.documentId!)}:';
+      return '${prefix}pdf:$document${pdfAnchor.pageNumber}:${pdfAnchor.x}:${pdfAnchor.y}';
+    }
+    return '$prefix$lineNumber';
   }
 
   String _bookPrefix(String bookId, {int? categoryId}) {
@@ -88,14 +104,25 @@ class PersonalNoteDraftService {
     int? categoryId,
     int? lineNumber,
     String? noteId,
+    PdfNoteAnchor? pdfAnchor,
   }) async {
     final key = _key(
       bookId,
       categoryId: categoryId,
       lineNumber: lineNumber,
       noteId: noteId,
+      pdfAnchor: pdfAnchor,
     );
-    return _readDraft(key);
+    final draft = _readDraft(key);
+    if (noteId != null) return draft;
+    if (draft != null && draft.pdfAnchor == pdfAnchor) return draft;
+    if (pdfAnchor == null) return null;
+
+    // טיוטה שנשמרה במפתח הישן של מספר השורה שייכת רק לנקודה שלה.
+    final legacyDraft = _readDraft(
+      _key(bookId, categoryId: categoryId, lineNumber: lineNumber),
+    );
+    return legacyDraft?.pdfAnchor == pdfAnchor ? legacyDraft : null;
   }
 
   Future<void> saveDraft({
@@ -110,6 +137,7 @@ class PersonalNoteDraftService {
       categoryId: categoryId,
       lineNumber: lineNumber,
       noteId: noteId,
+      pdfAnchor: draft.pdfAnchor,
     );
     final normalizedDraft = PersonalNoteDraft(
       content: draft.content,
@@ -119,7 +147,33 @@ class PersonalNoteDraftService {
       lineNumber: lineNumber ?? draft.lineNumber,
       noteId: noteId ?? draft.noteId,
       referenceText: draft.referenceText,
+      pdfAnchor: draft.pdfAnchor,
     );
+    if (noteId == null) {
+      // מפתח שורה ישן עשוי להכיל טיוטת נקודה. מעבירים אותה לפני כתיבת
+      // טיוטה חדשה לאותה שורה, כדי שגם טיוטת טקסט לא תדרוס אותה.
+      final legacyKey = _key(
+        bookId,
+        categoryId: categoryId,
+        lineNumber: lineNumber,
+      );
+      final legacyDraft = _readDraft(legacyKey);
+      if (legacyDraft?.pdfAnchor != null) {
+        final pointKey = _key(
+          bookId,
+          categoryId: categoryId,
+          lineNumber: lineNumber,
+          pdfAnchor: legacyDraft!.pdfAnchor,
+        );
+        if (_readDraft(pointKey) == null) {
+          await Settings.setValue<String>(
+            pointKey,
+            jsonEncode(legacyDraft.toJson()),
+          );
+        }
+        await Settings.setValue<String?>(legacyKey, null);
+      }
+    }
     await Settings.setValue<String>(key, jsonEncode(normalizedDraft.toJson()));
   }
 
@@ -128,19 +182,40 @@ class PersonalNoteDraftService {
     int? categoryId,
     int? lineNumber,
     String? noteId,
+    PdfNoteAnchor? pdfAnchor,
   }) async {
     final key = _key(
       bookId,
       categoryId: categoryId,
       lineNumber: lineNumber,
       noteId: noteId,
+      pdfAnchor: pdfAnchor,
     );
+    if (noteId == null &&
+        pdfAnchor == null &&
+        _readDraft(key)?.pdfAnchor != null) {
+      return;
+    }
     await Settings.setValue<String?>(key, null);
+    if (noteId == null && pdfAnchor != null) {
+      final legacyKey = _key(
+        bookId,
+        categoryId: categoryId,
+        lineNumber: lineNumber,
+      );
+      if (_readDraft(legacyKey)?.pdfAnchor == pdfAnchor) {
+        await Settings.setValue<String?>(legacyKey, null);
+      }
+    }
   }
 
   Future<PersonalNoteDraft?> loadLatestNewNoteDraft({
     required String bookId,
     int? categoryId,
+    bool includePdfAnchors = true,
+    String? pdfDocumentId,
+    Set<String> pdfDocumentIds = const {},
+    bool includeUnidentifiedPdfAnchors = true,
   }) async {
     final prefix = _bookPrefix(bookId, categoryId: categoryId);
     if (!Hive.isBoxOpen(HiveCache.keyName)) return null;
@@ -158,6 +233,16 @@ class PersonalNoteDraftService {
 
       final draft = _readDraft(key);
       if (draft == null || draft.lineNumber == null) continue;
+      final anchor = draft.pdfAnchor;
+      if (anchor != null) {
+        if (!includePdfAnchors) continue;
+        if (anchor.documentId == null) {
+          if (!includeUnidentifiedPdfAnchors) continue;
+        } else if (anchor.documentId != pdfDocumentId &&
+            !pdfDocumentIds.contains(anchor.documentId)) {
+          continue;
+        }
+      }
       if (latestDraft == null ||
           draft.updatedAt.isAfter(latestDraft.updatedAt)) {
         latestDraft = draft;

@@ -28,8 +28,8 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/personal_notes/utils/create_personal_note.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -550,7 +550,11 @@ void main() {
   testWidgets('סימון הערה inline מוזרק לטקסט ולחיצתו פותחת את טאב ההערות', (
     tester,
   ) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState().copyWith(
+        book: TextBook(title: 'ספר בדיקה', categoryId: 9),
+      ),
+    );
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
         isLoading: false,
@@ -560,6 +564,8 @@ void main() {
         errorMessage: null,
         filteredLocatedNotes: [_note()],
         filteredMissingNotes: const [],
+        searchQuery: 'חיפוש קודם',
+        showOnlyVisible: true,
       ),
     );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
@@ -588,6 +594,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    expect(
+      personalNotesBloc.receivedEvents.whereType<LoadPersonalNotes>().single,
+      const LoadPersonalNotes('ספר בדיקה', categoryId: 9),
+    );
+    personalNotesBloc.receivedEvents.clear();
+
     // הסימון מוזרק כקישור inline בטקסט הראשי (otzaria://note?line=0).
     final mainText = tester
         .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
@@ -599,6 +611,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(openedTab, kNotesTabIndex);
+    expect(personalNotesBloc.receivedEvents, [
+      const ToggleShowOnlyVisible(),
+      const UpdateSearchQuery(''),
+      const LoadPersonalNotes('ספר בדיקה', categoryId: 9),
+      const RequestExpandNotesForLine(1),
+    ]);
   });
 
   testWidgets('תיבת הערה מרחפת נסגרת כשקישור בה פותח טאב אחר (issue #2957)', (
@@ -1325,7 +1343,7 @@ void main() {
   });
 
   testWidgets(
-    'הוספת הערה ממפרש פותחת דיאלוג עצמאי ולא עוברת דרך הסיידבר של הספר הראשי',
+    'הוספת הערה ממפרש כשחלונית ההערות סגורה פותחת דיאלוג עצמאי',
     (tester) async {
       // רגרסיה: בצורת הדף המפרש חולק את ה-TextBookBloc של הספר הראשי. הוספת הערה
       // ממפרש חייבת להישמר תחת ספר המפרש (דרך דיאלוג עצמאי), ולא לשלוח
@@ -1501,43 +1519,97 @@ void main() {
     },
   );
 
-  test(
-    'saveCommentaryNoteToRepository ממפה את תוצאת העורך לקריאת addNote',
-    () async {
-      final repo = _RecordingNotesRepository();
-
-      await saveCommentaryNoteToRepository(
-        repository: repo,
-        bookId: 'רש"י',
-        lineNumber: 2,
-        result: const PersonalNoteEditorResult(
-          content: 'דלתא',
-          contentPlain: 'תוכן ההערה',
-          contentFormat: PersonalNoteContentFormat.quillDelta,
+  for (final panelOpen in [false, true]) {
+    testWidgets('מפרש משתמש בפאנל הקרוב שפתוח=$panelOpen ומכוון לספר המפרש', (
+      tester,
+    ) async {
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final notesBloc = _TestPersonalNotesBloc(
+        const PersonalNotesState.initial(),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final targets = <(String, int?, int)>[];
+      var outerCalls = 0;
+      addTearDown(textBookBloc.close);
+      addTearDown(notesBloc.close);
+      addTearDown(settingsBloc.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: notesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: _NotesPanelOwner(
+                isOpen: true,
+                onReveal: (_, _, _) => outerCalls++,
+                child: _NotesPanelOwner(
+                  isOpen: panelOpen,
+                  onReveal: (book, category, line) =>
+                      targets.add((book, category, line)),
+                  child: SimpleTextViewer(
+                    content: const ['שורת מפרש'],
+                    fontSize: 18,
+                    openBookCallback: (_) {},
+                    isMainText: false,
+                    bookTitle: 'מפרש בדיקה',
+                    reportBook: TextBook(title: 'מפרש בדיקה', categoryId: 42),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
-        selectedText: 'טקסט נבחר',
-        selectionColumn: 12,
-        punctuationHidden: true,
-        categoryId: 7,
       );
-
-      expect(
-        repo.addNoteCallCount,
-        1,
-        reason: 'חייבת להתבצע קריאה אחת בדיוק ל-addNote',
+      await tester.pumpAndSettle();
+      final region = tester.widget<AppContextMenuRegion>(
+        find.byType(AppContextMenuRegion).first,
       );
-      expect(repo.capturedBookId, 'רש"י', reason: 'ההערה נשמרת תחת ספר המפרש');
-      expect(repo.capturedLineNumber, 2);
-      expect(repo.capturedContentPlain, 'תוכן ההערה');
-      expect(repo.capturedCategoryId, 7);
-      expect(
-        repo.capturedSelectionColumn,
-        12,
-        reason: 'רמז עמודת הבחירה מועבר לזיהוי המופע הנכון בטקסט חוזר',
+      final context = tester.element(find.byType(AppContextMenuRegion).first);
+      final entries = region.menuBuilder(
+        context,
+        tester.getCenter(find.byType(AppContextMenuRegion).first),
       );
-      expect(repo.capturedPunctuationHidden, isTrue);
-    },
-  );
+      entries
+          .singleWhere((entry) => entry.label?.trim() == 'הוסף הערה אישית')
+          .onTap!();
+      await tester.pumpAndSettle();
+      expect(outerCalls, 0);
+      if (panelOpen) {
+        expect(targets, [('מפרש בדיקה', 42, 1)]);
+        final request = notesBloc.receivedEvents
+            .whereType<StartCreatingPersonalNote>()
+            .single;
+        expect(request.bookId, 'מפרש בדיקה');
+        expect(request.lineNumber, 1);
+        expect(
+          notesBloc.receivedEvents
+              .whereType<LoadPersonalNotes>()
+              .last
+              .categoryId,
+          42,
+        );
+        expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+      } else {
+        expect(targets, isEmpty);
+        expect(
+          notesBloc.receivedEvents.whereType<StartCreatingPersonalNote>(),
+          isEmpty,
+        );
+        final dialog = tester.widget<PersonalNoteEditorDialog>(
+          find.byType(PersonalNoteEditorDialog),
+        );
+        expect(dialog.bookId, 'מפרש בדיקה');
+        expect(dialog.categoryId, 42);
+        expect(dialog.onSave, isNotNull);
+        await tester.tap(find.text('ביטול'));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('מפרש בצורת הדף מציג סימון הערה ופותח אותה בלחיצה', (
     tester,
@@ -3141,6 +3213,36 @@ void main() {
   });
 }
 
+class _NotesPanelOwner extends StatefulWidget {
+  const _NotesPanelOwner({
+    required this.isOpen,
+    required this.onReveal,
+    required this.child,
+  });
+  final bool isOpen;
+  final void Function(String, int?, int) onReveal;
+  final Widget child;
+
+  @override
+  State<_NotesPanelOwner> createState() => _NotesPanelOwnerState();
+}
+
+class _NotesPanelOwnerState extends State<_NotesPanelOwner>
+    implements PersonalNotesPanelVisibility {
+  @override
+  bool get isPersonalNotesPanelOpen => widget.isOpen;
+
+  @override
+  void revealPersonalNotesTarget(
+    String bookId,
+    int? categoryId,
+    int lineNumber,
+  ) => widget.onReveal(bookId, categoryId, lineNumber);
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 Future<_SelectionEmittingTextBookBloc> _pumpMarkedViewer(
   WidgetTester tester, {
   String line = 'אמר רבי יוחנן הלכה',
@@ -3352,41 +3454,6 @@ class _GatedContentProvider implements LibraryProvider {
   Future<Map<String, List<Book>>> loadBooks(
     Map<String, Map<String, dynamic>> metadata,
   ) async => const {};
-}
-
-/// repository מדומה שמתעד את הקריאה ל-addNote בלי לגעת במערכת הקבצים.
-class _RecordingNotesRepository extends PersonalNotesRepository {
-  String? capturedBookId;
-  int? capturedLineNumber;
-  String? capturedContentPlain;
-  int? capturedCategoryId;
-  int? capturedSelectionColumn;
-  bool? capturedPunctuationHidden;
-  int addNoteCallCount = 0;
-
-  @override
-  Future<List<PersonalNote>> addNote({
-    required String bookId,
-    required int lineNumber,
-    required String content,
-    required String contentPlain,
-    required PersonalNoteContentFormat contentFormat,
-    String? selectedText,
-    int? selectionColumn,
-    String? sourceSelectedText,
-    int? sourceSelectionOffset,
-    bool punctuationHidden = false,
-    int? categoryId,
-  }) async {
-    addNoteCallCount++;
-    capturedBookId = bookId;
-    capturedLineNumber = lineNumber;
-    capturedContentPlain = contentPlain;
-    capturedCategoryId = categoryId;
-    capturedSelectionColumn = selectionColumn;
-    capturedPunctuationHidden = punctuationHidden;
-    return const [];
-  }
 }
 
 class _CommentaryNotesRepository extends PersonalNotesRepository {

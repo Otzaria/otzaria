@@ -188,14 +188,20 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                     itemBuilder: (context, index) {
                       final note = filteredNotes[index];
                       final selected = _manualSelection[note.id] ?? false;
+                      final bookTitle = parsePersonalNotesBookKey(
+                        note.bookId,
+                      ).title;
+                      final location = note.displayTitle?.trim();
+                      final title =
+                          location == null ||
+                              location.isEmpty ||
+                              location == bookTitle
+                          ? bookTitle
+                          : '$bookTitle — $location';
                       return CheckboxListTile(
                         shape: Border(bottom: listDialogRowDivider(context)),
                         value: selected,
-                        title: Text(
-                          note.displayTitle?.isNotEmpty == true
-                              ? note.displayTitle!
-                              : note.bookId,
-                        ),
+                        title: Text(title),
                         subtitle: Text(
                           note.contentPlain,
                           maxLines: 1,

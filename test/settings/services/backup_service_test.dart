@@ -1420,6 +1420,157 @@ void main() {
     });
   });
 
+  group('שחזור הערות PDF — תאימות גיבוי ישן', () {
+    final database = PersonalNotesDatabase.instance;
+    const point = PdfNoteAnchor(
+      pageNumber: 7,
+      x: .2,
+      y: .8,
+      documentId: 'user|document.pdf',
+    );
+    const importedPoint = PdfNoteAnchor(
+      pageNumber: 7,
+      x: .6,
+      y: .3,
+      documentId: 'user|another-document.pdf',
+    );
+
+    PersonalNote localNote({bool missing = false}) => PersonalNote(
+      id: 'pdf-note',
+      bookId: 'מסמך בדיקה|user',
+      lineNumber: missing ? null : 7,
+      displayTitle: 'מקור מסומן',
+      pdfAnchor: point,
+      lastKnownLineNumber: missing ? 7 : null,
+      status: missing ? PersonalNoteStatus.missing : PersonalNoteStatus.located,
+      content: 'תוכן מקומי',
+      contentPlain: 'תוכן מקומי',
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime.utc(2026, 1, 1),
+      updatedAt: DateTime.utc(2026, 1, 1),
+    );
+
+    Map<String, dynamic> oldPayload({PersonalNote? original}) =>
+        (original ?? localNote())
+            .copyWith(
+              content: 'תוכן מהגיבוי',
+              contentPlain: 'תוכן מהגיבוי',
+              updatedAt: DateTime.utc(2026, 2, 1),
+            )
+            .toJson()
+          ..remove('pdfAnchor');
+
+    Future<BackupRestoreResult> restoreRows(
+      List<Map<String, dynamic>> rows,
+      BackupImportMode mode,
+    ) async {
+      final file = File(p.join(tempDir.path, 'pdf_notes_backup.json'));
+      await file.writeAsString(
+        jsonEncode({
+          'version': '2.0',
+          'includes': {'notes': true},
+          'notes': [
+            for (final row in rows)
+              {
+                'bookId': row['bookId'],
+                'notes': [row],
+              },
+          ],
+        }),
+      );
+      return BackupService.restoreFromBackup(file.path, mode: mode);
+    }
+
+    setUp(() async {
+      AppPaths.debugOverrideDataRootPath(tempDir.path);
+      await database.close();
+      await database.insertNote(localNote());
+    });
+
+    for (final mode in [BackupImportMode.replace, BackupImportMode.merge]) {
+      test(
+        'pdfAnchor חסר משמר נקודה גם כש-anchorText קיים (${mode.name})',
+        () async {
+          final result = await restoreRows([oldPayload()], mode);
+          final restored = (await database.getNote('pdf-note'))!;
+          expect(restored.pdfAnchor, point);
+          expect(restored.content, 'תוכן מהגיבוי');
+          expect(result.notesWithoutAnchor, 0);
+        },
+      );
+
+      test('נקודה שנשמרה אינה מדווחת כאובדן עוגן (${mode.name})', () async {
+        final payload = oldPayload()..remove('anchorText');
+        final result = await restoreRows([payload], mode);
+        expect((await database.getNote('pdf-note'))!.pdfAnchor, point);
+        expect(result.notesWithoutAnchor, 0);
+      });
+
+      test('pdfAnchor null מפורש מסיר את הנקודה (${mode.name})', () async {
+        final payload = oldPayload()..['pdfAnchor'] = null;
+        await restoreRows([payload], mode);
+        final restored = (await database.getNote('pdf-note'))!;
+        expect(restored.pdfAnchor, isNull);
+        expect(restored.content, 'תוכן מהגיבוי');
+      });
+
+      test('נקודה מפורשת מהגיבוי גוברת על המקומית (${mode.name})', () async {
+        final payload = oldPayload()..['pdfAnchor'] = importedPoint.toJson();
+        await restoreRows([payload], mode);
+        expect((await database.getNote('pdf-note'))!.pdfAnchor, importedPoint);
+      });
+
+      for (final (field, value) in <(String, Object)>[
+        ('bookId', 'מסמך בדיקה'),
+        ('bookId', 'מסמך אחר|user'),
+        ('lineNumber', 8),
+        ('displayTitle', 'מקור שונה'),
+        ('status', PersonalNoteStatus.missing.name),
+      ]) {
+        test(
+          'שינוי $field=$value אינו יורש נקודה מקומית (${mode.name})',
+          () async {
+            final payload = oldPayload()..[field] = value;
+            await restoreRows([payload], mode);
+            final restored = (await database.getNote('pdf-note'))!;
+            expect(restored.pdfAnchor, isNull);
+            expect(restored.content, 'תוכן מהגיבוי');
+          },
+        );
+      }
+
+      for (final lastKnown in [7, 8]) {
+        test('הערה חסרה משווה רמז מיקום $lastKnown (${mode.name})', () async {
+          final original = localNote(missing: true);
+          await database.insertNote(original);
+          final payload = oldPayload(original: original)
+            ..['lastKnownLineNumber'] = lastKnown;
+          await restoreRows([payload], mode);
+          final restored = (await database.getNote('pdf-note'))!;
+          expect(restored.lastKnownLineNumber, lastKnown);
+          expect(restored.pdfAnchor, lastKnown == 7 ? point : isNull);
+        });
+      }
+
+      for (final previousPoint in [importedPoint, null]) {
+        test(
+          'כפילות בגיבוי משתמשת בנקודה הממתינה $previousPoint (${mode.name})',
+          () async {
+            final first = oldPayload()..['pdfAnchor'] = previousPoint?.toJson();
+            final second = oldPayload()
+              ..['updatedAt'] = DateTime.utc(2026, 3, 1).toIso8601String()
+              ..['content'] = 'תוכן אחרון'
+              ..['contentPlain'] = 'תוכן אחרון';
+            await restoreRows([first, second], mode);
+            final restored = (await database.getNote('pdf-note'))!;
+            expect(restored.pdfAnchor, previousPoint);
+            expect(restored.content, 'תוכן אחרון');
+          },
+        );
+      }
+    }
+  });
+
   // ─── זיהוי סעיף הגדרות חלקי ────────────────────────────────────────────────
   group('isPartialSettingsSection', () {
     final declaredOnly = {

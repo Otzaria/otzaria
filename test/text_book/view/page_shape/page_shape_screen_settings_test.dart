@@ -13,6 +13,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -46,6 +48,7 @@ void main() {
     ValueNotifier<int> openSettingsNotifier, {
     TextBookLoaded? loadedState,
     PageShapeDefaultsLoader? defaultsLoader,
+    ValueNotifier<int?>? sidebarTabNotifier,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -74,6 +77,7 @@ void main() {
           child: PageShapeScreen(
             openBookCallback: (_) {},
             openSettingsNotifier: openSettingsNotifier,
+            sidebarTabNotifier: sidebarTabNotifier,
             defaultsLoader: defaultsLoader,
           ),
         ),
@@ -82,6 +86,42 @@ void main() {
     await tester.pump();
     await tester.pump();
   }
+
+  testWidgets('לחיצה חוזרת על הערת מפרש מבקשת לחשוף אותה שוב', (tester) async {
+    final settingsRequest = ValueNotifier<int>(0);
+    final sidebarRequest = ValueNotifier<int?>(null);
+    addTearDown(settingsRequest.dispose);
+    addTearDown(sidebarRequest.dispose);
+    await pumpScreen(
+      tester,
+      settingsRequest,
+      sidebarTabNotifier: sidebarRequest,
+    );
+    sidebarRequest.value = kNotesTabIndex;
+    await tester.pumpAndSettle();
+    final bloc =
+        tester.element(find.byType(PageShapeScreen)).read<PersonalNotesBloc>()
+            as _TestPersonalNotesBloc;
+
+    void openNote() {
+      final panel = tester.widget<TabbedCommentaryPanel>(
+        find.byType(TabbedCommentaryPanel),
+      );
+      (panel.notesFooter! as CommentaryNotesSection).onOpenNote(
+        'מפרש בדיקה',
+        7,
+      );
+    }
+
+    openNote();
+    await tester.pumpAndSettle();
+    bloc.events.clear();
+    openNote();
+    await tester.pumpAndSettle();
+
+    expect(bloc.events, contains(const LoadPersonalNotes('מפרש בדיקה')));
+    expect(bloc.events, contains(const RequestExpandNotesForLine(7)));
+  });
 
   testWidgets(
     'בקשת פתיחה דרך openSettingsNotifier פותחת את החלונית עם עדכון חי מחווט',
@@ -749,8 +789,22 @@ class _TestPersonalNotesBloc
     extends Bloc<PersonalNotesEvent, PersonalNotesState>
     implements PersonalNotesBloc {
   _TestPersonalNotesBloc(super.initialState) {
-    on<PersonalNotesEvent>((event, emit) {});
+    on<PersonalNotesEvent>((event, emit) {
+      events.add(event);
+      if (event is LoadPersonalNotes) {
+        emit(
+          state.copyWith(
+            isLoading: true,
+            bookId: event.bookId,
+            categoryId: event.categoryId,
+          ),
+        );
+        emit(state.copyWith(isLoading: false));
+      }
+    });
   }
+
+  final List<PersonalNotesEvent> events = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

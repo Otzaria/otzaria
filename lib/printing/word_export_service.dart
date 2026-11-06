@@ -23,6 +23,7 @@ class WordExportService {
     }
 
     final footnotes = <_WordFootnote>[];
+    final hyperlinks = <String, String>{};
     final basePt = fontSize ?? 13.0;
     final fontName = _wordFontNames[fontFamily] ?? fontFamily;
 
@@ -38,6 +39,7 @@ class WordExportService {
             title: title,
             blocks: blocks,
             footnotes: footnotes,
+            hyperlinks: hyperlinks,
             format: format,
             isLandscape: isLandscape,
             pageMargin: pageMargin,
@@ -58,7 +60,12 @@ class WordExportService {
       ..addFile(xmlFile('word/footnotes.xml', _buildFootnotesXml(footnotes)))
       ..addFile(xmlFile('word/header1.xml', _buildHeaderXml(title)))
       ..addFile(xmlFile('word/footer1.xml', _footerXml))
-      ..addFile(xmlFile('word/_rels/document.xml.rels', _documentRelsXml));
+      ..addFile(
+        xmlFile(
+          'word/_rels/document.xml.rels',
+          _buildDocumentRelsXml(hyperlinks),
+        ),
+      );
 
     final bytes = ZipEncoder().encode(archive);
     return Uint8List.fromList(bytes);
@@ -68,6 +75,7 @@ class WordExportService {
     required String title,
     required List<PrintBlock> blocks,
     required List<_WordFootnote> footnotes,
+    required Map<String, String> hyperlinks,
     required PdfPageFormat format,
     required bool isLandscape,
     required double pageMargin,
@@ -85,7 +93,15 @@ class WordExportService {
       ..write(_paragraphXml('', 'BodyRtl', basePt));
 
     for (final block in blocks) {
-      body.write(_paragraphForBlock(block, footnotes, basePt));
+      final sourceLink = block.sourceLink;
+      final linkId =
+          sourceLink == null || sourceLink.isEmpty || block.text.trim().isEmpty
+          ? null
+          : hyperlinks.putIfAbsent(
+              sourceLink,
+              () => 'rId${hyperlinks.length + 6}',
+            );
+      body.write(_paragraphForBlock(block, footnotes, basePt, linkId));
     }
 
     body.write('''
@@ -130,6 +146,7 @@ class WordExportService {
     PrintBlock block,
     List<_WordFootnote> footnotes,
     double basePt,
+    String? linkId,
   ) {
     final text = block.text.trimRight();
     if (text.isEmpty) {
@@ -145,6 +162,7 @@ class WordExportService {
           basePt,
           footnotes: block.footnotes,
           registry: footnotes,
+          linkId: linkId,
         );
       case PrintBlockKind.text:
         final headingMatch = _headingWrapper.firstMatch(text.trim());
@@ -156,6 +174,7 @@ class WordExportService {
             basePt,
             footnotes: block.footnotes,
             registry: footnotes,
+            linkId: linkId,
           );
         }
         return _paragraphXml(
@@ -164,13 +183,19 @@ class WordExportService {
           basePt,
           footnotes: block.footnotes,
           registry: footnotes,
+          linkId: linkId,
         );
       case PrintBlockKind.commentaryTitle:
-        return _paragraphXml(text, 'CommentaryHeading', basePt);
+        return _paragraphXml(text, 'CommentaryHeading', basePt, linkId: linkId);
       case PrintBlockKind.commentaryGroupTitle:
-        return _paragraphXml(text, 'CommentarySubheading', basePt);
+        return _paragraphXml(
+          text,
+          'CommentarySubheading',
+          basePt,
+          linkId: linkId,
+        );
       case PrintBlockKind.commentary:
-        return _paragraphXml(text, 'CommentaryBody', basePt);
+        return _paragraphXml(text, 'CommentaryBody', basePt, linkId: linkId);
     }
   }
 
@@ -180,6 +205,7 @@ class WordExportService {
     double basePt, {
     List<PrintFootnote> footnotes = const [],
     List<_WordFootnote>? registry,
+    String? linkId,
   }) {
     if (text.isEmpty) {
       return '''
@@ -199,9 +225,13 @@ class WordExportService {
     ${_paragraphPropertiesXml(styleId)}
   </w:pPr>''');
 
-    for (final run in _parseInlineRuns(text)) {
-      buffer.write(_runXml(run, basePt));
+    if (linkId != null) {
+      buffer.write('<w:hyperlink r:id="$linkId" w:history="1">');
     }
+    for (final run in _parseInlineRuns(text)) {
+      buffer.write(_runXml(run, basePt, hyperlink: linkId != null));
+    }
+    if (linkId != null) buffer.write('</w:hyperlink>');
 
     for (final footnote in footnotes) {
       if (registry == null) continue;
@@ -265,12 +295,18 @@ class WordExportService {
     return runs;
   }
 
-  static String _runXml(_InlineRun run, double basePt) {
+  static String _runXml(
+    _InlineRun run,
+    double basePt, {
+    bool hyperlink = false,
+  }) {
     if (run.isBreak) {
       return '<w:r><w:rPr><w:rtl/></w:rPr><w:br/></w:r>';
     }
     final style = run.style;
-    final props = StringBuffer('<w:rtl/>');
+    final props = StringBuffer();
+    if (hyperlink) props.write('<w:rStyle w:val="Hyperlink"/>');
+    props.write('<w:rtl/>');
     if (style.bold) props.write('<w:b/><w:bCs/>');
     if (style.italic) props.write('<w:i/><w:iCs/>');
     if (style.underline) props.write('<w:u w:val="single"/>');
@@ -366,6 +402,21 @@ class WordExportService {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&apos;');
+  }
+
+  static String _buildDocumentRelsXml(Map<String, String> hyperlinks) {
+    final links = StringBuffer();
+    for (final entry in hyperlinks.entries) {
+      links.write(
+        '<Relationship Id="${entry.value}" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" '
+        'Target="${_escapeXml(entry.key)}" TargetMode="External"/>',
+      );
+    }
+    return _documentRelsXml.replaceFirst(
+      '</Relationships>',
+      '$links</Relationships>',
+    );
   }
 }
 
@@ -491,6 +542,10 @@ String _buildStylesXml({
       </w:pPr>
     </w:pPrDefault>
   </w:docDefaults>
+  <w:style w:type="character" w:styleId="Hyperlink">
+    <w:name w:val="Hyperlink"/>
+    <w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr>
+  </w:style>
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
     <w:name w:val="Normal"/>
     <w:qFormat/>

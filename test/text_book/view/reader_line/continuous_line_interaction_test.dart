@@ -17,6 +17,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/plugins/services/reader_section_sync_gate.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -71,6 +72,28 @@ void main() {
 
   for (final simple in [false, true]) {
     final screen = simple ? 'צורת הדף' : 'עיון';
+
+    testWidgets('$screen: יצירת הערה כשחלונית ההערות סגורה פותחת דיאלוג', (
+      tester,
+    ) async {
+      final h = await _pump(tester, simple: simple);
+      await _openMenuAt(tester, _textRect(tester, 'מילה', occurrence: 1));
+      await tester.tap(find.text('הערה'));
+      await _pumpUntil(
+        tester,
+        () => find.byType(PersonalNoteEditorDialog).evaluate().isNotEmpty,
+      );
+      final dialog = tester.widget<PersonalNoteEditorDialog>(
+        find.byType(PersonalNoteEditorDialog),
+      );
+      expect(dialog.bookId, 'ספר בדיקה');
+      expect(dialog.draftLineNumber, 3);
+      expect(h.notes.received.whereType<StartCreatingPersonalNote>(), isEmpty);
+      expect(h.notesPanelOpenCalls, 0);
+      await tester.tap(find.text('ביטול'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+    });
 
     testWidgets('$screen: לחיצה בתוך פסקה בוחרת את השורה שנלחצה', (
       tester,
@@ -417,7 +440,7 @@ void main() {
   });
 
   testWidgets('עיון: הערה מהתפריט נוצרת לשורה שנלחצה', (tester) async {
-    final h = await _pump(tester, simple: false);
+    final h = await _pump(tester, simple: false, notesPanelOpen: true);
     await _openMenuAt(tester, _textRect(tester, 'מילה', occurrence: 1));
     await tester.tap(find.text('הערה'));
     await _pumpUntil(
@@ -566,6 +589,7 @@ class _Harness {
   final _TextBookBloc bloc;
   final _PersonalNotesBloc notes;
   final _BookmarkBloc bookmarks;
+  int notesPanelOpenCalls = 0;
   String? selectedText;
   int? selectedLine;
 }
@@ -579,6 +603,7 @@ Future<_Harness> _pump(
   List<TocEntry> toc = const [],
   SettingsState? settings,
   bool commentaryCards = false,
+  bool notesPanelOpen = false,
   TextBookLoaded Function(TextBookLoaded state)? adjust,
 }) async {
   book ??= TextBook(title: 'ספר בדיקה');
@@ -637,6 +662,8 @@ Future<_Harness> _pump(
                   content: data,
                   fontSize: 18,
                   isMainText: true,
+                  isPersonalNotesTabActive: notesPanelOpen,
+                  onOpenSidebarTab: (_) => h.notesPanelOpenCalls++,
                   openBookCallback: (_) {},
                 )
               : CombinedView(
@@ -645,7 +672,8 @@ Future<_Harness> _pump(
                   openLeftPaneTab: (_, {searchText}) {},
                   textSize: 18,
                   showCommentaryAsExpansionTiles: commentaryCards,
-                  onOpenPersonalNotes: () {},
+                  onOpenPersonalNotes: () => h.notesPanelOpenCalls++,
+                  isPersonalNotesTabActive: () => notesPanelOpen,
                   onSelectedTextChanged: (text, line, _) {
                     h.selectedText = text;
                     h.selectedLine = line;

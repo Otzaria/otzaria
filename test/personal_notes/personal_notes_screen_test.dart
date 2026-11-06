@@ -28,7 +28,6 @@ import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
@@ -173,92 +172,6 @@ class RefreshingDelayedPersonalNotesRepository extends PersonalNotesRepository {
     requests.putIfAbsent(bookId, () => []).add(request);
     return request.future;
   }
-}
-
-class TrackingPersonalNotesBloc extends PersonalNotesBloc {
-  TrackingPersonalNotesBloc({required super.repository});
-
-  int activeStreamSubscriptions = 0;
-  int canceledStreamSubscriptions = 0;
-
-  @override
-  Stream<PersonalNotesState> get stream => _TrackingStream(
-    super.stream,
-    onListen: () => activeStreamSubscriptions++,
-    onCancel: () {
-      activeStreamSubscriptions--;
-      canceledStreamSubscriptions++;
-    },
-  );
-}
-
-class _TrackingStream<T> extends Stream<T> {
-  _TrackingStream(
-    this.source, {
-    required this.onListen,
-    required this.onCancel,
-  });
-
-  final Stream<T> source;
-  final void Function() onListen;
-  final void Function() onCancel;
-
-  @override
-  StreamSubscription<T> listen(
-    void Function(T event)? onData, {
-    Function? onError,
-    void Function()? onDone,
-    bool? cancelOnError,
-  }) {
-    onListen();
-    return _TrackingSubscription(
-      source.listen(
-        onData,
-        onError: onError,
-        onDone: onDone,
-        cancelOnError: cancelOnError,
-      ),
-      onCancel,
-    );
-  }
-}
-
-class _TrackingSubscription<T> implements StreamSubscription<T> {
-  _TrackingSubscription(this.source, this.onCancel);
-
-  final StreamSubscription<T> source;
-  final void Function() onCancel;
-  bool _canceled = false;
-
-  @override
-  Future<void> cancel() {
-    if (!_canceled) {
-      _canceled = true;
-      onCancel();
-    }
-    return source.cancel();
-  }
-
-  @override
-  void onData(void Function(T data)? handleData) => source.onData(handleData);
-
-  @override
-  void onError(Function? handleError) => source.onError(handleError);
-
-  @override
-  void onDone(void Function()? handleDone) => source.onDone(handleDone);
-
-  @override
-  void pause([Future<void>? resumeSignal]) => source.pause(resumeSignal);
-
-  @override
-  void resume() => source.resume();
-
-  @override
-  bool get isPaused => source.isPaused;
-
-  @override
-  Future<E> asFuture<E>([E? futureValue]) => source.asFuture(futureValue);
 }
 
 void main() {
@@ -705,7 +618,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
-  testWidgets('רענון מבטל מאזין תקוע ומתחיל רצף חדש', (
+  testWidgets('רענון מציג תוצאות חדשות ומתעלם מתשובה ישנה שנתקעה', (
     tester,
   ) async {
     BookNotesInfo book(String id) => BookNotesInfo(
@@ -720,7 +633,19 @@ void main() {
         [book('ספר ג')],
       ],
     );
-    final personalNotesBloc = TrackingPersonalNotesBloc(
+    PersonalNote note(String bookId, String content) => PersonalNote(
+      id: 'note-$bookId',
+      bookId: bookId,
+      lineNumber: 1,
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: content,
+      contentPlain: content,
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    final personalNotesBloc = PersonalNotesBloc(
       repository: repository,
     );
     final settingsBloc = SettingsBloc(repository: SettingsRepository());
@@ -762,8 +687,6 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(repository.requests['ספר א'], hasLength(1));
-    final cancellationsBeforeRefresh =
-        personalNotesBloc.canceledStreamSubscriptions;
 
     await tester.tap(find.byTooltip('רענן'));
     await tester.pump();
@@ -774,15 +697,24 @@ void main() {
 
     expect(repository.requests['ספר ב'], isNull);
     expect(repository.requests['ספר ג'], hasLength(1));
-    expect(
-      personalNotesBloc.canceledStreamSubscriptions,
-      greaterThan(cancellationsBeforeRefresh),
-    );
-    repository.requests['ספר א']!.single.complete(const []);
-    repository.requests['ספר ג']!.single.complete(const []);
+    repository.requests['ספר ג']!.single.complete([
+      note('ספר ג', 'תוכן מרענון חדש'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('תוכן מרענון חדש'), findsOneWidget);
+    repository.requests['ספר א']!.single.complete([
+      note('ספר א', 'תוכן מתשובה ישנה'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('תוכן מרענון חדש'), findsOneWidget);
+    expect(find.text('תוכן מתשובה ישנה'), findsNothing);
+    expect(repository.requests['ספר ב'], isNull);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dispose מבטל מאזין לטעינה שנתקעה', (tester) async {
+  testWidgets('dispose מתעלם מהשלמת טעינה שהמתינה בזמן סגירת המסך', (
+    tester,
+  ) async {
     final repository = DelayedPersonalNotesRepository(
       books: [
         BookNotesInfo(
@@ -792,7 +724,7 @@ void main() {
         ),
       ],
     );
-    final personalNotesBloc = TrackingPersonalNotesBloc(
+    final personalNotesBloc = PersonalNotesBloc(
       repository: repository,
     );
     final settingsBloc = SettingsBloc(repository: SettingsRepository());
@@ -831,13 +763,15 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(repository.requests['ספר תקוע'], isNotNull);
-    expect(personalNotesBloc.activeStreamSubscriptions, greaterThan(0));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(personalNotesBloc.activeStreamSubscriptions, 0);
     repository.requests['ספר תקוע']!.complete(const []);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(repository.requests.keys, ['ספר תקוע']);
   });
 
   Future<void> pumpScreenWithManyNotes(

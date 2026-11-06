@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
@@ -11,6 +12,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -23,9 +25,11 @@ class InlineNoteEditor extends StatefulWidget {
   final String initialContent;
   final PersonalNoteContentFormat initialFormat;
   final int? draftLineNumber;
+  final PdfNoteAnchor? pdfAnchor;
   final String? draftNoteId;
   final List<PersonalNote> linkableNotes;
-  final ValueChanged<PersonalNoteEditorResult> onSave;
+  final PersonalNoteSaveCallback onSave;
+  final VoidCallback? onSaved;
   final VoidCallback onCancel;
   final ValueListenable<int>? cancelRequest;
 
@@ -38,9 +42,11 @@ class InlineNoteEditor extends StatefulWidget {
     this.initialContent = '',
     this.initialFormat = PersonalNoteContentFormat.plain,
     this.draftLineNumber,
+    this.pdfAnchor,
     this.draftNoteId,
     required this.linkableNotes,
     required this.onSave,
+    this.onSaved,
     required this.onCancel,
     this.cancelRequest,
   });
@@ -52,12 +58,16 @@ class InlineNoteEditor extends StatefulWidget {
 class _InlineNoteEditorState extends State<InlineNoteEditor> {
   late final PersonalNoteEditorController _controller;
   late final PersonalNoteEditorResult _initialResult;
+  late final StreamSubscription<quill.DocChange> _documentChanges;
+  final GlobalKey<quill.EditorState> _editorKey = GlobalKey();
   final FocusNode _focusNode = FocusNode(debugLabel: 'InlineNoteEditor');
   final ScrollController _scrollController = ScrollController();
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
   Timer? _draftSaveTimer;
   Timer? _focusRetryTimer;
   bool _isDone = false; // מונע שמירת טיוטה אחרי שמירה/ביטול
+  bool _isSaving = false;
+  bool _isClosing = false;
 
   @override
   void initState() {
@@ -77,19 +87,36 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       initialFormat:
           widget.note?.contentFormat ?? PersonalNoteContentFormat.plain,
     );
-    _initialResult = originalController.buildResult();
-    originalController.quillController.dispose();
-    _controller.quillController.addListener(_scheduleDraftSave);
+    try {
+      _initialResult = originalController.buildResult();
+    } finally {
+      originalController.dispose();
+    }
+    _documentChanges = _controller.quillController.changes.listen(
+      (_) => _scheduleDraftSave(),
+    );
     widget.cancelRequest?.addListener(_handleCancelRequest);
     // autoFocus לא תמיד תופס בפאנל שנפתח דינמית: ה-post-frame עלול לקדום לסוף
     // אנימציית הפתיחה, ולכן ניסיון נוסף אחרי שהיא מסתיימת.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
-    });
+    _scheduleFocusAfterLayout();
     _focusRetryTimer = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
-      if (!_focusNode.hasFocus) _focusNode.requestFocus();
+      if (!_focusNode.hasFocus) _scheduleFocusAfterLayout();
     });
+  }
+
+  void _scheduleFocusAfterLayout({bool retry = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isSaving || _isDone) return;
+      final editor = _editorKey.currentState?.renderEditor;
+      if (editor != null && editor.attached && editor.hasSize) {
+        _focusNode.requestFocus();
+      } else if (retry) {
+        // חשיפת פריט ברשימה וירטואלית נפרסת רק בפריים שאחרי jumpTo.
+        _scheduleFocusAfterLayout(retry: false);
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   @override
@@ -105,35 +132,77 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   void dispose() {
     _draftSaveTimer?.cancel();
     _focusRetryTimer?.cancel();
-    _controller.quillController.removeListener(_scheduleDraftSave);
+    unawaited(_documentChanges.cancel());
     widget.cancelRequest?.removeListener(_handleCancelRequest);
-    unawaited(_persistDraft());
+    // _persistDraft אוסף את התוכן לפני ה-await הראשון, גם לפני ה-debounce.
+    _persistDraftInBackground();
+    _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _handleSave() async {
-    // במצב סייפר, נדרוש סיסמה לפני שמירה
-    if (!await verifySaferModePassword(context) || !mounted) {
-      return;
-    }
-
+    if (_isDone || _isSaving || _isClosing) return;
     final result = _controller.buildResult();
     if (result.contentPlain.trim().isEmpty) {
       UiSnack.showError(NotesMessages.emptyNoteNotSaved);
       return;
     }
-    _isDone = true;
-    await _clearDraft();
-    widget.onSave(result);
+    setState(() {
+      _isSaving = true;
+      _controller.quillController.readOnly = true;
+    });
+    try {
+      if (!await verifySaferModePassword(context) || !mounted) return;
+      await widget.onSave(result);
+      _isDone = true;
+      _draftSaveTimer?.cancel();
+      var clearedDraft = true;
+      try {
+        await _clearDraft();
+      } catch (_) {
+        clearedDraft = false;
+      }
+      if (mounted) {
+        if (clearedDraft) {
+          UiSnack.showSuccess(
+            widget.note == null
+                ? NotesMessages.noteSaved
+                : NotesMessages.noteUpdated,
+          );
+        } else {
+          UiSnack.showWarning(NotesMessages.noteSavedDraftCleanupFailed);
+        }
+        widget.onSaved?.call();
+      }
+    } catch (error) {
+      if (mounted) UiSnack.showError(TextBookMessages.noteSaveError(error));
+    } finally {
+      if (mounted && !_isDone) {
+        setState(() {
+          _isSaving = false;
+          _controller.quillController.readOnly = false;
+        });
+        _scheduleFocusAfterLayout();
+      }
+    }
   }
 
   void _scheduleDraftSave() {
+    if (_isDone) return;
     _draftSaveTimer?.cancel();
     _draftSaveTimer = Timer(
       const Duration(milliseconds: 250),
-      () => unawaited(_persistDraft()),
+      _persistDraftInBackground,
+    );
+  }
+
+  void _persistDraftInBackground() {
+    unawaited(
+      _persistDraft().catchError((Object error) {
+        debugPrint('Personal note draft autosave failed: $error');
+      }),
     );
   }
 
@@ -158,6 +227,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         lineNumber: widget.draftLineNumber,
         noteId: widget.draftNoteId,
         referenceText: widget.referenceText ?? widget.note?.displayTitle,
+        pdfAnchor: widget.pdfAnchor ?? widget.note?.pdfAnchor,
       ),
     );
   }
@@ -174,24 +244,37 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       categoryId: widget.categoryId,
       lineNumber: widget.draftLineNumber,
       noteId: widget.draftNoteId,
+      pdfAnchor: widget.pdfAnchor ?? widget.note?.pdfAnchor,
     );
   }
 
   Future<void> _handleCancel() async {
-    if (_isDone) return;
-    if (_hasUnsavedChanges()) {
-      final decision = await showNoteDraftDecisionDialog(context);
-      if (decision == null || decision == NoteDraftDecision.cancel) return;
-      if (decision == NoteDraftDecision.saveDraft) {
-        await _persistDraft();
-        _isDone = true;
-        widget.onCancel();
-        return;
+    if (_isDone || _isSaving || _isClosing) return;
+    _isClosing = true;
+    try {
+      if (_hasUnsavedChanges()) {
+        final decision = await showNoteDraftDecisionDialog(context);
+        if (!mounted ||
+            decision == null ||
+            decision == NoteDraftDecision.cancel) {
+          return;
+        }
+        if (decision == NoteDraftDecision.saveDraft) {
+          await _persistDraft();
+          if (!mounted) return;
+          _isDone = true;
+          widget.onCancel();
+          return;
+        }
       }
+      await _clearDraft();
+      _isDone = true;
+      if (mounted) widget.onCancel();
+    } catch (error) {
+      if (mounted) UiSnack.showError(NotesMessages.noteDraftUpdateError(error));
+    } finally {
+      _isClosing = false;
     }
-    _isDone = true;
-    await _clearDraft();
-    widget.onCancel();
   }
 
   bool _hasUnsavedChanges() {
@@ -208,23 +291,36 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PersonalNoteEditorBody(
-          controller: _controller,
-          focusNode: _focusNode,
-          scrollController: _scrollController,
-          autofocus: true,
-          referenceText: widget.referenceText,
-          bookId: widget.bookId,
-          linkableNotes: widget.linkableNotes,
-          onSaveShortcut: _handleSave,
+        ExcludeFocus(
+          excluding: _isSaving,
+          child: AbsorbPointer(
+            absorbing: _isSaving,
+            child: PersonalNoteEditorBody(
+              controller: _controller,
+              editorKey: _editorKey,
+              focusNode: _focusNode,
+              scrollController: _scrollController,
+              autofocus: false,
+              referenceText: widget.referenceText,
+              bookId: widget.bookId,
+              linkableNotes: widget.linkableNotes,
+              onSaveShortcut: _handleSave,
+            ),
+          ),
         ),
         const SizedBox(height: AppTokens.spaceSM),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ActionButton.ghost(text: 'ביטול', onPressed: _handleCancel),
+            ActionButton.ghost(
+              text: 'ביטול',
+              onPressed: _isSaving ? null : _handleCancel,
+            ),
             const SizedBox(width: AppTokens.spaceSM),
-            ActionButton.recommended(text: 'שמור', onPressed: _handleSave),
+            ActionButton.recommended(
+              text: 'שמור',
+              onPressed: _isSaving ? null : _handleSave,
+            ),
           ],
         ),
       ],

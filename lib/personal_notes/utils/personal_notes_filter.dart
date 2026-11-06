@@ -16,11 +16,32 @@ PersonalNotesFilterResult filterPersonalNotes({
   required String searchQuery,
   required bool showOnlyVisible,
   required List<int> visibleLineIndices,
+  bool isPdf = false,
+  List<int>? visiblePdfPages,
+  String? pdfDocumentId,
+  Set<String> pdfDocumentIds = const {},
+  bool includeUnidentifiedPdfAnchors = false,
 }) {
-  var filteredLocated = locatedNotes;
-  if (showOnlyVisible && visibleLineIndices.isNotEmpty) {
+  bool included(PersonalNote note) {
+    final anchor = note.pdfAnchor;
+    if (anchor == null) return true;
+    if (!isPdf) return false;
+    if (anchor.documentId == null) return includeUnidentifiedPdfAnchors;
+    return anchor.documentId == pdfDocumentId ||
+        pdfDocumentIds.contains(anchor.documentId);
+  }
+
+  var filteredLocated = locatedNotes.where(included).toList();
+  if (showOnlyVisible &&
+      (visibleLineIndices.isNotEmpty || visiblePdfPages != null)) {
     final visibleLines = visibleLineIndices.toSet();
-    filteredLocated = locatedNotes.where((note) {
+    final pdfPages = visiblePdfPages?.toSet();
+    filteredLocated = filteredLocated.where((note) {
+      final pdfAnchor = note.pdfAnchor;
+      if (isPdf && pdfAnchor != null && pdfPages != null) {
+        return pdfPages.contains(pdfAnchor.pageNumber);
+      }
+      if (visibleLines.isEmpty) return true;
       final lineNumber = note.lineNumber;
       return lineNumber != null && visibleLines.contains(lineNumber - 1);
     }).toList();
@@ -36,7 +57,7 @@ PersonalNotesFilterResult filterPersonalNotes({
 
   var filteredMissing = <PersonalNote>[];
   if (!showOnlyVisible) {
-    filteredMissing = missingNotes;
+    filteredMissing = missingNotes.where(included).toList();
     if (searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
       filteredMissing = filteredMissing.where((note) {

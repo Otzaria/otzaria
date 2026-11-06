@@ -10,7 +10,7 @@ import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 class NoteTile extends StatefulWidget {
   final PersonalNote note;
   final VoidCallback? onTap;
-  final ValueChanged<PersonalNoteEditorResult> onSave;
+  final PersonalNoteSaveCallback onSave;
   final VoidCallback onDelete;
   final ValueChanged<String> onLinkTap;
   final bool defaultExpanded;
@@ -98,8 +98,16 @@ class _NoteTileState extends State<NoteTile> {
     });
   }
 
-  void _startInlineEdit() {
+  Future<void> _startInlineEdit() async {
+    final draft = await _draftService.loadDraft(
+      bookId: widget.bookId,
+      categoryId: widget.categoryId,
+      noteId: widget.note.id,
+    );
+    if (!mounted) return;
     setState(() {
+      _draftContent = draft?.content;
+      _draftFormat = draft?.contentFormat;
       _isExpanded = true;
       _isInlineEditing = true;
     });
@@ -115,9 +123,12 @@ class _NoteTileState extends State<NoteTile> {
     _cancelRequest.value++;
   }
 
-  void _handleSave(PersonalNoteEditorResult result) {
-    widget.onSave(result);
-    _cancelInlineEdit();
+  void _finishSave() {
+    setState(() {
+      _draftContent = null;
+      _draftFormat = null;
+      _isInlineEditing = false;
+    });
   }
 
   @override
@@ -144,7 +155,8 @@ class _NoteTileState extends State<NoteTile> {
           initialFormat: _draftFormat ?? widget.note.contentFormat,
           draftNoteId: widget.note.id,
           linkableNotes: widget.linkableNotes,
-          onSave: _handleSave,
+          onSave: widget.onSave,
+          onSaved: _finishSave,
           onCancel: _cancelInlineEdit,
           cancelRequest: _cancelRequest,
         ),

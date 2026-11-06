@@ -62,33 +62,18 @@ String buildAnnotatedLineHtml({
 
   // ההערה מדלגת על כל <a> קיים — למניעת <a> מקונן.
   final linkSpans = _anchorElementSpans(rawLine);
-  final ranges = <HtmlWrapRange>[];
-
   final hex = _colorToHex(underlineColor);
-  // color: currentcolor (ולא inherit) — flutter_widget_from_html לא מפרש
-  // inherit, וההצהרה הייתה נזרקת כך שטקסט ההערה נצבע בצבע ה-primary של
-  // קישורים (ברירת המחדל של תגית <a>). currentcolor כן נתמך ומשאיר את
-  // צבע הטקסט הרגיל — וכך הערה (קו מקווקו, צבע רגיל) נבדלת מקישור
-  // (קו מלא, צבע primary).
-  final openTag =
-      '<a href="otzaria://note?line=$lineIndex0" '
-      'style="text-decoration: underline; text-decoration-style: dotted; '
-      'text-decoration-color: $hex; color: currentcolor;">';
+  final boundaries = <({int offset, String id, bool opening})>[];
 
-  void addNoteSpan(int start, int end) {
+  void addNoteSpan(int start, int end, String id) {
     for (final gap in _subtractSpans(start, end, linkSpans)) {
-      ranges.add(
-        HtmlWrapRange(
-          start: gap[0],
-          end: gap[1],
-          openTag: openTag,
-          closeTag: '</a>',
-        ),
-      );
+      boundaries.add((offset: gap[0], id: id, opening: true));
+      boundaries.add((offset: gap[1], id: id, opening: false));
     }
   }
 
   for (final note in notesForLine) {
+    if (note.pdfAnchor != null) continue;
     if (note.isWordAnchored) {
       final range = locateAnchor(
         rawLine: rawLine,
@@ -102,16 +87,69 @@ String buildAnnotatedLineHtml({
         final expanded = replaceHolyNames
             ? _expandToHolyName(rawLine, range)
             : range;
-        addNoteSpan(expanded.start, expanded.end);
+        addNoteSpan(expanded.start, expanded.end, note.id);
         continue;
       }
       // לא נמצא הביטוי — נופלים לסימון כל השורה.
     }
     // הערת-שורה-שלמה (או נפילה מאיתור כושל): סימון כל השורה.
-    addNoteSpan(0, rawLine.length);
+    addNoteSpan(0, rawLine.length, note.id);
   }
 
+  boundaries.sort((a, b) {
+    final offsetOrder = a.offset.compareTo(b.offset);
+    if (offsetOrder != 0) return offsetOrder;
+    return (a.opening ? 1 : 0).compareTo(b.opening ? 1 : 0);
+  });
+  final ranges = <HtmlWrapRange>[];
+  final activeIds = <String>{};
+  var cursor = 0;
+  for (final boundary in boundaries) {
+    if (cursor < boundary.offset && activeIds.isNotEmpty) {
+      final ids = activeIds
+          .map((id) => '&id=${Uri.encodeComponent(id)}')
+          .join();
+      ranges.add(
+        HtmlWrapRange(
+          start: cursor,
+          end: boundary.offset,
+          // currentcolor שומר את צבע הטקסט; inherit אינו נתמך ברינדור ה-HTML.
+          openTag:
+              '<a href="otzaria://note?line=$lineIndex0$ids" '
+              'style="text-decoration: underline; text-decoration-style: dotted; '
+              'text-decoration-color: $hex; color: currentcolor;">',
+          closeTag: '</a>',
+        ),
+      );
+    }
+    if (boundary.opening) {
+      activeIds.add(boundary.id);
+    } else {
+      activeIds.remove(boundary.id);
+    }
+    cursor = boundary.offset;
+  }
   return wrapHtmlRanges(rawLine, ranges);
+}
+
+/// מחזיר רק הערות של העוגן; קישור ישן בלי מזהים ממשיך להציג את הערות השורה.
+List<PersonalNote> personalNotesForPreview(
+  String url,
+  Iterable<PersonalNote> notes,
+) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.scheme != 'otzaria' || uri.host != 'note') return [];
+  final line = int.tryParse(uri.queryParameters['line'] ?? '');
+  if (line == null || line < 0) return [];
+  final ids = uri.queryParametersAll['id']?.toSet();
+  return notes
+      .where(
+        (note) =>
+            note.pdfAnchor == null &&
+            note.lineNumber == line + 1 &&
+            (ids == null || ids.contains(note.id)),
+      )
+      .toList();
 }
 
 NoteAnchorRange _expandToHolyName(String rawLine, NoteAnchorRange range) {

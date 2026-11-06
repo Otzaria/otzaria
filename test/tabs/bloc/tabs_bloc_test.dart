@@ -9,6 +9,7 @@ import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -447,6 +448,34 @@ void main() {
     });
 
     for (final split in [false, true]) {
+      test('נקודת הערה ממתינה בקורא PDF קיים (split=$split)', () async {
+        final bloc = _newBloc(_FakeTabsRepository());
+        final existing = PdfBookTab(
+          book: PdfBook(id: 42, title: 'מסמך PDF', path: 'points.pdf'),
+          pageNumber: 3,
+        );
+        final OpenedTab top = split
+            ? CombinedTab(
+                rightTab: existing,
+                leftTab: _createTextTab('ספר נוסף', categoryId: 2),
+              )
+            : existing;
+        bloc.add(AddTab(top));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+        const anchor = PdfNoteAnchor(pageNumber: 12, x: .2, y: .9);
+        final incoming = PdfBookTab(
+          book: PdfBook(id: 42, title: 'מסמך PDF', path: 'points.pdf'),
+          pageNumber: anchor.pageNumber,
+        )..requestPersonalNoteNavigation(anchor);
+        bloc.add(OpenOrFocusTab(incoming, navigateToPositionIfReused: true));
+        await pumpEventQueue();
+
+        expect(bloc.state.tabs, hasLength(1));
+        expect(existing.takePersonalNoteNavigationRequest(), anchor);
+        expect(existing.takePersonalNoteNavigationRequest(), isNull);
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      });
+
       test(
         'תוצאה גלובלית מעבירה בקשת מירכוז ל-PDF קיים (split=$split)',
         () async {
