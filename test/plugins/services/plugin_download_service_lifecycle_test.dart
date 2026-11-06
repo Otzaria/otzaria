@@ -190,10 +190,8 @@ void main() {
     expect(HttpClientRegistry.registeredCount, registryBefore);
   });
 
-  Future<T> inDownloads<T>(Future<T> Function() body) => IOOverrides.runZoned(
-    body,
-    getSystemTempDirectory: () => downloads,
-  );
+  Future<T> inDownloads<T>(Future<T> Function() body) =>
+      IOOverrides.runZoned(body, getSystemTempDirectory: () => downloads);
 
   test('owned client unregisters and closes exactly once', () async {
     final client = _RecordingClient();
