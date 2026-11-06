@@ -94,8 +94,10 @@ jobs:
             throw 'Unexpected source bundle contract.'
           }
           Copy-Item "$bundle/qa-bundle.json" "$env:REPORT_QA_ARTIFACT_ROOT/qa-bundle.json"
-          Add-Type -TypeDefinition @'
+          $nativeSource = @'
           using System;
+          using System.Collections.Generic;
+          using System.Text;
           using System.ComponentModel;
           using System.Runtime.InteropServices;
           public static class QaProcessArchitecture {
@@ -115,7 +117,246 @@ jobs:
               } finally { CloseHandle(handle); }
             }
           }
+          public sealed class QaWindowState {
+            public long Hwnd;
+            public uint ProcessId, ThreadId;
+            public string ClassName, Title;
+            public bool Visible;
+            public int Left, Top, Right, Bottom;
+          }
+          public sealed class QaDesktopState {
+            public string ThreadDesktop, InputDesktop, WindowStation;
+            public int InputDesktopError;
+            public bool StationVisible;
+          }
+          public sealed class QaCaptionPoint {
+            public int X, Y, HitTest;
+            public long WindowAtPoint;
+            public bool Verified;
+          }
+          public static class QaWindowActivation {
+            [StructLayout(LayoutKind.Sequential)] struct Rect { public int Left, Top, Right, Bottom; }
+            [StructLayout(LayoutKind.Sequential)] struct Point { public int X, Y; }
+            [StructLayout(LayoutKind.Sequential)] struct UserFlags { public int Inherit, Reserved; public uint Flags; }
+            [StructLayout(LayoutKind.Sequential)] struct MouseInput {
+              public int X, Y; public uint MouseData, Flags, Time; public UIntPtr ExtraInfo;
+            }
+            [StructLayout(LayoutKind.Explicit)] struct InputUnion { [FieldOffset(0)] public MouseInput Mouse; }
+            [StructLayout(LayoutKind.Sequential)] struct Input { public uint Type; public InputUnion Data; }
+            delegate bool EnumCallback(IntPtr window, IntPtr data);
+            [DllImport("user32.dll")] static extern bool EnumWindows(EnumCallback callback, IntPtr data);
+            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+            [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder text, int count);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
+            [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+            [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
+            [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr window, int command);
+            [DllImport("user32.dll")] static extern bool IsIconic(IntPtr window);
+            [DllImport("user32.dll", SetLastError=true)] static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int cx, int cy, uint flags);
+            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+            [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+            [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
+            [DllImport("user32.dll", SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wparam, IntPtr lparam, uint flags, uint timeout, out UIntPtr result);
+            [DllImport("user32.dll", SetLastError=true)] static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] static extern bool GetCursorPos(out Point point);
+            [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint count, Input[] inputs, int size);
+            [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+            [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
+            [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+            [DllImport("user32.dll", SetLastError=true)] static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+            [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr desktop);
+            [DllImport("user32.dll", EntryPoint="GetUserObjectInformationW", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool UserObjectName(IntPtr handle, int index, StringBuilder data, uint length, out uint needed);
+            [DllImport("user32.dll", EntryPoint="GetUserObjectInformationW", SetLastError=true)] static extern bool UserObjectFlags(IntPtr handle, int index, out UserFlags flags, uint length, out uint needed);
+
+            public static QaWindowState Read(IntPtr window) {
+              uint process; uint thread = GetWindowThreadProcessId(window, out process);
+              var className = new StringBuilder(256); var title = new StringBuilder(512);
+              GetClassName(window, className, className.Capacity); GetWindowText(window, title, title.Capacity);
+              Rect rect; GetWindowRect(window, out rect);
+              return new QaWindowState { Hwnd=window.ToInt64(), ProcessId=process, ThreadId=thread,
+                ClassName=className.ToString(), Title=title.ToString(), Visible=IsWindowVisible(window),
+                Left=rect.Left, Top=rect.Top, Right=rect.Right, Bottom=rect.Bottom };
+            }
+            public static QaWindowState[] Windows() {
+              var result = new List<QaWindowState>();
+              EnumWindows((window, data) => { result.Add(Read(window)); return true; }, IntPtr.Zero);
+              return result.ToArray();
+            }
+            static string Name(IntPtr handle) {
+              if (handle == IntPtr.Zero) return null;
+              uint needed; var name = new StringBuilder(256);
+              return UserObjectName(handle, 2, name, 512, out needed) ? name.ToString() : null;
+            }
+            public static QaDesktopState Desktop() {
+              IntPtr station = GetProcessWindowStation(); uint needed; UserFlags flags;
+              var state = new QaDesktopState {
+                ThreadDesktop=Name(GetThreadDesktop(GetCurrentThreadId())), WindowStation=Name(station),
+                StationVisible=UserObjectFlags(station, 1, out flags, (uint)Marshal.SizeOf(typeof(UserFlags)), out needed) && (flags.Flags & 1) != 0 };
+              IntPtr input = OpenInputDesktop(0, false, 1);
+              if (input == IntPtr.Zero) state.InputDesktopError=Marshal.GetLastWin32Error();
+              else { try { state.InputDesktop=Name(input); } finally { CloseDesktop(input); } }
+              return state;
+            }
+            static void RequireOwnWindow(IntPtr window, uint expectedPid) {
+              QaWindowState observed=Read(window);
+              if (observed.ProcessId != expectedPid || observed.ClassName != "FLUTTER_RUNNER_WIN32_WINDOW")
+                throw new Exception("The activation target is not the observed Flutter process/window.");
+            }
+            public static void Raise(IntPtr window, uint expectedPid) {
+              RequireOwnWindow(window, expectedPid);
+              ShowWindowAsync(window, IsIconic(window) ? 9 : 5);
+              if (!SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0, 0x4053))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            static int HitTest(IntPtr window, int x, int y) {
+              uint packed = ((uint)(ushort)y << 16) | (ushort)x; UIntPtr result;
+              if (SendMessageTimeout(window, 0x84, UIntPtr.Zero, new IntPtr(unchecked((int)packed)), 2, 500, out result) == IntPtr.Zero) return -1;
+              return unchecked((int)result.ToUInt64());
+            }
+            public static QaCaptionPoint[] CaptionPoints(IntPtr window, uint expectedPid) {
+              RequireOwnWindow(window, expectedPid); QaWindowState state=Read(window);
+              var result = new List<QaCaptionPoint>();
+              int x=state.Left+(state.Right-state.Left)/2;
+              for (int offset=8; offset<=48 && state.Top+offset<state.Bottom; offset+=4) {
+                int y=state.Top+offset; int hit=HitTest(window,x,y);
+                IntPtr at=GetAncestor(WindowFromPoint(new Point { X=x, Y=y }),2);
+                result.Add(new QaCaptionPoint { X=x, Y=y, HitTest=hit, WindowAtPoint=at.ToInt64(),
+                  Verified=state.Visible && hit==2 && at==window });
+              }
+              return result.ToArray();
+            }
+            public static void ClickCaption(IntPtr window, uint expectedPid, int x, int y) {
+              RequireOwnWindow(window,expectedPid); QaWindowState state=Read(window);
+              if (!state.Visible || x<state.Left || x>=state.Right || y<state.Top || y>=state.Bottom ||
+                  HitTest(window,x,y)!=2 || GetAncestor(WindowFromPoint(new Point { X=x, Y=y }),2)!=window)
+                throw new Exception("The observed title-bar point is no longer owned by the target Flutter window.");
+              Point previous; bool hadCursor=GetCursorPos(out previous);
+              try {
+                if (!SetCursorPos(x,y)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var down=new Input(); down.Data.Mouse.Flags=2;
+                var up=new Input(); up.Data.Mouse.Flags=4;
+                uint sent=SendInput(2,new[] { down,up },Marshal.SizeOf(typeof(Input)));
+                if (sent!=2) { SendInput(1,new[] { up },Marshal.SizeOf(typeof(Input))); throw new Exception("Title-bar click accepted "+sent+" of 2 mouse inputs."); }
+              } finally { if (hadCursor) SetCursorPos(previous.X,previous.Y); }
+            }
+          }
           '@
+          $nativeSourcePath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'activation-native.cs'
+          [IO.File]::WriteAllText($nativeSourcePath, $nativeSource, [Text.UTF8Encoding]::new($false))
+          @{ workflowHead = '${{ github.event.pull_request.head.sha || github.sha }}'; sourceSha256 = (Get-FileHash $nativeSourcePath -Algorithm SHA256).Hash; productHead = $env:REPORT_QA_PRODUCT_HEAD; sourceQaHead = $env:REPORT_QA_AFTER_HEAD } |
+            ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'activation-source.json')
+          Add-Type -TypeDefinition $nativeSource
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
+          function Read-QaAutomationBranch($Element, [int]$Depth, [int]$Parent, $Nodes, $Budget) {
+            if ($Depth -gt 8 -or $Budget.remaining -le 0) { return }
+            try {
+              $state = $Element.Current
+              $index = $Nodes.Count
+              $Nodes.Add(@{ parent = $Parent; depth = $Depth; name = $state.Name; automationId = $state.AutomationId;
+                className = $state.ClassName; controlType = $state.ControlType.ProgrammaticName; processId = $state.ProcessId;
+                enabled = $state.IsEnabled; offscreen = $state.IsOffscreen; rectangle = $state.BoundingRectangle.ToString() })
+              $Budget.remaining--
+              $walker = [Windows.Automation.TreeWalker]::ControlViewWalker
+              $child = $walker.GetFirstChild($Element)
+              while ($null -ne $child -and $Budget.remaining -gt 0) {
+                Read-QaAutomationBranch $child ($Depth + 1) $index $Nodes $Budget
+                $child = $walker.GetNextSibling($child)
+              }
+            } catch { $Nodes.Add(@{ error = $_.Exception.Message; depth = $Depth; parent = $Parent }) }
+          }
+          function Save-QAWindowSnapshot([string]$Name) {
+            $state = @{
+              recordedAt = [DateTime]::UtcNow.ToString('o'); workflowHead = '${{ github.event.pull_request.head.sha || github.sha }}'
+              processId = $PID; sessionId = (Get-Process -Id $PID).SessionId
+              desktop = [QaWindowActivation]::Desktop(); foreground = [QaWindowActivation]::Read([QaWindowActivation]::GetForegroundWindow())
+              windows = @([QaWindowActivation]::Windows()); foregroundAutomation = @()
+            }
+            $state['processes'] = @($state.windows.ProcessId | Sort-Object -Unique | ForEach-Object {
+              $observedPid = $_
+              try {
+                $observedProcess = Get-Process -Id $observedPid -ErrorAction Stop
+                @{ processId = $observedProcess.Id; name = $observedProcess.ProcessName; path = $observedProcess.Path; sessionId = $observedProcess.SessionId }
+              } catch { @{ processId = $observedPid; error = $_.Exception.Message } }
+            })
+            $jsonPath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($Name + '.json')
+            $state | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $jsonPath
+            try {
+              $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
+              $bitmap = New-Object Drawing.Bitmap($bounds.Width, $bounds.Height)
+              $graphics = [Drawing.Graphics]::FromImage($bitmap)
+              try {
+                $graphics.CopyFromScreen($bounds.Location, [Drawing.Point]::Empty, $bounds.Size)
+                $bitmap.Save((Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($Name + '.png')), [Drawing.Imaging.ImageFormat]::Png)
+              } finally { $graphics.Dispose(); $bitmap.Dispose() }
+            } catch { $state['screenshotError'] = $_.Exception.Message }
+            try {
+              $nodes = New-Object 'Collections.Generic.List[object]'
+              $budget = @{ remaining = 200 }
+              if ($state.foreground.Hwnd -ne 0) {
+                $element = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$state.foreground.Hwnd)
+                Read-QaAutomationBranch $element 0 -1 $nodes $budget
+              }
+              $state.foregroundAutomation = @($nodes.ToArray())
+              $state['remainingAutomationBudget'] = $budget.remaining
+            } catch { $state['automationError'] = $_.Exception.Message }
+            $state | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $jsonPath
+            return $state
+          }
+          function Activate-QAFlutterWindow([Diagnostics.Process]$Application) {
+            $deadline = [DateTime]::UtcNow.AddSeconds(40)
+            $target = $null
+            do {
+              $candidates = @([QaWindowActivation]::Windows() | Where-Object {
+                $_.ProcessId -eq $Application.Id -and $_.ClassName -ceq 'FLUTTER_RUNNER_WIN32_WINDOW' -and $_.Visible
+              })
+              if ($candidates.Count -gt 1) { throw 'More than one visible Flutter runner window was found before the first case.' }
+              if ($candidates.Count -eq 1) { $target = $candidates[0]; break }
+              if ($Application.HasExited) { throw 'Flutter exited before its visible window could be observed.' }
+              Start-Sleep -Milliseconds 100
+            } while ([DateTime]::UtcNow -lt $deadline)
+            $before = Save-QAWindowSnapshot '01-before-activation'
+            if ($null -eq $target) { throw 'No visible owned Flutter runner window was observed for activation.' }
+            $desktop = $before.desktop
+            if (!$desktop.StationVisible -or [string]::IsNullOrWhiteSpace($desktop.InputDesktop) -or
+                $desktop.InputDesktop -ine $desktop.ThreadDesktop) {
+              throw 'The runner does not expose this process desktop as the visible input desktop; no activation click is permitted.'
+            }
+            $window = [IntPtr]$target.Hwnd
+            $activation = @{ workflowHead = '${{ github.event.pull_request.head.sha || github.sha }}'; target = $target;
+              originalForeground = $before.foreground; mechanism = 'already-foreground'; titleBarClickSent = $false }
+            $activationPath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'activation.json'
+            try {
+              if ([QaWindowActivation]::GetForegroundWindow() -ne $window) {
+                [QaWindowActivation]::Raise($window, [uint32]$Application.Id)
+                $activation['setForegroundReturned'] = [QaWindowActivation]::SetForegroundWindow($window)
+                $activation.mechanism = 'ShowWindowAsync/SetWindowPos/SetForegroundWindow'
+                Start-Sleep -Milliseconds 200
+              }
+              if ([QaWindowActivation]::GetForegroundWindow() -ne $window) {
+                [void](Save-QAWindowSnapshot '02-before-titlebar-click')
+                $points = @([QaWindowActivation]::CaptionPoints($window, [uint32]$Application.Id))
+                $activation['captionPoints'] = $points
+                $activation | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $activationPath
+                $point = $points | Where-Object { $_.Verified } | Select-Object -First 1
+                if ($null -eq $point) { throw 'The Flutter title bar is not a verified visible click target; inspect the captured blocking window.' }
+                [QaWindowActivation]::ClickCaption($window, [uint32]$Application.Id, $point.X, $point.Y)
+                $activation.titleBarClickSent = $true
+                $activation.mechanism = 'Verified native mouse click on the owned Flutter title bar'
+              }
+              $deadline = [DateTime]::UtcNow.AddSeconds(2)
+              while ([QaWindowActivation]::GetForegroundWindow() -ne $window -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 50
+              }
+              $activation['observedForeground'] = [QaWindowActivation]::Read([QaWindowActivation]::GetForegroundWindow())
+              $activation['foregroundVerified'] = $activation.observedForeground.Hwnd -eq $target.Hwnd
+              if (!$activation.foregroundVerified) { throw 'The real foreground still does not belong to Flutter after bounded activation.' }
+            } finally {
+              $activation | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $activationPath
+              [void](Save-QAWindowSnapshot '03-after-activation')
+            }
+          }
+          [void](Save-QAWindowSnapshot '00-before-launch')
           $output = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'run'
           $arguments = '-NoProfile -NonInteractive -File "' + "$bundle/run.ps1" + '" -OutputDirectory "' + $output + '"'
           if ('${{ matrix.native_trace }}' -eq 'true') { $arguments += ' -EnableNativeTrace' }
@@ -150,6 +391,7 @@ jobs:
             if ($machine[0] -ne 0x8664 -or $machine[1] -ne 0xAA64) {
               throw 'The observed Flutter process must be x64 on native ARM64 Windows.'
             }
+            Activate-QAFlutterWindow $application
             if (!$launcher.WaitForExit(13 * 60 * 1000)) { throw 'Standalone launcher exceeded its bounded run time.' }
             if (!$stdout.Wait(1000) -or !$stderr.Wait(1000)) { throw 'Standalone launcher output did not close.' }
             [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/launcher.stdout.log", $stdout.Result)
@@ -161,10 +403,15 @@ jobs:
             exit $exitCode
           } catch {
             [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/wrapper-error.txt", $_.Exception.ToString())
+            try { [void](Save-QAWindowSnapshot '99-wrapper-error') } catch { }
             throw
           } finally {
             if ($started -and !$launcher.HasExited) { & taskkill.exe /PID $launcher.Id /T /F | Out-Null }
             if ($null -ne $application -and !$application.HasExited) { & taskkill.exe /PID $application.Id /T /F | Out-Null }
+            if ($started) {
+              if ($null -ne $stdout -and $stdout.Wait(1000)) { [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/launcher.stdout.log", $stdout.Result) }
+              if ($null -ne $stderr -and $stderr.Wait(1000)) { [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/launcher.stderr.log", $stderr.Result) }
+            }
             $launcher.Dispose()
           }
       - name: Upload actual Windows 11 screenshots, traces and process identity
