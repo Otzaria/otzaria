@@ -1,0 +1,1177 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-05",
+  "baseline_application_revision": "2ba2e6d76b53e7c72f37d048023f41d150f9702f",
+  "scope": "Independent native PDFium source-opening and rasterization probe. Does not execute the application preview controller. Process memory includes Python and PDFium.",
+  "method": {
+    "processes": "30 fresh subprocesses. Three repeats per fixture/source/metadata configuration. Source order alternates between repeats. Initial all-metadata and later selected-metadata batches are separate, not paired in time.",
+    "file_path": "FPDF_LoadDocument",
+    "bytes_path": "Read complete file, retain bytes, copy to an owned C buffer, FPDF_LoadMemDocument64; both buffers live while the document is open",
+    "page_metadata": "all: FPDF_GetPageSizeByIndex for every page. selected: first page plus selected range (3 distinct pages here), approximating progressive source opening at the native boundary. Neither executes the Dart controller.",
+    "first_page": "Completion of first FPDF_RenderPageBitmap, including source read/copy, open and configured metadata work; excludes pixel hashing. It is not first UI paint.",
+    "memory": "RSS and Private_Clean+Private_Dirty from /proc/self/smaps_rollup sampled every 10 ms and between phases. OS lifetime peak RSS recorded separately.",
+    "pixel_parity": "SHA-256 over raw native bitmap bytes including stride (BGRx with alpha disabled). All recorded source/metadata configurations for each fixture have identical dimensions and hashes.",
+    "os_file_cache": "Not controlled; no claim of cold-cache measurements"
+  },
+  "environment": {
+    "platform": "linux",
+    "machine": "x86_64",
+    "kernel": "6.18.57",
+    "python": "3.12.14",
+    "fixture_generator_dart": "3.13.5",
+    "filesystem": "overlayfs",
+    "pdfium_package": "pdfium_dart 0.4.1 / chromium_8125",
+    "pdfium_library_sha256": "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723",
+    "cgroup_memory_limit_bytes": 8589934592,
+    "cgroup_cpu_quota": "800000 100000",
+    "cgroup_memory_current_bytes_at_aggregation": 8589148160,
+    "load_average_at_aggregation": [
+      40.7900390625,
+      55.44091796875,
+      60.19970703125
+    ],
+    "cumulative_cgroup_memory_events_at_aggregation": {
+      "low": 0,
+      "high": 0,
+      "max": 15894008,
+      "oom": 109,
+      "oom_kill": 46,
+      "oom_group_kill": 0
+    },
+    "memory_pressure_note": "Shared environment was near its 8 GiB limit. Cumulative OOM counters captured with the initial batch are not attributable to these probes. All 30 recorded native processes completed successfully. Batches were run at different times under changing contention.",
+    "selected_batch_aggregation": {
+      "cgroup_memory_current_bytes": 8589737984,
+      "load_average": [
+        8.2138671875,
+        11.572265625,
+        28.46240234375
+      ]
+    }
+  },
+  "commands": {
+    "fixtures": "dart run tool/perf_probe/make_pdf_print_preview_fixtures.dart .dart_tool/pdf-preview-fixtures",
+    "native_example": "python3 tool/perf_probe/native_pdf_print_preview_probe.py --library <libpdfium.so> --file .dart_tool/pdf-preview-fixtures/scanned.pdf --source file --start 80 --count 2",
+    "comparison": "Repeat with --source bytes; use fresh processes and alternate source order.",
+    "selected_metadata": "Add --metadata selected to measure only initial-page and selected-range dimensions. Keep this configuration distinct from --metadata all."
+  },
+  "fixtures": [
+    {
+      "name": "small",
+      "pages": 3,
+      "bytes": 4639,
+      "sha256": "aca340781d81180c9bbc5d7bab03de67b008bf27938447a036942cfc05549bc4",
+      "rendered_range_inclusive": [
+        1,
+        3
+      ],
+      "render_scale": 1.5,
+      "rendered_pixels": [
+        {
+          "page": 1,
+          "width": 893,
+          "height": 1263,
+          "sha256": "5e7207b5ec2ef9599668e3859e8189d9715e0bfb4f0d51ca866237b66bb57033"
+        },
+        {
+          "page": 2,
+          "width": 893,
+          "height": 1263,
+          "sha256": "4e65d9e0d6a539d6936ab486c39ef9ffb4829e43bd739227ba37e7a269351c20"
+        },
+        {
+          "page": 3,
+          "width": 893,
+          "height": 1263,
+          "sha256": "be4e52ff0d54880a7a3599b78c965fb1a2090873cd8d96d0bfec03a07ec6ad6c"
+        }
+      ],
+      "pixel_hashes_identical_across_all_runs": true,
+      "pixel_hash_runs": 6
+    },
+    {
+      "name": "mixed",
+      "pages": 600,
+      "bytes": 877929,
+      "sha256": "1cf676791adda4b67a29a952df8cba2c909cd788ac174109e54cd533a0b82dac",
+      "rendered_range_inclusive": [
+        300,
+        301
+      ],
+      "render_scale": 1.5,
+      "rendered_pixels": [
+        {
+          "page": 300,
+          "width": 1263,
+          "height": 893,
+          "sha256": "751b17b6a659028979619141c92a3f2c8dc529fb0c9e0c5e6e628afaefe8795c"
+        },
+        {
+          "page": 301,
+          "width": 893,
+          "height": 1263,
+          "sha256": "53ad26c8f0113d46841cc16eb3ffdfbc21ffc6731a0d5a64d5830fb63cc7844c"
+        }
+      ],
+      "pixel_hashes_identical_across_all_runs": true,
+      "pixel_hash_runs": 12
+    },
+    {
+      "name": "scanned",
+      "pages": 120,
+      "bytes": 47269246,
+      "sha256": "c8913bbb41dcbda7207ebd29381cc75435c05fb17901e308aaacd2849366aa4b",
+      "rendered_range_inclusive": [
+        80,
+        81
+      ],
+      "render_scale": 1.5,
+      "rendered_pixels": [
+        {
+          "page": 80,
+          "width": 1263,
+          "height": 893,
+          "sha256": "19bb992ec183edf1af56b95bf6b82e9b32adbe29eb5d038222aa233a2cebc95f"
+        },
+        {
+          "page": 81,
+          "width": 893,
+          "height": 1263,
+          "sha256": "e98fe8af041dcbd5588475dcf5275ed12a69a11f40382a93ab8f547a5055f3e4"
+        }
+      ],
+      "pixel_hashes_identical_across_all_runs": true,
+      "pixel_hash_runs": 12
+    }
+  ],
+  "cases": [
+    {
+      "fixture": "small",
+      "source": "file",
+      "first_page_raster_ready_ms": {
+        "median": 28.419,
+        "min": 17.2,
+        "max": 43.162
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 15396864,
+        "min": 15355904,
+        "max": 15470592
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 19423232,
+        "min": 19402752,
+        "max": 19427328
+      },
+      "private_resident_increase_bytes": {
+        "median": 6197248,
+        "min": 6127616,
+        "max": 6316032
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 43.162,
+          "baseline_rss_bytes": 13254656,
+          "sampled_peak_rss_bytes": 19402752,
+          "baseline_private_resident_bytes": 9228288,
+          "sampled_peak_private_resident_bytes": 15355904,
+          "process_lifetime_peak_rss_bytes": 18980864,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13729792,
+              9674752
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 21.734,
+            "allPageDimensionsMs": 0.119,
+            "closeMs": 46.067
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 17.2,
+          "baseline_rss_bytes": 13185024,
+          "sampled_peak_rss_bytes": 19427328,
+          "baseline_private_resident_bytes": 9199616,
+          "sampled_peak_private_resident_bytes": 15396864,
+          "process_lifetime_peak_rss_bytes": 19173376,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13643776,
+              9633792
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 7.654,
+            "allPageDimensionsMs": 0.094,
+            "closeMs": 0.045
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 28.419,
+          "baseline_rss_bytes": 13078528,
+          "sampled_peak_rss_bytes": 19423232,
+          "baseline_private_resident_bytes": 9154560,
+          "sampled_peak_private_resident_bytes": 15470592,
+          "process_lifetime_peak_rss_bytes": 18960384,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13553664,
+              9601024
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 21.537,
+            "allPageDimensionsMs": 0.066,
+            "closeMs": 0.144
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "small",
+      "source": "bytes",
+      "first_page_raster_ready_ms": {
+        "median": 35.721,
+        "min": 6.821,
+        "max": 122.294
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 15314944,
+        "min": 15106048,
+        "max": 15405056
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 19279872,
+        "min": 19165184,
+        "max": 19525632
+      },
+      "private_resident_increase_bytes": {
+        "median": 5988352,
+        "min": 5853184,
+        "max": 6127616
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 122.294,
+          "baseline_rss_bytes": 13258752,
+          "sampled_peak_rss_bytes": 19165184,
+          "baseline_private_resident_bytes": 9252864,
+          "sampled_peak_private_resident_bytes": 15106048,
+          "process_lifetime_peak_rss_bytes": 18931712,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              13320192,
+              9289728
+            ],
+            "afterNativeCopy": [
+              13352960,
+              9322496
+            ],
+            "afterOpen": [
+              13680640,
+              9641984
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 15.431,
+            "nativeCopyMs": 0.11,
+            "openIncludingReadAndCopyMs": 16.548,
+            "allPageDimensionsMs": 0.051,
+            "closeMs": 0.067
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 35.721,
+          "baseline_rss_bytes": 13402112,
+          "sampled_peak_rss_bytes": 19525632,
+          "baseline_private_resident_bytes": 9416704,
+          "sampled_peak_private_resident_bytes": 15405056,
+          "process_lifetime_peak_rss_bytes": 18841600,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              13463552,
+              9453568
+            ],
+            "afterNativeCopy": [
+              13496320,
+              9486336
+            ],
+            "afterOpen": [
+              13873152,
+              9859072
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 17.517,
+            "nativeCopyMs": 0.063,
+            "openIncludingReadAndCopyMs": 19.037,
+            "allPageDimensionsMs": 0.056,
+            "closeMs": 4.689
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 6.821,
+          "baseline_rss_bytes": 13107200,
+          "sampled_peak_rss_bytes": 19279872,
+          "baseline_private_resident_bytes": 9187328,
+          "sampled_peak_private_resident_bytes": 15314944,
+          "process_lifetime_peak_rss_bytes": 18862080,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              13160448,
+              9211904
+            ],
+            "afterNativeCopy": [
+              13193216,
+              9244672
+            ],
+            "afterOpen": [
+              13512704,
+              9564160
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 0.069,
+            "nativeCopyMs": 0.054,
+            "openIncludingReadAndCopyMs": 0.875,
+            "allPageDimensionsMs": 0.053,
+            "closeMs": 0.048
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "mixed",
+      "source": "file",
+      "first_page_raster_ready_ms": {
+        "median": 408.185,
+        "min": 206.221,
+        "max": 51820.115
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 16244736,
+        "min": 16125952,
+        "max": 16572416
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 20283392,
+        "min": 20156416,
+        "max": 20537344
+      },
+      "private_resident_increase_bytes": {
+        "median": 7090176,
+        "min": 6938624,
+        "max": 7278592
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 51820.115,
+          "baseline_rss_bytes": 13152256,
+          "sampled_peak_rss_bytes": 20283392,
+          "baseline_private_resident_bytes": 9154560,
+          "sampled_peak_private_resident_bytes": 16244736,
+          "process_lifetime_peak_rss_bytes": 20447232,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              12988416,
+              8970240
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 48890.156,
+            "allPageDimensionsMs": 45.939,
+            "closeMs": 0.835
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 408.185,
+          "baseline_rss_bytes": 13168640,
+          "sampled_peak_rss_bytes": 20156416,
+          "baseline_private_resident_bytes": 9187328,
+          "sampled_peak_private_resident_bytes": 16125952,
+          "process_lifetime_peak_rss_bytes": 20103168,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13713408,
+              9703424
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 29.493,
+            "allPageDimensionsMs": 155.975,
+            "closeMs": 4.913
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 206.221,
+          "baseline_rss_bytes": 13217792,
+          "sampled_peak_rss_bytes": 20537344,
+          "baseline_private_resident_bytes": 9293824,
+          "sampled_peak_private_resident_bytes": 16572416,
+          "process_lifetime_peak_rss_bytes": 20566016,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13590528,
+              9641984
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 43.596,
+            "allPageDimensionsMs": 88.312,
+            "closeMs": 0.685
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "mixed",
+      "source": "bytes",
+      "first_page_raster_ready_ms": {
+        "median": 44.768,
+        "min": 36.351,
+        "max": 102.668
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 18292736,
+        "min": 18239488,
+        "max": 18415616
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 22310912,
+        "min": 22257664,
+        "max": 22368256
+      },
+      "private_resident_increase_bytes": {
+        "median": 9019392,
+        "min": 9011200,
+        "max": 9064448
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 44.768,
+          "baseline_rss_bytes": 13258752,
+          "sampled_peak_rss_bytes": 22310912,
+          "baseline_private_resident_bytes": 9273344,
+          "sampled_peak_private_resident_bytes": 18292736,
+          "process_lifetime_peak_rss_bytes": 21528576,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14200832,
+              10190848
+            ],
+            "afterNativeCopy": [
+              15110144,
+              11100160
+            ],
+            "afterOpen": [
+              15560704,
+              11542528
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 18.261,
+            "nativeCopyMs": 1.889,
+            "openIncludingReadAndCopyMs": 21.718,
+            "allPageDimensionsMs": 11.128,
+            "closeMs": 17.196
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 36.351,
+          "baseline_rss_bytes": 13160448,
+          "sampled_peak_rss_bytes": 22257664,
+          "baseline_private_resident_bytes": 9175040,
+          "sampled_peak_private_resident_bytes": 18239488,
+          "process_lifetime_peak_rss_bytes": 21954560,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14102528,
+              10092544
+            ],
+            "afterNativeCopy": [
+              15011840,
+              11001856
+            ],
+            "afterOpen": [
+              15523840,
+              11509760
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 10.31,
+            "nativeCopyMs": 0.537,
+            "openIncludingReadAndCopyMs": 11.895,
+            "allPageDimensionsMs": 8.008,
+            "closeMs": 0.797
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 102.668,
+          "baseline_rss_bytes": 13324288,
+          "sampled_peak_rss_bytes": 22368256,
+          "baseline_private_resident_bytes": 9404416,
+          "sampled_peak_private_resident_bytes": 18415616,
+          "process_lifetime_peak_rss_bytes": 22413312,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14274560,
+              10326016
+            ],
+            "afterNativeCopy": [
+              15183872,
+              11235328
+            ],
+            "afterOpen": [
+              15630336,
+              11681792
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 66.989,
+            "nativeCopyMs": 0.718,
+            "openIncludingReadAndCopyMs": 68.749,
+            "allPageDimensionsMs": 20.111,
+            "closeMs": 0.891
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "scanned",
+      "source": "file",
+      "first_page_raster_ready_ms": {
+        "median": 1183.124,
+        "min": 1054.563,
+        "max": 2529.202
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 17506304,
+        "min": 17326080,
+        "max": 17674240
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 21463040,
+        "min": 21348352,
+        "max": 21639168
+      },
+      "private_resident_increase_bytes": {
+        "median": 8269824,
+        "min": 8069120,
+        "max": 8278016
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 2529.202,
+          "baseline_rss_bytes": 13242368,
+          "sampled_peak_rss_bytes": 21348352,
+          "baseline_private_resident_bytes": 9256960,
+          "sampled_peak_private_resident_bytes": 17326080,
+          "process_lifetime_peak_rss_bytes": 21946368,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13799424,
+              9789440
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 50.547,
+            "allPageDimensionsMs": 1894.416,
+            "closeMs": 0.47
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 1054.563,
+          "baseline_rss_bytes": 13225984,
+          "sampled_peak_rss_bytes": 21463040,
+          "baseline_private_resident_bytes": 9228288,
+          "sampled_peak_private_resident_bytes": 17506304,
+          "process_lifetime_peak_rss_bytes": 21618688,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13582336,
+              9555968
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 119.913,
+            "allPageDimensionsMs": 872.124,
+            "closeMs": 18.232
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 1183.124,
+          "baseline_rss_bytes": 13328384,
+          "sampled_peak_rss_bytes": 21639168,
+          "baseline_private_resident_bytes": 9404416,
+          "sampled_peak_private_resident_bytes": 17674240,
+          "process_lifetime_peak_rss_bytes": 21622784,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13713408,
+              9764864
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 105.005,
+            "allPageDimensionsMs": 981.764,
+            "closeMs": 27.821
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "scanned",
+      "source": "bytes",
+      "first_page_raster_ready_ms": {
+        "median": 398.791,
+        "min": 199.744,
+        "max": 1005.341
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 112238592,
+        "min": 111947776,
+        "max": 112250880
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 116203520,
+        "min": 115982336,
+        "max": 116273152
+      },
+      "private_resident_increase_bytes": {
+        "median": 102948864,
+        "min": 102711296,
+        "max": 103010304
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 199.744,
+          "baseline_rss_bytes": 13225984,
+          "sampled_peak_rss_bytes": 116273152,
+          "baseline_private_resident_bytes": 9240576,
+          "sampled_peak_private_resident_bytes": 112250880,
+          "process_lifetime_peak_rss_bytes": 116002816,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              60567552,
+              56557568
+            ],
+            "afterNativeCopy": [
+              107876352,
+              103862272
+            ],
+            "afterOpen": [
+              108167168,
+              104148992
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 103.028,
+            "nativeCopyMs": 48.308,
+            "openIncludingReadAndCopyMs": 154.768,
+            "allPageDimensionsMs": 0.923,
+            "closeMs": 2.742
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 1005.341,
+          "baseline_rss_bytes": 13234176,
+          "sampled_peak_rss_bytes": 115982336,
+          "baseline_private_resident_bytes": 9236480,
+          "sampled_peak_private_resident_bytes": 111947776,
+          "process_lifetime_peak_rss_bytes": 116310016,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              60162048,
+              56139776
+            ],
+            "afterNativeCopy": [
+              106496000,
+              102469632
+            ],
+            "afterOpen": [
+              107237376,
+              103206912
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 785.521,
+            "nativeCopyMs": 128.44,
+            "openIncludingReadAndCopyMs": 975.723,
+            "allPageDimensionsMs": 0.931,
+            "closeMs": 17.999
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 398.791,
+          "baseline_rss_bytes": 13217792,
+          "sampled_peak_rss_bytes": 116203520,
+          "baseline_private_resident_bytes": 9289728,
+          "sampled_peak_private_resident_bytes": 112238592,
+          "process_lifetime_peak_rss_bytes": 115617792,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              59183104,
+              55226368
+            ],
+            "afterNativeCopy": [
+              106483712,
+              102526976
+            ],
+            "afterOpen": [
+              107286528,
+              103329792
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 259.077,
+            "nativeCopyMs": 47.995,
+            "openIncludingReadAndCopyMs": 364.159,
+            "allPageDimensionsMs": 1.451,
+            "closeMs": 1.831
+          }
+        }
+      ],
+      "metadata": "all"
+    },
+    {
+      "fixture": "mixed",
+      "source": "file",
+      "metadata": "selected",
+      "metadata_pages_read": 3,
+      "first_page_raster_ready_ms": {
+        "median": 90.664,
+        "min": 44.54,
+        "max": 230.465
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 16056320,
+        "min": 15691776,
+        "max": 16158720
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 20054016,
+        "min": 19681280,
+        "max": 20193280
+      },
+      "private_resident_increase_bytes": {
+        "median": 6717440,
+        "min": 6402048,
+        "max": 6914048
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 230.465,
+          "baseline_rss_bytes": 13234176,
+          "sampled_peak_rss_bytes": 19681280,
+          "baseline_private_resident_bytes": 9289728,
+          "sampled_peak_private_resident_bytes": 15691776,
+          "process_lifetime_peak_rss_bytes": 19668992,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13733888,
+              9760768
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 57.825,
+            "pageDimensionsMs": 154.084,
+            "closeMs": 0.299
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 44.54,
+          "baseline_rss_bytes": 13221888,
+          "sampled_peak_rss_bytes": 20193280,
+          "baseline_private_resident_bytes": 9244672,
+          "sampled_peak_private_resident_bytes": 16158720,
+          "process_lifetime_peak_rss_bytes": 20054016,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13770752,
+              9764864
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 7.758,
+            "pageDimensionsMs": 12.263,
+            "closeMs": 12.027
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 90.664,
+          "baseline_rss_bytes": 13291520,
+          "sampled_peak_rss_bytes": 20054016,
+          "baseline_private_resident_bytes": 9338880,
+          "sampled_peak_private_resident_bytes": 16056320,
+          "process_lifetime_peak_rss_bytes": 19537920,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13918208,
+              9936896
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 10.884,
+            "pageDimensionsMs": 24.534,
+            "closeMs": 0.417
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "mixed",
+      "source": "bytes",
+      "metadata": "selected",
+      "metadata_pages_read": 3,
+      "first_page_raster_ready_ms": {
+        "median": 59.425,
+        "min": 55.648,
+        "max": 752.879
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 17760256,
+        "min": 17223680,
+        "max": 17772544
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 21745664,
+        "min": 21209088,
+        "max": 21753856
+      },
+      "private_resident_increase_bytes": {
+        "median": 8450048,
+        "min": 7876608,
+        "max": 8491008
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 752.879,
+          "baseline_rss_bytes": 13295616,
+          "sampled_peak_rss_bytes": 21209088,
+          "baseline_private_resident_bytes": 9347072,
+          "sampled_peak_private_resident_bytes": 17223680,
+          "process_lifetime_peak_rss_bytes": 21741568,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14241792,
+              10260480
+            ],
+            "afterNativeCopy": [
+              15142912,
+              11161600
+            ],
+            "afterOpen": [
+              15593472,
+              11612160
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 26.644,
+            "nativeCopyMs": 19.065,
+            "openIncludingReadAndCopyMs": 86.423,
+            "pageDimensionsMs": 22.926,
+            "closeMs": 0.483
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 59.425,
+          "baseline_rss_bytes": 13271040,
+          "sampled_peak_rss_bytes": 21745664,
+          "baseline_private_resident_bytes": 9310208,
+          "sampled_peak_private_resident_bytes": 17760256,
+          "process_lifetime_peak_rss_bytes": 21676032,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14221312,
+              10231808
+            ],
+            "afterNativeCopy": [
+              15134720,
+              11141120
+            ],
+            "afterOpen": [
+              15519744,
+              11526144
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 20.568,
+            "nativeCopyMs": 0.755,
+            "openIncludingReadAndCopyMs": 22.915,
+            "pageDimensionsMs": 2.172,
+            "closeMs": 0.531
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 55.648,
+          "baseline_rss_bytes": 13230080,
+          "sampled_peak_rss_bytes": 21753856,
+          "baseline_private_resident_bytes": 9281536,
+          "sampled_peak_private_resident_bytes": 17772544,
+          "process_lifetime_peak_rss_bytes": 21172224,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              14180352,
+              10203136
+            ],
+            "afterNativeCopy": [
+              15089664,
+              11112448
+            ],
+            "afterOpen": [
+              15605760,
+              11628544
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 12.251,
+            "nativeCopyMs": 1.154,
+            "openIncludingReadAndCopyMs": 15.114,
+            "pageDimensionsMs": 3.013,
+            "closeMs": 12.108
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "scanned",
+      "source": "file",
+      "metadata": "selected",
+      "metadata_pages_read": 3,
+      "first_page_raster_ready_ms": {
+        "median": 649.508,
+        "min": 377.498,
+        "max": 4222.863
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 17784832,
+        "min": 17391616,
+        "max": 17887232
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 21774336,
+        "min": 21377024,
+        "max": 21876736
+      },
+      "private_resident_increase_bytes": {
+        "median": 8441856,
+        "min": 8060928,
+        "max": 8724480
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 4222.863,
+          "baseline_rss_bytes": 13234176,
+          "sampled_peak_rss_bytes": 21876736,
+          "baseline_private_resident_bytes": 9162752,
+          "sampled_peak_private_resident_bytes": 17887232,
+          "process_lifetime_peak_rss_bytes": 21966848,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              12767232,
+              8654848
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 209.424,
+            "pageDimensionsMs": 846.228,
+            "closeMs": 4.207
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 377.498,
+          "baseline_rss_bytes": 13291520,
+          "sampled_peak_rss_bytes": 21774336,
+          "baseline_private_resident_bytes": 9342976,
+          "sampled_peak_private_resident_bytes": 17784832,
+          "process_lifetime_peak_rss_bytes": 21954560,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13684736,
+              9703424
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 20.696,
+            "pageDimensionsMs": 326.689,
+            "closeMs": 0.196
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 649.508,
+          "baseline_rss_bytes": 13283328,
+          "sampled_peak_rss_bytes": 21377024,
+          "baseline_private_resident_bytes": 9330688,
+          "sampled_peak_private_resident_bytes": 17391616,
+          "process_lifetime_peak_rss_bytes": 21065728,
+          "phase_memory_rss_private_bytes": {
+            "afterOpen": [
+              13787136,
+              9805824
+            ]
+          },
+          "phases_ms": {
+            "openIncludingReadAndCopyMs": 37.578,
+            "pageDimensionsMs": 484.49,
+            "closeMs": 94.55
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "scanned",
+      "source": "bytes",
+      "metadata": "selected",
+      "metadata_pages_read": 3,
+      "first_page_raster_ready_ms": {
+        "median": 298.73,
+        "min": 277.827,
+        "max": 1141.649
+      },
+      "sampled_peak_private_resident_bytes": {
+        "median": 112197632,
+        "min": 111898624,
+        "max": 112410624
+      },
+      "sampled_peak_rss_bytes": {
+        "median": 116187136,
+        "min": 115888128,
+        "max": 116408320
+      },
+      "private_resident_increase_bytes": {
+        "median": 102875136,
+        "min": 102588416,
+        "max": 103706624
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "first_page_raster_ready_ms": 277.827,
+          "baseline_rss_bytes": 13238272,
+          "sampled_peak_rss_bytes": 116408320,
+          "baseline_private_resident_bytes": 8704000,
+          "sampled_peak_private_resident_bytes": 112410624,
+          "process_lifetime_peak_rss_bytes": 116322304,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              60596224,
+              55992320
+            ],
+            "afterNativeCopy": [
+              107532288,
+              102916096
+            ],
+            "afterOpen": [
+              108085248,
+              104091648
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 150.845,
+            "nativeCopyMs": 69.308,
+            "openIncludingReadAndCopyMs": 246.198,
+            "pageDimensionsMs": 0.621,
+            "closeMs": 5.007
+          }
+        },
+        {
+          "repeat": 2,
+          "first_page_raster_ready_ms": 298.73,
+          "baseline_rss_bytes": 13275136,
+          "sampled_peak_rss_bytes": 116187136,
+          "baseline_private_resident_bytes": 9322496,
+          "sampled_peak_private_resident_bytes": 112197632,
+          "process_lifetime_peak_rss_bytes": 116310016,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              60366848,
+              56385536
+            ],
+            "afterNativeCopy": [
+              107675648,
+              103690240
+            ],
+            "afterOpen": [
+              108032000,
+              104042496
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 125.981,
+            "nativeCopyMs": 66.297,
+            "openIncludingReadAndCopyMs": 248.632,
+            "pageDimensionsMs": 2.632,
+            "closeMs": 4.039
+          }
+        },
+        {
+          "repeat": 3,
+          "first_page_raster_ready_ms": 1141.649,
+          "baseline_rss_bytes": 13262848,
+          "sampled_peak_rss_bytes": 115888128,
+          "baseline_private_resident_bytes": 9310208,
+          "sampled_peak_private_resident_bytes": 111898624,
+          "process_lifetime_peak_rss_bytes": 115924992,
+          "phase_memory_rss_private_bytes": {
+            "afterRead": [
+              59240448,
+              55255040
+            ],
+            "afterNativeCopy": [
+              106541056,
+              102555648
+            ],
+            "afterOpen": [
+              107552768,
+              103567360
+            ]
+          },
+          "phases_ms": {
+            "fileReadMs": 791.254,
+            "nativeCopyMs": 40.546,
+            "openIncludingReadAndCopyMs": 933.887,
+            "pageDimensionsMs": 0.483,
+            "closeMs": 20.497
+          }
+        }
+      ]
+    }
+  ],
+  "conclusions": {
+    "memory": "For the 47,269,246-byte scanned fixture, file loading avoids approximately 90.3 MiB of sampled private-resident peak compared with keeping the source bytes and a C copy. This is a native-source experiment, not a measurement of the full application.",
+    "latency": "No end-to-end first-page latency improvement is established. Timings are highly variable under pressure, include a 51.8-second all-metadata file outlier and a 4.2-second selected-metadata file outlier, and are retained without excluding slower runs. The all/selected batches are not a controlled paired latency comparison.",
+    "controller_uiImage_first_paint_cancellation_Dart_allocations": "Not measured by this native probe. Run pdf_print_preview_probe.dart for Flutter stages and the actual controller; measure actual first paint separately."
+  }
+}
