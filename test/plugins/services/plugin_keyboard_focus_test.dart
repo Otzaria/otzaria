@@ -19,14 +19,37 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 
 /// controller שמדמה את מסלול ווינדוס: `MoveFocus` מגיע דרך ערוץ
 /// ה-platform view של ה-viewId, ולכן הספירה נעשית שם.
+///
+/// הפוקוס הנייטיבי מדומה כפי שנמדד ב-WebView2: MoveFocus או קליק מעבירים
+/// אותו לחלון הקלט של המופע; `put_IsVisible(FALSE)` של ההשהיה מעביר אותו
+/// לחלון המארח, וההחייאה אינה מחזירה אותו — אף שהדף מדווח שהוא ממוקד.
 class _FocusController extends Fake implements InAppWebViewController {
   _FocusController() : viewId = ++_nextViewId {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
-          if (call.method == kPlatformViewRequestFocusMethod) focusCalls++;
+          if (call.method == kPlatformViewRequestFocusMethod) {
+            _moveFocus();
+            return null;
+          }
+          if (call.method == kPlatformViewRequestFocusIfNeededMethod) {
+            if (nativeFocused) return false;
+            _moveFocus();
+            return true;
+          }
           return null;
         });
   }
+
+  void _moveFocus() {
+    focusCalls++;
+    nativeFocused = pageHasFocusAfterFirst;
+  }
+
+  /// פוקוס המקלדת של Win32 בחלון הקלט של המופע.
+  bool nativeFocused = false;
+
+  /// קליק של המשתמש בדף: SendMouseInput מעביר את הפוקוס הנייטיבי מיד.
+  void click() => nativeFocused = true;
 
   static int _nextViewId = 0;
 
@@ -35,8 +58,9 @@ class _FocusController extends Fake implements InAppWebViewController {
   int pauseCalls = 0;
   int resumeCalls = 0;
 
-  /// מדמה את ההתנהגות בייצור: אחרי MoveFocus מוצלח הדף מחזיק את הפוקוס,
-  /// ו-`document.hasFocus()` מדכא בקשה נוספת.
+  /// מדמה את ההתנהגות בייצור: אחרי MoveFocus מוצלח המופע מחזיק את הפוקוס,
+  /// ובקשה נוספת מדוכאת. `document.hasFocus()` נשאר אמת גם אחרי השהיה
+  /// והחייאה — כמו בייצור, שם הוא כוזב.
   bool pageHasFocusAfterFirst = false;
 
   /// שער לעיכוב ההחייאה — מדמה את חלון הזמן שבו המופע מוצג אך עוד מוקפא.
@@ -49,7 +73,10 @@ class _FocusController extends Fake implements InAppWebViewController {
   dynamic getViewId() => viewId;
 
   @override
-  Future<void> pause() async => pauseCalls++;
+  Future<void> pause() async {
+    pauseCalls++;
+    nativeFocused = false;
+  }
 
   @override
   Future<void> resume() async {
@@ -371,9 +398,7 @@ void main() {
     test('החלון אינו בחזית — אין העברה', () async {
       final binding = TestWidgetsFlutterBinding.instance;
       addTearDown(
-        () => binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.resumed,
-        ),
+        () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
       );
       final controller = _FocusController();
       _d.registerController(_pid, controller);
@@ -416,6 +441,84 @@ void main() {
       await pumpEventQueue();
 
       expect(controller.focusCalls, 1);
+    });
+
+    // #3828: הדף מדווח `document.hasFocus()` אמת אחרי ההחייאה, אבל הפוקוס
+    // הנייטיבי נשאר על חלון המארח. שני התזמונים שה-PR הקודם (#3934) לא כיסה.
+    test('ההחייאה הסתיימה לפני הבקשה — הפוקוס מועבר', () async {
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      await _d.onForegroundInstanceReady(_pid);
+      expect(controller.focusCalls, 1);
+
+      _d.setVisiblePluginInstances({_fg(_other)});
+      await pumpEventQueue();
+      expect(controller.pauseCalls, 1);
+      final resumesBefore = controller.resumeCalls;
+
+      // ההחייאה אינה מעוכבת: הבקשה מגיעה אחריה ומבוצעת ישירות.
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(controller.resumeCalls, resumesBefore + 1);
+      expect(await _d.requestKeyboardFocus(_pid), isTrue);
+
+      expect(controller.focusCalls, 2);
+    });
+
+    test('קליק בדף בין ההחייאה לביצוע הבקשה — אין MoveFocus נוסף', () async {
+      // MoveFocus אחרי קליק מבטל את הפוקוס שהקליק נתן (upstream #2736).
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      await _d.onForegroundInstanceReady(_pid);
+      expect(controller.focusCalls, 1);
+
+      _d.setVisiblePluginInstances({_fg(_other)});
+      await pumpEventQueue();
+
+      // הבקשה מקדימה את ההחייאה ונזכרת.
+      final gate = Completer<void>();
+      controller.resumeGate = gate;
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      // ההחייאה הנייטיבית הסתיימה, והמשתמש לוחץ בדף לפני ה-flush.
+      controller.click();
+      controller.resumeGate = null;
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(controller.focusCalls, 1);
+    });
+
+    test('בקשה שנזכרה בהשהיה, בלי קליק — הפוקוס מועבר', () async {
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      await _d.onForegroundInstanceReady(_pid);
+
+      _d.setVisiblePluginInstances({_fg(_other)});
+      await pumpEventQueue();
+
+      final gate = Completer<void>();
+      controller.resumeGate = gate;
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      controller.resumeGate = null;
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(controller.focusCalls, 2);
     });
 
     test('השהיה מנקה בקשה שנזכרה — חזרה אינה יורה מעצמה', () async {
@@ -587,10 +690,7 @@ void main() {
       await pumpEventQueue();
 
       expect(
-        await _d.requestKeyboardFocus(
-          tab.toolId,
-          instanceId: tab.instanceId,
-        ),
+        await _d.requestKeyboardFocus(tab.toolId, instanceId: tab.instanceId),
         isTrue,
       );
       expect(controller.focusCalls, 1);
