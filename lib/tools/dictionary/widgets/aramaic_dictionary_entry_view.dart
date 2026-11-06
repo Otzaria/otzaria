@@ -7,14 +7,10 @@ class AramaicDictionaryEntryView extends StatelessWidget {
   const AramaicDictionaryEntryView({
     super.key,
     required this.definition,
-    this.maxMeanings,
-    this.compact = false,
     this.skipRepeatedMeanings = false,
   });
 
   final String definition;
-  final int? maxMeanings;
-  final bool compact;
 
   /// מדלג על פירוש שכל חלקיו כבר הופיעו קודם (לערך שמוזג מכמה מילונים).
   final bool skipRepeatedMeanings;
@@ -22,23 +18,16 @@ class AramaicDictionaryEntryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final parsed = AramaicDictionaryEntryPresentation.parse(definition);
-    final parsedEntry = skipRepeatedMeanings
-        ? parsed.withoutRepeatedMeanings()
-        : parsed;
-    final meanings = maxMeanings == null
-        ? parsedEntry.meanings
-        : parsedEntry.meanings.take(maxMeanings!).toList();
+    final meanings =
+        (skipRepeatedMeanings ? parsed.withoutRepeatedMeanings() : parsed)
+            .meanings;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var index = 0; index < meanings.length; index++) ...[
-          if (index > 0) SizedBox(height: compact ? 8 : 12),
-          _MeaningView(
-            meaning: meanings[index],
-            index: index,
-            compact: compact,
-          ),
+          if (index > 0) const SizedBox(height: 12),
+          _MeaningView(meaning: meanings[index], index: index),
         ],
       ],
     );
@@ -46,15 +35,10 @@ class AramaicDictionaryEntryView extends StatelessWidget {
 }
 
 class _MeaningView extends StatelessWidget {
-  const _MeaningView({
-    required this.meaning,
-    required this.index,
-    required this.compact,
-  });
+  const _MeaningView({required this.meaning, required this.index});
 
   final ParsedAramaicMeaning meaning;
   final int index;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +50,8 @@ class _MeaningView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: compact ? 22 : 26,
-          height: compact ? 22 : 26,
+          width: 26,
+          height: 26,
           alignment: Alignment.center,
           margin: const EdgeInsetsDirectional.only(top: 2, end: 10),
           decoration: BoxDecoration(
@@ -89,9 +73,9 @@ class _MeaningView extends StatelessWidget {
               if (meaning.expression != null) ...[
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 10 : 12,
-                    vertical: compact ? 6 : 8,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainerHighest.withValues(
@@ -108,7 +92,7 @@ class _MeaningView extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(height: compact ? 6 : 8),
+                const SizedBox(height: 8),
               ],
               if (meaning.mainText.isNotEmpty)
                 Text(
@@ -122,7 +106,7 @@ class _MeaningView extends StatelessWidget {
                   ),
                 ),
               if (meaning.expansion != null) ...[
-                SizedBox(height: compact ? 2 : 4),
+                const SizedBox(height: 4),
                 Text(
                   meaning.expansion!,
                   style: textTheme.bodySmall?.copyWith(
