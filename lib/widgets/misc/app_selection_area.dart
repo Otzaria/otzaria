@@ -5,6 +5,7 @@ import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -112,11 +113,12 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
   }
 
   Future<void> _copy(String text) async {
+    final copiedMessage = context.settingsText(CommonMessages.textCopiedShort);
     if (!await _copyAllowed(text)) return;
     await Clipboard.setData(
       ClipboardData(text: withoutDivineNameJoiners(text)),
     );
-    UiSnack.show(CommonMessages.textCopiedShort);
+    UiSnack.show(copiedMessage);
   }
 
   @override
@@ -156,7 +158,7 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
               final text = _textToCopyAt(position);
               return [
                 AppContextMenuEntry(
-                  label: 'העתק',
+                  label: context.settingsText('העתק'),
                   icon: FluentIcons.copy_24_regular,
                   enabled: text != null,
                   onTap: () => _copy(text!),

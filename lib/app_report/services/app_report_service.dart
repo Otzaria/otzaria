@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/app_report/models/app_report_draft.dart';
@@ -26,6 +28,9 @@ enum AppReportFailureReason {
 
   /// השרת דחה את התוכן (400/413/422) — אין טעם לנסות שוב.
   rejected,
+
+  /// הדיווח דורש את המכסות המורחבות, שהשרת עדיין אינו מקבל.
+  serverUpgradeRequired,
 
   /// השרת החזיק תוכן אחר באותו מזהה גם אחרי החלפת המזהה.
   idConflict,
@@ -87,8 +92,10 @@ class AppReportService {
 
   static const String queueBoxName = 'app_reports_queue';
   static const String pendingReportsKey = 'pending_reports';
+  static const String legacyPendingKind = pendingKind;
   static const String sentReportsKey = 'sent_reports';
   static const String pendingKind = '$queueBoxName/$pendingReportsKey';
+  static const String currentPendingKind = kAppReportsPendingKindV2;
   static const String sentKind = '$queueBoxName/$sentReportsKey';
 
   /// טיוטה אחת של הטופס הידני; לא בתור, ולכן לא נשלחת אוטומטית.
@@ -148,6 +155,15 @@ class AppReportService {
         report: alreadySent,
       );
     }
+    final invalidField = report.validate();
+    if (invalidField != null) {
+      return AppReportDeliveryResult(
+        status: AppReportDeliveryStatus.failed,
+        report: report,
+        failureReason: AppReportFailureReason.rejected,
+        rejectedField: invalidField,
+      );
+    }
     if (_isOfflineMode) {
       if (!_queueWhenOfflineEnabled) {
         return AppReportDeliveryResult(
@@ -156,10 +172,10 @@ class AppReportService {
           failureReason: AppReportFailureReason.offlineQueueDisabled,
         );
       }
-      await _enqueueIfNeeded(report);
+      final queued = await _enqueueIfNeeded(report);
       return AppReportDeliveryResult(
         status: AppReportDeliveryStatus.queued,
-        report: report,
+        report: queued,
       );
     }
 
@@ -188,25 +204,32 @@ class AppReportService {
           report: current,
           failureReason: attempt.kind == _AttemptKind.idConflict
               ? AppReportFailureReason.idConflict
+              : current.schema >= 2 && attempt.rejectedField == 'schema'
+              ? AppReportFailureReason.serverUpgradeRequired
               : AppReportFailureReason.rejected,
           httpStatus: attempt.httpStatus,
           rejectedField: attempt.rejectedField,
         );
       case _AttemptKind.transient:
-        await _enqueueIfNeeded(current);
+        final queued = await _enqueueIfNeeded(current);
         return AppReportDeliveryResult(
           status: AppReportDeliveryStatus.queued,
-          report: current,
+          report: queued,
           httpStatus: attempt.httpStatus,
         );
     }
   }
 
-  /// שולח דיווח מהתור. הרשומה מוסרת לפני השליחה, וכשל זמני מחזיר אותה.
+  /// Keeps the queued copy until delivery or a replacement queue entry succeeds.
   Future<AppReportDeliveryResult> submitPendingReport(AppReport report) =>
       _withReportLock(report.reportId, () async {
-        await _deletePendingReport(report.reportId);
-        return _send(report);
+        final result = await _send(report);
+        if (result.status == AppReportDeliveryStatus.sent ||
+            (result.status == AppReportDeliveryStatus.queued &&
+                result.report.reportId != report.reportId)) {
+          await _deletePendingReport(report.reportId);
+        }
+        return result;
       });
 
   /// מעביר דיווח מהתור להיסטוריה בלי לשלוח — כשנשלח בדרך אחרת (סקריפט).
@@ -219,13 +242,20 @@ class AppReportService {
       });
 
   /// שומר דיווח בתור בלי לנסות לשלוח.
-  Future<void> queueReport(AppReport report) =>
+  Future<AppReport> queueReport(AppReport report) =>
       _withReportLock(report.reportId, () => _enqueueIfNeeded(report));
 
-  Future<int> getPendingReportsCount() => _reports.countByKind(pendingKind);
+  Future<int> getPendingReportsCount() => _reports.countByKind(
+    pendingKind,
+    additionalKind: currentPendingKind,
+  );
 
-  Future<List<AppReport>> getPendingReports() async =>
-      (await _reports.listByKind(pendingKind)).map(_decode).toList();
+  Future<List<AppReport>> getPendingReports() async {
+    return (await _reports.listByKind(
+      pendingKind,
+      additionalKind: currentPendingKind,
+    )).map(_decode).toList();
+  }
 
   /// היסטוריית הנשלחים, מהחדש לישן.
   Future<List<AppReport>> getSentReports() async =>
@@ -238,15 +268,86 @@ class AppReportService {
     return total > kept ? total : kept;
   }
 
-  Future<AppReportDraft?> loadDraft() async {
-    final row = (await _reports.listByKind(draftKind)).lastOrNull;
-    return row == null ? null : AppReportDraft.fromJson(row.payload);
+  ReportDraftSession? _draftSession;
+  AppReportDraft? _lastDraft;
+  ReportDraftStore get draftStore =>
+      ReportDraftStore.forDatabase(_reports.database);
+
+  /// Moves the old manual draft out of the outgoing-queue storage once. The
+  /// deterministic ID makes migration safe if interrupted before legacy delete.
+  Future<void> migrateLegacyDraft() async {
+    for (final legacy in await _reports.listByKind(draftKind)) {
+      final draft = AppReportDraft.fromJson(legacy.payload);
+      if (draft == null) continue;
+      final id = 'legacy-app-${legacy.id}';
+      if (await draftStore.read(id) == null) {
+        try {
+          await draftStore.write(
+            id: id,
+            kind: ReportDraftStore.appKind,
+            title: draft.title,
+            payload: draft.toJson(includeAttachments: false),
+            attachments: draft.attachmentsJson(),
+            revision: 0,
+          );
+        } on ReportDraftConflict {
+          // Another window completed the same deterministic migration.
+        }
+      }
+      await _reports.deleteIds([legacy.id]);
+    }
   }
 
-  Future<void> saveDraft(AppReportDraft draft) =>
-      _reports.replaceKind(draftKind, draft.toJson());
+  Future<AppReportDraft?> loadDraft({String? draftId}) async {
+    await migrateLegacyDraft();
+    final id =
+        draftId ??
+        (await draftStore.list(kind: ReportDraftStore.appKind)).firstOrNull?.id;
+    final row = id == null ? null : await draftStore.read(id);
+    if (draftId != null && row == null) throw const ReportDraftConflict();
+    _draftSession = ReportDraftSession(
+      store: draftStore,
+      id: row?.id ?? AppReport.generateReportId(),
+      revision: row?.revision ?? 0,
+    );
+    _lastDraft = row == null
+        ? null
+        : AppReportDraft.fromJson({...row.payload, ...row.attachments});
+    if (row != null && _lastDraft == null) {
+      throw const FormatException(
+        'The saved report draft could not be decoded.',
+      );
+    }
+    return _lastDraft;
+  }
 
-  Future<void> deleteDraft() => _reports.deleteAllOfKind(draftKind);
+  Future<void> saveDraft(AppReportDraft draft) async {
+    final session = _draftSession ??= ReportDraftSession(
+      store: draftStore,
+      id: AppReport.generateReportId(),
+    );
+    final previous = _lastDraft;
+    final attachmentsChanged =
+        previous == null ||
+        !identical(previous.images, draft.images) ||
+        !identical(previous.diagnostics, draft.diagnostics) ||
+        previous.errorLog != draft.errorLog ||
+        !identical(previous.minidump, draft.minidump);
+    await session.save(
+      kind: ReportDraftStore.appKind,
+      title: draft.title,
+      payload: draft.toJson(includeAttachments: false),
+      attachments: attachmentsChanged ? draft.attachmentsJson() : null,
+    );
+    _lastDraft = draft;
+  }
+
+  Future<void> deleteDraft() async {
+    await _draftSession?.finish(preserveNewerRevision: true);
+    _lastDraft = null;
+    // A new edit after an explicit discard gets a new identity.
+    _draftSession = null;
+  }
 
   Future<void> deletePendingReport(String reportId) =>
       _withReportLock(reportId, () => _deletePendingReport(reportId));
@@ -259,7 +360,12 @@ class AppReportService {
     () async => _reports.deleteIds(await _rowIdsOf(sentKind, reportId)),
   );
 
-  Future<void> clearPendingReports() => _reports.deleteAllOfKind(pendingKind);
+  Future<void> clearPendingReports() async {
+    await _reports.deleteAllOfKind(
+      pendingKind,
+      additionalKind: currentPendingKind,
+    );
+  }
 
   Future<void> clearSentReports() async {
     await _reports.deleteAllOfKind(sentKind);
@@ -272,38 +378,82 @@ class AppReportService {
       _withReportLock(report.reportId, () => _updatePendingReport(report));
 
   Future<AppReport?> _updatePendingReport(AppReport report) async {
-    final row = (await _reports.listByKind(
+    final row = await _reports.findByPayloadId(
       pendingKind,
-    )).where((r) => r.payload['reportId'] == report.reportId).firstOrNull;
+      report.reportId,
+      idField: 'reportId',
+      additionalKind: currentPendingKind,
+    );
     if (row == null) return null;
+    final edited = await _compatibleQueue(
+      report.copyWith(schema: AppReport.schemaVersion),
+    );
+    final invalidField = edited.validate();
+    if (invalidField != null) {
+      throw FormatException('Report is not ready for transport: $invalidField');
+    }
     final previous = _decode(row);
     final changed =
-        jsonEncode(_contentOf(previous)) != jsonEncode(_contentOf(report));
+        jsonEncode(_contentOf(previous)) != jsonEncode(_contentOf(edited));
     final updated = changed
-        ? report.copyWith(reportId: AppReport.generateReportId())
-        : report;
-    await _reports.updatePayload(row.id, updated.toJson());
+        ? edited.copyWith(reportId: AppReport.generateReportId())
+        : edited;
+    await _reports.updatePayload(
+      row.id,
+      updated.toJson(),
+      kind: pendingKindFor(updated.schema),
+    );
     return updated;
   }
 
-  /// שולח את התור; עוצר בכשל זמני ראשון ומסיר דיווחים שנדחו סופית.
-  /// מחזיר את מספר הדיווחים שנשלחו.
+  /// שולח מנה מהתור בסבב מתמשך; עוצר בכשל זמני ושומר דחיות לעריכה.
+  /// מחזיר את מספר הדיווחים שנשלחו, בלי להיתקע על הדחויים הראשונים.
   Future<int> flushPendingReports() async {
     if (_isOfflineMode || _isFlushing) return 0;
 
     _isFlushing = true;
     final inFlight = _flushInFlight = Completer<void>();
     try {
-      final rows = await _reports.listByKind(pendingKind);
+      final cursor = await _reports.readFlushCursor(pendingKind);
+      var rowIds = await _reports.listRowIds(
+        pendingKind,
+        additionalKind: currentPendingKind,
+        afterId: cursor,
+        limit: _maxQueuedFlushPerRun,
+      );
+      if (rowIds.isEmpty && cursor > 0) {
+        rowIds = await _reports.listRowIds(
+          pendingKind,
+          additionalKind: currentPendingKind,
+          afterId: 0,
+          limit: _maxQueuedFlushPerRun,
+        );
+      }
       var sentCount = 0;
-      for (final row in rows.take(_maxQueuedFlushPerRun)) {
-        final reportId = _decode(row).reportId;
+      for (final rowId in rowIds) {
+        final reportId = await _reports.stringFieldForRow(
+          pendingKind,
+          rowId,
+          'reportId',
+          additionalKind: currentPendingKind,
+        );
+        if (reportId == null) {
+          // A deleted or unidentifiable row cannot block the rest of the queue.
+          // Unidentifiable data stays stored for inspection or explicit removal.
+          await _reports.writeFlushCursor(pendingKind, rowId);
+          continue;
+        }
         final shouldStop = await _withReportLock(reportId, () async {
-          final currentRow = (await _reports.listByKind(
+          final currentRow = await _reports.findByRowId(
             pendingKind,
-          )).where((candidate) => candidate.id == row.id).firstOrNull;
+            rowId,
+            additionalKind: currentPendingKind,
+          );
           if (currentRow == null) return false;
           final queued = _decode(currentRow);
+          // An edit may have replaced its identity while this lock was pending.
+          // Leave that new report for a later page under its own identity lock.
+          if (queued.reportId != reportId) return false;
           if (await _sentReport(queued.reportId) != null) {
             await _reports.deleteIds([currentRow.id]);
             return false;
@@ -313,8 +463,8 @@ class AppReportService {
           );
           switch (attempt.kind) {
             case _AttemptKind.success:
-              await _reports.deleteIds([currentRow.id]);
               await _saveSentReport(_sentRecord(report, attempt));
+              await _reports.deleteIds([currentRow.id]);
               sentCount++;
               return false;
             case _AttemptKind.idConflict:
@@ -323,20 +473,28 @@ class AppReportService {
                 report
                     .copyWith(reportId: AppReport.generateReportId())
                     .toJson(),
+                kind: pendingKindFor(report.schema),
               );
               return false;
             case _AttemptKind.permanent:
-              debugPrint('App report rejected, removed: ${report.reportId}');
-              await _reports.deleteIds([currentRow.id]);
+              debugPrint(
+                'App report rejected, kept for editing: ${report.reportId}',
+              );
               return false;
             case _AttemptKind.transient:
-              if (queued.minidump != null && report.minidump == null) {
-                await _reports.updatePayload(currentRow.id, report.toJson());
+              if (queued.schema != report.schema ||
+                  (queued.minidump != null && report.minidump == null)) {
+                await _reports.updatePayload(
+                  currentRow.id,
+                  report.toJson(),
+                  kind: pendingKindFor(report.schema),
+                );
               }
               return true;
           }
         });
         if (shouldStop) return sentCount;
+        await _reports.writeFlushCursor(pendingKind, rowId);
       }
       return sentCount;
     } finally {
@@ -363,9 +521,8 @@ class AppReportService {
     return buildOfflineReportScript(
       target: target,
       endpoint: endpoint.toString(),
-      // ה-dump הוא מגה-בתים של base64 — הסקריפט נשלח בלעדיו.
       payloads: reports
-          .map((r) => r.copyWith(minidump: null).toApiPayload())
+          .map((r) => r.forCompatibleTransport().toApiPayload())
           .toList(),
       ids: reports.map((r) => r.reportId).toList(),
       idField: 'reportId',
@@ -383,19 +540,47 @@ class AppReportService {
     return payload;
   }
 
-  Future<List<int>> _rowIdsOf(String kind, String reportId) =>
-      _reports.idsWhere(kind, 'reportId', reportId);
+  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
+    return _reports.idsWhere(
+      kind,
+      'reportId',
+      reportId,
+      additionalKind: kind == pendingKind ? currentPendingKind : null,
+    );
+  }
 
-  Future<void> _enqueueIfNeeded(AppReport report) async {
-    if ((await _rowIdsOf(sentKind, report.reportId)).isNotEmpty) return;
-    if ((await _rowIdsOf(pendingKind, report.reportId)).isNotEmpty) return;
-    await _reports.add(pendingKind, report.toJson());
+  static String pendingKindFor(int schema) =>
+      schema == 1 ? pendingKind : currentPendingKind;
+
+  Future<AppReport> _enqueueIfNeeded(AppReport report) async {
+    final invalidField = report.validate();
+    if (invalidField != null) {
+      throw FormatException('Report is not ready for transport: $invalidField');
+    }
+    final existing = await _reports.findByPayloadId(
+      pendingKind,
+      report.reportId,
+      idField: 'reportId',
+      additionalKind: currentPendingKind,
+    );
+    if (existing != null) return _decode(existing);
+    final compatible = await _compatibleQueue(report);
+    if ((await _rowIdsOf(sentKind, report.reportId)).isNotEmpty) {
+      return compatible;
+    }
+    await _reports.add(
+      pendingKindFor(compatible.schema),
+      compatible.toJson(),
+    );
+    return compatible;
   }
 
   Future<AppReport?> _sentReport(String reportId) async {
-    final row = (await _reports.listByKind(sentKind))
-        .where((candidate) => candidate.payload['reportId'] == reportId)
-        .firstOrNull;
+    final row = await _reports.findByPayloadId(
+      sentKind,
+      reportId,
+      idField: 'reportId',
+    );
     return row == null ? null : _decode(row);
   }
 
@@ -430,35 +615,40 @@ class AppReportService {
   }
 
   Future<void> _saveSentReport(AppReport report) async {
-    final sentRows = await _reports.listByKind(sentKind);
-    final existing = sentRows
-        .where((row) => row.payload['reportId'] == report.reportId)
-        .map((row) => row.id)
-        .toList();
+    final previousCount = await _reports.countByKind(sentKind);
+    final existing = await _rowIdsOf(sentKind, report.reportId);
     await _reports.deleteIds(existing);
     await _reports.add(sentKind, report.toJson());
     await _reports.trimKind(sentKind, maxSentReportsToKeep);
     if (existing.isEmpty) {
-      await _sentCounter.increment(floor: sentRows.length);
+      await _sentCounter.increment(floor: previousCount);
     }
   }
 
-  /// dump שהשרת דחה (422 על השדה, או 413 מגוף גדול מדי) לא יפיל את הדיווח
-  /// כולו: שולחים שוב בלעדיו. מחזיר את הדיווח שנשלח בפועל.
+  /// תאימות לדיווחי schema 1 ישנים בלבד. schema 2 נשמר בשלמותו גם בדחייה.
   Future<(AppReport, _Attempt)> _trySendDroppingRejectedMinidump(
     AppReport report,
   ) async {
-    final attempt = await _trySend(report);
+    final current = await _compatibleTransport(report);
+    final attempt = await _trySend(current);
     final dumpRejected =
         attempt.kind == _AttemptKind.permanent &&
         (attempt.rejectedField == 'attachments.minidump' ||
             attempt.httpStatus == HttpStatus.requestEntityTooLarge);
-    if (report.minidump == null || !dumpRejected) return (report, attempt);
-    final withoutDump = report.copyWith(minidump: null);
+    if (report.schema >= 2 || report.minidump == null || !dumpRejected) {
+      // Keep the canonical report across retries so a schema 1 wire request
+      // cannot enable legacy dump removal after a failure or identity conflict.
+      return (report, attempt);
+    }
+    final withoutDump = current.copyWith(minidump: null);
     return (withoutDump, await _trySend(withoutDump));
   }
 
   Future<_Attempt> _trySend(AppReport report) async {
+    final invalidField = report.validate();
+    if (invalidField != null) {
+      return _Attempt(_AttemptKind.permanent, rejectedField: invalidField);
+    }
     final Uint8List body;
     try {
       body = await _encodeBody(report);
@@ -485,7 +675,9 @@ class AppReportService {
           .send(request)
           .then(http.Response.fromStream)
           .timeout(
-            report.images.isEmpty && report.minidump == null
+            report.images.isEmpty &&
+                    report.minidump == null &&
+                    report.otherAttachmentBytes <= AppReport.maxBodyBytes
                 ? timeout
                 : timeoutWithImages,
           );
@@ -534,6 +726,20 @@ class AppReportService {
   // צילומי מסך מקפיאים את החלון בקידוד; סטטית כדי שהסגירה לא תלכוד את `this`.
   static Future<Uint8List> _encodeBody(AppReport report) =>
       Isolate.run(() => utf8.encode(jsonEncode(report.toApiPayload())));
+
+  static Future<AppReport> _compatibleTransport(AppReport report) =>
+      Isolate.run(report.forCompatibleTransport);
+
+  static Future<AppReport> _compatibleQueue(AppReport report) => Isolate.run(
+    () {
+      // Old updaters may drop rejected dumps from schema 1 reports. New reports
+      // with a dump stay protected even when direct schema 1 is lossless.
+      if (report.schema == AppReport.schemaVersion && report.minidump != null) {
+        return report;
+      }
+      return report.forCompatibleTransport();
+    },
+  );
 }
 
 enum _AttemptKind { success, transient, permanent, idConflict }

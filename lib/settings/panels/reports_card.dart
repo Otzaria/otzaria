@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/reports/view/report_drafts_section.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/settings/dialogs/reports_management_dialog.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -113,6 +114,7 @@ class _ReportsCardState extends State<ReportsCard> {
             ),
           ],
         ),
+        const ReportDraftsSection(),
       ],
     );
   }

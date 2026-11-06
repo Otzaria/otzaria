@@ -34,6 +34,10 @@ void main() {
 
   setUp(() async {
     await Settings.setValue<String>(
+      SettingsRepository.keySettingsLanguage,
+      'he',
+    );
+    await Settings.setValue<String>(
       SettingsRepository.keyErrorReportSenderEmail,
       '',
     );
@@ -237,7 +241,7 @@ void main() {
       await pumpDialog(tester, custom: hang);
       await tapKey(tester, 'crash-prompt-dismiss');
       expect(service.sent, isEmpty);
-      expect(find.text(ReportMessages.appReportHangDismissed), findsOneWidget);
+      expect(find.text(ReportMessages.appReportDraftDiscarded), findsOneWidget);
     });
   });
 
@@ -288,7 +292,7 @@ void main() {
     expect(service.sent, isEmpty);
     expect(savedModes, [AppCrashReportMode.never]);
     expect(find.byType(CrashPromptDialog), findsNothing);
-    expect(find.text(ReportMessages.appReportCrashDismissed), findsOneWidget);
+    expect(find.text(ReportMessages.appReportDraftDiscarded), findsOneWidget);
   });
 
   testSnack('בלי saveMode — הבחירה נכתבת להגדרות', (tester) async {

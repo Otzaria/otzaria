@@ -65,6 +65,9 @@ import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/text_book/utils/book_note_report.dart';
+import 'package:otzaria/text_book/view/text_correction_editor.dart'
+    show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
@@ -2480,29 +2483,91 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         : (widget.bookTitle != null && widget.bookTitle!.trim().isNotEmpty)
         ? widget.bookTitle!
         : state.book.title;
-    final noteRow = widget.isBookNotesColumn && _savedSelectedIndex != null
-        ? widget.content[_savedSelectedIndex!]
+    final hadSelectedText = selectedText.trim().isNotEmpty;
+    final noteRow = _savedSelectedIndex;
+    final noteHtml =
+        widget.isBookNotesColumn &&
+            noteRow != null &&
+            noteRow >= 0 &&
+            noteRow < widget.content.length
+        ? widget.content[noteRow]
         : null;
-    if (noteRow != null && selectedText.trim().isEmpty) selectedText = noteRow;
+    final separateNote = widget.isBookNotesColumn && !state.bookNotes.isEmpty;
+    if (noteHtml != null && selectedText.trim().isEmpty) {
+      // Real selections are already plain text. Only this whole-note fallback
+      // needs decoding before the separate-note route freezes its display data.
+      selectedText = separateNote ? bookNoteReportText(noteHtml) : noteHtml;
+    }
+
+    final sourceIndex = _sourceIndex(noteRow);
+    final firstNoteRow = _selectionLineStart ?? noteRow;
+    final lastNoteRow = _selectionLineEnd ?? firstNoteRow;
+    final noteSourceIndexes = <int>{
+      if (widget.isBookNotesColumn &&
+          firstNoteRow != null &&
+          lastNoteRow != null)
+        for (var row = firstNoteRow; row <= lastNoteRow; row++)
+          if (row >= 0 && row < widget.content.length)
+            if (_sourceIndex(row) case final int index) index,
+      ?sourceIndex,
+    };
+    final noteTarget = widget.isBookNotesColumn && sourceIndex != null
+        ? bookNoteReportTarget(
+            content: state.content,
+            bookNotes: state.bookNotes,
+            lineIndexes: noteSourceIndexes,
+            selectedText: selectedText,
+            noteHtml:
+                noteRow != null &&
+                    firstNoteRow == lastNoteRow &&
+                    noteRow >= 0 &&
+                    noteRow < widget.content.length
+                ? widget.content[noteRow]
+                : null,
+          )
+        : null;
+
+    final reportSelectedText = SourceSelection.resolve(
+      _sourceSelection,
+      selectedText,
+      null,
+    ).text;
+    final reportLineIndex = noteTarget?.lineIndex ?? sourceIndex;
+    final selectedNoteHtml = noteTarget?.singleNoteHtml;
+    final useNoteContext =
+        widget.isBookNotesColumn &&
+        (separateNote ||
+            (hadSelectedText &&
+                (selectedNoteHtml == null ||
+                    !buildCorrectionTemplate(
+                      selectedNoteHtml,
+                      reportSelectedText,
+                    ).hasSelection ||
+                    reportLineIndex == null ||
+                    reportLineIndex < 0 ||
+                    reportLineIndex >= state.content.length ||
+                    !buildCorrectionTemplate(
+                      state.content[reportLineIndex],
+                      reportSelectedText,
+                    ).hasSelection)));
 
     ErrorReportHelper.showErrorReportDialog(
       context: context,
-      selectedText: SourceSelection.resolve(
-        _sourceSelection,
-        selectedText,
-        null,
-      ).text,
+      selectedText: reportSelectedText,
       state: state,
       fontSize: widget.fontSize,
       bookTitle: resolvedBookTitle,
-      savedSelectedIndex: _sourceIndex(_savedSelectedIndex),
-      // רק הערה מ-line_note אינה בשורת המקור, ואין לה הצעת תיקון.
-      reportContent: noteRow == null
+      savedSelectedIndex: reportLineIndex,
+      // הערת inline שייכת לשורת המקור; הערת line_note מדווחת בנפרד.
+      reportContent: !widget.isBookNotesColumn
           ? widget.content
-          : state.bookNotes.isEmpty
-          ? state.content
-          : [noteRow],
+          : separateNote
+          ? [?noteHtml]
+          : state.content,
       reportBook: widget.reportBook,
+      reportNote: useNoteContext
+          ? noteTarget?.contextText ?? reportSelectedText
+          : null,
     );
   }
 

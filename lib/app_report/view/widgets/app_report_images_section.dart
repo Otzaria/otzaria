@@ -9,7 +9,9 @@ import 'package:otzaria/app_report/services/app_report_image_sources.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 
@@ -21,12 +23,14 @@ class AppReportImagesSection extends StatefulWidget {
     required this.images,
     required this.onChanged,
     this.enabled = true,
+    this.otherAttachmentBytes = 0,
     this.sources = const AppReportImageSources(),
   });
 
   final List<AppReportImage> images;
   final ValueChanged<List<AppReportImage>> onChanged;
   final bool enabled;
+  final int otherAttachmentBytes;
   final AppReportImageSources sources;
 
   @override
@@ -38,6 +42,7 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
   final _dropAreaKey = GlobalKey();
   PluginFileDropService get _dropService => dropService;
   bool _isHovering = false;
+  bool _readingClipboard = false;
 
   @override
   void initState() {
@@ -55,15 +60,30 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
   /// כדי שהדבקת טקסט לשדה תמשיך לעבוד.
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent || !widget.enabled) return false;
-    if (!_isPasteShortcut(event)) return false;
+    final historyPaste =
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.windows &&
+        event.logicalKey == LogicalKeyboardKey.keyV &&
+        event.physicalKey.usbHidUsage == 0x1600000000 &&
+        !event.synthesized;
+    if (!_isPasteShortcut(event) && !historyPaste) return false;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return false;
     if (!AppWindowKeys.isActiveWindow(context)) return false;
+    // Win+V משחרר Ctrl לפני V בעל קוד פיזי לא ממופה (flutter/flutter#143997).
+    // רק במסלול הזה משלימים הדבקת טקסט; Ctrl+V רגיל נשאר בידי EditableText.
+    if (historyPaste && !HardwareKeyboard.instance.isControlPressed) {
+      final editor = _focusedEditor;
+      if (editor != null) {
+        unawaited(editor.pasteText(SelectionChangedCause.keyboard));
+      }
+    }
     unawaited(_paste());
     return false;
   }
 
   static bool _isPasteShortcut(KeyEvent event) {
     final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isAltPressed) return false;
     final isV =
         event.logicalKey == LogicalKeyboardKey.keyV ||
         event.physicalKey == PhysicalKeyboardKey.keyV;
@@ -72,18 +92,41 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
         : keyboard.isControlPressed;
     return (isV && modifier) ||
         (event.logicalKey == LogicalKeyboardKey.insert &&
-            keyboard.isShiftPressed);
+            keyboard.isShiftPressed &&
+            !keyboard.isControlPressed &&
+            !keyboard.isMetaPressed);
   }
 
-  Future<void> _paste() async {
-    final inTextField =
-        FocusManager.instance.primaryFocus?.context
-            ?.findAncestorStateOfType<EditableTextState>() !=
-        null;
+  EditableTextState? get _focusedEditor => FocusManager
+      .instance
+      .primaryFocus
+      ?.context
+      ?.findAncestorStateOfType<EditableTextState>();
+
+  Future<void> _paste({bool explicit = false}) async {
+    if (_readingClipboard) return;
+    _readingClipboard = true;
+    final inTextField = !explicit && _focusedEditor != null;
     try {
-      _add(await widget.sources.readClipboard(skipIfText: inTextField));
+      final images = await widget.sources.readClipboard(
+        skipIfText: inTextField,
+      );
+      if (!mounted || !widget.enabled) return;
+      _add(images);
+      if (explicit && images.isEmpty) {
+        UiSnack.showError(
+          context.settingsText(ReportMessages.appReportNoClipboardImage),
+        );
+      }
     } catch (error, stackTrace) {
       debugPrint('App report clipboard read failed: $error\n$stackTrace');
+      if (mounted && explicit) {
+        UiSnack.showError(
+          context.settingsText(ReportMessages.appReportImageReadFailed),
+        );
+      }
+    } finally {
+      _readingClipboard = false;
     }
   }
 
@@ -92,29 +135,44 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
       _add(await widget.sources.pickFiles(context: context));
     } catch (error, stackTrace) {
       debugPrint('App report image pick failed: $error\n$stackTrace');
-      UiSnack.showError(ReportMessages.appReportImageReadFailed);
+      if (mounted) {
+        UiSnack.showError(
+          context.settingsText(ReportMessages.appReportImageReadFailed),
+        );
+      }
     }
   }
 
   void _add(List<AppReportImage> incoming) {
     if (incoming.isEmpty || !mounted || !widget.enabled) return;
-    final merged = mergeAppReportImages(widget.images, incoming);
+    final merged = mergeAppReportImages(
+      widget.images,
+      incoming,
+      otherAttachmentBytes: widget.otherAttachmentBytes,
+    );
     switch (merged.rejection) {
       case AppReportImageRejection.tooLarge:
         UiSnack.showError(
-          ReportMessages.appReportImageTooLarge(
-            AppReportImage.maxBytes ~/ AppReportImage.megabyte,
+          context.settingsText(
+            ReportMessages.appReportImageTooLargeTemplate,
+            args: {'limit': AppReportImage.maxBytes ~/ AppReportImage.megabyte},
           ),
         );
       case AppReportImageRejection.totalTooLarge:
         UiSnack.showError(
-          ReportMessages.appReportImagesTotalTooLarge(
-            AppReportImage.maxTotalBytes ~/ AppReportImage.megabyte,
+          context.settingsText(
+            ReportMessages.appReportAttachmentsTooLargeTemplate,
+            args: {
+              'limit': AppReportImage.maxTotalBytes ~/ AppReportImage.megabyte,
+            },
           ),
         );
       case AppReportImageRejection.tooMany:
         UiSnack.showError(
-          ReportMessages.appReportTooManyImages(AppReportImage.maxCount),
+          context.settingsText(
+            ReportMessages.appReportTooManyImagesTemplate,
+            args: {'count': AppReportImage.maxCount},
+          ),
         );
       case null:
         break;
@@ -162,7 +220,11 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
       _add(await widget.sources.readPaths(drop.paths));
     } catch (error, stackTrace) {
       debugPrint('App report image drop failed: $error\n$stackTrace');
-      UiSnack.showError(ReportMessages.appReportImageReadFailed);
+      if (mounted) {
+        UiSnack.showError(
+          context.settingsText(ReportMessages.appReportImageReadFailed),
+        );
+      }
     }
   }
 
@@ -207,14 +269,16 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    prompt,
+                    context.settingsText(prompt),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium,
                   ),
                   if (!kIsWeb && Platform.isWindows) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'צילום מכלי החיתוך (Win+Shift+S) נקלט בהדבקה — Ctrl+V',
+                      context.settingsText(
+                        'אפשר להדביק באמצעות Ctrl+V, Shift+Insert או היסטוריית הלוח Win+V.',
+                      ),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
@@ -224,6 +288,22 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
                 ],
               ),
             ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          context.settingsText(
+            'עד 10 MiB לקובץ, ועד 20 MiB לכל הצרופות יחד (1 MiB = 1,048,576 בתים).',
+          ),
+          style: theme.textTheme.bodySmall,
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ActionButton.ghost(
+            key: const ValueKey('app-report-paste-image'),
+            text: context.settingsText('הדבקת תמונה מהלוח'),
+            icon: FluentIcons.clipboard_paste_24_regular,
+            onPressed: widget.enabled ? () => _paste(explicit: true) : null,
           ),
         ),
         if (widget.images.isNotEmpty) ...[
@@ -286,7 +366,7 @@ class _ImageThumbnail extends StatelessWidget {
                 end: 2,
                 child: IconButton.filledTonal(
                   key: const ValueKey('app-report-image-remove'),
-                  tooltip: 'הסרת התמונה',
+                  tooltip: context.settingsText('הסרת התמונה'),
                   iconSize: 14,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints.tightFor(
