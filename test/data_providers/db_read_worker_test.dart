@@ -35,6 +35,14 @@ import '../test_helpers/memory_cache_provider.dart';
 
 void _failWorkerStartup() => throw StateError('worker startup failure');
 
+void Function() _observeWorkerExit(
+  SendPort onExit,
+  void Function()? setUp,
+) => () {
+  Isolate.current.addOnExitListener(onExit);
+  setUp?.call();
+};
+
 Future<int> Function() _pausedFallback(SendPort checkpoint) => () async {
   final release = ReceivePort();
   try {
@@ -609,6 +617,49 @@ void main() {
       full.release.send(null);
     }
     expect(await result, isA<TransferableBookContent>());
+  });
+
+  test('dispose מסיים קריאת SQLite פעילה ו-worker חדש יכול לקרוא', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    final exitPort = ReceivePort();
+    final exits = StreamIterator<Object?>(exitPort);
+    final previousSetUp = DbReadWorker.workerSetUpForTesting;
+    final previousCheckpoint = DbReadWorker.bookReadCheckpointPort;
+    addTearDown(() async {
+      DbReadWorker.disposeForTesting();
+      DbReadWorker.workerSetUpForTesting = previousSetUp;
+      DbReadWorker.bookReadCheckpointPort = previousCheckpoint;
+      await exits.cancel();
+      exitPort.close();
+    });
+    DbReadWorker.workerSetUpForTesting = _observeWorkerExit(
+      exitPort.sendPort,
+      previousSetUp,
+    );
+
+    // המחסום מגיע מתוך קריאת הספר, אחרי פתיחת SQLite וקריאת 4096 שורות.
+    // לא משחררים אותו: היציאה חייבת להגיע מה-dispose, ולא מסיום הקריאה.
+    final full = await pausedBookRead(dbPath);
+    expect(DbReadWorker.resourceUsage.pendingWorkerReads, 1);
+    final stopped = exits.moveNext();
+    DbReadWorker.disposeForTesting();
+
+    expect(await full.result, isA<DbReadWorkerSuspended>());
+    expect(await stopped, isTrue);
+    expect(DbReadWorker.resourceUsage.liveWorkers, 0);
+    expect(DbReadWorker.resourceUsage.pendingWorkerReads, 0);
+
+    expect(
+      await DbReadWorker.request('bookText', {
+        'dbPath': dbPath,
+        'bookId': 1,
+        'title': 'בראשית',
+      }),
+      List.generate(5, (i) => 'שורה $i').join('\n'),
+    );
+    final restartedStopped = exits.moveNext();
+    DbReadWorker.disposeForTesting();
+    expect(await restartedStopped, isTrue);
   });
 
   test('תור worker מוגבל לפני שליחה ואינו מונע פקודת סגירה', () async {
