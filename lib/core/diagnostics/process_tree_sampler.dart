@@ -6,8 +6,26 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:win32/win32.dart';
 
-/// זיכרון פרטי של קבוצת תהליכים מאותו סוג. [pages] — ה-main frame של כל
-/// renderer (תיקיית התוסף או ה-host), כשה-WebView מדווח עליו.
+/// המדדים אינם בני השוואה: commit כולל הקצאות שאינן תושבות בזיכרון,
+/// ו-RssAnon הוא זיכרון אנונימי תושב, לא כלל הזיכרון הפרטי.
+enum ProcessMemoryMetric {
+  unknown('unknown', 'memory', null),
+  privateCommit(
+    'privateCommit',
+    'commit',
+    'GetProcessMemoryInfo.PagefileUsage',
+  ),
+  anonymousRss('anonymousRss', 'RssAnon', '/proc/<pid>/status:RssAnon');
+
+  const ProcessMemoryMetric(this.jsonName, this.label, this.source);
+
+  final String jsonName;
+  final String label;
+  final String? source;
+}
+
+/// מדידת קבוצת תהליכים מאותו סוג. שמות ה-Mb נשמרים לתאימות; היחידה MiB.
+/// [pages] הן כתובות שדווחו על ידי המנוע; אין התאמה הכרחית של תהליך לטאב.
 typedef ProcessKindMemory = ({
   int count,
   int privMb,
@@ -15,14 +33,19 @@ typedef ProcessKindMemory = ({
   List<({String page, int mb})> pages,
 });
 
-/// זיכרון פרטי (commit charge) של תהליך האפליקציה ושל תהליכי ה-WebView, לפי
-/// סוג. renderer אחד לכל טאב תוסף, ולכן הוא מקבל גם פירוט לכל תהליך.
+/// מדידות התהליך והמנוע, כולן לפי [metric] וב-MiB.
+/// שמות ה-privMb ההיסטוריים אינם מעידים על סוג המדד.
 @immutable
 class ProcessTreeSample {
-  const ProcessTreeSample({this.hostPrivMb, this.webview = const {}});
+  const ProcessTreeSample({
+    this.hostPrivMb,
+    this.webview = const {},
+    this.metric = ProcessMemoryMetric.unknown,
+  });
 
   final int? hostPrivMb;
   final Map<String, ProcessKindMemory> webview;
+  final ProcessMemoryMetric metric;
 
   int get webviewPrivMb =>
       webview.values.fold(0, (sum, kind) => sum + kind.privMb);
@@ -30,6 +53,9 @@ class ProcessTreeSample {
   ProcessKindMemory? get renderers => webview['RENDERER'];
 
   Map<String, Object?> toJson({int? ageMs}) => {
+    'metric': metric.jsonName,
+    'source': ?metric.source,
+    'unit': 'MiB',
     'ageMs': ?ageMs,
     'hostPrivMb': ?hostPrivMb,
     if (webview.isNotEmpty) ...{
@@ -62,6 +88,7 @@ int _toMb(int bytes) => (bytes / (1 << 20)).round();
 ProcessTreeSample buildProcessTreeSample({
   required int? hostBytes,
   required Iterable<({String kind, int? bytes, String? page})> processes,
+  ProcessMemoryMetric metric = ProcessMemoryMetric.unknown,
 }) {
   final byKind = <String, List<({int bytes, String? page})>>{};
   for (final process in processes) {
@@ -73,6 +100,7 @@ ProcessTreeSample buildProcessTreeSample({
     ));
   }
   return ProcessTreeSample(
+    metric: metric,
     hostPrivMb: hostBytes == null ? null : _toMb(hostBytes),
     webview: {
       for (final e in byKind.entries)
@@ -99,8 +127,8 @@ typedef WebViewProcess = ({String kind, int pid, String? page});
 /// מונה את תהליכי ה-WebView. נרשם בשכבת התוספים, שמחזיקה את הסביבה.
 typedef WebViewProcessLister = Future<List<WebViewProcess>> Function();
 
-/// דוגם את עץ התהליכים. רק Windows ו-Linux: ב-Android, macOS ו-iOS תהליכי
-/// ה-WebView אינם ילדים של האפליקציה ואין API שנותן את ה-pid שלהם.
+/// דוגם Windows ו-Linux בלבד. בפלטפורמות האחרות אין כאן איסוף תהליכי
+/// WebView; null אינו מדידת אפס.
 Future<ProcessTreeSample?> sampleProcessTree({
   WebViewProcessLister? webViewProcesses,
 }) async {
@@ -120,6 +148,7 @@ Future<ProcessTreeSample> _sampleWindows(
     () => [for (final id in ids) _windowsPrivateBytes(id)],
   );
   return buildProcessTreeSample(
+    metric: ProcessMemoryMetric.privateCommit,
     hostBytes: bytes.first,
     processes: [
       for (var i = 0; i < processes.length; i++)
@@ -189,6 +218,7 @@ ProcessTreeSample _sampleLinux() {
     }
   }
   return buildProcessTreeSample(
+    metric: ProcessMemoryMetric.anonymousRss,
     hostBytes: anonBytes(pid),
     processes: [
       for (final id in descendants)
@@ -210,7 +240,7 @@ ProcessTreeSample _sampleLinux() {
   return (name: stat.substring(open + 1, close), ppid: ppid);
 }
 
-/// `RssAnon` מתוך `/proc/<pid>/status` — קירוב לזיכרון הפרטי של התהליך.
+/// `RssAnon` מתוך `/proc/<pid>/status` — זיכרון אנונימי תושב, בבייטים.
 @visibleForTesting
 int? parseRssAnonBytes(String status) {
   final match = RegExp(

@@ -229,7 +229,7 @@ void main() {
     expect(text, contains('build ms  avg 12.0  max 30.0'));
     expect(text, contains('raster ms avg 2.0  max 4.0'));
     expect(text, contains('slow      1 (2s)  total 7'));
-    expect(text, contains('memory    420 MB  peak 512 MB'));
+    expect(text, contains('memory    420 MiB  peak 512 MiB'));
     expect(text, contains('rebuild   10x TextBookScreen'));
   });
 
@@ -239,6 +239,7 @@ void main() {
         rssMb: 300,
         peakRssMb: 320,
         processes: ProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
           hostPrivMb: 262,
           webview: {
             'BROWSER': (count: 1, privMb: 61, eachMb: [61], pages: []),
@@ -247,8 +248,55 @@ void main() {
         ),
       ),
     );
-    expect(text, contains('memory    300 MB  peak 320 MB  priv 262 MB'));
-    expect(text, contains('webview   191 MB  3 proc  2 rend 130 MB (max 70)'));
+    expect(text, contains('memory    300 MiB  peak 320 MiB  commit 262 MiB'));
+    expect(
+      text,
+      contains('webview   commit 191 MiB  3 proc  2 rend 130 MiB (max 70)'),
+    );
+  });
+
+  test('formatFrameStats distinguishes anonymous RSS from private commit', () {
+    final text = formatFrameStats(
+      const FrameStats(
+        processes: ProcessTreeSample(
+          metric: ProcessMemoryMetric.anonymousRss,
+          hostPrivMb: 15,
+          webview: {
+            'RENDERER': (count: 1, privMb: 4, eachMb: [4], pages: []),
+          },
+        ),
+      ),
+    );
+    expect(text, contains('RssAnon 15 MiB'));
+    expect(text, contains('webview   RssAnon 4 MiB'));
+    expect(text, isNot(contains('commit')));
+    expect(text, isNot(contains('priv')));
+  });
+
+  test('unknown metrics do not claim private memory or commit', () {
+    final text = formatFrameStats(
+      const FrameStats(processes: ProcessTreeSample(hostPrivMb: 2)),
+    );
+    expect(text, contains('memory 2 MiB'));
+    expect(text, isNot(contains('commit')));
+    expect(text, isNot(contains('priv')));
+    expect(text, isNot(contains('RssAnon')));
+  });
+
+  test('renderer details can be absent without fabricating a maximum', () {
+    final text = formatFrameStats(
+      const FrameStats(
+        processes: ProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
+          webview: {
+            'RENDERER': (count: 1, privMb: 4, eachMb: [], pages: []),
+          },
+        ),
+      ),
+    );
+    expect(text, contains('webview   commit 4 MiB  1 proc  1 rend 4 MiB'));
+    expect(text, isNot(contains('max 0')));
+    expect(text, isNot(contains('(max')));
   });
 
   test('formatFrameStats has no process line without a sample', () {

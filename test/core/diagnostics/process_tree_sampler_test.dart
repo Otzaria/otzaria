@@ -9,6 +9,7 @@ void main() {
   group('buildProcessTreeSample', () {
     test('sums by kind, sorts renderers and skips processes that exited', () {
       final sample = buildProcessTreeSample(
+        metric: ProcessMemoryMetric.privateCommit,
         hostBytes: 262 * mb,
         processes: [
           (kind: 'BROWSER', bytes: 61 * mb, page: null),
@@ -22,6 +23,9 @@ void main() {
       expect(sample.hostPrivMb, 262);
       expect(sample.webviewPrivMb, 240);
       expect(sample.toJson(ageMs: 5), {
+        'metric': 'privateCommit',
+        'source': 'GetProcessMemoryInfo.PagefileUsage',
+        'unit': 'MiB',
         'ageMs': 5,
         'hostPrivMb': 262,
         'webviewPrivMb': 240,
@@ -58,7 +62,64 @@ void main() {
 
     test('without WebView processes only the host is reported', () {
       final sample = buildProcessTreeSample(hostBytes: 10 * mb, processes: []);
-      expect(sample.toJson(), {'hostPrivMb': 10});
+      expect(sample.toJson(), {
+        'metric': 'unknown',
+        'unit': 'MiB',
+        'hostPrivMb': 10,
+      });
+    });
+
+    test(
+      'anonymous RSS is labelled explicitly, including host-only samples',
+      () {
+        final sample = buildProcessTreeSample(
+          metric: ProcessMemoryMetric.anonymousRss,
+          hostBytes: 4 * mb,
+          processes: [],
+        );
+        expect(sample.metric, ProcessMemoryMetric.anonymousRss);
+        expect(sample.toJson(), {
+          'metric': 'anonymousRss',
+          'source': '/proc/<pid>/status:RssAnon',
+          'unit': 'MiB',
+          'hostPrivMb': 4,
+        });
+      },
+    );
+
+    test('missing measurements are not serialized as zero', () {
+      final sample = buildProcessTreeSample(
+        metric: ProcessMemoryMetric.anonymousRss,
+        hostBytes: null,
+        processes: [(kind: 'RENDERER', bytes: null, page: null)],
+      );
+      expect(sample.toJson(), {
+        'metric': 'anonymousRss',
+        'source': '/proc/<pid>/status:RssAnon',
+        'unit': 'MiB',
+      });
+    });
+
+    test('a measured zero is distinct from a missing measurement', () {
+      final sample = buildProcessTreeSample(
+        metric: ProcessMemoryMetric.anonymousRss,
+        hostBytes: 0,
+        processes: [(kind: 'RENDERER', bytes: 0, page: null)],
+      );
+      expect(sample.toJson()['hostPrivMb'], 0);
+      expect(sample.toJson()['webviewPrivMb'], 0);
+      expect(sample.renderers!.count, 1);
+    });
+
+    test('a manually constructed sample does not assume Windows', () {
+      const sample = ProcessTreeSample(hostPrivMb: 1);
+      expect(sample.metric, ProcessMemoryMetric.unknown);
+      expect(sample.metric.label, 'memory');
+      expect(sample.toJson(), {
+        'metric': 'unknown',
+        'unit': 'MiB',
+        'hostPrivMb': 1,
+      });
     });
   });
 
@@ -97,6 +158,7 @@ void main() {
         ],
       );
       final renderers = sample!.renderers!;
+      expect(sample.metric, ProcessMemoryMetric.privateCommit);
       expect(renderers.count, 1);
       expect(renderers.privMb, greaterThan(0));
       expect(renderers.pages.single.page, 'p0/index.html');
@@ -111,8 +173,23 @@ void main() {
     () async {
       final sample = await sampleProcessTree();
       expect(sample!.hostPrivMb, greaterThan(0));
+      expect(sample.metric, ProcessMemoryMetric.privateCommit);
       expect(sample.webview, isEmpty);
     },
     skip: !Platform.isWindows,
+  );
+
+  test(
+    'the Linux sampler identifies anonymous RSS without waking WebViews',
+    () async {
+      final sample = await sampleProcessTree(
+        webViewProcesses: () async => throw StateError('must not be called'),
+      );
+      expect(sample, isNotNull);
+      expect(sample!.metric, ProcessMemoryMetric.anonymousRss);
+      expect(sample.toJson()['unit'], 'MiB');
+      expect(sample.toJson()['source'], '/proc/<pid>/status:RssAnon');
+    },
+    skip: !Platform.isLinux,
   );
 }
