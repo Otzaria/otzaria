@@ -377,6 +377,23 @@ String? _heldTarget(_Paths at, SwapFileSystem fs) {
   return null;
 }
 
+/// ממתין עד [timeout] שאף קובץ יעד לא יהיה מוחזק. עוזרים שרצים מתיקיית ההתקנה,
+/// כמו crashpad_handler.exe, משתחררים רק רגע אחרי יציאת אוצריא.
+bool waitForTargetsReleased(
+  SwapPlan plan, {
+  SwapFileSystem fs = const SwapFileSystem(),
+  Duration timeout = const Duration(seconds: 30),
+  Duration interval = const Duration(milliseconds: 250),
+}) {
+  final at = _Paths(plan);
+  final deadline = DateTime.now().add(timeout);
+  while (_heldTarget(at, fs) != null) {
+    if (!DateTime.now().isBefore(deadline)) return false;
+    sleep(interval);
+  }
+  return true;
+}
+
 /// כל הבדיקות שאפשר לעשות לפני שנוגעים בהתקנה. כשל כאן משאיר אותה כפי
 /// שהייתה, וגם בלי תיקיית גיבוי — שאחרת הייתה נראית כהחלפה שנקטעה.
 void _preflight(SwapPlan plan, SwapFileSystem fs, _Paths at) {

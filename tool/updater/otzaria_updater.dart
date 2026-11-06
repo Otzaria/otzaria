@@ -74,6 +74,12 @@ void main(List<String> args) {
     return;
   }
 
+  final waitStart = DateTime.now();
+  final released = waitForTargetsReleased(plan);
+  final waited = DateTime.now().difference(waitStart).inMilliseconds;
+  if (!released || waited >= 250) {
+    log.write('waited ${waited}ms for install files (released: $released)');
+  }
   final result = applySwapPlan(
     plan,
     beforeFirstChange: () => _registerLogonRecovery(planFile),
