@@ -15,6 +15,7 @@ import 'pub_place_dao.dart';
 import 'toc_dao.dart';
 import 'toc_text_dao.dart';
 import 'topic_dao.dart';
+import '../book_read.dart';
 import '../db_capabilities.dart';
 import '../query_loader.dart';
 import '../sqlite3_utils.dart';
@@ -38,6 +39,23 @@ class MyDatabase {
 
   /// seforim.db הרשמי: רק בו מותר לבחור שאילתות שנשענות על האינדקסים שלו.
   final bool _official;
+
+  final BookReadDelegate? bookReadDelegate;
+
+  Future<T> readBooks<T>(
+    BookReadOperation operation,
+    List<Object?> arguments, {
+    bool includeRelations = false,
+  }) async {
+    if (_retired) throw StateError('Database $_path was released');
+    final result = await bookReadDelegate!(
+      operation,
+      arguments,
+      includeRelations: includeRelations,
+    );
+    if (_retired) throw StateError('Database $_path was released');
+    return result as T;
+  }
 
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
@@ -90,7 +108,9 @@ class MyDatabase {
     String path, {
     this._readOnly = false,
     this._official = false,
-  }) : _path = path,
+    this.bookReadDelegate,
+  }) : assert(bookReadDelegate == null || (_readOnly && _official)),
+       _path = path,
        _untrusted = false,
        _immutable = false;
 
@@ -100,7 +120,8 @@ class MyDatabase {
     : _path = path,
       _readOnly = true,
       _untrusted = true,
-      _official = false;
+      _official = false,
+      bookReadDelegate = null;
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;

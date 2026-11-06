@@ -11,6 +11,7 @@ import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart'
     show runRangeRequestOnConnection;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/migration/database/book_read.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
@@ -159,6 +160,59 @@ Future<List<Map<String, dynamic>>> _readSiblingCommentaryRows(
   excludeBookId: args['excludeBookId'] as int,
 );
 
+Future<Object?> _readBooks(
+  SeforimRepository repository,
+  Map<String, Object?> args,
+) {
+  final dao = repository.database.bookDao;
+  final arguments = args['arguments'] as List;
+  final includeRelations = args['includeRelations'] == true;
+  return switch (args['operation'] as BookReadOperation) {
+    BookReadOperation.allBooks => dao.getAllBooks(),
+    BookReadOperation.allLocalBooks => dao.getAllLocalBooks(),
+    BookReadOperation.localBooksSlim => dao.selectAllLocalBooksSlim(),
+    BookReadOperation.allBooksWithRelations => dao.getAllBooksWithRelations(),
+    BookReadOperation.byId =>
+      includeRelations
+          ? repository.getBook(arguments[0] as int)
+          : dao.getBookById(arguments[0] as int),
+    BookReadOperation.byCategory =>
+      includeRelations
+          ? repository.getBooksByCategory(arguments[0] as int)
+          : dao.getBooksByCategory(arguments[0] as int),
+    BookReadOperation.byTitle =>
+      includeRelations
+          ? repository.getBookByTitle(arguments[0] as String)
+          : dao.getBookByTitle(arguments[0] as String),
+    BookReadOperation.byTitleAndCategory =>
+      includeRelations
+          ? repository.getBookByTitleAndCategory(
+              arguments[0] as String,
+              arguments[1] as int,
+            )
+          : dao.getBookByTitleAndCategory(
+              arguments[0] as String,
+              arguments[1] as int,
+            ),
+    BookReadOperation.byTitleCategoryAndFileType =>
+      includeRelations
+          ? repository.getBookByTitleCategoryAndFileType(
+              arguments[0] as String,
+              arguments[1] as int,
+              arguments[2] as String,
+            )
+          : dao.getBookByTitleCategoryAndFileType(
+              arguments[0] as String,
+              arguments[1] as int,
+              arguments[2] as String,
+            ),
+    BookReadOperation.byFilePath => dao.getBookByFilePath(
+      arguments[0] as String,
+    ),
+    BookReadOperation.count => dao.countAllBooks(),
+  };
+}
+
 Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
   List<Map<String, Object?>> items,
   Map<String, Map<String, String>> queryCache,
@@ -186,6 +240,10 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
         final method = item['method'] as String;
         final args = (item['args'] as Map).cast<String, Object?>();
         final repo = await repoFor(args['dbPath'] as String);
+        if (method == 'bookRead') {
+          results.add({'result': await _readBooks(repo, args)});
+          continue;
+        }
         if (_lineRefMethods.contains(method)) {
           results.add({'result': await _readLineRef(repo, method, args)});
           continue;
@@ -611,6 +669,19 @@ class DbReadWorker {
     if (_batch.length == 1) scheduleMicrotask(_flushBatch);
     return item.completer.future;
   }
+
+  /// קריאת ספרים מלאה, כולל בדיקות הסכמה והיחסים, מחוץ ל-UI isolate.
+  static Future<Object?> readBooks(
+    String dbPath,
+    BookReadOperation operation,
+    List<Object?> arguments, {
+    required bool includeRelations,
+  }) => batched('bookRead', {
+    'dbPath': dbPath,
+    'operation': operation,
+    'arguments': arguments,
+    'includeRelations': includeRelations,
+  });
 
   /// תוכן כל שורות [bookId] ב-seforim.db שב-[dbPath], בסדר השורות.
   static Future<List<String>> lineContents(String dbPath, int bookId) async =>
@@ -1049,6 +1120,9 @@ void _workerMain(_Bootstrap bootstrap) {
           args['categoryId'] as int?,
         );
         return _officialLinkContent(repo, book, args);
+      case 'bookRead':
+        final repo = await ensureRepo(args['dbPath'] as String);
+        return _readBooks(repo, args);
       case 'breadcrumb' || 'heRef':
         final repo = await ensureRepo(args['dbPath'] as String);
         return _readLineRef(repo, method, args);

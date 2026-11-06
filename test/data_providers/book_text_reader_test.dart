@@ -390,7 +390,11 @@ void main() {
       );
 
       expect(BookTextReader.mainConnectionReads, 0);
-      expect(DbReadWorker.sentMessageCount - sentBefore, 6);
+      expect(
+        DbReadWorker.sentMessageCount - sentBefore,
+        12,
+        reason: 'שש קריאות תוכן ושישה איתורי ספר, שנעשו קודם על ה-UI',
+      );
     });
 
     test('קריאת reconciliation מבדילה ספר ללא שורות מספר שאינו קיים', () async {
