@@ -344,14 +344,32 @@ try {
       }) }
     $result['fullFrameLines'] = $result.lines
     $result['valueCrops'] = @()
-    $labels = @($result.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Diagnostic data|Tailored experiences|Advertising ID)$' -and
+    $result | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 $OutputPath
+    $labels = @($result.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Personalized offers)$' -and
       $_.words[0].x -ge 540 -and $_.words[0].x -le 570 -and $_.words[0].y -gt 230 -and $_.words[0].y -lt 600 } | Sort-Object { $_.words[0].y })
-    if ($bitmap.PixelWidth -ne 1024 -or $bitmap.PixelHeight -ne 768 -or $labels.Count -ne 3) { throw 'Value crops require the three observed labels in the reviewed privacy layout.' }
+    if ($bitmap.PixelWidth -ne 1024 -or $bitmap.PixelHeight -ne 768) { throw 'Value crops require the reviewed 1024x768 privacy surface.' }
+    $names = @($labels | ForEach-Object { $_.text.Trim() -replace '\s+', ' ' })
+    $firstNames = @('Location', 'Find my device', 'Inking & typing')
+    $finalNames = $firstNames + @('Personalized offers')
+    $lastBottom = 625
+    if (($names -join '|') -ceq ($firstNames -join '|')) {
+      $result['privacyPage'] = 'initial'
+    } elseif ($names.Count -ge 1 -and $names.Count -le 4 -and
+        ($names -join '|') -ceq (($finalNames | Select-Object -Last $names.Count) -join '|')) {
+      $footer = @($result.lines | Where-Object { $_.text -match '^Select Learn more for info on the above settings' -and
+        $_.words[0].x -ge 540 -and $_.words[0].x -le 570 -and $_.words[0].y -gt 500 -and $_.words[0].y -lt 600 })
+      $accept = @($result.lines | Where-Object { $_.text.Trim() -ceq 'Accept' -and $_.words.Count -eq 1 -and
+        $_.words[0].x -gt 780 -and $_.words[0].x -lt 900 -and $_.words[0].y -gt 620 -and $_.words[0].y -lt 690 })
+      if ($footer.Count -ne 1 -or $accept.Count -ne 1) { throw 'The final privacy profile requires its observed footer and Accept button.' }
+      $lastBottom = [int]$footer[0].words[0].y - 8
+      $result['privacyPage'] = 'final'
+    } else { throw 'The visible setting labels do not match either reviewed privacy profile.' }
+    $result | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 $OutputPath
     $values = @()
     for ($index = 0; $index -lt $labels.Count; $index++) {
       $label = $labels[$index]
       $top = [int][Math]::Ceiling(($label.words | ForEach-Object { $_.y + $_.height } | Measure-Object -Maximum).Maximum + 8)
-      $bottom = if ($index + 1 -lt $labels.Count) { [int]$labels[$index + 1].words[0].y - 8 } else { 625 }
+      $bottom = if ($index + 1 -lt $labels.Count) { [int]$labels[$index + 1].words[0].y - 8 } else { $lastBottom }
       if ($top -lt 250 -or $bottom -gt 625 -or $bottom -le $top -or $bottom - $top -gt 200) { throw 'Unrecognized privacy value crop geometry.' }
       $scale = 4
       $transform = [Windows.Graphics.Imaging.BitmapTransform]::new()
@@ -427,16 +445,24 @@ function Read-QALocalOcr([string]$ImagePath, [string]$OutputPath) {
   } finally { if ($started -and !$child.HasExited) { $child.Kill($true); $child.WaitForExit() }; $child.Dispose() }
 }
 function Test-QAPrivacyBlue($Color) { return $Color.R -lt 50 -and $Color.G -ge 90 -and $Color.G -le 145 -and $Color.B -ge 175 -and $Color.B -le 235 }
+function Test-QAPrivacyButtonBlue($Color, [string]$Label) {
+  return (Test-QAPrivacyBlue $Color) -or ($Label -ceq 'Accept' -and $Color.R -eq 0 -and $Color.G -eq 62 -and $Color.B -eq 146)
+}
 function Read-QAPrivacyAction($Ocr, [string]$ImagePath) {
   if ($Ocr.width -ne 1024 -or $Ocr.height -ne 768 -or $Ocr.language -notlike 'en*' -or
       ($Ocr.text -replace '\s+', ' ') -notmatch 'Choose privacy settings for your device') {
     throw 'The local OCR does not identify the visually reviewed Windows privacy page.'
   }
-  $optionLabels = @($Ocr.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Diagnostic data|Tailored experiences|Advertising ID)$' -and
+  $optionLabels = @($Ocr.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Personalized offers)$' -and
     $_.words[0].x -ge 540 -and $_.words[0].x -le 570 -and $_.words[0].y -gt 230 -and $_.words[0].y -lt 600 })
   $optionValues = @($Ocr.lines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 -and
     $_.words[0].x -ge 600 -and $_.words[0].x -le 630 -and $_.words[0].y -gt 250 -and $_.words[0].y -lt 625 })
-  if ($optionLabels.Count -ne 3 -or $optionValues.Count -ne 3) { throw 'The privacy page does not expose exactly three recognized setting labels and Yes/No values.' }
+  $expectedCount = $Ocr.valueCrops.Count
+  if (($Ocr.privacyPage -cne 'initial' -and $Ocr.privacyPage -cne 'final') -or
+      ($Ocr.privacyPage -ceq 'initial' -and $expectedCount -ne 3) -or $expectedCount -lt 1 -or $expectedCount -gt 4 -or
+      $optionLabels.Count -ne $expectedCount -or $optionValues.Count -ne $expectedCount) {
+    throw 'The recognized privacy profile must expose one value for each of its observed labels.'
+  }
   foreach ($label in $optionLabels) {
     if (@($optionValues | Where-Object { $_.sourceLabel -ceq $label.text }).Count -ne 1) { throw 'Each observed privacy label must have exactly one associated value.' }
   }
@@ -461,18 +487,25 @@ function Read-QAPrivacyAction($Ocr, [string]$ImagePath) {
       $yes = @($Ocr.lines | Where-Object { $_.text.Trim() -ceq 'Yes' -and $_.words.Count -eq 1 -and
         $_.words[0].x -ge 600 -and $_.words[0].x -le 630 -and [Math]::Abs(($_.words[0].y + $_.words[0].height / 2) - $centerY) -le 10 })
       if ($yes.Count -ne 1) { throw 'A blue toggle lacks an unambiguous observed Yes label; do not advance privacy settings.' }
-      $labels = @($Ocr.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Diagnostic data|Tailored experiences|Advertising ID)$' -and
+      $labels = @($Ocr.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Personalized offers)$' -and
         $_.words[0].x -ge 540 -and $_.words[0].x -le 570 -and $_.words[0].y -lt $centerY -and $centerY - $_.words[0].y -lt 180 } | Sort-Object { $_.words[0].y } -Descending)
       if ($labels.Count -eq 0) { throw 'An enabled toggle has no recognized optional privacy setting label.' }
+      if ($yes[0].sourceLabel -cne $labels[0].text -or
+          ($Ocr.privacyPage -ceq 'final' -and $labels[0].text -cne 'Personalized offers')) {
+        throw 'A final-page action may only disable the observed Personalized offers setting.'
+      }
       return @{ kind = 'disable-optional-setting'; label = $labels[0].text; x = 572; y = $centerY; blueToggleCount = $clusters.Count }
     }
     if (@($optionValues | Where-Object { $_.text.Trim() -ceq 'Yes' }).Count -gt 0) { throw 'A recognized setting is still enabled; do not advance privacy settings.' }
     $buttons = @($Ocr.lines | Where-Object { $_.text.Trim() -cmatch '^(Next|Accept)$' -and $_.words.Count -eq 1 -and
       $_.words[0].x -gt 780 -and $_.words[0].x -lt 900 -and $_.words[0].y -gt 620 -and $_.words[0].y -lt 690 })
     if ($buttons.Count -ne 1) { throw 'There is no unique observed Next/Accept button on the verified privacy page.' }
+    if (($Ocr.privacyPage -ceq 'initial' -and $buttons[0].text -cne 'Next') -or
+        ($Ocr.privacyPage -ceq 'final' -and $buttons[0].text -cne 'Accept')) { throw 'The navigation button does not belong to the recognized privacy profile.' }
+    if ($Ocr.privacyPage -ceq 'final') { [void](Assert-QAPrivacyToggleOff $Ocr @{ kind = 'disable-optional-setting'; label = 'Personalized offers' }) }
     $word = $buttons[0].words[0]; $x = [int][Math]::Round($word.x + $word.width / 2); $y = [int][Math]::Round($word.y + $word.height / 2)
-    if (!(Test-QAPrivacyBlue ($bitmap.GetPixel([int]($word.x - 15), $y))) -or
-        !(Test-QAPrivacyBlue ($bitmap.GetPixel([int]($word.x + $word.width + 15), $y)))) {
+    if (!(Test-QAPrivacyButtonBlue ($bitmap.GetPixel([int]($word.x - 15), $y)) $word.text) -or
+        !(Test-QAPrivacyButtonBlue ($bitmap.GetPixel([int]($word.x + $word.width + 15), $y)) $word.text)) {
       throw 'The OCR Next/Accept label is not inside the observed blue button.'
     }
     return @{ kind = 'advance-privacy-page'; label = $word.text; x = $x; y = $y; blueToggleCount = 0 }
@@ -493,6 +526,67 @@ function Assert-QAPrivacyToggleOff($Ocr, $Action) {
     throw 'The observed No must lie inside the current crop belonging to the same privacy label.'
   }
   return @{ label = $Action.label; value = 'No'; word = $word; bounds = $bounds }
+}
+function Assert-QAPrivacyPagePrerequisite($Ocr, $Snapshot, $InitialPage) {
+  if ($Ocr.privacyPage -ceq 'initial') {
+    if ($null -ne $InitialPage) { throw 'Privacy returned to its initial profile after the observed Next action.' }
+    return
+  }
+  if ($Ocr.privacyPage -cne 'final' -or $null -eq $InitialPage -or !$InitialPage.nextInputSent -or
+      $InitialPage.window.Hwnd -ne $Snapshot.foreground.Hwnd -or $InitialPage.window.ProcessId -ne $Snapshot.foreground.ProcessId) {
+    throw 'The final privacy profile requires a recorded Next action from the same verified window.'
+  }
+  $expected = @('Location', 'Find my device', 'Inking & typing')
+  if ($InitialPage.values.Count -ne 3) { throw 'The initial privacy page was not fully verified before advancing.' }
+  for ($index = 0; $index -lt 3; $index++) {
+    if ($InitialPage.values[$index].label -cne $expected[$index] -or $InitialPage.values[$index].value -cne 'No') {
+      throw 'All three initial privacy settings must have been observed as No before advancing.'
+    }
+  }
+  foreach ($value in @($Ocr.lines | Where-Object { $_.sourceLabel -and $_.sourceLabel -cne 'Personalized offers' })) {
+    if ($value.text.Trim() -cne 'No') { throw 'A previously disabled setting is no longer visibly No.' }
+  }
+}
+function Test-QAStoredFinalPrivacyImages {
+  $results = @()
+  try {
+    foreach ($trace in @('false', 'true')) {
+      $fixture = Join-Path 'privacy-final-fixtures' ('windows11-flutter-history-trace-' + $trace + '-42234949689')
+      $provenance = Get-Content (Join-Path $fixture 'windows11-harness-source.json') -Raw | ConvertFrom-Json
+      if ($provenance.workflowHead -cne '44a21e45f026176433d1aa23603185f20b572a6b') { throw 'Unexpected source for the observed final privacy frame.' }
+      $image = (Resolve-Path (Join-Path $fixture 'privacy-03.png')).Path
+      $ocr = Read-QALocalOcr $image (Join-Path $env:REPORT_QA_ARTIFACT_ROOT ('stored-final-privacy-' + $trace + '-ocr.json'))
+      $value = @($ocr.lines | Where-Object { $_.sourceLabel -ceq 'Personalized offers' })
+      if ($ocr.privacyPage -cne 'final' -or $value.Count -ne 1 -or $value[0].text.Trim() -cne 'Yes') {
+        throw 'The stored final frame does not expose the independently observed Personalized offers Yes.'
+      }
+      $initialOcr = Get-Content (Join-Path $fixture 'privacy-02-ocr.json') -Raw | ConvertFrom-Json
+      $snapshot = Get-Content (Join-Path $fixture 'privacy-03.json') -Raw | ConvertFrom-Json
+      $preparation = Get-Content (Join-Path $fixture 'privacy-preparation.json') -Raw | ConvertFrom-Json
+      $next = @($preparation.actions | Where-Object { $_.kind -ceq 'advance-privacy-page' -and $_.label -ceq 'Next' -and $_.inputSent })
+      if ($next.Count -ne 1) { throw 'The final fixture has no unique recorded Next action.' }
+      $initial = @{ window = $next[0].window; nextInputSent = $true; values = @('Location', 'Find my device', 'Inking & typing' | ForEach-Object {
+        Assert-QAPrivacyToggleOff $initialOcr @{ kind = 'disable-optional-setting'; label = $_ }
+      }) }
+      Assert-QAPrivacyPagePrerequisite $ocr $snapshot $initial
+      $missingRejected = $false
+      try { Assert-QAPrivacyPagePrerequisite $ocr $snapshot $null } catch { $missingRejected = $true }
+      $changed = $initial | ConvertTo-Json -Depth 15 | ConvertFrom-Json; $changed.window.ProcessId = -1
+      $changedRejected = $false
+      try { Assert-QAPrivacyPagePrerequisite $ocr $snapshot $changed } catch { $changedRejected = $true }
+      $enabled = $initial | ConvertTo-Json -Depth 15 | ConvertFrom-Json; $enabled.values[0].value = 'Yes'
+      $enabledRejected = $false
+      try { Assert-QAPrivacyPagePrerequisite $ocr $snapshot $enabled } catch { $enabledRejected = $true }
+      if (!$missingRejected -or !$changedRejected -or !$enabledRejected) { throw 'An invalid final-page prerequisite was accepted.' }
+      $action = Read-QAPrivacyAction $ocr $image
+      if ($action.kind -cne 'disable-optional-setting' -or $action.label -cne 'Personalized offers') { throw 'The final fixture must select only its observed enabled Personalized offers toggle.' }
+      $results += @{ trace = $trace; imageSha256 = (Get-FileHash $image).Hash; value = $value[0]; proposedAction = $action;
+        missingRejected = $missingRejected; changedRejected = $changedRejected; enabledRejected = $enabledRejected; inputSent = $false; passed = $true }
+    }
+  } finally {
+    @{ cases = $results; allPassed = $results.Count -eq 2; inputSent = $false } | ConvertTo-Json -Depth 12 |
+      Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/stored-final-privacy-smoke.json"
+  }
 }
 function Test-QAStoredPrivacyTransitions {
   $results = @()
@@ -574,7 +668,7 @@ function Prepare-QAWindowsPrivacy {
   $actions = New-Object 'Collections.Generic.List[object]'
   $status = @{ actions = $actions; completed = $false; source = 'Observed Windows first-login privacy UI'; accountSignIn = $false }
   $statusPath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'privacy-preparation.json'
-  $previous = $null; $previousText = $null; $deadline = [DateTime]::UtcNow.AddMinutes(4)
+  $previous = $null; $previousText = $null; $initialPage = $null; $deadline = [DateTime]::UtcNow.AddMinutes(4)
   try {
     for ($attempt = 0; $attempt -lt 14; $attempt++) {
       if ([DateTime]::UtcNow -ge $deadline) { throw 'Privacy UI preparation exceeded four minutes.' }
@@ -588,11 +682,19 @@ function Prepare-QAWindowsPrivacy {
       $identity = Assert-QAPrivacyIdentity $snapshot
       $imagePath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($name + '.png')
       $ocr = Read-QALocalOcr $imagePath (Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($name + '-ocr.json'))
+      Assert-QAPrivacyPagePrerequisite $ocr $snapshot $initialPage
       if ($null -ne $previous -and $previous.kind -eq 'disable-optional-setting') {
         $previous['verifiedOffObservation'] = Assert-QAPrivacyToggleOff $ocr $previous
         $previous['verifiedOff'] = $true
       } elseif ($null -ne $previous -and $ocr.text -ceq $previousText) { throw 'The privacy page did not change after its observed Next/Accept action.' }
       $action = Read-QAPrivacyAction $ocr $imagePath
+      if ($action.kind -ceq 'advance-privacy-page' -and $action.label -ceq 'Next') {
+        $initialPage = @{ window = $snapshot.foreground; nextInputSent = $false; screenshotSha256 = (Get-FileHash $imagePath).Hash;
+          values = @('Location', 'Find my device', 'Inking & typing' | ForEach-Object {
+            Assert-QAPrivacyToggleOff $ocr @{ kind = 'disable-optional-setting'; label = $_ }
+          }) }
+        $status['initialPageVerifiedNo'] = $initialPage
+      }
       $fresh = Save-QAWindowSnapshot ($name + '-before-action')
       [void](Assert-QAPrivacyIdentity $fresh)
       if ($fresh.foreground.Hwnd -ne $snapshot.foreground.Hwnd -or $fresh.foreground.ProcessId -ne $snapshot.foreground.ProcessId -or
@@ -621,6 +723,7 @@ function Prepare-QAWindowsPrivacy {
         $action['mechanism'] = 'Observed OCR/bitmap control with foreground ownership checked at native click'
       }
       $action.inputSent = $true; $previous = $action; $previousText = $ocr.text
+      if ($action.kind -ceq 'advance-privacy-page' -and $action.label -ceq 'Next') { $initialPage.nextInputSent = $true }
       $status | ConvertTo-Json -Depth 15 | Set-Content -Encoding utf8 $statusPath
       Start-Sleep -Milliseconds 1500
     }
@@ -629,7 +732,7 @@ function Prepare-QAWindowsPrivacy {
   finally { $status | ConvertTo-Json -Depth 15 | Set-Content -Encoding utf8 $statusPath }
 }
 [void](Save-QAWindowSnapshot '00-before-launch')
-try { Test-QAStoredPrivacyImages; Test-QAStoredPrivacyTransitions; Prepare-QAWindowsPrivacy } catch {
+try { Test-QAStoredPrivacyImages; Test-QAStoredPrivacyTransitions; Test-QAStoredFinalPrivacyImages; Prepare-QAWindowsPrivacy } catch {
   [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/privacy-error.txt", $_.Exception.ToString())
   [void](Save-QAWindowSnapshot 'privacy-error')
   throw
