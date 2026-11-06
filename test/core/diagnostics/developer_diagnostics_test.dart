@@ -229,6 +229,67 @@ void main() {
       expect(types, ['session', 'snapshot']);
     });
 
+    test(
+      'launch diagnostics records OS enrichment once without restarting',
+      () async {
+        var osVersion = 'raw kernel';
+        diagnostics.osVersionForTesting = () => osVersion;
+        diagnostics.initFromLaunch(const [
+          '--dev-diagnostics=log',
+        ], environment: const {});
+        osVersion = 'Ubuntu 24.04; kernel 6.8';
+        diagnostics.debugTick();
+        diagnostics.debugTick();
+        await diagnostics.snapshot();
+        final log = records();
+        expect(log.first['osVersion'], 'raw kernel');
+        expect(
+          log.where((record) => record['type'] == 'session'),
+          hasLength(1),
+        );
+        expect(log.where((record) => record['type'] == 'os_version'), [
+          containsPair('osVersion', osVersion),
+        ]);
+        expect(log.last['osVersion'], osVersion);
+        expect(diagnostics.isCollecting, isTrue);
+      },
+    );
+
+    test(
+      'OS enrichment is ignored while off and a new session uses the cache',
+      () async {
+        var osVersion = 'raw kernel';
+        diagnostics.osVersionForTesting = () => osVersion;
+        diagnostics.toggle();
+        diagnostics.toggle();
+        osVersion = 'Android 15; API 35';
+        diagnostics.debugTick();
+        diagnostics.toggle();
+        diagnostics.debugTick();
+        await diagnostics.snapshot();
+        final log = records();
+        expect(log.where((record) => record['type'] == 'os_version'), isEmpty);
+        expect(
+          log.where((record) => record['type'] == 'session').last['osVersion'],
+          osVersion,
+        );
+      },
+    );
+
+    test(
+      'diagnostics started after OS warmup needs no metadata correction',
+      () async {
+        diagnostics.osVersionForTesting = () =>
+            'macOS Version 15.4.1 (Build 24E263)';
+        diagnostics.toggle();
+        diagnostics.debugTick();
+        await diagnostics.snapshot();
+        final log = records();
+        expect(log.first['osVersion'], 'macOS Version 15.4.1 (Build 24E263)');
+        expect(log.where((record) => record['type'] == 'os_version'), isEmpty);
+      },
+    );
+
     test('stats records carry the smartText counters', () async {
       diagnostics.toggle();
       expect(SmartTextRenderStats.enabled, isTrue);
