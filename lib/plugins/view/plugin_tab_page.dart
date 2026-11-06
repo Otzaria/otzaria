@@ -703,8 +703,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     if (contentBlockers == null) return const SizedBox.shrink();
     if (!_crashGuardArmed()) return const LoadingIndicator();
     final crashGuardOwner = _crashGuardOwner;
+    final webViewKey = _webViewKey;
     bool currentAttempt() =>
-        mounted && identical(_crashGuardOwner, crashGuardOwner);
+        mounted &&
+        identical(_webViewKey, webViewKey) &&
+        identical(_crashGuardOwner, crashGuardOwner);
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
