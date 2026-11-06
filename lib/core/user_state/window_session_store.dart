@@ -93,6 +93,26 @@ class WindowSessionStore {
     return _loadIn(db, slot);
   }
 
+  /// קורא רק גבולות, בלי להעתיק את הכרטיסיות השמורות.
+  Future<String?> loadBoundsJson(int slot) async {
+    final db = await _database.database;
+    final rows = db.select(
+      'SELECT bounds_json FROM window_sessions WHERE slot = ?',
+      [slot],
+    );
+    return rows.isEmpty ? null : rows.first['bounds_json'] as String?;
+  }
+
+  /// קורא רק את השולחן הפעיל, בלי להעתיק את הכרטיסיות השמורות.
+  Future<String?> loadActiveWorkspaceId(int slot) async {
+    final db = await _database.database;
+    final rows = db.select(
+      'SELECT active_workspace_id FROM window_sessions WHERE slot = ?',
+      [slot],
+    );
+    return rows.isEmpty ? null : rows.first['active_workspace_id'] as String?;
+  }
+
   /// הסשן מהמסד **שכבר פתוח**, בלי await, ו-null כשטרם נפתח.
   ///
   /// ⚠️ קיים בשביל `TabsRepository.loadTabs`, שנקרא מבנאי של bloc ואינו

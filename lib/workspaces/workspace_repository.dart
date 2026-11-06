@@ -48,7 +48,7 @@ class WorkspaceRepository {
       final slot = _slot();
       var currentId = slot == null
           ? null
-          : (await _sessions.load(slot))?.activeWorkspaceId;
+          : await _sessions.loadActiveWorkspaceId(slot);
       // חלון ללא שולחן פעיל מתחיל על הראשון; חלון חדש מקבל אחד רק כשהמשתמש
       // בוחר — כך שני חלונות אינם נועלים על אותו שולחן בלי כוונה.
       if (currentId != null && !workspaces.any((w) => w.id == currentId)) {

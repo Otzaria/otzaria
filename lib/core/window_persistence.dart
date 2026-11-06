@@ -139,8 +139,7 @@ class WindowPersistenceBinding {
         (Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '')
             .isNotEmpty;
     if (slot != null && hasLibrary) {
-      final session = await _store.load(slot);
-      final bounds = WindowBounds.decode(session?.boundsJson);
+      final bounds = WindowBounds.decode(await _store.loadBoundsJson(slot));
       if (bounds != null) return bounds;
     }
     return WindowBounds(
@@ -396,7 +395,7 @@ class WindowPersistenceBinding {
     final isMaximized = await _window.isMaximized();
     final store = _store;
     var next =
-        (WindowBounds.decode((await store.load(slot))?.boundsJson) ??
+        (WindowBounds.decode(await store.loadBoundsJson(slot)) ??
                 const WindowBounds())
             .copyWith(maximized: isMaximized);
 
