@@ -457,6 +457,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
           ),
       initialSettings: InAppWebViewSettings(
         contentBlockers: contentBlockers,
+        consoleMessageLevels: pluginConsoleMessageLevels,
         allowFileAccessFromFileURLs: false,
         allowUniversalAccessFromFileURLs: false,
         useShouldOverrideUrlLoading: true,

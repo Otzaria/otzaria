@@ -9,8 +9,17 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 
+class _RecordingPlatformController extends Fake
+    implements PlatformInAppWebViewController {}
+
 class _RecordingController extends Fake implements InAppWebViewController {
   final calls = <String>[];
+
+  @override
+  final platform = _RecordingPlatformController();
+
+  @override
+  Future<InAppWebViewSettings?> getSettings() async => null;
 
   @override
   Future<dynamic> callDevToolsProtocolMethod({

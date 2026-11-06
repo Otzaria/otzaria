@@ -46,17 +46,10 @@ Future<WebViewProcessSnapshot> collectPluginWebViewProcesses(
   }
 }
 
-/// בחוזה ה-native הנעול, רשימה ריקה עשויה גם לציין כשל באיסוף.
+/// חוזה ה-native מבחין בין רשימה ריקה שהושלמה לבין כשל במנייה.
 WebViewProcessSnapshot pluginWebViewProcessSnapshot(
   List<BrowserProcessInfo> infos,
-) => infos.isEmpty
-    ? const WebViewProcessSnapshot(
-        collection: ProcessCollection.unavailable(
-          'empty_process_list_ambiguous',
-          source: 'WebViewEnvironment.getProcessInfos',
-        ),
-      )
-    : WebViewProcessSnapshot.collected(pluginWebViewProcesses(infos));
+) => WebViewProcessSnapshot.collected(pluginWebViewProcesses(infos));
 
 /// תהליכי ה-WebView מ-`getProcessInfos()`.
 @visibleForTesting

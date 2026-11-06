@@ -235,6 +235,7 @@ class DeveloperDiagnostics {
   DiagnosticsLaunchMode _launchMode = DiagnosticsLaunchMode.off;
   bool _toggledOn = false;
   bool _running = false;
+  final _collectionState = ValueNotifier(false);
 
   /// Whether the on-screen panel is shown.
   final ValueNotifier<bool> panelVisible = ValueNotifier(false);
@@ -291,6 +292,9 @@ class DeveloperDiagnostics {
   int _session = 0;
 
   bool get isCollecting => _running;
+
+  /// מודיע כשהאיסוף מתחיל או נפסק, גם בלי הצגת חלונית האבחון.
+  ValueListenable<bool> get collectionState => _collectionState;
 
   /// רשימה שעלות רענון ההערכות שלה נכנסת ל-stats. נרשמת גם כשהאיסוף כבוי,
   /// כדי שהפעלה ב-Ctrl+Shift+I תכלול רשימות שכבר פתוחות.
@@ -399,6 +403,7 @@ class DeveloperDiagnostics {
     });
     if (!_running) return;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
+    _collectionState.value = true;
   }
 
   void _stop({bool flush = true}) {
@@ -422,6 +427,7 @@ class DeveloperDiagnostics {
     _resetProcesses();
     stats.value = const FrameStats();
     performanceOverlay.value = false;
+    _collectionState.value = false;
   }
 
   void _resetProcesses() {
@@ -735,5 +741,6 @@ class DeveloperDiagnostics {
     panelVisible.value = false;
     performanceOverlay.value = false;
     stats.value = const FrameStats();
+    _collectionState.value = false;
   }
 }

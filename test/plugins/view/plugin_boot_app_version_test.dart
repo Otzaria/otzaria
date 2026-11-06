@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
+import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -114,12 +115,17 @@ void main() {
 
     setUp(() async {
       final dir = await Directory.systemTemp.createTemp('plugin_console_');
+      await Directory('${dir.path}/databases').create();
+      DeveloperDiagnostics.instance
+        ..resetForTesting()
+        ..outputPath = '${dir.path}/diagnostics.jsonl';
       AppPaths.debugOverrideDataRootPath(dir.path);
       db.resetForTests();
       printed.clear();
       final original = debugPrint;
       debugPrint = (message, {wrapWidth}) => printed.add(message);
       addTearDown(() async {
+        DeveloperDiagnostics.instance.resetForTesting();
         debugPrint = original;
         db.resetForTests();
         AppPaths.debugOverrideDataRootPath(null);
@@ -172,14 +178,36 @@ void main() {
     test('ב-release רגיל info/log/debug נזרקות לפני debugPrint', () async {
       PluginWebViewHost.debugVerboseConsoleOverride = false;
       addTearDown(() => PluginWebViewHost.debugVerboseConsoleOverride = null);
+      expect(_Host().pluginConsoleMessageLevels, [
+        ConsoleMessageLevel.WARNING,
+        ConsoleMessageLevel.ERROR,
+      ]);
       expect(await feed(), kept);
       expect(printed, ['Plugin [test.plugin]: w', 'Plugin [test.plugin]: e']);
     });
 
     test('ב-debug כל ההודעות מודפסות, ולמסד רק WARNING/ERROR', () async {
+      expect(_Host().pluginConsoleMessageLevels, isNull);
       expect(await feed(), kept);
       expect(printed, hasLength(302));
       expect(printed.first, 'Plugin [test.plugin]: info 0');
     });
+
+    test(
+      'אבחון log-only שומר את כל הרמות ב-Dart וב-native כשה-DevTools כבויים',
+      () async {
+        PluginWebViewHost.debugVerboseConsoleOverride = false;
+        addTearDown(() => PluginWebViewHost.debugVerboseConsoleOverride = null);
+        final diagnostics = DeveloperDiagnostics.instance;
+        diagnostics.initFromLaunch(const [
+          '--dev-diagnostics=log',
+        ], environment: const {});
+        expect(diagnostics.panelVisible.value, isFalse);
+        expect(_Host().pluginConsoleMessageLevels, isNull);
+        expect(await feed(), kept);
+        expect(printed, hasLength(302));
+        await diagnostics.snapshot();
+      },
+    );
   });
 }

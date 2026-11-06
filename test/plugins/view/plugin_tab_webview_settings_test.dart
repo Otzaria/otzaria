@@ -4,10 +4,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 
 void main() {
   group('buildPluginTabWebViewSettings', () {
+    test(
+      'native console policy and network blockers are set before navigation',
+      () {
+        final blockers = [
+          ContentBlocker(
+            trigger: ContentBlockerTrigger(urlFilter: '.*'),
+            action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+          ),
+        ];
+        final settings = buildPluginTabWebViewSettings(
+          isDevelopment: false,
+          contentBlockers: blockers,
+        );
+        expect(settings.consoleMessageLevels, [
+          ConsoleMessageLevel.WARNING,
+          ConsoleMessageLevel.ERROR,
+        ]);
+        expect(settings.contentBlockers, same(blockers));
+        expect(settings.allowUniversalAccessFromFileURLs, isFalse);
+        expect(
+          buildPluginTabWebViewSettings(
+            isDevelopment: false,
+            consoleMessageLevels: null,
+          ).consoleMessageLevels,
+          isNull,
+        );
+      },
+    );
+
     test('זום חסום — צביטת מגע ו-Ctrl+גלגלת (issue #883)', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
       expect(settings.supportZoom, isFalse);
