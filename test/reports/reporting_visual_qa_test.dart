@@ -20,6 +20,7 @@ import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
@@ -574,6 +575,22 @@ void main() {
       );
       await tester.pump();
       await capture(tester, 'software-report-low-en');
+      final descriptionLabel = find.text('What happened?');
+      expect(descriptionLabel, findsOneWidget);
+      await tester.ensureVisible(descriptionLabel);
+      await tester.pumpAndSettle();
+      expect(descriptionLabel.hitTestable(), findsOneWidget);
+      await capture(tester, 'software-report-low-en-description');
+      final imagePrompt = find.text(
+        PluginFileDropService.isSupported
+            ? 'Paste, drop, or click to choose an image'
+            : 'Paste or click to choose an image',
+      );
+      expect(imagePrompt, findsOneWidget);
+      await tester.ensureVisible(imagePrompt);
+      await tester.pumpAndSettle();
+      expect(imagePrompt.hitTestable(), findsOneWidget);
+      await capture(tester, 'software-report-low-en-attachments');
       expect(
         Localizations.localeOf(
           tester.element(find.byType(AppReportDialog)),
@@ -592,6 +609,8 @@ void main() {
             },
           );
       final titleField = find.byKey(const ValueKey('app-report-title'));
+      await tester.ensureVisible(titleField);
+      await tester.pumpAndSettle();
       final titleEditor = tester.widget<EditableText>(
         find.descendant(of: titleField, matching: find.byType(EditableText)),
       );
