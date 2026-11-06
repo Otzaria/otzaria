@@ -1,4 +1,4 @@
-name: Personal notes final combined QA
+name: Personal notes final and upstream reader QA
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TARGET_SHA: 'cec00ae9062b5d993c94555b766027dc2726f395'
+      TARGET_SHA: 'f93b2ecb88d444fffc2614ea2560234a9904f7d9'
       TZ: Asia/Jerusalem
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CI: 'true'
@@ -41,7 +41,7 @@ jobs:
               raise SystemExit('TARGET_SHA must be a frozen commit')
           bundle = Path(os.environ['RUNNER_TEMP']) / 'notes-final-qa'
           output = Path(os.environ['RUNNER_TEMP']) / 'notes-final-results'
-          shutil.copytree('qa/personal-notes-final-20261106', bundle)
+          shutil.copytree('qa/personal-notes-final-next-20261106', bundle)
           output.mkdir(parents=True)
           subprocess.run(['git', 'checkout', '--detach', target], check=True)
           actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()

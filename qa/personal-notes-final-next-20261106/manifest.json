@@ -1,0 +1,112 @@
+{
+  "base_sha": "c5d377af29ddb62f5bedc95a59fa60f7c819ef88",
+  "product_inventory_frozen": true,
+  "changed_files": [
+    "lib/pdf_book/view/pdf_book_screen.dart",
+    "lib/personal_notes/bloc/personal_notes_bloc.dart",
+    "lib/personal_notes/bloc/personal_notes_event.dart",
+    "lib/personal_notes/repository/personal_notes_repository.dart",
+    "lib/personal_notes/services/personal_note_draft_service.dart",
+    "lib/personal_notes/services/personal_notes_service.dart",
+    "lib/personal_notes/view/personal_notes_screen.dart",
+    "lib/personal_notes/widgets/inline_note_editor.dart",
+    "lib/personal_notes/widgets/note_tile.dart",
+    "lib/personal_notes/widgets/personal_note_editor.dart",
+    "lib/personal_notes/widgets/personal_note_editor_dialog.dart",
+    "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+    "test/personal_notes/personal_note_draft_revision_test.dart",
+    "test/personal_notes/personal_notes_manager_loading_test.dart",
+    "test/personal_notes/personal_notes_reposition_confirmation_test.dart",
+    "test/personal_notes/personal_notes_repository_delete_test.dart",
+    "test/personal_notes/personal_notes_write_confirmation_test.dart",
+    "test/personal_notes/widgets/personal_note_list_backspace_test.dart",
+    "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart",
+    "test/personal_notes/widgets/personal_notes_draft_navigation_test.dart",
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
+  ],
+  "source_sha256": {
+    "lib/pdf_book/view/pdf_book_screen.dart": "33922ceeaf878a53d02baa7387f36a3ac77b7cc22417efd8d4e3c3603b9b6b78",
+    "lib/personal_notes/bloc/personal_notes_bloc.dart": "3445b84c80e28cf6d551f42046d9a8193482bccc3fe0e35b15f1490790e8f953",
+    "lib/personal_notes/bloc/personal_notes_event.dart": "31bd6b07f375fb11c39e4f8fdf28b1a07ce66d87206830d7be46f28a58bd52b5",
+    "lib/personal_notes/repository/personal_notes_repository.dart": "94b43d3c31824518e47080fabe86430c4c93f8fe1740f1510a04f97cfb6f3b1a",
+    "lib/personal_notes/services/personal_note_draft_service.dart": "30fdb4009e38512cf98e0ac2195667dad34751e1fb5d58c51d5b658ea389a76c",
+    "lib/personal_notes/services/personal_notes_service.dart": "c82e7e07c29283e544c18999f8f2059bd47125b8c59d303f09af06f0361b899b",
+    "lib/personal_notes/view/personal_notes_screen.dart": "09699715d0df9b6ac5126958058d47d9eed3a519059d9c5b9796a9bf9b82af78",
+    "lib/personal_notes/widgets/inline_note_editor.dart": "76cfddc8a24b3e70473def2488315bed847e948ae3ac0af6556063df5bfd6a22",
+    "lib/personal_notes/widgets/note_tile.dart": "bd0222090f26910bc57a7b0b32fc5ca1b2f4aa38e2ed67bdbc07c0697162c4d0",
+    "lib/personal_notes/widgets/personal_note_editor.dart": "621a3ad8dddd773e46181b2ea632fd057ce346a756f4c2a9815a6c435c9cef74",
+    "lib/personal_notes/widgets/personal_note_editor_dialog.dart": "31e75f70a71e7ce3ab6eb804bba43ffbe57dadacd1179a5d3012869f727fda1d",
+    "lib/personal_notes/widgets/personal_notes_sidebar.dart": "80881aa0182eb88e6297fb6c4516bf57b4e03e10c06ef2c3aace72677f367286",
+    "test/personal_notes/personal_note_draft_revision_test.dart": "d6e6ee2876c3acbf7a76a6a7dfb38569cbf58273b9e50e584eb0431faff04bee",
+    "test/personal_notes/personal_notes_manager_loading_test.dart": "52a5f844e925f866f3a256ca3f6b1c9b5d613a03a19099f462572ff08d71df88",
+    "test/personal_notes/personal_notes_reposition_confirmation_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
+    "test/personal_notes/personal_notes_repository_delete_test.dart": "84ab65ac31f41047ea1774262db8bd0f54d806d66b4f2dac43d53f74706292d2",
+    "test/personal_notes/personal_notes_write_confirmation_test.dart": "3b07f15eb099548a7f9ea0b16f44f28f353fc356a56413455e940d7502727a20",
+    "test/personal_notes/widgets/personal_note_list_backspace_test.dart": "b4c0a990769ab114d73a21aa6217c558388145e6f113e8e85b9e37fdd566ab09",
+    "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart": "f8f5b4dd41a3b67a146bd6423332eb843904fc57bcaa1b1d1f22ad5923587a7e",
+    "test/personal_notes/widgets/personal_notes_draft_navigation_test.dart": "7d51a76fd6bba8db14fefdfcebffc9648fcc9965212c3777313db39e1e4d9770",
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a"
+  },
+  "test_targets": [
+    "test/personal_notes",
+    "test/pdf_book/pdf_personal_note_viewer_test.dart",
+    "test/pdf_book/pdf_personal_note_anchor_test.dart",
+    "test/pdf_book/pdf_hand_mode_test.dart",
+    "test/pdf_book/pdf_book_screen_test.dart"
+  ],
+  "red_test_names": [
+    "reposition refuses an already deleted note instead of reporting success",
+    "reposition refuses an id belonging to a different book",
+    "manager acknowledges delete without a post-write list read",
+    "manager acknowledges reposition without a post-write list read",
+    "sidebar does not announce a failed reposition as successful",
+    "Backspace אחרי Enter יוצא מרשימת bullet ב-inline",
+    "Backspace אחרי Enter יוצא מרשימת ordered ב-inline",
+    "Backspace אחרי Enter יוצא מרשימת bullet ב-dialog",
+    "Backspace אחרי Enter יוצא מרשימת ordered ב-dialog",
+    "Alt Left+Backspace אינו הופך פריט לפסקה",
+    "Alt+Backspace בפריט הראשון עדיין מסיר רשימה",
+    "save completed after panel removal does not reopen a duplicate",
+    "late save keeps a newer draft at the same location",
+    "restoring the panel while save is pending does not revive the draft",
+    "queued creation survives completion of the preceding save"
+  ],
+  "red_fixture_source": "test/personal_notes/widgets/personal_note_list_backspace_test.dart",
+  "red_fixture_sha256": "b4c0a990769ab114d73a21aa6217c558388145e6f113e8e85b9e37fdd566ab09",
+  "scope_reason": "Full personal-note suite and four PDF suites on the exact combined candidate. Fifteen RED assertions cover mutation acknowledgements, empty-list Backspace, Windows Alt line deletion and draft lifecycle races. No-Save navigation, pending cleanup, same-key drafts and repeated Alt remain mandatory product controls. Four reader marker/selection controls must additionally pass on the reviewed base and the final product; this next candidate inventory is not frozen.",
+  "draft_fixture_source": "test/personal_notes/widgets/personal_notes_draft_navigation_test.dart",
+  "draft_fixture_source_sha256": "7d51a76fd6bba8db14fefdfcebffc9648fcc9965212c3777313db39e1e4d9770",
+  "draft_fixture_sha256": "665d74cf7397751af49142cf08c19b29c1f1de6057d0cf61cf7cb3940b1b27a2",
+  "draft_red_status": "Independently reviewed source scenarios; actual baseline failures and target successes remain mandatory.",
+  "red_fixture_hashes": {
+    "draft_navigation_red_test.dart": "665d74cf7397751af49142cf08c19b29c1f1de6057d0cf61cf7cb3940b1b27a2",
+    "list_backspace_red_test.dart": "b4c0a990769ab114d73a21aa6217c558388145e6f113e8e85b9e37fdd566ab09",
+    "manager_confirmation_red_test.dart": "98d4f60a338a8ee8026a374fd20c5e76f094becc8217e7a6898d4ae11e870848",
+    "mutation_ack_red_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
+    "sidebar_confirmation_red_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a"
+  },
+  "required_control_test_names": [
+    "tab navigation without Save keeps one live draft",
+    "adaptive pane hide and show without Save keeps one live draft",
+    "restored editor preserves new typing before its debounce"
+  ],
+  "alt_failure_signature_test_names": [
+    "Alt Left+Backspace אינו הופך פריט לפסקה",
+    "Alt+Backspace בפריט הראשון עדיין מסיר רשימה"
+  ],
+  "upstream_control": {
+    "issue": 3260,
+    "fixture": "reader_marker_selection_base_test.dart",
+    "source": "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart",
+    "destination": "test/personal_notes/widgets/qa_reader_marker_selection_base_test.dart",
+    "sha256": "f8f5b4dd41a3b67a146bd6423332eb843904fc57bcaa1b1d1f22ad5923587a7e",
+    "test_names": [
+      "Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=false)",
+      "Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=true)",
+      "Judges reader selection crosses paragraph marker (removeMarks=true, HtmlWidget=false)",
+      "Judges reader selection crosses paragraph marker (removeMarks=true, HtmlWidget=true)"
+    ],
+    "status": "Independently reviewed final fixture, copied byte for byte from combined; exact four baseline and target successes remain mandatory."
+  },
+  "candidate_sha": "f93b2ecb88d444fffc2614ea2560234a9904f7d9"
+}
