@@ -129,12 +129,14 @@ String _fontFaceJs(String fontFaceJson) =>
   } catch (e) { console.error('font-face inject failed', e); }
 ''';
 
-/// ה-SDK האמיתי, מוזרק אחרי הטעינה וקורא ל-_boot. [fontFaceJson] מזריק לפניו
-/// את הגופנים של התוכנה.
+/// ה-SDK המשותף; [fontFaceJson] מזריק גופנים רק כשיש DOM.
+/// [rpcTransport] הוא ביטוי JS של המארח המהימן, לעולם לא קלט ממניפסט/תוסף.
 String buildPluginBootScript({
   required String nonceJson,
   required String payloadJson,
   String? fontFaceJson,
+  String rpcTransport =
+      "function (request) { return window.flutter_inappwebview.callHandler('otzaria_rpc', request); }",
 }) =>
     '''
 (function () {
@@ -146,8 +148,9 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
   var _networkStreams = {};
   var _networkSequence = 0;
   var _networkEvent = '__otzaria.network.fetchStream.chunk';
+  var transport = $rpcTransport;
   var rpc = function (method, payload) {
-    return window.flutter_inappwebview.callHandler('otzaria_rpc', {
+    return transport({
       method: method,
       payload: payload || {},
       nonce: $nonceJson
