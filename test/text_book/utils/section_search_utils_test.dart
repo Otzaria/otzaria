@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -682,6 +683,57 @@ Future<void> main() async {
       expect(phrase.map((r) => (r.index, r.continuesToNextLine)), [
         (1, true),
       ]);
+    });
+
+    test('עצירת הסריקה במעבר השורה אינה משנה את הביטוי הנמשך', () {
+      const pairs = [
+        ('אמר רבי יוחנן אמר', 'רבי יוחנן'),
+        ('ויאמר משה', 'אמר רבי יוחנן'),
+        ('אמר רבי', 'יוחנן אמר רבי'),
+        ('ובין המים (ג)', '(ד) ויאמר אלהים'),
+        ('אמר\nרבי אמר', 'רבי יוחנן'),
+        ('', 'אמר רבי'),
+      ];
+      final sources = [
+        for (final query in ['אמר רבי', 'רבי יוחנן', 'המים ויאמר'])
+          for (final wholeWord in [true, false])
+            literalPatternSource(query, wholeWord: wholeWord),
+        // צורת _phraseFirst של בניית התבנית: lookahead לפני גבול המילה.
+        '(?=${stripWordBoundaryWrapper(literalPatternSource('אמר רבי'))})'
+            '${literalPatternSource('אמר רבי')}',
+        // תבניות שמתאימות במעבר השורה עצמו, לפניו או אחריו, או התאמה ריקה.
+        'x*',
+        '',
+        r'\n',
+        r'\s',
+        r'\s\S+\s\S+',
+        r'(?=\n)',
+        r'(?<=\n)\S+',
+        r'[^>]*יוחנן',
+        r'.+',
+        r'אמר\nרבי',
+      ];
+      var crossings = 0;
+      for (final source in sources) {
+        for (final (line, nextLine) in pairs) {
+          ({int offset, String snippet})? find(RegExp pattern) =>
+              crossLineMatch(
+                pattern,
+                rawLine: line,
+                rawNextLine: nextLine,
+                line: line,
+                nextLine: nextLine,
+              );
+          final expected = find(compileLiteralPattern(source));
+          if (expected != null) crossings++;
+          expect(
+            find(crossLinePattern(source)),
+            expected,
+            reason: '$source | $line | $nextLine',
+          );
+        }
+      }
+      expect(crossings, greaterThan(5));
     });
   });
 
