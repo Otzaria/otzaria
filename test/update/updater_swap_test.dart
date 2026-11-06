@@ -122,6 +122,22 @@ class _HeldFileSystem extends SwapFileSystem {
       held.any((name) => p.basename(path) == p.basename(name));
 }
 
+/// קובץ שתהליך אחר מחזיק במספר הבדיקות הראשונות ואז משחרר, כמו
+/// crashpad_handler.exe שיוצא רגע אחרי אוצריא.
+class _ReleasingFileSystem extends SwapFileSystem {
+  _ReleasingFileSystem(this.name, {required this.heldChecks});
+
+  final String name;
+  int heldChecks;
+
+  @override
+  bool isHeldByAnotherProcess(String path) {
+    if (p.basename(path) != name || heldChecks == 0) return false;
+    heldChecks--;
+    return true;
+  }
+}
+
 String _hash(String path) =>
     sha256.convert(File(path).readAsBytesSync()).toString();
 
@@ -378,6 +394,35 @@ void main() {
     test('קובץ שנועד להסרה ומוחזק דוחה אף הוא', () {
       final result = applySwapPlan(plan(), fs: _HeldFileSystem({'legacy.dll'}));
       expect(result.outcome, SwapOutcome.abortedBeforeAnyChange);
+    });
+
+    test('קובץ שמשתחרר זמן קצר אחרי יציאת אוצריא אינו מבטל את העדכון '
+        '(issue #4317)', () {
+      final fs = _ReleasingFileSystem('otzaria.exe', heldChecks: 3);
+
+      final released = waitForTargetsReleased(
+        plan(),
+        fs: fs,
+        interval: Duration.zero,
+      );
+      final result = applySwapPlan(plan(), fs: fs);
+
+      expect(released, isTrue);
+      expect(result.outcome, SwapOutcome.succeeded);
+      expect(
+        File(p.join(install.path, 'otzaria.exe')).readAsStringSync(),
+        'new binary',
+      );
+    });
+
+    test('ההמתנה לשחרור מוגבלת בזמן', () {
+      final released = waitForTargetsReleased(
+        plan(),
+        fs: _HeldFileSystem({'data/a.dat'}),
+        timeout: const Duration(milliseconds: 50),
+        interval: const Duration(milliseconds: 10),
+      );
+      expect(released, isFalse);
     });
   });
 
