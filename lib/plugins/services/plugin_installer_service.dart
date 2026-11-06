@@ -297,8 +297,8 @@ class PluginInstallerService {
     final plugin = await _repository.getPlugin(pluginId);
     if (plugin != null) {
       await _repository.deletePlugin(pluginId);
-      await _deleteDirIfExists(plugin.installPath);
       await _deletePluginDataDirs(pluginId);
+      await _deleteDirIfExists(plugin.installPath);
     }
   }
 
@@ -312,8 +312,21 @@ class PluginInstallerService {
   Future<void> _deletePluginDataDirs(String pluginId) async {
     final dataPath = await AppPaths.getPluginDataPath(pluginId);
     final cachePath = await AppPaths.getPluginCachePath(pluginId);
-    await _deleteDirIfExists(dataPath);
-    await _deleteDirIfExists(cachePath);
+    final obsoleteDirs = <Directory>[];
+    try {
+      // מנתקים בלי await כדי שכתיבות חדשות לא ייכנסו למחיקה המתמשכת.
+      for (final path in [dataPath, cachePath]) {
+        final dir = Directory(path);
+        if (!dir.existsSync()) continue;
+        final obsolete = dir.parent.createTempSync('.delete-');
+        obsoleteDirs.add(obsolete);
+        dir.renameSync(p.join(obsolete.path, 'contents'));
+      }
+    } finally {
+      await Future.wait(
+        obsoleteDirs.map((dir) => dir.delete(recursive: true)),
+      );
+    }
   }
 
   // מחיקה סינכרונית של אלפי קבצים תוקעת את ה-UI; האסינכרונית רצה ב-IO pool.
