@@ -1,6 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
@@ -20,6 +25,7 @@ void main() {
   });
 
   tearDown(() async {
+    AppPaths.debugOverrideDataRootPath(null);
     await Hive.close();
     await tempDir.delete(recursive: true);
   });
@@ -434,6 +440,201 @@ void main() {
         includePdfAnchors: false,
       ))?.contentPlain,
       'טקסט',
+    );
+  });
+  test(
+    'portable PDF draft survives a root change through exact and latest lookup',
+    () async {
+      final service = PersonalNoteDraftService();
+      for (final source in [BookSource.official, BookSource.user]) {
+        await Settings.setValue(
+          SettingsRepository.keyLibraryPath,
+          r'C:\old\library',
+        );
+        final old = PdfBook(
+          id: 42,
+          title: 'ספר',
+          path: r'C:\old\library\one\ספר.pdf',
+          source: source,
+        );
+        final anchor = PdfNoteAnchor(
+          pageNumber: 2,
+          x: .3,
+          y: .7,
+          documentId: pdfPersonalNoteDocumentId(old),
+        );
+        final bookId = personalNotesBookKey(old);
+        await service.saveDraft(
+          bookId: bookId,
+          lineNumber: 2,
+          draft: PersonalNoteDraft(
+            content: 'טיוטה ניידת',
+            contentPlain: 'טיוטה ניידת',
+            contentFormat: PersonalNoteContentFormat.plain,
+            updatedAt: DateTime(2026),
+            lineNumber: 2,
+            pdfAnchor: anchor,
+          ),
+        );
+        await Settings.setValue(
+          SettingsRepository.keyLibraryPath,
+          '/new/library',
+        );
+        final moved = PdfBook(
+          id: 42,
+          title: 'ספר',
+          path: '/new/library/one/ספר.pdf',
+          source: source,
+        );
+        final movedAnchor = PdfNoteAnchor(
+          pageNumber: 2,
+          x: .3,
+          y: .7,
+          documentId: pdfPersonalNoteDocumentId(moved),
+        );
+        final exact = await service.loadDraft(
+          bookId: bookId,
+          lineNumber: 2,
+          pdfAnchor: movedAnchor,
+        );
+        final latest = await service.loadLatestNewNoteDraft(
+          bookId: bookId,
+          pdfDocumentId: movedAnchor.documentId,
+          pdfDocumentIds: pdfPersonalNoteDocumentIds(moved),
+        );
+        expect(exact?.contentPlain, 'טיוטה ניידת');
+        expect(latest?.contentPlain, 'טיוטה ניידת');
+        expect(exact?.pdfAnchor, anchor);
+        await service.clearDraft(
+          bookId: bookId,
+          lineNumber: 2,
+          pdfAnchor: movedAnchor,
+        );
+        expect(
+          await service.loadLatestNewNoteDraft(
+            bookId: bookId,
+            pdfDocumentId: movedAnchor.documentId,
+          ),
+          isNull,
+        );
+      }
+    },
+  );
+
+  test(
+    'legacy current-path PDF draft restores through exact and accepted latest identities',
+    () async {
+      final service = PersonalNoteDraftService();
+      await Settings.setValue(SettingsRepository.keyLibraryPath, '/library');
+      final book = PdfBook(
+        id: 42,
+        title: 'ספר',
+        path: '/library/one/ספר.pdf',
+        source: BookSource.user,
+      );
+      final anchor = PdfNoteAnchor(
+        pageNumber: 2,
+        x: .3,
+        y: .7,
+        documentId: 'u|${Uri.encodeComponent(book.path)}',
+      );
+      await service.saveDraft(
+        bookId: 'ספר|user',
+        lineNumber: 2,
+        draft: PersonalNoteDraft(
+          content: 'טיוטה קודמת',
+          contentPlain: 'טיוטה קודמת',
+          contentFormat: PersonalNoteContentFormat.plain,
+          updatedAt: DateTime(2026),
+          lineNumber: 2,
+          pdfAnchor: anchor,
+        ),
+      );
+      final latest = await service.loadLatestNewNoteDraft(
+        bookId: 'ספר|user',
+        pdfDocumentId: pdfPersonalNoteDocumentId(book),
+        pdfDocumentIds: pdfPersonalNoteDocumentIds(book),
+      );
+      expect(latest?.pdfAnchor, anchor);
+      expect(
+        (await service.loadDraft(
+          bookId: 'ספר|user',
+          lineNumber: 2,
+          pdfAnchor: latest!.pdfAnchor,
+        ))?.contentPlain,
+        'טיוטה קודמת',
+      );
+      final other = PdfBook(
+        id: 43,
+        title: 'ספר',
+        path: '/library/two/ספר.pdf',
+        source: BookSource.user,
+      );
+      expect(
+        await service.loadLatestNewNoteDraft(
+          bookId: 'ספר|user',
+          pdfDocumentId: pdfPersonalNoteDocumentId(other),
+          pdfDocumentIds: pdfPersonalNoteDocumentIds(other),
+        ),
+        isNull,
+      );
+    },
+  );
+  test('imported PDF draft restores after moving the data root', () async {
+    final service = PersonalNoteDraftService();
+    AppPaths.debugOverrideDataRootPath('/old/profile');
+    final old = PdfBook(
+      id: 42,
+      title: 'ספר',
+      path: '/old/profile/הספרים שלי/nested/ספר.pdf',
+      source: BookSource.user,
+    );
+    final anchor = PdfNoteAnchor(
+      pageNumber: 2,
+      x: .3,
+      y: .7,
+      documentId: pdfPersonalNoteDocumentId(old),
+    );
+    await service.saveDraft(
+      bookId: 'ספר|user',
+      lineNumber: 2,
+      draft: PersonalNoteDraft(
+        content: 'טיוטת ספר מיובא',
+        contentPlain: 'טיוטת ספר מיובא',
+        contentFormat: PersonalNoteContentFormat.plain,
+        updatedAt: DateTime(2026),
+        lineNumber: 2,
+        pdfAnchor: anchor,
+      ),
+    );
+    AppPaths.debugOverrideDataRootPath('/new/profile');
+    final moved = PdfBook(
+      id: 42,
+      title: 'ספר',
+      path: '/new/profile/הספרים שלי/nested/ספר.pdf',
+      source: BookSource.user,
+    );
+    final movedAnchor = PdfNoteAnchor(
+      pageNumber: 2,
+      x: .3,
+      y: .7,
+      documentId: pdfPersonalNoteDocumentId(moved),
+    );
+    expect(
+      (await service.loadDraft(
+        bookId: 'ספר|user',
+        lineNumber: 2,
+        pdfAnchor: movedAnchor,
+      ))?.contentPlain,
+      'טיוטת ספר מיובא',
+    );
+    expect(
+      (await service.loadLatestNewNoteDraft(
+        bookId: 'ספר|user',
+        pdfDocumentId: movedAnchor.documentId,
+        pdfDocumentIds: pdfPersonalNoteDocumentIds(moved),
+      ))?.contentPlain,
+      'טיוטת ספר מיובא',
     );
   });
 }

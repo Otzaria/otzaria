@@ -32,6 +32,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:xml/xml.dart';
+import '../test_helpers/capture_file_saves.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -163,12 +164,10 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final picker = _ExportPicker();
-    final previousPicker = FilePickerPlatform.instance;
     final previousOwner = DialogOwner.hwnd();
-    FilePickerPlatform.instance = picker;
+    captureFileSaves(picker, (bytes) => picker.bytes = bytes);
     DialogOwner.mainWindowHwnd = 7;
     addTearDown(() {
-      FilePickerPlatform.instance = previousPicker;
       DialogOwner.mainWindowHwnd = previousOwner;
     });
     // Normal PDFs can borrow the text edition's ID; this cannot identify a PDF

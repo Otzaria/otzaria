@@ -34,6 +34,7 @@ import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/capture_file_saves.dart';
 
 class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
@@ -254,6 +255,45 @@ Future<PersonalNotesBloc> _mount(
   );
   await _pump(tester);
   return notesBloc;
+}
+
+class _MutationRepository extends _Repository {
+  _MutationRepository(super.notes);
+  final pendingWrite = Completer<void>();
+  final targets = <({String bookId, String noteId, int? line})>[];
+
+  Future<List<PersonalNote>> _write(
+    String bookId,
+    String noteId,
+    int? line,
+  ) async {
+    targets.add((bookId: bookId, noteId: noteId, line: line));
+    await pendingWrite.future;
+    notes[bookId] = [
+      for (final note in notes[bookId] ?? <PersonalNote>[])
+        if (note.id != noteId)
+          note
+        else if (line != null)
+          note.copyWith(lineNumber: line, status: PersonalNoteStatus.located),
+    ];
+    PersonalNotesChanges.notify(bookId);
+    return notes[bookId]!;
+  }
+
+  @override
+  Future<List<PersonalNote>> deleteNote({
+    required String bookId,
+    required String noteId,
+  }) => _write(bookId, noteId, null);
+
+  @override
+  Future<List<PersonalNote>> repositionNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) => _write(bookId, noteId, lineNumber);
 }
 
 void main() {
@@ -584,12 +624,10 @@ void main() {
         'ספר ב': [noteB],
       });
       final picker = _ExportPicker();
-      final previousPicker = FilePickerPlatform.instance;
       final previousOwner = DialogOwner.hwnd();
-      FilePickerPlatform.instance = picker;
+      captureFileSaves(picker, (bytes) => picker.bytes = bytes);
       DialogOwner.mainWindowHwnd = 7;
       addTearDown(() {
-        FilePickerPlatform.instance = previousPicker;
         DialogOwner.mainWindowHwnd = previousOwner;
       });
       await _mount(tester, repository);
@@ -771,4 +809,63 @@ void main() {
       await tester.pump();
     },
   );
+  for (final reposition in [false, true]) {
+    for (final fail in [false, true]) {
+      testWidgets(
+        'manager ${reposition ? "repositions" : "deletes"} only after confirmed write (failure: $fail)',
+        (tester) async {
+          var note = _note('ספר א', 'תוכן פעולת מנהל');
+          if (reposition) {
+            note = note.copyWith(
+              clearLineNumber: true,
+              status: PersonalNoteStatus.missing,
+            );
+          }
+          final repository = _MutationRepository({
+            'ספר א': [note],
+          });
+          final reader = await _mount(tester, repository);
+          await tester.pumpAndSettle();
+          expect(reader.state.bookId, isNull);
+          await tester.tap(find.byTooltip(reposition ? 'מיקום מחדש' : 'מחיקה'));
+          await tester.pumpAndSettle();
+          if (reposition) {
+            await tester.enterText(find.byType(EditableText).last, '3');
+          }
+          await tester.tap(find.text(reposition ? 'שמור' : 'מחק'));
+          await _pump(tester);
+          expect(repository.targets, [
+            (bookId: note.bookId, noteId: note.id, line: reposition ? 3 : null),
+          ]);
+          final success = reposition
+              ? NotesMessages.noteMovedToLine(3)
+              : NotesMessages.noteDeleted;
+          expect(find.text(success), findsNothing);
+          expect(repository.notes[note.bookId], [note]);
+          reader.add(const LoadPersonalNotes('ספר קורא אחר', categoryId: 91));
+          await _pump(tester);
+          if (fail) {
+            repository.pendingWrite.completeError(StateError('כתיבה נדחתה'));
+          } else {
+            repository.pendingWrite.complete();
+          }
+          await tester.pumpAndSettle();
+          expect(reader.state.bookId, 'ספר קורא אחר');
+          if (fail) {
+            expect(repository.notes[note.bookId], [note]);
+            expect(find.text(success), findsNothing);
+            expect(find.textContaining('כתיבה נדחתה'), findsOneWidget);
+          } else {
+            expect(find.text(success), findsOneWidget);
+            if (reposition) {
+              expect(repository.notes[note.bookId]!.single.lineNumber, 3);
+            } else {
+              expect(repository.notes[note.bookId], isEmpty);
+            }
+          }
+          await tester.pump(const Duration(seconds: 10));
+        },
+      );
+    }
+  }
 }

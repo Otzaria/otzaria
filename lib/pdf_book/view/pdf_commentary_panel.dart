@@ -2009,6 +2009,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       categoryId: widget.tab.book.categoryId,
       isPdf: true,
       pdfDocumentId: documentId,
+      pdfDocumentIds: pdfPersonalNoteDocumentIds(widget.tab.book),
       includeUnidentifiedPdfAnchors:
           uniquePdf != null &&
           pdfPersonalNoteDocumentId(uniquePdf) == documentId,

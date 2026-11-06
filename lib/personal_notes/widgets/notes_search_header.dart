@@ -17,6 +17,7 @@ class NotesSearchHeader extends StatefulWidget {
   final List<int> visibleLineIndices;
   final List<int>? visiblePdfPages;
   final String? pdfDocumentId;
+  final Set<String> pdfDocumentIds;
   final bool includeUnidentifiedPdfAnchors;
 
   const NotesSearchHeader({
@@ -27,6 +28,7 @@ class NotesSearchHeader extends StatefulWidget {
     required this.visibleLineIndices,
     this.visiblePdfPages,
     this.pdfDocumentId,
+    this.pdfDocumentIds = const {},
     this.includeUnidentifiedPdfAnchors = false,
   });
 
@@ -66,6 +68,7 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
           visibleLineIndices: const [],
           isPdf: widget.isPdf,
           pdfDocumentId: widget.pdfDocumentId,
+          pdfDocumentIds: widget.pdfDocumentIds,
           includeUnidentifiedPdfAnchors: widget.includeUnidentifiedPdfAnchors,
         );
         final totalNotes =
@@ -79,6 +82,7 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
           isPdf: widget.isPdf,
           visiblePdfPages: widget.visiblePdfPages,
           pdfDocumentId: widget.pdfDocumentId,
+          pdfDocumentIds: widget.pdfDocumentIds,
           includeUnidentifiedPdfAnchors: widget.includeUnidentifiedPdfAnchors,
         );
         final visibleNotes =

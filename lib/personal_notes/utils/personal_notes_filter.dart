@@ -19,6 +19,7 @@ PersonalNotesFilterResult filterPersonalNotes({
   bool isPdf = false,
   List<int>? visiblePdfPages,
   String? pdfDocumentId,
+  Set<String> pdfDocumentIds = const {},
   bool includeUnidentifiedPdfAnchors = false,
 }) {
   bool included(PersonalNote note) {
@@ -26,7 +27,8 @@ PersonalNotesFilterResult filterPersonalNotes({
     if (anchor == null) return true;
     if (!isPdf) return false;
     if (anchor.documentId == null) return includeUnidentifiedPdfAnchors;
-    return anchor.documentId == pdfDocumentId;
+    return anchor.documentId == pdfDocumentId ||
+        pdfDocumentIds.contains(anchor.documentId);
   }
 
   var filteredLocated = locatedNotes.where(included).toList();

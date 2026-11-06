@@ -668,6 +668,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       PersonalNotesRepository();
   StreamSubscription<String>? _personalNotesSubscription;
   List<PersonalNote> _pdfPointNotes = const [];
+  late final _pdfNoteDocumentIds = pdfPersonalNoteDocumentIds(widget.tab.book);
   int _pdfNotesLoadGeneration = 0;
   int _pdfNoteNavigationGeneration = 0;
   int _pdfDocumentSession = 0;
@@ -6091,11 +6092,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   bool _personalNoteMatchesDocument(PdfNoteAnchor anchor) =>
-      pdfPersonalNoteAnchorMatchesBook(
-        anchor,
-        widget.tab.book,
-        library: context.read<LibraryBloc?>()?.state.library,
-      );
+      anchor.documentId != null
+      ? _pdfNoteDocumentIds.contains(anchor.documentId)
+      : pdfPersonalNoteAnchorMatchesBook(
+          anchor,
+          widget.tab.book,
+          library: context.read<LibraryBloc?>()?.state.library,
+        );
 
   Future<void> _handleAddNotePress(
     BuildContext context, {

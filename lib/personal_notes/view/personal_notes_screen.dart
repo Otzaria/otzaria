@@ -13,8 +13,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
-import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/models/personal_notes_sort_order.dart';
@@ -1518,13 +1516,12 @@ class _PersonalNotesManagerScreenState
 
     if (shouldDelete == true) {
       if (!mounted) return;
-      context.read<PersonalNotesBloc>().add(
-        DeletePersonalNote(
-          bookId: note.bookId,
-          noteId: note.id,
-        ),
-      );
-      UiSnack.show(NotesMessages.noteDeleted);
+      try {
+        await _repository.deleteNote(bookId: note.bookId, noteId: note.id);
+        if (mounted) UiSnack.show(NotesMessages.noteDeleted);
+      } catch (error) {
+        if (mounted) UiSnack.showError(NotesMessages.noteDeleteFailed(error));
+      }
     }
   }
 
@@ -1548,14 +1545,18 @@ class _PersonalNotesManagerScreenState
 
     if (newLine != null) {
       if (!mounted) return;
-      context.read<PersonalNotesBloc>().add(
-        RepositionPersonalNote(
+      try {
+        await _repository.repositionNote(
           bookId: note.bookId,
           noteId: note.id,
           lineNumber: newLine,
-        ),
-      );
-      UiSnack.show(NotesMessages.noteMovedToLine(newLine));
+        );
+        if (mounted) UiSnack.show(NotesMessages.noteMovedToLine(newLine));
+      } catch (error) {
+        if (mounted) {
+          UiSnack.showError(NotesMessages.noteRepositionFailed(error));
+        }
+      }
     }
   }
 

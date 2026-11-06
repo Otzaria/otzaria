@@ -29,6 +29,7 @@ import 'package:xml/xml.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/capture_file_saves.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -76,7 +77,7 @@ Future<String> _exportWord(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final picker = _CapturingFilePicker();
-  FilePickerPlatform.instance = picker;
+  captureFileSaves(picker, (bytes) => picker.bytes = bytes);
   final settingsBloc = _MockSettingsBloc();
   whenListen(
     settingsBloc,

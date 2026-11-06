@@ -214,6 +214,7 @@ class PersonalNoteDraftService {
     int? categoryId,
     bool includePdfAnchors = true,
     String? pdfDocumentId,
+    Set<String> pdfDocumentIds = const {},
     bool includeUnidentifiedPdfAnchors = true,
   }) async {
     final prefix = _bookPrefix(bookId, categoryId: categoryId);
@@ -237,7 +238,8 @@ class PersonalNoteDraftService {
         if (!includePdfAnchors) continue;
         if (anchor.documentId == null) {
           if (!includeUnidentifiedPdfAnchors) continue;
-        } else if (anchor.documentId != pdfDocumentId) {
+        } else if (anchor.documentId != pdfDocumentId &&
+            !pdfDocumentIds.contains(anchor.documentId)) {
           continue;
         }
       }

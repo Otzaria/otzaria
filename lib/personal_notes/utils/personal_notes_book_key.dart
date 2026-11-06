@@ -1,3 +1,7 @@
+import 'package:otzaria/core/app_paths.dart';
+import 'package:path/path.dart' as p;
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -99,12 +103,56 @@ TextBook? findTextBookForPersonalNotesKey(Library library, String key) {
   return document?.toTextBook();
 }
 
-/// מזהה מסמך בתוך מקורו. קובץ שאינו רשומת קטלוג מזוהה לפי נתיבו, כדי ששתי
-/// מהדורות באותו שם בתיקיות שונות לא יקבלו זו את הערות הנקודה של זו.
+/// מזהה PDF נייד: מזהה קטלוג יציב, או נתיב יחסית לשורש הספרייה/הנתונים.
+/// קובץ מחוץ לספרייה נשאר מזוהה לפי נתיבו המוחלט.
 String pdfPersonalNoteDocumentId(PdfBook book) {
-  return '${book.source.wireKey}|'
-      '${Uri.encodeComponent(BookIdentity.indexedFilePath(book))}';
+  if ((book.externalLibraryId ?? '').isNotEmpty ||
+      (book.source.isAttached && book.id != null)) {
+    return _legacyPdfDocumentId(book);
+  }
+  final libraryRoot = Settings.isInitialized
+      ? Settings.getValue<String>(SettingsRepository.keyLibraryPath)
+      : null;
+  ({String scope, String path, int depth})? nearest;
+  for (final (scope, root) in [
+    ('library', libraryRoot),
+    ('data', AppPaths.cachedDataRootPath),
+  ]) {
+    if (root == null || root.isEmpty) continue;
+    final paths = p.Context(
+      style: p.windows.isAbsolute(root) && !p.windows.isRootRelative(root)
+          ? p.Style.windows
+          : p.Style.posix,
+    );
+    if (!paths.isAbsolute(root) ||
+        !paths.isAbsolute(book.path) ||
+        !paths.isWithin(root, book.path)) {
+      continue;
+    }
+    final segments = paths.split(paths.relative(book.path, from: root));
+    // השורש הקרוב הוא בעל הקובץ, גם כששורש הספרייה ושורש הנתונים מקוננים.
+    if (nearest == null || segments.length < nearest.depth) {
+      nearest = (
+        scope: scope,
+        path: segments.join('/'),
+        depth: segments.length,
+      );
+    }
+  }
+  if (nearest != null) {
+    return '${book.source.wireKey}|v2:${nearest.scope}:${Uri.encodeComponent(nearest.path)}';
+  }
+  return _legacyPdfDocumentId(book);
 }
+
+String _legacyPdfDocumentId(PdfBook book) =>
+    '${book.source.wireKey}|${Uri.encodeComponent(BookIdentity.indexedFilePath(book))}';
+
+/// זהויות קודמות מתקבלות רק בנתיב הנוכחי, בלי לנחש מהדורה לפי שם קובץ.
+Set<String> pdfPersonalNoteDocumentIds(PdfBook book) => {
+  pdfPersonalNoteDocumentId(book),
+  _legacyPdfDocumentId(book),
+};
 
 /// מהדורת ה-PDF מאותו מקור. בלי מזהה מסמך מותר להסיק רק התאמה יחידה.
 PdfBook? findPdfBookForPersonalNotesKey(
@@ -120,7 +168,8 @@ PdfBook? findPdfBookForPersonalNotesKey(
     parsed.source,
   ).whereType<PdfBook>()) {
     final identity = pdfPersonalNoteDocumentId(book);
-    if (documentId == null || documentId == identity) {
+    if (documentId == null ||
+        (documentId == identity || documentId == _legacyPdfDocumentId(book))) {
       byIdentity.putIfAbsent(identity, () => book);
     }
   }
@@ -132,9 +181,11 @@ bool pdfPersonalNoteAnchorMatchesBook(
   PdfBook book, {
   Library? library,
 }) {
-  final identity = pdfPersonalNoteDocumentId(book);
-  if (anchor.documentId != null) return anchor.documentId == identity;
+  if (anchor.documentId != null) {
+    return pdfPersonalNoteDocumentIds(book).contains(anchor.documentId);
+  }
   if (library == null) return false;
+  final identity = pdfPersonalNoteDocumentId(book);
   final unique = findPdfBookForPersonalNotesKey(
     library,
     personalNotesBookKey(book),

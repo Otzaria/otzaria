@@ -13,6 +13,7 @@ abstract class NotesMessages {
   static const String noteMovedToDifferentBook =
       'ההערה הועברה לספר אחר. יש לפתוח אותה מחדש לפני שמירה';
   static const String noteDeleted = 'ההערה נמחקה';
+  static String noteDeleteFailed(Object error) => 'מחיקת ההערה נכשלה: $error';
   static const String noteHasNoLocation = 'להערה הזו אין מיקום';
   static const String choosePdfNotePoint = 'לחץ על הנקודה הרצויה בעמוד להערה';
   static const String pdfNotePointUnavailable =

@@ -44,7 +44,8 @@ String? personalNoteSourceLink(
       return null;
     }
     final documentId = note.pdfAnchor?.documentId;
-    if (documentId != null && documentId != targetDocument) {
+    if (documentId != null &&
+        !pdfPersonalNoteDocumentIds(book).contains(documentId)) {
       return null;
     }
     return buildPdfPageLink(

@@ -46,6 +46,7 @@ class PersonalNotesSidebar extends StatefulWidget {
   final List<int>? visibleLineIndices;
   final List<int>? visiblePdfPages;
   final String? pdfDocumentId;
+  final Set<String> pdfDocumentIds;
   final bool includeUnidentifiedPdfAnchors;
   final int? focusLineNumber;
   final Future<void> Function(PersonalNote)? onReanchorNote;
@@ -67,6 +68,7 @@ class PersonalNotesSidebar extends StatefulWidget {
     this.visibleLineIndices,
     this.visiblePdfPages,
     this.pdfDocumentId,
+    this.pdfDocumentIds = const {},
     this.includeUnidentifiedPdfAnchors = false,
     this.focusLineNumber,
     this.onReanchorNote,
@@ -159,7 +161,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (oldWidget.bookId != widget.bookId ||
         oldWidget.categoryId != widget.categoryId ||
         oldWidget.isPdf != widget.isPdf ||
-        oldWidget.pdfDocumentId != widget.pdfDocumentId) {
+        oldWidget.pdfDocumentId != widget.pdfDocumentId ||
+        !setEquals(oldWidget.pdfDocumentIds, widget.pdfDocumentIds)) {
       context.read<PersonalNotesBloc>().add(const CancelCreatingPersonalNote());
       _loadTarget();
       _restorePendingNewNoteDraftIfNeeded();
@@ -204,6 +207,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final bookId = widget.bookId;
     final categoryId = widget.categoryId;
     final pdfDocumentId = widget.pdfDocumentId;
+    final pdfDocumentIds = widget.pdfDocumentIds;
     final includeUnidentifiedPdfAnchors = widget.includeUnidentifiedPdfAnchors;
     final isPdf = widget.isPdf;
     final draft = await _draftService.loadLatestNewNoteDraft(
@@ -211,12 +215,14 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       categoryId: categoryId,
       includePdfAnchors: isPdf,
       pdfDocumentId: pdfDocumentId,
+      pdfDocumentIds: pdfDocumentIds,
       includeUnidentifiedPdfAnchors: includeUnidentifiedPdfAnchors,
     );
     if (!mounted ||
         widget.bookId != bookId ||
         widget.categoryId != categoryId ||
         widget.pdfDocumentId != pdfDocumentId ||
+        !setEquals(widget.pdfDocumentIds, pdfDocumentIds) ||
         widget.includeUnidentifiedPdfAnchors != includeUnidentifiedPdfAnchors ||
         widget.isPdf != isPdf ||
         draft == null ||
@@ -327,6 +333,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                 visibleLineIndices: visibleLineIndices,
                 visiblePdfPages: widget.visiblePdfPages,
                 pdfDocumentId: widget.pdfDocumentId,
+                pdfDocumentIds: widget.pdfDocumentIds,
                 includeUnidentifiedPdfAnchors:
                     widget.includeUnidentifiedPdfAnchors,
               ),
@@ -482,6 +489,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       isPdf: widget.isPdf,
       visiblePdfPages: widget.visiblePdfPages,
       pdfDocumentId: widget.pdfDocumentId,
+      pdfDocumentIds: widget.pdfDocumentIds,
       includeUnidentifiedPdfAnchors: widget.includeUnidentifiedPdfAnchors,
     );
     // רשימה משותפת לכל הכרטיסים: העתקה לכל כרטיס ריבועית במספר ההערות.
@@ -752,7 +760,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (anchor == null) return true;
     if (!widget.isPdf) return false;
     if (anchor.documentId == null) return widget.includeUnidentifiedPdfAnchors;
-    return anchor.documentId == widget.pdfDocumentId;
+    return anchor.documentId == widget.pdfDocumentId ||
+        widget.pdfDocumentIds.contains(anchor.documentId);
   }
 
   Future<void> _saveInline(
