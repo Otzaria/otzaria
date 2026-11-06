@@ -58,8 +58,19 @@ Future<void> main() async {
     }
   });
 
+  var queryOrdinal = 0;
+  setUp(() {
+    queryOrdinal = 0;
+  });
+
   Future<List<int>> segments(SearchEngineRequest request) async {
+    final ordinal = ++queryOrdinal;
+    final description =
+        'query=$ordinal searchMode=${request.searchMode.name} '
+        'anyOrder=${request.anyOrder} distance=${request.distance}';
+    printOnFailure('searchTexts start: $description');
     final results = await repository.searchTexts(request);
+    printOnFailure('searchTexts end: $description');
     return results.map((result) => result.segment.toInt()).toList()..sort();
   }
 

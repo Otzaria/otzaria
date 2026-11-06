@@ -10,10 +10,8 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
-import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
@@ -335,54 +333,31 @@ void main() {
     verifyNever(() => bloc.add(any(that: isA<UpdateFontSize>())));
   });
 
-  test('TextBookBloc מחיל UpdateFontSize על מצב טעון', () async {
-    final book = TextBook(title: 'ספר בדיקה');
-    final bloc = TextBookBloc(
-      repository: _FontSizeRepository(),
-      quickPreviewLoader:
-          (
-            String title,
-            int currentLine, {
-            int? categoryId,
-            String? fileType,
-            BookSource preferSource = BookSource.official,
-          }) async => null,
-      initialState: TextBookInitial.named(
-        book,
-        0,
-        false,
-        const [],
-        searchMode: SearchMode.exact,
-        showPageShapeView: false,
-      ),
-    );
-    addTearDown(bloc.close);
-
-    final loaded = bloc.stream
-        .where((state) => state is TextBookLoaded)
-        .cast<TextBookLoaded>()
-        .first;
-    bloc.add(
-      const LoadContent(
-        fontSize: 18,
-        showSplitView: false,
-        removeNikud: false,
-        loadCommentators: false,
-      ),
-    );
-    await loaded.timeout(const Duration(seconds: 5));
-
-    final updated = bloc.stream
-        .where((state) => state is TextBookLoaded)
-        .cast<TextBookLoaded>()
-        .firstWhere((state) => state.fontSize == 30);
-    bloc.add(const UpdateFontSize(30));
-
-    expect(
-      (await updated.timeout(const Duration(seconds: 5))).fontSize,
-      30,
-    );
-  });
+  late TextBookLoaded loadedFontSizeState;
+  blocTest<TextBookBloc, TextBookState>(
+    'TextBookBloc מחיל UpdateFontSize על מצב טעון',
+    build: () {
+      final book = TextBook(title: 'ספר בדיקה');
+      loadedFontSizeState = _loadedState(book, fontSize: 18).copyWith(
+        selectedIndex: 1,
+        visibleIndices: const [1],
+      );
+      return TextBookBloc(
+        repository: _MockTextBookRepository(),
+        initialState: TextBookInitial.named(
+          book,
+          0,
+          false,
+          const [],
+          searchMode: SearchMode.exact,
+          showPageShapeView: false,
+        ),
+      );
+    },
+    seed: () => loadedFontSizeState,
+    act: (bloc) => bloc.add(const UpdateFontSize(30)),
+    expect: () => [loadedFontSizeState.copyWith(fontSize: 30)],
+  );
 }
 
 TextBookLoaded _loadedState(
@@ -417,50 +392,7 @@ TextBookLoaded _loadedState(
 class _MockTextBookBloc extends MockBloc<TextBookEvent, TextBookState>
     implements TextBookBloc {}
 
-class _MockFileSystemData extends Mock implements FileSystemData {}
-
-class _FontSizeRepository extends TextBookRepository {
-  _FontSizeRepository() : super(fileSystem: _MockFileSystemData());
-
-  @override
-  Future<String> getBookContent(TextBook book) async {
-    return 'שורה א\nשורה ב\nשורה ג';
-  }
-
-  @override
-  Future<BookContentRange?> getBookContentRange(
-    TextBook book, {
-    required int startLine,
-    required int endLine,
-  }) async {
-    return const BookContentRange(
-      startLine: 0,
-      endLine: 2,
-      totalLines: 3,
-      lines: ['שורה א', 'שורה ב', 'שורה ג'],
-    );
-  }
-
-  @override
-  Future<List<TocEntry>> getTableOfContents(TextBook book) async {
-    return const [];
-  }
-
-  @override
-  Future<List<Link>> getBookLinksInRange(
-    TextBook book, {
-    required int startIndex,
-    required int endIndex,
-    Iterable<String>? targetBookTitles,
-  }) async {
-    return const [];
-  }
-
-  @override
-  Future<List<String>> getAvailableCommentators(TextBook book) async {
-    return const [];
-  }
-}
+class _MockTextBookRepository extends Mock implements TextBookRepository {}
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {

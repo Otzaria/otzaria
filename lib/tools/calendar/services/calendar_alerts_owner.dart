@@ -826,7 +826,7 @@ class CalendarAlertsOwner {
     _dailyTimer?.cancel();
     _dailyTimer = null;
     if (!active) return;
-    final now = DateTime.now();
+    final now = _now();
     final next = DateTime(now.year, now.month, now.day + 1, 0, 5);
     _dailyTimer = Timer(next.difference(now), _requestReconcile);
   }
