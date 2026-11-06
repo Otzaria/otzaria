@@ -20,6 +20,18 @@ Category _category(
   parent: null,
 );
 
+class _CountingBook extends TextBook {
+  _CountingBook() : super(title: 'ספר אחר', id: 1);
+
+  int titleReads = 0;
+
+  @override
+  String get title {
+    titleReads++;
+    return super.title;
+  }
+}
+
 class _CountingCategory extends Category {
   _CountingCategory()
     : super(
@@ -271,6 +283,23 @@ void main() {
 
       expect(parsed.categoryFound, isFalse);
       expect(category.pathReads, 0);
+    });
+
+    test('fallback אינו קורא ומנרמל שוב כותרות שכבר נסרקו', () {
+      final book = _CountingBook();
+      final library = Library(
+        categories: [
+          _category('תורה', [book]),
+        ],
+      );
+
+      for (final name in ['בראשיט', 'זכ']) {
+        book.titleReads = 0;
+        final parsed = parseCategoryQuery('מילה@$name', library);
+
+        expect(parsed.categoryFound, isFalse);
+        expect(book.titleReads, 1, reason: name);
+      }
     });
 
     for (final exactFirst in [true, false]) {
