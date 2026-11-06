@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
+import 'package:flutter_quill/flutter_quill.dart'
+    show FlutterQuillLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -32,8 +33,10 @@ class _PendingRepository extends PersonalNotesRepository {
   final targets = <({String bookId, String noteId, int lineNumber})>[];
 
   @override
-  Future<List<PersonalNote>> loadNotes(String bookId, {int? categoryId}) async =>
-      [note];
+  Future<List<PersonalNote>> loadNotes(
+    String bookId, {
+    int? categoryId,
+  }) async => [note];
 
   @override
   Future<List<PersonalNote>> loadStoredNotes(String bookId) async => [note];
@@ -110,7 +113,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.targets, [
-      (bookId: repository.note.bookId, noteId: repository.note.id, lineNumber: 3),
+      (
+        bookId: repository.note.bookId,
+        noteId: repository.note.id,
+        lineNumber: 3,
+      ),
     ]);
     expect(announcedBeforeWrite, isFalse);
     expect(find.textContaining('שיוך נדחה'), findsOneWidget);

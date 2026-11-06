@@ -18,18 +18,15 @@
     "lib/personal_notes/services/personal_notes_service.dart": "c82e7e07c29283e544c18999f8f2059bd47125b8c59d303f09af06f0361b899b",
     "lib/personal_notes/view/personal_notes_screen.dart": "09699715d0df9b6ac5126958058d47d9eed3a519059d9c5b9796a9bf9b82af78",
     "lib/personal_notes/widgets/personal_notes_sidebar.dart": "11611a03ba99730eab85f1525ee25d8580fbd6479850620b4a0e96a18c18ea2f",
-    "test/personal_notes/personal_notes_manager_loading_test.dart": "d8b289adf99ecb969ff64082b29d38af3daae16310d32a2e76574fb539d114d0",
+    "test/personal_notes/personal_notes_manager_loading_test.dart": "35ad554b164203b8ceb8d7395444450c58d33281067dde4ec80822b988a491cc",
     "test/personal_notes/personal_notes_reposition_confirmation_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
     "test/personal_notes/personal_notes_repository_delete_test.dart": "84ab65ac31f41047ea1774262db8bd0f54d806d66b4f2dac43d53f74706292d2",
     "test/personal_notes/personal_notes_write_confirmation_test.dart": "3b07f15eb099548a7f9ea0b16f44f28f353fc356a56413455e940d7502727a20",
-    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "06e8ee37ae6ee9fa11e8b1398038eaf16c2510a6719c7717d7c175a0fbc1faeb"
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a"
   },
   "test_targets": [
-    "test/personal_notes",
-    "test/pdf_book/pdf_personal_note_viewer_test.dart",
-    "test/pdf_book/pdf_personal_note_anchor_test.dart",
-    "test/pdf_book/pdf_hand_mode_test.dart",
-    "test/pdf_book/pdf_book_screen_test.dart"
+    "test/personal_notes/personal_notes_manager_loading_test.dart",
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
   ],
   "red_test_names": [
     "reposition refuses an already deleted note instead of reporting success",
@@ -37,5 +34,6 @@
     "manager acknowledges delete without a post-write list read",
     "manager acknowledges reposition without a post-write list read",
     "sidebar does not announce a failed reposition as successful"
-  ]
+  ],
+  "scope_reason": "Only test harness, lint and formatting changed; 618 tests passed on the identical product sources in run 42214896020. Full relevant suite will run again on the combined issue 4407 candidate."
 }

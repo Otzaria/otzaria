@@ -1,9 +1,9 @@
 {
   "reviewer": "/root/notes_mutation_independent_qa",
-  "reviewed_at_utc": "2026-11-06T12:03:41.887365+00:00",
+  "reviewed_at_utc": "2026-11-06T12:27:30.148156+00:00",
   "status": "STATIC_PASS_RUNTIME_PENDING",
   "base_sha": "c5d377af29ddb62f5bedc95a59fa60f7c819ef88",
-  "target_sha": null,
+  "target_sha": "9c4bbff789dc368c6afc57547f25b21dd14a838e",
   "scope": "אישור כתיבה למחיקה ולשיוך הערות במנהל וב־PDF; הסרת הודעת הצלחה מוקדמת בסרגל; אימות שיוך להערה קיימת באותו ספר",
   "product_files": [
     "lib/pdf_book/view/pdf_book_screen.dart",
@@ -23,11 +23,11 @@
     "lib/personal_notes/services/personal_notes_service.dart": "c82e7e07c29283e544c18999f8f2059bd47125b8c59d303f09af06f0361b899b",
     "lib/personal_notes/view/personal_notes_screen.dart": "09699715d0df9b6ac5126958058d47d9eed3a519059d9c5b9796a9bf9b82af78",
     "lib/personal_notes/widgets/personal_notes_sidebar.dart": "11611a03ba99730eab85f1525ee25d8580fbd6479850620b4a0e96a18c18ea2f",
-    "test/personal_notes/personal_notes_manager_loading_test.dart": "d8b289adf99ecb969ff64082b29d38af3daae16310d32a2e76574fb539d114d0",
+    "test/personal_notes/personal_notes_manager_loading_test.dart": "35ad554b164203b8ceb8d7395444450c58d33281067dde4ec80822b988a491cc",
     "test/personal_notes/personal_notes_reposition_confirmation_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
     "test/personal_notes/personal_notes_repository_delete_test.dart": "84ab65ac31f41047ea1774262db8bd0f54d806d66b4f2dac43d53f74706292d2",
     "test/personal_notes/personal_notes_write_confirmation_test.dart": "3b07f15eb099548a7f9ea0b16f44f28f353fc356a56413455e940d7502727a20",
-    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "06e8ee37ae6ee9fa11e8b1398038eaf16c2510a6719c7717d7c175a0fbc1faeb"
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a"
   },
   "open_findings": [],
   "resolved_review_items": [
@@ -76,6 +76,14 @@
       "evidence": [
         "test/personal_notes/personal_notes_manager_loading_test.dart"
       ]
+    },
+    {
+      "id": "QA-H1",
+      "summary": "CI1 אימת timeout ב־harness בלבד. candidate2 מחליף await ל־Completer בלולאה חסומה של real I/O drain ו־pump; assertions נותרו זהים. נדרש אישור ריצה מחדש."
+    },
+    {
+      "id": "QA-L1",
+      "summary": "הבנאי משתמש ב־super parameters, וקובץ בדיקת הסרגל הועתק מפלט Dart formatter. שום קובץ מוצר לא השתנה מאז CI1."
     }
   ],
   "preservation_checks": [
@@ -110,19 +118,21 @@
       "locked dependency resolution",
       "format without changing product",
       "full flutter analyze",
-      "all personal_notes plus four PDF tests",
       "five named RED assertion failures, not compiler errors",
       "completed RED and GREEN streams",
       "five GREEN successes with no skips",
       "final exact clean HEAD",
-      "artifact SHA256SUMS"
+      "artifact SHA256SUMS",
+      "CI2 reruns only the two corrected test files, with all five identical product files verified by SHA",
+      "analyze and tests use --no-pub after locked dependency resolution",
+      "dirty tracked diff saved in artifacts"
     ],
     "reviewed_bundle_sha256": {
-      "manager_confirmation_red_test.dart": "131c35e180577b88189fd7f7b66847bd911b226e01e13c0d4ecdcc6aefa79c56",
-      "manifest.json": "6f5ca917d48d4ccc72e704784b56b6a82a1c6c2d96e7daed4d9311a154d922f9",
+      "manager_confirmation_red_test.dart": "04e29f6c8797597ba5bd5a9cbb64fde134021247253173ad46073475d3805c2d",
+      "manifest.json": "065669912e3f3082879724e63bf3eb3bbd018254f5ec02126a7f743a515c587a",
       "mutation_ack_red_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
-      "run_mutation_qa.py": "d44396be1771d4d4756947eec62f72e44a1e4f5a7ec12bd80bf097c419af66d8",
-      "sidebar_confirmation_red_test.dart": "06e8ee37ae6ee9fa11e8b1398038eaf16c2510a6719c7717d7c175a0fbc1faeb",
+      "run_mutation_qa.py": "15125d1d45a368d2370ad591cace11671d5f6da0e04059c8a8dd6ce7ece8a065",
+      "sidebar_confirmation_red_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a",
       "workflow.yml": "59ed95662b4e1c8e2edabe82607807af1af4fee6b07d7df7709db4894d990d36"
     },
     "red_test_names": [
@@ -133,12 +143,10 @@
       "sidebar does not announce a failed reposition as successful"
     ],
     "test_targets": [
-      "test/personal_notes",
-      "test/pdf_book/pdf_personal_note_viewer_test.dart",
-      "test/pdf_book/pdf_personal_note_anchor_test.dart",
-      "test/pdf_book/pdf_hand_mode_test.dart",
-      "test/pdf_book/pdf_book_screen_test.dart"
-    ]
+      "test/personal_notes/personal_notes_manager_loading_test.dart",
+      "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
+    ],
+    "scope_reason": "Only test harness, lint and formatting changed; 618 tests passed on the identical product sources in run 42214896020. Full relevant suite will run again on the combined issue 4407 candidate."
   },
   "open_pr_overlaps": [
     {
@@ -148,7 +156,12 @@
         "lib/personal_notes/view/personal_notes_screen.dart",
         "lib/personal_notes/widgets/personal_notes_sidebar.dart"
       ],
-      "merge_check": "pending root verification"
+      "merge_check": "אין קובצי conflict חדשים; לשני הענפים כבר יש conflicts מול dev",
+      "baseline_conflict_file_count": 30,
+      "candidate_conflict_file_count": 30,
+      "new_conflict_files": [],
+      "mutation_calls_outside_conflicts": true,
+      "detail_report": "qa-independent/merge-mutation-calls.json"
     },
     {
       "pr": 3036,
@@ -156,11 +169,38 @@
         "lib/pdf_book/view/pdf_book_screen.dart",
         "lib/personal_notes/widgets/personal_notes_sidebar.dart"
       ],
-      "merge_check": "pending root verification"
+      "merge_check": "אין קובצי conflict חדשים; לשני הענפים כבר יש conflicts מול dev",
+      "baseline_conflict_file_count": 18,
+      "candidate_conflict_file_count": 18,
+      "new_conflict_files": [],
+      "mutation_calls_outside_conflicts": true,
+      "detail_report": "qa-independent/merge-mutation-calls.json"
     }
   ],
   "runtime_validation": {
-    "status": "NOT_RUN_BY_REVIEWER",
-    "note": "לא הופעל compiler מקומי; ממתין לדוחות CI על candidate SHA המדויק, ואז יתבצע אימות נפרד של התוצאות והכשלים."
-  }
+    "status": "CI2_PENDING",
+    "target_sha": "9c4bbff789dc368c6afc57547f25b21dd14a838e",
+    "note": "CI1 results were read independently from the GitHub job log. CI2 still must pass readiness, analyze, format, five RED assertions, five GREEN assertions and final clean checkout. Full relevant suite will run again on the combined #4407 candidate."
+  },
+  "previous_attempts": [
+    {
+      "target_sha": "70b7f7e17dabee7d6f17b94aacf9016159e332d8",
+      "run_id": 42214896020,
+      "job_id": 127882345509,
+      "conclusion": "FAIL",
+      "passed": 618,
+      "failed": 2,
+      "failed_tests": [
+        "manager acknowledges delete without a post-write list read",
+        "manager acknowledges reposition without a post-write list read"
+      ],
+      "failures": [
+        "FakeAsync/runAsync readiness timeout in the two new manager tests",
+        "use_super_parameters in the test repository constructor",
+        "one sidebar-test formatting change"
+      ],
+      "red_status": "Not accepted: manager tests contained timeout errors in addition to assertions",
+      "product_regressions_found": false
+    }
+  ]
 }

@@ -117,10 +117,10 @@ try:
             destination.parent.mkdir(parents=True, exist_ok=True)
             with destination.open('w') as stream:
                 subprocess.run(['dart', 'format', '--output=show', '--summary=none', name], cwd=repo, stdout=stream, check=True)
-    analyze_code = run('analyze', ['flutter', 'analyze'])
+    analyze_code = run('analyze', ['flutter', 'analyze', '--no-pub'])
     test_report = out / 'focused-tests.json'
     test_code = run('focused-tests', [
-        'flutter', 'test', '-j', '4', '--file-reporter', 'json:' + str(test_report),
+        'flutter', 'test', '--no-pub', '-j', '4', '--file-reporter', 'json:' + str(test_report),
         *manifest['test_targets'],
     ])
     if test_report.exists():
@@ -134,7 +134,7 @@ try:
     copy_red_fixtures()
     red_report = out / 'red-tests.json'
     red_code = run('red-tests', [
-        'flutter', 'test', '--file-reporter', 'json:' + str(red_report),
+        'flutter', 'test', '--no-pub', '--file-reporter', 'json:' + str(red_report),
         '--name', red_selection, *map(str, red_fixtures),
     ])
     if not red_report.exists():
@@ -154,7 +154,7 @@ try:
     copy_red_fixtures()
     green_report = out / 'green-tests.json'
     green_code = run('green-tests', [
-        'flutter', 'test', '--file-reporter', 'json:' + str(green_report),
+        'flutter', 'test', '--no-pub', '--file-reporter', 'json:' + str(green_report),
         '--name', red_selection, *map(str, red_fixtures),
     ])
     if green_report.exists():
@@ -173,6 +173,9 @@ except Exception as error:
     print('QA ERROR: ' + str(error), flush=True)
 finally:
     remove_red_fixtures()
+    tracked_diff = git('diff', '--binary')
+    if tracked_diff:
+        (out / 'working-tree-diff.patch').write_text(tracked_diff + '\n')
     subprocess.run(['git', 'checkout', '--detach', target], cwd=repo, check=False)
     (out / 'qa-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     sums = [hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + str(path.relative_to(out)) for path in sorted(out.rglob('*')) if path.is_file() and path.name != 'SHA256SUMS']

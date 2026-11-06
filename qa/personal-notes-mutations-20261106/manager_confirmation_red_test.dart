@@ -88,11 +88,7 @@ BookNotesInfo _book(String id) => BookNotesInfo(
 );
 
 class _Repository extends PersonalNotesRepository {
-  _Repository(
-    this.notes, {
-    PersonalNotesService? service,
-    FileSystemData? fileSystemData,
-  }) : super(service: service, fileSystemData: fileSystemData);
+  _Repository(this.notes, {super.service, super.fileSystemData});
 
   final Map<String, List<PersonalNote>> notes;
   bool delayLists = false;
@@ -897,13 +893,20 @@ void main() {
         if (reposition) {
           await tester.enterText(find.byType(EditableText).last, '3');
         }
-        await tester.runAsync(() async {
-          await tester.tap(find.text(reposition ? 'שמור' : 'מחק'));
-          await database.writeCompleted.future.timeout(
-            const Duration(seconds: 10),
+        await tester.tap(find.text(reposition ? 'שמור' : 'מחק'));
+        for (
+          var attempt = 0;
+          attempt < 1000 && !database.writeCompleted.isCompleted;
+          attempt++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
           );
-        });
-        await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        if (database.writeCompleted.isCompleted) {
+          await tester.pumpAndSettle();
+        }
 
         final success = reposition
             ? NotesMessages.noteMovedToLine(3)
