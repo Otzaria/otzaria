@@ -15,6 +15,7 @@ import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
@@ -206,9 +207,11 @@ void main() {
   )..createSync(recursive: true);
   final audit = _NetworkAudit(output);
   final previousOverrides = HttpOverrides.current;
+  final previousHitTestFatal = WidgetController.hitTestWarningShouldBeFatal;
 
   setUpAll(() {
     audit.guard();
+    WidgetController.hitTestWarningShouldBeFatal = true;
     HttpOverrides.global = audit;
     audit.save();
   });
@@ -217,6 +220,7 @@ void main() {
     for (final client in audit.clients) {
       client.close(force: true);
     }
+    WidgetController.hitTestWarningShouldBeFatal = previousHitTestFatal;
     HttpOverrides.global = previousOverrides;
   });
 
@@ -432,6 +436,12 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('app-report-save-draft')));
       await finishReportDialog(tester, dialog: dialog, reporting: reporting);
+      // Let the previous save confirmation expire naturally before resuming.
+      // UiSnack.showSuccess lasts 3 seconds, with a 400ms removal fallback.
+      expect(find.text(ReportMessages.appReportDraftSaved), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump();
+      expect(find.text(ReportMessages.appReportDraftSaved), findsNothing);
       final draft = (await reportIo(
         tester,
         () => ReportDraftStore.instance.list(),
@@ -458,8 +468,14 @@ void main() {
         (bloc!.state as AppReportEditing).images.single.bytes,
         image.bytes,
       );
+      expect(fieldText(tester, 'app-report-email'), 'qa@example.com');
+      expect(
+        bloc!.buildReport(bloc!.state as AppReportEditing).validate(),
+        isNull,
+      );
       final send = find.byKey(const ValueKey('app-report-send'));
       expect(tester.widget<ActionButton>(send).onPressed, isNotNull);
+      expect(send.hitTestable(), findsOneWidget);
       await tester.tap(send);
       await finishReportDialog(tester, dialog: dialog, reporting: reporting);
       final result = await reporting;
