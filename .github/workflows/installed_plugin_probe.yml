@@ -10,6 +10,7 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'lib/plugins/**'
@@ -88,10 +89,19 @@ jobs:
         run: |
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate passive Windows process exit evidence
+        if: matrix.platform == 'windows'
+        run: |
+          & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run actual installed plugin hosts and dispatcher
         run: |
+          if ('${{ matrix.platform }}' -eq 'windows') {
+            & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
+            exit $LASTEXITCODE
+          }
           flutter drive --profile -d ${{ matrix.platform }} --no-pub `
             --driver=test_driver/installed_plugin_resource_probe.dart `
             --target=integration_test/installed_plugin_resource_probe_test.dart `
