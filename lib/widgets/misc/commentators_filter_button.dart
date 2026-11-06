@@ -7,7 +7,6 @@ class CommentatorsFilterButton extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final BoxConstraints? constraints;
   final double? iconSize;
-  final double inactiveAlpha;
 
   const CommentatorsFilterButton({
     super.key,
@@ -16,7 +15,6 @@ class CommentatorsFilterButton extends StatelessWidget {
     this.padding = const EdgeInsets.all(8.0),
     this.constraints,
     this.iconSize,
-    this.inactiveAlpha = 0.6,
   });
 
   @override
@@ -28,7 +26,7 @@ class CommentatorsFilterButton extends StatelessWidget {
             ? Theme.of(context).colorScheme.primary
             : Theme.of(
                 context,
-              ).colorScheme.onSurface.withValues(alpha: inactiveAlpha),
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
         size: iconSize,
       ),
       tooltip: 'בחירת מפרשים',
