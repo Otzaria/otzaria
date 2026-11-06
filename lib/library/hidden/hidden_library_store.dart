@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -33,8 +32,8 @@ class HiddenLibraryStore {
   static int _visibilityRevision = 0;
   static bool _visibilityWorkFailed = false;
   static final Set<int> _visibilityWorkInFlight = {};
-  static final Queue<Future<void> Function()> _markerWrites = Queue();
-  static bool _markerWriting = false;
+  // תור נפרד: פעולה ב-[HiddenLibraryUpdateQueue.instance] ממתינה לכתיבות האלה.
+  static final _markerWrites = HiddenLibraryUpdateQueue();
 
   const HiddenLibraryStore();
 
@@ -67,31 +66,7 @@ class HiddenLibraryStore {
 
   int get visibilityRevision => _visibilityRevision;
 
-  Future<T> _serializeMarkerWrite<T>(Future<T> Function() action) {
-    final completer = Completer<T>();
-    _markerWrites.add(() async {
-      try {
-        completer.complete(await action());
-      } catch (error, stackTrace) {
-        completer.completeError(error, stackTrace);
-      } finally {
-        _runNextMarkerWrite();
-      }
-    });
-    if (!_markerWriting) _runNextMarkerWrite();
-    return completer.future;
-  }
-
-  static void _runNextMarkerWrite() {
-    if (_markerWrites.isEmpty) {
-      _markerWriting = false;
-      return;
-    }
-    _markerWriting = true;
-    unawaited(_markerWrites.removeFirst()());
-  }
-
-  Future<int> beginVisibilityIndexUpdate() => _serializeMarkerWrite(() async {
+  Future<int> beginVisibilityIndexUpdate() => _markerWrites.run(() async {
     final revision = ++_visibilityRevision;
     await Settings.setValue<bool>(pendingVisibilityIndexSetting, true);
     _visibilityWorkInFlight.add(revision);
@@ -99,7 +74,7 @@ class HiddenLibraryStore {
   });
 
   Future<void> completeVisibilityIndexUpdate(int revision, bool success) =>
-      _serializeMarkerWrite(() async {
+      _markerWrites.run(() async {
         if (!_visibilityWorkInFlight.remove(revision)) return;
         if (!success) _visibilityWorkFailed = true;
         if (success &&
@@ -110,15 +85,14 @@ class HiddenLibraryStore {
         }
       });
 
-  Future<void> resetRuntimeStateForAppRestart() =>
-      _serializeMarkerWrite(() async {
-        ++_visibilityRevision;
-        _visibilityWorkInFlight.clear();
-        _visibilityWorkFailed = false;
-      });
+  Future<void> resetRuntimeStateForAppRestart() => _markerWrites.run(() async {
+    ++_visibilityRevision;
+    _visibilityWorkInFlight.clear();
+    _visibilityWorkFailed = false;
+  });
 
   Future<void> clearPendingVisibilityIndex(int revision) =>
-      _serializeMarkerWrite(() async {
+      _markerWrites.run(() async {
         if (revision != _visibilityRevision ||
             _visibilityWorkInFlight.isNotEmpty) {
           return;
