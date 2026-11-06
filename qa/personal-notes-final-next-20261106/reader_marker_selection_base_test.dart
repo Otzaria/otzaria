@@ -227,19 +227,29 @@ void main() {
   WidgetTester tester,
   String word,
 ) {
+  final scanned = <String>[];
   final text = find.descendant(
     of: find.byType(SimpleTextViewer),
-    matching: find.byType(RichText),
+    matching: find.byWidgetPredicate((widget) => widget is RichText),
   );
   for (final element in text.evaluate()) {
     final paragraph = element.findRenderObject();
-    if (paragraph is! RenderParagraph) continue;
-    final start = paragraph.text.toPlainText().indexOf(word);
+    final types = '${element.widget.runtimeType}/${paragraph.runtimeType}';
+    if (paragraph is! RenderParagraph) {
+      scanned.add(types);
+      continue;
+    }
+    final plainText = paragraph.text.toPlainText();
+    scanned.add(
+      '$types/${paragraph.text.runtimeType}: '
+      '${plainText.replaceAll('\n', r'\n')}',
+    );
+    final start = plainText.indexOf(word);
     if (start < 0) continue;
     final boxes = paragraph.getBoxesForSelection(
       TextSelection(baseOffset: start, extentOffset: start + word.length),
     );
-    expect(boxes, isNotEmpty);
+    expect(boxes, isNotEmpty, reason: scanned.last);
     final first = boxes.first.toRect();
     final last = boxes.last.toRect();
     final startCaret = paragraph.getOffsetForCaret(
@@ -261,7 +271,10 @@ void main() {
       inside: paragraph.localToGlobal(first.center),
     );
   }
-  throw TestFailure('The reader did not render the requested word: $word');
+  throw TestFailure(
+    'The reader did not render the requested word: $word. '
+    'Scanned ${scanned.length} paragraphs:\n${scanned.take(4).join('\n')}',
+  );
 }
 
 class _NotesDatabase extends Fake implements PersonalNotesDatabase {
