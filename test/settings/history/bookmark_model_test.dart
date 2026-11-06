@@ -85,6 +85,35 @@ void main() {
     expect(restored.searchMode, SearchMode.fuzzy);
   });
 
+  test(
+    'search filters survive JSON and copy, including an empty selection',
+    () {
+      for (final filter in <List<String>?>[
+        null,
+        [],
+        ['/root/a'],
+      ]) {
+        final json = {
+          'ref': 'query',
+          'index': 0,
+          'book': {'title': 'query', 'type': 'TextBook'},
+          'isSearch': true,
+          'searchScopeFacets': ['/root'],
+          'searchFilterFacets': ?filter,
+        };
+        final bookmark = Bookmark.fromJson(json);
+        final restored = Bookmark.fromJson(bookmark.copyWith().toJson());
+        expect(restored.searchScopeFacets, ['/root']);
+        expect(restored.searchFilterFacets, filter);
+        expect(restored.historyKey, bookmark.historyKey);
+        expect(
+          restored.toJson().containsKey('searchFilterFacets'),
+          filter != null,
+        );
+      }
+    },
+  );
+
   test('Bookmark preserves search distance in json roundtrip', () {
     final bookmark = Bookmark(
       ref: 'query',

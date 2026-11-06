@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
@@ -6,12 +7,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -19,6 +25,8 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../helpers/memory_settings_cache.dart';
@@ -39,6 +47,14 @@ class _RecordingNavigationBloc
     implements NavigationBloc {
   @override
   void add(NavigationEvent event) {}
+}
+
+class _HistoryFileSystem implements FileSystemData {
+  @override
+  Future<Library> getLibrary() async => Library(categories: []);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Bookmark _searchBookmark(
@@ -69,6 +85,153 @@ Future<void> main() async {
   // בניית כותרת עשירה עם אפשרויות מפצלת מילים דרך המנוע; מדולג כשאין build.
   final engineReady = await tryInitSearchEngine();
   setUpAll(() => Settings.init(cacheProvider: MemorySettingsCache()));
+
+  group('שחזור תחום וסינון מההיסטוריה', () {
+    late Directory temp;
+    late TantivyDataProvider provider;
+    setUpAll(() async {
+      if (!engineReady) return;
+      FileSystemData.instance = _HistoryFileSystem();
+      temp = await Directory.systemTemp.createTemp('history-search-');
+      final engine = await SearchEngine.newInstance(path: temp.path);
+      // A tab closes with an unawaited cancellation request. Prepare its native
+      // handle in the real async zone, before any widget FakeAsync can own it.
+      await RustSearchEngineOperations.prepareCancellation(engine);
+      // Assign the test provider without first reading the production singleton,
+      // whose constructor starts loading real library/index sources.
+      provider = TantivyDataProvider.forTesting(Future.value(engine));
+      TantivyDataProvider.instance = provider;
+      await provider.engine;
+    });
+    setUp(() {
+      DataRepository.instance.library = Future.value(
+        Library(categories: []),
+      );
+    });
+    tearDownAll(() async {
+      if (!engineReady) return;
+      await provider.dispose();
+      DataRepository.instance.invalidateLibraryCache();
+      if (!Platform.isWindows) await temp.delete(recursive: true);
+    });
+
+    Future<void> pumpUntil(
+      WidgetTester tester,
+      bool Function() done,
+    ) async {
+      // Native replies need the real event loop; Bloc events and continuations
+      // belong to FakeAsync and must also be pumped. Awaiting close solely in
+      // runAsync leaves those queued continuations unable to finish.
+      for (var i = 0; i < 200 && !done(); i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+      expect(done(), isTrue, reason: 'The isolated search must finish');
+    }
+
+    for (final (scope, filter) in <(List<String>, List<String>?)>[
+      (['/scope'], null),
+      (['/scope'], []),
+      (['/scope'], ['/scope/רשבא']),
+      ([], null),
+    ]) {
+      final legacyEmptyScope = scope.isEmpty;
+      final restoredScope = legacyEmptyScope ? const ['/'] : scope;
+      final testName = legacyEmptyScope
+          ? 'פתיחת חיפוש ישן עם תחום ריק משחזרת את כל הספרייה'
+          : 'פתיחת חיפוש משחזרת את הסינון $filter בתוך התחום';
+      testWidgets(testName, (tester) async {
+        final history = MockHistoryBloc();
+        final tabs = _RecordingTabsBloc();
+        final navigation = _RecordingNavigationBloc();
+        SearchingTab? tab;
+        try {
+          whenListen(
+            history,
+            const Stream<HistoryState>.empty(),
+            initialState: HistoryLoaded([
+              Bookmark(
+                ref: 'ממון מזיק',
+                book: TextBook(title: 'ממון מזיק'),
+                index: 0,
+                isSearch: true,
+                searchScopeFacets: scope,
+                searchFilterFacets: filter,
+              ),
+            ]),
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: MultiBlocProvider(
+                  providers: [
+                    BlocProvider<HistoryBloc>.value(value: history),
+                    BlocProvider<TabsBloc>.value(value: tabs),
+                    BlocProvider<NavigationBloc>.value(value: navigation),
+                  ],
+                  child: const HistoryView(),
+                ),
+              ),
+            ),
+          );
+          if (legacyEmptyScope) {
+            expect(
+              find.text('ללא ספרים מסומנים'),
+              findsNothing,
+              reason: 'Legacy empty scope restores the whole library',
+            );
+            expect(find.textContaining('בקטגוריות:'), findsNothing);
+          } else {
+            expect(
+              find.text(
+                filter == null
+                    ? 'בקטגוריות: scope'
+                    : filter.isEmpty
+                    ? 'ללא ספרים מסומנים'
+                    : 'בקטגוריות: רשבא',
+              ),
+              findsOneWidget,
+            );
+          }
+          await tester.tap(find.text('ממון מזיק'));
+          tab = (tabs.sent.single as AddTab).tab as SearchingTab;
+          final search = tab.searchBloc;
+          expect(search.state.currentFacets, filter ?? restoredScope);
+          expect(search.state.searchScopeFacets, restoredScope);
+          await pumpUntil(
+            tester,
+            () =>
+                search.state.searchQuery == 'ממון מזיק' &&
+                !search.state.isLoading &&
+                !search.state.isCounting,
+          );
+          expect(search.state.errorMessage, isNull);
+          expect(search.state.currentFacets, filter ?? restoredScope);
+          expect(search.state.searchScopeFacets, restoredScope);
+        } finally {
+          final createdTab = tab;
+          try {
+            if (createdTab != null) {
+              var closed = false;
+              final closing = createdTab.searchBloc.close().whenComplete(
+                () => closed = true,
+              );
+              await pumpUntil(tester, () => closed);
+              await closing;
+            }
+          } finally {
+            createdTab?.dispose();
+            await tester.pumpWidget(const SizedBox.shrink());
+            await history.close();
+            await tabs.close();
+            await navigation.close();
+          }
+        }
+      }, skip: !engineReady);
+    }
+  });
 
   for (final slot in <String?>[null, 'selected-place']) {
     testWidgets('לחיצה על מקום בהיסטוריה מבקשת התאמת slot ($slot)', (

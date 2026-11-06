@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:otzaria/bookmarks/utils/search_history_key.dart';
 import 'package:otzaria/models/book_source.dart';
 
 /// מיזוג מניפסטים של גיבוי לארכיון מתגלגל — איחוד לפי זהות פריט.
@@ -276,7 +277,13 @@ class BackupMerge {
   /// זהות רשומת היסטוריה: אחת לכל ספר, סוג יעד ו-`historySlot`,
   /// כך שמיזוג משמר את מיקום הקריאה האחרון של כל מקום ולא כל ביקור.
   static String _historyKey(Map<String, dynamic> m) {
-    if (m['isSearch'] == true) return 'search:${m['ref']}';
+    if (m['isSearch'] == true) {
+      return searchHistoryKey(
+        query: (m['ref'] ?? '').toString(),
+        scopeFacets: (m['searchScopeFacets'] as List?)?.cast<String>(),
+        filterFacets: (m['searchFilterFacets'] as List?)?.cast<String>(),
+      );
+    }
     final slot = m['historySlot'];
     return '${_targetKindOf(m)}:${_bookIdentityOf(m)}'
         '${slot is String ? '#$slot' : ''}';

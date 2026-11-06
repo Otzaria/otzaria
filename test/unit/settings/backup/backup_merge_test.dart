@@ -71,6 +71,81 @@ void main() {
   });
 
   group('סימניות', () {
+    test('מיזוג היסטוריה משמר תחומים וסינונים של אותה שאילתה', () {
+      Map<String, dynamic> search(
+        List<String>? scope, {
+        List<String>? filter,
+      }) => {
+        ...bookmark('ממון מזיק'),
+        'isSearch': true,
+        'searchScopeFacets': ?scope,
+        'searchFilterFacets': ?filter,
+      };
+      final merged = merge(
+        {
+          'history': [
+            search(null),
+            search(['/רשבא', '/ריטבא']),
+            search(['/רשבא', '/ריטבא'], filter: ['/רשבא']),
+          ],
+        },
+        {
+          'history': [
+            search(['/ריטבא', '/רשבא']),
+            search(['/רשבא', '/ריטבא'], filter: []),
+          ],
+        },
+      );
+      final history = (merged['history'] as List).cast<Map>();
+      expect(history, hasLength(4));
+      expect(
+        history.where((item) => item['searchFilterFacets'] != null),
+        hasLength(2),
+      );
+      expect(
+        history.singleWhere(
+          (item) =>
+              item['searchScopeFacets'] != null &&
+              item['searchFilterFacets'] == null,
+        )['lastSeenAt'],
+        newerTs.toIso8601String(),
+      );
+    });
+
+    test('מיזוג היסטוריה משמר ממדי AND לצד שורש הספרייה', () {
+      Map<String, dynamic> search(List<String> filter) => {
+        ...bookmark('ממון מזיק'),
+        'isSearch': true,
+        'searchScopeFacets': ['/'],
+        'searchFilterFacets': filter,
+      };
+      final merged = merge(
+        {
+          'history': [
+            search(['/']),
+            search(['/', '/author/מחבר א']),
+          ],
+        },
+        {
+          'history': [
+            search(['/author/מחבר א', '/']),
+            search(['/', '/author/מחבר ב']),
+            search(['/', '/era/ראשונים']),
+            search(['/', '/base']),
+          ],
+        },
+      );
+      final history = (merged['history'] as List).cast<Map>();
+      expect(history, hasLength(5));
+      expect(
+        history.singleWhere(
+          (item) =>
+              (item['searchFilterFacets'] as List).contains('/author/מחבר א'),
+        )['lastSeenAt'],
+        newerTs.toIso8601String(),
+      );
+    });
+
     test('ref שונה באותו מיקום אינו מכפיל סימנייה בארכיון', () {
       final oldBookmark = Bookmark(
         ref: 'בראשית א, א',
