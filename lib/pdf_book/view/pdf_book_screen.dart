@@ -2517,10 +2517,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         totalPages;
     final buttonSize = min(72.0, max(48.0, viewportSize.shortestSide * 0.10));
     final horizontalPadding = min(28.0, viewportSize.width * 0.018);
-    final spreadRect = _visibleSpreadViewportRect(
-      widget.tab.pdfViewerController,
-      widget.tab.pdfViewerController.viewSize,
-    );
+    final controller = widget.tab.pdfViewerController;
+    // viewSize, כמו layout, עדיין null עד הפריסה הראשונה של ה-viewer.
+    final spreadRect = pdfReadyLayoutOrNull(controller) == null
+        ? null
+        : _visibleSpreadViewportRect(controller, controller.viewSize);
     const dragZoneWidth = 48.0;
 
     return SizedBox.expand(
