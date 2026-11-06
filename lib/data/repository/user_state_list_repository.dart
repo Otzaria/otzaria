@@ -1,5 +1,3 @@
-import 'dart:isolate';
-
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/user_state/user_state_list_store.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
@@ -32,9 +30,6 @@ class UserStateListRepository<T> {
   final bool decodeInBackground;
   final UserStateListStore _store;
 
-  // מעל הסף, בבדיקת widget הטעינה מסתיימת רק בתוך tester.runAsync (Isolate.run).
-  static const int _backgroundDecodeMinLength = 64 * 1024;
-
   /// מזהה הכותב: כל חלון מחזיק מופע משלו, וכך מסנן רק את הכתיבות שלו.
   final Object _origin = Object();
 
@@ -49,31 +44,31 @@ class UserStateListRepository<T> {
   /// טוען את הרשימה. כשל קריאה מהמסד מתפשט — "לא ידוע" אינו "ריק", וגיבוי
   /// שנכתב מרשימה ריקה כזו היה מוחק את הנתונים בשחזור.
   Future<List<T>> load() async {
-    final payload = await _store.readPayload(boxName, key);
-    if (payload == null || payload.length < _backgroundDecodeMinLength) {
-      return _decode(UserStateListStore.decodePayload(payload)).items;
-    }
     if (decodeInBackground) {
-      return _decodeInIsolate(payload, fromJson, '$boxName/$key');
+      return _store.readDecoded(
+        boxName,
+        key,
+        _entriesDecoder(fromJson, '$boxName/$key'),
+      );
     }
-    return _decode(await _parseInIsolate(payload)).items;
+    final raw = await _store.readDecoded(
+      boxName,
+      key,
+      UserStateListStore.decodePayload,
+    );
+    return _decode(raw).items;
   }
 
-  static Future<List<dynamic>> _parseInIsolate(String payload) =>
-      Isolate.run(() => UserStateListStore.decodePayload(payload));
-
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
-  static Future<List<T>> _decodeInIsolate<T>(
-    String payload,
+  static List<T> Function(String? payload) _entriesDecoder<T>(
     T Function(Map<String, dynamic>) fromJson,
     String label,
-  ) => Isolate.run(
-    () => _decodeEntries(
-      UserStateListStore.decodePayload(payload),
-      fromJson,
-      label,
-    ).items,
-  );
+  ) =>
+      (payload) => _decodeEntries(
+        UserStateListStore.decodePayload(payload),
+        fromJson,
+        label,
+      ).items;
 
   /// מחיל [apply] על הרשימה הטרייה ושומר את התוצאה אטומית. מחזיר את מה שנשמר.
   ///

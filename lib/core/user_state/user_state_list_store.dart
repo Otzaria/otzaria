@@ -28,14 +28,33 @@ class UserStateListStore {
   /// כל כתיבה משודרת עם ה-[origin] שלה, כדי שהכותב יוכל לסנן את עצמו.
   Stream<UserStateListChange> get changes => _changes.stream;
 
-  Future<List<dynamic>> read(String box, String key) async =>
-      decodePayload(await readPayload(box, key));
+  /// מעל הגודל הזה (בבתים של UTF-8) הרשימה נקראת ומפוענחת ב-isolate.
+  static const int inlineDecodeMaxBytes = 64 * 1024;
 
-  /// ה-JSON הגולמי של הרשימה, לפענוח מחוץ ל-isolate של ה-UI.
-  Future<String?> readPayload(String box, String key) async {
+  Future<List<dynamic>> read(String box, String key) =>
+      readDecoded(box, key, decodePayload);
+
+  /// מחיל את [decode] על ה-JSON הגולמי של הרשימה. ברשימה ארוכה גם ה-SELECT
+  /// וגם [decode] רצים ב-isolate, ולכן [decode] חייב להיווצר בפונקציה סטטית.
+  Future<R> readDecoded<R>(
+    String box,
+    String key,
+    R Function(String? payload) decode,
+  ) async {
     final db = await _database.database;
-    return _payloadIn(db, box, key);
+    final bytes = _payloadBytesIn(db, box, key);
+    if (bytes == null || bytes < inlineDecodeMaxBytes) {
+      return decode(_payloadIn(db, box, key));
+    }
+    return _database.runOnWriteConnection(_reader(box, key, decode));
   }
+
+  static R Function(Database db) _reader<R>(
+    String box,
+    String key,
+    R Function(String? payload) decode,
+  ) =>
+      (db) => decode(_payloadIn(db, box, key));
 
   static List<dynamic> decodePayload(String? payload) {
     if (payload == null) return const [];
@@ -107,6 +126,16 @@ class UserStateListStore {
       ('DELETE FROM lists WHERE box = ? AND key = ?', [box, key]),
     ]);
     _notifyPeers(box, key, origin);
+  }
+
+  // octet_length אינו טוען את התוכן; length על TEXT סופר תווים וטוען את כולו.
+  static int? _payloadBytesIn(Database db, String box, String key) {
+    final rows = db.select(
+      'SELECT octet_length(payload_json) AS n FROM lists '
+      'WHERE box = ? AND key = ?',
+      [box, key],
+    );
+    return rows.isEmpty ? null : rows.first['n'] as int;
   }
 
   static String? _payloadIn(Database db, String box, String key) {
