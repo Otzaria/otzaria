@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show FrameTiming;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -22,7 +23,102 @@ Map<String, dynamic> _config() => {
 };
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('preparation can finish without starting frame measurement', () async {
+    final frames = <FrameTiming>[];
+    final timings = AndroidStartupTimings(binding, frames.addAll);
+    final bodyDone = Completer<void>();
+    try {
+      expect(frames, isEmpty);
+    } finally {
+      timings.stop();
+      bodyDone.complete();
+    }
+    await bodyDone.future.timeout(const Duration(seconds: 1));
+    binding.platformDispatcher.onReportTimings!([_frame()]);
+    expect(frames, isEmpty);
+  });
+
+  test('measurement ends once and leaves other timing callbacks active', () {
+    final frames = <FrameTiming>[];
+    final otherFrames = <FrameTiming>[];
+    final timings = AndroidStartupTimings(binding, frames.addAll);
+    final otherCallback = otherFrames.addAll;
+    binding.addTimingsCallback(otherCallback);
+    try {
+      timings.start();
+      final frame = _frame();
+      binding.platformDispatcher.onReportTimings!([frame]);
+      expect(frames, [same(frame)]);
+      expect(otherFrames, [same(frame)]);
+      timings.stop();
+      timings.stop();
+      binding.platformDispatcher.onReportTimings!([frame]);
+      expect(frames, [same(frame)]);
+      expect(otherFrames, [same(frame), same(frame)]);
+    } finally {
+      binding.removeTimingsCallback(otherCallback);
+      timings.stop();
+    }
+  });
+
+  test('duplicate start cannot register or leak a second callback', () {
+    final frames = <FrameTiming>[];
+    final timings = AndroidStartupTimings(binding, frames.addAll);
+    try {
+      timings.start();
+      expect(timings.start, throwsStateError);
+      final frame = _frame();
+      binding.platformDispatcher.onReportTimings!([frame]);
+      expect(frames, [same(frame)]);
+      timings.stop();
+      binding.platformDispatcher.onReportTimings!([frame]);
+      expect(frames, [same(frame)]);
+    } finally {
+      timings.stop();
+    }
+  });
+
+  for (final stage in ['beforeStart', 'duringMeasurement', 'afterStop']) {
+    test(
+      'cleanup preserves $stage failure and completes the writer gate',
+      () async {
+        final frames = <FrameTiming>[];
+        final timings = AndroidStartupTimings(binding, frames.addAll);
+        final failure = StateError('failure at $stage');
+        final bodyDone = Completer<void>();
+        Object? runError;
+        final completion = bodyDone.future.then(
+          (_) => {
+            'status': runError == null ? 'passed' : 'failed',
+            'error': runError,
+          },
+        );
+        Future<void> body() async {
+          try {
+            if (stage != 'beforeStart') timings.start();
+            if (stage == 'afterStop') timings.stop();
+            throw failure;
+          } catch (error) {
+            runError = error;
+            rethrow;
+          } finally {
+            timings.stop();
+            bodyDone.complete();
+          }
+        }
+
+        await expectLater(body(), throwsA(same(failure)));
+        expect(await completion.timeout(const Duration(seconds: 1)), {
+          'status': 'failed',
+          'error': same(failure),
+        });
+        binding.platformDispatcher.onReportTimings!([_frame()]);
+        expect(frames, isEmpty);
+      },
+    );
+  }
 
   test('Android entrypoint arguments retain one strict per-process config', () {
     final input = _config();
@@ -280,3 +376,12 @@ void main() {
     },
   );
 }
+
+FrameTiming _frame() => FrameTiming(
+  vsyncStart: 1,
+  buildStart: 2,
+  buildFinish: 3,
+  rasterStart: 4,
+  rasterFinish: 5,
+  rasterFinishWallTime: 5,
+);

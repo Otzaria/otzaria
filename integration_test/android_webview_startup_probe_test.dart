@@ -115,6 +115,8 @@ void main(List<String> arguments) {
         }
       }
 
+      final timings = AndroidStartupTimings(binding, onTimings);
+
       void captureErrors() {
         captureInstalled = true;
         FlutterError.onError = (details) {
@@ -195,7 +197,7 @@ void main(List<String> arguments) {
         final measurement = <String, Object?>{};
         report['measurement'] = measurement;
         captureErrors();
-        binding.addTimingsCallback(onTimings);
+        timings.start();
         clock.start();
         heartbeat = Timer.periodic(const Duration(milliseconds: 100), (_) {
           final now = clock.elapsedMicroseconds;
@@ -375,7 +377,7 @@ void main(List<String> arguments) {
         measurement['measurementEndedAtUs'] = clock.elapsedMicroseconds;
         heartbeat.cancel();
         heartbeat = null;
-        binding.removeTimingsCallback(onTimings);
+        timings.stop();
         measurement.addAll({
           'prewarm': prewarm.snapshot(),
           'revealMsAtPrewarmInvocation': revealAtPrewarm,
@@ -471,7 +473,7 @@ void main(List<String> arguments) {
         rethrow;
       } finally {
         heartbeat?.cancel();
-        binding.removeTimingsCallback(onTimings);
+        timings.stop();
         WebViewEnvironmentHolder.debugOverridePrewarm(null);
         if (captureInstalled) {
           FlutterError.onError = initialFlutterError;

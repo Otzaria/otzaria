@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 const androidStartupProbePackage = 'org.otzaria.otzaria.startupprobe';
@@ -11,6 +12,26 @@ const androidStartupProbeEvent = 'probe.android_startup';
 enum AndroidStartupCase { noEnabled, noOpen, foreground, background, overlap }
 
 enum AndroidPrewarmMode { native, bypass }
+
+class AndroidStartupTimings {
+  AndroidStartupTimings(this._binding, this._callback);
+
+  final SchedulerBinding _binding;
+  final TimingsCallback _callback;
+  bool _registered = false;
+
+  void start() {
+    if (_registered) throw StateError('Frame timings are already registered.');
+    _binding.addTimingsCallback(_callback);
+    _registered = true;
+  }
+
+  void stop() {
+    if (!_registered) return;
+    _binding.removeTimingsCallback(_callback);
+    _registered = false;
+  }
+}
 
 class AndroidStartupConfig {
   AndroidStartupConfig.fromJson(Map<String, dynamic> json) {
