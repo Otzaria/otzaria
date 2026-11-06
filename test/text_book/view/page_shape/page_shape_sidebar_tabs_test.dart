@@ -153,9 +153,9 @@ void main() {
     expect(tabWithIcon(OtzariaIcons.links_24_regular), findsOneWidget);
     expect(tabWithIcon(FluentIcons.note_24_regular), findsOneWidget);
 
-    // הלשונית הפעילה היא "מפרשים" — בלי מפרשים נבחרים מוצג מסך הבחירה,
+    // הלשונית הפעילה היא "מפרשים" — בספר בלי מפרשים מוצגת הודעת המפרשים,
     // ולא רשימת הקישורים.
-    expect(find.text('בחירת מפרשים'), findsOneWidget);
+    expect(find.text('לא נמצאו מפרשים לקטע הנבחר'), findsOneWidget);
     expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsNothing);
   });
 
@@ -205,7 +205,7 @@ void main() {
     tab.toggleCommentatorsPaneNotifier.value++;
     await tester.pumpAndSettle();
     expect(find.byType(PanelOpenHandle), findsNothing);
-    expect(find.text('בחירת מפרשים'), findsOneWidget);
+    expect(find.text('לא נמצאו מפרשים לקטע הנבחר'), findsOneWidget);
 
     tab.toggleCommentatorsPaneNotifier.value++;
     await tester.pumpAndSettle();

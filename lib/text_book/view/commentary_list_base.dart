@@ -437,16 +437,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     return state.activeCommentators;
   }
 
-  List<String> _selectedCommentators(TextBookLoaded state) {
-    final selected = _allSelectedCommentators(state);
-    return selected
-        .where(
-          (title) =>
-              title != kNotesCommentatorTitle &&
-              !widget.hiddenCommentators.contains(title),
-        )
-        .toList();
-  }
+  bool _isRegularCommentator(String title) =>
+      title != kNotesCommentatorTitle &&
+      !widget.hiddenCommentators.contains(title);
+
+  List<String> _selectedCommentators(TextBookLoaded state) =>
+      _allSelectedCommentators(state).where(_isRegularCommentator).toList();
 
   String _buildGroupingSignature(List<Link> links) {
     return links
@@ -1888,18 +1884,28 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         final notesIsActive = _allSelectedCommentators(
           state,
         ).contains(kNotesCommentatorTitle);
-        // כש'הערות' פעיל הוא משמש מפרש ברירת מחדל, ולכן בדרך כלל אין לפתוח
-        // אוטומטית את בחירת המפרשים. חריג: כרטיסיית המפרשים מעבירה
-        // onFilterOpenRequested ופותחת את הבחירה בלשונית צד נפרדת שאינה
-        // מסתירה את ההערות — שם יש לפתוח גם כש'הערות' פעיל, אחרת כשאין
-        // מפרשים נבחרים המשתמש נתקע על הודעת "אין הערות לקטע זה".
+        late final lineRelevantCommentators = lineRelevantRareCommentators(
+          rareCommentators: state.rareCommentators,
+          currentIndexes: _currentIndexes(state),
+          linksByLine: state.linksByLine,
+        );
+        // רק כשיש מפרש רגיל לבחירה; כש'הערות' פעיל — רק בכרטיסיית המפרשים,
+        // שם הבחירה נפתחת בלשונית נפרדת ואינה מסתירה את ההערות.
         final shouldAutoOpenOverrideFilter =
             widget.showSearch &&
             widget.onSelectedCommentatorsOverrideChanged != null &&
             selectedCommentators.isEmpty &&
             (widget.onFilterOpenRequested != null || !notesIsActive) &&
             !_autoFilterOpenNotified &&
-            !_showCommentatorsFilter;
+            !_showCommentatorsFilter &&
+            _commentatorGroups(state).any(
+              (group) => group.commentators.any(
+                (title) =>
+                    _isRegularCommentator(title) &&
+                    (!state.rareCommentators.contains(title) ||
+                        lineRelevantCommentators.contains(title)),
+              ),
+            );
 
         if (shouldAutoOpenOverrideFilter) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2312,10 +2318,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               child: customSelection != null
                   ? CommentatorsSelectionPanel(
                       groups: groups,
-                      // מעבירים את הבחירה המלאה (כולל 'הערות') ולא את
-                      // selectedCommentators המסונן — אחרת תיבת הסימון של
-                      // 'הערות' לעולם לא תוצג כמסומנת, ובחירת מפרש אחר תמחק
-                      // אותו מהבחירה הפעילה.
+                      // הבחירה המלאה משמרת גם את 'הערות' כשבוחרים מפרש אחר.
                       selectedCommentators: _allSelectedCommentators(state),
                       onSelectionChanged: (list) {
                         _userInteractedWithFilter = true;
@@ -2323,11 +2326,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                       },
                       bookTitle: _bookTitle(state),
                       rareCommentators: state.rareCommentators,
-                      lineRelevantCommentators: lineRelevantRareCommentators(
-                        rareCommentators: state.rareCommentators,
-                        currentIndexes: _currentIndexes(state),
-                        linksByLine: state.linksByLine,
-                      ),
+                      lineRelevantCommentators: lineRelevantCommentators,
                       typeChipKeys: visibleTypeChipKeys,
                       selectedTypeChips: effectiveTypes,
                       typeChipLabelBuilder: LinkTypes.hebrewLabel,
