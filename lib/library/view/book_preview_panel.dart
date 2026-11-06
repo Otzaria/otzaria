@@ -174,6 +174,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   bool? _formatOverride;
   PdfViewerController? _pdfController;
   Completer<void>? _pdfHighlightRequest;
+  VoidCallback? _releasePdfHighlightPattern;
   List<PdfTextSearchResult> _pdfHighlights = const [];
   bool _isPdfViewerReady = false;
   bool _pdfFileExists = true;
@@ -268,6 +269,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   @override
   void initState() {
     super.initState();
+    text_utils.highlightPatternRevision.addListener(_onHighlightPatternChanged);
     // קבלת גודל הפונט מההגדרות
     _fontSize = Settings.getValue<double>('key-font-size', defaultValue: 18.0)!;
     if (widget.book != null) {
@@ -277,11 +279,16 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
   @override
   void dispose() {
+    text_utils.highlightPatternRevision.removeListener(
+      _onHighlightPatternChanged,
+    );
     _disposeCurrentTab();
     super.dispose();
   }
 
   void _disposeCurrentTab() {
+    _releasePdfHighlightPattern?.call();
+    _releasePdfHighlightPattern = null;
     _clearPdfHighlights();
     _currentTextTab?.dispose();
     _currentTextTab = null;
@@ -296,16 +303,45 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     _pdfHighlights = const [];
   }
 
+  void _onHighlightPatternChanged() {
+    if (_pdfController?.isReady == true &&
+        widget.searchText?.trim().isNotEmpty == true) {
+      unawaited(_updatePdfHighlights());
+    }
+  }
+
   /// Only the selected result page is needed in the preview. Loading it through
   /// pdfrx's shared cache avoids scanning the book and retaining page geometry.
   Future<void> _updatePdfHighlights() async {
-    _clearPdfHighlights();
-    final request = _pdfHighlightRequest = Completer<void>();
     final controller = _pdfController;
-    if (controller == null || !controller.isReady) return;
-    controller.invalidate();
     final query = widget.searchText ?? '';
     final pageNumber = widget.initialPdfPage;
+    final isFuzzy = widget.searchMode == SearchMode.fuzzy;
+    final previousRelease = _releasePdfHighlightPattern;
+    _releasePdfHighlightPattern =
+        controller?.isReady == true &&
+            query.trim().isNotEmpty &&
+            pageNumber != null
+        ? text_utils.retainHighlightPattern(
+            searchQuery: query,
+            searchOptions: widget.searchOptions,
+            alternativeWords: isFuzzy
+                ? widget.alternativeWords
+                : text_utils.withHolyNameAlternatives(
+                    query,
+                    widget.alternativeWords,
+                  ),
+            spacingValues: widget.spacingValues,
+            searchDistance: widget.searchDistance,
+            isFuzzy: isFuzzy,
+            anyOrder: widget.matchPolicy.anyOrder && !isFuzzy,
+          )
+        : null;
+    previousRelease?.call();
+    _clearPdfHighlights();
+    final request = _pdfHighlightRequest = Completer<void>();
+    if (controller == null || !controller.isReady) return;
+    controller.invalidate();
     if (query.trim().isEmpty || pageNumber == null) return;
     final parameters = widget;
     final matches = await controller.useDocument((document) async {
