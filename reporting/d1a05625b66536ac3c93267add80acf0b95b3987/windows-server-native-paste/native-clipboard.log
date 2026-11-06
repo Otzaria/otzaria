@@ -1,0 +1,45 @@
+
+Building Windows application...                                 
+Get-Item : Could not find item C:\Users\runneradmin\AppData.
+At D:\a\otzaria\otzaria\windows\flutter\ephemeral\.plugin_symlinks\super_native_extensions\cargokit\cmake\resolve_symli
+nks.ps1:25 char:17
++         $item = Get-Item $realPath
++                 ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\runneradmin\AppData:String) [Get-Item], IOException
+    + FullyQualifiedErrorId : ItemNotFound,Microsoft.PowerShell.Commands.GetItemCommand
+
+Building Windows application...                                    62.6s
+√ Built build\windows\x64\runner\Debug\otzaria.exe
+::group::✅ Passing tests
+✅ native Flutter text is readable by the reporting clipboard provider
+✅ native PNG reaches the production report source unchanged
+✅ native two-frame GIF wins over PNG without losing animation bytes
+✅ native mixed text and PNG preserves ordinary text precedence
+✅ native advertised empty text does not hide its PNG
+✅ OS Ctrl+V pastes text in AppReportDialog; text focus=false
+✅ OS Ctrl+V pastes PNG in AppReportDialog; text focus=false
+✅ OS Ctrl+V pastes text in AppReportDialog; text focus=true
+✅ OS Ctrl+V pastes PNG in AppReportDialog; text focus=true
+✅ OS Shift+Insert pastes text in AppReportDialog; text focus=false
+✅ OS Shift+Insert pastes PNG in AppReportDialog; text focus=false
+✅ OS Shift+Insert pastes text in AppReportDialog; text focus=true
+✅ OS Shift+Insert pastes PNG in AppReportDialog; text focus=true
+::endgroup::
+::group::✅ OS Ctrl+V in one zero-scan batch pastes text in AppReportDialog; text focus=false
+Batched native Ctrl+V state before cleanup: {observedV: true, released: true, frameworkKeys: [], win32ControlPressed: false, win32VPressed: false, applied: true}
+Batched native Ctrl+V trace: [{type: KeyDownEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyDownEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: false, win32LeftControlPressedAtCallback: false}]
+::endgroup::
+::group::✅ OS Ctrl+V in one zero-scan batch pastes PNG in AppReportDialog; text focus=false
+Batched native Ctrl+V state before cleanup: {observedV: true, released: true, frameworkKeys: [], win32ControlPressed: false, win32VPressed: false, applied: true}
+Batched native Ctrl+V trace: [{type: KeyDownEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyDownEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: false, win32LeftControlPressedAtCallback: false}]
+::endgroup::
+::group::✅ OS Ctrl+V in one zero-scan batch pastes text in AppReportDialog; text focus=true
+Batched native Ctrl+V state before cleanup: {observedV: true, released: true, frameworkKeys: [], win32ControlPressed: false, win32VPressed: false, applied: true}
+Batched native Ctrl+V trace: [{type: KeyDownEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyDownEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: false, win32LeftControlPressedAtCallback: false}]
+::endgroup::
+::group::✅ OS Ctrl+V in one zero-scan batch pastes PNG in AppReportDialog; text focus=true
+Batched native Ctrl+V state before cleanup: {observedV: true, released: true, frameworkKeys: [], win32ControlPressed: false, win32VPressed: false, applied: true}
+Batched native Ctrl+V trace: [{type: KeyDownEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyDownEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 118, physical: 458777, synthesized: false, controlPressed: true, win32LeftControlPressedAtCallback: true}, {type: KeyUpEvent, logical: 8589934848, physical: 458976, synthesized: false, controlPressed: false, win32LeftControlPressedAtCallback: false}]
+::endgroup::
+
+🎉 17 tests passed.

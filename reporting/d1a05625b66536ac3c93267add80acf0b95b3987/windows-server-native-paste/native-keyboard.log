@@ -1,0 +1,11 @@
+shift_key_normalizer.cpp
+shift_key_normalizer_test.cpp
+Generating Code...
+translated_mode=0 raw_scan=0 normalized_scan=47 characters=1
+translated_mode=1 raw_scan=0 normalized_scan=47 characters=1
+translated_mode=2 raw_scan=0 normalized_scan=47 characters=1
+translated_mode=0 raw_scan=0 normalized_scan=47 characters=1
+translated_mode=1 raw_scan=0 normalized_scan=47 characters=1
+translated_mode=2 raw_scan=0 normalized_scan=47 characters=1
+layout=67699721 ctrl_scan=29 v_scan=47
+passed=95, layouts=1, windows=3, hookedWindows=2, realWindowsSubclass=true, FlutterTested=false

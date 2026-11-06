@@ -1,0 +1,334 @@
+{
+  "renderer": "Native Flutter Windows integration test",
+  "hostPlatform": "windows",
+  "osVersion": "\"Windows Server 2025 Datacenter\" 10.0 (Build 26100)",
+  "provider": "Registered super_clipboard Windows plugin",
+  "commit": "032cf41c6e49dc797c1156b626a11d9564704873",
+  "reviewedHead": "d1a05625b66536ac3c93267add80acf0b95b3987",
+  "completedChecks": [
+    "Flutter text -> native provider -> unchanged Flutter text",
+    "Native PNG -> production source, both text-precedence modes",
+    "Native GIF + PNG -> exact GIF bytes with two decoded frames",
+    "Native text + PNG -> ordinary text precedence without changing clipboard",
+    "Native empty text + PNG -> production image source retains PNG",
+    "OS Ctrl+V text -> AppReportDialog; text focus=false",
+    "OS Ctrl+V PNG -> AppReportDialog; text focus=false",
+    "OS Ctrl+V text -> AppReportDialog; text focus=true",
+    "OS Ctrl+V PNG -> AppReportDialog; text focus=true",
+    "OS Shift+Insert text -> AppReportDialog; text focus=false",
+    "OS Shift+Insert PNG -> AppReportDialog; text focus=false",
+    "OS Shift+Insert text -> AppReportDialog; text focus=true",
+    "OS Shift+Insert PNG -> AppReportDialog; text focus=true",
+    "OS Ctrl+V in one zero-scan batch text -> AppReportDialog; text focus=false",
+    "OS Ctrl+V in one zero-scan batch PNG -> AppReportDialog; text focus=false",
+    "OS Ctrl+V in one zero-scan batch text -> AppReportDialog; text focus=true",
+    "OS Ctrl+V in one zero-scan batch PNG -> AppReportDialog; text focus=true"
+  ],
+  "allTestsPassed": true,
+  "failedTests": [],
+  "nativeClipboard": true,
+  "nativeKeyboardInput": true,
+  "nativeKeyboardPaths": [
+    {
+      "shortcut": "Ctrl+V",
+      "payload": "text",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V",
+      "payload": "PNG",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V",
+      "payload": "text",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": true,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V",
+      "payload": "PNG",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Shift+Insert",
+      "payload": "text",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Shift+Insert",
+      "payload": "PNG",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Shift+Insert",
+      "payload": "text",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": true,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Shift+Insert",
+      "payload": "PNG",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V in one zero-scan batch",
+      "payload": "text",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "sendInputCallsForChord": 1,
+      "submittedScanCodes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "heldModifierUntilApplied": false,
+      "flutterKeyTrace": [
+        {
+          "type": "KeyDownEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyDownEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": false,
+          "win32LeftControlPressedAtCallback": false
+        }
+      ],
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V in one zero-scan batch",
+      "payload": "PNG",
+      "textFieldFocus": false,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "sendInputCallsForChord": 1,
+      "submittedScanCodes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "heldModifierUntilApplied": false,
+      "flutterKeyTrace": [
+        {
+          "type": "KeyDownEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyDownEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": false,
+          "win32LeftControlPressedAtCallback": false
+        }
+      ],
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V in one zero-scan batch",
+      "payload": "text",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "sendInputCallsForChord": 1,
+      "submittedScanCodes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "heldModifierUntilApplied": false,
+      "flutterKeyTrace": [
+        {
+          "type": "KeyDownEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyDownEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": false,
+          "win32LeftControlPressedAtCallback": false
+        }
+      ],
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": true,
+      "pngBytesPreservedInRealReportBloc": null,
+      "keysReleased": true
+    },
+    {
+      "shortcut": "Ctrl+V in one zero-scan batch",
+      "payload": "PNG",
+      "textFieldFocus": true,
+      "foregroundProcessId": 3352,
+      "nativeNonSynthesizedKeyDownObserved": true,
+      "sendInputCallsForChord": 1,
+      "submittedScanCodes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "heldModifierUntilApplied": false,
+      "flutterKeyTrace": [
+        {
+          "type": "KeyDownEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyDownEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 118,
+          "physical": 458777,
+          "synthesized": false,
+          "controlPressed": true,
+          "win32LeftControlPressedAtCallback": true
+        },
+        {
+          "type": "KeyUpEvent",
+          "logical": 8589934848,
+          "physical": 458976,
+          "synthesized": false,
+          "controlPressed": false,
+          "win32LeftControlPressedAtCallback": false
+        }
+      ],
+      "titlePreservedExactly": true,
+      "mixedTextAndImagePreservesTextPrecedence": null,
+      "pngBytesPreservedInRealReportBloc": true,
+      "keysReleased": true
+    }
+  ],
+  "windowsClipboardHistoryUi": false
+}

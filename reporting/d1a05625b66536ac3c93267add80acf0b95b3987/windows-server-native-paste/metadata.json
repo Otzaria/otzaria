@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "title": "Windows Server native paste QA",
+  "repository": "Otzaria/otzaria",
+  "reviewedHead": "d1a05625b66536ac3c93267add80acf0b95b3987",
+  "reviewedTree": "0e1b560e0bbb9ccb138a47b8045e6f8c0e3fed07",
+  "testedCommit": "032cf41c6e49dc797c1156b626a11d9564704873",
+  "testedTree": "0e1b560e0bbb9ccb138a47b8045e6f8c0e3fed07",
+  "testedCommitIsGitHubMergeWithIdenticalTree": true,
+  "source": {
+    "workflowRun": 42221633231,
+    "workflowUrl": "https://github.com/Otzaria/otzaria/actions/runs/42221633231",
+    "jobId": 127904852594,
+    "jobUrl": "https://github.com/Otzaria/otzaria/actions/runs/42221633231/job/127904852594",
+    "jobConclusion": "success",
+    "artifactId": 13505230890,
+    "artifactName": "windows-native-report-clipboard",
+    "artifactUrl": "https://github.com/Otzaria/otzaria/actions/runs/42221633231/artifacts/13505230890",
+    "artifactBytes": 2643,
+    "artifactSha256": "a7972c13676fd4db85bd4016749668f30b8b354f1a9e30422927d82b71b4d847"
+  },
+  "environment": {
+    "hostPlatform": "windows",
+    "osVersion": "\"Windows Server 2025 Datacenter\" 10.0 (Build 26100)",
+    "runnerLabel": "windows-2025",
+    "runnerImage": "windows-2025-vs2026",
+    "runnerImageVersion": "20261103.298.1"
+  },
+  "cpp": {
+    "checksPassed": 95,
+    "layouts": 1,
+    "layoutHandles": [
+      67699721
+    ],
+    "windows": 3,
+    "hookedWindows": 2,
+    "realWindowsSubclass": true,
+    "flutterTested": false,
+    "coverage": [
+      "Ctrl/V down/up/system events and unchanged unrelated keys/flags",
+      "Zero scan code mapping preserves explicit Ctrl side and rejects conflicting extended flag",
+      "TranslateMessage creates matching WM_CHAR scan code on both registered windows",
+      "Plain V, Ctrl+V and Alt+V retain original character and unrelated message fields",
+      "An unregistered window remains unchanged"
+    ]
+  },
+  "nativeFlutter": {
+    "renderer": "Native Flutter Windows integration test",
+    "provider": "Registered super_clipboard Windows plugin",
+    "passed": 17,
+    "failed": 0,
+    "clipboardProviderCases": 5,
+    "ctrlVAndShiftInsertCases": 8,
+    "zeroScanSingleBatchCases": 4,
+    "textFieldFocusStates": [
+      false,
+      true
+    ],
+    "twoFrameGifBytesPreserved": true,
+    "zeroScanBatch": {
+      "sendInputCallsForChord": 1,
+      "submittedScanCodes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "heldModifierUntilApplied": false,
+      "eventOrder": [
+        "Ctrl down",
+        "V down",
+        "V up",
+        "Ctrl up"
+      ],
+      "physicalKeyOrder": [
+        "0x700e0",
+        "0x70019",
+        "0x70019",
+        "0x700e0"
+      ],
+      "allEventsNonSynthesized": true,
+      "beforeCleanupForAllFourCases": {
+        "observedV": true,
+        "applied": true,
+        "released": true,
+        "frameworkKeys": [],
+        "win32ControlPressed": false,
+        "win32VPressed": false
+      }
+    }
+  },
+  "windowsClipboardHistoryUi": false,
+  "limitations": [
+    "This evidence covers native Ctrl+V, Shift+Insert and a single zero-scan Ctrl+V input batch in AppReportDialog on Windows Server 2025.",
+    "The Win+V clipboard-history popup and selection were not exercised by these tests; their success must be established separately.",
+    "The C++ checks exercise Win32 windows and TranslateMessage, not a Flutter widget."
+  ],
+  "independentReview": {
+    "reviewer": "merged_followup",
+    "sourceCodeAuthor": "qa_retention",
+    "reviewed": [
+      "Artifact digest and all three original evidence files",
+      "All four input-state snapshots before cleanup",
+      "All four Flutter key traces",
+      "Workflow checkout commit and equality of the tested/product trees"
+    ]
+  },
+  "files": [
+    {
+      "path": "native-clipboard.json",
+      "bytes": 10511,
+      "sha256": "744ae6e277579cf9eb699ef1f9e359ce7685260bcc91a49ab7ad6c4eb2b35a44"
+    },
+    {
+      "path": "native-clipboard.log",
+      "bytes": 5051,
+      "sha256": "a0ab514970215e4b1530c80e4c31dc8a558ba2f6cd01537b4218d8efb3c173c9"
+    },
+    {
+      "path": "native-keyboard.log",
+      "bytes": 586,
+      "sha256": "f4c2010d16f4c17af3ec79d24f8c8dfee9df9c4e7904f9ae8bff223e81253893"
+    }
+  ]
+}
