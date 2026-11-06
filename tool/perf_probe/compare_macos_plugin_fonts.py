@@ -28,6 +28,8 @@ def validate_pair(data, scheme):
     cases = {}
     for mode, report in reports.items():
         require(report['schemaVersion'] == 1, 'unknown schema')
+        require(report.get('status') == 'passed', 'probe run did not complete')
+        require(report.get('framePolicy') == 'fullyLive', 'native frames were not enabled')
         require(report['platform'] == 'macos', 'requires actual macOS')
         require(report['requestedTransport'] == mode, 'requested transport differs')
         require(report['hostKind'] == 'visible-flutter-platform-view', 'headless is not visible-host evidence')
@@ -40,9 +42,22 @@ def validate_pair(data, scheme):
         cases[mode] = {case['scenario']: case for case in report['cases']}
         require(set(cases[mode]) == {'normal', 'font-src-data', 'style-src-none'}, 'CSP cases missing')
         for name, case in cases[mode].items():
+            require(case.get('status') == 'passed', 'CSP case did not complete')
             require(len(case['views']) == count, 'view count differs')
             require({v['index'] for v in case['views']} == set(range(count)), 'duplicate/missing view')
             for view in case['views']:
+                require(view.get('status') == 'completed', 'view observation did not complete')
+                operations = view.get('operations', [])
+                names = [operation.get('name') for operation in operations]
+                required = {'font-preparation', 'boot', 'rendering'}
+                if name != 'style-src-none':
+                    required.add('screenshot')
+                require(required <= set(names) and len(names) == len(set(names)),
+                        'native operation evidence missing or duplicated')
+                require(all(operation.get('status') == 'completed'
+                            and not operation.get('lateResponse')
+                            and not operation.get('lateError') for operation in operations),
+                        'native operation is incomplete or late')
                 prep, rendering = view['preparation'], view['rendering']
                 require(view.get('bootAcknowledged') is True, 'missing guarded boot acknowledgement')
                 require(rendering['bootCount'] == 1, 'plugin boot did not complete exactly once')

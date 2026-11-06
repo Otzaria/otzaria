@@ -19,8 +19,11 @@ def report(mode, count=1):
                 'outcome': {'reason': 'style-blocked' if blocked else 'loaded'}}
         if mode == 'scheme' and scenario != 'normal':
             prep['schemeFailure'] = 'style-blocked' if blocked else 'font-load-failed'
-        cases.append({'scenario': scenario, 'views': [{
+        cases.append({'scenario': scenario, 'status': 'passed', 'views': [{
             'index': 0, 'preparation': prep, 'bootJavascriptUtf8Bytes': 50000,
+            'status': 'completed',
+            'operations': [{'name': name, 'status': 'completed'} for name in
+                           ['font-preparation', 'boot', 'rendering'] + ([] if blocked else ['screenshot'])],
             'bootAcknowledged': True,
             'schemeBytesAtBoot': 1000 if transport == 'scheme' else 0,
             'schemeResponseBytes': 1000 if transport == 'scheme' else 0,
@@ -39,6 +42,7 @@ def report(mode, count=1):
                  'requestDelta': 1, 'responseDelta': 1, 'responseBytesDelta': 1000}
                 if mode == 'scheme' else {'availability': 'not-run', 'reason': 'data-control'})
     return {'schemaVersion': 1, 'requestedTransport': mode, 'instances': count,
+            'status': 'passed', 'framePolicy': 'fullyLive',
             'pid': 100 if mode == 'data' else 101, 'platform': 'macos',
             'systemFont': {'family': 'Fixture'}, 'hostKind': 'visible-flutter-platform-view',
             'window': {'ready': True}, 'decision': 'keep-default-off',
@@ -54,6 +58,35 @@ class ReportTests(unittest.TestCase):
         summary = validate_pair(self.data, self.scheme)
         self.assertEqual(summary['decision'], 'keep-default-off')
         self.assertTrue(summary['normalSchemeVerified'])
+
+    def test_completed_samples_cannot_hide_failed_run_or_case(self):
+        for target in (self.scheme, self.scheme['cases'][0], self.scheme['cases'][0]['views'][0]):
+            old = target['status']
+            target['status'] = 'failed'
+            with self.assertRaisesRegex(ValueError, 'did not complete'):
+                validate_pair(self.data, self.scheme)
+            target['status'] = old
+
+    def test_missing_or_late_native_operation_cannot_pass(self):
+        operation = self.scheme['cases'][0]['views'][0]['operations'][-1]
+        for status in ('pending', 'timed-out', 'disposed', 'failed'):
+            operation['status'] = status
+            with self.assertRaisesRegex(ValueError, 'incomplete or late'):
+                validate_pair(self.data, self.scheme)
+        operation['status'] = 'completed'
+        for flag in ('lateResponse', 'lateError'):
+            operation[flag] = True
+            with self.assertRaisesRegex(ValueError, 'incomplete or late'):
+                validate_pair(self.data, self.scheme)
+            operation.pop(flag)
+        self.scheme['cases'][0]['views'][0]['operations'].pop()
+        with self.assertRaisesRegex(ValueError, 'evidence missing'):
+            validate_pair(self.data, self.scheme)
+
+    def test_both_transports_require_live_native_frames(self):
+        self.scheme['framePolicy'] = 'fadePointers'
+        with self.assertRaisesRegex(ValueError, 'native frames'):
+            validate_pair(self.data, self.scheme)
 
     def test_rejects_missing_actual_face(self):
         self.scheme['cases'][0]['views'][0]['rendering']['samples'][0]['loadedFaces'] = []
