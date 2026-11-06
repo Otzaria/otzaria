@@ -1,5 +1,6 @@
 // PageDown/PageUp מדפדפים בקורא ה-PDF כמו ←/→ (issue #3272).
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,8 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -51,6 +54,7 @@ void main() {
   });
 
   tearDown(() {
+    ShortcutHelper.isMacForTesting = null;
     Pdfrx.pdfiumModulePath = originalModulePath;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
@@ -128,6 +132,237 @@ void main() {
     final readerFocus = Focus.of(tester.element(find.byType(PdfViewer)));
     expect(readerFocus.hasFocus, isTrue);
     expect(readerFocus.hasPrimaryFocus, isFalse);
+  }
+
+  for (final isMac in [false, true]) {
+    testWidgets(
+      'חיפוש PDF מכבד פריסה עברית וקיצור מותאם: mac=$isMac (issue #3498)',
+      (tester) async {
+        ShortcutHelper.isMacForTesting = isMac;
+        final (bloc, tab) = await pumpBook(tester);
+        final document = tab.pdfViewerController.document;
+        final modifier = isMac
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        final physicalModifier = isMac
+            ? PhysicalKeyboardKey.metaLeft
+            : PhysicalKeyboardKey.controlLeft;
+        Future<void> hideSearch() async {
+          bloc.add(const ToggleLeftPane(false));
+          await settle(tester, rounds: 3);
+          await dragIntoViewer(tester);
+          expect((bloc.state as PdfBookLoaded).showLeftPane, isFalse);
+        }
+
+        Future<void> pressHebrewSearch() async {
+          // The raw Android/Windows test key-code tables do not contain Hebrew
+          // letters. KeyData also reaches FocusManager, unlike calling
+          // HardwareKeyboard.handleKeyEvent directly.
+          final received =
+              <(PhysicalKeyboardKey, LogicalKeyboardKey, bool, bool)>[];
+          KeyEventResult observe(KeyEvent event) {
+            if (event is KeyDownEvent &&
+                event.physicalKey == PhysicalKeyboardKey.keyF) {
+              final keyboard = HardwareKeyboard.instance;
+              received.add((
+                event.physicalKey,
+                event.logicalKey,
+                keyboard.isControlPressed,
+                keyboard.isMetaPressed,
+              ));
+            }
+            return KeyEventResult.ignored;
+          }
+
+          void send(
+            ui.KeyEventType type,
+            PhysicalKeyboardKey physical,
+            LogicalKeyboardKey logical,
+          ) {
+            // Match PluginHostShortcuts' embedder path. Synthesized events are
+            // dispatched immediately without waiting for a raw-key message.
+            // ignore: deprecated_member_use
+            ServicesBinding.instance.keyEventManager.handleKeyData(
+              ui.KeyData(
+                timeStamp: Duration(
+                  microseconds: DateTime.now().microsecondsSinceEpoch,
+                ),
+                type: type,
+                physical: physical.usbHidUsage,
+                logical: logical.keyId,
+                character: null,
+                synthesized: true,
+              ),
+            );
+          }
+
+          FocusManager.instance.addEarlyKeyEventHandler(observe);
+          try {
+            send(ui.KeyEventType.down, physicalModifier, modifier);
+            send(
+              ui.KeyEventType.down,
+              PhysicalKeyboardKey.keyF,
+              const LogicalKeyboardKey(0x05db),
+            );
+            send(
+              ui.KeyEventType.up,
+              PhysicalKeyboardKey.keyF,
+              const LogicalKeyboardKey(0x05db),
+            );
+            send(ui.KeyEventType.up, physicalModifier, modifier);
+          } finally {
+            FocusManager.instance.removeEarlyKeyEventHandler(observe);
+          }
+          expect(
+            received,
+            [
+              (
+                PhysicalKeyboardKey.keyF,
+                const LogicalKeyboardKey(0x05db),
+                !isMac,
+                isMac,
+              ),
+            ],
+            reason: 'The Hebrew key and its modifier must reach FocusManager.',
+          );
+          expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
+          await settle(tester, rounds: 3);
+        }
+
+        try {
+          await hideSearch();
+          await pressHebrewSearch();
+          expect((bloc.state as PdfBookLoaded).showLeftPane, isTrue);
+          expect(
+            tester
+                .widget<TabBarView>(find.byType(TabBarView))
+                .controller!
+                .index,
+            1,
+          );
+          expect(
+            tester
+                .widget<EditableText>(
+                  find.byWidgetPredicate(
+                    (widget) =>
+                        widget is EditableText &&
+                        widget.controller == tab.searchController,
+                  ),
+                )
+                .focusNode
+                .hasFocus,
+            isTrue,
+          );
+
+          await Settings.setValue(
+            ShortcutValidator.currentWindowSearchKey,
+            'f6',
+          );
+          await hideSearch();
+          await pressHebrewSearch();
+          expect((bloc.state as PdfBookLoaded).showLeftPane, isFalse);
+          await tester.sendKeyEvent(LogicalKeyboardKey.f6);
+          await settle(tester, rounds: 3);
+          expect((bloc.state as PdfBookLoaded).showLeftPane, isTrue);
+
+          await Settings.setValue(ShortcutValidator.currentWindowSearchKey, '');
+          await hideSearch();
+          await pressHebrewSearch();
+          await tester.sendKeyEvent(LogicalKeyboardKey.f6);
+          await settle(tester, rounds: 3);
+          expect((bloc.state as PdfBookLoaded).showLeftPane, isFalse);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await disposePdfDocument(tester, document);
+        }
+      },
+    );
+  }
+
+  for (final shifted in [false, true]) {
+    final shortcut = shifted ? 'shift+f' : 'f';
+    testWidgets('קיצור חיפוש PDF "$shortcut" נשמר להקלדה בשדה', (
+      tester,
+    ) async {
+      ShortcutHelper.isMacForTesting = false;
+      await Settings.setValue(
+        ShortcutValidator.currentWindowSearchKey,
+        shortcut,
+      );
+      final (bloc, tab) = await pumpBook(tester);
+      final document = tab.pdfViewerController.document;
+
+      Future<bool> pressF({bool shift = false, bool control = false}) async {
+        if (control) {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        }
+        if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        final handled = await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.keyF,
+          character: shift ? 'F' : 'f',
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.keyF);
+        if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        if (control) {
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        }
+        return handled;
+      }
+
+      try {
+        bloc.add(const ToggleLeftPane(false));
+        await settle(tester, rounds: 3);
+        await dragIntoViewer(tester);
+        expect((bloc.state as PdfBookLoaded).showLeftPane, isFalse);
+        expect(ShortcutHelper.isEditingText, isFalse);
+        expect(await pressF(shift: shifted), isTrue);
+        await settle(tester, rounds: 3);
+        expect((bloc.state as PdfBookLoaded).showLeftPane, isTrue);
+
+        final searchField = find.byWidgetPredicate(
+          (widget) =>
+              widget is EditableText &&
+              widget.controller == tab.searchController,
+        );
+        await tester.enterText(searchField, 'ערך ');
+        await tester.pump();
+        expect(ShortcutHelper.isEditingText, isTrue);
+        expect(
+          await pressF(shift: shifted),
+          isFalse,
+          reason:
+              'Printable search shortcuts must reach text input while editing.',
+        );
+        // Widget tests deliver platform text input separately from key events.
+        final typed = 'ערך ${shifted ? 'F' : 'f'}';
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: typed,
+            selection: TextSelection.collapsed(offset: typed.length),
+          ),
+        );
+        await tester.pump();
+        expect(tab.searchController.text, typed);
+
+        await Settings.setValue(ShortcutValidator.currentWindowSearchKey, 'f6');
+        final functionKeyHandled = await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.f6,
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.f6);
+        expect(functionKeyHandled, isTrue);
+        await Settings.setValue(
+          ShortcutValidator.currentWindowSearchKey,
+          'ctrl+f',
+        );
+        expect(await pressF(control: true), isTrue);
+        expect(tab.searchController.text, typed);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await disposePdfDocument(tester, document);
+      }
+    });
   }
 
   for (final bookView in [false, true]) {

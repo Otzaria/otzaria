@@ -1,12 +1,181 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 void main() {
+  for (final width in [200.0, 300.0, 400.0]) {
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('פעולות חיפוש אינן מצרות את השאילתה ברוחב $width, '
+          'קנה מידה $scale (issues #4071, #3881)', (tester) async {
+        final controller = TextEditingController(text: 'שאילתת חיפוש ארוכה');
+        final focusNode = FocusNode();
+        final paneWidth = ValueNotifier(width);
+        final registry = PluginSearchFieldActionsRegistry.instance;
+        registry.registerPayload('narrow-test', {
+          'id': 'action',
+          'title': 'תוסף חיפוש',
+          'icon': 'mic_24_regular',
+          'fields': ['inBook'],
+        });
+        for (var i = 0; i < 2; i++) {
+          registry.registerPayload('narrow-test-extra', {
+            'id': 'action$i',
+            'title': 'פעולת תוסף $i',
+            'icon': 'mic_24_regular',
+            'fields': ['inBook'],
+          });
+        }
+        addTearDown(() {
+          controller.dispose();
+          focusNode.dispose();
+          paneWidth.dispose();
+          registry.removeAll('narrow-test');
+          registry.removeAll('narrow-test-extra');
+        });
+        var settingsOpened = 0;
+        var toggles = 0;
+        var cleared = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: MediaQuery(
+                data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+                child: Scaffold(
+                  body: ValueListenableBuilder<double>(
+                    valueListenable: paneWidth,
+                    builder: (context, value, _) => SizedBox(
+                      width: value,
+                      child: SearchPaneBase(
+                        searchController: controller,
+                        focusNode: focusNode,
+                        onAdvancedSearch: () => settingsOpened++,
+                        pluginActionsField: PluginSearchField.inBook,
+                        searchFieldActions: [
+                          OtzariaSearchAction.icon(
+                            iconData: FluentIcons.text_whole_word_20_regular,
+                            tooltip: 'מילים שלמות',
+                            onPressed: () => toggles++,
+                          ),
+                          OtzariaSearchAction.icon(
+                            iconData: FluentIcons.book_24_regular,
+                            tooltip: 'קטע נוכחי',
+                            onPressed: () {},
+                          ),
+                        ],
+                        resultsWidget: const SizedBox.shrink(),
+                        isNoResults: false,
+                        resetSearchCallback: () => cleared++,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        // Selecting on focus runs after a frame; the overlay rebuilds next.
+        await tester.pumpAndSettle();
+
+        final field = tester.getRect(find.byType(EditableText));
+        final editable = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        final handleLinks = {
+          editable.renderEditable.startHandleLayerLink,
+          editable.renderEditable.endHandleLayerLink,
+        };
+        final handleRects = tester
+            .renderObjectList<RenderBox>(
+              find.descendant(
+                of: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is CompositedTransformFollower &&
+                      handleLinks.contains(widget.link),
+                ),
+                matching: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is RawGestureDetector &&
+                      widget.gestures.containsKey(PanGestureRecognizer),
+                ),
+              ),
+            )
+            .map((handle) => handle.localToGlobal(Offset.zero) & handle.size)
+            .toList();
+        expect(controller.selection.isCollapsed, isFalse);
+        expect(editable.renderEditable.selection, controller.selection);
+        expect(
+          editable.selectionOverlay!.value.selection,
+          controller.selection,
+        );
+        expect(handleRects, hasLength(2));
+        // Only the normal prefix, clear action and field padding use width.
+        expect(field.width, greaterThanOrEqualTo(width - 110));
+        for (final tooltip in [
+          'מילים שלמות',
+          'קטע נוכחי',
+          'הגדרות חיפוש',
+          'תוסף חיפוש',
+          'פעולת תוסף 0',
+          'פעולת תוסף 1',
+        ]) {
+          final actionRect = tester.getRect(find.byTooltip(tooltip));
+          expect(
+            actionRect.top,
+            greaterThan(field.bottom),
+          );
+          expect(
+            handleRects.any(actionRect.overlaps),
+            isFalse,
+            reason: '$tooltip must remain reachable while text is selected',
+          );
+        }
+        await tester.tap(find.byTooltip('מילים שלמות'));
+        await tester.tap(find.byTooltip('הגדרות חיפוש'));
+        expect(toggles, 1);
+        expect(settingsOpened, 1);
+        await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+        await tester.pump();
+        expect(controller.text, isEmpty);
+        expect(cleared, 1);
+        expect(focusNode.hasFocus, isTrue);
+        await tester.tap(find.byTooltip('תוסף חיפוש'));
+        await tester.pump();
+        final sessions = PluginSearchFieldSessionService.instance;
+        final binding =
+            tester.state(find.byType(PluginSearchFieldActions))
+                as PluginSearchFieldBinding;
+        final session = sessions.sessionFor(binding, 'narrow-test', 'action')!;
+        paneWidth.value = width == 200 ? 400 : 200;
+        await tester.pump();
+        expect(
+          sessions.sessionFor(binding, 'narrow-test', 'action'),
+          same(session),
+        );
+        sessions.setFieldText(
+          'narrow-test',
+          session.id,
+          'חיפוש לאחר שינוי רוחב',
+        );
+        expect(controller.text, 'חיפוש לאחר שינוי רוחב');
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+  }
+
   testWidgets('בתוך חלונית ניווט השדה והפעולות שלו מצוירים בחלונית עצמה', (
     tester,
   ) async {
