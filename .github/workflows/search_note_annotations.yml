@@ -1,0 +1,240 @@
+name: Search note annotation compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/search_note_annotations.yml'
+      - 'lib/search/utils/snippet_builder.dart'
+      - 'lib/search/view/tantivy_search_results.dart'
+      - 'lib/semantic_search/models/semantic_feedback_snapshots.dart'
+      - 'lib/semantic_search/view/semantic_search_results_screen.dart'
+      - 'lib/text_book/view/text_book_search_screen.dart'
+      - 'test/search/snippet*_test.dart'
+      - 'test/search/tantivy_search_results_test.dart'
+      - 'test/semantic_search/semantic_mode_gate_test.dart'
+      - 'test/semantic_search/semantic_results_screen_test.dart'
+      - 'test/text_book/view/text_book_search_engine_route_test.dart'
+      - 'test/support/search_engine_test_init.dart'
+      - 'test/flutter_test_config.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-note-annotations-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native_compatibility:
+    name: Note snippets with legacy and candidate engines
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      # Replace only with the independently reviewed engine notes commit.
+      NOTE_ENGINE_COMMIT: bbc1b3b630398ac40100c50ca6ad9a780fe0c29a
+      LEGACY_ENGINE_SHA256: 1101a8048ca9076d0e8714c68ae3f9a44b82d2c2fe2075a8c8eb13e9a938cd8b
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout reviewed engine
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: Otzaria/otzaria_search_engine
+          ref: ${{ env.NOTE_ENGINE_COMMIT }}
+          path: .note-annotation-engine
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve locked app dependencies and generated catalogs
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+
+      - name: Verify engine revision and unchanged Dart bridge
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+          from urllib.parse import unquote, urljoin, urlparse
+
+          expected = os.environ['NOTE_ENGINE_COMMIT']
+          if not re.fullmatch(r'[0-9a-f]{40}', expected):
+              raise SystemExit('The candidate engine must be pinned to a full reviewed commit SHA')
+          engine = Path('.note-annotation-engine')
+          actual = subprocess.check_output(['git', '-C', str(engine), 'rev-parse', 'HEAD'], text=True).strip()
+          if actual != expected:
+              raise SystemExit(f'Engine revision mismatch: {actual} != {expected}')
+          config_path = Path('.dart_tool/package_config.json').resolve()
+          config = json.loads(config_path.read_text())
+          package = next(p for p in config['packages'] if p['name'] == 'otzaria_search_engine')
+          uri = urljoin(config_path.parent.as_uri() + '/', package['rootUri'])
+          package_root = Path(unquote(urlparse(uri).path))
+          bridges = list((engine / 'lib/src/rust').rglob('*.dart'))
+          if not bridges:
+              raise SystemExit('No generated Dart bridge files found')
+          for candidate in bridges:
+              relative = candidate.relative_to(engine)
+              if candidate.read_bytes() != (package_root / relative).read_bytes():
+                  raise SystemExit(f'Candidate and locked app bridge differ: {relative}')
+          evidence = Path('build/note-annotations')
+          evidence.mkdir(parents=True, exist_ok=True)
+          provenance = {
+              'engine_commit': actual,
+              'app_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'pubspec_lock_sha256': hashlib.sha256(Path('pubspec.lock').read_bytes()).hexdigest(),
+              'bridge_files_compared': len(bridges),
+              'legacy_release': 'precompiled_1040c89b1c5fdf1ee19ca1cb00468d4c',
+              'legacy_sha256': os.environ['LEGACY_ENGINE_SHA256'],
+          }
+          (evidence / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+          PY
+          rustc -Vv > build/note-annotations/rust-toolchain.txt
+          cargo -V >> build/note-annotations/rust-toolchain.txt
+
+      # This fixed 7.0.1 binary remains the legacy control after pubspec is updated.
+      - name: Download and verify legacy engine
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/note-annotation-binaries/legacy"
+          library="$RUNNER_TEMP/note-annotation-binaries/legacy/libsearch_engine.so"
+          curl -fSL --retry 3 --retry-delay 5 -o "$library" \
+            https://github.com/Otzaria/otzaria_search_engine/releases/download/precompiled_1040c89b1c5fdf1ee19ca1cb00468d4c/x86_64-unknown-linux-gnu_libsearch_engine.so
+          printf '%s  %s\n' "$LEGACY_ENGINE_SHA256" "$library" | sha256sum -c -
+
+      - name: Build candidate with the app native features
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path .note-annotation-engine/rust/Cargo.toml \
+            --locked --release --lib --jobs 2 --no-default-features \
+            --features sqlite-host,semantic \
+            --target-dir "$RUNNER_TEMP/note-annotations-cargo"
+
+      - name: Record candidate native identity
+        id: candidate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          library = Path(os.environ['RUNNER_TEMP']) / 'note-annotations-cargo/release/libsearch_engine.so'
+          digest = hashlib.sha256(library.read_bytes()).hexdigest()
+          evidence = Path('build/note-annotations/provenance.json')
+          provenance = json.loads(evidence.read_text())
+          provenance.update(candidate_library=str(library), candidate_sha256=digest,
+                            candidate_features=['sqlite-host', 'semantic'])
+          evidence.write_text(json.dumps(provenance, indent=2) + '\n')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+              output.write(f'library={library}\nsha256={digest}\n')
+          print(f'Candidate engine SHA-256: {digest}')
+          PY
+
+      - name: Test legacy native contract
+        env:
+          OTZARIA_EXPECT_NOTE_ANNOTATIONS: '0'
+          OTZARIA_SEARCH_ENGINE_LIBRARY_PATH: ${{ runner.temp }}/note-annotation-binaries/legacy/libsearch_engine.so
+          OTZARIA_EXPECTED_SEARCH_ENGINE_SHA256: ${{ env.LEGACY_ENGINE_SHA256 }}
+        run: |
+          flutter test --no-pub -j 2 --reporter expanded \
+            --file-reporter json:build/note-annotations/legacy-tests.json \
+            test/search/snippet_note_annotations_test.dart \
+            test/search/snippet_note_annotations_engine_test.dart \
+            test/search/snippet_builder_test.dart \
+            test/search/snippet_builder_highlight_terms_fast_path_test.dart \
+            test/search/tantivy_search_results_test.dart \
+            test/semantic_search/semantic_mode_gate_test.dart \
+            test/semantic_search/semantic_results_screen_test.dart \
+            test/text_book/view/text_book_search_engine_route_test.dart
+
+      - name: Test candidate native contract in a fresh process
+        env:
+          OTZARIA_EXPECT_NOTE_ANNOTATIONS: '1'
+          OTZARIA_SEARCH_ENGINE_LIBRARY_PATH: ${{ steps.candidate.outputs.library }}
+          OTZARIA_EXPECTED_SEARCH_ENGINE_SHA256: ${{ steps.candidate.outputs.sha256 }}
+        run: |
+          flutter test --no-pub -j 2 --reporter expanded \
+            --file-reporter json:build/note-annotations/candidate-tests.json \
+            test/search/snippet_note_annotations_test.dart \
+            test/search/snippet_note_annotations_engine_test.dart \
+            test/search/snippet_builder_test.dart \
+            test/search/snippet_builder_highlight_terms_fast_path_test.dart \
+            test/search/tantivy_search_results_test.dart \
+            test/semantic_search/semantic_mode_gate_test.dart \
+            test/semantic_search/semantic_results_screen_test.dart \
+            test/text_book/view/text_book_search_engine_route_test.dart
+
+      - name: Require all suites and zero skipped tests in both modes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          expected = {
+              'snippet_note_annotations_test.dart', 'snippet_note_annotations_engine_test.dart',
+              'snippet_builder_test.dart', 'snippet_builder_highlight_terms_fast_path_test.dart',
+              'tantivy_search_results_test.dart', 'semantic_mode_gate_test.dart',
+              'semantic_results_screen_test.dart', 'text_book_search_engine_route_test.dart',
+          }
+          summaries = []
+          for mode in ['legacy', 'candidate']:
+              events = [json.loads(line) for line in Path(f'build/note-annotations/{mode}-tests.json').read_text().splitlines() if line.strip()]
+              suites = {e['suite']['id']: Path(e['suite']['path']).name for e in events if e['type'] == 'suite'}
+              tests = {e['test']['id']: e['test'] for e in events if e['type'] == 'testStart'}
+              done = [e for e in events if e['type'] == 'testDone' and not e.get('hidden', False)]
+              if not any(e['type'] == 'done' and e.get('success') for e in events):
+                  raise SystemExit(f'{mode}: no successful completed run')
+              if any(e.get('skipped', False) or e.get('result') != 'success' for e in done):
+                  raise SystemExit(f'{mode}: failed or skipped visible tests')
+              counts = Counter(suites[tests[e['testID']]['suiteID']] for e in done)
+              if set(counts) != expected:
+                  raise SystemExit(f'{mode}: unexpected test suite coverage: {dict(counts)}')
+              if counts['snippet_note_annotations_test.dart'] < 26 or counts['snippet_note_annotations_engine_test.dart'] < 4:
+                  raise SystemExit(f'{mode}: missing note contract cases')
+              summaries.append({'mode': mode, 'passed': len(done), 'skipped': 0, 'suites': dict(counts)})
+          Path('build/note-annotations/summary.json').write_text(json.dumps(summaries, indent=2) + '\n')
+          print(json.dumps(summaries, indent=2))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as summary:
+              summary.write('## Search note annotation compatibility\n\n')
+              for item in summaries:
+                  summary.write(f"- {item['mode']}: {item['passed']} passed, zero skipped, all eight suites.\n")
+          PY
+          git diff --exit-code -- pubspec.yaml pubspec.lock
+
+      - name: Upload native identity and both test reports
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: search-note-annotation-compatibility
+          path: build/note-annotations/
+          if-no-files-found: error
+          retention-days: 14
