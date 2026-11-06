@@ -2546,11 +2546,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         : (widget.bookTitle != null && widget.bookTitle!.trim().isNotEmpty)
         ? widget.bookTitle!
         : state.book.title;
-    if (widget.isBookNotesColumn &&
-        selectedText.trim().isEmpty &&
-        _savedSelectedIndex != null) {
-      selectedText = widget.content[_savedSelectedIndex!];
-    }
+    final noteRow = widget.isBookNotesColumn && _savedSelectedIndex != null
+        ? widget.content[_savedSelectedIndex!]
+        : null;
+    if (noteRow != null && selectedText.trim().isEmpty) selectedText = noteRow;
 
     ErrorReportHelper.showErrorReportDialog(
       context: context,
@@ -2563,7 +2562,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       fontSize: widget.fontSize,
       bookTitle: resolvedBookTitle,
       savedSelectedIndex: _sourceIndex(_savedSelectedIndex),
-      reportContent: widget.isBookNotesColumn ? state.content : widget.content,
+      // רק הערה מ-line_note אינה בשורת המקור, ואין לה הצעת תיקון.
+      reportContent: noteRow == null
+          ? widget.content
+          : state.bookNotes.isEmpty
+          ? state.content
+          : [noteRow],
       reportBook: widget.reportBook,
     );
   }
