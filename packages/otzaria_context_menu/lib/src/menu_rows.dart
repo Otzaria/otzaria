@@ -12,6 +12,8 @@ const FontWeight _kSelectedItemFontWeight = FontWeight.w600;
 
 const int _kLabelsPerMeasurement = 64;
 const int _kMaxBatchedLabelLength = 2048;
+const int _kMaxBatchedTextLength = 8192;
+const int _kSortLabelsThreshold = 1024;
 // תווי בקרה דורשים פסקה עצמאית כדי שלא ישפיעו על מדידת תוויות אחרות.
 final _independentParagraphLabel = RegExp(
   r'[\p{C}\p{Zl}\p{Zp}\u{10000}-\u{10ffff}]',
@@ -172,13 +174,67 @@ double? calculateAppMenuLabelMaxWidth(
   return availableWidth;
 }
 
-/// מחשב את הרוחב הדרוש להצגת הפריט הארוך ביותר ב-[entries] בלי קיצוץ —
-/// משמש גם לקביעת רוחב התפריט וגם לרוחב הכפתור הפותח אותו (AppDropdownField).
+/// רוחב התפריט או הכפתור הנדרש להצגת כל [entries], עד לתקרה [maxWidth].
 double calculateAppMenuPreferredWidth<T>(
   AppMenuMetrics metrics,
+  List<AppMenuEntry<T>> entries, {
+  double maxWidth = double.infinity,
+}) => _appMenuPreferredWidths(metrics, entries, maxWidth).last;
+
+/// מדידה מדויקת במנות, כדי שפתיחת תפריט גדול לא תחסום אירועי ממשק.
+Future<double> calculateAppMenuPreferredWidthAsync<T>(
+  AppMenuMetrics metrics,
+  List<AppMenuEntry<T>> entries, {
+  double maxWidth = double.infinity,
+}) async {
+  final budget = Stopwatch()..start();
+  var width = min(metrics.menuMinWidth, maxWidth);
+  for (final measured in _appMenuPreferredWidths(metrics, entries, maxWidth)) {
+    width = measured;
+    if (budget.elapsedMilliseconds >= 8) {
+      await Future<void>.delayed(Duration.zero);
+      budget.reset();
+    }
+  }
+  return width;
+}
+
+Iterable<double> _appMenuPreferredWidths<T>(
+  AppMenuMetrics metrics,
   List<AppMenuEntry<T>> entries,
-) {
-  if (entries.isEmpty) return metrics.menuMinWidth;
+  double maxWidth,
+) sync* {
+  assert(maxWidth >= 0);
+  if (entries.isEmpty) {
+    yield min(metrics.menuMinWidth, maxWidth);
+    return;
+  }
+
+  final hasIcon = entries.any((entry) => entry.icon != null);
+  var maxTrailingWidth = 0.0;
+  var hasExtraSlot = false;
+  for (final entry in entries) {
+    if (entry.trailing != null) {
+      final tWidth = entry.trailingReservedWidth > 0
+          ? entry.trailingReservedWidth
+          : metrics.iconSize + 8;
+      if (tWidth > maxTrailingWidth) maxTrailingWidth = tWidth;
+      if (entry.reserveTrailingGap) hasExtraSlot = true;
+    }
+  }
+
+  // תמיד משוריין מקום לסימן הבחירה, גם אם הפריט הנבחר ישתנה.
+  final occupiedWidth =
+      metrics.itemPadding.horizontal +
+      (hasIcon ? metrics.iconSize + 8 : 0) +
+      metrics.iconSize +
+      _kCheckmarkGap +
+      maxTrailingWidth +
+      (hasExtraSlot ? metrics.iconSize + 8 : 0);
+  if (max(metrics.menuMinWidth, occupiedWidth) >= maxWidth) {
+    yield maxWidth;
+    return;
+  }
 
   // נמדד במשקל של פריט נבחר (מודגש) — כל פריט עשוי להיות זה שנבחר,
   // והגופן המודגש רחב יותר מהרגיל.
@@ -189,10 +245,21 @@ double calculateAppMenuPreferredWidth<T>(
   );
 
   final labels = entries.map((entry) => entry.label).toSet().toList();
+  // ארוכות תחילה כדי להגיע מהר לתקרת רוחב התפריט; אורך לבדו אינו חסם רוחב.
+  if (maxWidth.isFinite && labels.length > _kSortLabelsThreshold) {
+    labels.sort((a, b) => b.length.compareTo(a.length));
+  }
   var maxLabelWidth = 0.0;
-  for (var start = 0; start < labels.length; start += _kLabelsPerMeasurement) {
-    final end = min(start + _kLabelsPerMeasurement, labels.length);
+  for (var start = 0; start < labels.length;) {
+    var end = start;
+    var textLength = 0;
+    do {
+      textLength += labels[end++].length;
+    } while (end < labels.length &&
+        end - start < _kLabelsPerMeasurement &&
+        textLength < _kMaxBatchedTextLength);
     final batch = labels.sublist(start, end);
+    start = end;
     final paragraphs = <String>[];
     final ordinaryLabels = <String>[];
     for (final label in batch) {
@@ -212,35 +279,15 @@ double calculateAppMenuPreferredWidth<T>(
       )..layout();
       maxLabelWidth = max(maxLabelWidth, painter.width);
       painter.dispose();
+      // חיבור פסקאות עלול לצבור שגיאת עיגול תת־פיקסלית במדידה של המנוע.
+      final width = max(
+        metrics.menuMinWidth,
+        maxLabelWidth.ceilToDouble() + 1 + occupiedWidth,
+      );
+      yield min(width, maxWidth);
+      if (width >= maxWidth) return;
     }
   }
-  // חיבור פסקאות עלול לצבור שגיאת עיגול תת־פיקסלית במדידה של המנוע.
-  maxLabelWidth = maxLabelWidth.ceilToDouble() + 1;
-
-  final hasIcon = entries.any((entry) => entry.icon != null);
-
-  var maxTrailingWidth = 0.0;
-  var hasExtraSlot = false;
-  for (final entry in entries) {
-    if (entry.trailing != null) {
-      final tWidth = entry.trailingReservedWidth > 0
-          ? entry.trailingReservedWidth
-          : metrics.iconSize + 8;
-      if (tWidth > maxTrailingWidth) maxTrailingWidth = tWidth;
-      if (entry.reserveTrailingGap) hasExtraSlot = true;
-    }
-  }
-
-  // תמיד משוריין מקום לסימן ה-✓ שמוצג ליד הפריט הנבחר, יהיה אשר יהיה.
-  final occupiedWidth =
-      metrics.itemPadding.horizontal +
-      (hasIcon ? metrics.iconSize + 8 : 0) +
-      metrics.iconSize +
-      _kCheckmarkGap +
-      maxTrailingWidth +
-      (hasExtraSlot ? metrics.iconSize + 8 : 0);
-
-  return max(metrics.menuMinWidth, maxLabelWidth + occupiedWidth);
 }
 
 ButtonStyle buildAppSubmenuItemStyle(

@@ -25,7 +25,8 @@ export 'package:otzaria_context_menu/otzaria_context_menu.dart'
         AppContextMenuSubAction,
         hasEnabledAppContextMenuEntries,
         calculateAppMenuLabelMaxWidth,
-        calculateAppMenuPreferredWidth;
+        calculateAppMenuPreferredWidth,
+        calculateAppMenuPreferredWidthAsync;
 
 class AppPopupMenuButton<T> extends StatefulWidget {
   final List<AppMenuEntry<T>>? entries;
@@ -600,8 +601,20 @@ Future<T?> showAnchoredAppSearchMenu<T>({
       Theme.of(context).extension<AppMenuMetrics>() ??
       AppMenuMetrics.create(compactMenus: false);
 
-  final renderBox = anchorContext.findRenderObject() as RenderBox;
+  final ownerRoute = ModalRoute.of(anchorContext);
   final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final preferredWidth = await menu.calculateAppMenuPreferredWidthAsync(
+    metrics,
+    entries,
+    maxWidth: overlay.size.width,
+  );
+  if (!context.mounted ||
+      !anchorContext.mounted ||
+      !overlay.attached ||
+      ownerRoute?.isCurrent == false) {
+    return null;
+  }
+  final renderBox = anchorContext.findRenderObject() as RenderBox;
   final targetRect = MatrixUtils.transformRect(
     renderBox.getTransformTo(overlay),
     Offset.zero & renderBox.size,
@@ -636,7 +649,6 @@ Future<T?> showAnchoredAppSearchMenu<T>({
       : targetRect.top - menuHeight - offset.dy;
 
   // רוחב התוכן והטריגר מוגבל ל-overlay כדי שלא יגלוש מעבר לחלון.
-  final preferredWidth = menu.calculateAppMenuPreferredWidth(metrics, entries);
   final filterRowWidth = hasFilters
       ? _calculateFilterRowWidth(metrics, filterLabels)
       : 0.0;
@@ -773,7 +785,8 @@ class _AnchoredSearchMenuContentState<T>
     extends State<_AnchoredSearchMenuContent<T>> {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocus;
-  late final ScrollController _scrollController;
+  ScrollController? _scrollController;
+  late final int _initialIndex;
   String _query = '';
   late int _activeFilter;
 
@@ -786,13 +799,14 @@ class _AnchoredSearchMenuContentState<T>
         : widget.initialFilter.clamp(0, filterCount - 1);
     _searchController = TextEditingController();
     _searchFocus = FocusNode();
-    _scrollController = ScrollController();
+    _initialIndex = widget.initialValue == null
+        ? 0
+        : _filteredEntries.indexWhere((e) => e.value == widget.initialValue);
     _searchController.addListener(_onSearchChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _searchFocus.requestFocus();
-      _scrollToInitialValue();
     });
   }
 
@@ -801,27 +815,13 @@ class _AnchoredSearchMenuContentState<T>
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocus.dispose();
-    _scrollController.dispose();
+    _scrollController?.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
     if (_query == _searchController.text) return;
     setState(() => _query = _searchController.text);
-  }
-
-  void _scrollToInitialValue() {
-    if (widget.initialValue == null) return;
-    if (!_scrollController.hasClients) return;
-
-    final filtered = _filteredEntries;
-    final idx = filtered.indexWhere((e) => e.value == widget.initialValue);
-    if (idx < 0) return;
-
-    final targetOffset =
-        (idx * widget.metrics.itemHeight) - (widget.metrics.itemHeight * 2);
-    final maxOffset = _scrollController.position.maxScrollExtent;
-    _scrollController.jumpTo(targetOffset.clamp(0.0, maxOffset));
   }
 
   List<AppMenuEntry<T>> get _filteredEntries {
@@ -927,8 +927,8 @@ class _AnchoredSearchMenuContentState<T>
                                     _,
                                   ) {
                                     if (mounted &&
-                                        _scrollController.hasClients) {
-                                      _scrollController.jumpTo(0);
+                                        _scrollController?.hasClients == true) {
+                                      _scrollController!.jumpTo(0);
                                     }
                                   });
                                 },
@@ -957,46 +957,65 @@ class _AnchoredSearchMenuContentState<T>
                               ),
                             ),
                           )
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: widget.metrics.menuPadding,
-                            // בלי גובה קבוע, קפיצה לערך הנבחר בונה כל שורה בדרך.
-                            itemExtent: widget.metrics.itemHeight,
-                            itemCount: filtered.length,
-                            itemBuilder: (ctx, i) {
-                              final entry = filtered[i];
-                              final isSelected =
-                                  widget.initialValue != null &&
-                                  entry.value == widget.initialValue;
-                              return InkWell(
-                                onTap: entry.enabled
-                                    ? () =>
-                                          Navigator.of(context).pop(entry.value)
-                                    : null,
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  height: widget.metrics.itemHeight,
-                                  child: LayoutBuilder(
-                                    // חישוב רוחב התווית כבר מחסיר את ריפוד השורה.
-                                    builder: (ctx, constraints) =>
-                                        buildAppMenuRowContent(
-                                          context,
-                                          widget.metrics,
-                                          label: entry.label,
-                                          labelWidget: entry.labelWidget,
-                                          maxWidth: constraints.maxWidth,
-                                          icon: entry.icon,
-                                          trailing: entry.trailing,
-                                          isSelected: isSelected,
-                                          isDestructive: entry.isDestructive,
-                                          enabled: entry.enabled,
-                                          reserveTrailingGap:
-                                              entry.reserveTrailingGap,
-                                          trailingReservedWidth:
-                                              entry.trailingReservedWidth,
-                                        ),
-                                  ),
-                                ),
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final contentHeight =
+                                  filtered.length * widget.metrics.itemHeight +
+                                  widget.metrics.menuPadding.vertical;
+                              final maxOffset = max(
+                                0.0,
+                                contentHeight - constraints.maxHeight,
+                              );
+                              _scrollController ??= ScrollController(
+                                initialScrollOffset:
+                                    ((_initialIndex - 2) *
+                                            widget.metrics.itemHeight)
+                                        .clamp(0.0, maxOffset),
+                              );
+                              return ListView.builder(
+                                controller: _scrollController,
+                                padding: widget.metrics.menuPadding,
+                                // בלי גובה קבוע, קפיצה לערך הנבחר בונה כל שורה בדרך.
+                                itemExtent: widget.metrics.itemHeight,
+                                itemCount: filtered.length,
+                                itemBuilder: (ctx, i) {
+                                  final entry = filtered[i];
+                                  final isSelected =
+                                      widget.initialValue != null &&
+                                      entry.value == widget.initialValue;
+                                  return InkWell(
+                                    onTap: entry.enabled
+                                        ? () => Navigator.of(
+                                            context,
+                                          ).pop(entry.value)
+                                        : null,
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      height: widget.metrics.itemHeight,
+                                      child: LayoutBuilder(
+                                        // חישוב רוחב התווית כבר מחסיר את ריפוד השורה.
+                                        builder: (ctx, constraints) =>
+                                            buildAppMenuRowContent(
+                                              context,
+                                              widget.metrics,
+                                              label: entry.label,
+                                              labelWidget: entry.labelWidget,
+                                              maxWidth: constraints.maxWidth,
+                                              icon: entry.icon,
+                                              trailing: entry.trailing,
+                                              isSelected: isSelected,
+                                              isDestructive:
+                                                  entry.isDestructive,
+                                              enabled: entry.enabled,
+                                              reserveTrailingGap:
+                                                  entry.reserveTrailingGap,
+                                              trailingReservedWidth:
+                                                  entry.trailingReservedWidth,
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),

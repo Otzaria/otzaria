@@ -108,6 +108,32 @@ void main() {
   });
 
   group('AppDropdownField - פתיחת תפריט', () {
+    testWidgets('לחיצות חוזרות בזמן פתיחת תפריט חיפוש פותחות תפריט אחד', (
+      tester,
+    ) async {
+      String? selected;
+      await pumpDropdown<String>(
+        tester,
+        value: 'a',
+        entries: const [
+          AppMenuEntry(value: 'a', label: 'אבא'),
+          AppMenuEntry(value: 'b', label: 'בית'),
+        ],
+        onSelected: (value) => selected = value,
+        enableSearch: true,
+      );
+      final open = tester
+          .widget<FilledButton>(find.byType(FilledButton))
+          .onPressed!;
+      open();
+      open();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('בית').last);
+      await tester.pumpAndSettle();
+      expect(selected, 'b');
+      expect(find.text('בית'), findsNothing);
+    });
+
     testWidgets('לחיצה פותחת תפריט עם הפריטים', (tester) async {
       await pumpDropdown<String>(
         tester,

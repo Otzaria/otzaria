@@ -57,6 +57,7 @@ class AppDropdownField<T> extends StatefulWidget {
 class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   final GlobalKey _anchorKey = GlobalKey();
   final FocusNode _focusNode = FocusNode();
+  bool _menuOpen = false;
 
   @override
   void dispose() {
@@ -95,7 +96,8 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   }
 
   Future<void> _openSelectionMenu() async {
-    if (!widget.enabled ||
+    if (_menuOpen ||
+        !widget.enabled ||
         widget.onSelected == null ||
         widget.entries.isEmpty) {
       return;
@@ -103,45 +105,53 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     final anchorContext = _anchorKey.currentContext;
     if (anchorContext == null) return;
 
-    final T? selected = widget.enableSearch
-        ? await showAnchoredAppSearchMenu<T>(
-            context: context,
-            anchorContext: anchorContext,
-            entries: widget.entries,
-            initialValue: widget.value,
-            searchHint:
-                widget.decoration?.hintText ??
-                widget.decoration?.labelText ??
-                context.settingsText('חיפוש'),
-            filterLabels: widget.filterLabels,
-            filterPredicates: widget.filterPredicates,
-            initialFilter: widget.initialFilter,
-            menuMinWidth: widget.menuMinWidth,
-          )
-        : await showAnchoredAppMenu<T>(
-            context: context,
-            anchorContext: anchorContext,
-            initialValue: widget.value,
-            minWidth: _preferredMenuWidth(context),
-            itemsBuilder: (metrics) =>
-                widget.menuItemsBuilder?.call(context, metrics) ??
-                widget.entries
-                    .map<PopupMenuEntry<T>>(
-                      (entry) => buildAppPopupMenuItem<T>(
-                        context,
-                        entry,
-                        metrics,
-                        widget.value,
-                      ),
-                    )
-                    .toList(),
-          );
+    _menuOpen = true;
+    final T? selected;
+    try {
+      selected = widget.enableSearch
+          ? await showAnchoredAppSearchMenu<T>(
+              context: context,
+              anchorContext: anchorContext,
+              entries: widget.entries,
+              initialValue: widget.value,
+              searchHint:
+                  widget.decoration?.hintText ??
+                  widget.decoration?.labelText ??
+                  context.settingsText('חיפוש'),
+              filterLabels: widget.filterLabels,
+              filterPredicates: widget.filterPredicates,
+              initialFilter: widget.initialFilter,
+              menuMinWidth: widget.menuMinWidth,
+            )
+          : await showAnchoredAppMenu<T>(
+              context: context,
+              anchorContext: anchorContext,
+              initialValue: widget.value,
+              minWidth: _preferredMenuWidth(context),
+              itemsBuilder: (metrics) =>
+                  widget.menuItemsBuilder?.call(context, metrics) ??
+                  widget.entries
+                      .map<PopupMenuEntry<T>>(
+                        (entry) => buildAppPopupMenuItem<T>(
+                          context,
+                          entry,
+                          metrics,
+                          widget.value,
+                        ),
+                      )
+                      .toList(),
+            );
+    } finally {
+      _menuOpen = false;
+    }
 
     if (!mounted) return;
     // דחיית הפוקוס לפריים הבא — showMenu/push מחזירים Future לפני שאנימציית
     // הסגירה מסיימת; requestFocus() שמוקדם מדי מובס ע"י ה-FocusManager.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
+      if (mounted && ModalRoute.of(context)?.isCurrent != false) {
+        _focusNode.requestFocus();
+      }
     });
     if (selected != null) widget.onSelected?.call(selected);
   }
