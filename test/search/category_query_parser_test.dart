@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -17,6 +19,18 @@ Category _category(
   books: books,
   parent: null,
 );
+
+class _CountingBook extends TextBook {
+  _CountingBook() : super(title: 'ספר אחר', id: 1);
+
+  int titleReads = 0;
+
+  @override
+  String get title {
+    titleReads++;
+    return super.title;
+  }
+}
 
 class _CountingCategory extends Category {
   _CountingCategory()
@@ -41,6 +55,12 @@ class _CountingCategory extends Category {
 
 void main() {
   group('parseCategoryQuery', () {
+    setUp(AcronymsCache.instance.clear);
+    tearDown(AcronymsCache.instance.clear);
+
+    String facetOf(Book book) =>
+        FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+
     for (final pair in [('שורש', 'שרש'), ('דובר', 'דבר')]) {
       test('@${pair.$1} אינו מרחיב את התחום לפי כלל כתיב שמות הספרים', () {
         final library = Library(categories: [_category(pair.$2, [])]);
@@ -52,10 +72,7 @@ void main() {
 
     test('@ מעדיף קטגוריה מילולית על מילה אחרת בכתיב קרוב', () {
       final library = Library(
-        categories: [
-          _category('דבר', []),
-          _category('דובר', []),
-        ],
+        categories: [_category('דבר', []), _category('דובר', [])],
       );
       final parsed = parseCategoryQuery('מילה@דובר', library);
       expect(parsed.facets, hasLength(1));
@@ -207,16 +224,13 @@ void main() {
 
       final parsed = parseCategoryQuery('שלום@משנה ברורה', library);
 
-      expect(
-        parsed.facets,
-        unorderedEquals([
-          category.path,
-          FacetHelper.buildBookFacet(
-            FacetHelper.resolveCategoryPath(exactBook),
-            exactBook,
-          ),
-        ]),
-      );
+      expect(parsed.facets, [
+        FacetHelper.buildBookFacet(
+          FacetHelper.resolveCategoryPath(exactBook),
+          exactBook,
+        ),
+        category.path,
+      ]);
     });
 
     test('שגיאת כתיב — התאמה סלחנית לפי מרחק עריכה', () {
@@ -269,6 +283,189 @@ void main() {
 
       expect(parsed.categoryFound, isFalse);
       expect(category.pathReads, 0);
+    });
+
+    test('fallback אינו קורא ומנרמל שוב כותרות שכבר נסרקו', () {
+      final book = _CountingBook();
+      final library = Library(
+        categories: [
+          _category('תורה', [book]),
+        ],
+      );
+
+      for (final name in ['בראשיט', 'זכ']) {
+        book.titleReads = 0;
+        final parsed = parseCategoryQuery('מילה@$name', library);
+
+        expect(parsed.categoryFound, isFalse);
+        expect(book.titleReads, 1, reason: name);
+      }
+    });
+
+    for (final exactFirst in [true, false]) {
+      test(
+        'ספר מדויק ${exactFirst ? "ראשון" : "אחרון"} אינו בונה facet מקורב',
+        () {
+          final fuzzyCategory = _CountingCategory();
+          fuzzyCategory.books.add(
+            TextBook(title: 'בראשיט', id: 1, category: fuzzyCategory),
+          );
+          final exactBook = TextBook(title: 'בראשית', id: 2);
+          final exactCategory = _category('תורה', [exactBook]);
+          final library = Library(
+            categories: exactFirst
+                ? [exactCategory, fuzzyCategory]
+                : [fuzzyCategory, exactCategory],
+          );
+
+          for (final name in ['בראשית', 'בְּרֵאשִׁית']) {
+            expect(parseCategoryQuery('מילה@$name', library).facets, [
+              facetOf(exactBook),
+            ]);
+          }
+          expect(fuzzyCategory.pathReads, 0);
+        },
+      );
+    }
+
+    test('מילה שלמה שומרת ספרים לפני קטגוריה מדויקת בלי ספר מדויק', () {
+      final books = [
+        TextBook(title: 'פירוש בראשית', id: 1),
+        TextBook(title: 'אוצרבראשית', id: 2),
+        TextBook(title: 'בראשיט', id: 3),
+        TextBook(title: 'מבוא לבראשית', id: 4),
+      ];
+      final exactCategory = _category('בראשית', []);
+      final library = Library(
+        categories: [exactCategory, _category('תורה', books)],
+      );
+
+      expect(parseCategoryQuery('מילה@בראשית', library).facets, [
+        facetOf(books[0]),
+        facetOf(books[3]),
+        exactCategory.path,
+      ]);
+    });
+
+    test('הכלה גוברת על שגיאת כתיב ושומרת סדר ספרים וקטגוריות', () {
+      final books = [
+        TextBook(title: 'בראשיט', id: 1),
+        TextBook(title: 'אוצרבראשית', id: 2),
+        TextBook(title: 'קיצורבראשית', id: 3),
+      ];
+      final matchingCategory = _category('פירושיבראשית', []);
+      final library = Library(
+        categories: [matchingCategory, _category('תורה', books)],
+      );
+
+      expect(parseCategoryQuery('מילה@בראשית', library).facets, [
+        facetOf(books[1]),
+        facetOf(books[2]),
+        matchingCategory.path,
+      ]);
+    });
+
+    test('ללא התאמה מילולית מוחזרות ההתאמות המקורבות בסדר המקורי', () {
+      final books = [
+        TextBook(title: 'בראשית', id: 1),
+        TextBook(title: 'בראשיט', id: 2),
+      ];
+      final category = _category('בראשיח', books);
+      final library = Library(categories: [category]);
+
+      expect(parseCategoryQuery('מילה@בראשיז', library).facets, [
+        ...books.map(facetOf),
+        category.path,
+      ]);
+    });
+
+    test('כינוי מדויק נשאר מתחת לכותרת מדויקת ואינו זולג למקור אחר', () {
+      AcronymsCache.instance.setAcronymsForTesting({
+        1: ['רש״י'],
+      });
+      final aliasBook = TextBook(title: 'פירוש התורה', id: 1);
+      final exactBook = TextBook(title: 'רש״י', id: 2);
+      final otherSources = [
+        TextBook(title: 'ספר אישי', id: 1, source: BookSource.user),
+        TextBook(
+          title: 'ספר מצורף',
+          id: 1,
+          source: BookSource.attached('other'),
+        ),
+      ];
+      final books = [aliasBook, ...otherSources];
+      final category = _category('תורה', books);
+      final library = Library(categories: [category]);
+
+      expect(parseCategoryQuery('מילה@רשי', library).facets, [
+        facetOf(aliasBook),
+      ]);
+      category.books.add(exactBook);
+      expect(parseCategoryQuery('מילה@רשי', library).facets, [
+        facetOf(exactBook),
+      ]);
+    });
+
+    test('מילים מקורבות יכולות להתאים בנפרד לכותרת ולכינוי', () {
+      AcronymsCache.instance.setAcronymsForTesting({
+        1: ['בראשית'],
+      });
+      final book = TextBook(title: 'חידושים', id: 1);
+      final library = Library(
+        categories: [
+          _category('תורה', [book]),
+        ],
+      );
+
+      expect(parseCategoryQuery('מילה@חידושימ בראשיט', library).facets, [
+        facetOf(book),
+      ]);
+    });
+
+    test('כל שם @ בוחר בנפרד בין התאמה מילולית למקורבת', () {
+      final exactBook = TextBook(title: 'בראשית', id: 1);
+      final fuzzyBook = TextBook(title: 'משנה ברורה', id: 2);
+      final library = Library(
+        categories: [
+          _category('ספרים', [exactBook, fuzzyBook]),
+        ],
+      );
+
+      final parsed = parseCategoryQuery(
+        'מילה@בראשית@משנה ברורא@לאקייםבכלל',
+        library,
+      );
+      expect(parsed.facets, [facetOf(exactBook), facetOf(fuzzyBook)]);
+      expect(parsed.notFoundNames, ['לאקייםבכלל']);
+    });
+
+    test('התאמה מדויקת מחוץ לנתיב אינה מונעת התאמה מקורבת בתוכו', () {
+      final book = TextBook(title: 'משנה ברורה', id: 1, categoryPath: '/הלכה');
+      final outside = TextBook(
+        title: 'משנה ברורא',
+        id: 2,
+        categoryPath: '/אחר',
+      );
+      final library = Library(
+        categories: [
+          _category('הלכה', [book]),
+          _category('אחר', [outside]),
+        ],
+      );
+
+      for (final path in ['הלכה/משנה ברורא', 'משנה ברורא/הלכה']) {
+        expect(parseCategoryQuery('מילה@$path', library).facets, [
+          facetOf(book),
+        ], reason: path);
+      }
+    });
+
+    test('ללא ספרייה או עם שם מנורמל ריק אין התאמות', () {
+      expect(parseCategoryQuery('מילה@בראשית', null).notFoundNames, ['בראשית']);
+      expect(
+        parseCategoryQuery('מילה@!!!', Library(categories: [])).facets,
+        isEmpty,
+      );
     });
 
     test('נתיב תואם ספר תחת קטגוריה ששמה מכיל פסיק', () {

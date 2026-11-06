@@ -146,31 +146,32 @@ List<String> _facetsForName(
     return scopes.any((scope) => normalized.startsWith('$scope/'));
   }
 
+  final books = library.getAllBooks();
+  final categories = library.getAllCategories();
   final nameWords = normalizedName.split(' ');
-  final tiers = [<String>[], <String>[], <String>[], <String>[]];
+  final tiers = [<String>[], <String>[], <String>[]];
 
   // אות שימוש אחת לפני השם ("הרמב"ן", "מקמאי") עדיין נחשבת מילה שלמה.
   final asWords = RegExp(
     '(?:^| )[הובכלמ]?${RegExp.escape(normalizedName)}(?: |\$)',
   );
-  // הכינויים במסד חלקיים — כינוי זהה לא יכול לגבור על השם שבכותרת.
-  int? tierOf(List<String> texts) {
-    if (texts.any(asWords.hasMatch)) return 1;
-    if (texts.any((text) => text.contains(normalizedName))) return 2;
-    final searchText = texts.join(' ');
-    if (nameWords.every(
-      (word) => bookSearchWordMatchesFuzzy(
-        word,
-        searchText,
-        matchBookTitleSpellingVariants: false,
-      ),
-    )) {
-      return 3;
+  int? literalTierOf(String title, [List<String> acronyms = const []]) {
+    if (asWords.hasMatch(title) || acronyms.any(asWords.hasMatch)) return 1;
+    if (title.contains(normalizedName) ||
+        acronyms.any((text) => text.contains(normalizedName))) {
+      return 2;
     }
     return null;
   }
 
-  for (final book in library.getAllBooks()) {
+  var hasLiteralMatch = false;
+  final bookTitles = List<String?>.filled(books.length, null);
+  final bookFacets = within == null
+      ? null
+      : List<String?>.filled(books.length, null);
+  final categoryTitles = List<String?>.filled(categories.length, null);
+  for (var i = 0; i < books.length; i++) {
+    final book = books[i];
     final id = book.id;
     final acronyms = id == null
         ? const <String>[]
@@ -185,8 +186,9 @@ List<String> _facetsForName(
       if (!inScope(facet)) continue;
     }
     final title = normalizeFindText(book.title);
-    final tier = title == normalizedName ? 0 : tierOf([title, ...acronyms]);
+    final tier = title == normalizedName ? 0 : literalTierOf(title, acronyms);
     if (tier != null) {
+      hasLiteralMatch = true;
       tiers[tier].add(
         facet ??
             FacetHelper.buildBookFacet(
@@ -194,19 +196,69 @@ List<String> _facetsForName(
               book,
             ),
       );
+    } else if (!hasLiteralMatch) {
+      bookTitles[i] = title;
+      bookFacets?[i] = facet;
     }
   }
-  for (final category in library.getAllCategories()) {
+  for (var i = 0; i < categories.length; i++) {
+    final category = categories[i];
     if (within != null && !inScope(category.path)) continue;
     final title = normalizeFindText(category.title);
     final tier = tiers[0].isNotEmpty && title == normalizedName
         ? 0
-        : tierOf([title]);
-    if (tier != null) tiers[tier].add(FacetHelper.categoryFacet(category));
+        : literalTierOf(title);
+    if (tier != null) {
+      hasLiteralMatch = true;
+      tiers[tier].add(FacetHelper.categoryFacet(category));
+    } else if (!hasLiteralMatch) {
+      categoryTitles[i] = title;
+    }
   }
 
   for (final tier in tiers) {
     if (tier.isNotEmpty) return tier;
   }
-  return const [];
+
+  // שומרים את הנרמול והתחום מהמעבר הראשון, בלי לחשב אותם שוב ב-fallback.
+  bool matchesFuzzy(String title, [List<String> acronyms = const []]) {
+    final searchText = acronyms.isEmpty
+        ? title
+        : '$title ${acronyms.join(' ')}';
+    return nameWords.every(
+      (word) => bookSearchWordMatchesFuzzy(
+        word,
+        searchText,
+        matchBookTitleSpellingVariants: false,
+      ),
+    );
+  }
+
+  final fuzzyMatches = <String>[];
+  for (var i = 0; i < books.length; i++) {
+    final title = bookTitles[i];
+    if (title == null) continue;
+    final book = books[i];
+    final id = book.id;
+    final acronyms = id == null
+        ? const <String>[]
+        : AcronymsCache.instance.acronymsFor(book.source, id) ??
+              const <String>[];
+    if (matchesFuzzy(title, acronyms)) {
+      fuzzyMatches.add(
+        bookFacets?[i] ??
+            FacetHelper.buildBookFacet(
+              FacetHelper.resolveCategoryPath(book),
+              book,
+            ),
+      );
+    }
+  }
+  for (var i = 0; i < categories.length; i++) {
+    final title = categoryTitles[i];
+    if (title != null && matchesFuzzy(title)) {
+      fuzzyMatches.add(FacetHelper.categoryFacet(categories[i]));
+    }
+  }
+  return fuzzyMatches;
 }
