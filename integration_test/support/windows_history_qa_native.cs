@@ -12,8 +12,14 @@ namespace WinVQa {
         public bool visible, sampled;
         public int sampleX, sampleY;
     }
+    public sealed class CaptionPoint {
+        public int x, y, hitTest;
+        public long windowAtPoint;
+        public bool verified;
+    }
     public static class Native {
         [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
+        [StructLayout(LayoutKind.Sequential)] struct Rect { public int left, top, right, bottom; }
         [StructLayout(LayoutKind.Sequential)] struct MouseInput {
             public int dx, dy; public uint mouseData, flags, time; public UIntPtr extraInfo;
         }
@@ -45,6 +51,10 @@ namespace WinVQa {
         [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
         [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
+        [DllImport("user32.dll")] static extern bool IsIconic(IntPtr window);
+        [DllImport("user32.dll", SetLastError = true)] static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+        [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wparam, IntPtr lparam, uint flags, uint timeout, out UIntPtr result);
         [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int length);
         [DllImport("user32.dll", SetLastError = true)] static extern bool OpenClipboard(IntPtr owner);
@@ -94,6 +104,53 @@ namespace WinVQa {
             uint process; GetWindowThreadProcessId(window, out process);
             return window != IntPtr.Zero && process == expectedPid && IsWindowVisible(window);
         }
+        static void RequireFlutter(IntPtr window, uint expectedPid) {
+            uint process; GetWindowThreadProcessId(window, out process);
+            var name = new StringBuilder(256); GetClassName(window, name, name.Capacity);
+            if (process != expectedPid || name.ToString() != "FLUTTER_RUNNER_WIN32_WINDOW")
+                throw new Exception("The activation target is not the owned Flutter window");
+        }
+        public static void RaiseFlutter(IntPtr window, uint expectedPid) {
+            RequireFlutter(window, expectedPid);
+            ShowWindow(window, IsIconic(window) ? 9 : 5);
+            if (!SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0, 0x4053)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        static int CaptionHitTest(IntPtr window, int x, int y) {
+            uint packed = ((uint)(ushort)y << 16) | (ushort)x; UIntPtr result;
+            if (SendMessageTimeout(window, 0x84, UIntPtr.Zero, new IntPtr(unchecked((int)packed)), 2, 500, out result) == IntPtr.Zero) return -1;
+            return unchecked((int)result.ToUInt64());
+        }
+        static bool OwnCaption(IntPtr window, uint expectedPid, int x, int y) {
+            RequireFlutter(window, expectedPid); Rect rect;
+            return GetWindowRect(window, out rect) && IsWindowVisible(window) && x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom &&
+                CaptionHitTest(window, x, y) == 2 && GetAncestor(WindowFromPoint(new Point { X = x, Y = y }), 2) == window;
+        }
+        public static CaptionPoint[] CaptionPoints(IntPtr window, uint expectedPid) {
+            RequireFlutter(window, expectedPid); Rect rect;
+            if (!GetWindowRect(window, out rect)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            var points = new List<CaptionPoint>();
+            foreach (int x in new[] { rect.left + 48, rect.left + (rect.right - rect.left) / 2 }) {
+                for (int offset = 8; offset <= 48 && rect.top + offset < rect.bottom; offset += 4) {
+                    int y = rect.top + offset;
+                    points.Add(new CaptionPoint { x = x, y = y, hitTest = CaptionHitTest(window, x, y),
+                        windowAtPoint = GetAncestor(WindowFromPoint(new Point { X = x, Y = y }), 2).ToInt64(),
+                        verified = OwnCaption(window, expectedPid, x, y) });
+                }
+            }
+            return points.ToArray();
+        }
+        public static void ClickFlutterCaption(IntPtr window, uint expectedPid, int x, int y) {
+            if (!OwnCaption(window, expectedPid, x, y)) throw new Exception("The observed Flutter caption point changed");
+            if (!SetCursorPos(x, y)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (!OwnCaption(window, expectedPid, x, y)) throw new Exception("The Flutter caption moved before its click");
+            Input down = new Input(), up = new Input(); down.data.mouse.flags = 2; up.data.mouse.flags = 4;
+            try { Send(new[] { down, up }); } finally { Send(new[] { up }); }
+        }
+        public static void PrepareCaretEnd(IntPtr window, uint expectedPid) {
+            RequireFlutter(window, expectedPid);
+            if (GetForegroundWindow() != window) throw new Exception("Flutter must own the foreground before preparing its caret");
+            Send(new[] { PhysicalKey(0x23, false), PhysicalKey(0x23, true) });
+        }
         static Input Key(ushort key, bool up) {
             Input input = new Input { type = 1 };
             input.data.keyboard.key = key;
@@ -112,12 +169,21 @@ namespace WinVQa {
             input.data.keyboard.flags = (up ? 2u : 0u) | ((scan & 0xFF00) == 0xE000 ? 1u : 0u);
             return input;
         }
-        public static void OpenHistory() {
-            try { Send(new[] { PhysicalKey(0x5B, false), PhysicalKey(0x56, false), PhysicalKey(0x56, true), PhysicalKey(0x5B, true) }); }
+        public static void OpenHistory(IntPtr expectedWindow, uint expectedPid) {
+            var inputs = new[] { PhysicalKey(0x5B, false), PhysicalKey(0x56, false), PhysicalKey(0x56, true), PhysicalKey(0x5B, true) };
+            RequireFlutter(expectedWindow, expectedPid);
+            if (GetForegroundWindow() != expectedWindow) throw new Exception("Flutter lost the foreground before Win+V; no input was sent");
+            try { Send(inputs); }
             catch { ReleaseKeys(); throw; }
         }
         public static void ReleaseKeys() { Send(new[] { Key(0x56, true), Key(0x5B, true) }); }
-        public static void Escape() { Send(new[] { Key(0x1B, false), Key(0x1B, true) }); }
+        public static void Escape(IntPtr expectedWindow, uint expectedPid, bool flutter) {
+            var inputs = new[] { PhysicalKey(0x1B, false), PhysicalKey(0x1B, true) };
+            if (flutter) RequireFlutter(expectedWindow, expectedPid);
+            if (!WindowStillOwned(expectedWindow, expectedPid) || GetForegroundWindow() != expectedWindow)
+                throw new Exception("Foreground ownership changed before the mapped Escape; no input was sent");
+            Send(inputs);
+        }
         public static void Click(int x, int y, uint expectedPid) {
             if (!PointStillOwned(x, y, expectedPid)) throw new Exception("The observed Shell target no longer owns this point");
             if (!SetCursorPos(x, y)) throw new Win32Exception(Marshal.GetLastWin32Error());

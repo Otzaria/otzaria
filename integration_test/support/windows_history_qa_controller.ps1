@@ -11,11 +11,11 @@ Add-Type -Path (Join-Path $Root 'native.dll')
 [void][WinVQa.Native]::SetProcessDPIAware()
 $config = Get-Content (Join-Path $Root 'case.json') -Raw | ConvertFrom-Json
 $result = [ordered]@{
-  probeCompleted = $false; historySelectionVerified = $false; otzariaFormTested = $true
+  probeCompleted = $false; historySelectionVerified = $false; otzariaFormTested = !($ValidateClipboardHelper -or $ValidateShellVerifier)
   outcome = 'starting'; historyWindowIdentified = $false; enableButtonInvoked = $false
   clipboardBeforeSelection = $null; clipboardAfterSelection = $null
   historyOpeningMechanism = 'SendInput Win+V with mapped scan codes; completion only through actual history selection'
-  actions = @(); error = $null
+  actions = @(); focusChecks = @(); historyStateSamples = @(); historyClosures = @(); caretPreparations = @(); error = $null
 }
 $script:deadline = [DateTime]::UtcNow.AddSeconds(70)
 $script:clipboardCall = 0
@@ -67,6 +67,17 @@ function Initialize-ShellVerifier {
         throw
     }
 }
+function Read-HistoryState([string]$Stage) {
+    $sample = [ordered]@{ stage = $Stage; utc = [DateTime]::UtcNow.ToString('o'); available = $false; enabled = $null; error = $null }
+    try {
+        $null = [Windows.ApplicationModel.DataTransfer.Clipboard, Windows.ApplicationModel.DataTransfer, ContentType = WindowsRuntime]
+        $sample.enabled = [Windows.ApplicationModel.DataTransfer.Clipboard]::IsHistoryEnabled()
+        $sample.available = $true
+    } catch { $sample.error = $_.Exception.ToString(); $sample.hresult = $_.Exception.HResult }
+    $result.historyStateSamples += $sample
+    Save-Json $result 'result.json'
+    return $sample
+}
 function Assert-Time {
     if ([DateTime]::UtcNow -ge $script:deadline) { throw 'Controller deadline exceeded' }
 }
@@ -105,7 +116,7 @@ function Read-Branch($Element, [int]$Parent, [int]$Depth, $Nodes, $Budget) {
         try { $child = $walker.GetNextSibling($child) } catch { break }
     }
 }
-function Snapshot([string]$Name) {
+function Snapshot([string]$Name, [bool]$ReadShell = $true) {
     Assert-Time
     $capturedAt = [DateTime]::UtcNow.ToString('o')
     # Save the real desktop before any potentially blocking UIA provider call.
@@ -147,7 +158,7 @@ function Snapshot([string]$Name) {
             }
             $metadata.trustedWindowsShell = $trusted
             $metadata.shellSignature = $signatureInfo
-            if ($trusted -and $window.visible) { $candidates.Add($metadata) }
+            if ($ReadShell -and $trusted -and $window.visible) { $candidates.Add($metadata) }
         } catch { $metadata.error = $_.Exception.ToString() }
     }
     $seenRoots = @{}
@@ -168,6 +179,7 @@ function Snapshot([string]$Name) {
     }
     $export = @($trees | ForEach-Object { @{ root = $_.root; nodes = @($_.nodes | ForEach-Object { $_.data }) } })
     Save-Json @{ stage = 'complete'; capturedAt = $capturedAt; windowsObservedAt = $windowsObservedAt;
+        shellUiaRequested = $ReadShell;
         foreground = [WinVQa.Native]::GetForegroundWindow().ToInt64(); topLevel = @($top.ToArray()); shellTrees = $export;
         remainingNodeBudget = $budget.remaining } "$Name.uia.json"
     return @($trees.ToArray())
@@ -185,13 +197,6 @@ function Activate-Node($Tree, [int]$Index, [string]$Reason, [string]$Expected) {
         else { $fresh.Name.Contains($Expected) -and !$fresh.Name.Contains($config.fixtureB) }
     if (!$Tree.root.trustedWindowsShell -or !$fresh.IsEnabled -or $fresh.IsOffscreen -or
         $fresh.ProcessId -ne $Tree.root.processId -or !$matches) { throw 'Refusing an unverified or changed UI target' }
-    $pattern = $null
-    if ($node.element.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
-        $result.actions += @{ reason = $Reason; mechanism = 'UIAutomation.InvokePattern'; target = $node.data; root = $Tree.root }
-        Save-Json $result 'result.json'
-        ([Windows.Automation.InvokePattern]$pattern).Invoke()
-        return
-    }
     $rectangle = $node.element.Current.BoundingRectangle
     $screen = [Windows.Forms.SystemInformation]::VirtualScreen
     if ($rectangle.IsEmpty -or $rectangle.Width -lt 4 -or $rectangle.Height -lt 4) { throw 'UI target has no usable on-screen rectangle' }
@@ -208,13 +213,77 @@ function Activate-Node($Tree, [int]$Index, [string]$Reason, [string]$Expected) {
     Save-Json $result 'result.json'
 }
 
-function Focus-Flutter {
+function Assert-FlutterForeground {
     [uint32]$owner = 0
     [void][WinVQa.Native]::GetWindowThreadProcessId([IntPtr][long]$config.window, [ref]$owner)
     if ($owner -ne $config.processId) { throw 'The requested Flutter window no longer belongs to the test process' }
+    if ([WinVQa.Native]::GetForegroundWindow().ToInt64() -ne $config.window) { throw 'Flutter must own the foreground before input' }
+}
+function Focus-Flutter([string]$Stage = 'setup') {
+    $focus = [ordered]@{ stage = $Stage; before = [WinVQa.Native]::GetForegroundWindow().ToInt64(); expected = $config.window; captionInputSent = $false }
+    $result.focusChecks += $focus
+    [WinVQa.Native]::RaiseFlutter([IntPtr][long]$config.window, [uint32]$config.processId)
     [void][WinVQa.Native]::SetForegroundWindow([IntPtr][long]$config.window)
     Start-Sleep -Milliseconds 300
-    if ([WinVQa.Native]::GetForegroundWindow().ToInt64() -ne $config.window) { throw 'Flutter must own the foreground before opening history' }
+    if ([WinVQa.Native]::GetForegroundWindow().ToInt64() -ne $config.window) {
+        Capture-Screen ('focus-' + $result.focusChecks.Count + '-before-caption')
+        $focus.captionPoints = @([WinVQa.Native]::CaptionPoints([IntPtr][long]$config.window, [uint32]$config.processId))
+        $point = $focus.captionPoints | Where-Object { $_.verified } | Select-Object -First 1
+        Save-Json $result 'result.json'
+        if ($null -eq $point) { throw 'No visible owned Flutter title-bar point is available for activation.' }
+        [WinVQa.Native]::ClickFlutterCaption([IntPtr][long]$config.window, [uint32]$config.processId, $point.x, $point.y)
+        $focus.captionInputSent = $true
+        Start-Sleep -Milliseconds 300
+    }
+    $focus.after = [WinVQa.Native]::GetForegroundWindow().ToInt64()
+    Save-Json $result 'result.json'
+    Assert-FlutterForeground
+}
+function Prepare-FocusedCaret([string]$Stage) {
+    $case = [IO.Path]::GetFileName($Root)
+    if ($case -notin @('plain-v-focused', 'alt-v-focused', 'posted-v-focused', 'text-focused', 'image-focused')) { return }
+    if ($config.fixtureA -cne ('OTZARIA-HISTORY-QA-A-' + $case) -or $config.fixtureB -cne ('OTZARIA-HISTORY-QA-B-' + $case)) {
+        throw 'The focused caret case does not match the packaged fixture identity.'
+    }
+    Assert-FlutterForeground
+    $caret = [ordered]@{ stage = $Stage; case = $case; mechanism = 'Mapped native End after the field has focus'; foregroundBefore = [WinVQa.Native]::GetForegroundWindow().ToInt64(); inputSent = $false }
+    $result.caretPreparations += $caret
+    Save-Json $result 'result.json'
+    [WinVQa.Native]::PrepareCaretEnd([IntPtr][long]$config.window, [uint32]$config.processId)
+    $caret.inputSent = $true
+    Start-Sleep -Milliseconds 150
+    $caret.foregroundAfter = [WinVQa.Native]::GetForegroundWindow().ToInt64()
+    Save-Json $result 'result.json'
+    Assert-FlutterForeground
+}
+function Close-History($Trees, [string]$Stage) {
+    $shellPids = @($Trees | Where-Object { $_.root.trustedWindowsShell -and $_.root.processName -in @('TextInputHost', 'InputApp') } | ForEach-Object { $_.root.processId } | Select-Object -Unique)
+    $before = [WinVQa.Native]::GetForegroundWindow()
+    [uint32]$owner = 0; [void][WinVQa.Native]::GetWindowThreadProcessId($before, [ref]$owner)
+    $visibleBefore = @([WinVQa.Native]::ObserveDesktopWindows() | Where-Object { $_.sampled -and $_.visible -and $_.processId -in $shellPids })
+    $closure = [ordered]@{ stage = $Stage; foregroundBefore = $before.ToInt64(); foregroundOwner = $owner; shellPids = $shellPids; visibleBefore = $visibleBefore; escapeSent = $false }
+    $result.historyClosures += $closure
+    $flutterOwnsForeground = $before.ToInt64() -eq $config.window -and $owner -eq $config.processId
+    if ($owner -in $shellPids -or ($flutterOwnsForeground -and $visibleBefore.Count -gt 0)) {
+        [WinVQa.Native]::Escape($before, $owner, $flutterOwnsForeground)
+        $closure.escapeSent = $true
+        Start-Sleep -Milliseconds 300
+    }
+    # A verified caption click can dismiss Shell UI without sending keys to another app.
+    if ([WinVQa.Native]::GetForegroundWindow().ToInt64() -ne $config.window) { Focus-Flutter ($Stage + '-restore') }
+    $limit = [DateTime]::UtcNow.AddSeconds(2)
+    do {
+        $visibleAfter = @([WinVQa.Native]::ObserveDesktopWindows() | Where-Object { $_.sampled -and $_.visible -and $_.processId -in $shellPids })
+        if ($visibleAfter.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $limit)
+    $closure.foregroundAfter = [WinVQa.Native]::GetForegroundWindow().ToInt64()
+    $closure.visibleAfter = $visibleAfter
+    $closure.popupSurfaceClosed = $visibleAfter.Count -eq 0
+    Capture-Screen ($Stage + '-closed')
+    Save-Json $result 'result.json'
+    if (!$closure.popupSurfaceClosed) { throw 'The observed history surface did not close before preparing the next opening.' }
+    Assert-FlutterForeground
 }
 function Invoke-Clipboard([string]$Action) {
     $script:clipboardCall++
@@ -340,6 +409,8 @@ if ($ValidateClipboardHelper) {
 }
 if ($ValidateShellVerifier) {
     Initialize-ShellVerifier
+    $state = Read-HistoryState 'read-only-preflight'
+    if (!$state.available) { throw 'The public history-state API is unavailable in the controller process; see result.json.' }
     exit 0
 }
 try {
@@ -363,6 +434,8 @@ try {
         Seed 'B'
         if ((Clipboard-Label) -ne 'B') { throw 'Negative-control clipboard fixture verification failed' }
         $result.clipboardBeforeSelection = 'B'
+        Focus-Flutter 'negative-control-before-input'
+        Prepare-FocusedCaret 'negative-control-before-input'
         $result['controlForegroundBeforeInput'] = [WinVQa.Native]::GetForegroundWindow().ToInt64()
         if ($result.controlForegroundBeforeInput -ne $config.window) { throw 'Flutter lost the foreground before the negative control input.' }
         if ($config.mode -eq 'posted-v') {
@@ -379,16 +452,28 @@ try {
         Save-Json $result 'result.json'
         exit 0
     }
-    [WinVQa.Native]::OpenHistory()
-    Start-Sleep -Milliseconds 1800
-    $histories = @(History-Trees @(Snapshot '02-win-v-initial'))
-    $historyDeadline = [DateTime]::UtcNow.AddSeconds(10)
-    $retry = 0
-    while ($histories.Count -eq 0 -and [DateTime]::UtcNow -lt $historyDeadline) {
+    $initialHistoryState = Read-HistoryState 'before-initial-opening'
+    $histories = @(); $snapshotTrees = @()
+    for ($opening = 0; $opening -lt 2 -and $histories.Count -eq 0; $opening++) {
         Assert-Time
-        Start-Sleep -Milliseconds 1000
-        $histories = @(History-Trees @(Snapshot ('02-win-v-retry-' + $retry)))
-        $retry++
+        if ($opening -gt 0) { Close-History $snapshotTrees '02-before-bounded-reopen' }
+        Focus-Flutter ('history-opening-' + $opening)
+        Prepare-FocusedCaret ('history-opening-' + $opening)
+        Assert-FlutterForeground
+        $result['historyOpeningAttempts'] = $opening + 1
+        [WinVQa.Native]::OpenHistory([IntPtr][long]$config.window, [uint32]$config.processId)
+        Start-Sleep -Milliseconds 1800
+        $snapshotTrees = @(Snapshot ('02-win-v-opening-' + $opening))
+        $histories = @(History-Trees $snapshotTrees)
+        $historyDeadline = [DateTime]::UtcNow.AddSeconds(10)
+        $retry = 0
+        while ($histories.Count -eq 0 -and [DateTime]::UtcNow -lt $historyDeadline) {
+            Assert-Time
+            Start-Sleep -Milliseconds 1000
+            $snapshotTrees = @(Snapshot ('02-win-v-opening-' + $opening + '-retry-' + $retry))
+            $histories = @(History-Trees $snapshotTrees)
+            $retry++
+        }
     }
     if ($histories.Count -eq 0) {
         $result.outcome = 'history-window-not-identified'
@@ -407,14 +492,24 @@ try {
     }
     $turnOn = @($turnOn | Group-Object { $_.tree.root.processId.ToString() + '|' + ($_.tree.nodes[$_.index].element.GetRuntimeId() -join '.') } | ForEach-Object { $_.Group[0] })
     if ($turnOn.Count -gt 1) { throw 'More than one distinct Windows history Turn on control was observed.' }
-    if ($turnOn.Count -eq 1) {
+    if ($turnOn.Count -eq 1 -and (!$initialHistoryState.available -or !$initialHistoryState.enabled)) {
         Activate-Node $turnOn[0].tree $turnOn[0].index 'Enable local history through its real Turn on button' 'Turn on'
         $result.enableButtonInvoked = $true
-        Start-Sleep -Milliseconds 1000
-        $histories = @(History-Trees @(Snapshot '03-after-turn-on'))
+        $stateDeadline = [DateTime]::UtcNow.AddSeconds(3)
+        do {
+            Start-Sleep -Milliseconds 200
+            $enabledState = Read-HistoryState 'after-turn-on-click'
+        } while ($enabledState.available -and !$enabledState.enabled -and [DateTime]::UtcNow -lt $stateDeadline)
+        $snapshotTrees = @(Snapshot '03-after-turn-on')
+        $histories = @(History-Trees $snapshotTrees)
+        if ($enabledState.available -and !$enabledState.enabled) {
+            Close-History $snapshotTrees '03-enable-not-confirmed'
+            throw 'Windows history remained disabled after the verified Turn on click; no fixture selection was attempted.'
+        }
     }
-    if ($histories.Count -gt 0) { [WinVQa.Native]::Escape() }
-    Focus-Flutter
+    Close-History $snapshotTrees '03-before-seeding'
+    [void](Read-HistoryState 'after-preparation')
+    Focus-Flutter 'before-seeding'
     Seed 'A'
     if ((Clipboard-Label) -ne 'A') { throw 'Clipboard fixture A verification failed' }
     Start-Sleep -Milliseconds 1200
@@ -423,7 +518,10 @@ try {
     $result.clipboardBeforeSelection = 'B'
     Save-Json $result 'result.json'
     Start-Sleep -Milliseconds 1200
-    [WinVQa.Native]::OpenHistory()
+    Focus-Flutter 'before-fixture-history-opening'
+    Prepare-FocusedCaret 'before-fixture-history-opening'
+    Assert-FlutterForeground
+    [WinVQa.Native]::OpenHistory([IntPtr][long]$config.window, [uint32]$config.processId)
     Start-Sleep -Milliseconds 1800
     $candidate = $null
     for ($attempt = 0; $attempt -lt 3 -and $null -eq $candidate; $attempt++) {
@@ -451,7 +549,8 @@ try {
         } while ($result.clipboardAfterSelection -ne 'A' -and [DateTime]::UtcNow -lt $limit)
         $result.historySelectionVerified = $result.clipboardAfterSelection -eq 'A'
         $result.outcome = if ($result.historySelectionVerified) { 'real-history-selected-A-after-B' } else { 'history-selection-did-not-select-A' }
-        [void](Snapshot '05-after-real-history-selection')
+        # Post-paste evidence must not activate a Shell accessibility provider.
+        [void](Snapshot '05-after-real-history-selection' $false)
     }
     $result.probeCompleted = $true
     Save-Json $result 'result.json'
