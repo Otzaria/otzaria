@@ -1,3 +1,5 @@
+import 'package:otzaria/reports/view_scope.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,20 +36,23 @@ Future<String?> showErrorReportSenderEmailDialog({
 
   final confirmed = await showSingleActionDialog(
     context: context,
-    title: title,
-    confirmText: 'שמור',
+    title: reportText(context, title),
+    confirmText: reportText(context, 'שמור'),
     // אם הוולידציה נכשלת מציגים שגיאה בשדה ומשאירים את הדיאלוג פתוח
     // כדי שהמשתמש לא יאבד את מה שהקליד.
     onConfirm: validator == null
         ? null
         : () => fieldKey.currentState?.validate() ?? true,
-    customContent: EmailFieldWithAutocomplete(
-      key: fieldKey,
-      initialValue: initialValue,
-      subtitle: subtitle,
-      validator: validator,
-      onValueChanged: (v) => capturedValue = v,
-    ),
+    customContent: reportDialogBuilder(
+      context,
+      (_) => EmailFieldWithAutocomplete(
+        key: fieldKey,
+        initialValue: initialValue,
+        subtitle: subtitle,
+        validator: validator,
+        onValueChanged: (v) => capturedValue = v,
+      ),
+    )(context),
   );
 
   if (confirmed != true) return null;
@@ -323,7 +328,7 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          widget.subtitle,
+          context.settingsText(widget.subtitle),
         ),
         const SizedBox(height: 12),
         CompositedTransformTarget(
@@ -337,9 +342,11 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
               decoration: InputDecoration(
                 filled: true,
                 fillColor: AppSurfaces.card(context),
-                labelText: 'כתובת דוא"ל',
+                labelText: context.settingsText('כתובת דוא"ל'),
                 hintText: 'name@example.com',
-                errorText: _errorText,
+                errorText: _errorText == null
+                    ? null
+                    : context.settingsText(_errorText!),
               ),
               autofocus: true,
             ),

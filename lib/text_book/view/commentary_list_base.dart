@@ -5,6 +5,13 @@ import 'package:otzaria/book_common/bloc/commentary_search_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
+import 'package:otzaria/text_book/utils/book_note_report.dart';
+import 'package:otzaria/text_book/view/text_correction_editor.dart'
+    show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
@@ -1986,6 +1993,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                       state: state,
                       reportLineIndex:
                           state.selectedIndex ?? currentIndexes.first,
+                      reportLineIndexes: currentIndexes.toList(),
                       selectionSyncController: widget.selectionSyncController,
                     ),
                   );
@@ -2935,6 +2943,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
 
   /// אינדקס השורה שאליה מיוחסות ההערות המוצגות — לדיווח הטעות.
   final int reportLineIndex;
+  final List<int> reportLineIndexes;
   final SelectionSyncController? selectionSyncController;
 
   const _NotesCommentaryWidget({
@@ -2946,6 +2955,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
     required this.openBookCallback,
     required this.state,
     required this.reportLineIndex,
+    required this.reportLineIndexes,
     this.selectionSyncController,
   });
 
@@ -3022,15 +3032,74 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   /// ההערות הן טקסט הספר עצמו: בספר מוגן Ctrl+C עובר דרך מגבלת ההעתקה.
   Widget _notesCopyWrapper({required Widget child}) {
     final protection = widget.state.protection;
-    if (!protection.isProtected) return SelectionCutFallthrough(child: child);
-    return SelectionCopyShortcuts(
-      onCopy: () => ContextMenuUtils.copyFormattedText(
-        context: context,
-        savedSelectedText: _selectedText,
-        fontSize: widget.fontSize,
-        protection: protection,
-      ),
-      child: child,
+    final copy = !protection.isProtected
+        ? SelectionCutFallthrough(child: child)
+        : SelectionCopyShortcuts(
+            onCopy: () => ContextMenuUtils.copyFormattedText(
+              context: context,
+              savedSelectedText: _selectedText,
+              fontSize: widget.fontSize,
+              protection: protection,
+            ),
+            child: child,
+          );
+    return Focus(
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent ||
+            !widget.state.book.isOfficialLibraryBook ||
+            (_selectedText?.trim().isEmpty ?? true) ||
+            DynamicShortcutRegistry.instance.match(event) != null) {
+          return KeyEventResult.ignored;
+        }
+        final shortcut =
+            ShortcutValidator.getShortcutValue(
+              ShortcutValidator.reportErrorKey,
+            ) ??
+            '';
+        if (shortcut.isEmpty ||
+            !ShortcutHelper.matchesShortcut(event, shortcut)) {
+          return KeyEventResult.ignored;
+        }
+        _reportError(context);
+        return KeyEventResult.handled;
+      },
+      child: copy,
+    );
+  }
+
+  Future<void> _reportError(BuildContext reportContext) {
+    final selected = _selectedText ?? '';
+    final target = bookNoteReportTarget(
+      content: widget.state.content,
+      bookNotes: widget.state.bookNotes,
+      lineIndexes: widget.reportLineIndexes,
+      selectedText: selected,
+    );
+    final lineIndex = target?.lineIndex ?? widget.reportLineIndex;
+    final noteHtml = target?.singleNoteHtml;
+    // A displayed word may match only the parent after punctuation is hidden.
+    // Require an exact visible selection in the note as well as in its row.
+    final useNoteContext =
+        !widget.state.bookNotes.isEmpty ||
+        noteHtml == null ||
+        !buildCorrectionTemplate(noteHtml, selected).hasSelection ||
+        lineIndex < 0 ||
+        lineIndex >= widget.state.content.length ||
+        !buildCorrectionTemplate(
+          widget.state.content[lineIndex],
+          selected,
+        ).hasSelection;
+    return ErrorReportHelper.showErrorReportDialog(
+      context: reportContext,
+      selectedText: selected,
+      state: widget.state,
+      fontSize: widget.fontSize,
+      bookTitle: widget.state.book.title,
+      savedSelectedIndex: lineIndex,
+      // PR #4285: inline notes still belong to the exact source row. Only
+      // line_note or an ambiguous inline selection uses frozen note context.
+      reportContent: widget.state.bookNotes.isEmpty ? null : widget.notes,
+      reportNote: useNoteContext ? target?.contextText ?? selected : null,
     );
   }
 
@@ -3128,18 +3197,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                       enabled:
                           _selectedText != null &&
                           _selectedText!.trim().isNotEmpty,
-                      onTap: () => ErrorReportHelper.showErrorReportDialog(
-                        context: menuCtx,
-                        selectedText: _selectedText ?? '',
-                        state: widget.state,
-                        fontSize: widget.fontSize,
-                        bookTitle: widget.state.book.title,
-                        savedSelectedIndex: widget.reportLineIndex,
-                        // רק הערה מ-line_note אינה בשורה, ואין לה הצעת תיקון.
-                        reportContent: widget.state.bookNotes.isEmpty
-                            ? null
-                            : widget.notes,
-                      ),
+                      onTap: () => _reportError(menuCtx),
                     ),
                   ],
                 ],

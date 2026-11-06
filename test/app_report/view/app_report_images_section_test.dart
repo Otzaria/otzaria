@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,7 @@ void main() {
       WidgetTester tester,
       _FakeSources sources, {
       bool withTextField = false,
+      int otherAttachmentBytes = 0,
     }) async {
       images = [];
       await tester.pumpWidget(
@@ -89,6 +91,7 @@ void main() {
                     const TextField(key: ValueKey('field'), autofocus: true),
                   AppReportImagesSection(
                     images: images,
+                    otherAttachmentBytes: otherAttachmentBytes,
                     sources: sources,
                     onChanged: (value) => setState(() => images = value),
                   ),
@@ -99,6 +102,49 @@ void main() {
         ),
       );
       await tester.pump();
+    }
+
+    void replayHistoryPaste() {
+      // Replay the KeyEvent trace documented in flutter/flutter#143997.
+      // The test simulator's physical scan-code map cannot encode this value.
+      const physical = PhysicalKeyboardKey(0x1600000000);
+      for (final event in const <KeyEvent>[
+        KeyDownEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.controlLeft,
+          timeStamp: Duration.zero,
+        ),
+        KeyUpEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.controlLeft,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+        KeyDownEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.keyV,
+          timeStamp: Duration.zero,
+        ),
+        KeyUpEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.keyV,
+          timeStamp: Duration.zero,
+        ),
+        KeyDownEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.controlLeft,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+        KeyUpEvent(
+          physicalKey: physical,
+          logicalKey: LogicalKeyboardKey.controlLeft,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+      ]) {
+        HardwareKeyboard.instance.handleKeyEvent(event);
+      }
     }
 
     Future<void> pressPaste(WidgetTester tester) async {
@@ -158,6 +204,98 @@ void main() {
       expect(images, hasLength(1));
     });
 
+    for (final withTextField in [false, true]) {
+      testWidgets('Shift+Insert pastes images (text focus: $withTextField)', (
+        tester,
+      ) async {
+        final sources = _FakeSources(clipboard: [_image('insert.png')]);
+        await pump(tester, sources, withTextField: withTextField);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.insert);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+        expect(images.single.fileName, 'insert.png');
+        expect(sources.clipboardReads, [withTextField]);
+      });
+
+      testWidgets(
+        'Windows history V after early Ctrl-up pastes once (text focus: $withTextField)',
+        (tester) async {
+          final sources = _FakeSources(clipboard: [_image('history.png')]);
+          await pump(tester, sources, withTextField: withTextField);
+          replayHistoryPaste();
+          await tester.pump();
+          expect(images.single.fileName, 'history.png');
+          expect(sources.clipboardReads, [withTextField]);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    testWidgets('ordinary text paste and Windows history text are preserved', (
+      tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async =>
+            call.method == 'Clipboard.getData' ? {'text': 'טקסט'} : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pump(tester, _FakeSources(), withTextField: true);
+      await pressPaste(tester);
+      await tester.pump();
+      expect(find.text('טקסט'), findsOneWidget);
+      replayHistoryPaste();
+      await tester.pump();
+      expect(find.text('טקסטטקסט'), findsOneWidget);
+      expect(images, isEmpty);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets('explicit paste image bypasses text precedence', (
+      tester,
+    ) async {
+      final sources = _FakeSources(clipboard: [_image('explicit.png')]);
+      await pump(tester, sources, withTextField: true);
+      await tester.tap(find.byKey(const ValueKey('app-report-paste-image')));
+      await tester.pump();
+      expect(sources.clipboardReads, [false]);
+      expect(images.single.fileName, 'explicit.png');
+    });
+
+    testWidgets(
+      'other attachments share the budget and removal permits replacement',
+      (tester) async {
+        final sources = _FakeSources(picked: [_image('small.png', size: 4)]);
+        await pump(
+          tester,
+          sources,
+          otherAttachmentBytes: AppReportImage.maxTotalBytes - 4,
+        );
+        await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+        await tester.pump();
+        expect(images, hasLength(1));
+        await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+        await tester.pump();
+        expect(images, hasLength(1));
+        expect(
+          find.text('הגודל הכולל של הצרופות מוגבל ל-20 MiB.'),
+          findsOneWidget,
+        );
+        UiSnack.hide();
+        await tester.pump(const Duration(seconds: 5));
+        await tester.tap(find.byKey(const ValueKey('app-report-image-remove')));
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+        await tester.pump();
+        expect(images, hasLength(1));
+      },
+    );
+
     testWidgets('כפתור ההסרה מסיר את התמונה', (tester) async {
       await pump(tester, _FakeSources(picked: [_image('a.png')]));
       await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
@@ -189,7 +327,7 @@ void main() {
     });
 
     testWidgets(
-      'תמונה ש-Windows מציג עד 5.00 MB מצורפת, וגדולה ממנה נדחית (issue #2839)',
+      'תמונה ש-Windows מציג עד 10.00 MiB מצורפת, וגדולה ממנה נדחית (issue #2839)',
       (tester) async {
         // Windows מחשב MB ב-1024×1024: 5,001,000 בתים מוצגים "4.76 MB".
         const mebibyte = 1024 * 1024;
@@ -202,8 +340,8 @@ void main() {
             ]);
         final paths = [
           imageOf('שמוצג 4.76.png', 5001000).path,
-          imageOf('שמוצג 5.00.png', 5 * mebibyte).path,
-          imageOf('גדול.png', 5 * mebibyte + 1).path,
+          imageOf('שמוצג 10.00.png', 10 * mebibyte).path,
+          imageOf('גדול.png', 10 * mebibyte + 1).path,
         ];
         final read = await tester.runAsync(
           () => const AppReportImageSources().readPaths(paths),
@@ -215,9 +353,9 @@ void main() {
 
         expect(images.map((i) => i.fileName), [
           'שמוצג 4.76.png',
-          'שמוצג 5.00.png',
+          'שמוצג 10.00.png',
         ]);
-        expect(find.text('תמונה גדולה מ-5 MB לא צורפה.'), findsOneWidget);
+        expect(find.text('תמונה גדולה מ-10 MiB לא צורפה.'), findsOneWidget);
         UiSnack.hide();
         await tester.pump(const Duration(seconds: 5));
       },

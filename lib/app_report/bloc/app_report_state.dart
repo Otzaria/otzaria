@@ -37,6 +37,7 @@ class AppReportEditing extends AppReportState {
     this.invalidField,
     this.hasDraft = false,
     this.draftSaved = false,
+    this.draftDiscarded = false,
   });
 
   final AppReportType type;
@@ -69,6 +70,7 @@ class AppReportEditing extends AppReportState {
 
   /// הטופס נשמר כטיוטה, וצריך להיסגר.
   final bool draftSaved;
+  final bool draftDiscarded;
 
   bool get isSending => submission == AppReportSubmission.sending;
   bool get isFinished => submission == AppReportSubmission.finished;
@@ -91,6 +93,7 @@ class AppReportEditing extends AppReportState {
     bool clearInvalidField = false,
     bool? hasDraft,
     bool? draftSaved,
+    bool? draftDiscarded,
   }) {
     return AppReportEditing(
       type: type ?? this.type,
@@ -112,6 +115,7 @@ class AppReportEditing extends AppReportState {
           : (invalidField ?? this.invalidField),
       hasDraft: hasDraft ?? this.hasDraft,
       draftSaved: draftSaved ?? this.draftSaved,
+      draftDiscarded: draftDiscarded ?? this.draftDiscarded,
     );
   }
 
@@ -134,5 +138,6 @@ class AppReportEditing extends AppReportState {
     invalidField,
     hasDraft,
     draftSaved,
+    draftDiscarded,
   ];
 }

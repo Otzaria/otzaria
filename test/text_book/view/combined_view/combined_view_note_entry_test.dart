@@ -22,11 +22,13 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
+import '../../../reports/reporting_test_pump.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/reading_toc.dart';
 
@@ -94,6 +96,11 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // The cached index Future must outlive each widget test's FakeAsync zone.
+    // Build the real index here so later report entries can await it as well.
+    final files = FileSystemLibraryProvider.instance;
+    await files.initialize();
+    await files.keyToPath;
   });
 
   testWidgets('continuous note after headings and wrapped pointed text', (
@@ -152,40 +159,39 @@ void main() {
   for (final continuous in [false, true]) {
     for (final selectedIndex in <int?>[null, 0, 1]) {
       for (final selection in ['none', 'cleared', 'active', 'outside']) {
-        testWidgets(
-          'note at clicked source line: continuous=$continuous, '
-          'selectedIndex=$selectedIndex, selection=$selection',
-          (tester) async {
-            final fixture = await _pumpView(
-              tester,
-              continuous: continuous,
-              selectedIndex: selectedIndex,
-            );
-            var click = _textBox(tester, 'שניה').center;
-            if (selection != 'none') {
-              await _selectText(tester, 'שניה', 'שניה');
-              expect(fixture.selectedText?.trim(), 'שניה');
-              expect(fixture.selectedLine, 1);
-              if (selection == 'cleared') {
-                await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-                await tester.pump();
-                expect(fixture.selectedText, isNull);
-              } else if (selection == 'outside') {
-                click = _textBox(tester, 'שלישית').center;
-              }
+        testWidgets('note at clicked source line: continuous=$continuous, '
+            'selectedIndex=$selectedIndex, selection=$selection', (
+          tester,
+        ) async {
+          final fixture = await _pumpView(
+            tester,
+            continuous: continuous,
+            selectedIndex: selectedIndex,
+          );
+          var click = _textBox(tester, 'שניה').center;
+          if (selection != 'none') {
+            await _selectText(tester, 'שניה', 'שניה');
+            expect(fixture.selectedText?.trim(), 'שניה');
+            expect(fixture.selectedLine, 1);
+            if (selection == 'cleared') {
+              await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+              await tester.pump();
+              expect(fixture.selectedText, isNull);
+            } else if (selection == 'outside') {
+              click = _textBox(tester, 'שלישית').center;
             }
+          }
 
-            final note = await _openNote(tester, fixture, click);
-            expect(note.lineNumber, 2);
-            expect(note.bookId, 'ספר בדיקה');
-            expect(
-              note.selectedText,
-              selection == 'active' || selection == 'outside'
-                  ? 'שניה'
-                  : anyOf(isNull, isEmpty),
-            );
-          },
-        );
+          final note = await _openNote(tester, fixture, click);
+          expect(note.lineNumber, 2);
+          expect(note.bookId, 'ספר בדיקה');
+          expect(
+            note.selectedText,
+            selection == 'active' || selection == 'outside'
+                ? 'שניה'
+                : anyOf(isNull, isEmpty),
+          );
+        });
       }
     }
 
@@ -279,9 +285,7 @@ void main() {
       expect(note.selectionColumn, 8);
     });
 
-    testWidgets('Ctrl+C follows the copy channel: $continuous', (
-      tester,
-    ) async {
+    testWidgets('Ctrl+C follows the copy channel: $continuous', (tester) async {
       final copied = <String>[];
       debugSelectedTextCopyHandler = (content) => copied.add(content.plainText);
       addTearDown(() => debugSelectedTextCopyHandler = null);
@@ -316,17 +320,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
       await tester.tap(find.text('דווח על טעות בספר'));
-      for (var i = 0; i < 40; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 50)),
-        );
-        await tester.pump();
-        if (find.byType(TabbedReportDialog).evaluate().isNotEmpty) break;
-      }
+      await waitForReportDialog(
+        tester,
+        dialog: find.byType(TabbedReportDialog),
+      );
       final dialog = tester.widget<TabbedReportDialog>(
         find.byType(TabbedReportDialog),
       );
-      expect(dialog.currentLineNumber, 3);
+      try {
+        expect(dialog.currentLineNumber, 3);
+      } finally {
+        await _finishBookReport(tester, dialog);
+      }
     });
 
     testWidgets('error report gets the source selection: $continuous', (
@@ -351,17 +356,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
       await tester.tap(find.text('דווח על טעות בספר'));
-      for (var i = 0; i < 40; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 50)),
-        );
-        await tester.pump();
-        if (find.byType(TabbedReportDialog).evaluate().isNotEmpty) break;
-      }
+      await waitForReportDialog(
+        tester,
+        dialog: find.byType(TabbedReportDialog),
+      );
       final dialog = tester.widget<TabbedReportDialog>(
         find.byType(TabbedReportDialog),
       );
-      expect(dialog.selectedText, 'רבי יוחנן');
+      try {
+        expect(dialog.selectedText, 'רבי יוחנן');
+      } finally {
+        await _finishBookReport(tester, dialog);
+      }
     });
   }
 }
@@ -378,6 +384,22 @@ final _hiddenInCopy = TextDisplayPolicy.empty.merged(
     nikud: MarkVisibility.hide,
   ),
 );
+
+Future<void> _finishBookReport(
+  WidgetTester tester,
+  TabbedReportDialog dialog,
+) async {
+  final report = find.byType(TabbedReportDialog);
+  await waitForBookReportMetadata(tester, dialog: report);
+  final draft = dialog.draft!;
+  final closed = draft.stream.drain<void>();
+  final leave = find.byKey(const ValueKey('book-report-save-draft'));
+  await tester.ensureVisible(leave);
+  await tester.tap(leave);
+  await finishReportDialog(tester, dialog: report, reporting: closed);
+  expect(draft.isClosed, isTrue);
+  expect(SqliteDataProvider.instance.debugIsInitializing, isFalse);
+}
 
 Future<void> _pressCtrlC(WidgetTester tester) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -476,9 +498,7 @@ Future<_Fixture> _pumpView(
 Rect _textBox(WidgetTester tester, String text) {
   final paragraph = tester.allRenderObjects
       .whereType<RenderParagraph>()
-      .firstWhere(
-        (paragraph) => paragraph.text.toPlainText().contains(text),
-      );
+      .firstWhere((paragraph) => paragraph.text.toPlainText().contains(text));
   final offset = paragraph.text.toPlainText().indexOf(text);
   final box = paragraph
       .getBoxesForSelection(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -10,15 +11,27 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 /// מקורות התמונות לטופס הדיווח: הלוח, בחירת קובץ וקבצים שנגררו.
 class AppReportImageSources {
-  const AppReportImageSources();
+  const AppReportImageSources({this.clipboardReader});
+
+  @visibleForTesting
+  final Future<ClipboardReader?> Function()? clipboardReader;
+
+  // A rejected oversized file needs only a size marker, never its full bytes.
+  static final _oversized = Uint8List(AppReportImage.maxBytes + 1);
 
   /// התמונות שבלוח. [skipIfText] — לא לצרף כשבלוח יש גם טקסט, כדי שהדבקה
   /// לשדה טקסט מתוך Word/Excel תדביק את הטקסט בלבד.
   Future<List<AppReportImage>> readClipboard({bool skipIfText = false}) async {
-    final clipboard = SystemClipboard.instance;
-    if (clipboard == null) return const [];
-    final reader = await clipboard.read();
-    if (skipIfText && reader.canProvide(Formats.plainText)) return const [];
+    final reader = clipboardReader != null
+        ? await clipboardReader!()
+        : await SystemClipboard.instance?.read();
+    if (reader == null) return const [];
+    // Some Windows screenshot/history entries advertise text with no value.
+    // Only actual text should take precedence in a text field.
+    if (skipIfText && reader.canProvide(Formats.plainText)) {
+      final text = await reader.readValue(Formats.plainText);
+      if (text != null && text.isNotEmpty) return const [];
+    }
 
     final images = <AppReportImage>[];
     // ב-Windows צילום של כלי החיתוך (DIB) ממומש כ-PNG, וקובץ שהועתק
@@ -55,7 +68,9 @@ class AppReportImageSources {
       format,
       (file) async {
         try {
-          final bytes = await file.readAll();
+          final bytes = (file.fileSize ?? 0) > AppReportImage.maxBytes
+              ? _oversized
+              : await _readBounded(file.getStream());
           completer.complete((bytes: bytes, name: file.fileName));
         } catch (error) {
           if (!completer.isCompleted) completer.completeError(error);
@@ -67,6 +82,17 @@ class AppReportImageSources {
     );
     if (progress == null) completer.complete(null);
     return completer.future;
+  }
+
+  static Future<Uint8List> _readBounded(Stream<List<int>> stream) async {
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in stream) {
+      if (bytes.length + chunk.length > AppReportImage.maxBytes) {
+        return _oversized;
+      }
+      bytes.add(chunk);
+    }
+    return bytes.takeBytes();
   }
 
   /// פותח את בוחר הקבצים. מחזיר רשימה ריקה בביטול.
@@ -88,7 +114,9 @@ class AppReportImageSources {
       if (mimeType == null) continue;
       images.add(
         AppReportImage(
-          bytes: await file.readAsBytes(),
+          bytes: (await file.length() ?? 0) > AppReportImage.maxBytes
+              ? _oversized
+              : await _readBounded(file.readAsByteStream()),
           fileName: file.name,
           mimeType: mimeType,
         ),
@@ -105,7 +133,9 @@ class AppReportImageSources {
       if (mimeType == null) continue;
       images.add(
         AppReportImage(
-          bytes: await File(path).readAsBytes(),
+          bytes: await File(path).length() > AppReportImage.maxBytes
+              ? _oversized
+              : await _readBounded(File(path).openRead()),
           fileName: path.split(RegExp(r'[\\/]')).last,
           mimeType: mimeType,
         ),

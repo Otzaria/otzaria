@@ -2,6 +2,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
+import 'package:otzaria/reports/view_scope.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
@@ -26,6 +30,7 @@ Future<AppReportDeliveryResult?> showAppReportDialog(
 }) {
   WidgetBuilder builder = (_) => AppReportDialog(createBloc: createBloc);
   if (dialogBuilder != null) builder = dialogBuilder(context, builder);
+  builder = reportDialogBuilder(context, builder);
   return showDialog<AppReportDeliveryResult>(
     context: context,
     barrierDismissible: false,
@@ -110,16 +115,28 @@ class _AppReportDialogState extends State<AppReportDialog> {
             (previous is! AppReportEditing ||
                 previous.invalidField != current.invalidField ||
                 previous.isFinished != current.isFinished ||
-                previous.draftSaved != current.draftSaved),
+                previous.draftSaved != current.draftSaved ||
+                previous.draftDiscarded != current.draftDiscarded),
         listener: (context, state) {
           if (state is! AppReportEditing) return;
+          if (state.draftDiscarded) {
+            UiSnack.show(
+              context.settingsText(ReportMessages.appReportDraftDiscarded),
+            );
+            Navigator.of(context).pop();
+            return;
+          }
           if (state.draftSaved) {
-            UiSnack.showSuccess(ReportMessages.appReportDraftSaved);
+            if (state.hasDraft) {
+              UiSnack.showSuccess(
+                context.settingsText(ReportMessages.appReportDraftSaved),
+              );
+            }
             Navigator.of(context).pop();
             return;
           }
           if (state.isFinished && state.result != null) {
-            showAppReportResultSnack(state.result!);
+            showAppReportResultSnack(state.result!, context: context);
             Navigator.of(context).pop(state.result);
             return;
           }
@@ -129,6 +146,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
               appReportInvalidFieldMessage(
                 invalid,
                 emailEmpty: state.email.trim().isEmpty,
+                context: context,
               ),
             );
           }
@@ -170,14 +188,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
               ),
             ),
           );
-          // טקסט או צילום שצורף חוסמים סגירה עקיפה (קיצור ניווט, חזרה); הכפתורים סוגרים ב-pop.
           return PopScope(
-            canPop:
-                state is! AppReportEditing ||
-                (state.title + state.description + state.steps)
-                        .trim()
-                        .isEmpty &&
-                    state.images.isEmpty,
+            canPop: false,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) _leave();
+            },
             child: dialog,
           );
         },
@@ -190,8 +205,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
   Widget _buildHeader(BuildContext context, AppReportState state) {
     return AppDialogHeader(
       icon: FluentIcons.person_feedback_24_regular,
-      title: 'דיווח על תקלה בתוכנה',
-      subtitle: 'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
+      title: context.settingsText('דיווח על תקלה בתוכנה'),
+      onClose: _leave,
+      subtitle: context.settingsText(
+        'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
+      ),
       closeEnabled: !(state is AppReportEditing && state.isSending),
     );
   }
@@ -212,7 +230,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
           Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: AppTokens.spaceSM),
           Text(
-            label,
+            context.settingsText(label),
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w600,
             ),
@@ -220,7 +238,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
           if (hint != null) ...[
             const SizedBox(width: AppTokens.spaceXS),
             Text(
-              hint,
+              context.settingsText(hint),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -233,7 +251,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
 
   Widget _buildForm(BuildContext context, AppReportEditing state) {
     final bloc = context.read<AppReportBloc>();
-    final enabled = !state.isSending;
+    final enabled =
+        !state.isSending &&
+        state.invalidField != 'draftFinalize' &&
+        state.invalidField != 'draftLoad';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -247,7 +268,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
             for (final type in AppReportType.values)
               SegmentOption(
                 value: type,
-                label: appReportTypeLabel(type),
+                label: context.settingsText(appReportTypeLabel(type)),
                 icon: appReportTypeIcon(type),
               ),
           ],
@@ -267,8 +288,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppSurfaces.card(context),
-            hintText: 'משפט אחד שמתאר את הבעיה',
-            errorText: state.invalidField == 'title' ? 'יש למלא כותרת' : null,
+            hintText: context.settingsText('משפט אחד שמתאר את הבעיה'),
+            errorText: state.invalidField == 'title'
+                ? context.settingsText('יש למלא כותרת')
+                : null,
           ),
           onChanged: (value) => bloc.add(AppReportTitleChanged(value)),
         ),
@@ -287,10 +310,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppSurfaces.card(context),
-            hintText: 'מה ציפית שיקרה, ומה קרה בפועל',
+            hintText: context.settingsText('מה ציפית שיקרה, ומה קרה בפועל'),
             alignLabelWithHint: true,
             errorText: state.invalidField == 'description'
-                ? 'יש לתאר את התקלה'
+                ? context.settingsText('יש לתאר את התקלה')
                 : null,
           ),
           onChanged: (value) => bloc.add(AppReportDescriptionChanged(value)),
@@ -311,7 +334,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppSurfaces.card(context),
-            hintText: 'מה עשית לפני שהתקלה הופיעה',
+            hintText: context.settingsText('מה עשית לפני שהתקלה הופיעה'),
             alignLabelWithHint: true,
           ),
           onChanged: (value) => bloc.add(AppReportStepsChanged(value)),
@@ -332,13 +355,14 @@ class _AppReportDialogState extends State<AppReportDialog> {
             fillColor: AppSurfaces.card(context),
             hintText: 'name@example.com',
             errorText: state.invalidField == 'reporterEmail'
-                ? 'נדרשת כתובת תקינה'
+                ? context.settingsText('נדרשת כתובת תקינה')
                 : null,
           ),
           onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
         AppReportImagesSection(
+          otherAttachmentBytes: bloc.otherAttachmentBytes(state),
           images: state.images,
           enabled: enabled,
           onChanged: (images) => bloc.add(AppReportImagesChanged(images)),
@@ -354,6 +378,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
           errorLog: state.errorLog,
           includeDiagnostics: state.includeDiagnostics,
           includeErrorLog: state.includeErrorLog,
+          minidump: state.minidump,
+          includeMinidump: state.includeMinidump,
+          onMinidumpChanged: (include) =>
+              bloc.add(AppReportMinidumpToggled(include)),
           enabled: enabled,
           onDiagnosticsChanged: (include) =>
               bloc.add(AppReportDiagnosticsToggled(include)),
@@ -377,7 +405,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
         const SizedBox(width: AppTokens.spaceSM),
         Expanded(
           child: Text(
-            'הטופס נטען מטיוטה שמורה',
+            context.settingsText('הטופס נטען מטיוטה שמורה'),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -385,7 +413,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
         ),
         ActionButton.ghost(
           key: const ValueKey('app-report-discard-draft'),
-          text: 'מחק טיוטה',
+          text: context.settingsText('השלך טיוטה'),
           icon: FluentIcons.delete_24_regular,
           onPressed: enabled ? _discardDraft : null,
         ),
@@ -393,46 +421,98 @@ class _AppReportDialogState extends State<AppReportDialog> {
     );
   }
 
+  bool get _offline =>
+      Settings.isInitialized &&
+      (Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false);
+
   Widget _buildActions(BuildContext context, AppReportState state) {
     final editing = state is AppReportEditing ? state : null;
-    final isSending = editing?.isSending ?? false;
+    final busy = editing?.isSending ?? false;
+    final finalizing = editing?.invalidField == 'draftFinalize';
+    final loadFailed = editing?.invalidField == 'draftLoad';
     return Padding(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ActionButton.ghost(
-            text: 'ביטול',
-            onPressed: isSending ? null : () => Navigator.of(context).pop(),
-          ),
-          if (_bloc.supportsDraft) ...[
-            const SizedBox(width: 8),
-            ActionButton.neutral(
-              key: const ValueKey('app-report-save-draft'),
-              text: 'שמור טיוטה',
-              icon: FluentIcons.save_24_regular,
-              onPressed: editing == null || isSending
-                  ? null
-                  : () => _bloc.add(const AppReportDraftSaved()),
+          if (_offline && !finalizing)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
+              child: Text(
+                context.settingsText(
+                  'מצב מנותק: הדיווח יישמר בתור לשליחה או להעברה, לאחר השלמת השדות הנדרשים.',
+                ),
+              ),
             ),
-          ],
-          const SizedBox(width: 8),
-          ActionButton.recommended(
-            key: const ValueKey('app-report-send'),
-            text: 'שלח',
-            icon: FluentIcons.send_24_regular,
-            isLoading: isSending,
-            onPressed: editing == null || isSending
-                ? null
-                : () => _bloc.add(const AppReportSubmitted()),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppTokens.spaceSM,
+            runSpacing: AppTokens.spaceSM,
+            children: [
+              if (_bloc.supportsDraft && !finalizing && !loadFailed)
+                ActionButton.ghost(
+                  key: const ValueKey('app-report-discard'),
+                  text: context.settingsText('השלך טיוטה'),
+                  onPressed: editing == null || busy ? null : _discardDraft,
+                ),
+              ActionButton.neutral(
+                key: const ValueKey('app-report-save-draft'),
+                text: context.settingsText(
+                  _bloc.supportsDraft && !loadFailed
+                      ? 'שמור טיוטה וצא זמנית'
+                      : 'סגור',
+                ),
+                onPressed: busy || finalizing ? null : _leave,
+              ),
+              if (!_offline && !finalizing && !loadFailed)
+                ActionButton.neutral(
+                  key: const ValueKey('app-report-queue'),
+                  text: context.settingsText('שמור בתור'),
+                  onPressed: editing == null || busy
+                      ? null
+                      : () => _bloc.add(
+                          const AppReportSubmitted(queueOnly: true),
+                        ),
+                ),
+              if (!loadFailed)
+                ActionButton.recommended(
+                  key: const ValueKey('app-report-send'),
+                  text: context.settingsText(
+                    finalizing
+                        ? 'סיים שמירה מקומית'
+                        : _offline
+                        ? 'שמור בתור'
+                        : 'שלח',
+                  ),
+                  icon: FluentIcons.send_24_regular,
+                  isLoading: busy,
+                  onPressed: editing == null || busy
+                      ? null
+                      : () =>
+                            _bloc.add(AppReportSubmitted(queueOnly: _offline)),
+                ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  void _discardDraft() {
-    _bloc.add(const AppReportDraftDiscarded());
-    UiSnack.show(ReportMessages.appReportDraftDiscarded);
+  void _leave() {
+    final state = _bloc.state;
+    if (state is AppReportEditing &&
+        (state.isSending || state.invalidField == 'draftFinalize')) {
+      return;
+    }
+    if (_bloc.supportsDraft &&
+        state is AppReportEditing &&
+        state.invalidField != 'draftLoad') {
+      _bloc.add(const AppReportDraftSaved());
+    } else {
+      Navigator.of(context).pop();
+    }
   }
+
+  void _discardDraft() => _bloc.add(const AppReportDraftDiscarded());
 }

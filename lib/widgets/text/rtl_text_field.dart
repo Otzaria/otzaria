@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/text/rtl_hard_break_workaround.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 
@@ -916,7 +917,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
           Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurface),
           const SizedBox(width: 8),
           Text(
-            label,
+            context.settingsText(label),
             style: const TextStyle(fontSize: 14),
           ),
         ],

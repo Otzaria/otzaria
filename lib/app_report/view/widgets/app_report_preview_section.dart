@@ -1,3 +1,4 @@
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'dart:convert';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -63,6 +64,16 @@ class AppReportPreviewSection extends StatefulWidget {
 
 class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
   bool _isExpanded = false;
+  Map<String, dynamic>? _previewDiagnostics;
+  String? _previewJson;
+
+  String _diagnosticsJson(Map<String, dynamic> diagnostics) {
+    if (_previewJson == null || !identical(_previewDiagnostics, diagnostics)) {
+      _previewDiagnostics = diagnostics;
+      _previewJson = AppReportPreviewSection.prettyJson(diagnostics);
+    }
+    return _previewJson!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +98,7 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
             label: 'לצרף מידע אבחון על התוכנה והמערכת',
           ),
           subtitle: diagnostics == null
-              ? const Text('לא ניתן היה לאסוף מידע אבחון')
+              ? Text(context.settingsText('לא ניתן היה לאסוף מידע אבחון'))
               : null,
         ),
         CheckboxListTile(
@@ -104,7 +115,7 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
             label: 'לצרף קטע מיומן השגיאות',
           ),
           subtitle: (errorLog?.isEmpty ?? true)
-              ? const Text('אין רשומות ביומן השגיאות')
+              ? Text(context.settingsText('אין רשומות ביומן השגיאות'))
               : null,
         ),
         if (widget.minidump != null)
@@ -121,7 +132,9 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
               icon: FluentIcons.bug_24_regular,
               label: 'לצרף את קובץ הקריסה (minidump)',
             ),
-            subtitle: const Text(AppReportPreviewSection.minidumpNote),
+            subtitle: Text(
+              context.settingsText(AppReportPreviewSection.minidumpNote),
+            ),
           ),
         Align(
           alignment: AlignmentDirectional.centerStart,
@@ -131,14 +144,16 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
             icon: _isExpanded
                 ? FluentIcons.chevron_up_24_regular
                 : FluentIcons.chevron_down_24_regular,
-            text: _isExpanded ? 'הסתר את מה שיישלח' : 'הצג את מה שיישלח',
+            text: context.settingsText(
+              _isExpanded ? 'הסתר את מה שיישלח' : 'הצג את מה שיישלח',
+            ),
           ),
         ),
         if (_isExpanded) ...[
           if (diagnostics != null)
             _PreviewBox(
               title: 'diagnostics.json',
-              content: AppReportPreviewSection.prettyJson(diagnostics),
+              content: _diagnosticsJson(diagnostics),
             ),
           if (errorLog != null && errorLog.isNotEmpty)
             _PreviewBox(title: 'errors.txt', content: errorLog),
@@ -161,7 +176,7 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
               const SizedBox(width: AppTokens.spaceSM),
               Expanded(
                 child: Text(
-                  AppReportPreviewSection.privacyNote,
+                  context.settingsText(AppReportPreviewSection.privacyNote),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -192,7 +207,7 @@ class _AttachmentTitle extends StatelessWidget {
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),
-        Expanded(child: Text(label)),
+        Expanded(child: Text(context.settingsText(label))),
       ],
     );
   }

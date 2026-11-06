@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -203,27 +204,15 @@ void main() {
       );
     });
 
-    test('only sources that reach the Otzaria inbox allow a correction', () {
-      for (final folder in ['sefaria', 'SefariaToOtzaria', 'my-sefaria-x']) {
-        expect(ErrorReportHelper.reportReachesOtzaria(folder), isFalse);
-      }
-      for (final folder in [
-        'wikiJewishBooksToOtzaria',
-        'wikiSource',
-        'Pninim',
-        'Tashma',
-        'Ben-Yehuda',
-        'yam-HaHachmaToOtzaria',
-        'local',
-        '',
-        null,
-      ]) {
-        expect(
-          ErrorReportHelper.reportReachesOtzaria(folder),
-          isTrue,
-          reason: '$folder',
-        );
-      }
+    test('Sefaria link uses the exact heRef of the line', () {
+      expect(
+        Uri.decodeComponent(
+          ErrorReportHelper.sefariaUrlFor('בית יוסף, אורח חיים,  שיח, טו, א')!,
+        ),
+        'https://www.sefaria.org/בית יוסף, אורח חיים, שיח, טו, א',
+      );
+      expect(ErrorReportHelper.sefariaUrlFor(null), isNull);
+      expect(ErrorReportHelper.sefariaUrlFor('  '), isNull);
     });
 
     test('identifies dicta source folder', () {
@@ -687,6 +676,98 @@ void main() {
     });
   });
 
+  group('ErrorReportHelper.correctionSnippets', () {
+    const line =
+        '<b>ומ"ש</b> בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד ועוד שתי מילים';
+    final start = line.indexOf('כרא"ש');
+    TextCorrection correction(String? proposed) => TextCorrection.selection(
+      originalLine: line,
+      start: start,
+      end: start + 'כרא"ש'.length,
+      proposedText: proposed,
+    );
+
+    test('ארבע מילים לפני ואחרי השינוי, והשינוי מסומן', () {
+      final snippets = ErrorReportHelper.correctionSnippets(
+        correction('הרא"ש'),
+      )!;
+      expect(
+        snippets.wrong,
+        'בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד',
+      );
+      expect(
+        snippets.fixed,
+        'בכרמלית הסמוך לו וכתב *הרא"ש* הרמב"ם בפי"ז השוה יחד',
+      );
+    });
+
+    test('מחיקה, בלי הצעה ובלי שינוי נראה', () {
+      expect(
+        ErrorReportHelper.correctionSnippets(correction(''))!.fixed,
+        'בכרמלית הסמוך לו וכתב *(נמחק: כרא"ש)* הרמב"ם בפי"ז השוה יחד',
+      );
+      expect(ErrorReportHelper.correctionSnippets(correction(null)), isNull);
+      expect(
+        ErrorReportHelper.correctionSnippets(
+          const TextCorrection.wholeLine(
+            originalLine: 'א <b>ב</b>',
+            proposedText: 'א ב',
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('הטקסט כפי שהוא מוצג: <br> מפריד מילים וישויות מפוענחות', () {
+      final snippets = ErrorReportHelper.correctionSnippets(
+        const TextCorrection.wholeLine(
+          originalLine: 'זאת<br>יהי &quot;רצון&quot;&thinsp;שגוי',
+          proposedText: 'זאת<br/>יהי &quot;רצון&quot;&thinsp;נכון',
+        ),
+      )!;
+      expect(snippets.wrong, 'זאת יהי "רצון" שגוי');
+      expect(snippets.fixed, 'זאת יהי "רצון" *נכון*');
+    });
+
+    test('גוף המייל: טקסט שגוי ומתוקן במקום בלוק ההצעה', () {
+      final details = ErrorReportHelper.emailErrorDetails(
+        ReportedErrorData(
+          selectedText: 'כרא"ש',
+          errorDetails: 'טעות הקלדה',
+          correction: correction('הרא"ש'),
+        ),
+      );
+      expect(
+        details,
+        'טעות הקלדה\n\nהטקסט השגוי:\n'
+        'בכרמלית הסמוך לו וכתב כרא"ש הרמב"ם בפי"ז השוה יחד\n\n'
+        'הטקסט המתוקן:\n'
+        'בכרמלית הסמוך לו וכתב *הרא"ש* הרמב"ם בפי"ז השוה יחד',
+      );
+    });
+  });
+
+  test('מייל למקור שאינו ספריא: טקסט שגוי ומתוקן, ואחריהם ההצעה המלאה', () {
+    final details = ErrorReportHelper.emailErrorDetails(
+      ReportedErrorData(
+        selectedText: 'ב',
+        errorDetails: '',
+        correction: TextCorrection.selection(
+          originalLine: 'א ב ג',
+          start: 2,
+          end: 3,
+          proposedText: 'נ',
+        ),
+      ),
+      withFullProposal: true,
+    );
+    expect(
+      details,
+      startsWith('הטקסט השגוי:\nא ב ג\n\nהטקסט המתוקן:\nא *נ* ג'),
+    );
+    expect(details, endsWith('--- הצעת תיקון ---\nמקור: ב\nמוצע: נ'));
+  });
+
   group('ErrorReportHelper.resolveSelectionContext', () {
     test('should resolve to preferred line occurrence when unique in line', () {
       final content = [
@@ -868,7 +949,14 @@ void main() {
         ),
       );
 
-      expect(find.text('שלח ישירות לאוצריא'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שלח ישירות לאוצריא'),
+            )
+            .onPressed,
+        isNull,
+      );
 
       await tester.enterText(find.byType(TextField), 'זו טעות בפסקה הנוכחית');
       await tester.pumpAndSettle();
@@ -914,10 +1002,54 @@ void main() {
 
       expect(
         find.text(
-          'לחיצה על שלח דיווח תשלח את השגיאה ישירות לספריא, יש לשים לב לתקינות הדיווח לפני השליחה',
+          'לחיצה על שלח דיווח תשלח את השגיאה ישירות לספריא. יש לבדוק את תקינות הדיווח לפני השליחה.',
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('ספריא: הנחיות דיווח ובלי דיווח חופשי כשיש עורך תיקון', (
+      tester,
+    ) async {
+      Widget tab({
+        required bool isSefariaSource,
+        String line = 'שורה לבדיקה',
+      }) => MaterialApp(
+        home: Scaffold(
+          body: RegularReportTab(
+            selectedText: 'לבדיקה',
+            fontSize: 18,
+            directReportTargetLabel: isSefariaSource ? 'ספריא' : 'אוצריא',
+            isSefariaSource: isSefariaSource,
+            correctionTemplate: buildCorrectionTemplate(line, 'לבדיקה'),
+            onActionSelected: (_, _) {},
+            onCancel: () {},
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(tab(isSefariaSource: true));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('הדיווח יישלח לספריא'), findsOneWidget);
+      expect(find.text('דיווח חופשי'), findsNothing);
+
+      await tester.pumpWidget(tab(isSefariaSource: false));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('הדיווח יישלח לספריא'), findsNothing);
+      expect(find.text('דיווח חופשי'), findsOneWidget);
+
+      await tester.tap(find.text('דיווח חופשי'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('העתיקו כמה מילים כפי שהן בספר, ושוב כשהן מתוקנות'),
+        findsOneWidget,
+      );
+
+      // שורה ארוכה מהתקרה חוסמת הצעת תיקון; בלי דיווח חופשי לא היה מסלול שליחה.
+      final longLine = '${'א' * TextCorrection.maxTextLength} לבדיקה';
+      await tester.pumpWidget(tab(isSefariaSource: true, line: longLine));
+      await tester.pumpAndSettle();
+      expect(find.text('דיווח חופשי'), findsOneWidget);
     });
 
     testWidgets('details field receives focus automatically on open', (
@@ -1457,14 +1589,14 @@ void main() {
       );
       await tester.tap(find.text('פתח'));
       await tester.pumpAndSettle();
-      return tester.getSize(find.byType(RegularReportTab)).height;
+      return tester.getSize(find.byType(TabBarView)).height;
     }
 
     ScrollPosition formScroll(WidgetTester tester) => tester
         .state<ScrollableState>(
           find
               .descendant(
-                of: find.byType(RegularReportTab),
+                of: find.byType(TabBarView),
                 matching: find.byWidgetPredicate(
                   (w) =>
                       w is Scrollable && w.axisDirection == AxisDirection.down,
@@ -1474,15 +1606,9 @@ void main() {
         )
         .position;
 
-    testWidgets('אין לשונית דיווח דרך קו אוצריא (issue #3615)', (tester) async {
-      await dialogHeight(tester);
-
-      expect(find.byType(TabBar), findsNothing);
-      expect(find.textContaining('קו אוצריא'), findsNothing);
-      expect(find.byType(RegularReportTab), findsOneWidget);
-    });
-
-    testWidgets('טופס בלי עורך תיקון קצר ויציב בזמן הקלדה', (tester) async {
+    testWidgets('טופס חופשי נשאר קצר ויציב, והשדות והפעולות נגישים בגלילה', (
+      tester,
+    ) async {
       final initial = await dialogHeight(tester);
 
       expect(initial, lessThan(500), reason: 'לא בגובה של טופס עם עורך');
@@ -1492,15 +1618,26 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        tester.getSize(find.byType(RegularReportTab)).height,
+        tester.getSize(find.byType(TabBarView)).height,
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
-      expect(
-        formScroll(tester).maxScrollExtent,
-        0,
-        reason: 'טקסט נבחר ארוך ושדה פירוט מלא נכנסים בלי גלילה',
+      // Precise selection adds instructions and a clear-selection control.
+      // The form keeps its compact height and scrolls that content while the
+      // action area stays outside the scrollable viewport.
+      final scroll = formScroll(tester);
+      expect(scroll.maxScrollExtent, greaterThan(0));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('report-details-field')),
       );
+      await tester.pumpAndSettle();
+      expect(scroll.pixels, greaterThan(0));
+      expect(find.text('שמור לשליחה מאוחרת').hitTestable(), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('book-report-save-draft')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('טופס עם עורך תיקון נשאר בגובה הנוח', (tester) async {

@@ -12,6 +12,8 @@ import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
+import 'package:otzaria/reports/view_scope.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -31,10 +33,13 @@ Future<AppReportDeliveryResult?> showCrashPromptDialog(
   return showDialog<AppReportDeliveryResult>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => CrashPromptDialog(
-      candidate: candidate,
-      createBloc: createBloc,
-      saveMode: saveMode,
+    builder: reportDialogBuilder(
+      context,
+      (_) => CrashPromptDialog(
+        candidate: candidate,
+        createBloc: createBloc,
+        saveMode: saveMode,
+      ),
     ),
   );
 }
@@ -135,88 +140,123 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
     );
   }
 
-  Future<void> _dismiss() async {
-    await _saveMode();
-    if (!mounted) return;
-    UiSnack.show(
-      widget.candidate.isHang
-          ? ReportMessages.appReportHangDismissed
-          : ReportMessages.appReportCrashDismissed,
-    );
-    Navigator.of(context).pop();
+  void _leave() {
+    final state = _bloc.state;
+    if (state is AppReportEditing && !state.isSending) {
+      _bloc.add(const AppReportDraftSaved());
+    }
   }
+
+  void _dismiss() => _bloc.add(const AppReportDraftDiscarded());
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final maxWidth = size.width < 600 ? size.width * 0.95 : 560.0;
 
-    return BlocProvider.value(
-      value: _bloc,
-      child: BlocConsumer<AppReportBloc, AppReportState>(
-        listenWhen: (previous, current) =>
-            current is AppReportEditing &&
-            current.isFinished &&
-            !(previous is AppReportEditing && previous.isFinished),
-        listener: (context, state) async {
-          final result = (state as AppReportEditing).result;
-          if (result == null) return;
-          await _saveMode();
-          if (!context.mounted) return;
-          showAppReportResultSnack(result);
-          Navigator.of(context).pop(result);
-        },
-        builder: (context, state) {
-          final editing = state is AppReportEditing ? state : null;
-          if (editing != null && _email.text != editing.email) {
-            _email.text = editing.email;
-          }
-          return Dialog(
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: maxWidth,
-                maxHeight: size.height * 0.9,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(context, editing),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppTokens.spaceLG,
-                        AppTokens.spaceMD,
-                        AppTokens.spaceLG,
-                        0,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: BlocProvider.value(
+        value: _bloc,
+        child: BlocConsumer<AppReportBloc, AppReportState>(
+          listenWhen: (previous, current) =>
+              current is AppReportEditing &&
+              (current.isFinished ||
+                  current.draftSaved ||
+                  current.draftDiscarded ||
+                  current.invalidField !=
+                      (previous is AppReportEditing
+                          ? previous.invalidField
+                          : null)),
+          listener: (context, state) async {
+            final editing = state as AppReportEditing;
+            if (editing.invalidField case final field?) {
+              UiSnack.showError(
+                appReportInvalidFieldMessage(
+                  field,
+                  emailEmpty: editing.email.trim().isEmpty,
+                  context: context,
+                ),
+              );
+            }
+            if (editing.draftSaved || editing.draftDiscarded) {
+              await _saveMode();
+              if (!context.mounted) return;
+              UiSnack.show(
+                context.settingsText(
+                  editing.draftDiscarded
+                      ? ReportMessages.appReportDraftDiscarded
+                      : ReportMessages.appReportDraftSaved,
+                ),
+              );
+              Navigator.of(context).pop();
+            } else if (editing.isFinished && editing.result != null) {
+              await _saveMode();
+              if (!context.mounted) return;
+              showAppReportResultSnack(editing.result!, context: context);
+              Navigator.of(context).pop(editing.result);
+            }
+          },
+          builder: (context, state) {
+            final editing = state is AppReportEditing ? state : null;
+            if (editing != null && _email.text != editing.email) {
+              _email.text = editing.email;
+            }
+            return Dialog(
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxWidth,
+                  maxHeight: size.height * 0.9,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(context, editing),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppTokens.spaceLG,
+                          AppTokens.spaceMD,
+                          AppTokens.spaceLG,
+                          0,
+                        ),
+                        child: _buildBody(context, editing),
                       ),
-                      child: _buildBody(context, editing),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  _buildActions(context, editing),
-                ],
+                    const Divider(height: 1),
+                    _buildActions(context, editing),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 
-  String _incidentText() {
+  String _incidentText(BuildContext context) {
     final candidate = widget.candidate;
     if (!candidate.isHang) {
-      return 'בהפעלה הקודמת התוכנה נסגרה בלי סגירה מסודרת.';
+      return context.settingsText(
+        'בהפעלה הקודמת התוכנה נסגרה בלי סגירה מסודרת.',
+      );
     }
     if (candidate.occurredInPreviousRun) {
-      return 'בהפעלה הקודמת התוכנה הפסיקה להגיב.';
+      return context.settingsText('בהפעלה הקודמת התוכנה הפסיקה להגיב.');
     }
     final seconds = candidate.hangDuration?.inSeconds ?? 0;
     return seconds > 0
-        ? 'התוכנה הפסיקה להגיב למשך $seconds שניות.'
-        : 'התוכנה הפסיקה להגיב.';
+        ? context.settingsText(
+            'התוכנה הפסיקה להגיב למשך {seconds} שניות.',
+            args: {'seconds': seconds},
+          )
+        : context.settingsText('התוכנה הפסיקה להגיב.');
   }
 
   /// כותרת בצורת כותרת הטופס [AppReportDialog]: אייקון מסומל, שם ותיאור המקרה.
@@ -224,12 +264,14 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
     return AppDialogHeader(
       icon: FluentIcons.warning_24_regular,
       tone: AppDialogHeaderTone.error,
-      title: widget.candidate.isHang
-          ? CrashPromptDialog.hangTitle
-          : CrashPromptDialog.title,
-      subtitle: _incidentText(),
+      title: context.settingsText(
+        widget.candidate.isHang
+            ? CrashPromptDialog.hangTitle
+            : CrashPromptDialog.title,
+      ),
+      subtitle: _incidentText(context),
       closeEnabled: !(state?.isSending ?? false),
-      onClose: _dismiss,
+      onClose: _leave,
     );
   }
 
@@ -241,7 +283,9 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'שליחת דיווח תעזור לנו למצוא את הסיבה ולתקן אותה.',
+          context.settingsText(
+            'שליחת דיווח תעזור לנו למצוא את הסיבה ולתקן אותה.',
+          ),
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -254,9 +298,11 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppSurfaces.card(context),
-            labelText: widget.candidate.isHang
-                ? 'מה עשית לפני שהתוכנה נתקעה? (לא חובה)'
-                : 'מה עשית לפני הסגירה? (לא חובה)',
+            labelText: context.settingsText(
+              widget.candidate.isHang
+                  ? 'מה עשית לפני שהתוכנה נתקעה? (לא חובה)'
+                  : 'מה עשית לפני הסגירה? (לא חובה)',
+            ),
             alignLabelWithHint: true,
           ),
           onChanged: (value) => bloc.add(AppReportDescriptionChanged(value)),
@@ -270,9 +316,9 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppSurfaces.card(context),
-            labelText: 'דואר אלקטרוני (לא חובה)',
+            labelText: context.settingsText('דואר אלקטרוני (לא חובה)'),
             errorText: state?.invalidField == 'reporterEmail'
-                ? 'הכתובת אינה תקינה'
+                ? context.settingsText('הכתובת אינה תקינה')
                 : null,
           ),
           onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
@@ -300,18 +346,24 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
                 bloc.add(AppReportErrorLogToggled(include)),
           ),
         const SizedBox(height: 16),
-        Text('בפעם הבאה שזה יקרה:', style: theme.textTheme.labelLarge),
+        Text(
+          context.settingsText('בפעם הבאה שזה יקרה:'),
+          style: theme.textTheme.labelLarge,
+        ),
         const SizedBox(height: 8),
         AppSegmentedControl<AppCrashReportMode>(
-          options: const [
-            SegmentOption(value: AppCrashReportMode.ask, label: 'שאל אותי'),
+          options: [
+            SegmentOption(
+              value: AppCrashReportMode.ask,
+              label: context.settingsText('שאל אותי'),
+            ),
             SegmentOption(
               value: AppCrashReportMode.always,
-              label: 'תמיד לשלוח אוטומטית',
+              label: context.settingsText('תמיד לשלוח אוטומטית'),
             ),
             SegmentOption(
               value: AppCrashReportMode.never,
-              label: 'אל תשאל שוב',
+              label: context.settingsText('אל תשאל שוב'),
             ),
           ],
           currentValue: _nextTime,
@@ -330,18 +382,24 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
         horizontal: AppTokens.spaceLG,
         vertical: AppTokens.spaceMD,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           ActionButton.ghost(
             key: const ValueKey('crash-prompt-dismiss'),
-            text: 'אל תשלח',
+            text: context.settingsText('השלך טיוטה'),
             onPressed: isSending ? null : _dismiss,
           ),
-          const SizedBox(width: 8),
+          ActionButton.ghost(
+            key: const ValueKey('crash-prompt-save-draft'),
+            text: context.settingsText('שמור טיוטה וצא זמנית'),
+            onPressed: state == null || isSending ? null : _leave,
+          ),
           ActionButton.recommended(
             key: const ValueKey('crash-prompt-send'),
-            text: 'שלח דיווח',
+            text: context.settingsText('שלח דיווח'),
             icon: FluentIcons.send_24_regular,
             isLoading: isSending,
             onPressed: state == null || isSending

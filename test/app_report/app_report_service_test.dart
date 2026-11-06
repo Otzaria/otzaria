@@ -13,6 +13,7 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
+import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
@@ -106,7 +107,8 @@ void main() {
     expect(loaded.includeDiagnostics, isFalse);
     expect(loaded.images.single.fileName, 'shot.png');
     expect(loaded.images.single.bytes, [1, 2, 3]);
-    expect(await store.countByKind(AppReportService.draftKind), 1);
+    expect(await store.countByKind(AppReportService.draftKind), 0);
+    expect(await ReportDraftStore.forDatabase(db).list(), hasLength(1));
     expect(await service.getPendingReportsCount(), 0);
     expect(await service.flushPendingReports(), 0);
 
@@ -122,23 +124,22 @@ void main() {
     email: '',
   );
 
-  test('שמירות טיוטה מקבילות משני חיבורים משאירות טיוטה אחת', () async {
-    final service = build(MockClient((_) async => _json(500, {})));
-    final secondDb = UserStateDatabase.openAt(
-      '${tmp.path}${Platform.pathSeparator}user_state.db',
-    );
+  test('independent new forms create separate local drafts', () async {
+    final first = build(MockClient((_) async => _json(500, {})));
+    final secondDb = UserStateDatabase.openAt('${tmp.path}/user_state.db');
     addTearDown(secondDb.close);
     final second = AppReportService(
       reportStore: PendingReportStore(database: secondDb),
     );
-    await service.saveDraft(draft('קודמת'));
     await Future.wait([
-      service.saveDraft(draft('ראשונה')),
-      second.saveDraft(draft('שנייה')),
+      first.saveDraft(draft('first')),
+      second.saveDraft(draft('second')),
     ]);
-
-    expect(await store.countByKind(AppReportService.draftKind), 1);
-    expect((await service.loadDraft())?.title, 'שנייה');
+    expect(await store.countByKind(AppReportService.draftKind), 0);
+    expect(
+      (await ReportDraftStore.forDatabase(db).list()).map((r) => r.title),
+      unorderedEquals(['first', 'second']),
+    );
   });
 
   test('כשל בהחלפת טיוטה משמר את הטיוטה הקודמת', () async {
@@ -146,16 +147,73 @@ void main() {
     await service.saveDraft(draft('קודמת'));
     final connection = await db.database;
     connection.execute("""
-      CREATE TRIGGER reject_draft BEFORE INSERT ON pending_reports
-      WHEN NEW.kind = '${AppReportService.draftKind}'
+      CREATE TRIGGER reject_draft BEFORE UPDATE ON report_drafts
       BEGIN SELECT RAISE(ABORT, 'simulated insert failure'); END
     """);
 
     await expectLater(service.saveDraft(draft('חדשה')), throwsA(anything));
 
     expect((await service.loadDraft())?.title, 'קודמת');
-    expect(await store.countByKind(AppReportService.draftKind), 1);
+    expect(await store.countByKind(AppReportService.draftKind), 0);
+    expect(await ReportDraftStore.forDatabase(db).list(), hasLength(1));
   });
+
+  test(
+    'a malformed existing draft cannot be treated as an empty new form',
+    () async {
+      final service = build(MockClient((_) async => _json(500, {})));
+      final drafts = ReportDraftStore.forDatabase(db);
+      await drafts.write(
+        id: 'malformed',
+        kind: ReportDraftStore.appKind,
+        title: 'saved work',
+        payload: {'title': 42, 'description': 'keep this text'},
+        revision: 0,
+      );
+      await expectLater(
+        service.loadDraft(draftId: 'malformed'),
+        throwsFormatException,
+      );
+      expect(
+        (await drafts.read('malformed'))!.payload['description'],
+        'keep this text',
+      );
+    },
+  );
+
+  for (final status in [413, 422]) {
+    test(
+      'schema2 $status preserves rejected dump and diagnostics in the pending report',
+      () async {
+        final bodies = <Map<String, dynamic>>[];
+        final service = build(
+          MockClient((request) async {
+            bodies.add(
+              jsonDecode(utf8.decode(request.bodyBytes))
+                  as Map<String, dynamic>,
+            );
+            return _json(status, {'field': 'attachments.minidump'});
+          }),
+        );
+        final report = _report().copyWith(
+          minidump: AppReportMinidump(
+            gzipBytes: Uint8List.fromList(
+              gzip.encode(utf8.encode('MDMP diagnostic payload')),
+            ),
+            fileName: 'diagnostic.dmp',
+          ),
+        );
+        await service.queueReport(report);
+        expect(await service.flushPendingReports(), 0);
+        expect(bodies, hasLength(1));
+        expect(bodies.single, report.forCompatibleTransport().toApiPayload());
+        final retained = (await service.getPendingReports()).single;
+        expect(retained.toJson(), report.toJson());
+        expect(retained.minidump, isNotNull);
+        expect(await service.getSentReports(), isEmpty);
+      },
+    );
+  }
 
   test('200: נשלח, שדות ה-issue נשמרים בהיסטוריה בלי צרופות', () async {
     Map<String, dynamic>? sentBody;
@@ -234,8 +292,183 @@ void main() {
     expect(result.report.reportId, ids.last);
   });
 
+  for (final status in [413, 422]) {
+    test(
+      'lossless schema1 HTTP never drops a new dump after $status',
+      () async {
+        final bodies = <Map<String, dynamic>>[];
+        final service = build(
+          MockClient((request) async {
+            bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return _json(status, {'field': 'attachments.minidump'});
+          }),
+        );
+        final report = _report().copyWith(
+          minidump: AppReportMinidump(
+            gzipBytes: Uint8List.fromList(
+              gzip.encode(ascii.encode('MDMP-new-dump')),
+            ),
+            fileName: 'new.dmp',
+          ),
+        );
+
+        final result = await service.send(report);
+        expect(result.status, AppReportDeliveryStatus.failed);
+        expect(bodies, [report.forCompatibleTransport().toApiPayload()]);
+        expect(bodies.single['schema'], 1);
+        expect(result.report.toJson(), report.toJson());
+        expect(await service.getPendingReports(), isEmpty);
+
+        final queued = await service.queueReport(result.report);
+        expect(queued.schema, 2);
+        expect(await store.countByKind(AppReportService.legacyPendingKind), 0);
+        expect(await store.countByKind(AppReportService.currentPendingKind), 1);
+        db.close();
+        final reloaded = (await service.getPendingReports()).single;
+        expect(reloaded.toJson(), report.toJson());
+        expect(await service.flushPendingReports(), 0);
+        expect(bodies, hasLength(2));
+        expect(bodies.last, bodies.first);
+        expect(
+          (await service.getPendingReports()).single.toJson(),
+          report.toJson(),
+        );
+      },
+    );
+  }
+
+  test('409 then413 retains canonical schema2 and the complete dump', () async {
+    final bodies = <Map<String, dynamic>>[];
+    final service = build(
+      MockClient((request) async {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return _json(bodies.length == 1 ? 409 : 413, {});
+      }),
+    );
+    final report = _report().copyWith(
+      minidump: AppReportMinidump(
+        gzipBytes: Uint8List.fromList(
+          gzip.encode(ascii.encode('MDMP-409-dump')),
+        ),
+        fileName: 'conflict.dmp',
+      ),
+    );
+    final result = await service.send(report);
+    expect(result.status, AppReportDeliveryStatus.failed);
+    expect(bodies, hasLength(2));
+    expect(bodies.map((body) => body['schema']), [1, 1]);
+    expect(bodies.last['reportId'], isNot(report.reportId));
+    expect(bodies.last['attachments'], bodies.first['attachments']);
+    expect(result.report.schema, 2);
+    expect(result.report.minidump!.toJson(), report.minidump!.toJson());
+    expect(
+      result.report.toJson()..remove('reportId'),
+      report.toJson()..remove('reportId'),
+    );
+  });
+
+  test(
+    'old-server schema rejection cannot truncate or downgrade a large report',
+    () async {
+      final bodies = <Map<String, dynamic>>[];
+      final service = build(
+        MockClient((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return _json(422, {'field': 'schema', 'error': 'unsupported'});
+        }),
+      );
+      final report = _report().copyWith(errorLog: 'א' * 125001);
+      final result = await service.send(report);
+      expect(
+        result.failureReason,
+        AppReportFailureReason.serverUpgradeRequired,
+      );
+      expect(result.report.toJson(), report.toJson());
+      expect(bodies, [report.toApiPayload()]);
+      expect(await service.getPendingReports(), isEmpty);
+      expect(
+        (await service.queueReport(result.report)).toJson(),
+        report.toJson(),
+      );
+      expect(await service.flushPendingReports(), 0);
+      expect(bodies, [report.toApiPayload(), report.toApiPayload()]);
+      expect(
+        (await service.getPendingReports()).single.toJson(),
+        report.toJson(),
+      );
+    },
+  );
+
+  test(
+    'direct transient and intentional queue return the persisted contract',
+    () async {
+      final service = build(MockClient((_) async => http.Response('', 503)));
+      final report = _report();
+      final result = await service.send(report);
+      expect(result.isQueued, isTrue);
+      expect(result.report.schema, 1);
+      expect(
+        result.report.toJson(),
+        (await service.getPendingReports()).single.toJson(),
+      );
+      expect((await service.queueReport(_report())).schema, 1);
+      final withDump = _report().copyWith(
+        minidump: AppReportMinidump(
+          gzipBytes: Uint8List.fromList(
+            gzip.encode(ascii.encode('MDMP-offline')),
+          ),
+          fileName: 'offline.dmp',
+        ),
+      );
+      final dumpResult = await service.send(withDump);
+      expect(dumpResult.isQueued, isTrue);
+      expect(dumpResult.report.toJson(), withDump.toJson());
+      expect(await store.countByKind(AppReportService.currentPendingKind), 1);
+    },
+  );
+
+  for (final target in OfflineSendScriptTarget.values) {
+    test(
+      'script $target preserves new and legacy dumps with lossless bodies',
+      () {
+        final service = build(MockClient((_) async => http.Response('', 503)));
+        final current = _report().copyWith(
+          minidump: AppReportMinidump(
+            gzipBytes: Uint8List.fromList(
+              gzip.encode(ascii.encode('MDMP-export')),
+            ),
+            fileName: 'export.dmp',
+          ),
+        );
+        final legacy = current.copyWith(schema: 1, reportId: 'legacy-export');
+        final script = service.buildOfflineSendScript([
+          current,
+          legacy,
+        ], target: target);
+        final bodies = const LineSplitter()
+            .convert(script.content)
+            .where((line) => line.startsWith('{"schema":'))
+            .map(jsonDecode)
+            .toList();
+        expect(bodies, [
+          current.forCompatibleTransport().toApiPayload(),
+          legacy.toApiPayload(),
+        ]);
+        expect(
+          (bodies.first['attachments'] as Map)['minidump'],
+          current.minidump!.toJson(),
+        );
+        expect(
+          (bodies.last['attachments'] as Map)['minidump'],
+          legacy.minidump!.toJson(),
+        );
+      },
+    );
+  }
+
   group('minidump שנדחה נשלח שוב בלעדיו (issue #1978)', () {
     final withDump = _report().copyWith(
+      schema: 1,
       minidump: AppReportMinidump(
         gzipBytes: Uint8List.fromList(gzip.encode(utf8.encode('MDMP...'))),
         fileName: 'a.dmp',
@@ -342,6 +575,9 @@ void main() {
           expect(pending, hasLength(1));
           expect(pending.single.reportId, isNot(withDump.reportId));
           expect(pending.single.minidump, isNull);
+        } else if (fallbackStatus == 400) {
+          expect(pending, hasLength(1));
+          expect(pending.single.reportId, withDump.reportId);
         } else {
           expect(pending, isEmpty);
         }
@@ -444,41 +680,56 @@ void main() {
     expect(await service.getPendingReportsCount(), 1);
   });
 
-  test('flush: שולח, מסיר נדחים, מחליף מזהה ב-409 ועוצר בכשל זמני', () async {
-    final a = _report(title: 'a');
-    final rejected = _report(title: 'rejected');
-    final conflict = _report(title: 'conflict');
-    final transient = _report(title: 'transient');
-    final after = _report(title: 'after');
+  test(
+    'flush: שולח, שומר נדחים לעריכה, מחליף מזהה ב-409 ועוצר בכשל זמני',
+    () async {
+      final a = _report(title: 'a');
+      final rejected = _report(title: 'rejected');
+      final conflict = _report(title: 'conflict');
+      final transient = _report(title: 'transient');
+      final after = _report(title: 'after');
 
-    final seen = <String>[];
-    final service = build(
-      MockClient((request) async {
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        final title = body['title'] as String;
-        seen.add(title);
-        return switch (title) {
-          'a' => _json(200, {'success': true, 'issueNumber': 9}),
-          'rejected' => _json(400, {'error': 'bad'}),
-          'conflict' => _json(409, {'error': 'reportId conflict'}),
-          'transient' => http.Response('', 503),
-          _ => _json(200, {'success': true}),
-        };
-      }),
-    );
-    for (final r in [a, rejected, conflict, transient, after]) {
-      await service.queueReport(r);
-    }
+      final seen = <String>[];
+      final service = build(
+        MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final title = body['title'] as String;
+          seen.add(title);
+          return switch (title) {
+            'a' => _json(200, {'success': true, 'issueNumber': 9}),
+            'rejected' => _json(400, {'error': 'bad'}),
+            'conflict' => _json(409, {'error': 'reportId conflict'}),
+            'transient' => http.Response('', 503),
+            _ => _json(200, {'success': true}),
+          };
+        }),
+      );
+      for (final r in [a, rejected, conflict, transient, after]) {
+        await service.queueReport(r);
+      }
 
-    final sentCount = await service.flushPendingReports();
-    expect(sentCount, 1);
-    expect(seen, ['a', 'rejected', 'conflict', 'transient']);
+      final sentCount = await service.flushPendingReports();
+      expect(sentCount, 1);
+      expect(seen, ['a', 'rejected', 'conflict', 'transient']);
 
-    final pending = await service.getPendingReports();
-    expect(pending.map((r) => r.title), ['conflict', 'transient', 'after']);
-    expect(pending.first.reportId, isNot(conflict.reportId));
-    expect((await service.getSentReports()).single.issueNumber, 9);
-  });
+      final pending = await service.getPendingReports();
+      expect(pending.map((r) => r.title), [
+        'rejected',
+        'conflict',
+        'transient',
+        'after',
+      ]);
+      expect(
+        pending.singleWhere((r) => r.title == 'conflict').reportId,
+        isNot(conflict.reportId),
+      );
+      expect(
+        pending.singleWhere((r) => r.title == 'rejected').reportId,
+        rejected.reportId,
+      );
+      expect((await service.getSentReports()).single.issueNumber, 9);
+    },
+  );
 
   test('updatePendingReport: תוכן ששונה מקבל מזהה חדש', () async {
     final service = build(MockClient((_) async => http.Response('', 500)));
@@ -494,6 +745,70 @@ void main() {
     expect(changed!.reportId, isNot(report.reportId));
     expect((await service.getPendingReports()).single.description, 'אחר');
   });
+
+  for (final bytes in [
+    8 * 1024 * 1024,
+    10 * 1024 * 1024,
+    10 * 1024 * 1024 + 1,
+  ]) {
+    test(
+      'explicit legacy edit adopts v2 attachment limits: $bytes bytes',
+      () async {
+        var requests = 0;
+        final service = build(
+          MockClient((_) async {
+            requests++;
+            return http.Response('', 500);
+          }),
+        );
+        final original = _report().copyWith(schema: 1);
+        await store.add(AppReportService.legacyPendingKind, original.toJson());
+        final imageBytes = Uint8List(bytes);
+        imageBytes[0] = 7;
+        imageBytes[bytes - 1] = 9;
+        final edited = original.copyWith(
+          images: [
+            AppReportImage(
+              bytes: imageBytes,
+              fileName: 'edited.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        );
+        expect(edited.schema, 1);
+
+        if (bytes > AppReportImage.maxBytes) {
+          await expectLater(
+            service.updatePendingReport(edited),
+            throwsA(isA<FormatException>()),
+          );
+          final unchanged = (await service.getPendingReports()).single;
+          expect(unchanged.reportId, original.reportId);
+          expect(unchanged.schema, 1);
+          expect(unchanged.images, isEmpty);
+        } else {
+          final saved = (await service.updatePendingReport(edited))!;
+          expect(saved.schema, AppReport.schemaVersion);
+          expect(saved.reportId, isNot(original.reportId));
+          final restored = (await service.getPendingReports()).single;
+          expect(restored.schema, AppReport.schemaVersion);
+          expect(restored.reportId, saved.reportId);
+          expect(restored.images.single.bytes.length, bytes);
+          expect(restored.images.single.bytes.first, 7);
+          expect(restored.images.single.bytes.last, 9);
+        }
+        expect(
+          await store.countByKind(AppReportService.legacyPendingKind),
+          bytes > AppReportImage.maxBytes ? 1 : 0,
+        );
+        expect(
+          await store.countByKind(AppReportService.currentPendingKind),
+          bytes > AppReportImage.maxBytes ? 0 : 1,
+        );
+        expect(requests, 0);
+      },
+    );
+  }
 
   test(
     'markPendingReportAsSent: עובר להיסטוריה בלי פנייה לשרת (#1766)',
