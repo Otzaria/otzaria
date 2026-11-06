@@ -1,4 +1,4 @@
-name: Personal notes mutation confirmation QA
+name: Personal notes editor list QA
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TARGET_SHA: '9c4bbff789dc368c6afc57547f25b21dd14a838e'
+      TARGET_SHA: '01eaa583719ed65478304760623ea2197d2ec41f'
       TZ: Asia/Jerusalem
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CI: 'true'
@@ -39,9 +39,9 @@ jobs:
           target = os.environ['TARGET_SHA']
           if not re.fullmatch('[0-9a-f]{40}', target):
               raise SystemExit('TARGET_SHA must be a frozen commit')
-          bundle = Path(os.environ['RUNNER_TEMP']) / 'notes-mutation-qa'
-          output = Path(os.environ['RUNNER_TEMP']) / 'notes-mutation-results'
-          shutil.copytree('qa/personal-notes-mutations-20261106', bundle)
+          bundle = Path(os.environ['RUNNER_TEMP']) / 'notes-editor-qa'
+          output = Path(os.environ['RUNNER_TEMP']) / 'notes-editor-results'
+          shutil.copytree('qa/personal-notes-editor-20261106', bundle)
           output.mkdir(parents=True)
           subprocess.run(['git', 'checkout', '--detach', target], check=True)
           actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
@@ -70,17 +70,17 @@ jobs:
 
       - name: Analyze, verify regression tests and prove RED then GREEN
         shell: bash
-        run: python3 "$QA_BUNDLE_DIR/run_mutation_qa.py"
+        run: python3 "$QA_BUNDLE_DIR/run_editor_qa.py"
 
       - name: Pack verification evidence
         if: ${{ always() && steps.product.outcome == 'success' }}
         shell: bash
-        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/notes-mutation-evidence.tar" notes-mutation-results
+        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/notes-editor-evidence.tar" notes-editor-results
 
       - name: Upload verification evidence
         if: ${{ always() && steps.product.outcome == 'success' }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: notes-mutation-${{ env.TARGET_SHA }}
-          path: ${{ runner.temp }}/notes-mutation-evidence.tar
+          name: notes-editor-${{ env.TARGET_SHA }}
+          path: ${{ runner.temp }}/notes-editor-evidence.tar
           if-no-files-found: error

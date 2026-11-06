@@ -1,0 +1,86 @@
+name: Personal notes editor list QA
+
+on:
+  push:
+    branches: [qa/personal-notes-mutations-20261106]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-notes-mutation-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TARGET_SHA: '__TARGET_SHA__'
+      TZ: Asia/Jerusalem
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - name: Check out the QA branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select the frozen product snapshot
+        id: product
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re, shutil, subprocess
+          target = os.environ['TARGET_SHA']
+          if not re.fullmatch('[0-9a-f]{40}', target):
+              raise SystemExit('TARGET_SHA must be a frozen commit')
+          bundle = Path(os.environ['RUNNER_TEMP']) / 'notes-editor-qa'
+          output = Path(os.environ['RUNNER_TEMP']) / 'notes-editor-results'
+          shutil.copytree('qa/personal-notes-editor-20261106', bundle)
+          output.mkdir(parents=True)
+          subprocess.run(['git', 'checkout', '--detach', target], check=True)
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          dirty = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all'], text=True).strip()
+          if actual != target or dirty:
+              raise SystemExit('Product snapshot must be exact and clean')
+          with Path(os.environ['GITHUB_ENV']).open('a') as env:
+              env.write(f'QA_BUNDLE_DIR={bundle}\nQA_OUT_DIR={output}\n')
+          PY
+
+      - name: Set up the repository Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Set up Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache native build hook output
+        uses: actions/cache@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      - name: Analyze, verify regression tests and prove RED then GREEN
+        shell: bash
+        run: python3 "$QA_BUNDLE_DIR/run_editor_qa.py"
+
+      - name: Pack verification evidence
+        if: ${{ always() && steps.product.outcome == 'success' }}
+        shell: bash
+        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/notes-editor-evidence.tar" notes-editor-results
+
+      - name: Upload verification evidence
+        if: ${{ always() && steps.product.outcome == 'success' }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: notes-editor-${{ env.TARGET_SHA }}
+          path: ${{ runner.temp }}/notes-editor-evidence.tar
+          if-no-files-found: error

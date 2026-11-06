@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/dialog_owner.dart';
-import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -88,7 +87,7 @@ BookNotesInfo _book(String id) => BookNotesInfo(
 );
 
 class _Repository extends PersonalNotesRepository {
-  _Repository(this.notes, {super.service, super.fileSystemData});
+  _Repository(this.notes, {super.service});
 
   final Map<String, List<PersonalNote>> notes;
   bool delayLists = false;
@@ -259,20 +258,48 @@ Future<PersonalNotesBloc> _mount(
   return notesBloc;
 }
 
-class _MutationFiles extends Fake implements FileSystemData {
+class _ServiceMutationRepository extends _Repository {
+  _ServiceMutationRepository(super.notes, this._mutationService)
+    : super(service: _mutationService);
+
+  final PersonalNotesService _mutationService;
+  static const _bookContent = 'first line\nsecond line\nthird line';
+
   @override
-  Future<String> getBookText(
-    String title, {
+  Future<List<PersonalNote>> repositionNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
     int? categoryId,
-    String? fileType,
-  }) async => 'first line\nsecond line\nthird line';
+  }) => _mutationService.repositionNote(
+    bookId: bookId,
+    bookContent: _bookContent,
+    noteId: noteId,
+    lineNumber: lineNumber,
+    pdfAnchor: pdfAnchor,
+  );
+
+  @override
+  Future<PersonalNote> moveNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) => _mutationService.moveNote(
+    bookId: bookId,
+    bookContent: _bookContent,
+    noteId: noteId,
+    lineNumber: lineNumber,
+    pdfAnchor: pdfAnchor,
+  );
 }
 
 class _MutationRefreshDatabase extends Fake implements PersonalNotesDatabase {
   _MutationRefreshDatabase(this.notes);
 
   final Map<String, List<PersonalNote>> notes;
-  final writeCompleted = Completer<void>();
   int writes = 0;
   int listReads = 0;
 
@@ -299,7 +326,6 @@ class _MutationRefreshDatabase extends Fake implements PersonalNotesDatabase {
     notes[note.bookId]!.removeWhere((note) => note.id == noteId);
     writes++;
     PersonalNotesChanges.notify(note.bookId);
-    writeCompleted.complete();
   }
 
   @override
@@ -310,7 +336,6 @@ class _MutationRefreshDatabase extends Fake implements PersonalNotesDatabase {
     bookNotes[index] = updated;
     writes++;
     PersonalNotesChanges.notify(updated.bookId);
-    writeCompleted.complete();
   }
 }
 
@@ -886,10 +911,9 @@ void main() {
           note.bookId: [note],
         };
         final database = _MutationRefreshDatabase(notes);
-        final repository = _Repository(
+        final repository = _ServiceMutationRepository(
           notes,
-          service: PersonalNotesService(database: database),
-          fileSystemData: _MutationFiles(),
+          PersonalNotesService(database: database),
         );
         final reader = await _mount(tester, repository);
         await tester.pumpAndSettle();
@@ -899,19 +923,7 @@ void main() {
           await tester.enterText(find.byType(EditableText).last, '3');
         }
         await tester.tap(find.text(reposition ? 'שמור' : 'מחק'));
-        for (
-          var attempt = 0;
-          attempt < 1000 && !database.writeCompleted.isCompleted;
-          attempt++
-        ) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 10)),
-          );
-          await tester.pump(const Duration(milliseconds: 20));
-        }
-        if (database.writeCompleted.isCompleted) {
-          await tester.pumpAndSettle();
-        }
+        await tester.pumpAndSettle();
 
         final success = reposition
             ? NotesMessages.noteMovedToLine(3)

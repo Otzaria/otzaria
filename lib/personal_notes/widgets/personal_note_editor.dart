@@ -215,6 +215,30 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
     });
   }
 
+  KeyEventResult? _handleListBackspace(KeyEvent event, quill.Node? node) {
+    final controller = widget.controller.quillController;
+    if (!const SingleActivator(
+          LogicalKeyboardKey.backspace,
+        ).accepts(event, HardwareKeyboard.instance) ||
+        controller.readOnly ||
+        !controller.selection.isCollapsed ||
+        node is! quill.Line ||
+        node.length != 1) {
+      return null;
+    }
+    final attributes = node.toDelta().last.attributes;
+    if (attributes?[quill.Attribute.list.key] == null) return null;
+    final indent = attributes?[quill.Attribute.indent.key] as int? ?? 0;
+    if (indent > 0) {
+      controller.indentSelection(false);
+    } else {
+      controller.formatSelection(
+        quill.Attribute.clone(quill.Attribute.list, null),
+      );
+    }
+    return KeyEventResult.handled;
+  }
+
   /// Quill מבקש תפריט גם בסיום גרירה בעכבר, ושם לא מציגים כלום; לחיצה ימנית
   /// פותחת את התפריט מהאזור.
   Widget _touchContextMenu(
@@ -437,6 +461,8 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                                       widget.onCancelShortcut!,
                                     ),
                                   },
+                            // ignore: experimental_member_use
+                            onKeyPressed: _handleListBackspace,
                             contextMenuBuilder: _touchContextMenu,
                           ),
                         ),
