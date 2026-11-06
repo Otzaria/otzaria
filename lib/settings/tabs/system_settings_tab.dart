@@ -472,7 +472,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     super.dispose();
   }
 
-  void _openAdvancedSection(String section) {
+  void _openAdvancedSection(String section, {bool Function()? isCurrent}) {
+    if (!mounted || isCurrent?.call() == false) return;
     if (section != 'backup' && !section.startsWith('backup.')) return;
     setState(() {
       _isBackupExpanded = true;
@@ -481,11 +482,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || isCurrent?.call() == false) return;
       // The expanded rows must contribute to the scroll extent first.
       await Future<void>.delayed(AppTokens.animNormal);
-      if (!mounted) return;
+      if (!mounted || isCurrent?.call() == false) return;
       await SettingsSearchRegistry.instance.scrollAndHighlight(
         'system.$section',
+        isCurrent: isCurrent,
       );
     });
   }

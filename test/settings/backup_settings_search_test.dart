@@ -134,6 +134,149 @@ void main() {
     (widget) => widget is ExpandableSection && widget.title == 'גיבוי אוטומטי',
   );
 
+  Future<void> startBackupNavigation(
+    WidgetTester tester, {
+    required bool Function() isCurrent,
+  }) async {
+    final navigation = SettingsSearchRegistry.instance.scrollAndHighlight(
+      'system.advanced',
+      section: 'backup.options.notes',
+      isCurrent: isCurrent,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    await navigation;
+    expect(
+      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      isTrue,
+      reason: 'הבדיקה צריכה להגיע להמתנה שאחרי פתיחת הגיבוי',
+    );
+  }
+
+  ScrollPosition scrollPosition(WidgetTester tester) => tester
+      .state<ScrollableState>(
+        find.descendant(
+          of: find.byType(SystemSettingsTab),
+          matching: find.byType(Scrollable),
+        ),
+      )
+      .position;
+
+  testWidgets('בקשת גיבוי שבוטלה לפני הפתיחה משאירה את האזור מקופל', (
+    tester,
+  ) async {
+    await pumpTab(tester);
+    var current = true;
+    final navigation = SettingsSearchRegistry.instance.scrollAndHighlight(
+      'system.advanced',
+      section: 'backup.options.notes',
+      isCurrent: () => current,
+    );
+    await tester.pump();
+    expect(scrollPosition(tester).isScrollingNotifier.value, isTrue);
+    current = false;
+    await tester.pumpAndSettle();
+    await navigation;
+    expect(
+      tester.widget<ExpandableSection>(backupSection()).isExpanded,
+      isFalse,
+    );
+  });
+
+  testWidgets('ביטול בזמן פתיחת הגיבוי מונע גלילה פנימית מאוחרת', (
+    tester,
+  ) async {
+    await pumpTab(tester);
+    var current = true;
+    await startBackupNavigation(tester, isCurrent: () => current);
+    final position = scrollPosition(tester);
+    final before = position.pixels;
+    current = false;
+    await tester.pumpAndSettle();
+    expect(position.pixels, before);
+  });
+
+  for (final cancel in [false, true]) {
+    testWidgets(
+      'גלילה פנימית בגיבוי ${cancel ? 'שבוטלה אינה' : 'פעילה'} מהבהבת',
+      (
+        tester,
+      ) async {
+        await pumpTab(tester);
+        final stored = Map<dynamic, dynamic>.from(
+          Hive.box<dynamic>(HiveCache.keyName).toMap(),
+        );
+        var current = true;
+        var flashes = 0;
+        final notifier = SettingsSearchRegistry.instance.flashNotifierFor(
+          'system.backup.options.notes',
+        );
+        void onFlash() {
+          if (notifier.value) flashes++;
+        }
+
+        notifier.addListener(onFlash);
+        addTearDown(() => notifier.removeListener(onFlash));
+        await startBackupNavigation(tester, isCurrent: () => current);
+        await tester.pump(const Duration(milliseconds: 125));
+        await tester.pump(const Duration(milliseconds: 125));
+        await tester.pump();
+        final position = scrollPosition(tester);
+        expect(position.isScrollingNotifier.value, isTrue);
+        final before = position.pixels;
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(position.pixels, greaterThan(before));
+        expect(flashes, 0);
+        if (cancel) current = false;
+        await tester.pumpAndSettle();
+        expect(flashes, cancel ? 0 : 1);
+        expect(Hive.box<dynamic>(HiveCache.keyName).toMap(), stored);
+      },
+    );
+  }
+
+  testWidgets('יעד חדש בזמן פתיחת הגיבוי נשאר יעד הגלילה האחרון', (
+    tester,
+  ) async {
+    await pumpTab(tester);
+    var current = true;
+    await startBackupNavigation(tester, isCurrent: () => current);
+    current = false;
+    final replacement = SettingsSearchRegistry.instance.scrollAndHighlight(
+      'system.versions',
+    );
+    await tester.pumpAndSettle();
+    await replacement;
+    final target = find.byWidgetPredicate(
+      (widget) =>
+          widget is SettingsAnchor && widget.cardId == 'system.versions',
+    );
+    expect(tester.getRect(target).top, greaterThanOrEqualTo(0));
+    expect(tester.getRect(target).bottom, lessThanOrEqualTo(800));
+  });
+
+  for (final duringScroll in [false, true]) {
+    testWidgets(
+      'הסרת הלשונית בזמן ${duringScroll ? 'גלילת' : 'פתיחת'} גיבוי בטוחה',
+      (
+        tester,
+      ) async {
+        await pumpTab(tester);
+        await startBackupNavigation(tester, isCurrent: () => true);
+        if (duringScroll) {
+          await tester.pump(const Duration(milliseconds: 125));
+          await tester.pump(const Duration(milliseconds: 125));
+          await tester.pump();
+          expect(scrollPosition(tester).isScrollingNotifier.value, isTrue);
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final option in [
     'settings',
     'bookmarks',
