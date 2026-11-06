@@ -1511,20 +1511,16 @@ class ReferenceBookHit {
     this.isWholeTitlePrefix = false,
     this.spellingVariantTitleIndex,
     List<String>? titleTokens,
-    Set<String>? titleMatchTokens,
-  }) : _givenTitleTokens = titleTokens,
-       _givenTitleMatchTokens = titleMatchTokens;
+  }) : _givenTitleTokens = titleTokens;
 
   final List<String>? _givenTitleTokens;
-  final Set<String>? _givenTitleMatchTokens;
 
   /// טוקני [normalizedTitle]; בדרך כלל מחושבים מראש במטמון.
   late final List<String> titleTokens =
       _givenTitleTokens ?? _splitTitleTokens(normalizedTitle);
 
   /// [titleMatchTokensOf] של [titleTokens] — מילות הכותרת גם בלי אות-חיבור.
-  late final Set<String> titleMatchTokens =
-      _givenTitleMatchTokens ?? titleMatchTokensOf(titleTokens);
+  late final Set<String> titleMatchTokens = titleMatchTokensOf(titleTokens);
 }
 
 /// מקום [queryWords] כרצף במילות [titleTokens], כשאחת לפחות בכתיב מלא/חסר
