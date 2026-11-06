@@ -23,6 +23,24 @@ const _mishnaNidaCommentators = [
   'בועז על משנה נדה',
 ];
 
+/// מה שהמסד מחזיר לכותרות שנשמרו כשם מלא בהגדרות ישנות.
+final _legacyIdentities = {
+  'יכין מקואות': CommentatorIdentity(
+    collectiveTitle: 'יכין',
+    baseBookTitle: 'משנה מקואות',
+  ),
+  'ריף בבא מציעא': CommentatorIdentity(
+    collectiveTitle: 'רי"ף',
+    baseBookTitle: 'בבא מציעא',
+  ),
+  'ריף שבת': CommentatorIdentity(collectiveTitle: 'רי"ף'),
+  'רלבג שיר השירים': CommentatorIdentity(
+    collectiveTitle: 'רלב"ג',
+    baseBookTitle: 'שיר השירים',
+  ),
+  'רלבג אסתר': CommentatorIdentity(collectiveTitle: 'רלב"ג'),
+};
+
 const _mishnaMikvaotCommentators = [
   'ברטנורא על משנה מקואות',
   'תוספות יום טוב על משנה מקואות',
@@ -69,24 +87,24 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  group('extractBaseCommentatorName — שמות שכוללים "על"', () {
+  group('commentatorBaseName — שמות שכוללים "על"', () {
     test('מחזיר את הקידומת שלפני "על"', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ברטנורא על משנה נדה',
           commentedBookTitle: 'משנה נדה',
         ),
         'ברטנורא',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'תוספות רבי עקיבא איגר על משנה טהרות',
           commentedBookTitle: 'משנה טהרות',
         ),
         'תוספות רבי עקיבא איגר',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'רשי על סנהדרין',
           commentedBookTitle: 'סנהדרין',
         ),
@@ -96,7 +114,7 @@ void main() {
 
     test('שם ספר מורכב אחרי "על" אינו משפיע על הקידומת', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'אור שמח על משנה תורה, הלכות ציצית',
           commentedBookTitle: 'משנה תורה, הלכות ציצית',
         ),
@@ -106,16 +124,16 @@ void main() {
 
     test('"על" גובר גם בלי שם ספר נתון', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName('רמבן על ברכות'),
+        commentatorBaseName('רמבן על ברכות'),
         'רמבן',
       );
     });
   });
 
-  group('extractBaseCommentatorName — שמות בלי "על"', () {
+  group('commentatorBaseName — שמות בלי "על"', () {
     test('מסיר את שם המסכת של המשנה', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין מקואות',
           commentedBookTitle: 'משנה מקואות',
         ),
@@ -125,21 +143,21 @@ void main() {
 
     test('מסיר שם מסכת בן שתי מילים', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין טבול יום',
           commentedBookTitle: 'משנה טבול יום',
         ),
         'יכין',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ריף בבא מציעא',
           commentedBookTitle: 'בבא מציעא',
         ),
         'ריף',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ריף עבודה זרה',
           commentedBookTitle: 'עבודה זרה',
         ),
@@ -149,21 +167,21 @@ void main() {
 
     test('מסיר שם ספר בתנ"ך', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'רלבג שיר השירים',
           commentedBookTitle: 'שיר השירים',
         ),
         'רלבג',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'תרגום קהלת',
           commentedBookTitle: 'קהלת',
         ),
         'תרגום',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'תרגום דברי הימים ב',
           commentedBookTitle: 'דברי הימים ב',
         ),
@@ -173,7 +191,7 @@ void main() {
 
     test('מסיר חלק משם הספר כשהמפרש נושא רק את הסיומת', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'באר היטב אורח חיים',
           commentedBookTitle: 'שולחן ערוך אורח חיים',
         ),
@@ -182,10 +200,10 @@ void main() {
     });
   });
 
-  group('extractBaseCommentatorName — מקרי קצה', () {
+  group('commentatorBaseName — מקרי קצה', () {
     test('null מוחזר כ-null', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           null,
           commentedBookTitle: 'משנה נדה',
         ),
@@ -195,14 +213,14 @@ void main() {
 
     test('מפרש שאינו נושא את שם הספר נשאר שלם', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'משנה ברורה',
           commentedBookTitle: 'שולחן ערוך אורח חיים',
         ),
         'משנה ברורה',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ביאור הלכה',
           commentedBookTitle: 'שולחן ערוך אורח חיים',
         ),
@@ -212,11 +230,11 @@ void main() {
 
     test('בלי שם ספר נתון השם נשאר שלם', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName('יכין מקואות'),
+        commentatorBaseName('יכין מקואות'),
         'יכין מקואות',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין מקואות',
           commentedBookTitle: '',
         ),
@@ -226,14 +244,14 @@ void main() {
 
     test('שם זהה לחלוטין לשם הספר אינו מתרוקן', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'משנה נדה',
           commentedBookTitle: 'משנה נדה',
         ),
         'משנה נדה',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'נדה',
           commentedBookTitle: 'משנה נדה',
         ),
@@ -243,7 +261,7 @@ void main() {
 
     test('רווחים כפולים אינם מונעים את ההסרה', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין  מקואות',
           commentedBookTitle: 'משנה   מקואות',
         ),
@@ -254,7 +272,7 @@ void main() {
     test('התאמה חלקית של מילה אינה נחשבת', () {
       // "מקוואות" אינה "מקואות" — אין מילה משותפת ולכן אין הסרה.
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין מקואות',
           commentedBookTitle: 'משנה מקוואות',
         ),
@@ -266,7 +284,11 @@ void main() {
   group('findMatchingCommentator — התאמה לספר הנוכחי', () {
     test('שם בסיס חדש מותאם למסכת הנוכחית', () {
       expect(
-        findMatchingCommentator('יכין', _mishnaNidaCommentators),
+        findMatchingCommentator(
+          'יכין',
+          _mishnaNidaCommentators,
+          commentedBookTitle: 'משנה נדה',
+        ),
         'יכין נדה',
       );
       expect(
@@ -275,12 +297,13 @@ void main() {
       );
     });
 
-    test('הגדרה ישנה עם שם מסכת אחרת מותאמת לפי חלק-המפרש', () {
+    test('הגדרה ישנה עם שם מסכת אחרת מותאמת לפי זהות הספר שלה', () {
       expect(
         findMatchingCommentator(
           'יכין מקואות',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
+          identities: _legacyIdentities,
         ),
         'יכין נדה',
       );
@@ -289,6 +312,7 @@ void main() {
           'ריף בבא מציעא',
           const ['רשי על שבת', 'ריף שבת', 'תוספות על שבת'],
           commentedBookTitle: 'שבת',
+          identities: _legacyIdentities,
         ),
         'ריף שבת',
       );
@@ -297,6 +321,7 @@ void main() {
           'רלבג שיר השירים',
           const ['רלבג אסתר', 'אבן עזרא על אסתר'],
           commentedBookTitle: 'אסתר',
+          identities: _legacyIdentities,
         ),
         'רלבג אסתר',
       );
@@ -307,6 +332,18 @@ void main() {
           commentedBookTitle: 'משנה נדה',
         ),
         'ברטנורא על משנה נדה',
+      );
+    });
+
+    test('שם מלא שאינו ספר בספרייה אינו מותאם לפי קידומת', () {
+      // בלי זהות מהמסד "יכין מקואות" אינו מתפרק, ואינו מותאם לפי מילתו הראשונה.
+      expect(
+        findMatchingCommentator(
+          'יכין מקואות',
+          _mishnaNidaCommentators,
+          commentedBookTitle: 'משנה נדה',
+        ),
+        isNull,
       );
     });
 
@@ -378,14 +415,14 @@ void main() {
       );
     });
 
-    test('שכבה חסרה של אותו מחבר נופלת חזרה לפירושו בספר הנוכחי', () {
+    test('חיבור אחר של אותו מחבר אינו מוחלף בפירושו בספר הנוכחי', () {
       expect(
         findMatchingCommentator(
           'מלבים באור המילות',
           const ['מלבים על רות', 'אבן עזרא על רות'],
           commentedBookTitle: 'רות',
         ),
-        'מלבים על רות',
+        isNull,
       );
     });
 
@@ -444,6 +481,7 @@ void main() {
         selection: encoded,
         availableCommentators: _mishnaNidaCommentators,
         commentedBookTitle: 'משנה נדה',
+        identities: _legacyIdentities,
       );
 
       expect(
@@ -463,6 +501,7 @@ void main() {
           selection: encoded,
           availableCommentators: _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
+          identities: _legacyIdentities,
         ),
         ['יכין נדה'],
       );
@@ -474,6 +513,7 @@ void main() {
           selection: 'יכין מקואות',
           availableCommentators: _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
+          identities: _legacyIdentities,
         ),
         'יכין נדה',
       );
