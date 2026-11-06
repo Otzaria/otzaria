@@ -1326,11 +1326,6 @@ class SeforimRepository {
     });
   }
 
-  /// נתיב הכותרות של שורה [lineIndex] בספר [bookId] — "פרק לב", "סימן ד, סעיף ב" —
-  /// זהה לפלט של `refFromTocList`, אבל בשאילתה אחת במקום טעינת כל עץ ה-TOC.
-  ///
-  /// נשען על `line_toc` (שורה → הכותרת שמכילה אותה) ומטפס ב-`parentId`; רמה 0
-  /// אינה חלק מהכתובת, כמו במסלול העץ. `null` כשאין מיפוי לשורה.
   /// הכתובת המלאה של השורה (`heRef`, למשל "בראשית א, ב"), או `null` לשורה בלי.
   Future<String?> getLineHeRef(int bookId, int lineIndex) async {
     final db = await _database.database;
@@ -1344,6 +1339,11 @@ class SeforimRepository {
     return heRef == null || heRef.isEmpty ? null : heRef;
   }
 
+  /// נתיב הכותרות של שורה [lineIndex] בספר [bookId] — "פרק לב", "סימן ד, סעיף ב" —
+  /// זהה לפלט של `refFromTocList`, אבל בשאילתה אחת במקום טעינת כל עץ ה-TOC.
+  ///
+  /// נשען על `line_toc` (שורה → הכותרת שמכילה אותה) ומטפס ב-`parentId`; רמה 0
+  /// אינה חלק מהכתובת, כמו במסלול העץ. `null` כשאין מיפוי לשורה.
   Future<String?> getLineBreadcrumb(int bookId, int lineIndex) async {
     if (!(await _capabilities).hasLineToc) return null;
     final db = await _database.database;
@@ -1370,13 +1370,13 @@ class SeforimRepository {
     return breadcrumb.isEmpty ? null : breadcrumb;
   }
 
-  /// בונה את האינדקס לספרים שיש להם שורות עם heRef אך אין להם שורות
-  /// באינדקס, או שחסרים להם המפתחות החלקיים — ספרים אישיים שנוצרו קודם.
   /// Bump when the line_ref key format changes, so existing books are
   /// re-indexed once by [backfillMissingLineRefIndexes].
   static const int lineRefIndexVersion = 2;
   static const String _lineRefIndexVersionKey = 'line_ref_index_version';
 
+  /// בונה את האינדקס לספרים שיש להם שורות עם heRef אך אין להם שורות
+  /// באינדקס, או שחסרים להם המפתחות החלקיים — ספרים אישיים שנוצרו קודם.
   Future<void> backfillMissingLineRefIndexes() async {
     final db = await _database.database;
     // Every import builds its own index (generator.dart), so the full scan
