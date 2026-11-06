@@ -103,6 +103,7 @@ class TextRendererService {
         isSearchResultLine: settings.isSearchResultLine,
         yellowBackground: settings.highlightYellowBackground,
         partialWordMatch: settings.partialWordHighlight,
+        punctuationHidden: settings.removePunctuation,
         previousLine: neighbour(settings.previousLineText),
         nextLine: neighbour(settings.nextLineText),
       );
@@ -343,11 +344,13 @@ class TextRendererService {
     String text,
     String searchQuery, {
     bool partialWordMatch = false,
+    bool punctuationHidden = false,
   }) {
     return utils.countMatches(
       text,
       searchQuery,
       partialWordMatch: partialWordMatch,
+      punctuationHidden: punctuationHidden,
     );
   }
 

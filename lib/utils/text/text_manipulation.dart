@@ -1587,6 +1587,7 @@ String highLight(
   bool isSearchResultLine = false,
   bool yellowBackground = false,
   bool partialWordMatch = false,
+  bool punctuationHidden = false,
   String? previousLine,
   String? nextLine,
 }) {
@@ -1613,7 +1614,7 @@ String highLight(
       eligible && !yellowBackground && !partialWordMatch,
   ];
   final edgeCheck = partialWordMatch && !yellowBackground
-      ? _edgeCheckFor(searchQuery, compiled)
+      ? _edgeCheckFor(searchQuery, compiled, punctuationHidden)
       : null;
 
   var matches = _findHighlightMatches(
@@ -1825,7 +1826,7 @@ List<_HighlightMatch> _computeHighlightMatches(
   return _anchoredToQueryEdges(
     matches,
     data,
-    _edgeCheckFor(searchQuery, compiled),
+    _edgeCheckFor(searchQuery, compiled, false),
   );
 }
 
@@ -1877,7 +1878,13 @@ int countMatches(
   String text,
   String searchQuery, {
   bool partialWordMatch = false,
-}) => _queryMatches(text, searchQuery, partialWordMatch).length;
+  bool punctuationHidden = false,
+}) => _queryMatches(
+  text,
+  searchQuery,
+  partialWordMatch,
+  punctuationHidden,
+).length;
 
 /// טווח ההתאמה ה-[index], באותה ספירה כמו [countMatches].
 ({int start, int end, int totalCount})? searchMatchRangeAt(
@@ -1885,9 +1892,15 @@ int countMatches(
   String query,
   int index, {
   bool partialWordMatch = false,
+  bool punctuationHidden = false,
 }) {
   if (index < 0) return null;
-  final matches = _queryMatches(text, query, partialWordMatch);
+  final matches = _queryMatches(
+    text,
+    query,
+    partialWordMatch,
+    punctuationHidden,
+  );
   if (index >= matches.length) return null;
   final match = matches[index];
   return (start: match.start, end: match.end, totalCount: matches.length);
@@ -1897,6 +1910,7 @@ List<_HighlightMatch> _queryMatches(
   String text,
   String searchQuery,
   bool partialWordMatch,
+  bool punctuationHidden,
 ) {
   if (searchQuery.isEmpty) return const [];
   final compiled = _resolveHighlightPattern(
@@ -1917,7 +1931,7 @@ List<_HighlightMatch> _queryMatches(
       ? _anchoredToQueryEdges(
           matches,
           text,
-          _edgeCheckFor(searchQuery, compiled),
+          _edgeCheckFor(searchQuery, compiled, punctuationHidden),
         )
       : matches;
 }
@@ -1926,7 +1940,10 @@ List<_HighlightMatch> _queryMatches(
 LiteralEdgeCheck? _edgeCheckFor(
   String searchQuery,
   _CompiledHighlightPattern compiled,
-) => compiled.userRegex == null ? literalEdgeCheck(searchQuery) : null;
+  bool punctuationHidden,
+) => compiled.userRegex == null
+    ? literalEdgeCheck(searchQuery, punctuationHidden: punctuationHidden)
+    : null;
 
 List<_HighlightMatch> _anchoredToQueryEdges(
   List<_HighlightMatch> matches,
