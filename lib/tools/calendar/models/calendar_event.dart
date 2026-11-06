@@ -140,6 +140,48 @@ class CustomEvent extends Equatable {
         _occurrenceInEffect(day);
   }
 
+  /// המועמד ה-[i] למופע מ-[from]: שנה אחר שנה באירוע שנתי, יום אחר יום בשאר.
+  /// null כשהתאריך אינו קיים באותה שנה (אדר ב' בשנה פשוטה, ל' חשוון).
+  DateTime? occurrenceCandidate(DateTime from, int i) {
+    if (recurrenceType == RecurrenceType.annualGregorian) {
+      return DateTime(
+        from.year + i,
+        baseGregorianDate.month,
+        baseGregorianDate.day,
+      );
+    }
+    if (recurrenceType != RecurrenceType.annualHebrew) {
+      return DateTime(from.year, from.month, from.day + i);
+    }
+    final targetHebrewYear = JewishDate.fromDateTime(from).getJewishYear() + i;
+    final yearStart = JewishDate()..setJewishDate(targetHebrewYear, 1, 1);
+    if (baseJewishMonth == 13 && !yearStart.isJewishLeapYear()) return null;
+    try {
+      final jd = JewishDate()
+        ..setJewishDate(targetHebrewYear, baseJewishMonth, baseJewishDay);
+      return _dateOnly(jd.getGregorianCalendar());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// היום הקרוב מ-[from] והלאה שבו האירוע מוצג בלוח; תאריך הבסיס כשאין כזה.
+  DateTime nextOccurrenceFrom(DateTime from) {
+    if (occursOn(from)) return _dateOnly(from);
+    final base = _dateOnly(baseGregorianDate);
+    if (!recurring || from.isBefore(base)) return base;
+    // 120: גם ל' בחודש עברי חוזר בתוכם, ו-29 בפברואר בתוך 9 שנים.
+    for (var i = 0; i < 120; i++) {
+      final day = occurrenceCandidate(from, i);
+      if (day == null || !day.isAfter(from) || !_isOccurrenceStart(day)) {
+        continue;
+      }
+      // מופע שכבר אינו בתוקף (סוף חזרה, מספר שנים) — גם כל שאחריו.
+      return _occurrenceInEffect(day) ? day : base;
+    }
+    return base;
+  }
+
   bool _isOccurrenceStart(DateTime day) {
     switch (recurrenceType) {
       case RecurrenceType.weekly:
