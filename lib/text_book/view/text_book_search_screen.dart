@@ -1086,6 +1086,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                             ranges: ranges,
                             defaultStyle: defaultStyle,
                             highlightStyle: highlightStyle,
+                            sourceHtml: snippet,
                           );
                   }
 

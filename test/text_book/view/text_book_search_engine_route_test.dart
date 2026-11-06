@@ -28,6 +28,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 
 /// חלונית החיפוש בספר כשהשאילתה נושאת תוספות (מרווח בין מילים וכו'):
@@ -149,44 +150,106 @@ Future<void> main() async {
     );
   }
 
-  testWidgets(
-    'שאילתה עם מרווח בין מילים רצה במסלול המנוע ומציגה את התוצאות',
-    (tester) async {
-      // הרגרסיה: תוצאה שנפתחה מחיפוש "תדע זרעך" במרווח מילים הגיעה לספר
-      // כשאילתה מדויקת במרווח 0, החיפוש המקומי חיפש מחרוזת רצופה, והחלונית
-      // הציגה "אין תוצאות".
+  testWidgets('שאילתה עם מרווח בין מילים רצה במסלול המנוע ומציגה את התוצאות', (
+    tester,
+  ) async {
+    // הרגרסיה: תוצאה שנפתחה מחיפוש "תדע זרעך" במרווח מילים הגיעה לספר
+    // כשאילתה מדויקת במרווח 0, החיפוש המקומי חיפש מחרוזת רצופה, והחלונית
+    // הציגה "אין תוצאות".
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(title: 'בראשית', reference: 'בראשית, פרק טו', segment: 0),
+      ],
+    );
+    var simpleRunnerCalls = 0;
+
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchDistance: 3,
+      bookTitle: 'בראשית',
+      content: const ['ויאמר לאברם ידע תדע כי־גר יהיה זרעך בארץ לא להם'],
+      simpleSearchRunner: (content, query) async {
+        simpleRunnerCalls++;
+        return const [];
+      },
+    );
+
+    await harness.settle();
+
+    expect(simpleRunnerCalls, 0, reason: 'אסור ליפול למסלול המחרוזת המקומי');
+    expect(repository.requests, hasLength(1));
+    expect(repository.requests.single.query, 'תדע זרעך');
+    expect(repository.requests.single.distance, 3);
+    expect(find.text('אין תוצאות'), findsNothing);
+    expect(find.text('בראשית, פרק טו'), findsOneWidget);
+    expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+  }, skip: !engineReady);
+
+  for (final inNote in [false, true]) {
+    testWidgets('תוצאת מנוע שומרת גבול הערה אחרי חישוב טווחים: inNote=$inNote', (
+      tester,
+    ) async {
+      const note = 'ורבותינו זל';
+      const body = 'ואיתא בזוהר';
+      final query = inNote ? note : body;
+      // קטע סינתטי עם מבנה ההערה שבדיווח #3292, ללא מסד הספרים האמיתי.
+      final html =
+          'ראשית <otzaria-note-marker>12</otzaria-note-marker> '
+          '<otzaria-note>${inNote ? '<font>$note</font>' : note}</otzaria-note> '
+          '${inNote ? body : '<font>$body</font>'}';
       final repository = _RecordingSearchRepository(
         results: [
-          _result(title: 'בראשית', reference: 'בראשית, פרק טו', segment: 0),
+          _result(
+            title: 'ספר בדיקה',
+            reference: 'פרק בדיקה',
+            segment: 0,
+            text: html,
+          ),
         ],
       );
-      var simpleRunnerCalls = 0;
-
+      var simpleCalls = 0;
       final harness = await pumpSearchView(
         tester,
         searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchDistance: 3,
-        bookTitle: 'בראשית',
-        content: const ['ויאמר לאברם ידע תדע כי־גר יהיה זרעך בארץ לא להם'],
-        simpleSearchRunner: (content, query) async {
-          simpleRunnerCalls++;
-          return const [];
+        initialQuery: query,
+        searchDistance: 1,
+        content: const ['ראשית 12 ורבותינו זל ואיתא בזוהר'],
+        simpleSearchRunner: (_, _) async {
+          simpleCalls++;
+          return [];
         },
       );
-
       await harness.settle();
-
-      expect(simpleRunnerCalls, 0, reason: 'אסור ליפול למסלול המחרוזת המקומי');
+      expect(simpleCalls, 0);
       expect(repository.requests, hasLength(1));
-      expect(repository.requests.single.query, 'תדע זרעך');
-      expect(repository.requests.single.distance, 3);
-      expect(find.text('אין תוצאות'), findsNothing);
-      expect(find.text('בראשית, פרק טו'), findsOneWidget);
-      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
-    },
-    skip: !engineReady,
-  );
+      expect(repository.requests.single.query, query);
+      final finder = find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('ראשית 12'),
+      );
+      expect(finder, findsOneWidget);
+      final text = tester.widget<RichText>(finder).text as TextSpan;
+      expect(
+        text.toPlainText(),
+        'ראשית 12 [הערה: ורבותינו זל] ואיתא בזוהר',
+        reason: 'הערת המקור נשארת מובחנת אחרי חישוב ההדגשות מחדש',
+      );
+      final spans = text.children!.cast<TextSpan>();
+      final matches = spans
+          .where((span) => span.style?.fontWeight == FontWeight.bold)
+          .toList();
+      expect(matches.map((span) => span.text).toList(), query.split(' '));
+      expect(
+        matches.map((span) => span.style?.fontStyle).toList(),
+        [for (final _ in query.split(' ')) inNote ? FontStyle.italic : null],
+      );
+      final marker = spans.singleWhere((span) => span.text == '12');
+      expect(marker.style!.fontSize, 12);
+    }, skip: !engineReady);
+  }
 
   testWidgets('שאילתה חיצונית מעדכנת ניתוב בשני הכיוונים בלי שינוי בהגדרות', (
     tester,
@@ -268,112 +331,103 @@ Future<void> main() async {
     }
   }
 
-  testWidgets(
-    'שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון',
-    (tester) async {
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(
-            title: 'בראשית',
-            reference: 'פרק טו',
-            segment: 0,
-            text: '',
-            textStatus: TextStatus.unavailable,
-          ),
-          _result(
-            title: 'בראשית',
-            reference: 'פרק טז',
-            segment: 1,
-            text: '',
-            textStatus: TextStatus.stale,
-          ),
-        ],
-      );
+  testWidgets('שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון', (tester) async {
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(
+          title: 'בראשית',
+          reference: 'פרק טו',
+          segment: 0,
+          text: '',
+          textStatus: TextStatus.unavailable,
+        ),
+        _result(
+          title: 'בראשית',
+          reference: 'פרק טז',
+          segment: 1,
+          text: '',
+          textStatus: TextStatus.stale,
+        ),
+      ],
+    );
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchDistance: 3,
-        bookTitle: 'בראשית',
-        content: const [
-          'ויאמר לאברם ידע תדע כי־גר יהיה זרעך',
-          'שורה <b>שנייה</b> תדע את זרעך',
-        ],
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchDistance: 3,
+      bookTitle: 'בראשית',
+      content: const [
+        'ויאמר לאברם ידע תדע כי־גר יהיה זרעך',
+        'שורה <b>שנייה</b> תדע את זרעך',
+      ],
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      expect(find.text(unavailableResultText), findsNothing);
-      String resultText(String needle) => tester
-          .widgetList<RichText>(find.byType(RichText))
-          .map((widget) => widget.text.toPlainText())
-          .singleWhere((text) => text.contains(needle));
-      expect(resultText('לאברם'), 'ויאמר לאברם ידע תדע כי־גר יהיה זרעך');
-      expect(resultText('שנייה'), 'שורה שנייה תדע את זרעך');
-    },
-    skip: !engineReady,
-  );
+    expect(find.text(unavailableResultText), findsNothing);
+    String resultText(String needle) => tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((widget) => widget.text.toPlainText())
+        .singleWhere((text) => text.contains(needle));
+    expect(resultText('לאברם'), 'ויאמר לאברם ידע תדע כי־גר יהיה זרעך');
+    expect(resultText('שנייה'), 'שורה שנייה תדע את זרעך');
+  }, skip: !engineReady);
 
-  testWidgets(
-    'קטע משורה ארוכה שהמנוע לא קרא נחתך סביב התאמה עם מרווח',
-    (tester) async {
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(
-            title: 'בראשית',
-            reference: 'פרק טו',
-            segment: 0,
-            text: '',
-            textStatus: TextStatus.unavailable,
-          ),
-        ],
-      );
-      final filler = List.filled(16, 'מילה אחרת בלי קשר').join(' ');
+  testWidgets('קטע משורה ארוכה שהמנוע לא קרא נחתך סביב התאמה עם מרווח', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(
+          title: 'בראשית',
+          reference: 'פרק טו',
+          segment: 0,
+          text: '',
+          textStatus: TextStatus.unavailable,
+        ),
+      ],
+    );
+    final filler = List.filled(16, 'מילה אחרת בלי קשר').join(' ');
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchDistance: 3,
-        bookTitle: 'בראשית',
-        content: ['$filler ידע תדע כי גר יהיה זרעך בארץ'],
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchDistance: 3,
+      bookTitle: 'בראשית',
+      content: ['$filler ידע תדע כי גר יהיה זרעך בארץ'],
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      final shown = tester
-          .widgetList<RichText>(find.byType(RichText))
-          .map((widget) => widget.text.toPlainText())
-          .singleWhere((text) => text.contains('מילה אחרת'));
-      expect(shown, contains('תדע כי גר יהיה זרעך'));
-      expect(shown, startsWith('... '));
-    },
-    skip: !engineReady,
-  );
+    final shown = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((widget) => widget.text.toPlainText())
+        .singleWhere((text) => text.contains('מילה אחרת'));
+    expect(shown, contains('תדע כי גר יהיה זרעך'));
+    expect(shown, startsWith('... '));
+  }, skip: !engineReady);
 
-  testWidgets(
-    'שאילתה בלי תוספות אינה פונה למנוע',
-    (tester) async {
-      final repository = _RecordingSearchRepository(results: const []);
-      var simpleRunnerCalls = 0;
+  testWidgets('שאילתה בלי תוספות אינה פונה למנוע', (tester) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    var simpleRunnerCalls = 0;
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע',
-        simpleSearchRunner: (content, query) async {
-          simpleRunnerCalls++;
-          return const [];
-        },
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע',
+      simpleSearchRunner: (content, query) async {
+        simpleRunnerCalls++;
+        return const [];
+      },
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      expect(simpleRunnerCalls, greaterThan(0));
-      expect(repository.requests, isEmpty);
-    },
-  );
+    expect(simpleRunnerCalls, greaterThan(0));
+    expect(repository.requests, isEmpty);
+  });
 
   group('ברירת המחדל השמורה חלה על חיפוש חדש בספר (issue #1937)', () {
     tearDown(() {
@@ -514,27 +568,25 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
-    testWidgets(
-      'אפשרויות שנקבעו כברירת מחדל חלות על כל מילה בשאילתה שהוקלדה',
-      (tester) async {
-        SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
-        final repository = _RecordingSearchRepository(results: const []);
-        final harness = await pumpSearchView(
-          tester,
-          searchRepository: repository,
-        );
+    testWidgets('אפשרויות שנקבעו כברירת מחדל חלות על כל מילה בשאילתה שהוקלדה', (
+      tester,
+    ) async {
+      SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+      );
 
-        await harness.type('תדע זרעך');
-        await harness.settle();
+      await harness.type('תדע זרעך');
+      await harness.settle();
 
-        expect(repository.requests, isNotEmpty);
-        expect(repository.requests.last.searchOptions, {
-          'תדע_0': {'קידומות דקדוקיות': true},
-          'זרעך_1': {'קידומות דקדוקיות': true},
-        });
-      },
-      skip: !engineReady,
-    );
+      expect(repository.requests, isNotEmpty);
+      expect(repository.requests.last.searchOptions, {
+        'תדע_0': {'קידומות דקדוקיות': true},
+        'זרעך_1': {'קידומות דקדוקיות': true},
+      });
+    }, skip: !engineReady);
   });
 
   testWidgets('echo עם snapshot תבנית שווה אינו מפעיל חיפוש/אירוע נוסף', (
@@ -773,136 +825,122 @@ Future<void> main() async {
     },
   );
 
-  testWidgets(
-    'חיפוש מנוע ממתין לזיהוי הספר במקום להציג "אין תוצאות"',
-    (tester) async {
-      // זיהוי הספר (facet) הוא אסינכרוני. חיפוש שנשלח לפני שהסתיים היה
-      // מציג "אין תוצאות" ולא מנסה שוב.
-      final libraryCompleter = Completer<Library>();
-      DataRepository.instance.library = libraryCompleter.future;
+  testWidgets('חיפוש מנוע ממתין לזיהוי הספר במקום להציג "אין תוצאות"', (
+    tester,
+  ) async {
+    // זיהוי הספר (facet) הוא אסינכרוני. חיפוש שנשלח לפני שהסתיים היה
+    // מציג "אין תוצאות" ולא מנסה שוב.
+    final libraryCompleter = Completer<Library>();
+    DataRepository.instance.library = libraryCompleter.future;
 
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(title: 'ספר בדיקה', reference: 'קטע ב', segment: 0),
-        ],
-      );
+    final repository = _RecordingSearchRepository(
+      results: [_result(title: 'ספר בדיקה', reference: 'קטע ב', segment: 0)],
+    );
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchDistance: 2,
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchDistance: 2,
+    );
 
-      await harness.settle();
-      expect(
-        repository.requests,
-        isEmpty,
-        reason: 'הזיהוי עדיין לא הסתיים — אין עוד מה לשלוח למנוע',
-      );
+    await harness.settle();
+    expect(
+      repository.requests,
+      isEmpty,
+      reason: 'הזיהוי עדיין לא הסתיים — אין עוד מה לשלוח למנוע',
+    );
 
-      libraryCompleter.complete(Library(categories: const []));
-      await harness.settle();
+    libraryCompleter.complete(Library(categories: const []));
+    await harness.settle();
 
-      expect(repository.requests, hasLength(1));
-      expect(find.text('קטע ב'), findsOneWidget);
-      expect(find.text('אין תוצאות'), findsNothing);
-    },
-    skip: !engineReady,
-  );
+    expect(repository.requests, hasLength(1));
+    expect(find.text('קטע ב'), findsOneWidget);
+    expect(find.text('אין תוצאות'), findsNothing);
+  }, skip: !engineReady);
 
-  testWidgets(
-    'טווח "באותה פסקה" והתאמה חלקית עוברים אל בקשת המנוע',
-    (tester) async {
-      // בלי העברת מדיניות ההתאמה, חיפוש שנמצא "באותה פסקה" היה מתורגם בספר
-      // לחיפוש מרווח-מילים ומחזיר תוצאות אחרות מאלה שהמשתמש ראה.
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(title: 'ספר בדיקה', reference: 'קטע א', segment: 0),
-        ],
-      );
+  testWidgets('טווח "באותה פסקה" והתאמה חלקית עוברים אל בקשת המנוע', (
+    tester,
+  ) async {
+    // בלי העברת מדיניות ההתאמה, חיפוש שנמצא "באותה פסקה" היה מתורגם בספר
+    // לחיפוש מרווח-מילים ומחזיר תוצאות אחרות מאלה שהמשתמש ראה.
+    final repository = _RecordingSearchRepository(
+      results: [_result(title: 'ספר בדיקה', reference: 'קטע א', segment: 0)],
+    );
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchMode: SearchMode.advanced,
-        matchPolicy: const SearchMatchPolicy(
-          proximityScope: SearchScope.sameParagraph,
-          wordMatchMode: WordMatchMode.atLeast,
-          wordMatchCount: 2,
-        ),
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      matchPolicy: const SearchMatchPolicy(
+        proximityScope: SearchScope.sameParagraph,
+        wordMatchMode: WordMatchMode.atLeast,
+        wordMatchCount: 2,
+      ),
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      expect(repository.requests, hasLength(1));
-      final request = repository.requests.single;
-      expect(request.scope, SearchScope.sameParagraph);
-      expect(request.wordMatchMode, WordMatchMode.atLeast);
-      expect(request.wordMatchCount, 2);
-      expect(find.text('קטע א'), findsOneWidget);
-    },
-    skip: !engineReady,
-  );
+    expect(repository.requests, hasLength(1));
+    final request = repository.requests.single;
+    expect(request.scope, SearchScope.sameParagraph);
+    expect(request.wordMatchMode, WordMatchMode.atLeast);
+    expect(request.wordMatchCount, 2);
+    expect(find.text('קטע א'), findsOneWidget);
+  }, skip: !engineReady);
 
-  testWidgets(
-    'תוצאת מנוע מחוץ לחלון התוכן שנטען אינה נזרקת',
-    (tester) async {
-      // `state.content` הוא חלון חלקי סביב מקום הקריאה; תוצאה בשורה מאוחרת
-      // ממנו נזרקה בעבר בהמרה והחלונית הציגה "אין תוצאות".
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(title: 'ספר בדיקה', reference: 'קטע רחוק', segment: 500),
-        ],
-      );
+  testWidgets('תוצאת מנוע מחוץ לחלון התוכן שנטען אינה נזרקת', (tester) async {
+    // `state.content` הוא חלון חלקי סביב מקום הקריאה; תוצאה בשורה מאוחרת
+    // ממנו נזרקה בעבר בהמרה והחלונית הציגה "אין תוצאות".
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(title: 'ספר בדיקה', reference: 'קטע רחוק', segment: 500),
+      ],
+    );
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchDistance: 2,
-        content: const ['שורה א'],
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchDistance: 2,
+      content: const ['שורה א'],
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      expect(find.text('קטע רחוק'), findsOneWidget);
-      expect(find.text('אין תוצאות'), findsNothing);
-    },
-    skip: !engineReady,
-  );
+    expect(find.text('קטע רחוק'), findsOneWidget);
+    expect(find.text('אין תוצאות'), findsNothing);
+  }, skip: !engineReady);
 
-  testWidgets(
-    'החלונית משדרת ל-BLoC את שורות התוצאות (בסיס ההדגשה במדיניות)',
-    (tester) async {
-      // ההכרעה מי שורת תוצאה נשארת אצל המנוע: החלונית מדווחת את השורות,
-      // והרינדור מדגיש מילה-מילה רק בהן.
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(title: 'ספר בדיקה', reference: 'קטע א', segment: 3),
-          _result(title: 'ספר בדיקה', reference: 'קטע ב', segment: 17),
-        ],
-      );
+  testWidgets('החלונית משדרת ל-BLoC את שורות התוצאות (בסיס ההדגשה במדיניות)', (
+    tester,
+  ) async {
+    // ההכרעה מי שורת תוצאה נשארת אצל המנוע: החלונית מדווחת את השורות,
+    // והרינדור מדגיש מילה-מילה רק בהן.
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(title: 'ספר בדיקה', reference: 'קטע א', segment: 3),
+        _result(title: 'ספר בדיקה', reference: 'קטע ב', segment: 17),
+      ],
+    );
 
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע זרעך',
-        searchMode: SearchMode.advanced,
-        matchPolicy: const SearchMatchPolicy(
-          proximityScope: SearchScope.sameSection,
-        ),
-      );
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      matchPolicy: const SearchMatchPolicy(
+        proximityScope: SearchScope.sameSection,
+      ),
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      final reported = harness.bloc.reportedResultLines;
-      expect(reported, isNotEmpty);
-      expect(reported.last, {3, 17});
-    },
-    skip: !engineReady,
-  );
+    final reported = harness.bloc.reportedResultLines;
+    expect(reported, isNotEmpty);
+    expect(reported.last, {3, 17});
+  }, skip: !engineReady);
 
   testWidgets(
     'חיפוש בלי תוצאות משדר קבוצה ריקה, ולא משאיר שורות מאושרות ישנות',
@@ -1010,39 +1048,37 @@ Future<void> main() async {
     }
   }
 
-  testWidgets(
-    'תוצאת מנוע מנוקדת מוצגת לפי הגדרת הניקוד של הלשונית',
-    (tester) async {
-      final repository = _RecordingSearchRepository(
-        results: [
-          _result(
-            title: 'בראשית',
-            reference: 'פרק טו',
-            segment: 0,
-            text: 'יָדֹ֨עַ <font color=red>תֵּדַ֜ע</font> כִּי־גֵ֣ר',
-          ),
-        ],
-      );
+  testWidgets('תוצאת מנוע מנוקדת מוצגת לפי הגדרת הניקוד של הלשונית', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(
+      results: [
+        _result(
+          title: 'בראשית',
+          reference: 'פרק טו',
+          segment: 0,
+          text: 'יָדֹ֨עַ <font color=red>תֵּדַ֜ע</font> כִּי־גֵ֣ר',
+        ),
+      ],
+    );
 
-      await (await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: 'תדע כי',
-        searchDistance: 1,
-        bookTitle: 'בראשית',
-        content: const ['ידע תדע כי־גר'],
-        removeNikud: true,
-      )).settle();
+    await (await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע כי',
+      searchDistance: 1,
+      bookTitle: 'בראשית',
+      content: const ['ידע תדע כי־גר'],
+      removeNikud: true,
+    )).settle();
 
-      final shown = tester
-          .widgetList<RichText>(find.byType(RichText))
-          .map((widget) => widget.text.toPlainText())
-          .where((text) => text.contains('תדע'));
-      // כמו בספר: הסרת ניקוד וטעמים הופכת גם מקף לרווח.
-      expect(shown, ['ידע תדע כי גר']);
-    },
-    skip: !engineReady,
-  );
+    final shown = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((widget) => widget.text.toPlainText())
+        .where((text) => text.contains('תדע'));
+    // כמו בספר: הסרת ניקוד וטעמים הופכת גם מקף לרווח.
+    expect(shown, ['ידע תדע כי גר']);
+  }, skip: !engineReady);
 
   testWidgets(
     'תוצאת מנוע שנמשכת לשורה הבאה נספרת פעם אחת ומסמנת את שתי השורות',
@@ -1076,26 +1112,24 @@ Future<void> main() async {
     skip: !engineReady,
   );
 
-  testWidgets(
-    'חיפוש מקומי מוצא ביטוי שנמשך לשורה הבאה ומסמן את שתי השורות',
-    (tester) async {
-      final harness = await pumpSearchView(
-        tester,
-        searchRepository: _RecordingSearchRepository(results: const []),
-        initialQuery: 'ובין המים ויאמר',
-        content: const [
-          'ויבדל בין המים אשר מתחת לרקיע ובין המים',
-          '(ג) ויאמר אלהים יקוו המים',
-        ],
-      );
+  testWidgets('חיפוש מקומי מוצא ביטוי שנמשך לשורה הבאה ומסמן את שתי השורות', (
+    tester,
+  ) async {
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: _RecordingSearchRepository(results: const []),
+      initialQuery: 'ובין המים ויאמר',
+      content: const [
+        'ויבדל בין המים אשר מתחת לרקיע ובין המים',
+        '(ג) ויאמר אלהים יקוו המים',
+      ],
+    );
 
-      await harness.settle();
+    await harness.settle();
 
-      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
-      expect(harness.bloc.reportedResultLines.last, {0, 1});
-    },
-    skip: !engineReady,
-  );
+    expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+    expect(harness.bloc.reportedResultLines.last, {0, 1});
+  }, skip: !engineReady);
 
   testWidgets(
     'כשל בזיהוי הספר מציג שגיאה, ואינו משאיר את החלונית במצב "מחפש"',
@@ -1103,9 +1137,7 @@ Future<void> main() async {
       // הספר עדיין נטען (ה-state אינו TextBookLoaded) ולכן אין ממה לבנות את
       // זיהוי הספר. לפני התיקון החלונית הציגה "אין תוצאות".
       final repository = _RecordingSearchRepository(
-        results: [
-          _result(title: 'ספר בדיקה', reference: 'קטע א', segment: 0),
-        ],
+        results: [_result(title: 'ספר בדיקה', reference: 'קטע א', segment: 0)],
       );
 
       final harness = await pumpSearchView(
@@ -1140,30 +1172,28 @@ Future<void> main() async {
     skip: !engineReady,
   );
 
-  testWidgets(
-    '`/…/` רץ במתאם של המנוע על שורות הספר, גם כשיש תוספות',
-    (tester) async {
-      final repository = _RecordingSearchRepository(results: const []);
-      var simpleRunnerCalls = 0;
+  testWidgets('`/…/` רץ במתאם של המנוע על שורות הספר, גם כשיש תוספות', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    var simpleRunnerCalls = 0;
 
-      await pumpSearchView(
-        tester,
-        searchRepository: repository,
-        initialQuery: '/מו?שה/',
-        searchDistance: 3,
-        content: const ['ויאמר משה אל מושה', 'ומשהו אחר'],
-        simpleSearchRunner: (content, query) async {
-          simpleRunnerCalls++;
-          return const [];
-        },
-      ).then((harness) => harness.settle());
+    await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: '/מו?שה/',
+      searchDistance: 3,
+      content: const ['ויאמר משה אל מושה', 'ומשהו אחר'],
+      simpleSearchRunner: (content, query) async {
+        simpleRunnerCalls++;
+        return const [];
+      },
+    ).then((harness) => harness.settle());
 
-      expect(simpleRunnerCalls, 0);
-      expect(repository.requests, isEmpty);
-      expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
-    },
-    skip: !engineReady,
-  );
+    expect(simpleRunnerCalls, 0);
+    expect(repository.requests, isEmpty);
+    expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
+  }, skip: !engineReady);
 }
 
 class _Harness {
