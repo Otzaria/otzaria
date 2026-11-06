@@ -357,6 +357,18 @@ int? resolveReadyPdfPageNumber({
   return isReady ? readPageNumber() : null;
 }
 
+/// ה-layout של [controller], או null אם עוד לא חושב: ב-pdfrx `isReady` נעשה
+/// true לפני חישוב ה-layout, ו-`controller.layout` זורק בחלון הזה.
+@visibleForTesting
+PdfPageLayout? pdfReadyLayoutOrNull(PdfViewerController controller) {
+  if (!controller.isReady) return null;
+  try {
+    return controller.layout;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// בונה את פריט תפריט ההקשר "קישורים" עבור PDF.
 /// משתמש ב-`childrenBuilder` (טעינה עצלה) כדי שהתפריט הראשי ייפתח מיד,
 /// בלי להמתין ל-FutureBuilders של `link.displayReference` של כל קישור.
@@ -2329,11 +2341,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Rect? _currentSpreadRect(PdfViewerController controller) {
-    if (!controller.isReady || !_isBookViewModeActive()) return null;
+    if (!_isBookViewModeActive()) return null;
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null) return null;
     final currentPage = controller.pageNumber ?? widget.tab.pageNumber;
     final spreadStartPage =
         _lockedSpreadStartPage ?? _spreadStartPageFor(currentPage);
-    return _spreadRectForPageLayout(controller.layout, spreadStartPage);
+    return _spreadRectForPageLayout(layout, spreadStartPage);
   }
 
   Rect? _currentVerticalScrollbarBounds(PdfViewerController controller) {
@@ -2342,20 +2356,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       return _currentSpreadRect(controller);
     }
     // תצוגה רגילה - החזר את גבולות המסמך המלא
-    // controller.layout זורק אם ה-PdfViewer state לא חובר עדיין (race condition ב-pdfrx)
-    try {
-      final layout = controller.layout;
-      final pageLayouts = layout.pageLayouts;
-      if (pageLayouts.isEmpty) return null;
-      return Rect.fromLTRB(
-        0,
-        pageLayouts.first.top,
-        layout.documentSize.width,
-        pageLayouts.last.bottom,
-      );
-    } catch (_) {
-      return null;
-    }
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null) return null;
+    final pageLayouts = layout.pageLayouts;
+    if (pageLayouts.isEmpty) return null;
+    return Rect.fromLTRB(
+      0,
+      pageLayouts.first.top,
+      layout.documentSize.width,
+      pageLayouts.last.bottom,
+    );
   }
 
   Rect? _currentSpreadViewportRect(PdfViewerController controller) {

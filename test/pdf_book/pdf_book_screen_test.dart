@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:ui';
+
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -9,7 +10,27 @@ import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
+import 'package:pdfrx/pdfrx.dart';
+
 import '../helpers/memory_settings_cache.dart';
+
+// מדמה את pdfrx: isReady=true לפני חישוב ה-layout, ו-layout זורק כמו `_layout!`.
+class _LayoutController extends PdfViewerController {
+  _LayoutController({required this.ready, this.layoutOrNull});
+
+  final bool ready;
+  final PdfPageLayout? layoutOrNull;
+  bool layoutAccessed = false;
+
+  @override
+  bool get isReady => ready;
+
+  @override
+  PdfPageLayout get layout {
+    layoutAccessed = true;
+    return layoutOrNull!;
+  }
+}
 
 // The PDF page menu decides its pane entries by the shared rules, called
 // with these arguments; the tests below pin that combination.
@@ -523,6 +544,31 @@ void main() {
       );
       expect(result, isNull);
       expect(pageNumberAccessed, isFalse);
+    });
+  });
+
+  group('pdfReadyLayoutOrNull', () {
+    test('מחזירה null כש-isReady=true אבל ה-layout עוד לא חושב', () {
+      expect(pdfReadyLayoutOrNull(_LayoutController(ready: true)), isNull);
+    });
+
+    test('לא ניגשת ל-layout כשה-controller אינו מוכן', () {
+      final controller = _LayoutController(ready: false);
+      expect(pdfReadyLayoutOrNull(controller), isNull);
+      expect(controller.layoutAccessed, isFalse);
+    });
+
+    test('מחזירה את ה-layout כשהוא חושב', () {
+      final layout = PdfPageLayout(
+        pageLayouts: const [Rect.fromLTWH(0, 0, 100, 200)],
+        documentSize: const Size(100, 200),
+      );
+      expect(
+        pdfReadyLayoutOrNull(
+          _LayoutController(ready: true, layoutOrNull: layout),
+        ),
+        same(layout),
+      );
     });
   });
 
