@@ -110,7 +110,7 @@ class DatabaseGenerator {
 
   /// Creates a category in the database.
   ///
-  /// [path] The path representing the category
+  /// [categoryPath] The path representing the category
   /// [parentId] The ID of the parent category, if any
   /// [level] The level in the category hierarchy
   /// Returns the ID of the created category
@@ -588,7 +588,7 @@ class DatabaseGenerator {
   /// Extracts topics from the file path.
   /// Topics are derived from the directory structure.
   ///
-  /// [path] The path to the book file
+  /// [bookPath] The path to the book file
   /// Returns a list of topics extracted from the path
   List<Topic> extractTopics(String bookPath) {
     // Extract topics from the path

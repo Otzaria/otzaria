@@ -354,9 +354,6 @@ class ExternalLibraryBook extends Book {
     super.externalLibraryId,
   }) : super(id: id);
 
-  /// Returns the publication date of the book.
-  ///
-
   /// Creates an [ExternalLibraryBook] instance from a JSON map.
   ///
   /// This factory constructor is used to deserialize OtzarBook objects.
