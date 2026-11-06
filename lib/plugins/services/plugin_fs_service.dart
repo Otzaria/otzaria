@@ -477,9 +477,17 @@ class PluginFsService {
       throw Exception('error.not_found: directory does not exist');
     }
     final entries = <PluginWorkspaceEntry>[];
+    String? displayRoot;
     await for (final entity in dir.list(followLinks: false)) {
       if (await FileSystemEntity.isLink(entity.path)) continue;
-      entries.add(await _entryOf(root, entity));
+      entries.add(
+        await _entryOf(
+          root,
+          entity,
+          displayRoot: displayRoot ??=
+              canonicalizeNearestExisting(root) ?? root,
+        ),
+      );
     }
     entries.sort((a, b) {
       if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
@@ -575,16 +583,20 @@ class PluginFsService {
 
   Future<PluginWorkspaceEntry> _entryOf(
     String root,
-    FileSystemEntity entity,
-  ) async {
-    final canonicalRoot = canonicalizeNearestExisting(root) ?? root;
+    FileSystemEntity entity, {
+    String? displayRoot,
+  }) async {
+    final canonicalRoot =
+        displayRoot ?? canonicalizeNearestExisting(root) ?? root;
     final relative = p
         .relative(entity.path, from: canonicalRoot)
         .replaceAll(r'\', '/');
     final isDir = entity is Directory;
+    FileStat? stat;
     DateTime? modified;
     try {
-      modified = (await entity.stat()).modified;
+      stat = await entity.stat();
+      modified = stat.modified;
     } catch (_) {
       modified = null; // נמחק בין הסריקה לקריאת ה-stat
     }
@@ -592,7 +604,12 @@ class PluginFsService {
       path: relative == '.' ? '' : relative,
       name: p.basename(entity.path),
       isDirectory: isDir,
-      size: isDir || entity is! File ? 0 : await entity.length(),
+      // stat עלול להחזיר notFound בלי לזרוק; length משמר את כשל הקריאה.
+      size: isDir || entity is! File
+          ? 0
+          : stat?.type == FileSystemEntityType.file
+          ? stat!.size
+          : await entity.length(),
       modified: modified,
     );
   }

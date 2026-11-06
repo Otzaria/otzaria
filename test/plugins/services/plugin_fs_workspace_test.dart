@@ -17,6 +17,17 @@ bool _tryLink(String link, String target) {
   }
 }
 
+final class _WorkspaceStatOverride extends IOOverrides {
+  _WorkspaceStatOverride(this.target, this.readStat);
+
+  final String target;
+  final Future<FileStat> Function() readStat;
+
+  @override
+  Future<FileStat> stat(String path) =>
+      path == target ? readStat() : super.stat(path);
+}
+
 /// המרחב הפרטי של תוסף: אכיפת הגבול (`..`, מוחלט, UNC, symlink), המכסה
 /// ותקרת ההעברה. הגבול הוא ההרשאה כאן — פעולות אלו אינן דורשות הרשאת manifest.
 void main() {
@@ -416,6 +427,184 @@ void main() {
       expect(entries.single.path, 'sub/x.txt');
       expect(entries.single.toJson()['path'], isNot(contains(tempDir.path)));
     });
+
+    test('listDir שומר מיון, גדלים ותאריכים בתת-תיקייה מעורבת', () async {
+      await write('sub/ריק.txt', '');
+      await write('sub/a.txt', 'שלום');
+      await service.makeWorkspaceDir(root: root, relativePath: 'sub/zdir');
+      await service.makeWorkspaceDir(root: root, relativePath: 'sub/adir');
+      final names = ['adir', 'zdir', 'a.txt', 'ריק.txt'];
+      final expected = <Map<String, dynamic>>[];
+      for (final name in names) {
+        final path = p.join(root, 'sub', name);
+        final stat = await FileStat.stat(path);
+        final isDir = stat.type == FileSystemEntityType.directory;
+        expected.add({
+          'path': 'sub/$name',
+          'name': name,
+          'type': isDir ? 'dir' : 'file',
+          'size': isDir ? 0 : stat.size,
+          'modified': stat.modified.toUtc().toIso8601String(),
+        });
+      }
+
+      final entries = await service.listWorkspaceDir(
+        root: root,
+        relativePath: 'sub',
+      );
+      expect(entries.map((entry) => entry.toJson()), expected);
+      expect(entries[2].size, utf8.encode('שלום').length);
+      expect(entries.last.size, 0);
+    });
+
+    test('listDir ו-stat קוראים מטא-נתונים חדשים בכל בקשה', () async {
+      await write('a.txt', 'a');
+      final file = File(p.join(root, 'a.txt'));
+      await file.setLastModified(DateTime.utc(2020));
+      final first = (await service.listWorkspaceDir(
+        root: root,
+        relativePath: '',
+      )).single;
+
+      await write('a.txt', 'updated');
+      await file.setLastModified(DateTime.utc(2022));
+      final current = await file.stat();
+      final second = (await service.listWorkspaceDir(
+        root: root,
+        relativePath: '',
+      )).single;
+      final stat = await service.statWorkspaceEntry(
+        root: root,
+        relativePath: 'a.txt',
+      );
+      expect(first.size, 1);
+      expect(second.size, 7);
+      expect(second.modified, current.modified);
+      expect(second.modified, isNot(first.modified));
+      expect(stat!.toJson(), second.toJson());
+    });
+
+    test('listDir מדלג על קישור פנימי, חיצוני ותלוי', () async {
+      await write('sub/a.txt', 'a');
+      final outside = Directory(p.join(tempDir.path, 'outside'))..createSync();
+      for (final target in {
+        'internal': p.join(root, 'sub', 'a.txt'),
+        'external': outside.path,
+        'dangling': p.join(outside.path, 'missing.txt'),
+      }.entries) {
+        if (!_tryLink(p.join(root, target.key), target.value)) return;
+      }
+      final entries = await service.listWorkspaceDir(
+        root: root,
+        relativePath: '',
+      );
+      expect(entries.map((entry) => entry.path), ['sub']);
+    });
+
+    test('listDir דוחה יעד מוחלט, UNC ומעבר דרך קישור', () async {
+      await write('sub/a.txt', 'a');
+      final invalidPaths = [
+        p.join(root, 'sub'),
+        r'\\localhost\share',
+        '//localhost/share',
+        'sub/../../outside',
+      ];
+      if (!_tryLink(p.join(root, 'alias'), p.join(root, 'sub'))) return;
+      invalidPaths.add('alias');
+      for (final relativePath in invalidPaths) {
+        await expectLater(
+          service.listWorkspaceDir(root: root, relativePath: relativePath),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
+          ),
+        );
+      }
+    });
+
+    test('listDir שומר רשימה ריקה ושגיאת יעד חסר או קובץ', () async {
+      expect(
+        await service.listWorkspaceDir(root: root, relativePath: ''),
+        isEmpty,
+      );
+      await write('a.txt', 'a');
+      for (final relativePath in ['missing', 'a.txt']) {
+        await expectLater(
+          service.listWorkspaceDir(root: root, relativePath: relativePath),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'message',
+              contains('error.not_found'),
+            ),
+          ),
+        );
+      }
+    });
+
+    for (final listDirectory in [true, false]) {
+      final operation = listDirectory ? 'listDir' : 'stat';
+      Future<PluginWorkspaceEntry?> readEntry() async => listDirectory
+          ? (await service.listWorkspaceDir(
+              root: root,
+              relativePath: '',
+            )).single
+          : service.statWorkspaceEntry(root: root, relativePath: 'a.txt');
+
+      test('$operation שומר גודל קובץ כאשר stat זורק', () async {
+        await write('a.txt', 'abc');
+        final entry = await IOOverrides.runWithIOOverrides(
+          readEntry,
+          _WorkspaceStatOverride(p.join(root, 'a.txt'), () async {
+            throw FileSystemException('stat denied');
+          }),
+        );
+        expect(entry!.size, 3);
+        expect(entry.modified, isNull);
+      });
+
+      test('$operation שומר fallback כאשר stat מחזיר notFound', () async {
+        await write('a.txt', 'abc');
+        final missing = await FileStat.stat(p.join(root, 'missing'));
+        final entry = await IOOverrides.runWithIOOverrides(
+          readEntry,
+          _WorkspaceStatOverride(p.join(root, 'a.txt'), () async => missing),
+        );
+        expect(entry!.size, 3);
+        expect(entry.modified, missing.modified);
+      });
+
+      for (final throwsStat in [false, true]) {
+        test(
+          '$operation מעביר שגיאת קובץ שנמחק, stat זורק: $throwsStat',
+          () async {
+            await write('a.txt', 'abc');
+            final file = File(p.join(root, 'a.txt'));
+            final missing = await FileStat.stat(p.join(root, 'missing'));
+            await expectLater(
+              IOOverrides.runWithIOOverrides(
+                readEntry,
+                _WorkspaceStatOverride(file.path, () async {
+                  await file.delete();
+                  if (throwsStat) throw FileSystemException('stat denied');
+                  return missing;
+                }),
+              ),
+              throwsA(
+                isA<FileSystemException>().having(
+                  (error) => error.path,
+                  'path',
+                  file.path,
+                ),
+              ),
+            );
+          },
+        );
+      }
+    }
 
     test('listDir מחוץ לשורש נדחה', () async {
       await expectLater(
