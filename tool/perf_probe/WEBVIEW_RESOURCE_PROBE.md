@@ -330,6 +330,10 @@ loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות
 אחרי כל שלב. artifacts כוללים דוח גולמי, לוגים, SHA של מקור החנות וגרסאות
 כלים; כשל בנייה או ניתוק מוקדם עשוי להשאיר רק חלק מהם.
 
+ב־Linux ה־workflow הנפרד `installed_plugin_probe_linux.yml` מפעיל את אותו
+תרחיש ב־profile בסביבת Debian/WPE נתמכת, עם Xvfb, DBus ו־Openbox. פרטי
+ההכנה, ההרצה והראיות מתועדים ב־[תרחיש Linux WPE](INSTALLED_PLUGIN_LINUX.md).
+
 ```powershell
 # Windows; ב־macOS החלף windows ב־macos. נדרש PowerShell לפקודות דוגמה אלה.
 $installedProbeRun = Join-Path ([IO.Path]::GetTempPath()) ('installed-plugin-' + [guid]::NewGuid())
@@ -397,7 +401,7 @@ flutter drive --profile -d "$installedProbeDevice" --no-dds --no-pub \
 |---|---|---|
 | Windows | CI של האפליקציה ב־profile; backend נצפה דרך אבחון יצירת ה־native view | רק artifact של ריצה שעברה הוא ראיית ביצוע; אין סף חיסכון |
 | macOS | CI של האפליקציה ב־profile | RSS של המארח; זיכרון מנוע מלא ו־backend אבחוני מסומנים לפי זמינותם |
-| Linux | `notRun` עד הרצה עם סביבת GUI ותלויות native מתאימות | אין תוצאת Linux הנגזרת מבדיקות היחידה |
+| Linux | CI נפרד ב־profile עם Debian/WPE ו־Xvfb/DBus/Openbox | רק artifact של תרחיש שעבר הוא ראיית ביצוע; פרטי GPU ותצוגת CI אינם קבלת חומרה |
 | Android | פקודת profile משותפת עם payload מקור; `notRun` במסגרת workflow זה | נדרשים מכשיר מתאים ואוטומציית רקע במכשיר אמיתי למדידת ביצועים |
 | iOS | פקודת profile משותפת עם payload מקור; `notRun` במסגרת workflow זה | נדרשים מכשיר, חתימה ואוטומציית רקע; סימולטור אינו קבלת חומרה |
 

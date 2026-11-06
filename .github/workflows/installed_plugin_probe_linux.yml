@@ -1,0 +1,194 @@
+name: Installed plugin resource scenario (Linux WPE)
+
+on:
+  pull_request:
+    paths:
+      - 'integration_test/installed_plugin_resource_probe_test.dart'
+      - 'integration_test/support/installed_plugin_*.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'integration_test/support/webview_probe_metrics.dart'
+      - 'integration_test/support/webview_probe_window.dart'
+      - 'test_driver/installed_plugin_resource_probe.dart'
+      - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'tool/perf_probe/*installed_plugin*'
+      - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'lib/plugins/**'
+      - 'lib/core/diagnostics/**'
+      - 'linux/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/installed_plugin_probe_linux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-plugin-linux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-linux:
+    name: Actual app / Linux WPE / profile
+    runs-on: ubuntu-26.04
+    # Match the supported full-app build_linux recipe in flutter_tests.yml.
+    container:
+      image: debian:bookworm-slim
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      PYTHONUNBUFFERED: '1'
+      CARGO_BUILD_JOBS: '2'
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+      WPE_SDK: /opt/wpe-sdk
+      PKG_CONFIG_PATH: /opt/wpe-sdk/lib/pkgconfig
+      LD_LIBRARY_PATH: /opt/wpe-sdk/lib
+      LIBRARY_PATH: /opt/wpe-sdk/lib
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      CC: clang
+      CXX: clang++
+      CFLAGS: -Wno-error=unknown-warning-option
+      CXXFLAGS: -Wno-error=unknown-warning-option
+    steps:
+      - name: Prepare build container and fresh artifact paths
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/installed-plugin-linux-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$root"
+          {
+            echo "INSTALLED_PROBE_ROOT=$root"
+            echo "INSTALLED_PROBE_DATA=$RUNNER_TEMP/installed-plugin-linux-data"
+            echo "INSTALLED_PROBE_OUTPUT=$root/device"
+            echo "INSTALLED_PROBE_REPORTS=$root/host"
+            echo "INSTALLED_PROBE_STORE_SOURCE=$RUNNER_TEMP/installed-plugin-linux-source"
+            echo "INSTALLED_PROBE_MACHINE_ID=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-linux-bookworm-xvfb"
+          } >> "$GITHUB_ENV"
+          cat /etc/os-release > "$root/os-release.txt"
+          uname -a > "$root/kernel.txt"
+          apt-get update -y 2>&1 | tee "$root/apt-update.log"
+          apt-get install -y ca-certificates curl git jq unzip xz-utils zstd \
+            python3 nodejs 2>&1 | tee "$root/apt-bootstrap.log"
+          git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+
+      - name: Install native build and desktop session dependencies
+        run: |
+          set -euo pipefail
+          apt-get install -y build-essential clang-14 cmake \
+            libblkid1 libcurl4-openssl-dev libglib2.0-dev libgtk-3-dev \
+            liblzma5 liblzma-dev libsecret-1-dev libsoup-3.0-dev \
+            libwebkit2gtk-4.1-dev libxkbcommon-dev ninja-build \
+            openjdk-17-jdk-headless pkg-config xvfb xauth \
+            dbus dbus-x11 openbox wmctrl x11-utils x11-xserver-utils \
+            libgl1-mesa-dri libegl1 libglx-mesa0 mesa-utils \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/apt-native.log"
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
+
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Record toolchain and verified Store source
+        run: |
+          set -euo pipefail
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          flutter --version --machine > "$INSTALLED_PROBE_ROOT/flutter.json"
+          rustc -Vv > "$INSTALLED_PROBE_ROOT/rust.txt"
+          cargo -V >> "$INSTALLED_PROBE_ROOT/rust.txt"
+          rustup show >> "$INSTALLED_PROBE_ROOT/rust.txt"
+          git rev-parse HEAD > "$INSTALLED_PROBE_ROOT/source-commit.txt"
+          python3 tool/perf_probe/prepare_installed_plugin_source.py \
+            --output "$INSTALLED_PROBE_STORE_SOURCE" \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/source.log"
+
+      - name: Install the pinned WPE runtime SDK
+        env:
+          WPE_RUNTIME_SHA256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
+        run: |
+          set -euo pipefail
+          asset=wpe-runtime-2.48.7-linux-x86_64.tar.zst
+          base=https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/wpe-2.48.7-print-to-pdf
+          curl -fSL --retry 3 --retry-delay 5 --max-time 300 \
+            -o "$RUNNER_TEMP/$asset" "$base/$asset"
+          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "$RUNNER_TEMP/$asset" \
+            | sha256sum -c - | tee "$INSTALLED_PROBE_ROOT/wpe-sdk-sha256.txt"
+          tar -C /opt -I zstd -xf "$RUNNER_TEMP/$asset"
+          test -f "$WPE_SDK/lib/pkgconfig/wpe-webkit-2.0.pc"
+          pkg-config --print-errors --exists \
+            wpe-webkit-2.0 wpe-platform-2.0 wpe-platform-headless-2.0 wpe-1.0
+          cp "$WPE_SDK/VERSIONS" "$INSTALLED_PROBE_ROOT/wpe-sdk-versions.txt"
+
+      - name: Resolve exact dependencies and analyze
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile 2>&1 | tee "$INSTALLED_PROBE_ROOT/pub-get.log"
+          flutter analyze --no-pub 2>&1 | tee "$INSTALLED_PROBE_ROOT/analyze.log"
+
+      - name: Validate the runner, fixture and evidence contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tool/perf_probe -p 'test_installed_plugin_linux.py' -v \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/session-tests.log"
+          node --test tool/perf_probe/test_installed_plugin_fixture.mjs \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/fixture-tests.log"
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/tool/perf_probe/installed_plugin_probe_test.dart \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/contract-tests.log"
+
+      - name: Build the actual app scenario in profile
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          flutter build linux --profile --no-pub \
+            --target=integration_test/installed_plugin_resource_probe_test.dart \
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
+            --dart-define=INSTALLED_PROBE_IDLE_MS=1000 \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/build-profile.log"
+
+      - name: Run the actual installed plugin with X11, DBus and Openbox
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/run_installed_plugin_linux.py \
+            --output "$INSTALLED_PROBE_ROOT/session" --seconds 1320 \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/drive-profile.log"
+
+      - name: Collect partial native build diagnostics
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f "$INSTALLED_PROBE_STORE_SOURCE/source-provenance.json" ]; then
+            cp "$INSTALLED_PROBE_STORE_SOURCE/source-provenance.json" "$INSTALLED_PROBE_ROOT/"
+          fi
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import shutil
+          root = Path(os.environ['INSTALLED_PROBE_ROOT']) / 'build-diagnostics'
+          build = Path('build/linux')
+          for name in ('CMakeCache.txt', 'CMakeError.log', 'CMakeOutput.log', 'CMakeConfigureLog.yaml'):
+              for source in build.rglob(name):
+                  target = root / source.relative_to(build)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(source, target)
+          PY
+
+      - name: Preserve raw reports and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-linux-wpe-profile
+          if-no-files-found: warn
+          path: ${{ env.INSTALLED_PROBE_ROOT }}
