@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -27,6 +28,7 @@ import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/pdf_sheet_composer.dart';
+import 'package:otzaria/printing/print_pdf_source.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
@@ -92,6 +94,9 @@ class _RangeAnchor {
 class PrintingScreen extends StatefulWidget {
   final Future<String> data;
   final Future<Uint8List> Function(PdfPageFormat format)? createPdfOverride;
+
+  /// קובץ קיים נפתח ישירות; בתים מלאים נקראים רק כשיעד הפלט דורש אותם.
+  final String? pdfFilePath;
   final String bookId;
   final TextBook? book;
   final List<Link> links;
@@ -134,6 +139,7 @@ class PrintingScreen extends StatefulWidget {
     super.key,
     required this.data,
     this.createPdfOverride,
+    this.pdfFilePath,
     required this.bookId,
     this.book,
     this.links = const [],
@@ -153,7 +159,7 @@ class PrintingScreen extends StatefulWidget {
     this.prebuiltBlocks,
     this.documentTitle,
     this.protection,
-  });
+  }) : assert(createPdfOverride == null || pdfFilePath == null);
 
   /// בבדיקות: מקבל את בלוקי הטקסט שנבנו לטווח ההדפסה.
   @visibleForTesting
@@ -164,6 +170,9 @@ class PrintingScreen extends StatefulWidget {
 }
 
 class _PrintingScreenState extends State<PrintingScreen> {
+  bool get _isPdfSource =>
+      widget.pdfFilePath != null || widget.createPdfOverride != null;
+
   /// מתחת לרוחב הזה פאנל ההגדרות עובר מתחת לתצוגה המקדימה.
   bool _isNarrowLayout(BuildContext context) =>
       MediaQuery.sizeOf(context).width < 760;
@@ -274,8 +283,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   late _PrintDestination _destination;
 
   bool get _supportsWord =>
-      widget.createPdfOverride == null &&
-      _exportProtection.allowsEditableExport;
+      !_isPdfSource && _exportProtection.allowsEditableExport;
 
   bool get _supportsPdf => _exportProtection.allowsPdfExport;
 
@@ -332,7 +340,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _commentatorProtection = commentators;
       _syncDestinationWithProtection();
     });
-    if (widget.createPdfOverride == null && widget.prebuiltBlocks == null) {
+    if (!_isPdfSource && widget.prebuiltBlocks == null) {
       await _applyCurrentRange();
       if (mounted) _refreshPreview();
     }
@@ -392,7 +400,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     _divineNamesReady.then<void>((_) {}, onError: (Object _) {});
 
     // במצב PDF חיצוני (כמו "צורת הדף") אין טווח שורות/כותרות.
-    if (widget.createPdfOverride != null) {
+    if (_isPdfSource) {
       _flatHeaders = const [];
       _pageLabels = buildPdfPageLabels(widget.pdfOutline);
       if (widget.initialPage != null) {
@@ -447,12 +455,25 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (oldWidget.activeCommentators != widget.activeCommentators) {
       _selectedCommentators = List.of(widget.activeCommentators);
     }
-    if (oldWidget.data != widget.data) {
+    if (oldWidget.pdfFilePath != widget.pdfFilePath ||
+        oldWidget.createPdfOverride != widget.createPdfOverride ||
+        (!_isPdfSource && oldWidget.data != widget.data) ||
+        oldWidget.prebuiltBlocks != widget.prebuiltBlocks) {
       _dataFuture = widget.data;
       _cachedBasePdf = null;
       _cachedBaseKey = null;
-      _anchorEntries = null; // מספר השורות עשוי להשתנות — נבנה מחדש
-      _initPreviewRange();
+      _anchorEntries = null;
+      _totalPdfPages = 0;
+      if (_isPdfSource) {
+        _pdfStartPage = widget.initialPage ?? 1;
+        _pdfEndPage = widget.initialPage == null
+            ? 0
+            : widget.initialPage! + (widget.isBookView ? 1 : 0);
+        _refreshPreview(immediate: true);
+      } else {
+        _renderGeneration++;
+        _initPreviewRange();
+      }
     }
   }
 
@@ -551,7 +572,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   Future<void> _loadAltHeaders() async {
     final book = widget.book;
-    if (widget.createPdfOverride != null || book == null) return;
+    if (_isPdfSource || book == null) return;
     try {
       final structures = await DatabaseLibraryProvider.instance
           .getAlternativeStructuresForBook(book);
@@ -674,7 +695,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       // ב-Flutter — לא יוצרים PDF ביניים ולא פותחים אותו שוב.
       final base = await _createBasePdf(format);
       if (generation != _renderGeneration || !mounted) return const [];
-      final isPdfMode = widget.createPdfOverride != null;
+      final isPdfMode = _isPdfSource;
       final startPage = isPdfMode ? _pdfStartPage : 1;
       final endPage = computePdfPrintEndPage(
         isPdfMode: isPdfMode,
@@ -721,40 +742,20 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
   }
 
-  /// פותח PDF מ-bytes שכבר בזיכרון, בטעינה ישירה (FPDF_LoadMemDocument).
-  ///
-  /// ה-openData הרגיל עובר ל-on-demand (FPDF_LoadCustomDocument עם read
-  /// callbacks) לכל PDF מעל 1MB — וה-callbacks נתקעים אחרי close של מסמך קודם.
-  /// כאן מאלצים caching בזיכרון, כך שאין callbacks ואין תקיעה.
-  Future<PdfDocument> _openPdfInMemory(Uint8List bytes, String tag) {
-    return PdfDocument.openCustom(
-      read: (buffer, position, size) {
-        final end = min(position + size, bytes.length);
-        final count = end - position;
-        if (count <= 0) return 0;
-        buffer.setRange(0, count, bytes, position);
-        return count;
-      },
-      fileSize: bytes.length,
-      sourceName: '${tag}_${DateTime.now().millisecondsSinceEpoch}',
-      maxSizeToCacheOnMemory: 1024 * 1024 * 1024,
-    );
-  }
-
   /// מרסטר את עמודי ה-PDF (בטווח הנתון, עד [_maxPreviewPages]) לתמונות PNG,
   /// וקורא [onPage] לכל עמוד מיד עם רסטורו (תצוגה מדורגת). מחזיר `true` אם
   /// הטווח נחתך בגלל המגבלה.
   ///
   /// נקרא רק מתוך ה-runner הסדרתי וללא PdfViewer פעיל, כך שאין openData מקביל.
   Future<bool> _rasterizePdfToImages(
-    Uint8List pdfBytes,
+    PrintPdfSource source,
     int generation, {
     int startPage = 1,
     int? endPage,
     required void Function(Uint8List) onPage,
   }) => _withRasterLock(
     () => _rasterizePdfToImagesLocked(
-      pdfBytes,
+      source,
       generation,
       startPage: startPage,
       endPage: endPage,
@@ -764,18 +765,18 @@ class _PrintingScreenState extends State<PrintingScreen> {
   );
 
   Future<bool> _rasterizePdfToImagesLocked(
-    Uint8List pdfBytes,
+    PrintPdfSource source,
     int generation, {
     int startPage = 1,
     int? endPage,
     required void Function(Uint8List) onPage,
   }) async {
     if (generation != _renderGeneration || !mounted) return false;
-    final doc = await _openPdfInMemory(pdfBytes, 'preview');
+    final doc = await source.open();
     try {
       final pageCount = doc.pages.length;
       // במצב PDF חיצוני, ספירת העמודים נחוצה לבחירת טווח עמודים ב-UI.
-      if (_totalPdfPages == 0 && widget.createPdfOverride != null && mounted) {
+      if (_totalPdfPages == 0 && _isPdfSource && mounted) {
         setState(() {
           _totalPdfPages = pageCount;
           _pdfStartPage = _pdfStartPage.clamp(1, pageCount);
@@ -824,9 +825,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   Future<Uint8List> _createOutputPdf(PdfPageFormat format) async {
-    final base = await _createBasePdf(format);
-
-    final isPdfMode = widget.createPdfOverride != null;
+    final pagesPerSheet = _pagesPerSheet;
+    final sheetFormat = _effectivePageFormat(format);
+    final isPdfMode = _isPdfSource;
     final startPage = isPdfMode ? _pdfStartPage : 1;
     final endPage = computePdfPrintEndPage(
       isPdfMode: isPdfMode,
@@ -839,15 +840,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
       totalPages: _totalPdfPages,
     );
 
-    if (_pagesPerSheet <= 1 && !hasPageRange) {
-      return base;
+    final base = await _createBasePdf(format);
+    if (pagesPerSheet <= 1 && !hasPageRange) {
+      return base.readBytes();
     }
 
     try {
       return await _createNUpPdf(
         base,
-        sheetFormat: _effectivePageFormat(format),
-        pagesPerSheet: _pagesPerSheet,
+        sheetFormat: sheetFormat,
+        pagesPerSheet: pagesPerSheet,
         startPage: startPage,
         endPage: endPage,
       );
@@ -878,11 +880,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. שדות שמשפיעים רק על
   /// הרסטור (_pagesPerSheet, טווח עמודים ב-PDF חיצוני) בכוונה אינם נכללים.
   String _baseCacheKey(PdfPageFormat format) {
-    if (widget.createPdfOverride != null) {
-      return 'override|${orientation.name}|${format.width}x${format.height}';
+    if (_isPdfSource) {
+      return 'override|${identityHashCode(widget.createPdfOverride)}|${orientation.name}|${format.width}x${format.height}';
     }
     final holyNames = _shouldReplaceHolyNames;
     return [
+      identityHashCode(_dataFuture),
+      identityHashCode(widget.prebuiltBlocks),
       orientation.name,
       format.width,
       format.height,
@@ -906,12 +910,14 @@ class _PrintingScreenState extends State<PrintingScreen> {
     ].join('|');
   }
 
-  Future<Uint8List> _createBasePdf(PdfPageFormat format) async {
+  Future<PrintPdfSource> _createBasePdf(PdfPageFormat format) async {
+    final path = widget.pdfFilePath;
+    if (path != null) return PrintPdfSource.file(path);
     await _divineNamesReady;
     final key = _baseCacheKey(format);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
-      return cached;
+      return PrintPdfSource.data(cached);
     }
     final override = widget.createPdfOverride;
     final Uint8List bytes;
@@ -923,13 +929,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
     } else {
       bytes = await createPdf(format);
     }
-    _cachedBasePdf = bytes;
-    _cachedBaseKey = key;
-    return bytes;
+    if (mounted && _baseCacheKey(format) == key) {
+      _cachedBasePdf = bytes;
+      _cachedBaseKey = key;
+    }
+    return PrintPdfSource.data(bytes);
   }
 
   Future<Uint8List> _createNUpPdf(
-    Uint8List sourcePdf, {
+    PrintPdfSource sourcePdf, {
     required PdfPageFormat sheetFormat,
     required int pagesPerSheet,
     int startPage = 1,
@@ -966,7 +974,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   Future<Uint8List> _composeNUp(
-    Uint8List sourcePdf, {
+    PrintPdfSource sourcePdf, {
     required PdfPageFormat sheetFormat,
     required int pagesPerSheet,
     int startPage = 1,
@@ -978,12 +986,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _ => (1, 1),
     };
     final hasRange = startPage > 1 || endPage != null;
-    if (rows == 1 && cols == 1 && !hasRange) return sourcePdf;
+    if (rows == 1 && cols == 1 && !hasRange) return sourcePdf.readBytes();
 
-    final doc = await _openPdfInMemory(sourcePdf, 'nup');
+    final doc = await sourcePdf.open();
     try {
       final pageCount = doc.pages.length;
-      if (_totalPdfPages == 0 && widget.createPdfOverride != null && mounted) {
+      if (_totalPdfPages == 0 && _isPdfSource && mounted) {
         setState(() {
           _totalPdfPages = pageCount;
           _pdfStartPage = _pdfStartPage.clamp(1, pageCount);
@@ -1101,7 +1109,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// מופעי השמות של הספר (מהמסד), לבורר "שאר שמות הקודש".
   Future<void> _loadDivineNames() async {
     final book = widget.book;
-    if (book == null || widget.createPdfOverride != null) return;
+    if (book == null || _isPdfSource) return;
     final spans = await DivineNamesRepository.instance.spansFor(
       book.title,
       categoryId: book.categoryId,
@@ -1116,7 +1124,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// הערות השוליים של הספר מהמסד, שמוחזרות לשורה בהדפסה.
   Future<void> _loadBookNotes() async {
     final book = widget.book;
-    if (book == null || widget.createPdfOverride != null) return;
+    if (book == null || _isPdfSource) return;
     final notes = await BookNotesRepository.instance.notesFor(
       book.title,
       categoryId: book.categoryId,
@@ -2058,7 +2066,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isCustomPdfMode = widget.createPdfOverride != null;
+    final isCustomPdfMode = _isPdfSource;
     final isPrebuiltMode = widget.prebuiltBlocks != null;
 
     final dialog = Dialog(

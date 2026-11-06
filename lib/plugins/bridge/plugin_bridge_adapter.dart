@@ -4,6 +4,7 @@ import 'dart:typed_data';
 // dart:io מגדיר Link משלו (קישור בקובץ־מערכת) שמתנגש ב-Link של הקישורים.
 import 'dart:io' hide Link;
 import 'dart:math' as math;
+
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
@@ -522,7 +523,10 @@ const int _pluginRawLinksMaxRecords = 10000;
 const int _pluginLinkContentMaxItems = 25;
 
 typedef PluginRpcEventSink =
-    Future<void> Function(String topic, Map<String, dynamic> payload);
+    Future<void> Function(
+      String topic,
+      Map<String, dynamic> payload,
+    );
 
 class _PluginNetworkRequest {
   final Uri uri;

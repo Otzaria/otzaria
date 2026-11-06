@@ -1,4 +1,5 @@
 import 'package:otzaria/core/messages/common_messages.dart';
+
 import 'dart:io';
 
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
@@ -6351,7 +6352,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       builder: (_) => PrintingScreen(
         data: Future.value(''),
         bookId: widget.tab.book.title,
-        createPdfOverride: (_) => file.readAsBytes(),
+        pdfFilePath: file.path,
         initialPage: initialPrintPage,
         isBookView: currentLayoutMode.isBookView,
         pdfOutline: widget.tab.outline.value ?? [],

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 
@@ -10,6 +11,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -19,6 +22,8 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
+import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
+import 'package:otzaria/plugins/services/plugin_remote_file_cache.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -31,6 +36,7 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -136,6 +142,8 @@ void main() {
   late File pdf;
   late Uint8List pdfBytes;
   late PluginFileServer fileServer;
+  late PluginRemoteFileCache remoteCache;
+  late PluginFileDownloadService cacheDownloader;
   late PluginBridgeAdapter adapter;
   late PluginBridgeDependencies dependencies;
   PluginBridgeWindowDependencies? requestWindow;
@@ -172,7 +180,14 @@ void main() {
   });
 
   setUp(() {
-    fileServer = PluginFileServer();
+    cacheDownloader = PluginFileDownloadService(
+      client: MockClient((_) async => http.Response.bytes(pdfBytes, 200)),
+    );
+    remoteCache = PluginRemoteFileCache(
+      root: Directory(p.join(tempDir.path, 'cache')),
+      maxFiles: 1,
+    );
+    fileServer = PluginFileServer(remoteFileCache: remoteCache);
     requestWindow = null;
     dependencies = PluginBridgeDependencies(
       historyBloc: _MockHistoryBloc(),
@@ -186,7 +201,11 @@ void main() {
       themePayloadBuilder: () => <String, dynamic>{},
       showConfirmDialog: ({required title, required content}) async => true,
       showWarningDialog:
-          ({required title, required content, required subtitle}) async => true,
+          ({
+            required title,
+            required content,
+            required subtitle,
+          }) async => true,
       pickFile: ({allowedExtensions, title}) async => pdf.path,
       hasUserActivation: (pluginId, instanceId) async => true,
       // בכוונה בלי printPluginFile: הבדיקה היא על ברירת המחדל האמיתית.
@@ -197,16 +216,28 @@ void main() {
       windowDependenciesResolver: () => requestWindow ?? dependencies.window,
       pluginRepository: _Registry(),
       fileServer: fileServer,
+      remoteFileCache: remoteCache,
     );
   });
 
-  tearDown(() => fileServer.close());
+  tearDown(() async {
+    cacheDownloader.dispose();
+    await fileServer.close();
+  });
+
+  Future<PluginRemoteFile> fetchCachedPdf(String name) => remoteCache.fetch(
+    'test.plugin',
+    Uri.parse('https://example.org/$name.pdf'),
+    downloader: cacheDownloader,
+    isAllowed: (_) async => true,
+  );
 
   /// מרכיב חלון עם navigatorKey של האפליקציה, אופציונלית עם PdfViewer חי
   /// מאחורי הדיאלוג (כמו טאב PDF פתוח).
   Future<String> mountWindow(
     WidgetTester tester, {
     bool withLivePdfViewer = false,
+    bool fromRemoteCache = false,
   }) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
@@ -220,7 +251,12 @@ void main() {
     final token = await tester.runAsync(() async {
       await pdfrxFlutterInitialize();
       pdfBytes = await _threePagePdf();
-      await pdf.writeAsBytes(pdfBytes);
+      pdf = File(p.join(tempDir.path, 'mine.pdf'));
+      if (fromRemoteCache) {
+        pdf = File((await fetchCachedPdf('first')).path);
+      } else {
+        await pdf.writeAsBytes(pdfBytes);
+      }
       final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
       return picked['token'] as String;
     });
@@ -258,6 +294,44 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  for (final fromRemoteCache in [false, true]) {
+    testWidgets(
+      'print snapshot survives ${fromRemoteCache ? 'remote cache eviction' : 'local file replacement'}',
+      (tester) async {
+        final token = await mountWindow(
+          tester,
+          fromRemoteCache: fromRemoteCache,
+        );
+        final result = adapter.execute('ui', 'printFile', {'token': token});
+        expect(
+          await _pumpUntil(
+            tester,
+            () => find.byType(PrintingScreen).evaluate().isNotEmpty,
+          ),
+          isTrue,
+        );
+        expect(await _pumpUntil(tester, previewDone), isTrue);
+        final screen = tester.widget<PrintingScreen>(
+          find.byType(PrintingScreen),
+        );
+        await tester.runAsync(() async {
+          if (fromRemoteCache) {
+            await fetchCachedPdf('second');
+            expect(await pdf.exists(), isFalse);
+          } else {
+            await pdf.writeAsString('replaced while print dialog is open');
+          }
+          final output = screen.createPdfOverride != null
+              ? await screen.createPdfOverride!(PdfPageFormat.a4)
+              : await File(screen.pdfFilePath!).readAsBytes();
+          expect(output, orderedEquals(pdfBytes));
+        });
+        await closeWithEscape(tester);
+        expect(await result, {'printed': false});
+      },
+    );
   }
 
   testWidgets(
@@ -320,9 +394,13 @@ void main() {
       );
       final screen = tester.widget<PrintingScreen>(find.byType(PrintingScreen));
       expect(screen.bookId, 'הגהה');
-      expect(screen.createPdfOverride, isNotNull);
+      expect(screen.pdfFilePath, isNull);
+      expect(
+        await screen.createPdfOverride!(PdfPageFormat.a4),
+        orderedEquals(pdfBytes),
+      );
       expect(find.textContaining('הדפסה — הגהה'), findsOneWidget);
-      // התצוגה המקדימה מרונדרת מהקובץ עצמו.
+      // התצוגה המקדימה מרונדרת מצילום הבתים שנשמר לפתיחת הדיאלוג.
       expect(await _pumpUntil(tester, previewDone), isTrue);
 
       await closeWithEscape(tester);
