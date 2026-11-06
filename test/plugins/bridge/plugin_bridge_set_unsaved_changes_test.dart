@@ -1,6 +1,8 @@
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -11,7 +13,11 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/models/plugin_api_catalog.dart';
+import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
+import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -47,6 +53,17 @@ class _MockBookOpenCoordinator extends Mock implements BookOpenCoordinator {}
 
 class _MockPluginRegistryRepository extends Mock
     implements PluginRegistryRepository {}
+
+class _TrackedHttpClient extends http.BaseClient {
+  int closeCount = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      throw StateError('This lifecycle test must not make network requests');
+
+  @override
+  void close() => closeCount++;
+}
 
 class _FakeTabsRepository implements TabsRepository {
   @override
@@ -105,6 +122,7 @@ void main() {
     bool warningAnswer = true,
     List<String>? warningsShown,
     String instanceId = 'tab-3',
+    PluginNetworkFetchService? networkFetchService,
   }) => PluginBridgeAdapter(
     _plugin(),
     instanceId: instanceId,
@@ -126,13 +144,49 @@ void main() {
           },
     ),
     pluginRepository: _MockPluginRegistryRepository(),
+    networkFetchService: networkFetchService,
   );
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  tearDown(() => registry.removeInstance(key));
+  tearDown(() {
+    registry.removeInstance(key);
+    ContextMenuRegistry.instance.removeInstance(key);
+    PluginToolbarRegistry.instance.removeInstance(key);
+    PluginHighlightRegistry.instance.removeInstance(key);
+  });
+
+  Future<void> registerCurrentOwnerState(PluginBridgeAdapter adapter) async {
+    await adapter.execute('ui', 'setUnsavedChanges', {
+      'hasChanges': true,
+      'message': 'טיוטה של המופע הנוכחי',
+    });
+    ContextMenuRegistry.instance.registerPayload(key.pluginId, {
+      'id': 'current-menu',
+      'title': 'פעולה נוכחית',
+    }, instanceId: key.instanceId);
+    PluginToolbarRegistry.instance.registerPayload(key.pluginId, {
+      'id': 'current-toolbar',
+      'title': 'שמירה',
+      'icon': 'save',
+    }, instanceId: key.instanceId);
+    PluginHighlightRegistry.instance.setLegacyHighlight(
+      ownerPluginId: key.pluginId,
+      ownerInstanceId: key.instanceId,
+      bookId: 'book',
+      sectionIndex: 0,
+      label: 'סימון של המופע הנוכחי',
+    );
+  }
+
+  void expectSharedRegistrations(bool present) {
+    expect(registry.hasUnsavedChanges(key), present);
+    expect(ContextMenuRegistry.instance.hasInstance(key), present);
+    expect(PluginToolbarRegistry.instance.hasInstance(key), present);
+    expect(PluginHighlightRegistry.instance.hasInstance(key), present);
+  }
 
   group('ui.setUnsavedChanges', () {
     test('אינה דורשת הרשאת manifest', () {
@@ -193,6 +247,68 @@ void main() {
       await adapter.execute('ui', 'setUnsavedChanges', {'hasChanges': true});
       adapter.dispose();
       expect(registry.hasUnsavedChanges(key), isFalse);
+    });
+
+    test(
+      'dispose של בעלים ישן שומר רישומי מחליף ומשחרר רק את ה-client שלו',
+      () async {
+        final oldClient = _TrackedHttpClient();
+        final currentClient = _TrackedHttpClient();
+        final oldAdapter = buildAdapter(
+          _MockTabsBloc(),
+          networkFetchService: PluginNetworkFetchService(client: oldClient),
+        );
+        final currentAdapter = buildAdapter(
+          _MockTabsBloc(),
+          networkFetchService: PluginNetworkFetchService(client: currentClient),
+        );
+        var oldDisposed = false;
+        var currentDisposed = false;
+        addTearDown(() {
+          if (!oldDisposed) oldAdapter.dispose(removeRegistrations: false);
+          if (!currentDisposed) currentAdapter.dispose();
+        });
+        await registerCurrentOwnerState(currentAdapter);
+        final clientsBeforeDispose = HttpClientRegistry.registeredCount;
+
+        oldAdapter.dispose(removeRegistrations: false);
+        oldDisposed = true;
+
+        expectSharedRegistrations(true);
+        expect(registry.messageFor(key), 'טיוטה של המופע הנוכחי');
+        expect(oldClient.closeCount, 1);
+        expect(currentClient.closeCount, 0);
+        expect(HttpClientRegistry.registeredCount, clientsBeforeDispose - 1);
+
+        currentAdapter.dispose();
+        currentDisposed = true;
+
+        expectSharedRegistrations(false);
+        expect(currentClient.closeCount, 1);
+        expect(oldClient.closeCount, 1);
+        expect(HttpClientRegistry.registeredCount, clientsBeforeDispose - 2);
+      },
+    );
+
+    test('dispose של הבעלים מסיר את כל הרישומים ומשחרר את ה-client', () async {
+      final client = _TrackedHttpClient();
+      final adapter = buildAdapter(
+        _MockTabsBloc(),
+        networkFetchService: PluginNetworkFetchService(client: client),
+      );
+      var disposed = false;
+      addTearDown(() {
+        if (!disposed) adapter.dispose();
+      });
+      await registerCurrentOwnerState(adapter);
+      final clientsBeforeDispose = HttpClientRegistry.registeredCount;
+
+      adapter.dispose();
+      disposed = true;
+
+      expectSharedRegistrations(false);
+      expect(client.closeCount, 1);
+      expect(HttpClientRegistry.registeredCount, clientsBeforeDispose - 1);
     });
   });
 

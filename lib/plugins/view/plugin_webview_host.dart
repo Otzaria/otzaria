@@ -470,24 +470,19 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
     unawaited(_networkPolicyChanges?.cancel());
     final pluginId = plugin.pluginId;
     final id = instanceId;
-    final controller = webViewController;
     final dispatcher = PluginRuntimeDispatcher.instance;
-    // WebView שפונה אינו רשום כ-controller, אבל הדף הזה עדיין בעל המופע.
-    final ownsReleased = dispatcher.isReleasedBy(
-      pluginId,
-      instanceId: id,
-      token: this,
-    );
     // העץ נעול בזמן dispose וניקוי הרישומים מודיע ל-ListenableBuilders
     // (הדגשות, סרגל כלים) — לכן נדחה למיקרוטסק, אחרי שחרור הנעילה.
     scheduleMicrotask(() {
-      adapter.dispose();
+      final ownsInstance = dispatcher.ownsHostRegistration(
+        pluginId,
+        instanceId: id,
+        token: this,
+      );
+      adapter.dispose(removeRegistrations: ownsInstance);
       afterAdapter?.call();
-      // ביטול הרישום רק אם הדף הזה עדיין הבעלים. עדכון תוסף משנה את ה-key,
-      // ו-initState של הדף החדש רץ *לפני* ה-dispose של הישן — בלי הבדיקה
-      // הישן היה מוחק את הרישום של החדש ומשתיק אותו.
-      if (ownsReleased ||
-          dispatcher.ownsController(pluginId, controller, instanceId: id)) {
+      // הבעלות נבדקת בעת הניקוי: מארח חדש יכול להירשם לפני המיקרוטסק.
+      if (ownsInstance) {
         onOwnerClosed?.call();
         dispatcher.unregisterController(pluginId, instanceId: id);
       }

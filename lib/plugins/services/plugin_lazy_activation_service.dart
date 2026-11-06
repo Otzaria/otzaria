@@ -5,7 +5,9 @@ import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 
 /// הפעלה עצלה של מופע רקע לתוסף עם תרומות עלייה (`contributes.startup`).
 ///
@@ -16,14 +18,18 @@ class PluginLazyActivationService {
   static final PluginLazyActivationService instance =
       PluginLazyActivationService._();
   PluginLazyActivationService._()
-    : _conditions = PluginConditionEvaluator.instance;
+    : _conditions = PluginConditionEvaluator.instance,
+      _hasEssentialState = _backgroundHasEssentialState;
 
   @visibleForTesting
   PluginLazyActivationService.forTesting({
     PluginConditionEvaluator? conditionEvaluator,
-  }) : _conditions = conditionEvaluator ?? PluginConditionEvaluator.instance;
+    bool Function(String pluginId)? hasEssentialState,
+  }) : _conditions = conditionEvaluator ?? PluginConditionEvaluator.instance,
+       _hasEssentialState = hasEssentialState ?? _backgroundHasEssentialState;
 
   final PluginConditionEvaluator _conditions;
+  final bool Function(String pluginId) _hasEssentialState;
 
   static const int _maxPendingPerPlugin = 20;
 
@@ -75,15 +81,27 @@ class PluginLazyActivationService {
   /// טריגר `app.startup` מופעל פעם אחת לכל סשן — נשמר גם אחרי removePlugin
   /// כדי שסנכרון חוזר (LoadPlugins) לא יפעיל את התוסף שוב.
   final Set<String> _startupFired = {};
+  final Map<String, Timer> _startupTimers = {};
 
   /// תוספים שהמופע שלהם הוער עצל ולכן כפוף לכיבוי אחרי חוסר פעילות.
   final Set<String> _idleTracked = {};
   final Map<String, Timer> _idleTimers = {};
+  final Map<String, Timer> _immediateTeardownTimers = {};
   final Set<String> _keepAlive = {};
 
   /// מונה RPC שעדיין רצים פר תוסף — כל עוד חיובי, פקיעת שעון הכיבוי רק
   /// מחדשת אותו, כדי לא לקטוע פעולה ארוכה (download/extractZip).
-  final Map<String, int> _busyCounts = {};
+  final Map<String, _BackgroundRuntime> _runtimes = {};
+
+  /// הבעלים מתחלף לפני יצירת controller; dispose של הדף הקודם אינו מנקה אותו.
+  Object attachBackgroundInstance(String pluginId) {
+    _idleTimers.remove(pluginId)?.cancel();
+    _immediateTeardownTimers.remove(pluginId)?.cancel();
+    return _runtimes[pluginId] = _BackgroundRuntime();
+  }
+
+  bool _ownsRuntime(String pluginId, Object? token) =>
+      token == null || identical(_runtimes[pluginId], token);
 
   void syncPlugin(
     String pluginId, {
@@ -114,16 +132,21 @@ class PluginLazyActivationService {
       if (_idleTracked.contains(pluginId)) _restartIdleTimer(pluginId);
     }
     if (scheduleStartup && _startupFired.add(pluginId)) {
-      Timer(startupDelayOverride ?? startupActivationDelay, () {
-        if (!_activatable.contains(pluginId)) return;
-        if (!_activationAllowed(
-          pluginId,
-          PluginStartupContributions.startupActivationTopic,
-        )) {
-          return;
-        }
-        _activate(pluginId);
-      });
+      final generation = activationGeneration(pluginId);
+      _startupTimers[pluginId] = Timer(
+        startupDelayOverride ?? startupActivationDelay,
+        () {
+          _startupTimers.remove(pluginId);
+          if (!isActivationCurrent(pluginId, generation)) return;
+          if (!_activationAllowed(
+            pluginId,
+            PluginStartupContributions.startupActivationTopic,
+          )) {
+            return;
+          }
+          _activate(pluginId);
+        },
+      );
     }
   }
 
@@ -141,9 +164,9 @@ class PluginLazyActivationService {
     _keepAlive.remove(pluginId);
     _clearFailures(pluginId);
     _syncedVersions.remove(pluginId);
+    _startupTimers.remove(pluginId)?.cancel();
     final wasTracked = _idleTracked.contains(pluginId);
     _stopIdleTracking(pluginId);
-    _busyCounts.remove(pluginId);
     // תוסף שאיבד את הזכאות (שלילת הרשאה/השבתה) בזמן שמופע עצל שלו רץ —
     // המופע מכובה מיד, לא ממשיך עד סוף הסשן.
     if (wasTracked) backgroundDeactivator?.call(pluginId);
@@ -152,21 +175,26 @@ class PluginLazyActivationService {
   /// כיבוי מיידי לבקשת התוסף (`plugin.backgroundDone`) — בלי להמתין לשעון
   /// חוסר-הפעילות. חל רק על מופע רקע שבמעקב; דף התוסף אינו מושפע.
   /// מחזיר האם הבקשה התקבלה.
-  bool requestImmediateTeardown(String pluginId) {
+  bool requestImmediateTeardown(String pluginId, {Object? runtimeToken}) {
+    if (!_ownsRuntime(pluginId, runtimeToken)) return false;
     if (!_idleTracked.contains(pluginId)) return false;
     _idleTimers.remove(pluginId)?.cancel();
+    _immediateTeardownTimers.remove(pluginId)?.cancel();
     // השהיה קצרה — שתשובת ה-RPC תספיק לחזור לתוסף לפני השמדת ה-WebView.
-    Timer(const Duration(milliseconds: 300), () {
-      if (!_idleTracked.contains(pluginId)) return;
-      // עבודה חדשה החלה בינתיים (RPC פתוח או אירועים בתור) — לא קוטעים;
-      // חוזרים לשעון הרגיל.
-      if ((_busyCounts[pluginId] ?? 0) > 0 ||
-          _pending[pluginId]?.isNotEmpty == true) {
-        _restartIdleTimer(pluginId);
-        return;
-      }
-      backgroundDeactivator?.call(pluginId);
-    });
+    _immediateTeardownTimers[pluginId] = Timer(
+      const Duration(milliseconds: 300),
+      () {
+        _immediateTeardownTimers.remove(pluginId);
+        if (!_idleTracked.contains(pluginId)) return;
+        // עבודה חדשה החלה בינתיים (RPC פתוח או אירועים בתור) — לא קוטעים;
+        // חוזרים לשעון הרגיל.
+        if (!canTeardown(pluginId)) {
+          _restartIdleTimer(pluginId);
+          return;
+        }
+        backgroundDeactivator?.call(pluginId);
+      },
+    );
     return true;
   }
 
@@ -175,7 +203,21 @@ class PluginLazyActivationService {
 
   /// האם רץ כרגע RPC של [pluginId] — מופע כזה אסור בהריגה (פינוי LRU),
   /// אחרת הפעולה נקטעת באמצע וה-Promise בתוסף לא נפתר.
-  bool isBusy(String pluginId) => (_busyCounts[pluginId] ?? 0) > 0;
+  bool isBusy(String pluginId) => (_runtimes[pluginId]?.workCount ?? 0) > 0;
+
+  /// הגנות משותפות לפינוי לפי גיל ולפי תקרת מספר מופעי הרקע.
+  bool canTeardown(String pluginId) =>
+      !isBusy(pluginId) &&
+      !isBootPending(pluginId) &&
+      _pending[pluginId]?.isNotEmpty != true &&
+      !_hasEssentialState(pluginId);
+
+  static bool _backgroundHasEssentialState(String pluginId) =>
+      PluginUnsavedChangesRegistry.instance.hasUnsavedChanges((
+        pluginId: pluginId,
+        instanceId: PluginInstanceIds.background,
+      )) ||
+      PluginCorrectionSessionService.instance.hasSessionsFor(pluginId);
 
   /// דור ההפעלה הנוכחי. משתנה בכל שלילת זכאות, כדי לבטל Future שכבר ממתין.
   int activationGeneration(String pluginId) =>
@@ -217,21 +259,19 @@ class PluginLazyActivationService {
     _restartIdleTimer(pluginId);
   }
 
-  /// תחילת RPC של התוסף — המופע "עסוק" ולא יכובה עד [endWork] התואם.
-  void beginWork(String pluginId) {
-    _busyCounts[pluginId] = (_busyCounts[pluginId] ?? 0) + 1;
+  /// סיום ה-RPC שייך למופע שהתחיל אותו, ואינו משחרר עבודה של מחליפו.
+  VoidCallback beginWork(String pluginId, {Object? runtimeToken}) {
+    if (!_ownsRuntime(pluginId, runtimeToken)) return () {};
+    final runtime = _runtimes.putIfAbsent(pluginId, _BackgroundRuntime.new);
+    runtime.workCount++;
     notifyActivity(pluginId);
-  }
-
-  /// סיום RPC — משוחרר מונה העסוקים ושעון הכיבוי מתחיל מחדש.
-  void endWork(String pluginId) {
-    final count = (_busyCounts[pluginId] ?? 1) - 1;
-    if (count <= 0) {
-      _busyCounts.remove(pluginId);
-    } else {
-      _busyCounts[pluginId] = count;
-    }
-    notifyActivity(pluginId);
+    var ended = false;
+    return () {
+      if (ended || !identical(_runtimes[pluginId], runtime)) return;
+      ended = true;
+      runtime.workCount--;
+      notifyActivity(pluginId);
+    };
   }
 
   void _restartIdleTimer(String pluginId) {
@@ -240,8 +280,7 @@ class PluginLazyActivationService {
     _idleTimers[pluginId] = Timer(idleDelayOverride ?? idleTeardownDelay, () {
       _idleTimers.remove(pluginId);
       if (!_idleTracked.contains(pluginId)) return;
-      // RPC עדיין רץ — לא קוטעים; ננסה שוב בפקיעה הבאה.
-      if ((_busyCounts[pluginId] ?? 0) > 0) {
+      if (!canTeardown(pluginId)) {
         _restartIdleTimer(pluginId);
         return;
       }
@@ -252,6 +291,8 @@ class PluginLazyActivationService {
   void _stopIdleTracking(String pluginId) {
     _idleTracked.remove(pluginId);
     _idleTimers.remove(pluginId)?.cancel();
+    _immediateTeardownTimers.remove(pluginId)?.cancel();
+    _runtimes.remove(pluginId);
   }
 
   /// שער הערת המנוע: תנאי `when` על נושא ההפעלה. חל רק על הערת מנוע כבוי —
@@ -323,10 +364,13 @@ class PluginLazyActivationService {
   Future<void> onBackgroundInstanceReady(
     String pluginId, {
     int? generation,
+    Object? runtimeToken,
     bool Function()? isCurrent,
   }) async {
+    final readyGeneration = generation ?? activationGeneration(pluginId);
     bool stale() =>
-        (generation != null && !isActivationCurrent(pluginId, generation)) ||
+        !_ownsRuntime(pluginId, runtimeToken) ||
+        !isActivationCurrent(pluginId, readyGeneration) ||
         (isCurrent != null && !isCurrent());
     if (stale()) return;
     _activating.remove(pluginId);
@@ -353,7 +397,12 @@ class PluginLazyActivationService {
   }
 
   /// מסמן שכשל boot של מופע רקע ומאפשר לטריגר הבא לנסות שוב.
-  void onBackgroundInstanceFailed(String pluginId, {int? generation}) {
+  void onBackgroundInstanceFailed(
+    String pluginId, {
+    int? generation,
+    Object? runtimeToken,
+  }) {
+    if (!_ownsRuntime(pluginId, runtimeToken)) return;
     if (generation != null && !isActivationCurrent(pluginId, generation)) {
       return;
     }
@@ -366,12 +415,21 @@ class PluginLazyActivationService {
   }
 
   /// התהליך של מופע הרקע נפל: נספר לתקציב הנפילות, ואז כמו כל כשל.
-  void onBackgroundProcessGone(String pluginId, {int? generation}) {
+  void onBackgroundProcessGone(
+    String pluginId, {
+    int? generation,
+    Object? runtimeToken,
+  }) {
+    if (!_ownsRuntime(pluginId, runtimeToken)) return;
     if (generation != null && !isActivationCurrent(pluginId, generation)) {
       return;
     }
     _recordFailure(pluginId);
-    onBackgroundInstanceFailed(pluginId, generation: generation);
+    onBackgroundInstanceFailed(
+      pluginId,
+      generation: generation,
+      runtimeToken: runtimeToken,
+    );
   }
 
   /// מופע רקע שתהליכו נופל שוב ושוב לא מוער עוד, עד שהתוסף מוסר, מושבת
@@ -405,15 +463,22 @@ class PluginLazyActivationService {
     );
   }
 
-  void onBackgroundInstanceClosed(String pluginId, {int? generation}) {
+  void onBackgroundInstanceClosed(
+    String pluginId, {
+    int? generation,
+    Object? runtimeToken,
+  }) {
+    if (!_ownsRuntime(pluginId, runtimeToken)) return;
     if (generation != null && !isActivationCurrent(pluginId, generation)) {
       return;
     }
     _activating.remove(pluginId);
     // המופע נסגר — עוצרים את השעון בלי לגעת ביכולת ההערה: הטריגר הבא
     // יעיר את התוסף מחדש ויירשם למעקב שוב דרך ה-host.
-    _idleTracked.remove(pluginId);
-    _idleTimers.remove(pluginId)?.cancel();
-    _busyCounts.remove(pluginId);
+    _stopIdleTracking(pluginId);
   }
+}
+
+class _BackgroundRuntime {
+  int workCount = 0;
 }

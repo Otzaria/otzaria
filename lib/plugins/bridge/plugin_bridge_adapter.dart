@@ -768,14 +768,16 @@ class PluginBridgeAdapter {
 
   /// משחרר את מה שקשור לדף הנוכחי — תרומות ו-streams — כשה-WebView שוחרר.
   /// המתאם ממשיך לשמש את הדף הבא של אותו מופע.
-  void releaseRuntime() {
+  void releaseRuntime({bool removeRegistrations = true}) {
     // מסיר רק את תרומות המופע הזה — מופע אחר של אותו תוסף ממשיך לתפקד,
     // וה-dedup בציור חושף את העותקים שלו.
     final key = (pluginId: plugin.pluginId, instanceId: instanceId);
-    ContextMenuRegistry.instance.removeInstance(key);
-    PluginToolbarRegistry.instance.removeInstance(key);
-    PluginUnsavedChangesRegistry.instance.removeInstance(key);
-    _highlightRegistry.removeInstance(key);
+    if (removeRegistrations) {
+      ContextMenuRegistry.instance.removeInstance(key);
+      PluginToolbarRegistry.instance.removeInstance(key);
+      PluginUnsavedChangesRegistry.instance.removeInstance(key);
+      _highlightRegistry.removeInstance(key);
+    }
     for (final cancel in _activeSearchStreams.values) {
       unawaited(cancel());
     }
@@ -788,9 +790,9 @@ class PluginBridgeAdapter {
     _pendingNetworkFetchCancellations.clear();
   }
 
-  void dispose() {
+  void dispose({bool removeRegistrations = true}) {
     _stopFolderRevocationListener();
-    releaseRuntime();
+    releaseRuntime(removeRegistrations: removeRegistrations);
     _networkFetchService?.dispose();
     _fileDownloadService?.dispose();
     _bookContentCache.clear();

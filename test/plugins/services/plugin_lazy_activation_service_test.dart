@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
+import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
+import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 void main() {
@@ -163,6 +166,31 @@ void main() {
       expect(delivered.map((event) => event.$3['n']), [1, 3]);
     },
   );
+  test('replacement stops the old runtime pending event flush', () async {
+    service.syncPlugin(
+      'p1',
+      broadcastTopics: const {},
+      scheduleStartup: false,
+    );
+    final oldOwner = service.attachBackgroundInstance('p1');
+    final firstDelivery = Completer<void>();
+    service.deliverOverride = (pluginId, topic, payload) async {
+      delivered.add((pluginId, topic, payload));
+      await firstDelivery.future;
+    };
+    service.queueTargetedEvent('p1', 'click', {'n': 1});
+    service.queueTargetedEvent('p1', 'click', {'n': 2});
+    final flush = service.onBackgroundInstanceReady(
+      'p1',
+      generation: service.activationGeneration('p1'),
+      runtimeToken: oldOwner,
+    );
+    final newOwner = service.attachBackgroundInstance('p1');
+    firstDelivery.complete();
+    await flush;
+    expect(delivered.map((event) => event.$3['n']), [1]);
+    service.onBackgroundInstanceClosed('p1', runtimeToken: newOwner);
+  });
 
   test('app.startup fires once per session, even after re-sync', () async {
     service.syncPlugin(
@@ -192,6 +220,26 @@ void main() {
     service.removePlugin('p1');
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(activations, isEmpty);
+  });
+
+  test('scheduled startup cannot revive a later eligibility generation', () {
+    fakeAsync((async) {
+      service.startupDelayOverride = const Duration(seconds: 8);
+      service.syncPlugin(
+        'p1',
+        broadcastTopics: const {},
+        scheduleStartup: true,
+      );
+      service.removePlugin('p1');
+      service.syncPlugin(
+        'p1',
+        broadcastTopics: const {},
+        scheduleStartup: false,
+      );
+      async.elapse(const Duration(seconds: 8));
+      expect(activations, isEmpty);
+      service.removePlugin('p1');
+    });
   });
 
   test(
@@ -330,11 +378,11 @@ void main() {
       service.trackIdleTeardown('p1');
       await service.onBackgroundInstanceReady('p1');
 
-      service.beginWork('p1');
+      final finish = service.beginWork('p1');
       await Future<void>.delayed(const Duration(milliseconds: 80));
       expect(deactivations, isEmpty, reason: 'RPC ארוך באמצע — אסור לקטוע');
 
-      service.endWork('p1');
+      finish();
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(deactivations, ['p1']);
     });
@@ -343,13 +391,14 @@ void main() {
       service.trackIdleTeardown('p1');
       await service.onBackgroundInstanceReady('p1');
 
-      service.beginWork('p1');
-      service.beginWork('p1');
-      service.endWork('p1');
+      final finishFirst = service.beginWork('p1');
+      final finishLast = service.beginWork('p1');
+      finishFirst();
+      finishFirst();
       await Future<void>.delayed(const Duration(milliseconds: 80));
       expect(deactivations, isEmpty);
 
-      service.endWork('p1');
+      finishLast();
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(deactivations, ['p1']);
     });
@@ -380,13 +429,98 @@ void main() {
       await service.onBackgroundInstanceReady('p1');
 
       expect(service.requestImmediateTeardown('p1'), isTrue);
-      service.beginWork('p1');
+      final finish = service.beginWork('p1');
       await Future<void>.delayed(const Duration(milliseconds: 400));
       expect(deactivations, isEmpty, reason: 'RPC חדש נפתח — לא קוטעים');
 
-      service.endWork('p1');
+      finish();
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(deactivations, ['p1'], reason: 'ומשם — השעון הרגיל');
+    });
+
+    test(
+      'backgroundDone from a closed instance cannot close its replacement',
+      () {
+        fakeAsync((async) {
+          service.idleDelayOverride = const Duration(seconds: 30);
+          service.trackIdleTeardown('p1');
+          unawaited(service.onBackgroundInstanceReady('p1'));
+          async.flushMicrotasks();
+          expect(service.requestImmediateTeardown('p1'), isTrue);
+          service.onBackgroundInstanceClosed('p1');
+          service.trackIdleTeardown('p1');
+          unawaited(service.onBackgroundInstanceReady('p1'));
+          async.flushMicrotasks();
+          async.elapse(const Duration(milliseconds: 400));
+          expect(deactivations, isEmpty);
+          service.onBackgroundInstanceClosed('p1');
+        });
+      },
+    );
+
+    test('unsaved background state blocks idle and explicit teardown', () {
+      const key = (pluginId: 'p1', instanceId: PluginInstanceIds.background);
+      final unsaved = PluginUnsavedChangesRegistry.instance;
+      fakeAsync((async) {
+        service.idleDelayOverride = const Duration(seconds: 1);
+        service.trackIdleTeardown('p1');
+        unawaited(service.onBackgroundInstanceReady('p1'));
+        async.flushMicrotasks();
+        unsaved.set(key, hasChanges: true);
+        try {
+          expect(service.canTeardown('p1'), isFalse);
+          expect(service.requestImmediateTeardown('p1'), isTrue);
+          async.elapse(const Duration(seconds: 4));
+          expect(deactivations, isEmpty);
+          unsaved.removeInstance(key);
+          async.elapse(const Duration(seconds: 1));
+          expect(deactivations, ['p1']);
+        } finally {
+          unsaved.removeInstance(key);
+          service.onBackgroundInstanceClosed('p1');
+        }
+      });
+    });
+
+    test(
+      'protected sessions defer idle teardown until protection is cleared',
+      () {
+        fakeAsync((async) {
+          var protected = true;
+          final protectedService =
+              PluginLazyActivationService.forTesting(
+                  hasEssentialState: (_) => protected,
+                )
+                ..idleDelayOverride = const Duration(seconds: 1)
+                ..backgroundDeactivator = deactivations.add;
+          protectedService.trackIdleTeardown('p1');
+          unawaited(protectedService.onBackgroundInstanceReady('p1'));
+          async.flushMicrotasks();
+          async.elapse(const Duration(seconds: 3));
+          expect(deactivations, isEmpty);
+          protected = false;
+          async.elapse(const Duration(seconds: 1));
+          expect(deactivations, ['p1']);
+          protectedService.onBackgroundInstanceClosed('p1');
+        });
+      },
+    );
+
+    test('an unfinished boot is protected after its initial RPC completed', () {
+      fakeAsync((async) {
+        service.idleDelayOverride = const Duration(seconds: 1);
+        service.queueTargetedEvent('p1', 'click', {});
+        service.trackIdleTeardown('p1');
+        service.beginWork('p1')();
+        async.elapse(const Duration(seconds: 3));
+        expect(service.isBootPending('p1'), isTrue);
+        expect(deactivations, isEmpty);
+        unawaited(service.onBackgroundInstanceReady('p1'));
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 1));
+        expect(deactivations, ['p1']);
+        service.onBackgroundInstanceClosed('p1');
+      });
     });
 
     test('a torn-down plugin can be re-activated by the next click', () async {
@@ -493,21 +627,81 @@ void main() {
       );
       final oldGeneration = service.activationGeneration('p1');
       service.trackIdleTeardown('p1', generation: oldGeneration);
-      service.beginWork('p1');
+      final finishOld = service.beginWork('p1');
 
       service.onBackgroundProcessGone('p1', generation: oldGeneration);
-      expect(service.isBusy('p1'), isTrue);
+      expect(service.isBusy('p1'), isFalse);
       final newGeneration = service.activationGeneration('p1');
       expect(newGeneration, oldGeneration + 1);
       service.trackIdleTeardown('p1', generation: newGeneration);
-      service.beginWork('p1');
+      final finishNew = service.beginWork('p1');
 
       service.onBackgroundInstanceClosed('p1', generation: oldGeneration);
-      service.endWork('p1');
+      finishOld();
       expect(service.isBusy('p1'), isTrue);
-      service.endWork('p1');
+      finishNew();
       expect(service.isBusy('p1'), isFalse);
       service.removePlugin('p1');
+    },
+  );
+
+  test('a late RPC completion after normal close cannot finish a new job', () {
+    service.trackIdleTeardown('p1');
+    final finishOld = service.beginWork('p1');
+    service.onBackgroundInstanceClosed('p1');
+    service.trackIdleTeardown('p1');
+    final finishNew = service.beginWork('p1');
+    finishOld();
+    finishOld();
+    expect(service.isBusy('p1'), isTrue);
+    finishNew();
+    expect(service.isBusy('p1'), isFalse);
+    service.onBackgroundInstanceClosed('p1');
+  });
+
+  test(
+    'same-generation replacement owns teardown before its controller exists',
+    () {
+      fakeAsync((async) {
+        service.syncPlugin(
+          'p1',
+          broadcastTopics: const {},
+          scheduleStartup: false,
+        );
+        final generation = service.activationGeneration('p1');
+        service.trackIdleTeardown('p1', generation: generation);
+        final oldOwner = service.attachBackgroundInstance('p1');
+        final finishOld = service.beginWork('p1', runtimeToken: oldOwner);
+        expect(
+          service.requestImmediateTeardown('p1', runtimeToken: oldOwner),
+          isTrue,
+        );
+        final newOwner = service.attachBackgroundInstance('p1');
+        final finishNew = service.beginWork('p1', runtimeToken: newOwner);
+
+        service.onBackgroundInstanceClosed(
+          'p1',
+          generation: generation,
+          runtimeToken: oldOwner,
+        );
+        service.onBackgroundInstanceFailed(
+          'p1',
+          generation: generation,
+          runtimeToken: oldOwner,
+        );
+        finishOld();
+        service.beginWork('p1', runtimeToken: oldOwner)();
+        expect(service.isBusy('p1'), isTrue);
+        expect(service.activationGeneration('p1'), generation);
+        expect(
+          service.requestImmediateTeardown('p1', runtimeToken: oldOwner),
+          isFalse,
+        );
+        finishNew();
+        expect(service.isBusy('p1'), isFalse);
+        service.onBackgroundInstanceClosed('p1', runtimeToken: newOwner);
+        expect(async.pendingTimers, isEmpty);
+      });
     },
   );
 

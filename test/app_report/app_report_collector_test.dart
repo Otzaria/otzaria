@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:otzaria/plugins/services/plugin_discard_policy.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -65,9 +68,7 @@ void main() {
       clock: () => now,
     );
     final diagnostics = await collector.collectDiagnostics();
-    expect(diagnostics['appInfo'], {
-      'error': 'Bad state: library not loaded',
-    });
+    expect(diagnostics['appInfo'], {'error': 'Bad state: library not loaded'});
     expect(diagnostics['system'], containsPair('arch', isA<String>()));
     expect(diagnostics['context'], {'screen': 'reading', 'tabs': 3});
     expect(diagnostics['startupTimeline'], contains('lines'));
@@ -93,10 +94,9 @@ void main() {
       clock: () => now,
     );
     final diagnostics = await collector.collectDiagnostics();
-    expect(
-      (diagnostics['appInfo'] as Map)['app'],
-      {'dataRootPath': r'%USERPROFILE%\AppData\Roaming\otzaria'},
-    );
+    expect((diagnostics['appInfo'] as Map)['app'], {
+      'dataRootPath': r'%USERPROFILE%\AppData\Roaming\otzaria',
+    });
   });
 
   test('לוג: רק השבוע האחרון, מסודר כרונולוגית, עם לוג הסגירה', () async {
@@ -249,7 +249,10 @@ void main() {
       updatedAt: now,
     );
 
-    setUp(() {
+    setUp(() async {
+      await PluginRuntimeDispatcher.instance.prepareForAppRestart();
+      PluginRuntimeDispatcher.instance.resetVisibilityForTesting();
+      PluginRuntimeDispatcher.instance.discardLimitsOverride = null;
       DeveloperDiagnostics.instance.contextProvider = () => describeAppContext(
         screen: Screen.reading,
         tabs: TabsState(
@@ -259,7 +262,11 @@ void main() {
         pluginState: PluginSystemLoaded([plugin()]),
       );
     });
-    tearDown(() => DeveloperDiagnostics.instance.contextProvider = null);
+    tearDown(() async {
+      DeveloperDiagnostics.instance.contextProvider = null;
+      await PluginRuntimeDispatcher.instance.prepareForAppRestart();
+      PluginRuntimeDispatcher.instance.resetVisibilityForTesting();
+    });
 
     test('נאסף מהחלון הנוכחי, כולל התוסף הפתוח, ומוסתר', () async {
       final diagnostics = await AppReportCollector(
@@ -273,6 +280,26 @@ void main() {
         'tabsByType': {'ToolTab': 1},
         'currentTab': 'ToolTab',
         'currentTitle': r'%USERPROFILE%\Demo',
+        'pluginResources': {
+          'registered': 0,
+          'live': 0,
+          'suspended': 0,
+          'released': 0,
+          'discardCandidates': 0,
+          'eligible': 0,
+          'exempt': 0,
+          'firstBlockerCounts': <String, int>{},
+          'limits': {
+            'maxLiveSuspended': PluginDiscardLimits.forPlatform(
+              defaultTargetPlatform,
+            ).maxLiveSuspended,
+            'maxSuspendedAgeMs': PluginDiscardLimits.forPlatform(
+              defaultTargetPlatform,
+            ).maxSuspendedAge.inMilliseconds,
+          },
+          'instances': <Map<String, Object?>>[],
+          'detailsTruncated': false,
+        },
         'plugins': [
           {
             'id': 'demo.plugin',
