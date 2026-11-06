@@ -268,14 +268,26 @@ class Runner:
             time.sleep(0.1)
         self.current_pid = None
 
+    def read_report_file(self, config, filename):
+        # exec-out has no remote exit status; shell -T keeps that status and separates stderr.
+        result = self.adb("shell", "-T", "run-as", PACKAGE, "cat", report_path(config, filename), check=False)
+        folder = self.output / config["runId"]
+        folder.mkdir(exist_ok=True)
+        (folder / f"{filename}.read.stdout").write_bytes(result.stdout)
+        (folder / f"{filename}.read.stderr").write_bytes(result.stderr)
+        (folder / f"{filename}.read.json").write_text(json.dumps({
+            "atUtc": utc_now(), "exitCode": result.returncode,
+        }) + "\n")
+        return result
+
     def wait_report(self, config, filename, timeout):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            result = self.adb("exec-out", "run-as", PACKAGE, "cat", report_path(config, filename), check=False)
+            result = self.read_report_file(config, filename)
             if result.returncode == 0:
                 return json.loads(result.stdout)
             if filename == "ready.json":
-                failed = self.adb("exec-out", "run-as", PACKAGE, "cat", report_path(config, "completion.json"), check=False)
+                failed = self.read_report_file(config, "completion.json")
                 if failed.returncode == 0:
                     (self.output / config["runId"] / "completion.json").write_bytes(failed.stdout)
                     raise RuntimeError("The integration test ended before the host sampling boundary; see completion.json")
