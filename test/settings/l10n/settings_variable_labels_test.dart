@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -27,6 +28,21 @@ import '../../../tool/src/settings_l10n_generator.dart';
 
 void main() {
   final catalog = kSettingsCatalogs['en']!;
+
+  test(
+    'report compatibility messages passed through variables are translated',
+    () {
+      for (final message in [
+        ReportMessages.extendedReportQueued,
+        ReportMessages.reportServerUpgradeRequired,
+        ReportMessages.reportRejectedPreserved,
+      ]) {
+        expect(catalog, contains(message));
+        expect(catalog[message], isNot(message));
+        expect(catalog[message], isNot(matches(RegExp(r'[א-ת]'))));
+      }
+    },
+  );
 
   group('תוויות מטבלאות נתונים', () {
     const dataLabels = <String, List<String>>{

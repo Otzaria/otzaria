@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/services/backup/backup_merge.dart';
+import 'package:otzaria/settings/services/backup/backup_report_format.dart';
 import 'package:otzaria/settings/services/backup/backup_rotation.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 
@@ -269,7 +270,7 @@ class BackupMaintenance {
         }
       }
     }
-    manifest['version'] = '2.0';
+    setReportAwareBackupVersion(manifest);
   }
 
   /// Mark & Sweep: אוסף הפניות מכל המניפסטים שנותרו (גיבויים + ארכיון)

@@ -823,6 +823,29 @@ void main() {
   });
 
   group('שני חלונות על אותו מסד', () {
+    test(
+      'explicit queueing rejects different content under an existing ID',
+      () async {
+        final service = DirectErrorReportService(reportStore: store);
+        final first = _buildReport(id: 'same-id');
+        await service.queueReport(first);
+        await service.queueReport(first);
+        final before = (await service.getPendingReports()).single;
+
+        await expectLater(
+          service.queueReport(first.copyWith(errorDetails: 'new content')),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              ReportMessages.reportIdConflict,
+            ),
+          ),
+        );
+        expect((await service.getPendingReports()).single, before);
+      },
+    );
+
     test('דיווחים משני חיבורים נשמרים יחד, ושליחה מוחקת רק את הנשלח', () async {
       final path = '${tmp.path}${Platform.pathSeparator}user_state.db';
       final secondDb = UserStateDatabase.openAt(path);
@@ -1433,8 +1456,18 @@ class _TrackingReportStore extends PendingReportStore {
   int lookupRows = 0;
 
   @override
-  Future<PendingReport?> findByPayloadId(String kind, String reportId) async {
-    final row = await super.findByPayloadId(kind, reportId);
+  Future<PendingReport?> findByPayloadId(
+    String kind,
+    String reportId, {
+    String idField = 'id',
+    String? additionalKind,
+  }) async {
+    final row = await super.findByPayloadId(
+      kind,
+      reportId,
+      idField: idField,
+      additionalKind: additionalKind,
+    );
     if (row != null) lookupRows++;
     return row;
   }
@@ -1442,6 +1475,7 @@ class _TrackingReportStore extends PendingReportStore {
   @override
   Future<List<PendingReport>> listByKind(
     String kind, {
+    String? additionalKind,
     String? whereField,
     Object? equals,
     int? limit,
@@ -1449,6 +1483,7 @@ class _TrackingReportStore extends PendingReportStore {
     listCalls++;
     final rows = await super.listByKind(
       kind,
+      additionalKind: additionalKind,
       whereField: whereField,
       equals: equals,
       limit: limit,

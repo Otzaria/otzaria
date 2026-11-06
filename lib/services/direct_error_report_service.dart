@@ -247,7 +247,8 @@ class DirectErrorReportService {
     DirectErrorReport report, {
     DirectErrorReportQueueType queueType = DirectErrorReportQueueType.manual,
   }) async {
-    await _enqueueIfNeeded(report, queueType: queueType);
+    final conflict = await _enqueueIfNeeded(report, queueType: queueType);
+    if (conflict != null) throw StateError(conflict.message);
   }
 
   Future<void> clearPendingReports() async {

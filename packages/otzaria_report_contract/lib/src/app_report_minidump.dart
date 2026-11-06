@@ -13,16 +13,35 @@ import 'package:path/path.dart' as p;
 class AppReportMinidump extends Equatable {
   const AppReportMinidump({required this.gzipBytes, required this.fileName});
 
-  /// גבול ה-dump לפני דחיסה; ב-1000 כדי להישאר מתחת לגבול השרת (16MiB).
-  static const int maxRawBytes = 16 * 1000 * 1000;
+  /// מגבלת הקובץ לפני דחיסת gzip, ביחידות MiB.
+  static const int maxRawBytes = 10 * 1024 * 1024;
+  static const int legacyMaxRawBytes = 16 * 1024 * 1024;
+  // gzip עשוי להגדיל קלט בלתי דחיס בגבול הקובץ המותר.
+  static const int compressionAllowance = 64 * 1024;
 
   /// הנפח המרבי בגוף הבקשה: base64 של dump שלא התכווץ, ועוד השם.
-  static const int maxPayloadBytes = (maxRawBytes + 2) ~/ 3 * 4 + 1024;
+  static const int maxPayloadBytes =
+      (maxRawBytes + compressionAllowance + 2) ~/ 3 * 4 + 1024;
 
   static const int maxFileNameLength = 200;
 
   final Uint8List gzipBytes;
   final String fileName;
+
+  /// ISIZE של gzip שיצר [fromFile], לחישוב תקציב בלי לפתוח dump על ה-UI.
+  /// השרת פותח את הקובץ ומאמת את מספר הבתים בפועל.
+  int? get rawByteLength {
+    if (gzipBytes.length < 18 ||
+        gzipBytes[0] != 0x1f ||
+        gzipBytes[1] != 0x8b ||
+        gzipBytes[2] != 8) {
+      return null;
+    }
+    return ByteData.sublistView(gzipBytes).getUint32(
+      gzipBytes.length - 4,
+      Endian.little,
+    );
+  }
 
   /// קורא ודוחס את [file] ב-isolate. `null` כשהקובץ חסר, גדול מדי או
   /// שאינו minidump — הדיווח יישלח בלעדיו.
@@ -46,6 +65,7 @@ class AppReportMinidump extends Equatable {
     final file = File(path);
     if (file.lengthSync() > maxRawBytes) return null;
     final bytes = file.readAsBytesSync();
+    if (bytes.length > maxRawBytes) return null;
     // 'MDMP'
     if (bytes.length < 4 ||
         bytes[0] != 0x4D ||
@@ -56,7 +76,9 @@ class AppReportMinidump extends Equatable {
     }
     final compressed = Uint8List.fromList(gzip.encode(bytes));
     // dump שלא התכווץ עדיין נכנס בתקציב, אבל אין טעם לשלוח אותו גדול יותר.
-    return compressed.length <= maxRawBytes ? compressed : null;
+    return compressed.length <= maxRawBytes + compressionAllowance
+        ? compressed
+        : null;
   }
 
   /// הרשומה בגוף הבקשה ובתור המקומי.
