@@ -10,6 +10,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final originalModulePath = Pdfrx.pdfiumModulePath;
   late Directory directory;
   late File file;
   late Uint8List bytes;
@@ -20,6 +21,14 @@ void main() {
   ];
 
   setUpAll(() async {
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
     directory = await Directory.systemTemp.createTemp('print-source-');
     await pdfrxInitialize(tmpPath: directory.path);
     final pdf = pw.Document(compress: false, title: 'x' * (1024 * 1024 + 1));
@@ -35,7 +44,10 @@ void main() {
     expect(bytes.length, greaterThan(1024 * 1024));
     file = await File('${directory.path}/mixed.pdf').writeAsBytes(bytes);
   });
-  tearDownAll(() => directory.delete(recursive: true));
+  tearDownAll(() async {
+    Pdfrx.pdfiumModulePath = originalModulePath;
+    await directory.delete(recursive: true);
+  });
 
   for (final fromFile in [true, false]) {
     test(
