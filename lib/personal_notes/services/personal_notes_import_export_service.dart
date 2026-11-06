@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
@@ -29,9 +30,16 @@ class NotesImportSummary {
 
 class PersonalNotesImportExportService {
   final PersonalNotesDatabase _database;
+  final Random _random;
+  final DateTime Function() _now;
 
-  PersonalNotesImportExportService({PersonalNotesDatabase? database})
-    : _database = database ?? PersonalNotesDatabase.instance;
+  PersonalNotesImportExportService({
+    PersonalNotesDatabase? database,
+    Random? random,
+    DateTime Function()? now,
+  }) : _database = database ?? PersonalNotesDatabase.instance,
+       _random = random ?? Random.secure(),
+       _now = now ?? DateTime.now;
 
   Map<String, dynamic> buildExport({
     required List<PersonalNote> notes,
@@ -382,8 +390,12 @@ class PersonalNotesImportExportService {
   }
 
   String _generateId() {
-    final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final randomPart = timestamp.toRadixString(16).padLeft(8, '0');
+    final timestamp = _now().microsecondsSinceEpoch;
+    // Imports can create several copies within the same clock tick.
+    final randomPart = List.generate(
+      4,
+      (_) => _random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0'),
+    ).join();
     return 'pn_${timestamp}_$randomPart';
   }
 }

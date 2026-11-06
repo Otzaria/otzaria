@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -443,6 +444,62 @@ void main() {
       },
     );
   }
+
+  test(
+    'keepBoth preserves every copy when the clock does not advance',
+    () async {
+      final instant = DateTime.utc(2026, 11, 6);
+      final fixedClockService = PersonalNotesImportExportService(
+        database: database,
+        random: Random(1),
+        now: () => instant,
+      );
+      final anotherService = PersonalNotesImportExportService(
+        database: database,
+        random: Random(2),
+        now: () => instant,
+      );
+      final incoming = [
+        for (var index = 0; index < 32; index++)
+          note('same', content: 'copy $index', day: 2),
+      ];
+      final file = File('${root.path}/fixed-clock-notes.json');
+      await file.writeAsString(
+        jsonEncode(backup(incoming.map((note) => note.toJson()).toList())),
+      );
+      final revision = database.revision.value;
+
+      for (final importer in [
+        fixedClockService,
+        fixedClockService,
+        anotherService,
+      ]) {
+        final summary = await importer.importFromFile(
+          path: file.path,
+          strategy: NotesImportConflictStrategy.keepBoth,
+        );
+        expectCounts(summary, duplicated: incoming.length);
+      }
+
+      await pumpEventQueue();
+      final all = await database.loadNotes('ספר');
+      expect(all.map((note) => note.id).toSet(), hasLength(98));
+      expect((await database.getNote('same'))!.toJson(), note('same').toJson());
+      expect(
+        all
+            .where((note) => note.id.startsWith('pn_'))
+            .map(
+              (note) => note.toJson()..remove('id'),
+            ),
+        unorderedEquals([
+          for (var iteration = 0; iteration < 3; iteration++)
+            ...incoming.map((note) => note.toJson()..remove('id')),
+        ]),
+      );
+      expect(database.revision.value - revision, 3);
+      expect(changes, ['ספר', 'ספר', 'ספר']);
+    },
+  );
 
   for (final strategy in [
     NotesImportConflictStrategy.skip,
