@@ -1,0 +1,15 @@
+{
+  "renderer": "Flutter widget tests",
+  "hostPlatform": "linux",
+  "commit": "e7c687fc997d726715b8857750a6d09c9a24424a",
+  "dartVersion": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+  "fonts": [
+    "Roboto",
+    "Rubik",
+    "FrankRuhlCLM",
+    "bundled icon faces"
+  ],
+  "pixelRatio": 1.5,
+  "capture": "Actual reporting/settings widgets with temporary SQLite data",
+  "nativeWindowsRun": false
+}
