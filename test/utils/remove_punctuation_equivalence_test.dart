@@ -22,7 +22,6 @@ final RegExp _oracleWordEnd = RegExp(
   "[א-ײ0-9a-zA-Z'׳)\\]\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]",
 );
 final RegExp _oracleWordStart = RegExp(r'[א-ײ0-9a-zA-Z(\[]');
-final RegExp _oracleSpace = RegExp(r'^\s$');
 
 /// התו הגלוי שאחרי רצף פיסוק ותגים, אחרי פענוח ישות.
 final RegExp _oracleAfterPunctuation = RegExp(
@@ -78,6 +77,7 @@ String _oracleRemovePunctuation(String text) {
     var parenDepth = 0;
     var inTag = false;
     var previous = '';
+    var previousWasLiteralSpace = false;
     var skipAt = -1;
     for (var i = 0; i < processed.length; i++) {
       final ch = processed[i];
@@ -92,12 +92,13 @@ String _oracleRemovePunctuation(String text) {
         buffer.write(ch);
         continue;
       }
-      if (i == skipAt) continue;
+      if (i == skipAt && previousWasLiteralSpace) continue;
       if (ch == '&') {
         final entity = _oracleHtmlEntity.matchAsPrefix(processed, i);
         if (entity != null) {
           final decoded = decodeHtmlEntities(entity.group(0)!);
           if (decoded.isNotEmpty) previous = decoded[decoded.length - 1];
+          previousWasLiteralSpace = false;
           buffer.write(entity.group(0));
           i = entity.end - 1;
           continue;
@@ -107,12 +108,14 @@ String _oracleRemovePunctuation(String text) {
         parenDepth++;
         buffer.write(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
       if (ch == ')') {
         if (parenDepth > 0) parenDepth--;
         buffer.write(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
 
@@ -130,6 +133,7 @@ String _oracleRemovePunctuation(String text) {
       if (parenDepth > 0 && (ch == ':' || ch == '.')) {
         buffer.write(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
       if (isPunctuation) {
@@ -138,14 +142,16 @@ String _oracleRemovePunctuation(String text) {
             (ch == '.' || ch == ':')) {
           buffer.write(ch);
           previous = ch;
+          previousWasLiteralSpace = false;
         } else if (_oracleWordEnd.hasMatch(previous) &&
             _oracleWordStart.hasMatch(_oracleNextVisible(processed, i + 1))) {
           buffer.write(' ');
           previous = ' ';
-        } else if (_oracleSpace.hasMatch(previous)) {
+          previousWasLiteralSpace = true;
+        } else if (previousWasLiteralSpace) {
           final next = _oracleAfterPunctuation.matchAsPrefix(processed, i + 1);
           final visible = next?.group(1);
-          if (visible != null && _oracleSpace.hasMatch(visible)) {
+          if (visible == ' ') {
             skipAt = next!.end - 1;
           }
         }
@@ -153,6 +159,7 @@ String _oracleRemovePunctuation(String text) {
       }
       buffer.write(ch);
       previous = ch;
+      previousWasLiteralSpace = ch == ' ';
     }
     processedLines.add(buffer.toString());
   }
@@ -207,7 +214,7 @@ const List<String> _fragments = [
   '&', '&nbsp;', '&#1488;', '&#x05B4;', '&amp', '&;', '\n', '\r', '\r\n', //
   '# ', '<h2>', '</h2>', '😀', '\uD83D', '\uDE00', '\u{10FFFF}', '\uFFFF', //
   '\u0000', '\u000B', '\u00A0', '\u2028', '\u3000', '\uFEFF', '\u0085', //
-  '\u200B',
+  '\u200B', '\u2029',
 ];
 
 String _randomInput(Random random) {
@@ -241,6 +248,11 @@ void main() {
       ' ',
       '\n',
       'אב.',
+      '(א —: ב)',
+      '(א —. ב)',
+      'א —\u2029ב',
+      'א\u00a0— ב',
+      'א&nbsp;— ב',
       'אב, גד; הו!',
       'א:ב (ג:ד. ה) ו.',
       '((א.) ב.) ג.',

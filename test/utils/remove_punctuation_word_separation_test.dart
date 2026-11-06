@@ -61,6 +61,76 @@ void main() {
     }
   });
 
+  group('כיווץ רווח סביב פיסוק שומר גבולות ומשמעות רווחים', () {
+    const retained = <String, String>{
+      '(א —: ב)': '(א : ב)',
+      '(א —. ב)': '(א . ב)',
+      '(א <b>—:</b> ב)': '(א <b>:</b> ב)',
+      '(א —,.: ב)': '(א .: ב)',
+      'א —: ': 'א : ',
+      '(דפוס ווילנא תרכ״ו —: דאכילת מצוה שריא בודאי)':
+          '(דפוס ווילנא תרכ״ו : דאכילת מצוה שריא בודאי)',
+    };
+    for (final entry in retained.entries) {
+      test('פיסוק שנשמר אינו בולע רווח: ${entry.key}', () {
+        expect(removePunctuation(entry.key), entry.value);
+      });
+    }
+
+    const spaces = [
+      '\t',
+      '\v',
+      '\f',
+      '\u00a0',
+      '\u1680',
+      '\u2000',
+      '\u2001',
+      '\u2002',
+      '\u2003',
+      '\u2004',
+      '\u2005',
+      '\u2006',
+      '\u2007',
+      '\u2008',
+      '\u2009',
+      '\u200a',
+      '\u2028',
+      '\u2029',
+      '\u202f',
+      '\u205f',
+      '\u3000',
+      '\ufeff',
+    ];
+    for (final space in spaces) {
+      test('רווח מיוחד ${space.codeUnits} נשמר משני צדי המקף', () {
+        expect(removePunctuation('א —$spaceב'), 'א $spaceב');
+        expect(removePunctuation('א$space— ב'), 'א$space ב');
+        expect(removePunctuation('א$space—$spaceב'), 'א$space$spaceב');
+      });
+    }
+    for (final entity in [
+      '&nbsp;',
+      '&#160;',
+      '&#xA0;',
+      '&thinsp;',
+      '&ensp;',
+      '&emsp;',
+      '&#32;',
+    ]) {
+      test('ישות רווח נשמרת משני צדי המקף: $entity', () {
+        expect(removePunctuation('א —$entityב'), 'א $entityב');
+        expect(removePunctuation('א$entity— ב'), 'א$entity ב');
+        expect(removePunctuation('א$entity<b>—</b> ב'), 'א$entity<b></b> ב');
+      });
+    }
+
+    test('תגים ורצף פיסוק ארוך עדיין מכווצים רווחים רגילים', () {
+      final run = '—' * 16000;
+      expect(removePunctuation('א <b>$run</b> ב'), 'א <b></b>ב');
+      expect(removePunctuation('א $run: ב'), 'א ב');
+    });
+  });
+
   group('מיפוי בחירה מהתצוגה בלי פיסוק', () {
     test('בחירה סביב מקף מוקף רווחים ממופה למקור', () {
       const line = 'בְּיָדָיו — פָּטוּר, וְאִילּוּ';
@@ -101,10 +171,7 @@ void main() {
         selectionColumnHint: shown.indexOf(selected),
         punctuationHidden: true,
       );
-      expect(
-        _reported.substring(anchor!.start, anchor.end),
-        'אֲסִירֵי-חֵשֶׁק',
-      );
+      expect(_reported.substring(anchor!.start, anchor.end), 'אֲסִירֵי-חֵשֶׁק');
     });
 
     test('עוגן מהתצוגה עם הפיסוק מאותר באותו מקום', () {
