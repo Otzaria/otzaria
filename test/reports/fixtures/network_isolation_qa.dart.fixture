@@ -29,6 +29,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 import '../helpers/seforim_fixture_db.dart';
@@ -288,15 +289,10 @@ void main() {
     await tester.pump();
   }
 
-  String fieldText(WidgetTester tester, String key) => tester
-      .widget<EditableText>(
-        find.descendant(
-          of: find.byKey(ValueKey(key)),
-          matching: find.byType(EditableText),
-        ),
-      )
-      .controller
-      .text;
+  // The internal EditableText expands LF to CRLF for an RTL cursor workaround.
+  // The public controller is the exact text used by the form and report model.
+  String fieldText(WidgetTester tester, String key) =>
+      tester.widget<RtlTextField>(find.byKey(ValueKey(key))).controller!.text;
 
   Future<void> restartState(WidgetTester tester) => reportIo(tester, () async {
     await UserStateDatabase.instance.flushWrites();
