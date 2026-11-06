@@ -10,6 +10,7 @@ on:
       - 'integration_test/support/android_startup_*.dart'
       - 'integration_test/support/perf_fixture.dart'
       - 'test/tool/perf_probe/android_startup_*_test.dart'
+      - 'test/tool/perf_probe/perf_fixture*_test.dart'
       - 'tool/perf_probe/*android_startup*'
       - 'lib/main.dart'
       - 'lib/plugins/view/webview_environment_holder.dart'
@@ -49,6 +50,8 @@ jobs:
           flutter test --no-pub --concurrency=1 \
             test/tool/perf_probe/android_startup_protocol_test.dart \
             test/tool/perf_probe/android_startup_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
             test/plugins/view/webview_android_prewarm_test.dart \
             test/plugins/view/webview_environment_holder_test.dart
 
