@@ -248,6 +248,10 @@ class DataRepository {
       );
       await GenerationCache.instance.warmUp();
 
+      if (supersedeKey != null &&
+          !identical(_pendingBookSearches[supersedeKey], request)) {
+        throw const BookSearchSupersededException();
+      }
       final searchEntries = <BookSearchEntry>[
         for (var i = 0; i < allBooks.length; i++)
           buildBookSearchEntry(
