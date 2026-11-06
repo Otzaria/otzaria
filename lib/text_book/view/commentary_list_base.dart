@@ -1884,6 +1884,11 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         final notesIsActive = _allSelectedCommentators(
           state,
         ).contains(kNotesCommentatorTitle);
+        late final lineRelevantCommentators = lineRelevantRareCommentators(
+          rareCommentators: state.rareCommentators,
+          currentIndexes: _currentIndexes(state),
+          linksByLine: state.linksByLine,
+        );
         // רק כשיש מפרש רגיל לבחירה; כש'הערות' פעיל — רק בכרטיסיית המפרשים,
         // שם הבחירה נפתחת בלשונית נפרדת ואינה מסתירה את ההערות.
         final shouldAutoOpenOverrideFilter =
@@ -1894,7 +1899,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             !_autoFilterOpenNotified &&
             !_showCommentatorsFilter &&
             _commentatorGroups(state).any(
-              (group) => group.commentators.any(_isRegularCommentator),
+              (group) => group.commentators.any(
+                (title) =>
+                    _isRegularCommentator(title) &&
+                    (!state.rareCommentators.contains(title) ||
+                        lineRelevantCommentators.contains(title)),
+              ),
             );
 
         if (shouldAutoOpenOverrideFilter) {
@@ -2308,10 +2318,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               child: customSelection != null
                   ? CommentatorsSelectionPanel(
                       groups: groups,
-                      // מעבירים את הבחירה המלאה (כולל 'הערות') ולא את
-                      // selectedCommentators המסונן — אחרת תיבת הסימון של
-                      // 'הערות' לעולם לא תוצג כמסומנת, ובחירת מפרש אחר תמחק
-                      // אותו מהבחירה הפעילה.
+                      // הבחירה המלאה משמרת גם את 'הערות' כשבוחרים מפרש אחר.
                       selectedCommentators: _allSelectedCommentators(state),
                       onSelectionChanged: (list) {
                         _userInteractedWithFilter = true;
@@ -2319,11 +2326,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                       },
                       bookTitle: _bookTitle(state),
                       rareCommentators: state.rareCommentators,
-                      lineRelevantCommentators: lineRelevantRareCommentators(
-                        rareCommentators: state.rareCommentators,
-                        currentIndexes: _currentIndexes(state),
-                        linksByLine: state.linksByLine,
-                      ),
+                      lineRelevantCommentators: lineRelevantCommentators,
                       typeChipKeys: visibleTypeChipKeys,
                       selectedTypeChips: effectiveTypes,
                       typeChipLabelBuilder: LinkTypes.hebrewLabel,

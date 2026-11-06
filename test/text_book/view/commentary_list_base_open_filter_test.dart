@@ -20,6 +20,7 @@ import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
+
 import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -155,9 +156,7 @@ void main() {
         )
         .future!;
 
-    testWidgets('rebuild בלי שינוי בקלטים שומר על אותו future', (
-      tester,
-    ) async {
+    testWidgets('rebuild בלי שינוי בקלטים שומר על אותו future', (tester) async {
       await _pump(
         tester,
         textBookBloc: textBookBloc,
@@ -221,9 +220,7 @@ void main() {
   });
 
   group('CommentaryListBase - notesIsActive prevents auto-open filter', () {
-    // כאשר activeCommentators מכיל רק 'הערות', selectedCommentators הוא ריק
-    // (הערות מסוננות החוצה), אך notesIsActive=true, ולכן לא צריכה להיפתח
-    // חלונית בחירת המפרשים אוטומטית.
+    // 'הערות' אינה מפרש רגיל, אבל בחירה בה עדיין מונעת פתיחה שמסתירה אותה.
 
     testWidgets(
       'activeCommentators=[הערות] + onSelectedCommentatorsOverrideChanged: לא נפתח אוטומטית',
@@ -284,12 +281,7 @@ void main() {
     testWidgets(
       'activeCommentators=[הערות] + onFilterOpenRequested: נקרא פעם אחת בלבד גם תחת rebuilds',
       (tester) async {
-        // כרטיסיית המפרשים פותחת את הבחירה בלשונית צד נפרדת (onFilterOpenRequested)
-        // שאינה מסתירה את ההערות. לכן גם כש'הערות' פעיל ואין מפרשים נבחרים,
-        // יש להעביר את המשתמש לבחירת מפרשים ולא להשאירו תקוע על "אין הערות".
-        // הקולבק כאן עושה setState (כמו _openCommentatorsSelectionPane שמעדכן
-        // _navPaneOpen), מה שמפעיל rebuild — ה-latch חייב למנוע קריאה חוזרת,
-        // אחרת תיווצר לולאת rebuild + side-effect (pumpAndSettle יזרוק timeout).
+        // פתיחת לשונית הבחירה בונה שוב את ההורה; ה-latch מונע לולאת פתיחות.
         final notesOnlyBloc = _TestTextBookBloc(
           _loadedStateWithCommentators([kNotesCommentatorTitle]),
         );
@@ -374,6 +366,76 @@ void main() {
       },
     );
 
+    for (final delegated in [false, true]) {
+      testWidgets(
+        'מפרש נדיר שאינו רלוונטי מוסתר — אין פתיחה חוזרת (delegated=$delegated)',
+        (tester) async {
+          final bloc = _TestTextBookBloc(
+            _loadedStateWithCommentators([], bookNotes: notes).copyWith(
+              rareCommentators: const {'מפרש בדיקה'},
+              linksByLine: {
+                2: [_commentaryLink(2)],
+              },
+            ),
+          );
+          addTearDown(bloc.close);
+          var openRequests = 0;
+
+          await _pumpWithOverride(
+            tester,
+            textBookBloc: bloc,
+            settingsBloc: settingsBloc,
+            onFilterOpenRequested: delegated ? () => openRequests++ : null,
+          );
+          expect(find.text('בחירת מפרשים'), findsNothing);
+          expect(find.text(emptyMessage), findsOneWidget);
+          expect(openRequests, 0);
+
+          if (!delegated) {
+            await tester.tap(find.byType(CommentatorsFilterButton));
+            await tester.pumpAndSettle();
+            expect(find.text('בחירת מפרשים'), findsOneWidget);
+            expect(find.text('מפרש בדיקה'), findsNothing);
+            expect(find.text(kNotesCommentatorTitle), findsOneWidget);
+            await tester.tap(find.byTooltip('חזרה למפרשים'));
+            await tester.pumpAndSettle();
+            expect(find.text('בחירת מפרשים'), findsNothing);
+            expect(find.text(emptyMessage), findsOneWidget);
+          }
+        },
+      );
+    }
+
+    for (final selection in ['visible', 'multiple', 'override']) {
+      testWidgets('מפרש נדיר רלוונטי ל-$selection — הבחירה נפתחת', (
+        tester,
+      ) async {
+        final bloc = _TestTextBookBloc(
+          _loadedStateWithCommentators(
+            [],
+            bookNotes: notes,
+            line: selection == 'visible' ? 1 : 0,
+          ).copyWith(
+            rareCommentators: const {'מפרש בדיקה'},
+            selectedIndices: selection == 'multiple' ? const {0, 1} : const {},
+            linksByLine: {
+              2: [_commentaryLink(2)],
+            },
+          ),
+        );
+        addTearDown(bloc.close);
+
+        await _pumpWithOverride(
+          tester,
+          textBookBloc: bloc,
+          settingsBloc: settingsBloc,
+          indexes: selection == 'override' ? const [1] : null,
+        );
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+        expect(find.text('מפרש בדיקה'), findsOneWidget);
+      });
+    }
+
     testWidgets('יש גם מפרש רגיל לבחירה — הבחירה נפתחת אוטומטית', (
       tester,
     ) async {
@@ -448,6 +510,14 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+Link _commentaryLink(int line) => Link(
+  heRef: 'מפרש בדיקה',
+  index1: line,
+  path2: 'מפרש בדיקה.txt',
+  index2: 1,
+  connectionType: 'COMMENTARY',
+);
+
 TextBookLoaded _loadedState() {
   final link = Link(
     heRef: 'בראשית א',
@@ -517,6 +587,7 @@ Future<void> _pumpWithOverride(
   required TextBookBloc textBookBloc,
   required SettingsBloc settingsBloc,
   VoidCallback? onFilterOpenRequested,
+  List<int>? indexes,
 }) async {
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -536,8 +607,7 @@ Future<void> _pumpWithOverride(
             fontSize: 18,
             showSearch: true,
             shrinkWrap: false,
-            // מדמה מצב override (כרטיסיית מפרשים) שבו הפאנל נפתח אוטומטית
-            // כשאין מפרשים נבחרים — אלא אם notesIsActive מונע זאת.
+            indexes: indexes,
             onSelectedCommentatorsOverrideChanged: (_) {},
             onFilterOpenRequested: onFilterOpenRequested,
           ),
