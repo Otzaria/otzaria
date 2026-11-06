@@ -73,7 +73,7 @@ class PluginBridgeHandler {
     controller.addJavaScriptHandler(
       handlerName: 'otzaria_rpc',
       callback: (args) async {
-        return _handleRpc(
+        return handleRpc(
           args,
           eventSink: (topic, payload) async {
             await controller.evaluateJavascript(
@@ -88,7 +88,7 @@ class PluginBridgeHandler {
   }
 
   /// נקודת כניסה לבדיקות בלבד: מריצה את אותו נתיב RPC שמופעל מ-JavaScript,
-  /// כדי לבדוק את אכיפת ההרשאות וצימוד ההחרגה-מ-throttle ב-[_handleRpc].
+  /// כדי לבדוק את אכיפת ההרשאות וצימוד ההחרגה-מ-throttle ב-[handleRpc].
   /// [nonce] מוחלף כברירת מחדל ב-[bridgeNonce] התקין — העברת ערך מפורש
   /// מדמה קריאה שמקורה מחוץ ל-main frame.
   @visibleForTesting
@@ -104,7 +104,7 @@ class PluginBridgeHandler {
             ...args.skip(1),
           ]
         : args;
-    return _handleRpc(stamped, eventSink: eventSink);
+    return handleRpc(stamped, eventSink: eventSink);
   }
 
   /// ההרשאה שה-runtime אוכף בפועל עבור `domain.action`, לבדיקת התאמה מול
@@ -157,7 +157,9 @@ class PluginBridgeHandler {
       method == 'feedback.report' ||
       method == 'feedback.submitBookCorrection';
 
-  Future<dynamic> _handleRpc(
+  /// כניסת תעבורה לאותו שער הרשאות; זהות התוסף נקבעת בבנאי, לא בבקשה.
+  /// כל מארח חייב להעביר את ה-nonce המקורי ולתחום את חיי [eventSink] למופע.
+  Future<dynamic> handleRpc(
     List<dynamic> args, {
     PluginRpcEventSink? eventSink,
   }) async {
