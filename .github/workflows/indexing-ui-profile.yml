@@ -28,6 +28,8 @@ jobs:
         run: |
           git config --global core.longpaths true
           if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve LF source checkouts.' }
           $probeRoot = Join-Path $env:RUNNER_TEMP 'indexing-ui-source-probe'
           New-Item -ItemType Directory -Path $probeRoot | Out-Null
           "PROBE_ROOT=$probeRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
@@ -61,8 +63,10 @@ jobs:
             $checkoutPath = Join-Path $env:GITHUB_WORKSPACE $Side
             $prefix = Join-Path $env:PROBE_ROOT "$Side-$Stage"
             & git -C $checkoutPath rev-parse HEAD | Set-Content "$prefix-head.txt"
-            & git -C $checkoutPath status --porcelain=v1 --untracked-files=all | Set-Content "$prefix-status.txt"
-            if ($LASTEXITCODE -ne 0) { throw "Cannot inspect $Side source status." }
+            $sourceStatus = (& git -C $checkoutPath status --porcelain=v1 --untracked-files=all | Out-String)
+            $statusExitCode = $LASTEXITCODE
+            Set-Content -LiteralPath "$prefix-status.txt" -Value $sourceStatus
+            if ($statusExitCode -ne 0) { throw "Cannot inspect $Side source status." }
             & git -C $checkoutPath diff --no-ext-diff --raw | Set-Content "$prefix-raw.txt"
             & git -C $checkoutPath diff --no-ext-diff --numstat | Set-Content "$prefix-numstat.txt"
             & git -C $checkoutPath diff --no-ext-diff | Set-Content "$prefix-diff.patch"
