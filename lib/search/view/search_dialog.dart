@@ -371,6 +371,14 @@ class _SearchDialogState extends State<SearchDialog> {
               widget.initialSearchMode == null &&
               widget.existingTab == null &&
               widget.editTab == null);
+      if (_semanticSelected) {
+        // autofocus אינו בוחר טקסט; מכינים את הבחירה לפני הרכבת השדה,
+        // כדי שבדיקת הזמינות לא תדרוס בחירת סמן מאוחרת יותר.
+        _searchTab.queryController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _searchTab.queryController.text.length,
+        );
+      }
     }
     _pluginSearchSelections = Map<String, bool>.from(
       _searchTab.searchBloc.state.configuration.pluginSearchSelections,
