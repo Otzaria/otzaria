@@ -444,22 +444,13 @@ String _mediaPathFor(String target) {
   return path.startsWith('word/') ? path : 'word/$path';
 }
 
-/// מחזיר את ה-data URI של תמונה מוטמעת ב-run (DrawingML `a:blip` או VML
-/// `v:imagedata`), או `null`.
-///
-/// [includeShapeFill] מוסיף מילוי-תמונה של שייפ VML (`v:fill type="frame"`) —
-/// כך נמצאת תמונת הרקע של תיבת-טקסט, שאינה `v:imagedata`.
-String? _imageUriFromRun(
-  xml.XmlElement run,
-  Map<String, String> images, {
-  bool skipTextBoxContent = false,
-  bool includeShapeFill = false,
-}) {
+/// מחזיר את ה-data URI של תמונה מוטמעת ב-run (DrawingML `a:blip`, VML
+/// `v:imagedata`, או מילוי-תמונה `v:fill type="frame"` — תמונת הרקע של
+/// תיבת-טקסט), או `null`. תוכן תיבת-הטקסט עצמה מדולג.
+String? _imageUriFromRun(xml.XmlElement run, Map<String, String> images) {
   if (images.isEmpty) return null;
   String? visit(xml.XmlElement element) {
-    if (skipTextBoxContent && _isTextBoxContent(element)) {
-      return null;
-    }
+    if (_isTextBoxContent(element)) return null;
     if (element.name.qualified == 'a:blip') {
       final id =
           element.getAttribute('r:embed') ?? element.getAttribute('r:link');
@@ -475,8 +466,7 @@ String? _imageUriFromRun(
     }
     // `type="frame"` הוא מילוי-תמונה מתוח; מילוי דוגמה (`tile`/`pattern`) הוא
     // טקסטורה דקורטיבית שאין טעם להציג כתמונה.
-    if (includeShapeFill &&
-        element.name.qualified == 'v:fill' &&
+    if (element.name.qualified == 'v:fill' &&
         element.getAttribute('type') == 'frame') {
       final id = element.getAttribute('r:id') ?? element.getAttribute('src');
       final uri = id == null ? null : images[id];
@@ -515,12 +505,7 @@ String? _drawingHtmlFromRun(xml.XmlElement run, _DocxContext ctx) {
   // (אך עדיין מעבדים טקסט-בתיבה אם קיים, כדי לא לאבד תוכן).
   final imgUri = _isBehindDocDrawing(run)
       ? null
-      : _imageUriFromRun(
-          run,
-          ctx.images,
-          skipTextBoxContent: true,
-          includeShapeFill: true,
-        );
+      : _imageUriFromRun(run, ctx.images);
 
   // Word כותב את אותה תיבה פעמיים לתאימות (`mc:Choice` + `mc:Fallback`),
   // אך **שייף מקובץ** מכיל תיבות שונות באותו run. ההבחנה היא לפי התוכן:
