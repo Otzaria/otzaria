@@ -1,0 +1,183 @@
+{
+  "reviewedHead": "a9692c764c151df78b17abc894a143d13d8d3109",
+  "reviewedTree": "f0963ee95ed2a43bca29c06f5adb0c324c8fa635",
+  "runUrl": "https://github.com/Otzaria/otzaria/actions/runs/42245638483",
+  "jobId": 127987011566,
+  "artifactId": 13519051842,
+  "artifactSha256": "f03e4ec65efe4b89cde2e067495944770a03b3c57ea2779c6f98979608cd98dd",
+  "renderingContext": {
+    "renderer": "Flutter widget tests",
+    "hostPlatform": "linux",
+    "commit": "a9692c764c151df78b17abc894a143d13d8d3109",
+    "dartVersion": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+    "fonts": [
+      "Roboto",
+      "Rubik",
+      "FrankRuhlCLM",
+      "bundled icon faces"
+    ],
+    "pixelRatio": 1.5,
+    "capture": "Actual reporting/settings widgets with temporary SQLite data",
+    "nativeWindowsRun": false
+  },
+  "result": {
+    "passed": 788,
+    "failed": 0,
+    "skipped": 1,
+    "legacyCollectorPassed": 4,
+    "legacyBackupPassed": 5,
+    "legacyWebsiteAcceptedLosslessly": 9,
+    "legacyWebsiteExpectedSchemaRejections": 4,
+    "formatFiles": 92,
+    "formatChanged": 0
+  },
+  "independentVisualReview": {
+    "materialFindings": 0,
+    "scope": [
+      "drafts absent, present, and absent after deleting last",
+      "English labels, description, attachments and source context",
+      "Hebrew content preserved in English forms",
+      "RTL and fixed actions in low windows"
+    ],
+    "limitations": [
+      "Flutter Linux widget screenshots with temporary SQLite fixtures, not native Windows UI",
+      "Clipboard-history UI requires a separate Windows probe and is not proved by these screenshots"
+    ],
+    "imagesReviewed": 16,
+    "previousReviewedHead": "fa54a84b98826f505e81e690b8b12df2224e08f6",
+    "byteIdenticalImages": 15,
+    "changedImagesOpened": 1,
+    "reviewMethod": "Verified all 16 PNG hashes against the CI artifact. Fifteen are byte-identical to the previously visually reviewed fa54 images. Opened the changed drafts image and verified that its pixel differences are confined to two displayed timestamps.",
+    "changedImage": "settings-with-drafts-he.png",
+    "changedPixelRegions": [
+      {
+        "left": 1221,
+        "top": 477,
+        "right": 1241,
+        "bottom": 490
+      },
+      {
+        "left": 1241,
+        "top": 708,
+        "right": 1262,
+        "bottom": 721
+      }
+    ]
+  },
+  "images": [
+    {
+      "path": "book-queue-edit-low-en-context.png",
+      "bytes": 79118,
+      "sha256": "6dfec7d401ea584530a80e59c72b592f4bc5c0ec35086370fcb68955353c465d",
+      "gitBlob": "1ba3dc2518410fbcc30159079d3e1ac8c4d4b035",
+      "artifactPath": "report-forms-qa/book-queue-edit-low-en-context.png"
+    },
+    {
+      "path": "book-queue-edit-low-en-top.png",
+      "bytes": 83045,
+      "sha256": "5d55c32f342760f357b98d8caa1daf952ce8e9fb31472841e4088873e63b3d01",
+      "gitBlob": "5a7dda30e52bb40b494fc8616bf23d21fe64ba60",
+      "artifactPath": "report-forms-qa/book-queue-edit-low-en-top.png"
+    },
+    {
+      "path": "book-report-low-en-details.png",
+      "bytes": 76366,
+      "sha256": "08e208e47bf94450e42ec9c70ce039e2a9b75f9a7bc38bcb2e4c8b188e939b22",
+      "gitBlob": "6752567e30a79b7cdd1d60d298e10c8cb20c47f7",
+      "artifactPath": "report-forms-qa/book-report-low-en-details.png"
+    },
+    {
+      "path": "book-report-low-en-quote.png",
+      "bytes": 92163,
+      "sha256": "a64cb81d40b91a0d06dd97591adad350f982e836055f513cfa325f673c97b8b6",
+      "gitBlob": "c60ba969f2697a79f253bfcc26e6984eb871e719",
+      "artifactPath": "report-forms-qa/book-report-low-en-quote.png"
+    },
+    {
+      "path": "book-report-low-he-details.png",
+      "bytes": 67349,
+      "sha256": "e4cea2427ddb7a2247d6c01a8f1e445fc7dedcac298614d9af10e9554af47020",
+      "gitBlob": "ab5b0203bf398a789d7e3315fa129a1916abac00",
+      "artifactPath": "report-forms-qa/book-report-low-he-details.png"
+    },
+    {
+      "path": "book-report-low-he-quote.png",
+      "bytes": 72207,
+      "sha256": "5a35984085fbf917eb29578da83025ccf510ad288b7519eeb68750b104758624",
+      "gitBlob": "ae6cfa23a865a826b6f606d3233701db25e22302",
+      "artifactPath": "report-forms-qa/book-report-low-he-quote.png"
+    },
+    {
+      "path": "settings-after-last-draft-removed-he.png",
+      "bytes": 31991,
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "gitBlob": "2f2e6f756f4a0cf1241ec910686dfca2e38d317b",
+      "artifactPath": "report-forms-qa/settings-after-last-draft-removed-he.png"
+    },
+    {
+      "path": "settings-no-drafts-he.png",
+      "bytes": 31991,
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "gitBlob": "2f2e6f756f4a0cf1241ec910686dfca2e38d317b",
+      "artifactPath": "report-forms-qa/settings-no-drafts-he.png"
+    },
+    {
+      "path": "settings-with-drafts-he.png",
+      "bytes": 87882,
+      "sha256": "e8fb44cf8ebbbdec02b779da4004ea8da1810fa689690135657a31f2506f2491",
+      "gitBlob": "5bfc7f68ab73909d1c848fe587945842ec8b3a58",
+      "artifactPath": "report-forms-qa/settings-with-drafts-he.png"
+    },
+    {
+      "path": "software-queue-edit-low-en-attachments.png",
+      "bytes": 78353,
+      "sha256": "f121716ee68e2a784397e05cbbff571ab1e1b7638759c4abb7e60e2ca7f7688e",
+      "gitBlob": "209e455ba5d9560f9b0d195ceb50b367c6bc6c67",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-en-attachments.png"
+    },
+    {
+      "path": "software-queue-edit-low-en-top.png",
+      "bytes": 82457,
+      "sha256": "ca02a2b95b5c9b45e9f659d8c282fe50624c131e14be3fc6c9c8d7d69c5e12a9",
+      "gitBlob": "7d060bd73311e3657a3b8c3bc1bed3d7f82d33a7",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-en-top.png"
+    },
+    {
+      "path": "software-queue-edit-low-he-attachments.png",
+      "bytes": 62810,
+      "sha256": "bf4a5c2b1eaeb25fe4d49f6c5eceab8ef17ad43d30dfc6c824de137b557ee46d",
+      "gitBlob": "157223dc4b515edc9e6bc353aaee2b5e38620ef5",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-he-attachments.png"
+    },
+    {
+      "path": "software-queue-edit-low-he-top.png",
+      "bytes": 65469,
+      "sha256": "0a061a8fd1c0de9acd291d40eed96ea10d6022f9aa7ad4c46be0eea623e5a86b",
+      "gitBlob": "702a3306c11d56913a638c3a32ec4b4ea46b3a97",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-he-top.png"
+    },
+    {
+      "path": "software-report-low-en-attachments.png",
+      "bytes": 86201,
+      "sha256": "12f2b6a42af5c5e4e72e011e9b940f6eb51623d5f5efca1237697786ba0c27f4",
+      "gitBlob": "68daf552ceba475be2cf2b98741963657ae1b6c5",
+      "artifactPath": "report-forms-qa/software-report-low-en-attachments.png"
+    },
+    {
+      "path": "software-report-low-en-description.png",
+      "bytes": 72203,
+      "sha256": "7d13f3da1ca001c4cdb33662e3103b99de81257ab8b55ec3f129a02677861b17",
+      "gitBlob": "24d7ffc04d1bc04273a2133d17fa735b46f38752",
+      "artifactPath": "report-forms-qa/software-report-low-en-description.png"
+    },
+    {
+      "path": "software-report-low-en.png",
+      "bytes": 75847,
+      "sha256": "34b4dedf1b3efe550d49fc219761da94ad7aa620853be8e252dccaf1dfafd6b3",
+      "gitBlob": "c5775933218c09aa35f210b026d13df0220d2ab6",
+      "artifactPath": "report-forms-qa/software-report-low-en.png"
+    }
+  ],
+  "artifactUrl": "https://github.com/Otzaria/otzaria/actions/runs/42245638483/artifacts/13519051842",
+  "publicationPrefix": "reporting/a9692c764c151df78b17abc894a143d13d8d3109/report-forms-qa/"
+}
