@@ -3,7 +3,7 @@
   "reviewedTree": "000d8a643e84cdd323a6dee0a16b01bf07e0c4f9",
   "pullRequest": "https://github.com/Otzaria/otzaria/pull/4132",
   "independentReviewer": "qa_final_forms",
-  "recordedAt": "2026-11-06T00:48:37.909649+00:00",
+  "recordedAt": "2026-11-06T01:03:49.385Z",
   "captureKind": "Actual Flutter widgets rendered by Flutter widget tests on Linux with bundled fonts and temporary SQLite; not native Windows desktop screenshots.",
   "reporting": {
     "run": 42137152509,
@@ -19,11 +19,11 @@
     "formatterChanges": 0
   },
   "windows": {
-    "run": 42137152470,
-    "job": 127628105499,
-    "artifact": 13466895218,
-    "artifactSha256": "3079d1b611a5e590db69278171d48922a32eeaba782031daed8a0abda6a397ad",
-    "mergeCheckout": "a086e07b50b8f483ef5044e0cba234dedf60418f",
+    "run": 42138762550,
+    "job": 127633461871,
+    "artifact": 13466643962,
+    "artifactSha256": "8cb67b9ee5efd3b98792db6bf6e1967c52e270bae1aa480648edd8a71e1c78dd",
+    "mergeCheckout": "3330e91bdc0c3968400edea2fb38485ff37e7e28",
     "mergeTreeMatchesReviewedHead": true,
     "platform": "Windows Server 2025 Build 26100",
     "nativeClipboardChecks": 5,
@@ -54,7 +54,7 @@
         "en"
       ]
     },
-    "fullWindowsBuild": "Native13 checks passed; remaining generic multiview smoke was still running at evidence capture."
+    "fullWindowsBuild": "success, including native clipboard and multiview smoke, on pre-publication QA run42137152470"
   },
   "images": [
     {
@@ -216,9 +216,144 @@
     "reportingRun": 42138762552,
     "reportingJob": 127633461229,
     "flutterRun": 42138762550,
-    "statusAtEvidenceCapture": "in_progress",
-    "mergeCheckout": "3330e91b",
-    "mergeTreeMatchesReviewedHead": true
+    "statusAtEvidenceCapture": "completed",
+    "mergeCheckout": "3330e91bdc0c3968400edea2fb38485ff37e7e28",
+    "mergeTreeMatchesReviewedHead": true,
+    "reportingPassed": 734,
+    "reportingSkipped": 1,
+    "reportingFailed": 0,
+    "legacyClientBackupChecksPassed": 5,
+    "formatFiles": 84,
+    "formatChanges": 0,
+    "nativeClipboardChecksPassed": 13,
+    "nativeArtifact": 13466643962,
+    "shard3": {
+      "job": 127633462269,
+      "passed": 4886,
+      "failed": 5,
+      "skipped": 21,
+      "retryPassed": 7,
+      "retryFailed": 5,
+      "classification": "the same five Shamor focus failures as the recorded baseline"
+    },
+    "shard4": {
+      "job": 127633462106,
+      "conclusion": "success",
+      "timingRetry": {
+        "test": "test/widgets/app_menu_preferred_width_test.dart:77",
+        "assertion": "expected <1090090, actual1136509.5 in Stopwatch ratio check",
+        "correctWidthAssertionPassed": true,
+        "automaticRetryTestsPassed": 5,
+        "implementationAndTestUnchangedFromDev": true,
+        "notClaimedAsBaselineReproduction": true
+      }
+    },
+    "testWindows": {
+      "job": 127633461863,
+      "conclusion": "success",
+      "passed": 2666,
+      "skipped": 6,
+      "retry": false
+    },
+    "webView2": "success",
+    "engineSQLite": "Android and macOS success; existing conditional iOS skip",
+    "successfulFlutterJobs": 11,
+    "failedFlutterJobs": 1,
+    "fullWindowsBuild": {
+      "job": 127633461871,
+      "conclusion": "success",
+      "includes": "native clipboard, SQLite, multiview smoke and cache post-step"
+    },
+    "jobs": [
+      {
+        "id": 127633461482,
+        "name": "Analyze",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633461833,
+        "name": "Detect native changes",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633461862,
+        "name": "Test (shard 2/5)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633461863,
+        "name": "Test (Windows)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633461871,
+        "name": "Build (Windows)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633461895,
+        "name": "Build (Linux)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633462088,
+        "name": "Test (shard 1/5)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633462106,
+        "name": "Test (shard 4/5)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633462155,
+        "name": "Test (shard 0/5)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633462269,
+        "name": "Test (shard 3/5)",
+        "conclusion": "failure"
+      },
+      {
+        "id": 127633486923,
+        "name": "Native updater and download assistant (macOS)",
+        "conclusion": "success"
+      },
+      {
+        "id": 127633487013,
+        "name": "Native updater and download assistant (Linux)",
+        "conclusion": "success"
+      }
+    ],
+    "workflows": [
+      {
+        "id": 42138762493,
+        "name": "Lockfile Guard",
+        "conclusion": "success"
+      },
+      {
+        "id": 42138762552,
+        "name": "Reporting QA",
+        "conclusion": "success"
+      },
+      {
+        "id": 42138762583,
+        "name": "Engine SQLite Integration",
+        "conclusion": "success"
+      },
+      {
+        "id": 42138762509,
+        "name": "Windows WebView2 Smoke",
+        "conclusion": "success"
+      },
+      {
+        "id": 42138762550,
+        "name": "Flutter Tests",
+        "conclusion": "failure"
+      }
+    ],
+    "noMaterialProductFindingsOpen": true
   },
   "lastChangeReview": {
     "issue": 3448,
@@ -228,5 +363,18 @@
     "coAuthor": "mmichaelush",
     "sourcePullRequest": 4269,
     "priorReviewedHead": "b2ae2fa4ebf760a05ceddd02b4e8528c8606ce23"
+  },
+  "windowsBeforeFinalPush": {
+    "run": 42137152470,
+    "job": 127628105499,
+    "artifact": 13466895218,
+    "artifactSha256": "3079d1b611a5e590db69278171d48922a32eeaba782031daed8a0abda6a397ad",
+    "mergeCheckout": "a086e07b50b8f483ef5044e0cba234dedf60418f",
+    "mergeTreeMatchesReviewedHead": true,
+    "platform": "Windows Server 2025 Build 26100",
+    "nativeClipboardChecks": 5,
+    "nativeSendInputChecks": 8,
+    "all13Passed": true,
+    "windowsClipboardHistoryUi": false
   }
 }
