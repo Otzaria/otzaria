@@ -158,7 +158,7 @@ class FindRefRankKey<T> {
   final bool fuzzyBookMatch;
   final bool exactMatch;
 
-  /// שם ספר מזוהה או התאמה ישירה לתוכן, כשמתחרים בכינוי מדויק.
+  /// שם או ציון מלא התואמים לשאילתה, כשמתחרים בכינוי מדויק.
   final bool directNameMatch;
   final bool startsWithMatch;
 

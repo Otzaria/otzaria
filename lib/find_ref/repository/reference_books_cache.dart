@@ -625,6 +625,7 @@ class ReferenceBooksCache {
             filePath: baseHit.filePath,
             fileType: baseHit.fileType,
             matchRank: matchRank,
+            isWholeTitlePrefix: matchRank == 1 && t.startsWith('${scan.q} '),
             orderIndex: baseHit.orderIndex,
           ),
         );
@@ -1296,6 +1297,7 @@ class BookTitleIndex {
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
         isExactAlias: exactAlias,
+        isWholeTitlePrefix: matchRank == 1 && mt.startsWith('$q '),
         spellingVariantTitleIndex: spellingVariantTitleIndex,
         titleTokens: _titleTokens[book.id],
       ),
@@ -1473,12 +1475,17 @@ class ReferenceBookHit {
   /// השאילתה היא גם כינוי מדויק של ספר שהותאם לפי כותרתו ("זהר" ל"ספר הזהר").
   final bool isExactAlias;
 
+  /// תחילת כותרת המסתיימת בגבול מילה, בלי לשנות את משמעות [matchRank].
+  final bool isWholeTitlePrefix;
+
   /// מקום מילות השאילתה בכותרת כשהותאמו בכתיב מלא/חסר, גם לצד כינוי מילולי.
   final int? spellingVariantTitleIndex;
 
-  /// כינוי מדויק קודם לכותרת חלקית; כתיב חלופי ללא התאמה מילולית קודם רק
-  /// לשגיאות הקלדה. [matchRank] נשמר לצורך פירוש טוקני המיקום.
-  double get rankOrder => matchRank != 0 && matchesExactAlias
+  /// מילות כותרת שלמות קודמות לכינוי, וכינוי מדויק קודם למילה חלקית.
+  /// [matchRank] נשמר לצורך פירוש טוקני המיקום.
+  double get rankOrder => matchRank == 1 && isWholeTitlePrefix
+      ? 0.25
+      : matchRank != 0 && matchesExactAlias
       ? 0.5
       : spellingVariantTitleIndex != null && matchRank == 2
       ? 5.5
@@ -1501,6 +1508,7 @@ class ReferenceBookHit {
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
     this.isExactAlias = false,
+    this.isWholeTitlePrefix = false,
     this.spellingVariantTitleIndex,
     List<String>? titleTokens,
     Set<String>? titleMatchTokens,

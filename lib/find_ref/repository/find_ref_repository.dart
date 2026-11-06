@@ -1176,7 +1176,7 @@ class FindRefRepository {
       visibility: visibility,
       books: books,
       detection: detection,
-      bookMatchRanks: _bookMatchRanks(detection),
+      bookMatchRanks: _bookMatchRanks(detection, queryTokens),
       includePersonalBooks: includePersonalBooks,
       userBooks: userBooks,
     );
@@ -1352,7 +1352,8 @@ class FindRefRepository {
   /// דרגת ההתאמה של שם הספר חייבת לשרוד עד למיון הסופי: תוצאה מקורבת
   /// אינה רשאית לדחוק כינוי מדויק רק בגלל סדר הספרייה או תקרת התוצאות.
   static Map<_BookKey, _BookMatchRank> _bookMatchRanks(
-    _BookDetection detection, {
+    _BookDetection detection,
+    List<String> queryTokens, {
     BookSource source = BookSource.official,
     Map<_BookKey, _BookMatchRank>? into,
   }) {
@@ -1364,27 +1365,30 @@ class FindRefRepository {
         final rank = hit.spellingVariantTitleIndex != null && hit.matchRank == 2
             ? ReferenceBooksCache.fuzzyMatchRank
             : hit.matchRank;
+        final phraseTokens = queryTokens
+            .take(
+              detection.secondaryPhraseTokenCount[hit] ??
+                  detection.phraseTokenCount,
+            )
+            .toList(growable: false);
+        final titleWords = hit.titleMatchTokens.map(bookNameMatchToken).toSet();
         bookMatchRanks[key] = (
           rank: previous == null || rank < previous.rank ? rank : previous.rank,
           exactAlias: hit.matchesExactAlias || (previous?.exactAlias ?? false),
-          longerName:
-              _isLongerBookName(detection, hit) ||
-              (previous?.longerName ?? false),
+          wholeName:
+              hit.namesBookExactly ||
+              (hit.matchRank == 4 && hit.acronymTailIsTitleWords) ||
+              (rank != ReferenceBooksCache.fuzzyMatchRank &&
+                  phraseTokens.isNotEmpty &&
+                  phraseTokens.every(
+                    (token) => titleWords.contains(bookNameMatchToken(token)),
+                  )) ||
+              (previous?.wholeName ?? false),
         );
       }
     }
     return bookMatchRanks;
   }
-
-  /// צירוף ארוך שזיהה ספר לפי המשך כינויו, לפני החיפוש לפי כינוי קצר יותר.
-  static bool _isLongerBookName(
-    _BookDetection detection,
-    ReferenceBookHit hit,
-  ) =>
-      hit.matchRank == 4 &&
-      hit.acronymTailIsTitleWords &&
-      (detection.secondaryPhraseTokenCount[hit] ?? 0) >
-          detection.phraseTokenCount;
 
   static DbReferenceResult _bookResult(
     ReferenceBookHit hit, {
@@ -2445,6 +2449,7 @@ class FindRefRepository {
     final detection = _detectBooks(books, queryTokens);
     _bookMatchRanks(
       detection,
+      queryTokens,
       source: source,
       into: search.bookMatchRanks,
     );
@@ -2679,6 +2684,9 @@ class FindRefRepository {
           filePath: record.filePath ?? '',
           fileType: record.fileType,
           matchRank: name == phrase ? 0 : 1,
+          isWholeTitlePrefix: bookNameMatchForm(
+            name,
+          ).startsWith('${bookNameMatchForm(phrase)} '),
           orderIndex: record.orderIndex,
           titleTokens: candidate,
         );
@@ -2759,8 +2767,8 @@ class FindRefRepository {
     return _dropTalmudBavliPdfRefs(enriched);
   }
 
-  /// כיסוי מילות הכותרת אינו דוחק שם מדויק, אך כינוי קצר אינו דוחק צירוף
-  /// ארוך יותר שכבר זיהה ספר לפי כינויו.
+  /// מילות הכותרת והכינוי חולקות ציון כיסוי, כדי שכינוי קצר לא ידחק נושא
+  /// מפורש או כינוי ארוך יותר ממכסת חיפושי תוכן העניינים.
   List<ReferenceBookHit> _prioritizeByTitleCoverage(
     _BookDetection detection,
     List<String> queryTokens,
@@ -2776,17 +2784,23 @@ class FindRefRepository {
             (
               index: i,
               hit: hits[i],
-              nameMatch:
-                  hits[i].namesBookExactly ||
-                  _isLongerBookName(detection, hits[i]),
-              score: _titleCoverage(hits[i].titleTokens, significant),
+              score: _nameCoverage(hits[i], significant),
             ),
         ]..sort((a, b) {
-          if (a.nameMatch != b.nameMatch) return a.nameMatch ? -1 : 1;
           final c = b.score.compareTo(a.score);
           return c != 0 ? c : a.index.compareTo(b.index);
         });
     return [for (final e in indexed) e.hit];
+  }
+
+  static int _nameCoverage(ReferenceBookHit hit, List<String> tokens) {
+    final words = {
+      ...hit.titleMatchTokens,
+      ...titleMatchTokens(normalizeForFindRefMatch(hit.matchedTerm ?? '')),
+    }.map(bookNameMatchToken).toSet();
+    return tokens
+        .where((token) => words.contains(bookNameMatchToken(token)))
+        .length;
   }
 
   /// טוקני שאילתה שאינם אותיות-מיקום בודדות.
@@ -3272,6 +3286,17 @@ class FindRefRepository {
       for (final r in directMatches)
         (r.bookId, r.source, r.title, r.isPdf, r.reference),
     };
+    final exactDirectMatches = {
+      for (final r in directMatches)
+        if (_normalizeForMatch(r.reference) ==
+            qualifyAltTocReference(
+              _normalizeForMatch(r.title),
+              query.text,
+            )) ...[
+          (r.bookId, r.source, r.title, r.isPdf, r.segment),
+          (r.bookId, r.source, r.title, r.isPdf, r.reference),
+        ],
+    };
     final hasExactAlias = results.any(
       (r) =>
           bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)]
@@ -3343,10 +3368,21 @@ class FindRefRepository {
           exactMatch: match.exactMatch,
           directNameMatch:
               hasExactAlias &&
-              (directMatch ||
-                  bookMatch?.rank == 0 ||
-                  (bookMatch?.exactAlias ?? false) ||
-                  (bookMatch?.longerName ?? false)),
+              ((bookMatch?.wholeName ?? false) ||
+                  exactDirectMatches.contains((
+                    r.bookId,
+                    r.source,
+                    r.title,
+                    r.isPdf,
+                    r.segment,
+                  )) ||
+                  exactDirectMatches.contains((
+                    r.bookId,
+                    r.source,
+                    r.title,
+                    r.isPdf,
+                    r.reference,
+                  ))),
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3478,7 +3514,7 @@ typedef _UserBooksVersion = ({
 /// ספר בכל מסד: מקור, מזהה, ונתיב הקובץ רק ל-PDF שמחוץ למסד (מזהה שלילי).
 typedef _BookKey = (String source, int bookId, String filePath);
 
-typedef _BookMatchRank = ({int rank, bool exactAlias, bool longerName});
+typedef _BookMatchRank = ({int rank, bool exactAlias, bool wholeName});
 
 _BookKey _bookKey(BookSource source, int bookId, String filePath) =>
     (source.wireKey, bookId, bookId > 0 ? '' : filePath);
