@@ -59,7 +59,6 @@ abstract class TextBookMessages {
   static const String structureHeadingsNotFound = 'לא נמצאו כותרות למבנה זה';
   static const String searchUnavailableInThisView = 'חיפוש לא זמין בתצוגה זו';
   static const String selectTextToCopy = 'אנא בחר טקסט להעתקה';
-  static const String noteSaved = 'ההערה נשמרה בהצלחה';
   static const String searchContentLoadFailed = 'טעינת תוכן הספר לחיפוש נכשלה';
   static const String sectionMarkersBusy =
       'סמני החלוקה והכותרות לא נטענו בגלל עומס. לחצו כדי לנסות שוב.';
