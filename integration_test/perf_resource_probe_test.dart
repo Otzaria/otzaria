@@ -47,6 +47,7 @@ import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:path/path.dart' as p;
 
 import 'support/perf_fixture.dart';
+import 'support/perf_reader_scroll.dart';
 import 'support/perf_recorder.dart';
 
 void main() {
@@ -375,6 +376,7 @@ class _Scenario {
         .where((item) => item.kind == WorkStatusKind.running)
         .length,
     'indexingActive': TantivyDataProvider.instance.isIndexing.value ? 1 : 0,
+    'economyIndexing': TantivyDataProvider.instance.isEconomyIndexing,
     'schedulerCallbacks': tester.binding.transientCallbackCount,
     'flutterViews': PlatformDispatcher.instance.views.length,
     'queueDepth': null,
@@ -404,24 +406,9 @@ class _Scenario {
       });
       final tab = tabs.state.currentTab as TextBookTab;
       await phase('book.$kind.scroll', () async {
-        final scrollable = find.descendant(
-          of: find.byType(App),
-          matching: find.byType(Scrollable),
+        final position = perfReaderScrollPosition(
+          tab.lines.itemController.scrollController,
         );
-        final candidates = tester
-            .stateList<ScrollableState>(scrollable)
-            .where(
-              (state) =>
-                  state.position.axis == Axis.vertical &&
-                  state.position.maxScrollExtent > 500,
-            )
-            .toList();
-        if (candidates.length != 1) {
-          throw StateError(
-            'Expected exactly one vertical reader scrollable, found ${candidates.length}.',
-          );
-        }
-        final position = candidates.single.position;
         for (var step = 0; step < 60; step++) {
           position.jumpTo(
             (position.pixels + 30).clamp(
@@ -663,7 +650,10 @@ class _Scenario {
     await phase('notes.caret', () async {
       for (var i = 0; i < 12; i++) {
         final before = controller.selection;
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.sendKeyEvent(
+          LogicalKeyboardKey.arrowRight,
+          physicalKey: PhysicalKeyboardKey.arrowRight,
+        );
         await tester.pump();
         if (controller.selection == before) {
           throw StateError('The caret did not move.');
