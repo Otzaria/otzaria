@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -74,6 +75,7 @@ class SqliteMemoryPressureObserver with WidgetsBindingObserver {
   DateTime? _lastPressureRelease;
 
   static bool _hasActiveWork() =>
+      IndexingRepository.hasActiveRuns ||
       SearchEngineGateway.hasActiveOperations ||
       (TantivyDataProvider.instanceIfCreated?.isIndexing.value ?? false) ||
       DbReadWorker.hasPendingReads;
