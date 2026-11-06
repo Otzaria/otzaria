@@ -775,6 +775,96 @@ void main() {
       for (var i = 0; i < 5; i++) _row(i, targetLineIndex: 1),
     ];
 
+    List<String> indexSnapshot(String slug) {
+      final db = sqlite3.sqlite3.open(cachePath());
+      try {
+        return [
+          for (final row in db.select(
+            'SELECT sourceBookId, sourceLineIndex, targetLineIndex, connectionType '
+            'FROM attached_external_link_index WHERE sourceSlug = ? '
+            'ORDER BY sourceBookId, sourceLineIndex, targetLineIndex, connectionType',
+            [slug],
+          ))
+            '${row['sourceBookId']}:${row['sourceLineIndex']}:'
+                '${row['targetLineIndex']}:${row['connectionType']}',
+        ];
+      } finally {
+        db.close();
+      }
+    }
+
+    for (final completedRows in [0, 2]) {
+      test(
+        'כשל בכתיבה ראשונית אחרי $completedRows שורות נשאר לא שלם ומתחדש',
+        () async {
+          final previousBatch = ExternalLinkRepository.insertBatchSize;
+          addTearDown(
+            () => ExternalLinkRepository.insertBatchSize = previousBatch,
+          );
+          ExternalLinkRepository.insertBatchSize = 2;
+          final library = await attach(attachedDb('ext', rows: fiveRows()));
+          expect(await links.sync(), {library.slug});
+          final full = indexSnapshot(library.slug);
+
+          final db = sqlite3.sqlite3.open(cachePath());
+          try {
+            for (final table in ['index', 'target', 'meta']) {
+              db.execute(
+                'DELETE FROM attached_external_link_$table WHERE sourceSlug = ?',
+                [library.slug],
+              );
+            }
+            db.execute('''
+              CREATE TRIGGER fail_link_batch
+              BEFORE INSERT ON attached_external_link_index
+              WHEN NEW.sourceLineIndex >= $completedRows
+              BEGIN SELECT RAISE(ABORT, 'injected link batch failure'); END;
+            ''');
+          } finally {
+            db.close();
+          }
+
+          expect(await links.sync(), isEmpty);
+          expect(links.incompleteSlugs.value, {library.slug});
+          expect(metaSignature(library.slug), startsWith('!building:'));
+          expect(indexRows(library.slug), completedRows);
+          expect(links.buildProgress.value, isEmpty);
+          expect(links.buildingSlugs.value, isEmpty);
+
+          final reopened = ExternalLinkRepository(
+            registry: registry,
+            cacheDbPath: () async => cachePath(),
+          );
+          expect(await reopened.sync(), isEmpty);
+          expect(reopened.incompleteSlugs.value, {library.slug});
+          expect(indexRows(library.slug), completedRows);
+          expect(
+            await reopened.linksInRange(
+              title: SeforimFixtureIds.bereshitTitle,
+              categoryId: null,
+              source: BookSource.official,
+              startLineIndex: 0,
+              endLineIndex: 10,
+            ),
+            isEmpty,
+          );
+
+          final repaired = sqlite3.sqlite3.open(cachePath());
+          try {
+            repaired.execute('DROP TRIGGER fail_link_batch');
+          } finally {
+            repaired.close();
+          }
+          reopened.requestResume(library.slug);
+          await reopened.sync();
+          expect(reopened.incompleteSlugs.value, isEmpty);
+          expect(metaSignature(library.slug), isNot(startsWith('!')));
+          expect(indexSnapshot(library.slug), full);
+          expect(indexRows(library.slug), 5);
+        },
+      );
+    }
+
     test('נבנה במנות תוך כדי הקריאה, וה-meta נכתב בסוף', () async {
       final previous = ExternalLinkRepository.insertBatchSize;
       addTearDown(() => ExternalLinkRepository.insertBatchSize = previous);
@@ -1149,24 +1239,6 @@ void main() {
         for (var target = 0; target < 2; target++)
           _row(1, targetLineIndex: target, connectionType: type),
     ];
-
-    List<String> indexSnapshot(String slug) {
-      final db = sqlite3.sqlite3.open(cachePath());
-      try {
-        return [
-          for (final row in db.select(
-            'SELECT sourceBookId, sourceLineIndex, targetLineIndex, connectionType '
-            'FROM attached_external_link_index WHERE sourceSlug = ? '
-            'ORDER BY sourceBookId, sourceLineIndex, targetLineIndex, connectionType',
-            [slug],
-          ))
-            '${row['sourceBookId']}:${row['sourceLineIndex']}:'
-                '${row['targetLineIndex']}:${row['connectionType']}',
-        ];
-      } finally {
-        db.close();
-      }
-    }
 
     /// ההתקדמות הראשונה (done) שדווחה אחרי ספירת השורות במהלך [action].
     Future<int> firstDoneDuring(String slug, Future<void> Function() action) {
