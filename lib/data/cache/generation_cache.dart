@@ -193,7 +193,10 @@ class GenerationCache {
   /// כתיבה חיצונית ל-seforim.db ממתינה לקריאה הרשומה ב-[DbReadWorker].
   static Future<Map<int, int>> _readOfficialGenerations(
     ReadOnlyDbTarget target,
-  ) => DbReadWorker.runOnFreshIsolate(() => readGenerations(target));
+  ) => DbReadWorker.runOnFreshIsolate(
+    () => readGenerations(target),
+    requestArguments: {'dbPath': target.path},
+  );
 
   /// דורות הספרים של [target] — רץ ב-isolate. מסד בלי טבלאות הדורות → ריק.
   @visibleForTesting

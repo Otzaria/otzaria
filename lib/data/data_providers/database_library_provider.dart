@@ -172,6 +172,7 @@ Future<CatalogRows?> _officialCatalogInIsolate(String dbPath) async {
   if (dbPath.isEmpty) return null;
   return DbReadWorker.runOnFreshIsolate(
     () => readOfficialCatalogSync(dbPath),
+    requestArguments: {'dbPath': dbPath},
   );
 }
 
@@ -1867,7 +1868,10 @@ Future<T> _loadOnReadWorker<T>(
         })
         as T;
   } on DbReadWorkerUnavailable {
-    return DbReadWorker.trackFallbackRead(isolateRun);
+    return DbReadWorker.trackFallbackRead(
+      isolateRun,
+      requestArguments: {...args, 'dbPath': target.path},
+    );
   }
 }
 
@@ -3124,6 +3128,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             preferSource,
           );
         }
+      } on DbReadWorkerBusy {
+        rethrow;
       } catch (e) {
         debugPrint('⚠️ Error reading external book text: $e');
       }
@@ -3359,6 +3365,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
       _titlesCached = true;
       return UnmodifiableSetView(_cachedKeys);
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e) {
       debugPrint('⚠️ Error building DB key cache: $e');
       return {};
@@ -3371,15 +3379,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   _bookCatalog(SeforimRepository repository) async {
     final dbPath = _sqliteProvider.dbPath;
     if (dbPath.isNotEmpty) {
-      try {
-        return await DbReadWorker.request('bookCatalog', {'dbPath': dbPath})
-            as ({
-              List<db_models.Book> books,
-              List<db_models.Category> categories,
-            });
-      } on DbReadWorkerUnavailable {
-        // נופלים לשאילתה הישירה, כמו שאר הקריאות כשה-worker אינו זמין.
-      }
+      return await DbReadWorker.batched('bookCatalog', {'dbPath': dbPath})
+          as ({
+            List<db_models.Book> books,
+            List<db_models.Category> categories,
+          });
     }
     return (
       books: await repository.getAllBooksLean(),
@@ -4939,6 +4943,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         link.index2,
         link.index2End,
       );
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e) {
       debugPrint('⚠️ Error in getLinkContent: $e');
       return [(lineIndex: link.index2 - 1, content: 'שגיאה בטעינת תוכן המפרש')];
@@ -4967,6 +4973,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       return (result['lines'] as List?)?.cast<LinkContentLine>();
     } on DbReadWorkerSuspended {
       return [(lineIndex: link.index2 - 1, content: 'שגיאה: מאגר לא מאותחל')];
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e) {
       debugPrint('⚠️ getLinkContent worker and fallback failed: $e');
       return [(lineIndex: link.index2 - 1, content: 'שגיאה בטעינת תוכן המפרש')];
@@ -5081,6 +5089,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     if (target == null) return fallback;
     try {
       return await read(target);
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e) {
       debugPrint('⚠️ Error in $errorContext: $e');
       return fallback;

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -537,6 +538,8 @@ class LibraryProviderManager {
         if (valid(content)) {
           return content;
         }
+      } on DbReadWorkerBusy {
+        rethrow;
       } catch (e) {
         debugPrint(
           'LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e',
@@ -551,6 +554,8 @@ class LibraryProviderManager {
         if (valid(content)) {
           return content;
         }
+      } on DbReadWorkerBusy {
+        rethrow;
       } catch (_) {
         continue;
       }

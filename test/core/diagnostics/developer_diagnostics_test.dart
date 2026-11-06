@@ -11,6 +11,7 @@ import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 class _BlockedFile extends Fake implements File {
@@ -304,6 +305,38 @@ void main() {
 
       diagnostics.toggle();
       expect(SmartTextRenderStats.enabled, isFalse);
+    });
+
+    test('DB backlog is sampled while idle without starting workers', () async {
+      final gate = Completer<void>();
+      final reads = [
+        for (var i = 0; i < 3; i++)
+          DbReadWorker.trackFallbackRead(() => gate.future),
+      ];
+      try {
+        diagnostics.toggle();
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        await diagnostics.snapshot();
+        final sample = records().firstWhere(
+          (record) => record['type'] == 'stats',
+        );
+        expect(sample['fps'], 0);
+        expect(sample['dbReads'], containsPair('liveWorkers', 0));
+        expect(sample['dbReads'], containsPair('activeFallbackReads', 2));
+        expect(sample['dbReads'], containsPair('queuedReads', 1));
+        expect(sample['dbReads']['estimatedQueuedBytes'], greaterThan(0));
+      } finally {
+        gate.complete();
+        await Future.wait(reads);
+      }
+      await diagnostics.snapshot();
+      final latest = records().lastWhere(
+        (record) => record['type'] == 'snapshot',
+      );
+      expect(latest['dbReads'], containsPair('activeFallbackReads', 0));
+      expect(latest['dbReads'], containsPair('queuedReads', 0));
+      expect(latest['dbReads'], containsPair('estimatedQueuedBytes', 0));
+      expect(DbReadWorker.resourceUsage.liveWorkers, 0);
     });
 
     test('toggling off a launch request stops collecting', () {

@@ -1,0 +1,69 @@
+name: DB Read Admission
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Baseline Git ref for the held-isolate admission comparison
+        default: dev
+        type: string
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - .github/workflows/db_read_admission.yml
+      - lib/data/data_providers/db_read_worker.dart
+      - test/data_providers/db_read_admission_benchmark_test.dart
+      - tool/ci/measure_db_read_admission.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-read-admission-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout revised code
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: revised
+          persist-credentials: false
+
+      - name: Checkout baseline code
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.baseline_ref || github.event.pull_request.base.sha || 'dev' }}
+          path: baseline
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Cache native build hooks
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            baseline/.dart_tool/hooks_runner/shared
+            revised/.dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-db-admission-hooks-v1-${{ hashFiles('baseline/pubspec.yaml', 'baseline/pubspec.lock', 'revised/pubspec.yaml', 'revised/pubspec.lock') }}
+
+      - name: Compare real-isolate admission and recovery
+        run: python3 revised/tool/ci/measure_db_read_admission.py --base baseline --head revised --out admission-results
+
+      - name: Upload measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: db-read-admission-${{ github.run_id }}
+          path: admission-results/
+          if-no-files-found: warn

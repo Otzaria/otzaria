@@ -272,6 +272,7 @@ class _LinksListViewState extends State<LinksListView> {
   final ItemScrollController _itemScrollController = ItemScrollController();
   String _searchQuery = '';
   final Map<String, Future<String>> _contentCache = {};
+  final Set<String> _failedContentKeys = {};
   final Map<String, bool> _expanded = {};
   bool _searchInContent = false;
   Future<List<Link>>? _filteredLinksFuture;
@@ -668,7 +669,7 @@ class _LinksListViewState extends State<LinksListView> {
         if (matches > 0) {
           filteredLinks.add(link);
           _linksWithSearchResults.add(instanceKey); // מסמן שיש תוצאות בתוכן
-          _contentCache[contentKey] = link.content; // טוען את התוכן למטמון
+          _cacheLinkContent(contentKey, link);
 
           // פותח אוטומטית את הקישור הראשון עם תוצאות
           if (_linksWithSearchResults.length == 1) {
@@ -798,9 +799,11 @@ class _LinksListViewState extends State<LinksListView> {
         },
       ),
       onExpansionChanged: (isExpanded) {
-        // טוען תוכן רק אם נפתח ועדיין לא נטען
-        if (isExpanded && !_contentCache.containsKey(contentKey)) {
-          _contentCache[contentKey] = link.content;
+        // כשל נשאר מוצג עד פתיחה מפורשת נוספת, בלי לולאת retry ברקע.
+        if (isExpanded &&
+            (!_contentCache.containsKey(contentKey) ||
+                _failedContentKeys.contains(contentKey))) {
+          _cacheLinkContent(contentKey, link);
         }
 
         // עדכון מצב ההרחבה עם setState בטוח - דוחה עד אחרי הבנייה
@@ -840,6 +843,20 @@ class _LinksListViewState extends State<LinksListView> {
           ),
       ],
     );
+  }
+
+  void _cacheLinkContent(String key, Link link) {
+    final pending = link.content;
+    _failedContentKeys.remove(key);
+    _contentCache[key] = pending;
+    void failed() {
+      if (identical(_contentCache[key], pending)) _failedContentKeys.add(key);
+    }
+
+    // פינוי מיידי היה מציג future=null אם הכשל הקדים את פריים ההרחבה.
+    pending.then<void>((value) {
+      if (value.startsWith('שגיאה')) failed();
+    }, onError: (Object _) => failed());
   }
 
   Widget _buildLinkContent(String content, Link link) {
