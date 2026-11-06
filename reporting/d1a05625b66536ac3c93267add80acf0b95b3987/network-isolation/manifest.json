@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "publicationScope": "Only metadata.json, results-summary.json and this manifest.json. No other files are part of this publication.",
+  "files": [
+    {
+      "path": "metadata.json",
+      "bytes": 2688,
+      "sha256": "c8bdcf500d6493c384b6457732b53b82d4996547419cc02d80bc760b93144a75",
+      "gitBlobSha": "42014070ed2586115cb61ca88c6c3dde655f71e4"
+    },
+    {
+      "path": "results-summary.json",
+      "bytes": 5148,
+      "sha256": "a11b689339152487afbe51ecfd0f0db12249817cf49ec856803d2d5d20ffb66d",
+      "gitBlobSha": "1fba361849237e0f9066eaa4c97025ffab09d9b4"
+    }
+  ],
+  "manifestSelfHash": "Recorded separately by the publisher to avoid a self-referential hash."
+}

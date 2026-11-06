@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "scope": "Aggregate QA results for Otzaria/otzaria#2476; contains no report contents, report identities, attachment data, database files or snapshots.",
+  "product": {
+    "repository": "Otzaria/otzaria",
+    "commit": "d1a05625b66536ac3c93267add80acf0b95b3987",
+    "tree": "0e1b560e0bbb9ccb138a47b8045e6f8c0e3fed07"
+  },
+  "qa": {
+    "commit": "3690663c5fc0952d13afad9772873112d843b8c1",
+    "tree": "ff5a87000527a78d511f9ab0b8b59a1a996cd2d2",
+    "pullRequest": "https://github.com/Otzaria/otzaria/pull/4411",
+    "productCodeUnchanged": true,
+    "addedQaFiles": 3,
+    "authorAndCommitter": "palmoni5"
+  },
+  "run": {
+    "id": 42232083408,
+    "url": "https://github.com/Otzaria/otzaria/actions/runs/42232083408",
+    "jobId": 127940231932,
+    "jobUrl": "https://github.com/Otzaria/otzaria/actions/runs/42232083408/job/127940231932",
+    "conclusion": "success"
+  },
+  "originalArtifact": {
+    "id": 13509952470,
+    "url": "https://github.com/Otzaria/otzaria/actions/runs/42232083408/artifacts/13509952470",
+    "bytes": 59675,
+    "sha256": "4ef6602f38ecca55405fc6c8e5d9f06198bd26282e84143a5d7b30e26328b9f5"
+  },
+  "environment": {
+    "operatingSystem": "Linux",
+    "flutterVersion": "3.47.7",
+    "renderer": "Flutter Linux widget test",
+    "nativeDesktopUi": false,
+    "realKernelNetworkIO": true,
+    "realSqlite": true
+  },
+  "method": "The test prepares dependencies outside isolation, then runs real form submission in a separate Linux network namespace with loopback only and no external routes. Real HttpClient/IOClient and Socket bypass Flutter HTTP mocking. A numeric TEST-NET socket target avoids DNS and returns real kernel ENETUNREACH before HTTP or TLS bytes can be delivered. Drafts and queued records are inspected before and after SQLite/store close/reopen.",
+  "independentReview": {
+    "reviewer": "qa_retention",
+    "originalArtifactAndJobLogsRead": true,
+    "artifactDigestVerified": true,
+    "allSixDatabaseComparisonsVerified": true,
+    "blockingFindings": 0
+  },
+  "limits": [
+    "The UI is a Flutter Linux widget test, not a native desktop window or a Windows reproduction.",
+    "Restart means SQLite/store close and reopen within one test process; this evidence does not assert a whole-application process restart.",
+    "The real connection is intentionally redirected to a numeric TEST-NET destination inside the isolated namespace. DNS, TLS, production-server acceptance and actual delivery are not exercised.",
+    "The book library is a small synthetic fixture. These results apply to the exact product commit above.",
+    "This evidence does not establish Windows clipboard-history or Win+V behavior."
+  ]
+}
