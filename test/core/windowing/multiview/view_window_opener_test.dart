@@ -73,6 +73,9 @@ class _MemorySessions extends WindowSessionStore {
   }
 
   @override
+  Future<String?> loadBoundsJson(int slot) async => rows[slot]?.boundsJson;
+
+  @override
   Future<WindowSession?> load(int slot) async => rows[slot];
 
   @override

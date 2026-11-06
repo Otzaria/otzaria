@@ -148,7 +148,7 @@ class ViewWindowOpener implements WindowOpener {
     if (maximized &&
         (cocoa || (_native is GtkViewWindowNative && view == null))) {
       var saved = WindowBounds.decode(
-        (await _store.load(view?.slot ?? 1))?.boundsJson,
+        await _store.loadBoundsJson(view?.slot ?? 1),
       );
       if (cocoa && view == null && saved?.hasRect != true) {
         saved = await WindowPersistence.current.loadSavedBounds();
@@ -280,8 +280,7 @@ class ViewWindowOpener implements WindowOpener {
     if (registry.isSlotOpen(slot) || !_canOpen) {
       return false;
     }
-    final session = await _store.load(slot);
-    final saved = WindowBounds.decode(session?.boundsJson);
+    final saved = WindowBounds.decode(await _store.loadBoundsJson(slot));
     return _open(
       slot: slot,
       bounds: saved?.toPhysical(screenPoints: _native is CocoaViewWindowNative),
