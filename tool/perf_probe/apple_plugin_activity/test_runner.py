@@ -2,10 +2,12 @@ import importlib.util
 import json
 import http.client
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SPEC = importlib.util.spec_from_file_location("apple_quiet_runner", Path(__file__).with_name("run.py"))
 runner = importlib.util.module_from_spec(SPEC)
@@ -109,7 +111,9 @@ class ProtocolTests(unittest.TestCase):
 
     def test_boundary_failure_is_retained_and_cannot_pass(self):
         response, work = self.coordinator.request("arm", self.body, 1000)
-        with patch.object(runner.time, "sleep"), patch.object(self.coordinator, 'mac', return_value={'executable': '/fixture'}), patch.object(runner, "host_sample", side_effect=ValueError("fixture failure")):
+        controller = Mock()
+        controller.request.return_value = {'executable': '/fixture'}
+        with patch.object(runner.time, "sleep"), patch.object(runner, 'MacApplicationSession', return_value=controller), patch.object(runner, "host_sample", side_effect=ValueError("fixture failure")):
             work()
         report = json.loads((self.directory / "driver-visible.json").read_text())
         self.assertEqual(report["status"], "failed")
@@ -128,6 +132,207 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(command["jobId"], response["jobId"])
         self.assertIsNone(self.coordinator.control_job)
         self.assertGreaterEqual(response["waitMs"], command["remainingMs"])
+
+    def test_mac_controller_is_idle_during_the_unchanged_quiet_interval(self):
+        for action in ['quiet', 'macAppHide']:
+            with self.subTest(action=action):
+                self.coordinator = runner.Coordinator(self.directory, "run-A", "nonce", "macos", 6)
+                events = []
+                controller = Mock()
+                controller.request.side_effect = lambda value: events.append(value) or {'executable': '/fixture'}
+                controller.close.side_effect = lambda: events.append('close')
+                def sleeping(seconds):
+                    events.append(('sleep', seconds))
+                response, work = self.coordinator.request('arm', {**self.body, 'action': action}, 1000)
+                with patch.object(runner, 'MacApplicationSession', return_value=controller), \
+                     patch.object(runner.time, 'sleep', side_effect=sleeping), \
+                     patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
+                     patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
+                    work()
+                expected = [('sleep', 0.3), 'info']
+                if action == 'macAppHide': expected.append('hide')
+                expected.append(('sleep', 6))
+                if action == 'macAppHide': expected.append('activate')
+                expected.extend(['info', 'close'])
+                self.assertEqual(events, expected)
+                self.assertEqual(self.coordinator.jobs[response['jobId']]['status'], 'passed')
+
+    def test_failed_controller_cleanup_cannot_publish_a_success(self):
+        response, work = self.coordinator.request('arm', self.body, 1000)
+        controller = Mock()
+        controller.request.return_value = {'executable': '/fixture'}
+        def closing():
+            self.assertEqual(self.coordinator.jobs[response['jobId']]['status'], 'running')
+            with self.assertRaises(ValueError):
+                self.coordinator.request('result', {'jobId': response['jobId']}, 2000)
+            raise subprocess.TimeoutExpired(['controller'], 5)
+        controller.close.side_effect = closing
+        with patch.object(runner, 'MacApplicationSession', return_value=controller), \
+             patch.object(runner.time, 'sleep'), \
+             patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
+             patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
+            work()
+        report = self.coordinator.jobs[response['jobId']]
+        self.assertEqual(report['status'], 'failed')
+        self.assertIn('controllerCleanupError', report)
+
+
+class SetupEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+
+    def test_setup_preserves_separate_output_and_exit(self):
+        for code in [0, 37]:
+            with self.subTest(exit=code):
+                label = f'exit-{code}'
+                command = [sys.executable, '-c', f'import sys;print("out");print("stage",file=sys.stderr);sys.exit({code})']
+                if code:
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        runner.recorded_output(self.directory, label, command, 5)
+                else:
+                    self.assertEqual(runner.recorded_output(self.directory, label, command, 5), 'out')
+                receipt = json.loads((self.directory / f'{label}.json').read_text())
+                self.assertEqual(receipt['status'], 'failed' if code else 'passed')
+                self.assertEqual(receipt['exitCode'], code)
+                self.assertEqual((self.directory / f'{label}.stderr.log').read_text(), 'stage\n')
+                self.assertEqual((self.directory / f'{label}.stdout.log').read_text(), 'out\n')
+                self.assertGreater(receipt['elapsedMs'], 0)
+
+    def test_setup_timeout_retains_partial_stage_and_is_not_a_pass(self):
+        command = [sys.executable, '-c', 'import sys,time;print("library-start",file=sys.stderr,flush=True);time.sleep(30)']
+        with self.assertRaises(subprocess.TimeoutExpired):
+            runner.recorded_output(self.directory, 'timeout', command, 0.2)
+        receipt = json.loads((self.directory / 'timeout.json').read_text())
+        self.assertEqual(receipt['status'], 'timedOut')
+        self.assertIsNone(receipt['exitCode'])
+        self.assertIsNotNone(receipt['processExitAfterCleanup'])
+        self.assertIn('library-start', (self.directory / 'timeout.stderr.log').read_text())
+
+    def test_setup_logs_are_bounded_and_truncation_is_explicit(self):
+        command = [sys.executable, '-c', 'import sys;sys.stdout.write("x"*100000);sys.stderr.write("y"*100000)']
+        runner.recorded_output(self.directory, 'large', command, 5)
+        receipt = json.loads((self.directory / 'large.json').read_text())
+        for name in ['stdout', 'stderr']:
+            self.assertEqual(receipt[name]['bytes'], 100000)
+            self.assertTrue(receipt[name]['truncated'])
+            self.assertEqual((self.directory / f'large.{name}.log').stat().st_size, runner.COMMAND_LOG_LIMIT)
+
+    def test_missing_setup_command_retains_failure_receipt(self):
+        with self.assertRaises(OSError):
+            runner.recorded_output(self.directory, 'missing', [str(self.directory / 'missing')], 5)
+        receipt = json.loads((self.directory / 'missing.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertIsNone(receipt['processExitAfterCleanup'])
+
+    def test_project_setup_budget_and_config_do_not_change_quiet_inputs(self):
+        def generation(directory, label, command, timeout):
+            self.assertEqual(label, 'create-control-project')
+            self.assertEqual(timeout, 120)
+            Path(command[-2]).mkdir()
+        with patch.object(runner, 'recorded_output', side_effect=generation):
+            control = runner.prepare_control(self.directory, 'http://localhost:1234', 'nonce')
+        config = (control / 'ControlConfig.swift').read_text()
+        self.assertIn('http://localhost:1234', config)
+        self.assertIn('com.mendelg.otzaria', config)
+
+
+class MacTransportTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.counter = 0
+
+    def test_missing_controller_retains_launch_failure_receipt(self):
+        with self.assertRaises(OSError):
+            runner.MacApplicationSession(self.directory / 'missing', 42, self.directory, 'missing')
+        receipt = json.loads((self.directory / 'mac-missing-controller.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['hostPid'], 42)
+        self.assertIn('error', receipt)
+
+    def test_failed_startup_receipt_cleans_up_the_owned_controller(self):
+        helper = self.directory / 'waiting-helper'
+        helper.write_text('#!' + sys.executable + '\nimport sys\nfor line in sys.stdin: pass\n')
+        helper.chmod(0o700)
+        process = subprocess.Popen([str(helper), '42'], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, start_new_session=True)
+        self.addCleanup(runner.stop_owned, process)
+        with patch.object(runner.subprocess, 'Popen', return_value=process), \
+             patch.object(runner, 'save', side_effect=[None, OSError('receipt write failed'), None]):
+            with self.assertRaisesRegex(OSError, 'receipt write failed'):
+                runner.MacApplicationSession(helper, 42, self.directory, 'write-failed')
+        self.assertIsNotNone(process.poll())
+        self.assertTrue(process.stdin.closed)
+        self.assertTrue(process.stdout.closed)
+
+    def controller(self, modification=''):
+        self.counter += 1
+        helper = self.directory / f'helper-{self.counter}'
+        helper.write_text('#!' + sys.executable + '\n' + '''import json,os,sys,time
+for line in sys.stdin:
+ command=json.loads(line)
+ result={"pid":int(sys.argv[1]),"controllerPid":os.getpid(),"sequence":command["sequence"],
+         "action":command["action"],"sameApplication":True,"identityMethod":"NSRunningApplication.isEqual",
+         "sessionToken":"held-session","executable":"/fixture/App","launchMs":None,
+         "launchDateAvailability":"unavailable"}
+ ''' + modification + '''
+ print(json.dumps(result),flush=True)
+''')
+        helper.chmod(0o700)
+        controller = runner.MacApplicationSession(helper, 42, self.directory, f'case-{self.counter}')
+        self.addCleanup(controller.close)
+        return controller
+
+    def test_launch_date_can_be_unavailable_without_losing_session_identity(self):
+        controller = self.controller()
+        first = controller.request('info')
+        last = controller.request('info')
+        self.assertIsNone(first['launchMs'])
+        self.assertEqual(first['controllerPid'], last['controllerPid'])
+        self.assertEqual(first['sessionToken'], last['sessionToken'])
+        self.assertEqual(last['sequence'], 2)
+
+    def test_false_or_missing_public_identity_proof_is_rejected(self):
+        for modification in ['result["sameApplication"]=False', 'result.pop("sameApplication")',
+                             'result["identityMethod"]="pid-only"', 'result["pid"]=43',
+                             'result["controllerPid"]=43', 'result["sequence"]+=1',
+                             'result["action"]="wrong"', 'result["sessionToken"]=""',
+                             'result["executable"]="relative"', 'result=[]']:
+            with self.subTest(modification=modification):
+                controller = self.controller(modification)
+                with self.assertRaises(ValueError): controller.request('info')
+
+    def test_session_or_executable_cannot_change_between_boundaries(self):
+        for field in ['sessionToken', 'executable']:
+            with self.subTest(field=field):
+                controller = self.controller(f'if command["sequence"]==2: result["{field}"]="/replacement"')
+                controller.request('info')
+                with self.assertRaises(ValueError): controller.request('info')
+
+    def test_controller_error_retains_stderr_and_partial_command(self):
+        controller = self.controller('print("identity: application terminated",file=sys.stderr,flush=True);sys.exit(1)')
+        with self.assertRaises(ValueError): controller.request('activate')
+        controller.close()
+        stderr = self.directory / f'{controller.prefix}.stderr.log'
+        self.assertIn('application terminated', stderr.read_text())
+        receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['exitCode'], 1)
+
+    def test_partial_reply_without_newline_cannot_escape_the_deadline(self):
+        controller = self.controller('sys.stdout.write("partial");sys.stdout.flush();time.sleep(0.3);sys.exit(0)')
+        with self.assertRaises(TimeoutError): controller.request('info', timeout=0.1)
+        path = self.directory / f'{controller.prefix}-01.stdout.log'
+        self.assertEqual(path.read_text(), 'partial')
+
+    def test_oversized_reply_is_bounded_and_rejected(self):
+        controller = self.controller('sys.stdout.write("x"*100000);sys.stdout.flush();sys.exit(0)')
+        with self.assertRaises(ValueError): controller.request('info')
+        path = self.directory / f'{controller.prefix}-01.stdout.log'
+        self.assertEqual(path.stat().st_size, runner.COMMAND_LOG_LIMIT)
 
 
 class PinTests(unittest.TestCase):

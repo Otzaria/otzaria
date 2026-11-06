@@ -1,3 +1,60 @@
+Map<String, Map<String, Object?>> createAppleActivityPlatformMatrix() => {
+  for (final platform in ['macos', 'ios', 'windows', 'linux', 'android'])
+    platform: <String, Object?>{
+      'status': 'notRun',
+      'reason': 'No runtime evidence for this platform in this report.',
+    },
+};
+
+void finalizeAppleActivityReport(
+  Map<String, dynamic> report, {
+  required bool frameworkPassed,
+  required Iterable<String?> failureDetails,
+  required String platform,
+  required String buildMode,
+}) {
+  if (!frameworkPassed || (report['errors'] as List).isNotEmpty) {
+    report['status'] = 'failed';
+  } else if (report['status'] != 'notSupported') {
+    report['status'] = 'passed';
+  }
+  report['testFailures'] = failureDetails.toList();
+  (report['platformMatrix'] as Map)[platform] = <String, Object?>{
+    'status': report['status'],
+    'buildMode': buildMode,
+    'physicalDeviceAcceptance': false,
+  };
+}
+
+Map<String, Object?> analyzeAppleFixtureSettings(
+  Map<String, Object?> observed,
+) {
+  const expected = <String, Object?>{
+    'storeInitialized': true,
+    'defaultsInitialized': true,
+    'offlineMode': true,
+    'updatesEnabled': false,
+    'autoUpdateIndex': false,
+    'indexUpdateMode': 'off',
+    'autoSync': false,
+    'appCrashReportMode': 'never',
+    'autoBackupFrequency': 'none',
+    'showLocalHebrewBooks': false,
+    'fontFamily': 'NotoSerifHebrew',
+    'fontSize': 22.0,
+  };
+  final mismatches = [
+    for (final entry in expected.entries)
+      if (observed[entry.key] != entry.value) entry.key,
+  ];
+  return {
+    'status': mismatches.isEmpty ? 'passed' : 'failed',
+    'expected': expected,
+    'observed': observed,
+    'mismatches': mismatches,
+  };
+}
+
 /// Analysis is intentionally separate from collection. A successful harness
 /// run is not evidence that WebKit did (or did not) suspend JavaScript.
 Map<String, Object?> analyzeAppleQuietWindow({

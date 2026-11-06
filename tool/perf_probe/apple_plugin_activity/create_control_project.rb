@@ -1,9 +1,13 @@
+$stderr.sync = true
+started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+stage = ->(name) { $stderr.puts("apple-control #{name} elapsed_ms=#{((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(3)}") }
+stage.call('ruby-start')
 require 'xcodeproj'
 require 'fileutils'
+stage.call('libraries-loaded')
 
-# A standalone controller project. The real app project, ATS, entitlements and
-# deployment configuration are left untouched. The tiny host is only needed
-# for Xcode's UI-test target relationship; tests address Otzaria by bundle ID.
+# Xcode requires a host for its UI-test target relationship. The tests
+# address Otzaria by bundle ID without changing the real app project.
 root, sources = ARGV
 raise 'root and sources are required' unless root && sources
 FileUtils.mkdir_p(root)
@@ -21,6 +25,7 @@ File.write(File.join(root, 'Host.swift'), <<~SWIFT)
   }
 SWIFT
 FileUtils.cp(File.join(sources, 'AppleQuietControl.swift'), root)
+stage.call('sources-written')
 project = Xcodeproj::Project.new(File.join(root, 'Control.xcodeproj'))
 host = project.new_target(:application, 'QuietHost', :ios, '15.0')
 tests = project.new_target(:ui_test_bundle, 'AppleQuietControl', :ios, '15.0')
@@ -46,8 +51,10 @@ project.root_object.attributes['TargetAttributes'] = {
   tests.uuid => { 'TestTargetID' => host.uuid }
 }
 project.save
+stage.call('project-saved')
 scheme = Xcodeproj::XCScheme.new
 scheme.add_build_target(host)
 scheme.add_build_target(tests)
 scheme.add_test_target(tests)
 scheme.save_as(project.path, 'AppleQuietControl', true)
+stage.call('scheme-saved')

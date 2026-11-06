@@ -27,6 +27,8 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/view/plugin_background_host.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
@@ -84,13 +86,7 @@ void main() {
       'nativeEnginePid': 'unavailable: no public per-WKWebView PID getter',
       'productionTimers': 'unchanged',
     },
-    'platformMatrix': {
-      for (final platform in ['macos', 'ios', 'windows', 'linux', 'android'])
-        platform: {
-          'status': 'notRun',
-          'reason': 'No runtime evidence for this platform in this report.',
-        },
-    },
+    'platformMatrix': createAppleActivityPlatformMatrix(),
     'phases': [
       for (final name in _phaseNames)
         <String, dynamic>{
@@ -109,19 +105,15 @@ void main() {
   unawaited(
     binding.allTestsPassed.future.then((passed) async {
       await finished.future;
-      if (report['status'] != 'notSupported') {
-        report['status'] = passed && (report['errors'] as List).isEmpty
-            ? 'passed'
-            : 'failed';
-      }
-      report['testFailures'] = [
-        for (final failure in binding.failureMethodsDetails) failure.details,
-      ];
-      (report['platformMatrix'] as Map)[Platform.operatingSystem] = {
-        'status': report['status'],
-        'buildMode': perfBuildMode,
-        'physicalDeviceAcceptance': false,
-      };
+      finalizeAppleActivityReport(
+        report,
+        frameworkPassed: passed,
+        failureDetails: binding.failureMethodsDetails.map(
+          (failure) => failure.details,
+        ),
+        platform: Platform.operatingSystem,
+        buildMode: perfBuildMode,
+      );
       await localReport?.writeAsString(jsonEncode(report), flush: true);
       if (const bool.fromEnvironment('APPLE_QUIET_EXTERNAL')) {
         await protocol.post('framework-complete', report);
@@ -205,6 +197,48 @@ void main() {
       await scenario.ready(foreground, 'foreground');
       if (find.byType(PluginTabPage, skipOffstage: false).evaluate().isEmpty) {
         throw StateError('The fixture did not use PluginTabPage.');
+      }
+      final settings = analyzeAppleFixtureSettings({
+        'observedAtMs': DateTime.now().millisecondsSinceEpoch,
+        'storeInitialized': Settings.isInitialized,
+        if (Settings.isInitialized) ...{
+          'defaultsInitialized': Settings.getValue<bool>(
+            'settings_initialized',
+          ),
+          'offlineMode': Settings.getValue<bool>(
+            SettingsRepository.keyOfflineMode,
+          ),
+          'updatesEnabled': Settings.getValue<bool>(
+            SettingsRepository.keySoftwareAndBookUpdatesEnabled,
+          ),
+          'autoUpdateIndex': Settings.getValue<bool>(
+            SettingsRepository.keyAutoUpdateIndex,
+          ),
+          'indexUpdateMode': Settings.getValue<String>(
+            SettingsRepository.keyIndexUpdateMode,
+          ),
+          'autoSync': Settings.getValue<bool>(SettingsRepository.keyAutoSync),
+          'appCrashReportMode': Settings.getValue<String>(
+            SettingsRepository.keyAppCrashReportMode,
+          ),
+          'autoBackupFrequency': Settings.getValue<String>(
+            'key-auto-backup-frequency',
+          ),
+          'showLocalHebrewBooks': Settings.getValue<bool>(
+            SettingsRepository.keyShowLocalHebrewBooks,
+          ),
+          'fontFamily': Settings.getValue<String>(
+            SettingsRepository.keyFontFamily,
+          ),
+          'fontSize': Settings.getValue<double>(SettingsRepository.keyFontSize),
+        },
+      });
+      report['settingsAfterStartup'] = settings;
+      await protocol.post('checkpoint', report);
+      if (settings['status'] != 'passed') {
+        throw StateError(
+          'Fixture settings changed before quiet: ${settings['mismatches']}',
+        );
       }
       await scenario.phase('visible', [foreground], shown: true);
       await scenario.phase(

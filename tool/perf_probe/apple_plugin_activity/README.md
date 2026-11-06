@@ -33,10 +33,44 @@ python3 tool/perf_probe/apple_plugin_activity/run.py \
 נוצר בתיקייה פרטית חדשה באמצעות `PerfFixture`, לפני `app.main`: ספרים
 סינתטיים, מסדי נתונים והגדרות offline. נתוני משתמש אינם חלק מהניסוי.
 התיקייה נשארת זמינה לבדיקה עד סיום התהליך; מוחקים אותה רק אחרי סגירתו.
+גרסת `synthetic-v2` שומרת באחסון גם את הסימון `settings_initialized`,
+כדי שהעלייה הרגילה לא תדרוס את ההגדרות שנזרעו. ההכנה אינה מאתחלת את
+ה־Settings singleton של התהליך. קלט warm שהוכן בגרסה ישנה נדחה.
+
+לפני חלון השקט הראשון נשמר צילום חד־פעמי `settingsAfterStartup` של
+מפתחות הבידוד והעיצוב שנזרעו. הוא נקרא מה־Settings הפעיל לאחר עליית
+האפליקציה ומוכנות התוסף, בלי לאתחל או לשנות הגדרות. ה־checkpoint נשמר
+לפני האימות; ערך חסר או שונה מכשיל את התרחיש לפני `arm`. צילום זה אינו
+polling בזמן השקט או הבטחה שאין פעילות מערכת אחרת.
 
 ה־CI ב־`apple-plugin-activity.yml` מריץ macOS **profile** ואת iOS Simulator
 ב־**debug**. Flutter אינו תומך ב־profile ב־Simulator. ה־runner אינו מחליף
 profile ב־debug בשקט ואינו מייחס תוצאת Simulator למכשיר פיזי.
+
+הכנת פרויקט הבקרה ב־Ruby מקבלת תקציב תשתית נפרד של 120 שניות, לפני
+בניית האפליקציה. `create-control-project.json` שומר זמן, קוד יציאה ותוצאת
+timeout; שני יומני הפלט נשמרים גם בכשל, עד 64KiB לכל זרם, עם מספר הבתים
+וסימון חיתוך. הודעות השלב ב־stderr מזהות כניסה ל־Ruby, טעינת ספריות,
+כתיבת מקורות, שמירת הפרויקט ושמירת ה־scheme. אין retry או המרת timeout
+להצלחה. תקציב זה אינו משנה את זמני השקט או המעברים.
+
+ב־macOS נשמר אותו אובייקט `NSRunningApplication` לאורך כל שלב, והבקר
+מאמת אותו מול האפליקציה הנוכחית באמצעות `isEqual`, כמתואר ב־
+[תיעוד Apple לזהות תהליך](https://developer.apple.com/documentation/appkit/nsrunningapplication/processidentifier).
+`launchDate` נשמר כנתון אופציונלי: Apple מתעדת שהוא זמין רק להפעלה דרך
+[LaunchServices](https://developer.apple.com/documentation/appkit/nsrunningapplication/launchdate),
+בעוד Flutter יכול להפעיל את ה־executable ישירות. האימות מחייב גם PID,
+נתיב executable, זהות בקר ואסימון session קבועים. החלפת תהליך או סיום
+התהליך המקורי מכשילים את השלב. לפי
+[תיעוד NSRunningApplication](https://developer.apple.com/documentation/appkit/nsrunningapplication),
+רענון ה־run loop מתבצע רק בפקודות הגבול; בין הפקודות הבקר חסום על stdin
+ואינו מפעיל run loop, query או IPC לאפליקציה. יומני `mac-*-controller*`
+משמרים פקודות, פלט, שגיאות זהות וזמנים. כשל בסגירת הבקר מכשיל את השלב.
+
+לפני מדידת macOS, ה־CI מפעיל בקרות AppKit ייעודיות: הפעלה ישירה של
+executable, הסתרה והצגה של אותו תהליך, ודחיית זהות של תהליך שהסתיים.
+הראיות נשמרות ב־`apple-helper-controls`. אלה בקרות של כלי העזר;
+מדידות אוצריא עצמה מופיעות רק בדוחות `apple-plugin-activity`.
 
 `--seconds` קובע מינימום שקט של 6–60 שניות לתרחישים הקצרים; ברירת המחדל
 היא 12. בקר iOS עשוי להאריך את החלון בתוך תקציב המעבר המוצהר. משתמשים
@@ -120,8 +154,8 @@ profile ב־debug בשקט ואינו מייחס תוצאת Simulator למכשי
   ההסתרה. `nativeAfterShow` הוא גבול נוסף אחרי הצגה; קריאת המונים בשלב
   זה אינה משנה בדיעבד את ניתוח חלון השקט.
 - `hostCpuEnvelope`: CPU מצטבר ו־RSS של PID האפליקציה בלבד, דרך `/bin/ps`
-  אחרי אימות נתיב executable וזמן התחלת התהליך. ב־macOS הנתיב וזמן
-  הפעלת האפליקציה מגיעים גם מ־`NSRunningApplication`; ב־Simulator נבדק
+  אחרי אימות נתיב executable וזמן התחלת התהליך. ב־macOS נתיב האפליקציה
+  מאומת גם באמצעות `NSRunningApplication` שזהותו נשמרת; ב־Simulator נבדק
   הנתיב שהאפליקציה דיווחה. החלון כולל את המעברים
   ואת תקורת הגבולות; זה אינו CPU נקי של השקט. אין הסקה על CPU או זיכרון
   של WebContent/GPU/network services. ללא שיוך ציבורי מאומת הנתון חסר,
