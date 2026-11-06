@@ -116,6 +116,9 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
+  static const _searchDisplayCapacity = 24;
+  var _searchDisplayKeys = Expando<Object>();
+  final _searchDisplays = <Object, ({String? subtitle, String? tooltip})>{};
   String? _selectedWorkspace;
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -220,6 +223,11 @@ class _HistoryViewState extends State<HistoryView> {
   Widget build(BuildContext context) {
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
+        // רשימות ומפות בתוך Bookmark ניתנות לשינוי גם בלי להחליף את הרשומה.
+        // כל בנייה מה-state מתחילה snapshot חדש; בניות פנימיות של הרשימה חולקות אותו.
+        _searchDisplayKeys = Expando<Object>();
+        _searchDisplays.clear();
+
         if (state is HistoryLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -417,42 +425,13 @@ class _HistoryViewState extends State<HistoryView> {
                     _searchTitleSpan(context, item as Bookmark),
                 subtitleBuilder: (item) {
                   if (item.isSearch as bool) {
-                    final segments = <String>[];
-                    final settings = _searchSettingsLabel(
-                      item.searchConfiguration as Map<String, dynamic>?,
-                    );
-                    if (settings != null) segments.add('הגדרות: $settings');
-                    final filter = item.searchFilterFacets as List<String>?;
-                    final facets =
-                        filter ?? (item.searchScopeFacets as List<String>?);
-                    if (filter != null && filter.isEmpty) {
-                      segments.add('ללא ספרים מסומנים');
-                    } else if (facets != null && facets.isNotEmpty) {
-                      final allNames = _facetDisplayNames(facets);
-                      final displayed = allNames.length > 2
-                          ? '${allNames.take(2).join(', ')}...'
-                          : allNames.join(', ');
-                      segments.add('בקטגוריות: $displayed');
-                    }
-                    return segments.isEmpty ? null : segments.join('  •  ');
+                    return _searchDisplay(item as Bookmark).subtitle;
                   }
                   return ItemsListView.locationSubtitle(item);
                 },
                 subtitleTooltipBuilder: (item) {
                   if (!(item.isSearch as bool)) return null;
-                  final facets =
-                      (item.searchFilterFacets ?? item.searchScopeFacets)
-                          as List<String>?;
-                  if (facets == null || facets.length <= 2) return null;
-                  final segments = <String>[];
-                  final settings = _searchSettingsLabel(
-                    item.searchConfiguration as Map<String, dynamic>?,
-                  );
-                  if (settings != null) segments.add('הגדרות: $settings');
-                  segments.add(
-                    'בקטגוריות: ${_facetDisplayNames(facets).join(', ')}',
-                  );
-                  return segments.join('  •  ');
+                  return _searchDisplay(item as Bookmark).tooltip;
                 },
               ),
             ),
@@ -460,6 +439,47 @@ class _HistoryViewState extends State<HistoryView> {
         );
       },
     );
+  }
+
+  ({String? subtitle, String? tooltip}) _searchDisplay(Bookmark item) {
+    // המפתח חלש כדי שהמטמון ישמור רק מחרוזות, בלי להחזיק ספרים ורשימות facets.
+    final key = _searchDisplayKeys[item] ??= Object();
+    final cached = _searchDisplays.remove(key);
+    if (cached != null) {
+      _searchDisplays[key] = cached;
+      return cached;
+    }
+
+    final segments = <String>[];
+    final settings = _searchSettingsLabel(item.searchConfiguration);
+    if (settings != null) segments.add('הגדרות: $settings');
+    final filter = item.searchFilterFacets;
+    final facets = filter ?? item.searchScopeFacets;
+    String? tooltip;
+    if (filter != null && filter.isEmpty) {
+      segments.add('ללא ספרים מסומנים');
+    } else if (facets != null && facets.isNotEmpty) {
+      final allNames = _facetDisplayNames(facets);
+      final displayed = allNames.length > 2
+          ? '${allNames.take(2).join(', ')}...'
+          : allNames.join(', ');
+      if (allNames.length > 2) {
+        tooltip = [
+          ...segments,
+          'בקטגוריות: ${allNames.join(', ')}',
+        ].join('  •  ');
+      }
+      segments.add('בקטגוריות: $displayed');
+    }
+    final display = (
+      subtitle: segments.isEmpty ? null : segments.join('  •  '),
+      tooltip: tooltip,
+    );
+    _searchDisplays[key] = display;
+    if (_searchDisplays.length > _searchDisplayCapacity) {
+      _searchDisplays.remove(_searchDisplays.keys.first);
+    }
+    return display;
   }
 
   static List<String> _facetDisplayNames(List<String> facets) {
