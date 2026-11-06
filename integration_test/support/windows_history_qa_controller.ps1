@@ -70,9 +70,18 @@ function Initialize-ShellVerifier {
 function Read-HistoryState([string]$Stage) {
     $sample = [ordered]@{ stage = $Stage; utc = [DateTime]::UtcNow.ToString('o'); available = $false; enabled = $null; error = $null }
     try {
-        $null = [Windows.ApplicationModel.DataTransfer.Clipboard, Windows.ApplicationModel.DataTransfer, ContentType = WindowsRuntime]
-        $sample.enabled = [Windows.ApplicationModel.DataTransfer.Clipboard]::IsHistoryEnabled()
-        $sample.available = $true
+        $reading = (Invoke-Clipboard 'history-state') | ConvertFrom-Json
+        if ($reading.apartmentState -cne 'STA' -or $reading.inputSent -or $reading.clipboardChanged -or
+            $reading.available -isnot [bool] -or ($reading.available -and $reading.enabled -isnot [bool])) {
+            throw 'The history-state helper did not provide a read-only STA observation.'
+        }
+        $sample.available = $reading.available
+        $sample.enabled = $reading.enabled
+        $sample.error = $reading.error
+        $sample.hresult = $reading.hresult
+        $sample.readerProcessId = $reading.processId
+        $sample.readerPSVersion = $reading.psVersion
+        $sample.apartmentState = $reading.apartmentState
     } catch { $sample.error = $_.Exception.ToString(); $sample.hresult = $_.Exception.HResult }
     $result.historyStateSamples += $sample
     Save-Json $result 'result.json'

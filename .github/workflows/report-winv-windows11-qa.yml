@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [palmoni5/report-winv-after-qa-20261106]
-    paths: ['.github/workflows/report-winv-windows11-qa.yml', 'integration_test/support/windows_history_qa_windows11.ps1', 'integration_test/support/windows_history_qa_controller.ps1', 'integration_test/support/windows_history_qa_native.cs']
+    paths: ['.github/workflows/report-winv-windows11-qa.yml', 'integration_test/support/windows_history_qa_windows11.ps1', 'integration_test/support/windows_history_qa_controller.ps1', 'integration_test/support/windows_history_qa_native.cs', 'integration_test/support/windows_history_qa_clipboard.ps1']
 
 permissions:
   contents: read
@@ -122,6 +122,7 @@ jobs:
           $expected = @{
             'windows_history_qa_controller.ps1' = 'b158ef83e0ca5166c0aa486b491dc35e0eec9eceb8f67da411d5de81ac7fc0a8'
             'windows_history_qa_native.cs' = '48d0ff3d31ca717327050c29a321fe88dbdb151853ecab3ebe75a6773b778c81'
+            'windows_history_qa_clipboard.ps1' = '64c815149b9fd16d17d48ce63da62fa1b1ba055c2ecd103b5e74aa40664132d4'
           }
           $exeBefore = (Get-FileHash "$bundle/otzaria.exe").Hash
           $records = @()
@@ -164,7 +165,7 @@ jobs:
             @{ exitCode = $child.ExitCode; launcherPSVersion = [string]$PSVersionTable.PSVersion;
               launcherModulePath = $env:PSModulePath; inputSent = $false } | ConvertTo-Json |
               Set-Content -Encoding utf8 (Join-Path $smokeRoot 'process.json')
-            if ($child.ExitCode -ne 0) { throw 'The actual controller could not verify the Windows signature.' }
+            if ($child.ExitCode -ne 0) { throw 'The controller signature/history-state preflight failed; see shell-verifier-smoke evidence.' }
             $proof = Get-Content (Join-Path $smokeRoot 'shell-verifier.json') -Raw | ConvertFrom-Json
             if (!$proof.verifierReady -or $proof.inputSent -or $proof.psVersion -notlike '5.1.*') { throw 'The controller signature smoke did not prove the intended environment.' }
           } finally {

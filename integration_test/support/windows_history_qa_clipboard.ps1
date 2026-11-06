@@ -1,6 +1,23 @@
 param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$Action)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($Action -ceq 'history-state') {
+    Import-Module -Name (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -Force -ErrorAction Stop
+    $state = [ordered]@{
+        available = $false; enabled = $null; error = $null; hresult = $null
+        processId = $PID; psVersion = [string]$PSVersionTable.PSVersion
+        apartmentState = [string][Threading.Thread]::CurrentThread.GetApartmentState()
+        inputSent = $false; clipboardChanged = $false
+    }
+    try {
+        if ($state.apartmentState -cne 'STA') { throw 'History-state observation requires the STA helper.' }
+        $null = [Windows.ApplicationModel.DataTransfer.Clipboard, Windows.ApplicationModel.DataTransfer, ContentType = WindowsRuntime]
+        $state.enabled = [Windows.ApplicationModel.DataTransfer.Clipboard]::IsHistoryEnabled()
+        $state.available = $true
+    } catch { $state.error = $_.Exception.ToString(); $state.hresult = $_.Exception.GetBaseException().HResult }
+    Write-Output ($state | ConvertTo-Json -Compress)
+    exit 0
+}
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -Path (Join-Path $Root 'native.dll')
