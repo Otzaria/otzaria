@@ -1,6 +1,8 @@
 /// ניקוי הטקסט הגולמי שמגיע מהספרייה והפיכתו לרצף מילים עם סמני מבנה.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_models.dart';
 import 'package:otzaria/utils/text/numeral_formats.dart';
@@ -105,10 +107,60 @@ final _ashkenazMegillahNote = RegExp(
 
 /// בוחר את חילופי הנוסח המסומנים במקור כמנהג מגילות אשכנז.
 String applyMegillahNusach(String raw, String nusach) {
-  // הביטוי סורק כל אות בספר, וההערה קיימת רק במגילות.
+  // ההערה קיימת רק במגילות.
   if (nusach != 'ashkenaz' || !raw.contains('(במגילות אשכנז ')) return raw;
   variantNoteScans++;
-  return raw.replaceAllMapped(_ashkenazMegillahNote, (m) => m[2]!);
+  return replaceBeforeSup(raw, _ashkenazMegillahNote, (m) => m[2]!);
+}
+
+/// `replaceAllMapped` לביטוי שנפתח במילים שמיד אחריהן `<sup`: התאמה יכולה
+/// להתחיל רק ברצף המילים שלפני `<sup`, ולכן רק שם הביטוי מנוסה.
+@visibleForTesting
+String replaceBeforeSup(
+  String text,
+  RegExp pattern,
+  String Function(Match) replace,
+) {
+  final out = StringBuffer();
+  var copied = 0;
+  for (
+    var sup = text.indexOf('<sup');
+    sup >= 0;
+    sup = text.indexOf('<sup', sup + 1)
+  ) {
+    for (var i = math.max(_wordsStart(text, sup), copied); i < sup; i++) {
+      final match = pattern.matchAsPrefix(text, i);
+      if (match == null) continue;
+      out
+        ..write(text.substring(copied, i))
+        ..write(replace(match));
+      copied = match.end;
+      break;
+    }
+  }
+  if (copied == 0) return text;
+  return (out..write(text.substring(copied))).toString();
+}
+
+const _wordTags = ['<big>', '</big>', '<small>', '</small>'];
+
+/// תחילת רצף המילים שנגמר ב-[end]: אותיות, ניקוד, רווחים ותגי big/small —
+/// בלי שום תו ASCII אחר.
+int _wordsStart(String text, int end) {
+  var i = end;
+  while (i > 0) {
+    final c = text.codeUnitAt(i - 1);
+    if (c <= 0x20 || c >= 0x7F) {
+      i--;
+      continue;
+    }
+    final tag = _wordTags.indexWhere(
+      (t) => i >= t.length && text.startsWith(t, i - t.length),
+    );
+    if (tag < 0) break;
+    i -= _wordTags[tag].length;
+  }
+  return i;
 }
 
 /// מספר הסריקות בביטויי חילופי הנוסח.
@@ -193,7 +245,7 @@ String cleanRawText(String raw, {TikkunTradition? tradition}) {
     return ' {${m[1]}:${excluded.id}} ';
   });
 
-  // הביטויים סורקים כל אות בספר, ורוב ספרי הנביאים בלי הערת חילוף.
+  // _leadingVariantNote סורק כל אות בספר, ורוב ספרי הנביאים בלי הערת חילוף.
   if (tradition != null && text.contains('(בספרי ')) {
     variantNoteScans++;
     // יש הערות חילוף לפני המילה; מאחדים את מקומן לפני בחירת החלופה.
@@ -201,7 +253,7 @@ String cleanRawText(String raw, {TikkunTradition? tradition}) {
       _leadingVariantNote,
       (m) => '${m[1]}${m[3]}${m[2]}',
     );
-    text = text.replaceAllMapped(_traditionWordNote, (m) {
+    text = replaceBeforeSup(text, _traditionWordNote, (m) {
       if (_traditionOf(m[3]!) != tradition) return '${m[1]}${m[2]}';
       final prefix = m[5]?.trim() == 'בתיבה אחת' ? '' : m[1]!;
       return '$prefix${m[4]}';
