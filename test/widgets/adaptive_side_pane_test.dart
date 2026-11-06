@@ -36,6 +36,63 @@ class _CounterPaneState extends State<_CounterPane> {
 }
 
 void main() {
+  for (final (width, floating) in [
+    (1200.0, false),
+    (1200.0, true),
+    (400.0, false),
+  ]) {
+    testWidgets(
+      'closed pane stays lazy until maintainState ($width, $floating)',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        var maintainState = false;
+        var isOpen = false;
+        late StateSetter rebuild;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return Scaffold(
+                  body: AdaptiveSidePane(
+                    isOpen: isOpen,
+                    maintainState: maintainState,
+                    floatOverContent: floating,
+                    onClose: () {},
+                    mainContent: const Text('reader'),
+                    paneContent: const _CounterPane(),
+                    autoHandleResponsiveVisibility: false,
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+        expect(find.byType(_CounterPane, skipOffstage: false), findsNothing);
+        rebuild(() => maintainState = true);
+        await tester.pumpAndSettle();
+        final pane = tester.state(
+          find.byType(_CounterPane, skipOffstage: false),
+        );
+        rebuild(() => isOpen = true);
+        await tester.pumpAndSettle();
+        expect(tester.state(find.byType(_CounterPane)), same(pane));
+        await tester.tap(find.text('increment'));
+        rebuild(() {
+          isOpen = false;
+          maintainState = false;
+        });
+        await tester.pumpAndSettle();
+        rebuild(() => isOpen = true);
+        await tester.pumpAndSettle();
+        expect(tester.state(find.byType(_CounterPane)), same(pane));
+        expect(find.text('count: 1'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets('AdaptiveSidePane calls onPaneResizeEnd after dragging', (
     tester,
   ) async {

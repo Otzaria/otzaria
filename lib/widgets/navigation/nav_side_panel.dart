@@ -16,6 +16,7 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 /// והכפתור שפותח אותה הוא [NavPanelToggleButton].
 class NavSidePanel extends StatelessWidget {
   final bool isOpen;
+  final bool maintainState;
   final Widget mainContent;
   final Widget paneContent;
   final AlignmentDirectional alignment;
@@ -38,6 +39,7 @@ class NavSidePanel extends StatelessWidget {
   const NavSidePanel({
     super.key,
     required this.isOpen,
+    this.maintainState = false,
     required this.mainContent,
     required this.paneContent,
     required this.onClose,
@@ -63,6 +65,7 @@ class NavSidePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return AdaptiveSidePane(
       isOpen: isOpen,
+      maintainState: maintainState,
       alignment: alignment,
       // ההצמדה, הצבע ומרווח פס הגלילה הם העיצוב האחיד — לא פרמטרים של המסך.
       attachToTopEdge: true,
