@@ -148,6 +148,11 @@ bool usesPlatformViewFocusChannel(TargetPlatform platform) =>
 @visibleForTesting
 const String kPlatformViewRequestFocusMethod = 'requestFocus';
 
+/// שם המתודה הנייטיבית שמעבירה את הפוקוס רק אם פוקוס המקלדת של Win32 אינו
+/// כבר בחלון הקלט של אותו מופע. מחזירה האם נשלח MoveFocus.
+@visibleForTesting
+const String kPlatformViewRequestFocusIfNeededMethod = 'requestFocusIfNeeded';
+
 /// מעביר את פוקוס המקלדת של המערכת אל ה-WebView של תוסף.
 ///
 /// ה-WebView של תוסף אינו חלק מעץ הפוקוס של Flutter: בווינדוס הוא מוצג
@@ -161,26 +166,47 @@ class PluginWebViewFocus {
   /// לא האם הפוקוס אכן עבר (הצד הנייטיבי בולע HRESULT כושל).
   /// כשל אינו נזרק: פוקוס הוא נוחות, לא תקינות.
   ///
-  /// [trustPageFocus] - האם עדותו של הדף על עצמו קבילה. אחרי שחלון
-  /// האפליקציה חוזר ממיזעור היא **אינה** קבילה: נמדד שהדף מקבל אירוע
-  /// `focus`, ש-`document.hasFocus()` מחזיר `true` ושה-`activeElement` שלו
-  /// הוא שדה העריכה — ובכל זאת אף הקשה אינה מגיעה אליו עד MoveFocus או
-  /// קליק. במסלול הזה בלבד מוותרים על השער.
+  /// [trustPageFocus] - האם מותר לדלג על ההעברה כשהמופע כבר ממוקד.
+  /// MoveFocus שמגיע אחרי קליק מבטל את הפוקוס שהקליק נתן, וההקלדה נשברת
+  /// (upstream #2736) — ולכן כברירת מחדל מדלגים.
+  ///
+  /// בווינדוס הבדיקה נייטיבית ולכל מופע: האם פוקוס המקלדת של Win32 נמצא
+  /// בחלון הקלט ש-WebView2 יצר תחת חלון המארח של **אותו** מופע. עדות הדף על
+  /// עצמו אינה קבילה שם: אחרי שה-WebView הוסתר והוצג שוב (השהיה והחייאה —
+  /// מעבר טאב, יציאה ממסך העיון) הדף מקבל `focus`, `document.hasFocus()`
+  /// מחזיר `true` ו-WebView2 אף מדווח GotFocus, אבל הפוקוס נשאר על חלון
+  /// המארח עצמו ואף הקשה אינה מגיעה עד MoveFocus או קליק. קליק שהועבר
+  /// ל-WebView מחזיר את הפוקוס לחלון הקלט עוד לפני שהקריאה שלו חוזרת, ולכן
+  /// הבדיקה מבחינה בין השניים בכל תזמון של ההחייאה. הבדיקה וההעברה נעשות
+  /// יחד, ב-thread של הפלטפורמה.
+  ///
+  /// בשאר הפלטפורמות נשאלת עדות הדף (`document.hasFocus()`).
+  ///
+  /// אחרי שחלון האפליקציה חוזר ממיזעור מעבירים בלי בדיקה (false): נמדד
+  /// שהדף מדווח פוקוס ואף הקשה אינה מגיעה אליו, והבדיקה הנייטיבית עוד לא
+  /// נמדדה במסלול הזה.
   static Future<bool> request(
     InAppWebViewController controller, {
     bool trustPageFocus = true,
   }) async {
-    // הדף כבר במיקוד (המשתמש הקדים ולחץ) — MoveFocus שמגיע אחרי קליק מבטל
-    // את הפוקוס שהקליק נתן, וההקלדה נשברת (upstream #2736).
-    if (trustPageFocus && await _pageAlreadyHasFocus(controller)) return true;
+    final viaPlatformView = usesPlatformViewFocusChannel(defaultTargetPlatform);
+    if (!viaPlatformView &&
+        trustPageFocus &&
+        await _pageAlreadyHasFocus(controller)) {
+      return true;
+    }
     try {
-      if (usesPlatformViewFocusChannel(defaultTargetPlatform)) {
+      if (viaPlatformView) {
         final viewId = controller.getViewId();
         // ערוץ ה-platform view נקרא תמיד על ה-textureId, שהוא מספר. עם
         // keepAlive/headless ה-viewId הוא מזהה אחר — ואז אין ערוץ כזה.
         if (viewId is! int) return false;
         await MethodChannel(customPlatformViewChannelName(viewId))
-            .invokeMethod<void>(kPlatformViewRequestFocusMethod)
+            .invokeMethod<Object?>(
+              trustPageFocus
+                  ? kPlatformViewRequestFocusIfNeededMethod
+                  : kPlatformViewRequestFocusMethod,
+            )
             .timeout(_focusCallTimeout);
         return true;
       }

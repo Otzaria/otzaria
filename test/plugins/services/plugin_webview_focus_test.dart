@@ -464,13 +464,18 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     });
 
-    test('קורא requestFocus על ערוץ ה-platform view של אותו viewId', () async {
-      mockChannel(7);
-      final controller = _FocusFake(viewId: 7);
+    test(
+      'קורא requestFocusIfNeeded על ערוץ ה-platform view של אותו viewId',
+      () async {
+        mockChannel(7);
+        final controller = _FocusFake(viewId: 7);
 
-      expect(await PluginWebViewFocus.request(controller), isTrue);
-      expect(calls.map((c) => c.method), [kPlatformViewRequestFocusMethod]);
-    });
+        expect(await PluginWebViewFocus.request(controller), isTrue);
+        expect(calls.map((c) => c.method), [
+          kPlatformViewRequestFocusIfNeededMethod,
+        ]);
+      },
+    );
 
     test('אינו נוגע ב-controller.requestFocus (זורק בווינדוס)', () async {
       mockChannel(7);
@@ -511,19 +516,38 @@ void main() {
       expect(calls, isEmpty);
     });
 
-    test('הדף כבר במיקוד — לא שולחים MoveFocus נוסף', () async {
-      // MoveFocus שמגיע אחרי קליק של המשתמש מבטל את הפוקוס שהקליק נתן.
+    test('הדף אינו נשאל — ההחלטה נייטיבית, לכל מופע', () async {
+      // אחרי שה-WebView הוסתר והוצג שוב הדף מדווח `document.hasFocus()`
+      // אמת בעוד שהפוקוס של Win32 נשאר על חלון המארח, ואף הקשה אינה מגיעה.
+      // הדילוג אחרי קליק (#2736) נעשה בצד הנייטיבי, מול חלון הקלט של המופע.
       mockChannel(7);
       final controller = _FocusFake(viewId: 7, pageHasFocus: true);
 
       expect(await PluginWebViewFocus.request(controller), isTrue);
-      expect(calls, isEmpty);
-      expect(controller.evaluated.single, contains('document.hasFocus()'));
+      expect(calls.map((c) => c.method), [
+        kPlatformViewRequestFocusIfNeededMethod,
+      ]);
+      expect(controller.evaluated, isEmpty);
     });
 
-    test('עדות הדף אינה קבילה — MoveFocus נשלח בכל זאת', () async {
+    test('הצד הנייטיבי דילג (כבר ממוקד) — הבקשה עדיין נמסרה', () async {
+      calls = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            MethodChannel(customPlatformViewChannelName(7)),
+            (call) async {
+              calls.add(call);
+              return false;
+            },
+          );
+
+      expect(await PluginWebViewFocus.request(_FocusFake(viewId: 7)), isTrue);
+      expect(calls, hasLength(1));
+    });
+
+    test('בלי בדיקה (אחרי מיזעור) — MoveFocus בלתי מותנה', () async {
       // אחרי שהחלון חוזר ממיזעור הדף מדווח `true` בעוד שאף הקשה אינה
-      // מגיעה אליו. במסלול הזה מוותרים על השער — ולכן גם אין שאילתה לדף.
+      // מגיעה אליו, והבדיקה הנייטיבית לא נמדדה במסלול הזה.
       mockChannel(7);
       final controller = _FocusFake(viewId: 7, pageHasFocus: true);
 
@@ -531,28 +555,8 @@ void main() {
         await PluginWebViewFocus.request(controller, trustPageFocus: false),
         isTrue,
       );
-      expect(calls, hasLength(1));
-      expect(controller.evaluated, isEmpty);
-    });
-
-    test('בדיקת המיקוד נכשלה — ממשיכים להעברה', () async {
-      mockChannel(7);
-      final controller = _FocusFake(
-        viewId: 7,
-        evalError: PlatformException(code: 'dead-bridge'),
-      );
-
-      expect(await PluginWebViewFocus.request(controller), isTrue);
       expect(calls.map((c) => c.method), [kPlatformViewRequestFocusMethod]);
-    });
-
-    test('תשובה שאינה true אינה נחשבת "כבר במיקוד"', () async {
-      mockChannel(7);
-      final controller = _FocusFake(viewId: 7, pageHasFocus: 'true');
-
-      await PluginWebViewFocus.request(controller);
-
-      expect(calls, hasLength(1));
+      expect(controller.evaluated, isEmpty);
     });
 
     test('הערוץ אינו רשום (פלטפורמה בלי המימוש) — false בשקט', () async {
@@ -568,37 +572,18 @@ void main() {
       expect(await PluginWebViewFocus.request(controller), isFalse);
     });
 
-    test(
-      'קריאה נייטיבית תקועה נחתכת ואינה מקפיאה את הקורא',
-      () async {
-        // ה-flush רץ תחת מנעול ה-lifecycle של הדיספצ'ר; בלי גבול זמן קריאה
-        // תקועה הייתה מקפיאה כל השהיה/החייאה של תוספים.
-        calls = [];
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(
-              MethodChannel(customPlatformViewChannelName(7)),
-              (call) => Completer<void>().future,
-            );
+    test('קריאה נייטיבית תקועה נחתכת ואינה מקפיאה את הקורא', () async {
+      // ה-flush רץ תחת מנעול ה-lifecycle של הדיספצ'ר; בלי גבול זמן קריאה
+      // תקועה הייתה מקפיאה כל השהיה/החייאה של תוספים.
+      calls = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            MethodChannel(customPlatformViewChannelName(7)),
+            (call) => Completer<void>().future,
+          );
 
-        expect(
-          await PluginWebViewFocus.request(_FocusFake(viewId: 7)),
-          isFalse,
-        );
-      },
-      timeout: const Timeout(Duration(seconds: 30)),
-    );
-
-    test(
-      'בדיקת מיקוד תקועה אינה חוסמת את ההעברה',
-      () async {
-        mockChannel(7);
-        final controller = _FocusFake(viewId: 7, hangEvaluate: true);
-
-        expect(await PluginWebViewFocus.request(controller), isTrue);
-        expect(calls.map((c) => c.method), [kPlatformViewRequestFocusMethod]);
-      },
-      timeout: const Timeout(Duration(seconds: 30)),
-    );
+      expect(await PluginWebViewFocus.request(_FocusFake(viewId: 7)), isFalse);
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 
   group('PluginWebViewFocus.request — מסלול ה-controller', () {
@@ -663,5 +648,29 @@ void main() {
       expect(controller.evaluated, hasLength(1));
       expect(controller.requestFocusCalls, 1);
     });
+
+    test('בדיקת המיקוד נכשלה — ממשיכים להעברה', () async {
+      final controller = _FocusFake(
+        evalError: PlatformException(code: 'dead-bridge'),
+      );
+
+      expect(await PluginWebViewFocus.request(controller), isTrue);
+      expect(controller.requestFocusCalls, 1);
+    });
+
+    test('תשובה שאינה true אינה נחשבת "כבר במיקוד"', () async {
+      final controller = _FocusFake(pageHasFocus: 'true');
+
+      await PluginWebViewFocus.request(controller);
+
+      expect(controller.requestFocusCalls, 1);
+    });
+
+    test('בדיקת מיקוד תקועה אינה חוסמת את ההעברה', () async {
+      final controller = _FocusFake(hangEvaluate: true);
+
+      expect(await PluginWebViewFocus.request(controller), isTrue);
+      expect(controller.requestFocusCalls, 1);
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 }
