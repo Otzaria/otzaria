@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
 import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
@@ -138,9 +139,7 @@ class TextRendererService {
     return processed;
   }
 
-  // RegExps מקומפלים פעם אחת ברמת הקלאס — הקריאות הקודמות יצרו אותם מחדש
-  // בכל קריאת processText (ולכל תג <sup> בנפרד), מה שהוסיף עומס CPU משמעותי
-  // ברנדור שורות עם הרבה סימוני הערות.
+  // הקומפילציה משותפת לכל השורות כדי להימנע מהקצאה לכל סימון.
   static final RegExp _supRegex = RegExp(
     r'<sup(\s[^>]*)?>(.*?)</sup>',
     caseSensitive: false,
@@ -168,6 +167,7 @@ class TextRendererService {
     final originalTags = identical(text, unhighlighted)
         ? null
         : _supRegex.allMatches(unhighlighted).iterator;
+    Set<int?>? rootSupOffsets;
     return text.replaceAllMapped(_supRegex, (match) {
       originalTags?.moveNext();
       final originalInner = originalTags == null
@@ -200,12 +200,25 @@ class TextRendererService {
         return '<span class="$kFootnoteMarkerClass">$wrappedInner</span>';
       }
 
-      // sup חשוף (אות הפניה מקובץ משתמש, או superscript תוכני) — 5/6 בלי
-      // נטייה. גם הוא נפלט כ-span טקסט טהור ולא נשאר `<sup>`: מסלול ה-sup של
-      // fwfh בונה WidgetSpan, וזה מה שהפך את הסדר כששני סימונים באותה פסקה.
-      // style פשוט עוטף אותו מבחוץ, כדי שהגליף השקוף לא יקבל את הצבע.
-      final marker = '<span class="$kRaisedSupClass">$wrappedInner</span>';
       final style = plainAttrs?[1];
+      if (style != null) {
+        // הציור המורם אינו יורש את סגנון אבות ה-HTML; נשאיר אותם במסלול הקיים.
+        final offsets = rootSupOffsets ??= html_parser
+            .parseFragment(unhighlighted, generateSpans: true)
+            .children
+            .where((element) => element.localName == 'sup')
+            .map((element) => element.sourceSpan?.start.offset)
+            .toSet();
+        if (!offsets.contains(
+          originalTags?.current.start ?? match.start,
+        )) {
+          return '<sup$attrs>$wrappedInner</sup>';
+        }
+      }
+
+      // span טקסט שומר את סדר הסימונים ב-RTL בלי WidgetSpan.
+      // העיצוב עוטף את הגליף השקוף כדי לא לדרוס את צבעו.
+      final marker = '<span class="$kRaisedSupClass">$wrappedInner</span>';
       return style == null ? marker : '<span style="$style">$marker</span>';
     });
   }
