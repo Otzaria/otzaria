@@ -575,6 +575,53 @@ void main() {
         _expectCatalogIntegrity(repository.databasePath);
       });
 
+      test('cursor פעיל מאפשר קוראים נוספים ודוחה החלפה עד סגירתו', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        final writer = sqlite3.open(repository.databasePath);
+        writer.execute(
+          "INSERT INTO otzar_hahochma VALUES (1, 'Alpha'), (2, 'beta')",
+        );
+        writer.close();
+        final reader = sqlite3.open(
+          repository.databasePath,
+          mode: OpenMode.readOnly,
+        );
+        final statement = reader.prepare(
+          'SELECT * FROM otzar_hahochma ORDER BY title COLLATE NOCASE',
+        );
+        repository = ExternalCatalogRepository(httpClient: client());
+        try {
+          final cursor = statement.selectCursor();
+          expect(cursor.moveNext(), isTrue);
+          expect(cursor.current['title'], 'Alpha');
+          final concurrent = await Future.wait([
+            repository.getOtzarBooks(),
+            repository.getOtzarBooks(),
+            repository.getHebrewBooks(),
+          ]);
+          expect(concurrent[0].map((book) => book.title), ['Alpha', 'beta']);
+          expect(concurrent[1].map((book) => book.title), ['Alpha', 'beta']);
+          expect(concurrent[2], isEmpty);
+          await expectLater(
+            repository.downloadLatestDatabase(),
+            throwsA(isA<ExternalCatalogDatabaseBusyException>()),
+          );
+          expect(await repository.getCurrentDatabaseVersion(), 3);
+          expect(
+            File('${repository.databasePath}.download.zst').existsSync(),
+            isTrue,
+          );
+          expect(cursor.moveNext(), isTrue);
+          expect(cursor.current['title'], 'beta');
+        } finally {
+          statement.close();
+          reader.close();
+        }
+        await repository.downloadLatestDatabase();
+        expect(await repository.getCurrentDatabaseVersion(), 5);
+        _expectCatalogIntegrity(repository.databasePath);
+      });
+
       test('כשל אחרי העברת המסד החדש משחזר את הקטלוג הקודם', () async {
         await _createOrphanWalCatalog(repository.databasePath);
         var reachedCommit = false;
@@ -966,6 +1013,7 @@ void main() {
         'pub_date INTEGER, tags TEXT)',
       );
       final otzarRows = [
+        [4, null, null, null, null, null, null],
         [3, 'beta', 'א, ב', 'תש"ס', 'תש"ס', ' ', null],
         [1, 'Alpha', null, null, 'תר"ן', 'ורשה', '["x"," ","y"]'],
         [2, 'גמרא', '["ג"]', 'תק"ע', 'תק"פ', null, 'z'],
@@ -977,6 +1025,7 @@ void main() {
         );
       }
       final hebrewRows = [
+        [10, null, null, null, null, null, null],
         [9, 'b', ' מחבר ', null, null, 1900, 'שו"ת, הלכה'],
         [8, 'A', null, 'וילנא', 'תרל"ה', 1875, '[bad json'],
       ];
@@ -1028,6 +1077,7 @@ void main() {
         isTrue,
       );
       expect(dump(otzar), [
+        expected(4, '', null, null, null, '', '${otzarLink}4', 'oh:4'),
         expected(
           1,
           'Alpha',
@@ -1070,7 +1120,20 @@ void main() {
         'https://hebrewbooks.org/9',
         'hb:9',
       );
-      expect(dump(hebrew), [hebrewA, hebrewB]);
+      expect(dump(hebrew), [
+        expected(
+          10,
+          '',
+          null,
+          null,
+          null,
+          '',
+          'https://hebrewbooks.org/10',
+          'hb:10',
+        ),
+        hebrewA,
+        hebrewB,
+      ]);
       expect(
         dump(
           byIds,
@@ -1079,12 +1142,119 @@ void main() {
       );
     });
 
+    for (final (tableName, idColumn, load)
+        in <(String, String, Future<List<Book>> Function())>[
+          ('otzar_hahochma', 'book_id', () => repository.getOtzarBooks()),
+          ('hebrew_books', 'id_book', () => repository.getHebrewBooks()),
+        ]) {
+      test('$tableName שומר ברירות מחדל, סדר ורשימה באורך קבוע', () async {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute('CREATE TABLE $tableName ($idColumn INTEGER, title TEXT)');
+        db.close();
+        expect(await load(), isEmpty);
+        final writer = sqlite3.open(repository.databasePath);
+        writer.execute(
+          "INSERT INTO $tableName VALUES (3, 'beta'), (1, NULL), "
+          "(2, 'Alpha'), (4, 'alpha')",
+        );
+        final expectedIds = writer
+            .select('SELECT * FROM $tableName ORDER BY title COLLATE NOCASE')
+            .map((row) => row[idColumn])
+            .toList();
+        writer.close();
+        final books = await load();
+        expect(
+          books.map((book) => (book as ExternalLibraryBook).id),
+          expectedIds,
+        );
+        expect(books.map((book) => book.title), ['', 'Alpha', 'alpha', 'beta']);
+        for (final book in books.cast<ExternalLibraryBook>()) {
+          expect(book.author, isNull);
+          expect(book.pubPlace, isNull);
+          expect(book.pubDate, isNull);
+          expect(book.topics, '');
+        }
+        expect(() => books.clear(), throwsUnsupportedError);
+        _expectExclusiveCatalogAccess(repository.databasePath);
+      });
+
+      test(
+        '$tableName כשל מיפוי מבטל גם תוצאות קודמות ומשחרר נעילות',
+        () async {
+          final db = sqlite3.open(repository.databasePath);
+          db.execute('CREATE TABLE $tableName ($idColumn, title TEXT)');
+          db.execute(
+            "INSERT INTO $tableName VALUES (1, 'a'), ('invalid', 'b')",
+          );
+          db.close();
+          expect(await load(), isEmpty);
+          _expectExclusiveCatalogAccess(repository.databasePath);
+          final repair = sqlite3.open(repository.databasePath);
+          repair.execute(
+            "UPDATE $tableName SET $idColumn = 2 WHERE title = 'b'",
+          );
+          repair.close();
+          expect((await load()).map((book) => book.title), ['a', 'b']);
+        },
+      );
+
+      test(
+        '$tableName שגיאת SQLite באמצע הקריאה אינה משאירה תוצאות או נעילה',
+        () async {
+          final db = sqlite3.open(repository.databasePath);
+          db.execute('CREATE TABLE source_catalog (id INTEGER, title TEXT)');
+          db.execute("INSERT INTO source_catalog VALUES (1, 'a'), (2, 'b')");
+          db.execute(
+            'CREATE INDEX titles ON source_catalog(title COLLATE NOCASE)',
+          );
+          db.execute(
+            'CREATE VIEW $tableName AS SELECT title, '
+            'CASE WHEN id = 2 THEN abs(-9223372036854775808) '
+            'ELSE id END AS $idColumn FROM source_catalog',
+          );
+          final probe = db.prepare(
+            'SELECT * FROM $tableName ORDER BY title COLLATE NOCASE',
+          );
+          try {
+            final cursor = probe.selectCursor();
+            expect(cursor.moveNext(), isTrue);
+            expect(cursor.current[idColumn], 1);
+            expect(() => cursor.moveNext(), throwsA(isA<SqliteException>()));
+          } finally {
+            probe.close();
+            db.close();
+          }
+          expect(await load(), isEmpty);
+          _expectExclusiveCatalogAccess(repository.databasePath);
+        },
+      );
+
+      test('$tableName כשל בהכנת השאילתה משחרר את המסד', () async {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute('CREATE TABLE unrelated (id INTEGER)');
+        db.close();
+        expect(await load(), isEmpty);
+        _expectExclusiveCatalogAccess(repository.databasePath);
+      });
+    }
+
     test('getOtzarBooks מחזיר רשימה ריקה כשה-DB לא קיים', () async {
       expect(await repository.databaseExists(), isFalse);
       expect(await repository.getOtzarBooks(), isEmpty);
       expect(await repository.getHebrewBooks(), isEmpty);
     });
   });
+}
+
+void _expectExclusiveCatalogAccess(String dbPath) {
+  final db = sqlite3.open(dbPath);
+  try {
+    db.execute('PRAGMA busy_timeout=0');
+    db.execute('BEGIN EXCLUSIVE');
+    db.execute('ROLLBACK');
+  } finally {
+    db.close();
+  }
 }
 
 Future<void> _createCatalogDatabase(

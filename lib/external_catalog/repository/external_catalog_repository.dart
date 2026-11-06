@@ -682,13 +682,20 @@ class ExternalCatalogRepository {
         return results;
       }
 
-      final rows = db.select(
+      final statement = db.prepare(
         'SELECT * FROM $tableName ORDER BY title COLLATE NOCASE',
       );
-
-      return rows
-          .map((row) => mapper(row as Map<String, Object?>))
-          .toList(growable: false);
+      try {
+        final cursor = statement.selectCursor();
+        final results = <T>[];
+        while (cursor.moveNext()) {
+          results.add(mapper(cursor.current as Map<String, Object?>));
+        }
+        return results.toList(growable: false);
+      } finally {
+        // גם כשל במיפוי חייב לשחרר את ה-cursor ואת נעילת הקריאה שלו.
+        statement.close();
+      }
     } catch (e, st) {
       // דגרדציה מכוונת: כשל כאן (DB פגום/סכמה) לא מפיל את חיפוש הספרים
       // כולו — רק הספרים החיצוניים חסרים. הלוג המלא נדרש לאבחון.
