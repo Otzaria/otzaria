@@ -579,7 +579,8 @@ Future<void> _measureTrackedProcesses(
   _report({
     'cycle': cycle,
     'phase': phase,
-    'processScope': 'fixed WebView2 identities captured before host close; host and later processes excluded',
+    'processScope':
+        'fixed WebView2 identities captured before host close; host and later processes excluded',
     'captureListStable': tracked.captureListStable,
     'trackedProcesses': tracked.entries.length,
     'trackedAlive': alive,
