@@ -178,6 +178,42 @@ void main() {
   });
 
   for (final direction in TextDirection.values) {
+    for (final clickTarget in ['label', 'top', 'left', 'right']) {
+      testWidgets('לחיצה אחרי ריחוף משאירה תת-תפריט פתוח: $direction, '
+          'target=$clickTarget (issue #3777)', (tester) async {
+        final log = await _pumpMenu(tester, direction: direction);
+        final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsOneWidget);
+
+        final row = tester.getRect(
+          find.ancestor(
+            of: find.text('אפשרויות'),
+            matching: find.byType(SubmenuButton),
+          ),
+        );
+        final position = switch (clickTarget) {
+          'top' => Offset(row.center.dx, row.top + 2),
+          'left' => Offset(row.left + 2, row.center.dy),
+          'right' => Offset(row.right - 2, row.center.dy),
+          _ => tester.getCenter(find.text('אפשרויות')),
+        };
+        await mouse.moveTo(position);
+        await mouse.down(position);
+        await mouse.up();
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsOneWidget);
+        expect(log.closed, 0);
+        expect(log.selections, isEmpty);
+
+        await tester.tap(find.text('פעולה פנימית'));
+        await tester.pumpAndSettle();
+        expect(log.selections, ['child']);
+        expect(log.closed, 1);
+      });
+    }
+
     for (final leaveFromChild in [false, true]) {
       for (final outside in [false, true]) {
         testWidgets(

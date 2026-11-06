@@ -1250,16 +1250,24 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
           else
             entry,
       ],
-      childBuilder: (context, openToRight) => buildAppMenuRowContent(
-        context,
-        widget.metrics,
-        label: widget.label,
-        icon: widget.icon,
-        trailing: presentation.submenuArrowBuilder(
+      childBuilder: (context, openToRight) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        // ריחוף כבר פותח את הילד. לחיצה על שורת האב משאירה אותו פתוח
+        // לבחירה, במקום להפעיל שוב את toggle הסגירה של SubmenuButton.
+        // ה-padding נמצא בתוך השורה, כך שגם לחיצה בשוליה מטופלת כאן.
+        onTap: widget.menuChildren.isEmpty ? null : _controller.open,
+        child: buildAppMenuRowContent(
           context,
-          openToRight,
-          widget.metrics.iconSize,
-          null,
+          widget.metrics,
+          label: widget.label,
+          icon: widget.icon,
+          trailing: presentation.submenuArrowBuilder(
+            context,
+            openToRight,
+            widget.metrics.iconSize,
+            null,
+          ),
         ),
       ),
       child: const SizedBox.shrink(),
