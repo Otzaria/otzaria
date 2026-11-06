@@ -727,6 +727,36 @@ void main() {
       });
     });
 
+    group('open/book/<id> — select param', () {
+      OpenBookAction parse(String uri) =>
+          ExternalUriRouter.parseUri(Uri.parse(uri)) as OpenBookAction;
+
+      test('?index=5&select sets selectLine', () {
+        final action = parse('otzaria://open/book/1?index=5&select');
+
+        expect(action.selectLine, isTrue);
+        expect(action.index, 5);
+      });
+
+      test('?index=0&select= counts, like ?mark=', () {
+        expect(
+          parse('otzaria://open/book/1?index=0&select=').selectLine,
+          isTrue,
+        );
+      });
+
+      test('?select without an index is ignored', () {
+        final action = parse('otzaria://open/book/1?select');
+
+        expect(action.selectLine, isFalse);
+        expect(action.hasExplicitPosition, isFalse);
+      });
+
+      test('a link without the flag does not select', () {
+        expect(parse('otzaria://open/book/1?index=5').selectLine, isFalse);
+      });
+    });
+
     group('open/book/<id> — mark params', () {
       test('?mark ללא index — markSection=true, index=null', () {
         final action =
