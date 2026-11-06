@@ -1045,24 +1045,29 @@ class RustSearchEngineOperations
     return distance.clamp(0, kMaxFuzzyDistance).toInt();
   }
 
-  /// מזין מראש את תבנית ההדגשה מבוססת-האינדקס (ראה
-  /// `text_manipulation.primeHighlightPattern`). מפתח המטמון נגזר מאותם
-  /// פרמטרים ש-`utils.highLight` ישתמש בהם ברינדור, כך שהתבנית תימצא שם.
-  ///
-  /// במצב exact אין פער להשלים: החיפוש מתאים רק את הטוקנים המדויקים, ותבנית
-  /// ה-fallback הסינכרונית כבר מדגישה בדיוק אותם. חריג: מדויק עם מרווח
-  /// בין מילים רץ בפועל דרך המסלול המתקדם, ותבנית ההדגשה של הספר הפתוח
-  /// צריכה לשאת את אותו מרווח — לכן הוא מוזן כבקשה מתקדמת.
+  /// הבקשה האפקטיבית לתבנית הדגשה מבוססת-אינדקס, או null למסלול מקומי.
+  /// חיפוש מדויק עם אפשרויות מילה, מרווח או "בכל סדר" משתמש במסלול
+  /// המתקדם גם להדגשה. חיפוש מדויק פשוט ו-regex מקומי אינם זקוקים לאינדקס.
+  static SearchEngineRequest? indexHighlightRequest(
+    SearchEngineRequest request,
+  ) {
+    if (request.query.trim().isEmpty || UserRegexQuery.isValid(request.query)) {
+      return null;
+    }
+    if (request.searchMode == SearchMode.exact) {
+      final expanded = _exactWithParametersAsAdvanced(request);
+      if (expanded == null) return null;
+      request = expanded;
+    }
+    return SearchEngineGateway._withHolyNames(request);
+  }
+
+  /// מזין מראש תבנית שמפתח המטמון שלה תואם לפרמטרי הרינדור של הספר.
   @override
   void primeHighlightPattern(SearchEngineRequest request) {
-    // ההדגשה של `/…/` נעשית במתאם של המנוע עצמו (UserRegexQuery.matcher).
-    if (UserRegexQuery.isValid(request.query)) return;
-    final gapped = _exactWithParametersAsAdvanced(request);
-    if (gapped != null) return primeHighlightPattern(gapped);
-    if (request.query.trim().isEmpty ||
-        request.searchMode == SearchMode.exact) {
-      return;
-    }
+    final indexed = indexHighlightRequest(request);
+    if (indexed == null) return;
+    request = indexed;
     unawaited(
       text_utils.primeHighlightPattern(
         searchQuery: request.query,

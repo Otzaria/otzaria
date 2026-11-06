@@ -24,6 +24,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -108,6 +109,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
+  SearchEngineRequest? _highlightRequest;
+  VoidCallback? _releaseHighlightPattern;
   int _searchResultRequestId = 0;
   DateTime? _lastVisibleIndicesDispatchAt;
   bool _listeningToReadingPosition = false;
@@ -254,6 +257,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
     _isTabVisible = event.visible;
     _allowBackgroundWarming = event.allowBackgroundWarming;
+    _syncHighlightPattern();
 
     final currentState = state;
     if (currentState is! TextBookLoaded) {
@@ -270,6 +274,45 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _releaseContentOutsideWindow(currentState, emit);
       _releaseLinksOutsideWindow(state as TextBookLoaded, emit);
     }
+  }
+
+  void _setHighlightRequest(SearchEngineRequest request) {
+    _highlightRequest = RustSearchEngineOperations.indexHighlightRequest(
+      request,
+    );
+    _syncHighlightPattern();
+  }
+
+  void _syncHighlightPattern() {
+    final previousRelease = _releaseHighlightPattern;
+    final request = !isClosed && _isTabVisible ? _highlightRequest : null;
+    _releaseHighlightPattern = request == null
+        ? null
+        : text_utils.retainHighlightPattern(
+            searchQuery: request.query,
+            searchOptions: request.searchOptions,
+            alternativeWords: request.alternativeWords,
+            spacingValues: request.customSpacing,
+            searchDistance: request.distance,
+            isFuzzy: request.searchMode == SearchMode.fuzzy,
+            anyOrder: request.anyOrder,
+          );
+    // Acquire first: reloading the same query must not briefly unpin it.
+    previousRelease?.call();
+    if (request == null) return;
+    unawaited(
+      TantivyDataProvider.instance.engine.then(
+        (engine) {
+          if (!isClosed &&
+              _isTabVisible &&
+              identical(request, _highlightRequest)) {
+            RustSearchEngineOperations(engine).primeHighlightPattern(request);
+          }
+        },
+        onError: (Object error) =>
+            debugPrint('highlight prime skipped: $error'),
+      ),
+    );
   }
 
   /// מפנה הפניות מחוץ לחלון; מפרשים וקישורי מקור נשמרים, כי הסנכרון
@@ -804,8 +847,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     // את הווריאנטים שהחיפוש באמת התאים (שגיאות כתיב, קידומות, חלק ממילה).
     // אחרי חיפוש טרי זו פגיעת מטמון; הערך האמיתי הוא טאבים משוחזרים, שבהם
     // אף חיפוש לא רץ דרך ה-gateway בהפעלה הנוכחית.
-    if (searchText.isNotEmpty && searchMode != SearchMode.exact) {
-      final request = SearchEngineRequest(
+    _setHighlightRequest(
+      SearchEngineRequest(
         query: searchText,
         facets: const [],
         searchMode: searchMode,
@@ -814,16 +857,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         alternativeWords: alternativeWords,
         searchOptions: searchOptions,
         anyOrder: matchPolicy.anyOrder,
-      );
-      unawaited(
-        TantivyDataProvider.instance.engine.then(
-          (engine) =>
-              RustSearchEngineOperations(engine).primeHighlightPattern(request),
-          onError: (Object error) =>
-              debugPrint('highlight prime skipped: $error'),
-        ),
-      );
-    }
+      ),
+    );
 
     try {
       final requiresRenderedToc = _requiresWholeBookContent(book);
@@ -1935,6 +1970,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           searchOrigin: InBookSearchOrigin.inBook,
         ),
       );
+      _setHighlightRequest(const SearchEngineRequest(query: '', facets: []));
     } else {
       // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
       _pendingPinpoint = (
@@ -2010,6 +2046,21 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           clearPermanentHighlight: requestChanged,
         ),
       );
+      if (requestChanged) {
+        final updated = state as TextBookLoaded;
+        _setHighlightRequest(
+          SearchEngineRequest(
+            query: updated.searchText,
+            facets: const [],
+            searchMode: updated.searchMode,
+            distance: updated.searchDistance,
+            customSpacing: updated.spacingValues,
+            alternativeWords: updated.alternativeWords,
+            searchOptions: updated.searchOptions,
+            anyOrder: updated.matchPolicy.anyOrder,
+          ),
+        );
+      }
     }
   }
 
@@ -2307,6 +2358,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   Future<void> close() async {
     _debounceTimer?.cancel();
     _highlightTimer?.cancel();
+    _highlightRequest = null;
+    _releaseHighlightPattern?.call();
+    _releaseHighlightPattern = null;
     final hiddenSelectionCancellation = _hiddenSelectionSubscription?.cancel();
 
     readingPosition?.removeListener(_onReadingPosition);
