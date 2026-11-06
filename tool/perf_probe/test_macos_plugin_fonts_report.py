@@ -114,6 +114,16 @@ class ReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'evidence missing'):
             validate_pair(self.data, self.scheme)
 
+    def test_completed_failure_snapshot_cannot_replace_timed_out_rendering(self):
+        view = self.scheme['cases'][0]['views'][0]
+        view['failureSnapshot'] = {'status': 'captured', 'value': {
+            'availability': 'captured', 'renderingProgress': {'phase': 'completed'}}}
+        rendering = next(operation for operation in view['operations']
+                         if operation['name'] == 'rendering')
+        rendering['status'] = 'timed-out'
+        with self.assertRaisesRegex(ValueError, 'incomplete or late'):
+            validate_pair(self.data, self.scheme)
+
     def test_both_transports_require_live_native_frames(self):
         self.scheme['framePolicy'] = 'fadePointers'
         with self.assertRaisesRegex(ValueError, 'native frames'):
