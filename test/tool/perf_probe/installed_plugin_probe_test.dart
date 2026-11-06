@@ -347,9 +347,9 @@ void main() {
   test(
     'cold real Store permission resolver retains blocked fallback audit',
     () async {
-      final temporary = await Directory.systemTemp.createTemp(
-        'installed-cold-policy-',
-      );
+      final temporary = await Directory(
+        await Directory.systemTemp.resolveSymbolicLinks(),
+      ).createTemp('installed-cold-policy-');
       final fixture = InstalledPluginFixture(
         Directory(p.join(temporary.path, 'app')),
         Directory(preparedSource!),
@@ -438,9 +438,9 @@ void main() {
   group('isolated fixture input guards', () {
     late Directory temporary;
     setUp(() async {
-      temporary = await Directory.systemTemp.createTemp(
-        'installed-plugin-probe-test-',
-      );
+      temporary = await Directory(
+        await Directory.systemTemp.resolveSymbolicLinks(),
+      ).createTemp('installed-plugin-probe-test-');
     });
     tearDown(() async {
       await temporary.delete(recursive: true);

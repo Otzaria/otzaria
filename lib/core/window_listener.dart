@@ -674,6 +674,17 @@ class AppWindowListener extends WindowListener {
   final AppWindowId windowId;
 
   @override
+  void onWindowEvent(String eventName) {
+    // window_manager forwards native show/hide through the generic callback.
+    // They have no dedicated WindowListener callbacks and need not change focus.
+    if (eventName == 'hide') {
+      PluginRuntimeDispatcher.instance.setWindowShown(false);
+    } else if (eventName == 'show') {
+      PluginRuntimeDispatcher.instance.setWindowShown(true);
+    }
+  }
+
+  @override
   void onWindowFocus() {
     // מקש שהוחזק במעבר חלון ושוחרר בחוץ נשאר "תקוע" (אין KeyUpEvent) וגורם
     // ל-assertion במקש הבא. משחררים אותו דרך מסלול האירועים הרגיל — לא

@@ -10,10 +10,13 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/perf_fixture*_test.dart'
+      - 'test/core/window_listener*_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
+      - 'lib/core/window_listener.dart'
       - 'linux/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -144,6 +147,12 @@ jobs:
             2>&1 | tee "$INSTALLED_PROBE_ROOT/fixture-tests.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_probe_test.dart \
+            test/tool/perf_probe/perf_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
+            test/core/window_listener_native_visibility_test.dart \
+            test/core/window_listener_restore_from_minimize_test.dart \
+            test/core/window_listener_focus_keyboard_test.dart \
+            test/core/window_listener_hide_on_exit_test.dart \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/contract-tests.log"
 
       - name: Build the actual app scenario in profile
