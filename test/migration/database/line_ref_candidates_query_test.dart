@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_core.dart';
@@ -58,6 +59,18 @@ void _buildFixture(sqlite3.Database db) {
   }
   db.execute('COMMIT');
 }
+
+/// כותב כמו עדכון הספרייה: busy_timeout של 5 שניות ונעילה בלעדית.
+Future<void> _writeExclusivelyInIsolate(String dbPath) => Isolate.run(() {
+  final db = sqlite3.sqlite3.open(dbPath);
+  try {
+    db.execute('PRAGMA busy_timeout=5000');
+    db.execute('BEGIN EXCLUSIVE');
+    db.execute('COMMIT');
+  } finally {
+    db.close();
+  }
+});
 
 const _title = 'ישעיהו';
 const _ref = 'ישעיהו לב, יא';
@@ -329,7 +342,7 @@ void main() {
     test('פתרון שורות רבות מכין כל שאילתה פעם אחת ובטרנזקציית קריאה', () {
       final resolver = ExternalTargetResolver([
         target('o', null, untrusted: false),
-      ]);
+      ], readHold: const Duration(minutes: 1));
       final writer = sqlite3.sqlite3.open(refsPath);
       try {
         for (var i = 0; i < 50; i++) {
@@ -354,6 +367,70 @@ void main() {
         resolver.releaseReads();
         writer.execute('BEGIN EXCLUSIVE');
         writer.execute('ROLLBACK');
+      } finally {
+        writer.close();
+        resolver.close();
+      }
+    });
+
+    test('כותב עם busy_timeout נכנס כשפתרון השורות איטי', () async {
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+      ]);
+      Future<int?> resolveSlowly() async {
+        final hit = resolver.resolve(
+          targetSource: 'official',
+          targetTitle: _title,
+          targetRef: _ref,
+          targetLineIndex: null,
+        );
+        // עבודה איטית לכל שורה בזמן שנעילת הקריאה מוחזקת.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return hit?.lineIndex;
+      }
+
+      try {
+        expect(await resolveSlowly(), 11);
+        var writerDone = false;
+        final writer = _writeExclusivelyInIsolate(
+          refsPath,
+        ).whenComplete(() => writerDone = true);
+        final clock = Stopwatch()..start();
+        while (!writerDone && clock.elapsed < const Duration(seconds: 10)) {
+          expect(await resolveSlowly(), 11);
+        }
+        await writer;
+      } finally {
+        resolver.close();
+      }
+    });
+
+    test('כותרת שנכשלה ב-BUSY אינה נשמרת כריקה', () {
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+      ]);
+      final writer = sqlite3.sqlite3.open(refsPath);
+      try {
+        // פותח את החיבור ליעד לפני הנעילה, כך שרק שאילתת הכותרת נכשלת.
+        expect(resolver.bookDatabase('official', 'book 1'), isNotNull);
+        resolver.releaseReads();
+        writer.execute('BEGIN EXCLUSIVE');
+        final busy = resolver.resolve(
+          targetSource: 'official',
+          targetTitle: _title,
+          targetRef: _ref,
+          targetLineIndex: null,
+        );
+        expect(busy, isNull);
+        writer.execute('ROLLBACK');
+        resolver.releaseReads();
+        final hit = resolver.resolve(
+          targetSource: 'official',
+          targetTitle: _title,
+          targetRef: _ref,
+          targetLineIndex: null,
+        );
+        expect(hit?.lineIndex, 11);
       } finally {
         writer.close();
         resolver.close();

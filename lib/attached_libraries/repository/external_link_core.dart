@@ -58,7 +58,11 @@ String? _text(Object? value) {
 /// פותר יעדי `external_link` מול רשימת מסדי יעד. מחזיק את החיבורים פתוחים עד
 /// [close], כך שסדרת שורות נפתרת בלי לפתוח את אותו מסד שוב ושוב.
 class ExternalTargetResolver {
-  ExternalTargetResolver(this.targets, {this.excludeWireKey});
+  ExternalTargetResolver(
+    this.targets, {
+    this.excludeWireKey,
+    this.readHold = const Duration(milliseconds: 50),
+  });
 
   final List<ExternalTargetDb> targets;
 
@@ -107,6 +111,8 @@ class ExternalTargetResolver {
     final connection = _open.putIfAbsent(target.wireKey, () {
       try {
         final db = openReadOnlyTarget(target.target);
+        // קצר: כותב שממתין לנעילה מחזיק PENDING, ובו הקורא ממתין לו.
+        db.execute('PRAGMA busy_timeout=$targetBusyTimeoutMs');
         return (db, DbCapabilities.probe(db));
       } catch (_) {
         return null;
@@ -115,17 +121,24 @@ class ExternalTargetResolver {
     // שאילתה מחוץ לטרנזקציה נועלת את הקובץ ובודקת יומן — עשרות µs לכל אחת.
     if (connection != null && connection.$1.autocommit) {
       connection.$1.execute('BEGIN');
+      if (!_readClock.isRunning) {
+        _readClock
+          ..reset()
+          ..start();
+      }
     }
     return connection;
   }
 
-  /// פתרונות בין שחרורי נעילת הקריאה — כותב למסד יעד אינו ממתין יותר מזה.
-  static const resolvesPerReadTransaction = 1000;
-  int _resolvesInTransaction = 0;
+  /// משך החזקת נעילת הקריאה בין שחרורים — כותב למסד יעד אינו ממתין יותר מזה.
+  final Duration readHold;
+  final Stopwatch _readClock = Stopwatch();
+
+  static const targetBusyTimeoutMs = 300;
 
   /// משחרר את נעילת הקריאה על מסדי היעד; חובה לפני המתנה ארוכה (השהיית בנייה).
   void releaseReads() {
-    _resolvesInTransaction = 0;
+    _readClock.stop();
     for (final connection in _open.values) {
       final db = connection?.$1;
       if (db != null && !db.autocommit) db.execute('COMMIT');
@@ -139,11 +152,14 @@ class ExternalTargetResolver {
     final key = (target.wireKey, title);
     final cached = _books[key];
     if (cached != null) return cached;
+    final books = _queryBooks(target, title);
+    // שגיאה (למשל BUSY רגעי) אינה נשמרת — אחרת הכותרת נשמטת עד סוף הבנייה.
+    if (books == null) return const [];
     if (_books.length >= maxCachedTitles) _books.clear();
-    return _books[key] = _queryBooks(target, title);
+    return _books[key] = books;
   }
 
-  List<(int, int?)> _queryBooks(ExternalTargetDb target, String title) {
+  List<(int, int?)>? _queryBooks(ExternalTargetDb target, String title) {
     final connection = _connection(target);
     if (connection == null) return const [];
     final (db, caps) = connection;
@@ -161,7 +177,7 @@ class ExternalTargetResolver {
       ];
     } catch (_) {
       // מסד יעד פגום אינו מפיל את פתרון שאר הקישורים.
-      return const [];
+      return null;
     }
   }
 
@@ -209,7 +225,7 @@ class ExternalTargetResolver {
     required String? targetRef,
     required int? targetLineIndex,
   }) {
-    if (++_resolvesInTransaction > resolvesPerReadTransaction) releaseReads();
+    if (_readClock.elapsed >= readHold) releaseReads();
     // הספר נמצא במסד הראשון — לא ממשיכים למסד אחר גם אם השורה לא נפתרה.
     final target = bookDatabase(targetSource, targetTitle);
     if (target == null) return null;
@@ -319,8 +335,8 @@ class ExternalTargetResolver {
     columns: 'lr.bookId, lr.lineIndex, l.heRef',
   );
 
+  /// sqlite3_close_v2 מגלגל אחורה את טרנזקציית הקריאה הפתוחה בעצמו.
   void close() {
-    releaseReads();
     for (final statement in _statements.values) {
       statement.close();
     }
