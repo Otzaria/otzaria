@@ -21,6 +21,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
@@ -86,7 +87,7 @@ BookNotesInfo _book(String id) => BookNotesInfo(
 );
 
 class _Repository extends PersonalNotesRepository {
-  _Repository(this.notes);
+  _Repository(this.notes, {super.service});
 
   final Map<String, List<PersonalNote>> notes;
   bool delayLists = false;
@@ -257,6 +258,87 @@ Future<PersonalNotesBloc> _mount(
   return notesBloc;
 }
 
+class _ServiceMutationRepository extends _Repository {
+  _ServiceMutationRepository(super.notes, this._mutationService)
+    : super(service: _mutationService);
+
+  final PersonalNotesService _mutationService;
+  static const _bookContent = 'first line\nsecond line\nthird line';
+
+  @override
+  Future<List<PersonalNote>> repositionNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) => _mutationService.repositionNote(
+    bookId: bookId,
+    bookContent: _bookContent,
+    noteId: noteId,
+    lineNumber: lineNumber,
+    pdfAnchor: pdfAnchor,
+  );
+
+  @override
+  Future<PersonalNote> moveNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) => _mutationService.moveNote(
+    bookId: bookId,
+    bookContent: _bookContent,
+    noteId: noteId,
+    lineNumber: lineNumber,
+    pdfAnchor: pdfAnchor,
+  );
+}
+
+class _MutationRefreshDatabase extends Fake implements PersonalNotesDatabase {
+  _MutationRefreshDatabase(this.notes);
+
+  final Map<String, List<PersonalNote>> notes;
+  int writes = 0;
+  int listReads = 0;
+
+  @override
+  Future<List<PersonalNote>> loadNotes(String bookId) async {
+    listReads++;
+    throw StateError('list refresh failed after the write');
+  }
+
+  @override
+  Future<PersonalNote?> getNote(String noteId) async {
+    for (final bookNotes in notes.values) {
+      for (final note in bookNotes) {
+        if (note.id == noteId) return note;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> deleteNote(String noteId) async {
+    final note = await getNote(noteId);
+    if (note == null) return;
+    notes[note.bookId]!.removeWhere((note) => note.id == noteId);
+    writes++;
+    PersonalNotesChanges.notify(note.bookId);
+  }
+
+  @override
+  Future<void> updateNote(PersonalNote updated) async {
+    final bookNotes = notes[updated.bookId]!;
+    final index = bookNotes.indexWhere((note) => note.id == updated.id);
+    if (index < 0) throw StateError('note no longer exists');
+    bookNotes[index] = updated;
+    writes++;
+    PersonalNotesChanges.notify(updated.bookId);
+  }
+}
+
 class _MutationRepository extends _Repository {
   _MutationRepository(super.notes);
   final pendingWrite = Completer<void>();
@@ -281,19 +363,24 @@ class _MutationRepository extends _Repository {
   }
 
   @override
-  Future<List<PersonalNote>> deleteNote({
-    required String bookId,
-    required String noteId,
-  }) => _write(bookId, noteId, null);
+  Future<void> removeNote({required String noteId}) async {
+    final bookId = notes.entries
+        .singleWhere((entry) => entry.value.any((note) => note.id == noteId))
+        .key;
+    await _write(bookId, noteId, null);
+  }
 
   @override
-  Future<List<PersonalNote>> repositionNote({
+  Future<PersonalNote> moveNote({
     required String bookId,
     required String noteId,
     required int lineNumber,
     PdfNoteAnchor? pdfAnchor,
     int? categoryId,
-  }) => _write(bookId, noteId, lineNumber);
+  }) async {
+    final stored = await _write(bookId, noteId, lineNumber);
+    return stored.singleWhere((note) => note.id == noteId);
+  }
 }
 
 void main() {
@@ -810,6 +897,52 @@ void main() {
     },
   );
   for (final reposition in [false, true]) {
+    testWidgets(
+      'manager acknowledges ${reposition ? "reposition" : "delete"} without a post-write list read',
+      (tester) async {
+        var note = _note('ספר א', 'תוכן פעולת מנהל');
+        if (reposition) {
+          note = note.copyWith(
+            clearLineNumber: true,
+            status: PersonalNoteStatus.missing,
+          );
+        }
+        final notes = <String, List<PersonalNote>>{
+          note.bookId: [note],
+        };
+        final database = _MutationRefreshDatabase(notes);
+        final repository = _ServiceMutationRepository(
+          notes,
+          PersonalNotesService(database: database),
+        );
+        final reader = await _mount(tester, repository);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip(reposition ? 'מיקום מחדש' : 'מחיקה'));
+        await tester.pumpAndSettle();
+        if (reposition) {
+          await tester.enterText(find.byType(EditableText).last, '3');
+        }
+        await tester.tap(find.text(reposition ? 'שמור' : 'מחק'));
+        await tester.pumpAndSettle();
+
+        final success = reposition
+            ? NotesMessages.noteMovedToLine(3)
+            : NotesMessages.noteDeleted;
+        expect(database.writes, 1);
+        expect(find.text(success), findsOneWidget);
+        expect(database.listReads, 0);
+        expect(find.textContaining('list refresh failed'), findsNothing);
+        expect(reader.state.bookId, isNull);
+        if (reposition) {
+          expect(notes[note.bookId]!.single.lineNumber, 3);
+        } else {
+          expect(notes[note.bookId], isEmpty);
+        }
+        await expectLater(database.loadNotes(note.bookId), throwsStateError);
+        await tester.pump(const Duration(seconds: 10));
+      },
+    );
+
     for (final fail in [false, true]) {
       testWidgets(
         'manager ${reposition ? "repositions" : "deletes"} only after confirmed write (failure: $fail)',

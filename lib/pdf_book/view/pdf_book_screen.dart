@@ -6171,7 +6171,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       return;
     }
     try {
-      await _personalNotesRepository.repositionNote(
+      await _personalNotesRepository.moveNote(
         bookId: note.bookId,
         noteId: note.id,
         categoryId: widget.tab.book.categoryId,
