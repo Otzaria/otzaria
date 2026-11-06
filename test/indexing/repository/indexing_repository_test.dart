@@ -16,9 +16,11 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart' show navigatorKey;
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -1865,6 +1867,8 @@ void main() {
         );
         await Settings.init(cacheProvider: MemoryCacheProvider());
         AppPaths.debugOverrideDataRootPath(p.join(tempDir.path, 'data'));
+        await CacheDatabaseHolder.instance.close();
+        await CacheDatabaseHolder.instance.repository;
         final dbPath = p.join(tempDir.path, 'seforim.db');
         final database = MyDatabase.withPath(dbPath);
         final dbRepository = SeforimRepository(database);
@@ -1891,6 +1895,7 @@ void main() {
         );
         await SqliteDataProvider.instance.dispose();
         await SqliteDataProvider.instance.initialize();
+        await FindRefDbIsolate.resumeAfterExternalWrite();
         previousRegistry = AttachedLibraryRegistry.instance;
         AttachedLibraryRegistry.instance =
             AttachedLibraryRegistry(idleTimeout: null)..update([
@@ -1909,8 +1914,14 @@ void main() {
         await SqliteDataProvider.instance.dispose();
         await UserBooksDatabaseHolder.instance.close();
         DbReadWorker.disposeForTesting();
+        await CacheDatabaseHolder.instance.close();
         AppPaths.debugOverrideDataRootPath(null);
-        await tempDir.delete(recursive: true);
+        try {
+          expect(await FindRefDbIsolate.suspendForExternalWrite(), isTrue);
+          await tempDir.delete(recursive: true);
+        } finally {
+          await FindRefDbIsolate.resumeAfterExternalWrite();
+        }
       });
 
       for (final source in [

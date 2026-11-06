@@ -50,6 +50,19 @@ void main() {
       },
     );
 
+    test('ביטול ממאגר אחר מעיר השהיה ומשחרר את המאזין', () async {
+      final provider = _PauseProbeProvider()..isIndexing.value = true;
+      final repository = IndexingRepository(provider)..pauseIndexing();
+      addTearDown(repository.resumeIndexing);
+      final gate = repository.waitWhilePausedForTesting();
+
+      IndexingRepository(provider).cancelIndexing();
+      await gate.timeout(const Duration(seconds: 1));
+
+      expect(repository.isPaused, isFalse);
+      expect(provider.isIndexing.hasActiveListeners, isFalse);
+    });
+
     test('השהיה חוזרת אחרי המשך חוסמת שוב', () async {
       final provider = _PauseProbeProvider()..isIndexing.value = true;
       final repository = IndexingRepository(provider)..pauseIndexing();
@@ -65,6 +78,7 @@ void main() {
 
       repository.resumeIndexing();
       await gate.timeout(const Duration(seconds: 1));
+      expect(provider.isIndexing.hasActiveListeners, isFalse);
     });
   });
 
@@ -158,7 +172,7 @@ class _PauseProbeProvider implements TantivyDataProvider {
   }
 
   @override
-  final ValueNotifier<bool> isIndexing = ValueNotifier<bool>(false);
+  final _PauseFlag isIndexing = _PauseFlag();
 
   @override
   Future<SearchEngine> get engine async => engineInstance;
@@ -170,6 +184,12 @@ class _PauseProbeProvider implements TantivyDataProvider {
   dynamic noSuchMethod(Invocation invocation) {
     throw UnimplementedError('Unexpected call: $invocation');
   }
+}
+
+class _PauseFlag extends ValueNotifier<bool> {
+  _PauseFlag() : super(false);
+
+  bool get hasActiveListeners => hasListeners;
 }
 
 class _EconomyRecordingEngine implements SearchEngine {

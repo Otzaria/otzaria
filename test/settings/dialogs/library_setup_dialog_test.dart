@@ -12,6 +12,7 @@ import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/dialog_owner.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
@@ -106,6 +107,7 @@ class _FolderFilePickerPlatform extends FilePickerPlatform
     with MockPlatformInterfaceMixin {
   _FolderFilePickerPlatform(this.folder);
   final String folder;
+  int calls = 0;
 
   @override
   Future<String?> getDirectoryPath({
@@ -115,7 +117,24 @@ class _FolderFilePickerPlatform extends FilePickerPlatform
     WindowsOptions windowsOptions = const WindowsOptions(),
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
-  }) async => folder;
+  }) async {
+    calls++;
+    return folder;
+  }
+}
+
+_FolderFilePickerPlatform _installFolderFilePicker(String folder) {
+  final previousPicker = FilePickerPlatform.instance;
+  final previousOwner = DialogOwner.hwnd();
+  final picker = _FolderFilePickerPlatform(folder);
+  FilePickerPlatform.instance = picker;
+  // ב-Windows הבורר דורש חלון מארח, גם כשהבורר עצמו מדומה.
+  DialogOwner.mainWindowHwnd = 7;
+  addTearDown(() {
+    FilePickerPlatform.instance = previousPicker;
+    DialogOwner.mainWindowHwnd = previousOwner;
+  });
+  return picker;
 }
 
 /// בורר תיקייה שסופר קריאות — באנדרואיד מקטע היעד אסור שיפתח אותו.
@@ -679,11 +698,12 @@ void main() {
 
   group('בחירת תיקייה שאינה ניתנת לקריאה (issue #1219)', () {
     late Directory temp;
+    late _FolderFilePickerPlatform picker;
 
     setUp(() async {
       temp = await Directory.systemTemp.createTemp('otzaria_1219_');
       await File('${temp.path}/seforim.db').writeAsBytes([0, 1, 2]);
-      FilePickerPlatform.instance = _FolderFilePickerPlatform(temp.path);
+      picker = _installFolderFilePicker(temp.path);
     });
 
     tearDown(() async {
@@ -736,6 +756,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 200));
       });
       await tester.pumpAndSettle();
+      expect(picker.calls, 1);
       expect(find.textContaining('אין הרשאת קריאה לתיקייה'), findsOneWidget);
       expect(find.text('בחר קובץ ספרייה'), findsNothing);
       expect(_actionOnPressed(tester, 'אישור'), isNull);
@@ -751,6 +772,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 200));
       });
       await tester.pumpAndSettle();
+      expect(picker.calls, 1);
       expect(find.text('נמצאו קובצי הספרייה — הפירוט למטה'), findsOneWidget);
       expect(find.text('מה נמצא בתיקייה'), findsOneWidget);
       expect(find.text('ספריית הספרים (seforim.db)'), findsOneWidget);
@@ -970,13 +992,14 @@ void main() {
   group('קובצי מסייע ההורדה', () {
     late Directory temp;
     late Directory downloads;
+    late _FolderFilePickerPlatform picker;
     const library = 'otzaria-0.9.98-library.tar.zst';
     const index = 'otzaria-0.9.98-library-index.tar.zst';
 
     setUp(() async {
       temp = await Directory.systemTemp.createTemp('otzaria_pkg_dialog_');
       downloads = await Directory(p.join(temp.path, 'downloads')).create();
-      FilePickerPlatform.instance = _FolderFilePickerPlatform(downloads.path);
+      picker = _installFolderFilePicker(downloads.path);
     });
 
     tearDown(() async {
@@ -993,6 +1016,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 200));
       });
       await tester.pumpAndSettle();
+      expect(picker.calls, 1);
     }
 
     testWidgets('חלקי ספרייה ואינדקס מזוהים, ואישור פעיל', (tester) async {

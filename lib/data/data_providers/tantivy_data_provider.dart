@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
@@ -34,11 +35,42 @@ class TantivyDataProvider {
   /// Instance of the search engine pointing to the index directory
   Future<SearchEngine> get engine {
     AttachedLibraryRegistry.instance.noteEngineUse();
-    return _engineInit.ensure(_initAll);
+    return _lifecycleOperation == null ? _availableEngine() : _afterLifecycle();
   }
 
-  set engine(Future<SearchEngine> value) =>
-      _engineInit.start(() => value.then(_restoreEconomyIndexing));
+  set engine(Future<SearchEngine> value) {
+    _engineClosed = false;
+    _engineInit.start(() => value.then(_restoreEconomyIndexing));
+  }
+
+  bool _engineClosed = false;
+  Future<void>? _lifecycleOperation;
+
+  Future<SearchEngine> _availableEngine() => _engineClosed
+      ? Future.error(StateError('The search engine is closed'))
+      : _engineInit.ensure(_createEngine);
+
+  Future<SearchEngine> _afterLifecycle() async {
+    while (_lifecycleOperation != null) {
+      final pending = _lifecycleOperation!;
+      await pending;
+    }
+    return _availableEngine();
+  }
+
+  Future<T> _runLifecycle<T>(Future<T> Function() action) {
+    final result = (_lifecycleOperation ?? Future<void>.value()).then(
+      (_) => action(),
+    );
+    final settled = result.then<void>((_) {}, onError: (Object _) {});
+    _lifecycleOperation = settled;
+    unawaited(
+      settled.whenComplete(() {
+        if (identical(_lifecycleOperation, settled)) _lifecycleOperation = null;
+      }),
+    );
+    return result;
+  }
 
   bool _economyIndexing = false;
   Future<void> _economyUpdate = Future<void>.value();
@@ -48,11 +80,17 @@ class TantivyDataProvider {
   Future<void> setEconomyIndexing(bool enabled) {
     final update = _economyUpdate.then((_) async {
       while (true) {
-        final current = engine;
+        final value = await engine;
+        final current = _engineInit.current;
+        if (current == null ||
+            !identical(value, await current) ||
+            _lifecycleOperation != null) {
+          continue;
+        }
         try {
-          await (await current).setEconomyIndexing(enabled: enabled);
+          await value.setEconomyIndexing(enabled: enabled);
         } catch (_) {
-          if (_engineInit.current != null &&
+          if (_lifecycleOperation != null ||
               !identical(current, _engineInit.current)) {
             continue;
           }
@@ -71,7 +109,7 @@ class TantivyDataProvider {
     try {
       if (_economyIndexing) await engine.setEconomyIndexing(enabled: true);
     } catch (_) {
-      engine.dispose();
+      await _closeEngine(engine);
       rethrow;
     }
     return engine;
@@ -120,16 +158,28 @@ class TantivyDataProvider {
   /// נקרא מהאינדקס עצמו בעת פתיחת המנוע, ומתעדכן בזיכרון תוך כדי אינדוקס.
   final Set<String> indexedFilePaths = {};
 
-  TantivyDataProvider._internal() {
+  final Future<SearchEngine> Function()? _createEngineForTesting;
+
+  TantivyDataProvider._internal() : _createEngineForTesting = null {
     _startEngineInit();
   }
 
   @visibleForTesting
-  TantivyDataProvider.forTesting(Future<SearchEngine> initialEngine) {
+  TantivyDataProvider.forTesting(
+    Future<SearchEngine> initialEngine, {
+    Future<SearchEngine> Function()? createEngine,
+  }) : _createEngineForTesting = createEngine {
     engine = initialEngine;
   }
 
-  Future<SearchEngine> _startEngineInit() => _engineInit.start(_initAll);
+  Future<SearchEngine> _createEngine() =>
+      _createEngineForTesting?.call().then(_restoreEconomyIndexing) ??
+      _initAll();
+
+  Future<SearchEngine> _startEngineInit() {
+    _engineClosed = false;
+    return _engineInit.start(_createEngine);
+  }
 
   /// בודק את תאימות האינדקס, פותח את המנוע, וקורא ממנו את רשימת
   /// הספרים המאונדקסים. בדיקת התאימות רצה לפני פתיחת המנוע, כי המנוע
@@ -483,13 +533,13 @@ class TantivyDataProvider {
   /// [force] עוקף את מגבלת חמש-השניות ומבטיח פתיחה שמתחילה אחרי הקריאה —
   /// למסלולי שחזור אחרי כשל כתיבה, שבהם reopen ישן עלול לקרוא מצב מעופש.
   Future<bool> reopenIndex({bool force = false}) =>
-      _reopenGate.run(_doReopen, force: force);
+      _reopenGate.run(() => _runLifecycle(_doReopen), force: force);
 
   Future<void> _doReopen() async {
     debugPrint('🔄 Reopening search index...');
 
     // Dispose previous engine to release locks
-    await dispose();
+    await _disposeCurrentEngine();
 
     // Reset engines (כולל קריאה מחדש של מצב האינדקס מהאינדקס עצמו)
     // await יחיד: כשל ב-_initAll מופץ לקורא, וגם מאפס את השדה כדי שהחיפוש
@@ -522,12 +572,15 @@ class TantivyDataProvider {
     }
   }
 
-  Future<void> resetIndex(String indexPath) async {
+  Future<void> resetIndex(String indexPath) =>
+      _runLifecycle(() => _resetIndex(indexPath));
+
+  Future<void> _resetIndex(String indexPath) async {
     debugPrint('🔄 Resetting index at: $indexPath');
 
     // Close engines first to release locks
     try {
-      await dispose();
+      await _disposeCurrentEngine();
       debugPrint('🔒 Engines disposed before reset');
     } catch (e) {
       debugPrint('⚠️ Error disposing engines before reset: $e');
@@ -627,7 +680,9 @@ class TantivyDataProvider {
   /// מוחק פיזית את תיקיית האינדקס הפעילה וכל תיקיות אינדקס ישנות שנשארו
   /// בנתיבי ברירת מחדל אחרים, ואז פותח מנוע חדש. כך, אם המשתמש העביר
   /// את הספרייה לכונן אחר, האינדקס הבא ייבנה ליד הספרייה החדשה.
-  Future<void> clear() async {
+  Future<void> clear() => _runLifecycle(_clear);
+
+  Future<void> _clear() async {
     isIndexing.value = false;
     indexedFilePaths.clear();
     PendingReindexStore.clearMemory();
@@ -635,7 +690,7 @@ class TantivyDataProvider {
     // שחרור משאבים לפני מחיקה פיזית של הקבצים (חשוב במיוחד ב-Windows
     // שבו קבצים פתוחים אינם ניתנים למחיקה).
     try {
-      await dispose();
+      await _disposeCurrentEngine();
     } catch (e) {
       debugPrint('⚠️ Engine dispose during clear failed: $e');
     }
@@ -652,27 +707,17 @@ class TantivyDataProvider {
   }
 
   Future<void> _deleteAllKnownIndexDirectories() async {
-    final paths = <String>{};
-    try {
-      paths.add(await AppPaths.getIndexPath());
-    } catch (e) {
-      debugPrint('⚠️ Failed to resolve active index path: $e');
-    }
-    try {
-      paths.addAll(await AppPaths.getStaleDefaultIndexPaths());
-    } catch (e) {
-      debugPrint('⚠️ Failed to resolve stale index paths: $e');
-    }
+    final paths = <String>{
+      await AppPaths.getIndexPath(),
+      ...await AppPaths.getStaleDefaultIndexPaths(),
+    };
 
     for (final path in paths) {
       final dir = Directory(path);
       if (await dir.exists()) {
-        try {
-          await dir.delete(recursive: true);
-          debugPrint('🧹 נמחקה תיקיית אינדקס: $path');
-        } catch (e) {
-          debugPrint('⚠️ כשל במחיקת תיקיית אינדקס $path: $e');
-        }
+        // גם נתיב ישן עשוי להיבחר מחדש; כשל מחיקה אינו איפוס מוצלח.
+        await dir.delete(recursive: true);
+        debugPrint('🧹 נמחקה תיקיית אינדקס: $path');
       }
       await deleteQuarantinedIndexSiblings(path);
     }
@@ -725,14 +770,35 @@ class TantivyDataProvider {
     }
   }
 
-  /// Dispose of resources and close engines
-  Future<void> dispose() async {
+  /// משחרר את המנוע ומשאיר אותו סגור עד פתיחה מפורשת, גם במהלך החלפת קבצים.
+  Future<void> dispose() => _runLifecycle(_disposeCurrentEngine);
+
+  Future<void> _disposeCurrentEngine() async {
+    _engineClosed = true;
+    isInitialized.value = false;
+    final current = _engineInit.current;
+    if (current == null) return;
     try {
-      final index = await engine;
-      index.dispose();
-      await RustSearchEngineOperations.disposeCancellation(index);
+      await _closeEngine(await current);
     } catch (e) {
       debugPrint('⚠️ Error disposing search engine: $e');
+    } finally {
+      // הביטול עדיין משתמש במנוע הישן בזמן ש-close ממתין לחיפושים פעילים.
+      if (identical(_engineInit.current, current)) _engineInit.current = null;
+    }
+  }
+
+  Future<void> _closeEngine(SearchEngine index) async {
+    try {
+      // שחרור ה-writer מחכה לתהליכוני האינדוקס; ההמתנה רצה ב-worker.
+      await index.closeIndexWriter();
+    } catch (e) {
+      debugPrint('⚠️ Error closing the index writer: $e');
+    }
+    try {
+      index.dispose();
+    } finally {
+      await RustSearchEngineOperations.disposeCancellation(index);
     }
   }
 }
