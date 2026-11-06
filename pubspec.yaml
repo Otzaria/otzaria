@@ -81,7 +81,10 @@ dependencies:
   pdf: ^3.13.1
   # OpenType shaping, so nikud and te'amim reach a PDF as vector text
   # rather than as an image of text.
-  opentype_shaper: ^0.3.2
+  opentype_shaper:
+    git:
+      url: https://github.com/Otzaria/opentype_shaper
+      ref: 461902c049b412d64dc4dfa7b547fedbf751211d
   # The Unicode bidi algorithm, used to order the runs of a mixed line before
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
