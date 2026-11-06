@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
@@ -260,20 +261,33 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
   }
   final identity = SemanticModelIdentity.parse(modelIdentityJson);
   // המסייע אורז את המשפחה הישנה: כל גרסת מנוע פותחת אותה.
-  final vectors =
-      await SemanticVectorsReleaseLocator(
-        clientFactory: clientFactory,
-        apiBase: '$apiBase/$kSemanticVectorsRepository',
-      ).findForLibraryVersion(
-        version,
-        libraryTag: libraryTag,
-        candidates: [
-          (
-            family: SemanticVectorsFamily.anchor,
-            chunkingIdentity: identity.chunkingIdentity,
-          ),
-        ],
-      );
+  final SemanticVectorsRelease? vectors;
+  try {
+    vectors =
+        await SemanticVectorsReleaseLocator(
+          clientFactory: clientFactory,
+          apiBase: '$apiBase/$kSemanticVectorsRepository',
+        ).findForLibraryVersion(
+          version,
+          libraryTag: libraryTag,
+          candidates: [
+            (
+              family: SemanticVectorsFamily.anchor,
+              modelFamilyId: identity.familyId,
+              chunkingIdentity: identity.chunkingIdentity,
+            ),
+          ],
+        );
+  } on SemanticFailure catch (failure) {
+    if (failure.kind != SemanticFailureKind.artifactIncompatible ||
+        failure.field != 'model.family_id') {
+      rethrow;
+    }
+    throw SemanticComponentsOmitted(
+      'vectors-qa491-$libraryTag was built for another model than the bundled '
+      '${identity.familyId}',
+    );
+  }
   if (vectors == null) {
     throw SemanticComponentsOmitted(
       '$kSemanticVectorsRepository has no release vectors-qa491-$libraryTag',

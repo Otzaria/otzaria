@@ -206,7 +206,15 @@ class SemanticVectorsReleaseLocator {
       libraryVersion,
       candidate.family,
     );
-    // נבדק לפני הורדת ה-segment: סט של chunking אחר לא היה מותקן.
+    // מתכונת חלוקה זהה אינה מבטיחה שהווקטורים הופקו באותו מודל.
+    if (parsed.modelFamilyId != candidate.modelFamilyId) {
+      throw SemanticFailure(
+        SemanticFailureKind.artifactIncompatible,
+        '$releaseTag is model ${parsed.modelFamilyId}, '
+            'expected ${candidate.modelFamilyId}',
+        'model.family_id',
+      );
+    }
     if (parsed.chunkingIdentity != candidate.chunkingIdentity) {
       throw SemanticFailure(
         SemanticFailureKind.artifactIncompatible,
@@ -380,6 +388,7 @@ class SemanticVectorsReleaseLocator {
       ],
       segmentUncompressedSize: _int(segment['size'], 'segment.size'),
       identityDigest: identity.identityDigest,
+      modelFamilyId: identity.modelFamilyId,
       chunkingIdentity: identity.chunkingIdentity,
       family: family,
     );

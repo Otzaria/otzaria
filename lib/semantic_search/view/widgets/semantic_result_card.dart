@@ -11,7 +11,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticResultSource;
+    show MergedSibling, SemanticResultSource, TextStatus;
 
 /// תווית מקור ההתאמה של [source].
 String semanticSourceLabel(SemanticResultSource source) => switch (source) {
@@ -170,8 +170,10 @@ class SemanticResultCard extends StatelessWidget {
                 )
               else
                 const Spacer(),
-              const SizedBox(width: AppTokens.spaceSM),
-              SemanticSourceLabel(source: item.source),
+              if (item.textStatus == TextStatus.ok) ...[
+                const SizedBox(width: AppTokens.spaceSM),
+                SemanticSourceLabel(source: item.source),
+              ],
             ],
           ),
         ),

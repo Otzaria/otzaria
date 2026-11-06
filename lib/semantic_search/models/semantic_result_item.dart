@@ -16,6 +16,7 @@ class SemanticResultItem extends Equatable {
   /// HTML מודגש כמו בשאר החיפושים; התאמה לפי עניין בלבד מגיעה בלי סימון.
   final String snippetHtml;
   final bool isHighlighted;
+  final TextStatus textStatus;
   final BigInt id;
   final int segment;
   final bool isPdf;
@@ -48,6 +49,7 @@ class SemanticResultItem extends Equatable {
     this.lexicalScore,
     this.semanticScore,
     this.matchedWindow = 0,
+    this.textStatus = TextStatus.ok,
   });
 
   /// תוצאה מהמנוע הסמנטי.
@@ -62,6 +64,7 @@ class SemanticResultItem extends Equatable {
           _ => result.snippetHtml,
         },
         isHighlighted: result.isHighlighted,
+        textStatus: result.textStatus,
         id: result.id,
         segment: result.segment.toInt(),
         isPdf: result.isPdf,
@@ -83,6 +86,7 @@ class SemanticResultItem extends Equatable {
       reference: result.reference,
       snippetHtml: result.text,
       isHighlighted: true,
+      textStatus: result.textStatus,
       id: result.id,
       segment: result.segment.toInt(),
       isPdf: result.isPdf,
@@ -101,6 +105,7 @@ class SemanticResultItem extends Equatable {
   /// האם לבקש מהמנוע לסמן בה את הקטע הקרוב לשאילתה.
   bool get wantsPassageHighlight =>
       isSemanticOnly &&
+      textStatus == TextStatus.ok &&
       snippetHtml.isNotEmpty &&
       snippetHtml != unavailableResultText;
 
@@ -110,6 +115,7 @@ class SemanticResultItem extends Equatable {
     reference: sibling.reference,
     snippetHtml: snippetHtml,
     isHighlighted: isHighlighted,
+    textStatus: textStatus,
     id: sibling.id,
     segment: sibling.segment.toInt(),
     isPdf: sibling.isPdf,
@@ -122,7 +128,7 @@ class SemanticResultItem extends Equatable {
   );
 
   @override
-  List<Object?> get props => [id, filePath, segment, isPdf, source];
+  List<Object?> get props => [id, filePath, segment, isPdf, source, textStatus];
 }
 
 /// עמוד תוצאות אחד מהמקור, עם נתוני התשובה לטלמטריה.
@@ -168,7 +174,7 @@ class SemanticResultsPage {
 class SemanticQueryOptions extends Equatable {
   final String query;
 
-  /// facets של קטגוריות הספרייה בלבד; `['/']` = כל הספרייה.
+  /// facets של הספרים והקטגוריות שנבחרו; `['/']` = כל הספרייה.
   final List<String> facets;
 
   /// היברידי (גם התאמה מילולית) או לפי עניין בלבד.

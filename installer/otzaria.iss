@@ -1787,6 +1787,8 @@ begin
   DeleteFile(TarPath);
 end;
 
+#include "preserve_semantic_model.iss"
+
 // מחליף את books (ואת index הצמודה, כשהוכן אינדקס) רק אחרי חילוץ מלא ל-staging;
 // כשל משאיר את הקיימים. בלי אינדקס — index הקיימת אינה נוגעת, כמו במתקין ה-FULL.
 procedure ExtractLibraryArchives(const BooksPath: String);
@@ -1842,6 +1844,18 @@ begin
     if WithIndex then
       DelTree(IndexStagingRoot, True, True, True);
     LibraryInstallFailed(CustomMessage('LibraryPackageInvalid'), '');
+    exit;
+  end;
+
+  if not CopySemanticModelDirectory(
+    BooksPath + '\' + SemanticModelFolderName,
+    SourceBooks + '\' + SemanticModelFolderName) then
+  begin
+    DelTree(StagingRoot, True, True, True);
+    if WithIndex then
+      DelTree(IndexStagingRoot, True, True, True);
+    LibraryInstallFailed(CustomMessage('BooksSwapFailed'),
+      BooksPath + '\' + SemanticModelFolderName);
     exit;
   end;
 

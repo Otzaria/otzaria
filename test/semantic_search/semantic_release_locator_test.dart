@@ -21,12 +21,15 @@ const _windowsSegmentUrl = 'https://github.test/download/$_windowsSegmentName';
 
 const _anchorChunking = 2685558872390372738;
 const _windowsChunking = 320260894818558297;
+const _modelFamilyId = 'otzaria/Meivin-Embed-QA491-native256';
 const _anchor = (
   family: SemanticVectorsFamily.anchor,
+  modelFamilyId: _modelFamilyId,
   chunkingIdentity: _anchorChunking,
 );
 const _windows = (
   family: SemanticVectorsFamily.windows,
+  modelFamilyId: _modelFamilyId,
   chunkingIdentity: _windowsChunking,
 );
 const _anchorOnly = [_anchor];
@@ -37,13 +40,14 @@ String _manifestFor({
   int to = 30,
   String tag = 'v30-20260930165019',
   int chunking = _anchorChunking,
+  String modelFamilyId = _modelFamilyId,
   String segmentName = _segmentName,
 }) => jsonEncode({
   'format': 'otzaria-vectors-release',
   'formatVersion': 1,
   'kind': kind,
   'identity': {
-    'model': {'chunking_identity': chunking},
+    'model': {'family_id': modelFamilyId, 'chunking_identity': chunking},
   },
   'identityDigest': '$chunking'.padLeft(64, '0'),
   'fromLibraryVersion': 0,
@@ -364,6 +368,38 @@ void main() {
           clientFactory: server.client,
           apiBase: _api,
         );
+
+    test('מודל אחר עם אותה חלוקה נדחה לפני הורדת הווקטורים', () async {
+      for (final familyId in ['', 'previous-model']) {
+        final server = _Server()
+          ..windowsManifest = _manifestFor(
+            modelFamilyId: familyId,
+            chunking: _windowsChunking,
+            segmentName: _windowsSegmentName,
+          );
+        final fallback = await locatorOf(
+          server,
+        ).findForLibraryVersion(30, candidates: _windowsFirst);
+        expect(fallback!.family, SemanticVectorsFamily.anchor);
+
+        await expectLater(
+          locatorOf(server).findForLibraryVersion(
+            30,
+            candidates: const [_windows],
+          ),
+          throwsA(
+            isA<SemanticFailure>()
+                .having(
+                  (f) => f.kind,
+                  'kind',
+                  SemanticFailureKind.artifactIncompatible,
+                )
+                .having((f) => f.field, 'field', 'model.family_id'),
+          ),
+        );
+        expect(server.requested, isNot(contains(_windowsSegmentUrl)));
+      }
+    });
 
     test('vectors-qa491-windows-<תג> קודם, עם הזהות שבמניפסט', () async {
       final server = _Server()

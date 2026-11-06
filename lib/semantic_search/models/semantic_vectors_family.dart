@@ -30,8 +30,9 @@ enum SemanticVectorsFamily {
   final String? deltaReleaseTagPrefix;
 }
 
-/// release שאפשר להתקין: המשפחה, וה-`chunking_identity` שהמניפסט שלו חייב לשאת.
+/// release שאפשר להתקין: משפחת הסט, המודל ותצורת החלוקה שלו.
 typedef SemanticVectorsCandidate = ({
   SemanticVectorsFamily family,
+  String modelFamilyId,
   int chunkingIdentity,
 });

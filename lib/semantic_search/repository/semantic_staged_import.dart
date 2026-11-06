@@ -191,7 +191,7 @@ class SemanticStagedImport {
   }
 
   /// מפענח מניפסט וקטורים מוכן. `null` כשהוא של גרסת ספרייה אחרת, או
-  /// כשה-chunking שלו אינו של אף מועמד ב-[candidates].
+  /// כשהמודל או ה-chunking שלו אינם של אף מועמד ב-[candidates].
   ///
   /// ה-digest שנמסר למנוע הוא ה-SHA-256 של הבתים עצמם: המסייע אימת אותם מול
   /// מניפסט ה-release, וה-CI אימת אותו מול ה-digest שפורסם בהערות.
@@ -234,7 +234,11 @@ class SemanticStagedImport {
           throw const FormatException('manifest file entry'),
     ];
     final family = candidates
-        .where((c) => c.chunkingIdentity == identity.chunkingIdentity)
+        .where(
+          (c) =>
+              c.modelFamilyId == identity.modelFamilyId &&
+              c.chunkingIdentity == identity.chunkingIdentity,
+        )
         .firstOrNull
         ?.family;
     if (family == null) return null;
@@ -261,6 +265,7 @@ class SemanticStagedImport {
       ],
       segmentUncompressedSize: segmentSize,
       identityDigest: identity.identityDigest,
+      modelFamilyId: identity.modelFamilyId,
       chunkingIdentity: identity.chunkingIdentity,
       family: family,
     );

@@ -894,6 +894,7 @@ void main() {
       expect(locator.candidates.single, [
         (
           family: SemanticVectorsFamily.anchor,
+          modelFamilyId: kTestModelFamilyId,
           chunkingIdentity: await chunkingOf(SemanticVectorsFamily.anchor),
         ),
       ]);

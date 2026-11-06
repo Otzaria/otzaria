@@ -17,6 +17,7 @@ class SemanticFacetFiltering extends StatefulWidget {
     super.key,
     required this.facetCounts,
     required this.selectedFacets,
+    this.scopeFacets = const [],
     required this.isLoading,
     required this.hasResults,
     required this.onSetFacet,
@@ -27,6 +28,7 @@ class SemanticFacetFiltering extends StatefulWidget {
 
   final Map<String, int> facetCounts;
   final List<String> selectedFacets;
+  final List<String> scopeFacets;
   final bool isLoading;
   final bool hasResults;
   final ValueChanged<String> onSetFacet;
@@ -85,6 +87,7 @@ class _SemanticFacetFilteringState extends State<SemanticFacetFiltering>
             library: library,
             facetCounts: widget.facetCounts,
             selectedFacets: widget.selectedFacets,
+            scopeFacets: widget.scopeFacets,
             expansion: _expansionState,
             filterQuery: _filterQuery.text,
             isLoading: widget.isLoading,

@@ -58,6 +58,9 @@ class SemanticVectorsRelease extends Equatable {
   /// `identityDigest` מהמניפסט; ריק כשאינו.
   final String identityDigest;
 
+  /// `identity.model.family_id` מהמניפסט; ריק כשאינו.
+  final String modelFamilyId;
+
   /// `identity.model.chunking_identity` מהמניפסט; `null` כשאינו.
   final int? chunkingIdentity;
 
@@ -75,16 +78,22 @@ class SemanticVectorsRelease extends Equatable {
     required this.files,
     required this.segmentUncompressedSize,
     this.identityDigest = '',
+    this.modelFamilyId = '',
     this.chunkingIdentity,
     this.family = SemanticVectorsFamily.anchor,
   });
 
-  /// [identityDigest] ו-[chunkingIdentity] כפי שהם במניפסט [manifest].
-  static ({String identityDigest, int? chunkingIdentity}) identityOf(
+  /// פרטי הזהות כפי שהם במניפסט [manifest].
+  static ({String identityDigest, String modelFamilyId, int? chunkingIdentity})
+  identityOf(
     Map<String, dynamic> manifest,
   ) => (
     identityDigest: switch (manifest['identityDigest']) {
       final String digest => digest,
+      _ => '',
+    },
+    modelFamilyId: switch (manifest['identity']) {
+      {'model': {'family_id': final String familyId}} => familyId,
       _ => '',
     },
     chunkingIdentity: switch (manifest['identity']) {
@@ -115,6 +124,7 @@ class SemanticVectorsRelease extends Equatable {
     files,
     segmentUncompressedSize,
     identityDigest,
+    modelFamilyId,
     chunkingIdentity,
     family,
   ];
