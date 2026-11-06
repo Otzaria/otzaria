@@ -243,7 +243,7 @@ Widget _buildBookDetailsContent(
       ),
     if (information.categories != null)
       DetailsInfoSection(
-        title: 'קטגוריות:',
+        title: 'מדף:',
         icon: FluentIcons.folder_24_regular,
         value: information.categories!,
       ),
@@ -472,7 +472,44 @@ int? _endOfLead(String lead, String full) {
   return null;
 }
 
-/// תיאור הספר בלי כותרות: הקצר מודגש, ואחריו (בפסקה חדשה) המשך הארוך.
+/// גודל מה שבסוגריים עגולים וגודל ההמשך והמרובעים, יחסית לגודל התיאור.
+const _roundScale = 0.78;
+const _bracketScale = 0.92;
+
+final _parenthetical = RegExp(r'\([^()]*\)|\[[^\[\]]*\]');
+
+/// קטעי טקסט של תיאור: מה שבסוגריים עגולים מוקטן ועמום, ומה שבמרובעים מוקטן
+/// מעט. אף אחד מהם אינו מודגש.
+List<InlineSpan> descriptionSpans(
+  String text,
+  double fontSize,
+  Color mutedColor,
+) {
+  final spans = <InlineSpan>[];
+  var from = 0;
+  for (final match in _parenthetical.allMatches(text)) {
+    if (match.start > from) {
+      spans.add(TextSpan(text: text.substring(from, match.start)));
+    }
+    final round = text[match.start] == '(';
+    spans.add(
+      TextSpan(
+        text: match.group(0),
+        style: TextStyle(
+          fontSize: fontSize * (round ? _roundScale : _bracketScale),
+          fontWeight: FontWeight.normal,
+          color: round ? mutedColor : null,
+        ),
+      ),
+    );
+    from = match.end;
+  }
+  if (from < text.length) spans.add(TextSpan(text: text.substring(from)));
+  return spans;
+}
+
+/// תיאור הספר בלי כותרות: הקצר בהדגשה מעודנת (כמו ערכי שורות הפרטים), ואחריו
+/// (בפסקה חדשה) המשך הארוך בכתב מוקטן מעט.
 class _MergedDescriptionSection extends StatelessWidget {
   const _MergedDescriptionSection({required this.lead, required this.rest});
 
@@ -481,6 +518,8 @@ class _MergedDescriptionSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const restSize = AppTokens.fontMD * _bracketScale;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
       child: Text.rich(
@@ -488,14 +527,28 @@ class _MergedDescriptionSection extends StatelessWidget {
           style: TextStyle(
             fontSize: AppTokens.fontMD,
             height: 1.4,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: scheme.onSurface,
           ),
           children: [
             TextSpan(
-              text: lead,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              children: descriptionSpans(
+                lead,
+                AppTokens.fontMD,
+                scheme.onSurfaceVariant,
+              ),
             ),
-            if (rest.isNotEmpty) TextSpan(text: '\n\n$rest'),
+            if (rest.isNotEmpty) ...[
+              const TextSpan(text: '\n\n'),
+              TextSpan(
+                style: const TextStyle(fontSize: restSize),
+                children: descriptionSpans(
+                  rest,
+                  restSize,
+                  scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
