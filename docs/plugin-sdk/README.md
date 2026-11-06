@@ -281,15 +281,17 @@ Otzaria.on('plugin.boot', (payload) => {
 ### השהיה ברקע — `plugin.suspended` / `plugin.resumed`
 
 כשהמשתמש עוזב את לשונית התוסף (מעבר לכלי אחר או למסך אחר, מזעור החלון, או
-מעבר של האפליקציה לרקע במובייל), אוצריא **מקפיאה** את ה-WebView של התוסף כדי
-לחסוך CPU/זיכרון, ומחדשת אותו בכניסה חזרה — **בלי לטעון מחדש** (ה-state נשמר).
-ב-Windows ההקפאה נייטיבית ועוצרת את כל ה-timers מעצמה. ב-Android אוצריא
-קוראת ל-`WebView.onPause`, שעוצר אנימציות אבל **לא** JavaScript; ב-Linux הדף
-מסומן מוסתר והדפדפן מאט אותו; ב-macOS וב-iOS אין הקפאה כלל. בכל הפלטפורמות
-מלבד Windows התוסף **אחראי לעצור בעצמו** עבודה מתמשכת.
+מעבר של האפליקציה לרקע במובייל), אוצריא מסתירה את ה-WebView ומבקשת להשהות
+את פעילותו כדי לחסוך משאבים. בחזרה היא מחדשת אותו **בלי לטעון מחדש**, כל עוד
+המופע נשאר בזיכרון. פינוי מופע ושחזורו מתוארים בנפרד בהמשך.
+ב-Windows בקשת `TrySuspend` עשויה להידחות; רק תשובת הצלחה מהדפדפן מאשרת
+שהמנוע מושהה. ב-Android אוצריא קוראת ל-`WebView.onPause`, שאינו משהה
+JavaScript; ב-Linux הדף מסומן מוסתר, וב-macOS וב-iOS אין הקפאה כלל.
+**בכל הפלטפורמות התוסף אחראי לעצור polling, timers ועבודה מתמשכת** בעקבות
+`plugin.suspended`, שנשלח לפני הבקשה הנייטיבית ואינו אישור להצלחתה.
 
 - **מדיה נעצרת.** אודיו או וידאו שמתנגנים נעצרים כשעוזבים את הלשונית, ואינם
-  ממשיכים מעצמם בחזרה. ניגון ברקע אינו נתמך. ב-Windows ההקפאה עוצרת כל ניגון;
+  ממשיכים מעצמם בחזרה. ניגון ברקע אינו נתמך. ב-Windows השהיה מאושרת עוצרת ניגון;
   ב-macOS, ב-iOS וב-Linux המדיה מושהית דרך הדפדפן ואי אפשר להפעיל אותה עד
   החזרה; ב-Android אוצריא משהה את רכיבי `audio` ו-`video` של הדף, אבל אודיו
   של Web Audio ממשיך — תוסף שמשתמש בו צריך לעצור אותו ב-`plugin.suspended`.
@@ -307,8 +309,8 @@ Otzaria.on('plugin.boot', (payload) => {
 
 ```javascript
 let timer = null;
-function start() { timer = setInterval(poll, 1000); }
-function stop()  { clearInterval(timer); }
+function start() { if (timer === null) timer = setInterval(poll, 1000); }
+function stop()  { clearInterval(timer); timer = null; }
 
 Otzaria.on('plugin.boot', start);       // התחלה ראשונית
 Otzaria.on('plugin.resumed', start);    // חזרה מהשהיה
@@ -317,6 +319,13 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 
 > 💡 תוסף שרץ ברקע דרך הרשאת `app.run_on_startup` (`runMode: 'background'`) **אינו**
 > מושהה — זו בדיוק מטרתו. ההשהיה חלה רק על ה-instance של הלשונית.
+
+`plugin.suspended` נמסר לפני בקשת ההשהיה למנוע, כדי שהתוסף יספיק לעצור
+polling וטיימרים; הוא אינו אישור שהמנוע הקפיא JavaScript. ב-Windows אוצריא
+ממתינה לתוצאת `TrySuspend`, שיכולה גם לסרב. ב-Android `onPause` אינו עוצר
+JavaScript, וב-Linux פעולת הנראות אינה מקפיאה אותו. `pauseTimers` של Android
+משפיע על כל ה-WebViews ולכן אינו משמש להשהיית לשונית יחידה. פעולות ההתחלה
+והעצירה של התוסף צריכות להיות בטוחות גם כשהן נקראות שוב.
 
 ### פינוי ושחזור — `plugin.setRestoreState`
 
@@ -346,16 +355,28 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 בפתיחה רגילה של כרטיסייה הוא חסר. שמירת מצב שאינו `null` מאפשרת פינוי
 אוטומטי של המופע; מחיקת המצב מבטלת אותו, וגם מצב שהוסר ממטמון ה-LRU אינו מפונה.
 
+snapshot של דף שכבר פונה נשמר עד השלמת ה-boot של המופע המשוחזר או סגירתו.
+התקציב נשאר חסום: 64 מצבים ועד 2MiB בסך הכול. כשהתקציב מוחזק בידי דפים
+שפונו, שמירה חדשה עשויה להיכשל. כשל בשמירת מצב משאיר את העותק הקודם לשחזור,
+אך חוסם פינוי נוסף של הדף החי עד שמירה מוצלחת. יש להמתין לתוצאת הקריאה
+ולטפל בשגיאה; מצב שנדחה לא נשמר.
+
+גרסת מבנה המצב שייכת לתוסף: מומלץ לשמור `schemaVersion` בתוך ה-JSON ולבדוק
+אותו בעת השחזור. אוצריא שומרת ומחזירה את הערך ללא שינוי ואינה ממירה גרסאות
+של תוספים. תוסף צריך להמיר מצב ישן במפורש, ולשמור טיוטות חיוניות באחסון
+המתאים לו ולדווח עליהן גם דרך `ui.setUnsavedChanges` כל עוד לא נשמרו.
+
 שמרו את המצב **בכל שינוי משמעותי**, ולא רק ב-`plugin.suspended`: מעבר בין
 שולחנות עבודה ושמירת הסשן קוראים את המצב השמור לפני שהלשונית מושהית.
 
 ```javascript
-function selectTab(tab) {
+async function selectTab(tab) {
   activeTab = tab;
-  Otzaria.call('plugin.setRestoreState', { state: { tab } });
+  await Otzaria.call('plugin.setRestoreState', { state: { schemaVersion: 1, tab } });
 }
 Otzaria.on('plugin.boot', (payload) => {
-  if (payload.restore?.state) activateTab(payload.restore.state.tab);
+  const saved = payload.restore?.state;
+  if (saved?.schemaVersion === 1) activateTab(saved.tab);
 });
 ```
 

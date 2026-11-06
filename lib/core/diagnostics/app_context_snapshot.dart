@@ -1,3 +1,4 @@
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -50,6 +51,8 @@ Map<String, Object?> describeAppContext({
         _pluginContext(id, pluginState),
     ],
     if (readers.isNotEmpty) 'readers': readers,
+    'pluginResources': PluginRuntimeDispatcher.instance
+        .describeForegroundResources(),
   };
 }
 

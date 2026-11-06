@@ -45,9 +45,8 @@ String? pickOnDemandEvictionCandidate({
   final lazy = lazyActivation ?? PluginLazyActivationService.instance;
   for (final id in ids) {
     if (isKeepAlive(id)) continue;
-    if (lazy.isBootPending(id)) continue;
+    if (!lazy.canTeardown(id)) continue;
     // RPC פתוח (הורדה/חילוץ) — הריגה כאן הייתה משאירה קובץ חלקי.
-    if (lazy.isBusy(id)) continue;
     return id;
   }
   return null;
@@ -102,16 +101,12 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
 
   @override
   void dispose() {
-    if (identical(
-      PluginLazyActivationService.instance.backgroundActivator,
-      _activateOnDemand,
-    )) {
+    if (PluginLazyActivationService.instance.backgroundActivator ==
+        _activateOnDemand) {
       PluginLazyActivationService.instance.backgroundActivator = null;
     }
-    if (identical(
-      PluginLazyActivationService.instance.backgroundDeactivator,
-      _deactivateOnDemand,
-    )) {
+    if (PluginLazyActivationService.instance.backgroundDeactivator ==
+        _deactivateOnDemand) {
       PluginLazyActivationService.instance.backgroundDeactivator = null;
     }
     super.dispose();
@@ -316,6 +311,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
     with PluginWebViewHost {
   late String _localHtmlPath;
   final _loadGeneration = PluginLoadGeneration();
+  late final Object _runtimeToken;
 
   /// תוצאה חיובית נשמרת עד החלפת ה-State; קובץ חסר נבדק שוב ברענון.
   bool? _entryExists;
@@ -350,13 +346,15 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
     }
     final lazy = PluginLazyActivationService.instance;
     final pluginId = widget.plugin.pluginId;
+    _runtimeToken = lazy.attachBackgroundInstance(pluginId);
     initPluginHost(
       onReload: _reloadFromDisk,
-      onBackgroundInstanceDone: () => lazy.requestImmediateTeardown(pluginId),
-      onWorkStarted: () {
-        lazy.beginWork(pluginId);
-        return () => lazy.endWork(pluginId);
-      },
+      onBackgroundInstanceDone: () => lazy.requestImmediateTeardown(
+        pluginId,
+        runtimeToken: _runtimeToken,
+      ),
+      onWorkStarted: () =>
+          lazy.beginWork(pluginId, runtimeToken: _runtimeToken),
     );
   }
 
@@ -403,6 +401,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
     PluginLazyActivationService.instance.onBackgroundProcessGone(
       widget.plugin.pluginId,
       generation: widget.activationGeneration,
+      runtimeToken: _runtimeToken,
     );
   }
 
@@ -410,6 +409,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
       PluginLazyActivationService.instance.onBackgroundInstanceFailed(
         widget.plugin.pluginId,
         generation: widget.activationGeneration,
+        runtimeToken: _runtimeToken,
       );
 
   @override
@@ -417,8 +417,12 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
     final pluginId = widget.plugin.pluginId;
     final generation = widget.activationGeneration;
     disposePluginHost(
-      afterAdapter: () => PluginLazyActivationService.instance
-          .onBackgroundInstanceClosed(pluginId, generation: generation),
+      afterAdapter: () =>
+          PluginLazyActivationService.instance.onBackgroundInstanceClosed(
+            pluginId,
+            generation: generation,
+            runtimeToken: _runtimeToken,
+          ),
     );
     super.dispose();
   }
@@ -570,6 +574,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
             lazy.onBackgroundInstanceReady(
               widget.plugin.pluginId,
               generation: activationGeneration,
+              runtimeToken: _runtimeToken,
               isCurrent: () => !stale(),
             ),
           );

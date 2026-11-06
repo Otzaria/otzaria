@@ -280,6 +280,50 @@ void main() {
 
   tearDown(() => bloc.close());
 
+  for (final replaceCallbacks in [false, true]) {
+    testWidgets(
+      replaceCallbacks
+          ? 'dispose של host ישן משאיר את callbacks המחליף'
+          : 'dispose של host מנתק את callbacks שהוא רשם',
+      (tester) async {
+        final lazy = PluginLazyActivationService.instance;
+        bloc.testEmit(const PluginSystemLoaded([]));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BlocProvider<PluginSystemBloc>.value(
+              value: bloc,
+              child: const Scaffold(body: PluginBackgroundHost()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(lazy.backgroundActivator, isNotNull);
+        expect(lazy.backgroundDeactivator, isNotNull);
+        Future<void> replacementActivator(String _) async {}
+        void replacementDeactivator(String _) {}
+        if (replaceCallbacks) {
+          lazy.backgroundActivator = replacementActivator;
+          lazy.backgroundDeactivator = replacementDeactivator;
+        }
+        try {
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+          expect(
+            lazy.backgroundActivator,
+            replaceCallbacks ? same(replacementActivator) : isNull,
+          );
+          expect(
+            lazy.backgroundDeactivator,
+            replaceCallbacks ? same(replacementDeactivator) : isNull,
+          );
+        } finally {
+          lazy.backgroundActivator = null;
+          lazy.backgroundDeactivator = null;
+        }
+      },
+    );
+  }
+
   // ── P1a: initState מסנכרן עם state קיים בעת mount ─────────────────────────
 
   testWidgets(
