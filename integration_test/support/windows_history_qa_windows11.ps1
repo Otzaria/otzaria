@@ -155,12 +155,15 @@ public static class QaWindowActivation {
   public static QaCaptionPoint[] CaptionPoints(IntPtr window, uint expectedPid) {
     RequireOwnWindow(window, expectedPid); QaWindowState state=Read(window);
     var result = new List<QaCaptionPoint>();
-    int x=state.Left+(state.Right-state.Left)/2;
-    for (int offset=8; offset<=48 && state.Top+offset<state.Bottom; offset+=4) {
-      int y=state.Top+offset; int hit=HitTest(window,x,y);
-      IntPtr at=GetAncestor(WindowFromPoint(new Point { X=x, Y=y }),2);
-      result.Add(new QaCaptionPoint { X=x, Y=y, HitTest=hit, WindowAtPoint=at.ToInt64(),
-        Verified=state.Visible && hit==2 && at==window });
+    int[] columns = { state.Left+(state.Right-state.Left)/2, state.Left+48 };
+    foreach (int x in columns) {
+      if (x<state.Left || x>=state.Right) continue;
+      for (int offset=8; offset<=48 && state.Top+offset<state.Bottom; offset+=4) {
+        int y=state.Top+offset; int hit=HitTest(window,x,y);
+        IntPtr at=GetAncestor(WindowFromPoint(new Point { X=x, Y=y }),2);
+        result.Add(new QaCaptionPoint { X=x, Y=y, HitTest=hit, WindowAtPoint=at.ToInt64(),
+          Verified=state.Visible && hit==2 && at==window });
+      }
     }
     return result.ToArray();
   }
