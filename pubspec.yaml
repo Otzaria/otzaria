@@ -47,12 +47,12 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev לאחר שחרור Pattern כללי (pdfrx#789) ו-hook ניווט.
-  # hook הניווט אינו חלק מ-#789.
+  # TODO: לחזור ל-pub.dev לאחר שחרור Pattern כללי (pdfrx#789),
+  # תיקון הרזולוציה ו-hook ניווט.
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
+      ref: 942e27bec86e8d480111517c2083eb52817ee032
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.1
