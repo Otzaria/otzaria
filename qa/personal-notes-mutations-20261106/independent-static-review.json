@@ -1,0 +1,166 @@
+{
+  "reviewer": "/root/notes_mutation_independent_qa",
+  "reviewed_at_utc": "2026-11-06T12:03:41.887365+00:00",
+  "status": "STATIC_PASS_RUNTIME_PENDING",
+  "base_sha": "c5d377af29ddb62f5bedc95a59fa60f7c819ef88",
+  "target_sha": null,
+  "scope": "אישור כתיבה למחיקה ולשיוך הערות במנהל וב־PDF; הסרת הודעת הצלחה מוקדמת בסרגל; אימות שיוך להערה קיימת באותו ספר",
+  "product_files": [
+    "lib/pdf_book/view/pdf_book_screen.dart",
+    "lib/personal_notes/repository/personal_notes_repository.dart",
+    "lib/personal_notes/services/personal_notes_service.dart",
+    "lib/personal_notes/view/personal_notes_screen.dart",
+    "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+    "test/personal_notes/personal_notes_manager_loading_test.dart",
+    "test/personal_notes/personal_notes_reposition_confirmation_test.dart",
+    "test/personal_notes/personal_notes_repository_delete_test.dart",
+    "test/personal_notes/personal_notes_write_confirmation_test.dart",
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
+  ],
+  "source_sha256": {
+    "lib/pdf_book/view/pdf_book_screen.dart": "33922ceeaf878a53d02baa7387f36a3ac77b7cc22417efd8d4e3c3603b9b6b78",
+    "lib/personal_notes/repository/personal_notes_repository.dart": "94b43d3c31824518e47080fabe86430c4c93f8fe1740f1510a04f97cfb6f3b1a",
+    "lib/personal_notes/services/personal_notes_service.dart": "c82e7e07c29283e544c18999f8f2059bd47125b8c59d303f09af06f0361b899b",
+    "lib/personal_notes/view/personal_notes_screen.dart": "09699715d0df9b6ac5126958058d47d9eed3a519059d9c5b9796a9bf9b82af78",
+    "lib/personal_notes/widgets/personal_notes_sidebar.dart": "11611a03ba99730eab85f1525ee25d8580fbd6479850620b4a0e96a18c18ea2f",
+    "test/personal_notes/personal_notes_manager_loading_test.dart": "d8b289adf99ecb969ff64082b29d38af3daae16310d32a2e76574fb539d114d0",
+    "test/personal_notes/personal_notes_reposition_confirmation_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
+    "test/personal_notes/personal_notes_repository_delete_test.dart": "84ab65ac31f41047ea1774262db8bd0f54d806d66b4f2dac43d53f74706292d2",
+    "test/personal_notes/personal_notes_write_confirmation_test.dart": "3b07f15eb099548a7f9ea0b16f44f28f353fc356a56413455e940d7502727a20",
+    "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "06e8ee37ae6ee9fa11e8b1398038eaf16c2510a6719c7717d7c175a0fbc1faeb"
+  },
+  "open_findings": [],
+  "resolved_review_items": [
+    {
+      "id": "R1",
+      "summary": "חוזה אישור הפעולה מופרד מקריאת הרשימה; removeNote/moveNote אינם בולעים שגיאות כתיבה.",
+      "evidence": [
+        "lib/personal_notes/services/personal_notes_service.dart",
+        "lib/personal_notes/repository/personal_notes_repository.dart"
+      ]
+    },
+    {
+      "id": "R2",
+      "summary": "deleteNote/repositionNote הוותיקים עדיין מחזירים רשימה ומעבירים שגיאות רענון; BLoC לא שונה.",
+      "evidence": [
+        "test/personal_notes/personal_notes_write_confirmation_test.dart"
+      ]
+    },
+    {
+      "id": "R3",
+      "summary": "שיוך מזהה חסר או של ספר אחר נכשל לפני UPDATE; כשל UPDATE אמיתי ו־DELETE ביניים נשארים כשל.",
+      "evidence": [
+        "test/personal_notes/personal_notes_reposition_confirmation_test.dart",
+        "test/personal_notes/personal_notes_write_confirmation_test.dart"
+      ]
+    },
+    {
+      "id": "R4",
+      "summary": "המנהל ו־PDF ממתינים לאישור הכתיבה; פעולות המנהל הישירות ב־repository של המתחזק נשמרות.",
+      "evidence": [
+        "lib/personal_notes/view/personal_notes_screen.dart",
+        "lib/pdf_book/view/pdf_book_screen.dart"
+      ]
+    },
+    {
+      "id": "R5",
+      "summary": "הוסרה הודעת הצלחה מיד לאחר bloc.add, ובדיקת סרגל מקפיאה כתיבה ומכריעה אותה בכשל.",
+      "evidence": [
+        "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+        "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
+      ]
+    },
+    {
+      "id": "R6",
+      "summary": "ארבע בדיקות ההמתנה/כשל של המתחזק משתמשות ב־API החדש; ה־assertions המקוריים נשמרו.",
+      "evidence": [
+        "test/personal_notes/personal_notes_manager_loading_test.dart"
+      ]
+    }
+  ],
+  "preservation_checks": [
+    "הבסיס הוא dev לאחר מיזוג #4226 ולא הענף הישן.",
+    "אין שינוי בקוד זהות PDF v2, keepBoth random או batch import notifications.",
+    "גוף חישוב העוגן במעבר ידני נשמר; moveNote מחזיר אותה רשומה שנכתבה.",
+    "הסרגל ממשיך לקבל רשימות דרך BLoC; רענון שנכשל עדיין מוצג כשגיאת טעינה."
+  ],
+  "pdf_fake_audit": {
+    "searched_files": 95,
+    "repository_fake_files": [
+      "test/pdf_book/pdf_personal_note_viewer_test.dart"
+    ],
+    "mutation_overrides_found": false,
+    "conclusion": "ה־fake היחיד משנה רק loadNotes; פעולת השיוך בודקת repository/service/database אמיתיים."
+  },
+  "local_checks": {
+    "git_diff_check": {
+      "exit_code": 0,
+      "output": ""
+    },
+    "python_ast_parse": "PASS",
+    "source_hashes_match": true
+  },
+  "qa_workflow_static_review": {
+    "status": "PASS",
+    "checks": [
+      "clean exact target HEAD",
+      "single parent equals frozen baseline",
+      "changed-file inventory equals manifest",
+      "each product file SHA-256 checked",
+      "locked dependency resolution",
+      "format without changing product",
+      "full flutter analyze",
+      "all personal_notes plus four PDF tests",
+      "five named RED assertion failures, not compiler errors",
+      "completed RED and GREEN streams",
+      "five GREEN successes with no skips",
+      "final exact clean HEAD",
+      "artifact SHA256SUMS"
+    ],
+    "reviewed_bundle_sha256": {
+      "manager_confirmation_red_test.dart": "131c35e180577b88189fd7f7b66847bd911b226e01e13c0d4ecdcc6aefa79c56",
+      "manifest.json": "6f5ca917d48d4ccc72e704784b56b6a82a1c6c2d96e7daed4d9311a154d922f9",
+      "mutation_ack_red_test.dart": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
+      "run_mutation_qa.py": "d44396be1771d4d4756947eec62f72e44a1e4f5a7ec12bd80bf097c419af66d8",
+      "sidebar_confirmation_red_test.dart": "06e8ee37ae6ee9fa11e8b1398038eaf16c2510a6719c7717d7c175a0fbc1faeb",
+      "workflow.yml": "59ed95662b4e1c8e2edabe82607807af1af4fee6b07d7df7709db4894d990d36"
+    },
+    "red_test_names": [
+      "reposition refuses an already deleted note instead of reporting success",
+      "reposition refuses an id belonging to a different book",
+      "manager acknowledges delete without a post-write list read",
+      "manager acknowledges reposition without a post-write list read",
+      "sidebar does not announce a failed reposition as successful"
+    ],
+    "test_targets": [
+      "test/personal_notes",
+      "test/pdf_book/pdf_personal_note_viewer_test.dart",
+      "test/pdf_book/pdf_personal_note_anchor_test.dart",
+      "test/pdf_book/pdf_hand_mode_test.dart",
+      "test/pdf_book/pdf_book_screen_test.dart"
+    ]
+  },
+  "open_pr_overlaps": [
+    {
+      "pr": 4269,
+      "files": [
+        "lib/pdf_book/view/pdf_book_screen.dart",
+        "lib/personal_notes/view/personal_notes_screen.dart",
+        "lib/personal_notes/widgets/personal_notes_sidebar.dart"
+      ],
+      "merge_check": "pending root verification"
+    },
+    {
+      "pr": 3036,
+      "files": [
+        "lib/pdf_book/view/pdf_book_screen.dart",
+        "lib/personal_notes/widgets/personal_notes_sidebar.dart"
+      ],
+      "merge_check": "pending root verification"
+    }
+  ],
+  "runtime_validation": {
+    "status": "NOT_RUN_BY_REVIEWER",
+    "note": "לא הופעל compiler מקומי; ממתין לדוחות CI על candidate SHA המדויק, ואז יתבצע אימות נפרד של התוצאות והכשלים."
+  }
+}

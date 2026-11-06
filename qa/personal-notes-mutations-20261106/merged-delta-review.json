@@ -1,0 +1,267 @@
+{
+  "reviewed_at_utc": "2026-11-06T12:02:07Z",
+  "account": "palmoni5",
+  "repository": "Otzaria/otzaria",
+  "reviewed_dev": "c5d377af29ddb62f5bedc95a59fa60f7c819ef88",
+  "prior_pr": {
+    "number": 4226,
+    "url": "https://github.com/Otzaria/otzaria/pull/4226",
+    "merged_at": "2026-11-06T05:35:49Z",
+    "merged_by": "Y-PLONI",
+    "merge_sha": "752b177ee632b3ef3023da127d5d19fa8ed62c02",
+    "final_head": "4ca3b3fae256ecfb7bd543c2a7aa51023e7efa62",
+    "recorded_base": "28d8fae00b920aaf94dbf597085ca1f35f375a22",
+    "previous_our_head": "18d160c82e2abf8a04d8af91da0da724a4acf5ae",
+    "final_head_and_merge_tree": "aa28cca69ebd0282423d29a04017113872371d60",
+    "issue_comments": 0,
+    "review_comments": 0,
+    "reviews": 0
+  },
+  "retain_maintainer_changes": {
+    "sha": "4ca3b3fae256ecfb7bd543c2a7aa51023e7efa62",
+    "url": "https://github.com/Otzaria/otzaria/commit/4ca3b3fae256ecfb7bd543c2a7aa51023e7efa62",
+    "points": [
+      "Manager deletes/repositions directly through its repository and awaits it, without depending on the shared reader BLoC; success/error messages are centralized.",
+      "Portable PDF v2 identity uses full relative paths under the nearest configured library/data root; path style, ownership namespace and external identity remain explicit.",
+      "Matching accepts new portable identity and exact legacy current-path identity; no arbitrary basename guessing or lost-file recovery claims.",
+      "Draft, search/filter/sidebar, source-link and PDF consumers carry sets of compatible document IDs; asynchronous draft target validation stays intact.",
+      "macOS export test picker mocks the window-owned channel; original assertions remain.",
+      "Four manager mutation success/failure tests retain their assertions when the new write-ack API is adopted."
+    ],
+    "compatibility_limits": [
+      "An old absolute-path anchor already moved before upgrade cannot be matched by basename.",
+      "An old restored draft keeps its old anchor when saved.",
+      "External files remain bound to their external identity or absolute path.",
+      "Unsupported manual changes to nested root ownership are not silently migrated."
+    ],
+    "source_blob_comparison": [
+      {
+        "path": "lib/core/messages/notes_messages.dart",
+        "maintainer_blob": "4ed219546a0fd99278ee745994e2368a5161cf81",
+        "current_blob": "4ed219546a0fd99278ee745994e2368a5161cf81",
+        "same": true
+      },
+      {
+        "path": "lib/pdf_book/view/pdf_book_screen.dart",
+        "maintainer_blob": "dafacb9996db8483e42e580594985ae25c36fed6",
+        "current_blob": "eafc55baaef127974a1f8d30819f4e0aa82dcacf",
+        "same": false
+      },
+      {
+        "path": "lib/pdf_book/view/pdf_commentary_panel.dart",
+        "maintainer_blob": "f1e961e7eb30ba45f605273b6a8d6040592e7de0",
+        "current_blob": "f1e961e7eb30ba45f605273b6a8d6040592e7de0",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/services/personal_note_draft_service.dart",
+        "maintainer_blob": "e0499f4649dc088dab37f395796973ecef84f652",
+        "current_blob": "e0499f4649dc088dab37f395796973ecef84f652",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/utils/personal_note_source_link.dart",
+        "maintainer_blob": "396202122ed50ec1c4bbf6055d78cc34b8cecbe1",
+        "current_blob": "396202122ed50ec1c4bbf6055d78cc34b8cecbe1",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/utils/personal_notes_book_key.dart",
+        "maintainer_blob": "b2bf0a6369f51d480b2974082c95a94409a6c276",
+        "current_blob": "b2bf0a6369f51d480b2974082c95a94409a6c276",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/utils/personal_notes_filter.dart",
+        "maintainer_blob": "54ea01d58b60972c7c8ff13c91c71ba9c261e023",
+        "current_blob": "54ea01d58b60972c7c8ff13c91c71ba9c261e023",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/view/personal_notes_screen.dart",
+        "maintainer_blob": "54eddb72b1c5631f30371956cb7f7f11652c3ba4",
+        "current_blob": "54eddb72b1c5631f30371956cb7f7f11652c3ba4",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/widgets/notes_search_header.dart",
+        "maintainer_blob": "cf68ee468df094949219f74b49bb5fc51a1329fe",
+        "current_blob": "cf68ee468df094949219f74b49bb5fc51a1329fe",
+        "same": true
+      },
+      {
+        "path": "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+        "maintainer_blob": "fd46f4227253f599a3d78fe852d4893c81e174b5",
+        "current_blob": "fd46f4227253f599a3d78fe852d4893c81e174b5",
+        "same": true
+      },
+      {
+        "path": "test/personal_notes/pdf_note_document_identity_test.dart",
+        "maintainer_blob": "47e810492b9e88462cd0c907b472fbc0542e2d46",
+        "current_blob": "47e810492b9e88462cd0c907b472fbc0542e2d46",
+        "same": true
+      },
+      {
+        "path": "test/personal_notes/personal_note_draft_service_test.dart",
+        "maintainer_blob": "efe1d753d062d276f79db61130b1d0d7f2d7847f",
+        "current_blob": "efe1d753d062d276f79db61130b1d0d7f2d7847f",
+        "same": true
+      },
+      {
+        "path": "test/personal_notes/personal_notes_manager_loading_test.dart",
+        "maintainer_blob": "57eaa2402f2ec63bd4acc0b41828f1a079b5adb9",
+        "current_blob": "57eaa2402f2ec63bd4acc0b41828f1a079b5adb9",
+        "same": true
+      },
+      {
+        "path": "test/personal_notes/personal_notes_word_export_screen_test.dart",
+        "maintainer_blob": "1c446040c01f8153209224b7b60525f7e3f3cfae",
+        "current_blob": "1c446040c01f8153209224b7b60525f7e3f3cfae",
+        "same": true
+      },
+      {
+        "path": "test/printing/printing_screen_export_profile_test.dart",
+        "maintainer_blob": "5546817abcdcdcf0336fe39e55e0e2f1df110ec9",
+        "current_blob": "5546817abcdcdcf0336fe39e55e0e2f1df110ec9",
+        "same": true
+      },
+      {
+        "path": "test/test_helpers/capture_file_saves.dart",
+        "maintainer_blob": "05fae52cb6f7dbd1996436bfde3aedaebda1fcf5",
+        "current_blob": "05fae52cb6f7dbd1996436bfde3aedaebda1fcf5",
+        "same": true
+      }
+    ],
+    "reported_validation_not_rerun_by_this_agent": {
+      "source": "https://github.com/Otzaria/otzaria/pull/4226",
+      "maintainer_report": "648 passed, 0 failed, 1 Windows file-lock skip; full analyze clean on maintainer macOS.",
+      "historical_note": "Earlier 1300-test and screenshot evidence is marked historical in the PR body."
+    }
+  },
+  "retain_post_merge_changes": [
+    {
+      "sha": "15b9b9a30927aeed97243d9c4645e232930c04ef",
+      "url": "https://github.com/Otzaria/otzaria/commit/15b9b9a30927aeed97243d9c4645e232930c04ef",
+      "purpose": "Batch import change notifications, publishing successful writes even if a later import item fails."
+    },
+    {
+      "sha": "d27122fe12c5fb1c204a6fa423a2140a844e9f09",
+      "url": "https://github.com/Otzaria/otzaria/commit/d27122fe12c5fb1c204a6fa423a2140a844e9f09",
+      "purpose": "keepBoth copy IDs include secure 128-bit randomness and an injectable clock, avoiding same-tick overwrites."
+    },
+    {
+      "sha": "30e7c2dc49a940c83a9d4cc20ebea109048658a2",
+      "url": "https://github.com/Otzaria/otzaria/commit/30e7c2dc49a940c83a9d4cc20ebea109048658a2",
+      "purpose": "Same-tick/backwards-clock import regressions and CI stabilization."
+    },
+    {
+      "shas": [
+        "afc8094867895bb0a6c13c7f51edb31365259a2d",
+        "d041b08f3cb7b43e20d318701fa060d69e36bd6c",
+        "ef8a01ec4ed650f51ec45d472cbc63fc9ad590e2",
+        "dd137f955e4020f4c79bb1a92275e01f7c191257",
+        "97e13305153b1a85a6221fa30b3f70483ec5ee69"
+      ],
+      "purpose": "Later PDF printing-by-path, restored search-pane state/opener policy, and first-layout/viewSize fixes are retained in current-dev base."
+    }
+  ],
+  "remaining_issue_evidence": [
+    {
+      "number": 3260,
+      "state": "open",
+      "url": "https://github.com/Otzaria/otzaria/issues/3260",
+      "last_comment": "https://github.com/Otzaria/otzaria/issues/3260#issuecomment-6668457900",
+      "conclusion": "No new reporter reproduction after the anchor/selection and Ctrl+C fixes. The multi-symptom original report remains open; merge alone is insufficient to claim all symptoms fixed.",
+      "earlier_anchor_fixes": [
+        "ef6ca5450d7501b08956fe5994d839dce12b3ffe",
+        "415511e579916a628e08030c33bd8fef0531ba7c"
+      ]
+    },
+    {
+      "number": 4142,
+      "state": "open",
+      "url": "https://github.com/Otzaria/otzaria/issues/4142",
+      "last_comment": "https://github.com/Otzaria/otzaria/issues/4142#issuecomment-6668455955",
+      "conclusion": "App-backup import was fixed in #4157; manager/shared-reader race and legacy PDF compatibility were fixed in #4226. The reporter supplied no new document/path/filter evidence; the original disappearance cause and recovery of lost notes are not established."
+    }
+  ],
+  "source_confirmed_remaining_gaps": [
+    {
+      "kind": "post_write_read_failure",
+      "paths": [
+        "lib/personal_notes/services/personal_notes_service.dart",
+        "lib/personal_notes/view/personal_notes_screen.dart",
+        "lib/pdf_book/view/pdf_book_screen.dart"
+      ],
+      "detail": "deleteNote and repositionNote return a list loaded after committing the write. A failed list read becomes a manager/PDF mutation-failed message even though data changed."
+    },
+    {
+      "kind": "reposition_missing_or_wrong_book",
+      "path": "lib/personal_notes/services/personal_notes_service.dart",
+      "detail": "Missing note returns a successful list; wrong-book note is repositioned without the guard already present in persistNote."
+    },
+    {
+      "kind": "premature_sidebar_success",
+      "path": "lib/personal_notes/widgets/personal_notes_sidebar.dart",
+      "detail": "_reanchorToSelectedLineWith immediately announced success after queuing a BLoC event, before the storage write completed."
+    }
+  ],
+  "candidate": {
+    "directory": "/dev/shm/otzaria-notes-nov6-deb21adce400/mutation-ack-worktree",
+    "base": "c5d377af29ddb62f5bedc95a59fa60f7c819ef88",
+    "product_files": [
+      "lib/personal_notes/services/personal_notes_service.dart",
+      "lib/personal_notes/repository/personal_notes_repository.dart",
+      "lib/personal_notes/view/personal_notes_screen.dart",
+      "lib/pdf_book/view/pdf_book_screen.dart",
+      "lib/personal_notes/widgets/personal_notes_sidebar.dart"
+    ],
+    "test_files": [
+      "test/personal_notes/personal_notes_write_confirmation_test.dart",
+      "test/personal_notes/personal_notes_repository_delete_test.dart",
+      "test/personal_notes/personal_notes_manager_loading_test.dart",
+      "test/personal_notes/personal_notes_reposition_confirmation_test.dart",
+      "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart"
+    ],
+    "changes": [
+      "removeNote acknowledges DELETE without a later list read; moveNote returns the updated record after UPDATE.",
+      "List-returning deleteNote/repositionNote remain compatible wrappers; their read errors still propagate.",
+      "Manager/PDF use write-only acknowledgement APIs and keep maintainer direct-repository flow.",
+      "moveNote rejects missing and wrong-book records with existing centralized StateError messages.",
+      "Sidebar no longer announces a queued write as successful."
+    ],
+    "explicit_scope_limit": "BLoC list-returning consumers remain unchanged. The panel may still show a list-loading error after a committed legacy mutation; no claim is made that all BLoC concurrency/refresh semantics were refactored.",
+    "preserve_user_condition": "Floating note editor remains conditional on notes pane being closed; no editor-opening policy was changed.",
+    "validation": {
+      "diff_check": "passed",
+      "local_flutter_analyze": "not run per parent instruction; remote CI pending",
+      "local_flutter_test": "not run per parent instruction; remote CI pending",
+      "local_dart_format": "not run; remote format check pending",
+      "local_compiler_installed": false,
+      "github_writes": false,
+      "local_commit": false,
+      "independent_qa_agent": "/root/notes_mutation_independent_qa",
+      "qa_status": "static review in progress; no product-blocking finding in initial review"
+    },
+    "red_fixtures": [
+      {
+        "path": "/dev/shm/otzaria-notes-nov6-deb21adce400/personal_notes_reposition_confirmation_red_test.dart",
+        "sha256": "ffbc512a66adf8da75876a70011d6002a9a6ace687c45fec61792ec1edb8c7cf",
+        "selection": "all two tests",
+        "baseline_compatible": true
+      },
+      {
+        "path": "/dev/shm/otzaria-notes-nov6-deb21adce400/personal_notes_manager_confirmation_red_test.dart",
+        "sha256": "131c35e180577b88189fd7f7b66847bd911b226e01e13c0d4ecdcc6aefa79c56",
+        "selection": "--plain-name 'manager acknowledges'",
+        "baseline_compatible": true
+      }
+    ],
+    "open_pr_file_inventory_reviewed": 21,
+    "overlaps_requiring_parent_merge_check": [
+      4269,
+      3036
+    ],
+    "independent_current_reads_account": "palmoni5"
+  }
+}
