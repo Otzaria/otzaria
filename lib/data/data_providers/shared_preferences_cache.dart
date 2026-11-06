@@ -105,18 +105,9 @@ class SharePreferenceCache extends CacheProvider {
 
   @override
   T? getValue<T>(String key, {T? defaultValue}) {
-    if (T == int || defaultValue is int) {
-      return _preferences?.getInt(key) as T;
-    }
-    if (T == double || defaultValue is double) {
-      return _preferences?.getDouble(key) as T;
-    }
-    if (T == bool || defaultValue is bool) {
-      return _preferences?.getBool(key) as T;
-    }
-    if (T == String || defaultValue is String) {
-      return _preferences?.getString(key) as T;
-    }
-    throw Exception('SharePreferenceCache cannot read type $T');
+    final value = _preferences?.get(key);
+    if (value == null) return defaultValue;
+    if (value is T) return value as T;
+    return defaultValue;
   }
 }

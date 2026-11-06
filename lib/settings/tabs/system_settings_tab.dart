@@ -23,7 +23,9 @@ import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/dialogs/backup_restore_flow.dart';
@@ -189,6 +191,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'תדירות גיבוי + יצירה ושחזור גיבוי',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup',
       keywords: [
         'גיבוי',
         'שחזור',
@@ -205,6 +208,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'גבה הכל / מותאם אישית',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.mode',
       keywords: ['גיבוי', 'הכל', 'מותאם אישית'],
     ),
     SettingsSearchEntry(
@@ -213,6 +217,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'כולל את כלל הגדרות התוכנה',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.settings',
       keywords: ['גיבוי', 'הגדרות'],
     ),
     SettingsSearchEntry(
@@ -221,6 +226,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'כל הסימניות שנשמרו',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.bookmarks',
       keywords: ['גיבוי', 'סימניות'],
     ),
     SettingsSearchEntry(
@@ -229,6 +235,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'היסטוריית הלימוד',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.history',
       keywords: ['גיבוי', 'היסטוריה', 'לימוד'],
     ),
     SettingsSearchEntry(
@@ -237,6 +244,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'כל ההערות האישיות שלך',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.notes',
       keywords: ['גיבוי', 'הערות'],
     ),
     SettingsSearchEntry(
@@ -245,6 +253,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'כל שולחנות העבודה',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.workspaces',
       keywords: ['גיבוי', 'שולחנות עבודה', 'workspace'],
     ),
     SettingsSearchEntry(
@@ -253,17 +262,9 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'ספרים ומעקב לימוד',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.options.shamor_zachor',
       keywords: ['גיבוי', 'שמור וזכור', 'מעקב לימוד'],
     ),
-    // [EDITING DISABLED]
-    // SettingsSearchEntry(
-    //   id: 'system.advanced.backup.user_overrides',
-    //   title: 'גיבוי הגדרות מתקדמות',
-    //   subtitle: 'הגדרות נוספות שדרסת',
-    //   tab: SettingsTab.system,
-    //   cardId: 'system.advanced',
-    //   keywords: ['גיבוי', 'הגדרות מתקדמות', 'overrides'],
-    // ),
     SettingsSearchEntry(
       id: 'system.advanced.backup.create',
       title: 'צור גיבוי עכשיו',
@@ -286,6 +287,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'מדיניות שמירת גיבויים ומיזוגם לארכיון',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
+      expandSection: 'backup.retention',
       keywords: ['גיבוי', 'ניקוי', 'רוטציה', 'ארכיון', 'מקום', 'חסכוני'],
     ),
     SettingsSearchEntry(
@@ -344,6 +346,7 @@ class SystemSettingsTab extends StatefulWidget {
 
 class _SystemSettingsTabState extends State<SystemSettingsTab> {
   final GlobalKey _networkModeTileKey = GlobalKey();
+  final GlobalKey _backupHeaderKey = GlobalKey();
 
   // ── מפתחות גיבוי ──────────────────────────────────────────────────────────
   static const _keyBackupSettings = 'key-backup-settings';
@@ -352,14 +355,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   static const _keyBackupNotes = 'key-backup-notes';
   static const _keyBackupWorkspaces = 'key-backup-workspaces';
   static const _keyBackupShamorZachor = 'key-backup-shamor-zachor';
-  // [EDITING DISABLED] static const _keyBackupUserOverrides = 'key-backup-user-overrides';
   static const _keyBackupPlugins = 'key-backup-plugins';
   static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
 
   late _BackupMode _selectedBackupMode = BackupService.includesAllSections
       ? _BackupMode.all
       : _BackupMode.custom;
-  late final StreamSubscription<BoxEvent> _backupSettingsSubscription;
+  StreamSubscription<BoxEvent>? _backupSettingsSubscription;
 
   // ── גיבוי (expandable) ─────────────────────────────────────────────────────
   bool _isBackupExpanded = false;
@@ -380,16 +382,22 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   @override
   void initState() {
     super.initState();
-    _backupSettingsSubscription = Hive.box<dynamic>(HiveCache.keyName)
-        .watch()
-        .where((event) => BackupService.sectionSettingKeys.contains(event.key))
-        .listen((_) {
-          setState(() {
-            _selectedBackupMode = BackupService.includesAllSections
-                ? _BackupMode.all
-                : _BackupMode.custom;
-          });
-        });
+    SettingsSearchRegistry.instance.registerAnchor(
+      'system.backup',
+      _backupHeaderKey,
+    );
+    SettingsSearchRegistry.instance.registerSectionOpener(
+      'system.advanced',
+      _openAdvancedSection,
+    );
+    if (Hive.isBoxOpen(HiveCache.keyName)) {
+      _backupSettingsSubscription = Hive.box<dynamic>(HiveCache.keyName)
+          .watch()
+          .where(
+            (event) => BackupService.sectionSettingKeys.contains(event.key),
+          )
+          .listen((_) => _refreshBackupMode());
+    }
     _loadVersionInfo();
     _refreshLibraryChanges();
     LibraryChangesNotes.instance.revision.addListener(_refreshLibraryChanges);
@@ -449,11 +457,46 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   @override
   void dispose() {
-    unawaited(_backupSettingsSubscription.cancel());
+    SettingsSearchRegistry.instance.unregisterAnchor(
+      'system.backup',
+      _backupHeaderKey,
+    );
+    SettingsSearchRegistry.instance.unregisterSectionOpener(
+      'system.advanced',
+      _openAdvancedSection,
+    );
+    unawaited(_backupSettingsSubscription?.cancel());
     LibraryChangesNotes.instance.revision.removeListener(
       _refreshLibraryChanges,
     );
     super.dispose();
+  }
+
+  void _openAdvancedSection(String section) {
+    if (section != 'backup' && !section.startsWith('backup.')) return;
+    setState(() {
+      _isBackupExpanded = true;
+      if (section.startsWith('backup.options.')) {
+        _selectedBackupMode = _BackupMode.custom;
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // The expanded rows must contribute to the scroll extent first.
+      await Future<void>.delayed(AppTokens.animNormal);
+      if (!mounted) return;
+      await SettingsSearchRegistry.instance.scrollAndHighlight(
+        'system.$section',
+      );
+    });
+  }
+
+  void _refreshBackupMode() {
+    if (!mounted) return;
+    setState(() {
+      _selectedBackupMode = BackupService.includesAllSections
+          ? _BackupMode.all
+          : _BackupMode.custom;
+    });
   }
 
   Future<void> _loadBackupStatus() async {
@@ -550,7 +593,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     }
     if (!status.hasSignificantChanges) {
       return context.settingsText(
-        'העדכון מתבצע כל {unit}, ואינו מעודכן לשינויים האחרונים - לא קרו הרבה שינויים.',
+        'הגיבוי מתבצע כל {unit}, ואינו מעודכן לשינויים האחרונים - לא קרו הרבה שינויים.',
         args: {'unit': unitLabel},
       );
     }
@@ -558,7 +601,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       isWeekly ? 'יומי' : 'שבועי',
     );
     return context.settingsText(
-      'העדכון מתבצע כל {unit} ואינו מעודכן, מומלץ להגדיר גיבוי {recommended}.',
+      'הגיבוי מתבצע כל {unit} ואינו מעודכן, מומלץ להגדיר גיבוי {recommended}.',
       args: {'unit': unitLabel, 'recommended': recommendedUnitLabel},
     );
   }
@@ -824,7 +867,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         includeNotes: _shouldInclude(_keyBackupNotes),
         includeWorkspaces: _shouldInclude(_keyBackupWorkspaces),
         includeShamorZachor: _shouldInclude(_keyBackupShamorZachor),
-        // [EDITING DISABLED] includeUserOverrides: _shouldInclude(_keyBackupUserOverrides),
         includePlugins: _shouldInclude(_keyBackupPlugins),
       );
       if (!mounted) return;
@@ -1284,6 +1326,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
         // ── גיבוי אוטומטי ──
         ExpandableSection(
+          headerKey: _backupHeaderKey,
           icon: FluentIcons.calendar_clock_24_regular,
           title: context.settingsText('גיבוי אוטומטי'),
           subtitle: _buildAutoBackupSubtitle(autoFrequency),
@@ -1328,7 +1371,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 icon: FluentIcons.folder_24_regular,
                 title: context.settingsText('תיקיית גיבוי'),
                 currentPath: _resolvedBackupPath,
-                placeholder: context.settingsText('שימוש בתיקיית ברירת המחדל'),
+                placeholder: context.settingsText(
+                  'שימוש בתיקיית ברירת המחדל',
+                ),
                 simpleButtonWhenEmpty: false,
                 clearPathEnabled:
                     (Settings.getValue<String>(
@@ -1376,128 +1421,133 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   _loadResolvedBackupPath();
                 },
               ),
-            SettingsActionTile.segmentedTile<_BackupMode>(
-              icon: FluentIcons.options_24_regular,
-              title: context.settingsText('מצב גיבוי'),
-              subtitle: context.settingsText(
-                'בחר האם לגבות את כל הנתונים או רק חלק מהם',
+            SettingsAnchor(
+              cardId: 'system.backup.mode',
+              child: SettingsActionTile.segmentedTile<_BackupMode>(
+                icon: FluentIcons.options_24_regular,
+                title: context.settingsText('מצב גיבוי'),
+                subtitle: context.settingsText(
+                  'בחר האם לגבות את כל הנתונים או רק חלק מהם',
+                ),
+                options: [
+                  SegmentOption<_BackupMode>(
+                    value: _BackupMode.all,
+                    label: context.settingsText('גבה הכל'),
+                  ),
+                  SegmentOption<_BackupMode>(
+                    value: _BackupMode.custom,
+                    label: context.settingsText('מותאם אישית'),
+                  ),
+                ],
+                currentValue: _selectedBackupMode,
+                onChanged: (value) {
+                  if (value == _BackupMode.all) {
+                    unawaited(BackupService.includeAllSections());
+                  }
+                  setState(() => _selectedBackupMode = value);
+                },
               ),
-              options: [
-                SegmentOption<_BackupMode>(
-                  value: _BackupMode.all,
-                  label: context.settingsText('גבה הכל'),
-                ),
-                SegmentOption<_BackupMode>(
-                  value: _BackupMode.custom,
-                  label: context.settingsText('מותאם אישית'),
-                ),
-              ],
-              currentValue: _selectedBackupMode,
-              onChanged: (value) {
-                if (value == _BackupMode.all) {
-                  unawaited(BackupService.includeAllSections());
-                }
-                setState(() => _selectedBackupMode = value);
-              },
             ),
             if (_selectedBackupMode == _BackupMode.custom) ...[
               _BackupOptionTile(
+                searchSection: 'settings',
                 icon: FluentIcons.settings_24_regular,
                 title: context.settingsText('הגדרות'),
                 subtitle: context.settingsText('כולל את כלל הגדרות התוכנה'),
                 settingKey: _keyBackupSettings,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
               _BackupOptionTile(
+                searchSection: 'bookmarks',
                 icon: FluentIcons.bookmark_24_regular,
                 title: context.settingsText('סימניות'),
                 subtitle: context.settingsText('כל הסימניות שנשמרו'),
                 settingKey: _keyBackupBookmarks,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
               _BackupOptionTile(
+                searchSection: 'history',
                 icon: FluentIcons.history_24_regular,
                 title: context.settingsText('היסטוריה'),
                 subtitle: context.settingsText('היסטוריית הלימוד'),
                 settingKey: _keyBackupHistory,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
               _BackupOptionTile(
+                searchSection: 'notes',
                 icon: FluentIcons.note_24_regular,
                 title: context.settingsText('הערות אישיות'),
                 subtitle: context.settingsText('כל ההערות האישיות שלך'),
                 settingKey: _keyBackupNotes,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
               _BackupOptionTile(
+                searchSection: 'workspaces',
                 icon: FluentIcons.grid_24_regular,
                 title: context.settingsText('שולחנות עבודה'),
                 subtitle: context.settingsText('כל שולחנות העבודה'),
                 settingKey: _keyBackupWorkspaces,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
               _BackupOptionTile(
+                searchSection: 'shamor_zachor',
                 icon: OtzariaIcons.book_24_regular,
                 title: context.settingsText('שמור וזכור'),
                 subtitle: context.settingsText('ספרים ומעקב לימוד'),
                 settingKey: _keyBackupShamorZachor,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
-              // [EDITING DISABLED]
-              // _BackupOptionTile(
-              //   icon: FluentIcons.document_edit_24_regular,
-              //   title: 'הגדרות מתקדמות',
-              //   subtitle: 'הגדרות נוספות שדרסת',
-              //   settingKey: _keyBackupUserOverrides,
-              //   onChanged: () => setState(() {}),
-              // ),
               _BackupOptionTile(
+                searchSection: 'plugins',
                 icon: FluentIcons.puzzle_piece_24_regular,
                 title: context.settingsText('תוספים'),
                 subtitle: context.settingsText(
                   'התוספים שהותקנו, הגדרותיהם ונתוניהם',
                 ),
                 settingKey: _keyBackupPlugins,
-                onChanged: () => setState(() {}),
+                onChanged: _refreshBackupMode,
               ),
             ],
-            SettingsActionTile.text(
-              icon: FluentIcons.broom_24_regular,
-              title: context.settingsText('ניקוי גיבויים ישנים'),
-              subtitle: _buildOverviewSubtitle(retentionProfile),
-              actions: [
-                AppDropdownField<String>(
-                  value: retentionProfile.name,
-                  isExpanded: false,
-                  entries: [
-                    AppMenuEntry(
-                      value: 'economy',
-                      label: context.settingsText('חסכוני'),
-                    ),
-                    AppMenuEntry(
-                      value: 'balanced',
-                      label: context.settingsText('מאוזן'),
-                    ),
-                    AppMenuEntry(
-                      value: 'keepAll',
-                      label: context.settingsText('שמור הכל'),
-                    ),
-                  ],
-                  onSelected: (value) {
-                    if (value == null) return;
-                    Settings.setValue<String>(
-                      BackupMaintenance.keyRetentionProfile,
-                      value,
-                    );
-                    setState(() {});
-                  },
-                ),
-                ActionButton.neutral(
-                  text: context.settingsText('נקה עכשיו'),
-                  isLoading: _isRunningMaintenance,
-                  onPressed: _runMaintenanceNow,
-                ),
-              ],
+            SettingsAnchor(
+              cardId: 'system.backup.retention',
+              child: SettingsActionTile.text(
+                icon: FluentIcons.broom_24_regular,
+                title: context.settingsText('ניקוי גיבויים ישנים'),
+                subtitle: _buildOverviewSubtitle(retentionProfile),
+                actions: [
+                  AppDropdownField<String>(
+                    value: retentionProfile.name,
+                    isExpanded: false,
+                    entries: [
+                      AppMenuEntry(
+                        value: 'economy',
+                        label: context.settingsText('חסכוני'),
+                      ),
+                      AppMenuEntry(
+                        value: 'balanced',
+                        label: context.settingsText('מאוזן'),
+                      ),
+                      AppMenuEntry(
+                        value: 'keepAll',
+                        label: context.settingsText('שמור הכל'),
+                      ),
+                    ],
+                    onSelected: (value) {
+                      if (value == null) return;
+                      Settings.setValue<String>(
+                        BackupMaintenance.keyRetentionProfile,
+                        value,
+                      );
+                      setState(() {});
+                    },
+                  ),
+                  ActionButton.neutral(
+                    text: context.settingsText('נקה עכשיו'),
+                    isLoading: _isRunningMaintenance,
+                    onPressed: _runMaintenanceNow,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1676,6 +1726,7 @@ MarkdownStyleSheet changelogMarkdownStyle(ThemeData theme) {
 // ── _BackupOptionTile ─────────────────────────────────────────────────────────
 
 class _BackupOptionTile extends StatelessWidget {
+  final String searchSection;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -1683,6 +1734,7 @@ class _BackupOptionTile extends StatelessWidget {
   final VoidCallback onChanged;
 
   const _BackupOptionTile({
+    required this.searchSection,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -1692,15 +1744,18 @@ class _BackupOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsActionTile.switchTile(
-      icon: icon,
-      title: title,
-      subtitle: subtitle,
-      value: Settings.getValue<bool>(settingKey) ?? true,
-      onChanged: (value) {
-        Settings.setValue<bool>(settingKey, value);
-        onChanged();
-      },
+    return SettingsAnchor(
+      cardId: 'system.backup.options.$searchSection',
+      child: SettingsActionTile.switchTile(
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
+        value: Settings.getValue<bool>(settingKey) ?? true,
+        onChanged: (value) {
+          Settings.setValue<bool>(settingKey, value);
+          onChanged();
+        },
+      ),
     );
   }
 }
