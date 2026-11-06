@@ -157,9 +157,7 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('לחיצה על האזור פותחת בחירה ומציגה את התמונות', (
-      tester,
-    ) async {
+    testWidgets('לחיצה על האזור פותחת בחירה ומציגה את התמונות', (tester) async {
       final sources = _FakeSources(picked: [_image('a.png')]);
       await pump(tester, sources);
       expect(
@@ -227,6 +225,85 @@ void main() {
           await tester.pump();
           expect(images.single.fileName, 'history.png');
           expect(sources.clipboardReads, [withTextField]);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    for (final withAlt in [false, true]) {
+      testWidgets(
+        'virtual V without a paste chord never reads or pastes clipboard (Alt: $withAlt)',
+        (tester) async {
+          const originalText = 'Original report text';
+          const clipboardText = 'This is not a paste request';
+          var plainTextClipboardReads = 0;
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            (call) async {
+              if (call.method == 'Clipboard.getData') {
+                plainTextClipboardReads++;
+                return {'text': clipboardText};
+              }
+              return null;
+            },
+          );
+          addTearDown(
+            () => tester.binding.defaultBinaryMessenger
+                .setMockMethodCallHandler(SystemChannels.platform, null),
+          );
+          final sources = _FakeSources(clipboard: [_image('unrequested.png')]);
+          await pump(tester, sources, withTextField: true);
+          await tester.enterText(
+            find.byKey(const ValueKey('field')),
+            originalText,
+          );
+          await tester.pump();
+
+          if (withAlt) {
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+          }
+          try {
+            // A missing scan code does not establish a clipboard-history paste.
+            // This sequence deliberately has no Ctrl or Win key event.
+            const physical = PhysicalKeyboardKey(0x1600000000);
+            HardwareKeyboard.instance.handleKeyEvent(
+              const KeyDownEvent(
+                physicalKey: physical,
+                logicalKey: LogicalKeyboardKey.keyV,
+                timeStamp: Duration.zero,
+              ),
+            );
+            HardwareKeyboard.instance.handleKeyEvent(
+              const KeyUpEvent(
+                physicalKey: physical,
+                logicalKey: LogicalKeyboardKey.keyV,
+                timeStamp: Duration.zero,
+              ),
+            );
+            await tester.pump();
+          } finally {
+            if (withAlt) {
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+            }
+          }
+          await tester.pump();
+
+          final editor = tester.widget<EditableText>(find.byType(EditableText));
+          expect(
+            {
+              'imageClipboardReads': sources.clipboardReads,
+              'plainTextClipboardReads': plainTextClipboardReads,
+              'attachedImages': images.length,
+              'reportText': editor.controller.text,
+            },
+            {
+              'imageClipboardReads': <bool>[],
+              'plainTextClipboardReads': 0,
+              'attachedImages': 0,
+              'reportText': originalText,
+            },
+            reason: 'A virtual V alone or with Alt is not a paste command.',
+          );
         },
         variant: TargetPlatformVariant.only(TargetPlatform.windows),
       );
