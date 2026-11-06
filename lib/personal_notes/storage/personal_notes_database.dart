@@ -146,7 +146,12 @@ class PersonalNotesDatabase {
   }
 
   /// Insert a new note
-  Future<void> insertNote(PersonalNote note) async {
+  Future<void> insertNote(PersonalNote note) => _insertNote(note);
+
+  Future<void> _insertNote(
+    PersonalNote note, {
+    Set<String>? notificationBatch,
+  }) async {
     final db = await database;
     final m = _noteToMap(note);
     final cols = m.keys.join(', ');
@@ -155,11 +160,18 @@ class PersonalNotesDatabase {
       'INSERT OR REPLACE INTO $_tableNotes ($cols) VALUES ($placeholders)',
       m.values.toList(),
     );
-    if (db.updatedRows > 0) _notifyChanges([note.bookId]);
+    if (db.updatedRows > 0) {
+      _notifyChanges([note.bookId], notificationBatch: notificationBatch);
+    }
   }
 
   /// Update an existing note
-  Future<void> updateNote(PersonalNote note) async {
+  Future<void> updateNote(PersonalNote note) => _updateNote(note);
+
+  Future<void> _updateNote(
+    PersonalNote note, {
+    Set<String>? notificationBatch,
+  }) async {
     final db = await database;
     final m = _noteToMap(note);
     final setClause = m.keys.map((k) => '$k = ?').join(', ');
@@ -170,7 +182,7 @@ class PersonalNotesDatabase {
     if (db.updatedRows == 0) {
       throw StateError(NotesMessages.noteNoLongerExists);
     }
-    _notifyChanges([note.bookId]);
+    _notifyChanges([note.bookId], notificationBatch: notificationBatch);
   }
 
   /// Delete a note
@@ -332,7 +344,26 @@ class PersonalNotesDatabase {
     return count;
   }
 
-  void _notifyChanges(Iterable<String> bookIds) {
+  /// מאגד הודעות בלבד; כתיבות שהצליחו נשמרות ומפורסמות גם אם הפעולה נכשלת.
+  Future<T> batchNotifications<T>(
+    Future<T> Function(PersonalNotesNotificationBatch batch) action,
+  ) async {
+    final batch = PersonalNotesNotificationBatch._(this);
+    try {
+      return await action(batch);
+    } finally {
+      _notifyChanges(batch._changedBooks);
+    }
+  }
+
+  void _notifyChanges(
+    Iterable<String> bookIds, {
+    Set<String>? notificationBatch,
+  }) {
+    if (notificationBatch != null) {
+      notificationBatch.addAll(bookIds);
+      return;
+    }
     final changedBooks = bookIds.toSet();
     if (changedBooks.isEmpty) return;
     revision.value++;
@@ -421,4 +452,18 @@ class BookNotesInfo {
     required this.noteCount,
     required this.lastUpdated,
   });
+}
+
+/// כתיבות עצמאיות שהודעות השינוי שלהן נאספות עד לסיום הפעולה.
+class PersonalNotesNotificationBatch {
+  PersonalNotesNotificationBatch._(this._database);
+
+  final PersonalNotesDatabase _database;
+  final _changedBooks = <String>{};
+
+  Future<void> insertNote(PersonalNote note) =>
+      _database._insertNote(note, notificationBatch: _changedBooks);
+
+  Future<void> updateNote(PersonalNote note) =>
+      _database._updateNote(note, notificationBatch: _changedBooks);
 }
