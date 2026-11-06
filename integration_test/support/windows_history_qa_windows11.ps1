@@ -342,6 +342,47 @@ try {
           @{ text = $_.Text; x = $_.BoundingRect.X; y = $_.BoundingRect.Y; width = $_.BoundingRect.Width; height = $_.BoundingRect.Height }
         }) }
       }) }
+    $result['fullFrameLines'] = $result.lines
+    $result['valueCrops'] = @()
+    $labels = @($result.lines | Where-Object { $_.text.Trim() -match '^(Location|Find my device|Inking\s*&\s*typing|Diagnostic data|Tailored experiences|Advertising ID)$' -and
+      $_.words[0].x -ge 540 -and $_.words[0].x -le 570 -and $_.words[0].y -gt 230 -and $_.words[0].y -lt 600 } | Sort-Object { $_.words[0].y })
+    if ($bitmap.PixelWidth -ne 1024 -or $bitmap.PixelHeight -ne 768 -or $labels.Count -ne 3) { throw 'Value crops require the three observed labels in the reviewed privacy layout.' }
+    $values = @()
+    for ($index = 0; $index -lt $labels.Count; $index++) {
+      $label = $labels[$index]
+      $top = [int][Math]::Ceiling(($label.words | ForEach-Object { $_.y + $_.height } | Measure-Object -Maximum).Maximum + 8)
+      $bottom = if ($index + 1 -lt $labels.Count) { [int]$labels[$index + 1].words[0].y - 8 } else { 625 }
+      if ($top -lt 250 -or $bottom -gt 625 -or $bottom -le $top -or $bottom - $top -gt 200) { throw 'Unrecognized privacy value crop geometry.' }
+      $scale = 4
+      $transform = [Windows.Graphics.Imaging.BitmapTransform]::new()
+      $transform.ScaledWidth = $bitmap.PixelWidth * $scale; $transform.ScaledHeight = $bitmap.PixelHeight * $scale
+      $bounds = [Windows.Graphics.Imaging.BitmapBounds]::new()
+      $bounds.X = 598 * $scale; $bounds.Y = $top * $scale; $bounds.Width = 60 * $scale; $bounds.Height = ($bottom - $top) * $scale
+      $transform.Bounds = $bounds
+      $crop = Await-WinRt ($decoder.GetSoftwareBitmapAsync([Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8,
+        [Windows.Graphics.Imaging.BitmapAlphaMode]::Premultiplied, $transform,
+        [Windows.Graphics.Imaging.ExifOrientationMode]::IgnoreExifOrientation, [Windows.Graphics.Imaging.ColorManagementMode]::DoNotColorManage)) ([Windows.Graphics.Imaging.SoftwareBitmap])
+      try {
+        $recognized = Await-WinRt ($engine.RecognizeAsync($crop)) ([Windows.Media.Ocr.OcrResult])
+        $cropLines = @($recognized.Lines | ForEach-Object {
+          @{ text = $_.Text; sourceLabel = $label.text; words = @($_.Words | ForEach-Object {
+            @{ text = $_.Text; x = 598 + $_.BoundingRect.X / $scale; y = $top + $_.BoundingRect.Y / $scale;
+              width = $_.BoundingRect.Width / $scale; height = $_.BoundingRect.Height / $scale }
+          }) }
+        })
+        $read = @{ label = $label.text; sourceBounds = @{ x = 598; y = $top; width = 60; height = $bottom - $top };
+          scale = $scale; text = $recognized.Text; mappedLines = $cropLines }
+        $result.valueCrops += $read
+        $result | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 $OutputPath
+        $value = @($cropLines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 })
+        if ($value.Count -ne 1) { throw ('No unique literal Yes/No in the crop associated with ' + $label.text) }
+        $original = @($result.fullFrameLines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 -and
+          [Math]::Abs(($_.words[0].y + $_.words[0].height / 2) - ($value[0].words[0].y + $value[0].words[0].height / 2)) -lt 10 })
+        if (@($original | Where-Object { $_.text -cne $value[0].text }).Count -gt 0) { throw 'Cropped and full-frame OCR disagree about a privacy value.' }
+        $values += $value[0]
+      } finally { $crop.Dispose() }
+    }
+    $result.lines = @($result.fullFrameLines | Where-Object { $_.text.Trim() -cnotmatch '^(Yes|No)$' }) + $values
     $result | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $OutputPath
   } finally { $bitmap.Dispose() }
 } finally { $stream.Dispose() }
@@ -396,6 +437,9 @@ function Read-QAPrivacyAction($Ocr, [string]$ImagePath) {
   $optionValues = @($Ocr.lines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 -and
     $_.words[0].x -ge 600 -and $_.words[0].x -le 630 -and $_.words[0].y -gt 250 -and $_.words[0].y -lt 625 })
   if ($optionLabels.Count -ne 3 -or $optionValues.Count -ne 3) { throw 'The privacy page does not expose exactly three recognized setting labels and Yes/No values.' }
+  foreach ($label in $optionLabels) {
+    if (@($optionValues | Where-Object { $_.sourceLabel -ceq $label.text }).Count -ne 1) { throw 'Each observed privacy label must have exactly one associated value.' }
+  }
   $bitmap = [Drawing.Bitmap]::FromFile($ImagePath)
   try {
     $blueRows = @()
@@ -433,6 +477,39 @@ function Read-QAPrivacyAction($Ocr, [string]$ImagePath) {
     }
     return @{ kind = 'advance-privacy-page'; label = $word.text; x = $x; y = $y; blueToggleCount = 0 }
   } finally { $bitmap.Dispose() }
+}
+function Test-QAStoredPrivacyImages {
+  $results = @()
+  $expectedLabels = @('Location', 'Find my device', 'Inking & typing')
+  $expectedValues = @('Yes', 'No', 'Yes')
+  try {
+    foreach ($trace in @('false', 'true')) {
+      $fixture = Join-Path 'privacy-ocr-fixtures' ('windows11-flutter-history-trace-' + $trace + '-42231302570')
+      $provenance = Get-Content (Join-Path $fixture 'windows11-harness-source.json') -Raw | ConvertFrom-Json
+      if ($provenance.workflowHead -cne '81d76124b4ab4d4493b4f573b23f7c944e78d94c') { throw 'Unexpected source for the previously captured privacy image.' }
+      $image = (Resolve-Path (Join-Path $fixture 'privacy-00.png')).Path
+      $ocr = Read-QALocalOcr $image (Join-Path $env:REPORT_QA_ARTIFACT_ROOT ('stored-privacy-' + $trace + '-ocr.json'))
+      $pairs = @($ocr.valueCrops | ForEach-Object {
+        $values = @($_.mappedLines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 })
+        if ($values.Count -ne 1) { throw 'The stored privacy image did not yield one value per label.' }
+        @{ label = $_.label; value = $values[0].text; word = $values[0].words[0]; bounds = $_.sourceBounds }
+      })
+      if ($pairs.Count -ne 3) { throw 'The stored privacy image did not yield all three label/value pairs.' }
+      for ($index = 0; $index -lt 3; $index++) {
+        if ($pairs[$index].label -cne $expectedLabels[$index] -or $pairs[$index].value -cne $expectedValues[$index] -or
+            $pairs[$index].word.y -lt $pairs[$index].bounds.y -or
+            $pairs[$index].word.y + $pairs[$index].word.height -gt $pairs[$index].bounds.y + $pairs[$index].bounds.height) {
+          throw 'The stored image OCR disagrees with the independently viewed label/value position.'
+        }
+      }
+      $action = Read-QAPrivacyAction $ocr $image
+      if ($action.kind -cne 'disable-optional-setting' -or $action.label -cne 'Location') { throw 'The stored frame does not select the observed enabled Location toggle.' }
+      $results += @{ trace = $trace; imageSha256 = (Get-FileHash $image).Hash; pairs = $pairs; proposedAction = $action; inputSent = $false; passed = $true }
+    }
+  } finally {
+    @{ cases = $results; allPassed = $results.Count -eq 2; inputSent = $false } | ConvertTo-Json -Depth 12 |
+      Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/stored-privacy-ocr-smoke.json"
+  }
 }
 function Prepare-QAWindowsPrivacy {
   $actions = New-Object 'Collections.Generic.List[object]'
@@ -495,7 +572,7 @@ function Prepare-QAWindowsPrivacy {
   finally { $status | ConvertTo-Json -Depth 15 | Set-Content -Encoding utf8 $statusPath }
 }
 [void](Save-QAWindowSnapshot '00-before-launch')
-try { Prepare-QAWindowsPrivacy } catch {
+try { Test-QAStoredPrivacyImages; Prepare-QAWindowsPrivacy } catch {
   [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/privacy-error.txt", $_.Exception.ToString())
   [void](Save-QAWindowSnapshot 'privacy-error')
   throw

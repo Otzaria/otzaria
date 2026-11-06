@@ -82,6 +82,14 @@ jobs:
             throw 'The source does not prove that Server lacks the history window in all four cases.'
           }
           $source | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/server-prerequisite.json"
+      - name: Download the two already observed privacy frames for read-only OCR checks
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: windows11-flutter-history-trace-*-42231302570
+          merge-multiple: false
+          path: privacy-ocr-fixtures
+          run-id: 42231302570
+          github-token: ${{ github.token }}
       - name: Download the approved complete x64 standalone bundle
         uses: actions/download-artifact@v8.0.2
         with:
