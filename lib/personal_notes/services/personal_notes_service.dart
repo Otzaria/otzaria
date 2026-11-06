@@ -226,9 +226,13 @@ class PersonalNotesService {
     required String bookId,
     required String noteId,
   }) async {
-    await _database.deleteNote(noteId);
+    await removeNote(noteId: noteId);
     return await _database.loadNotes(bookId);
   }
+
+  /// אישור המחיקה אינו תלוי בקריאת הרשימה שאחריה.
+  Future<void> removeNote({required String noteId}) =>
+      _database.deleteNote(noteId);
 
   Future<List<PersonalNote>> repositionNote({
     required String bookId,
@@ -237,9 +241,30 @@ class PersonalNotesService {
     required int lineNumber,
     PdfNoteAnchor? pdfAnchor,
   }) async {
+    await moveNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      noteId: noteId,
+      lineNumber: lineNumber,
+      pdfAnchor: pdfAnchor,
+    );
+    return _database.loadNotes(bookId);
+  }
+
+  /// מחזיר את ההערה לאחר כתיבת המיקום, בלי לטעון את יתר הערות הספר.
+  Future<PersonalNote> moveNote({
+    required String bookId,
+    required String bookContent,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+  }) async {
     final note = await _database.getNote(noteId);
     if (note == null) {
-      return await _database.loadNotes(bookId);
+      throw StateError(NotesMessages.noteNoLongerExists);
+    }
+    if (note.bookId != bookId) {
+      throw StateError(NotesMessages.noteMovedToDifferentBook);
     }
 
     final lines = splitBookContentIntoLines(bookContent);
@@ -272,8 +297,7 @@ class PersonalNotesService {
     );
 
     await _database.updateNote(updatedNote);
-
-    return await _database.loadNotes(bookId);
+    return updatedNote;
   }
 
   PersonalNote _reconcileLocation(
