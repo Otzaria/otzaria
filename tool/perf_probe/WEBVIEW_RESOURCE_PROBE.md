@@ -167,7 +167,7 @@ Offstage אינו מדמה פעולות מערכת אלה. המשך אימות A
 ערך חסר הוא null; אפס מותר רק כשזה ערך שנמדד. CPU, PSS וזיכרון GPU
 מסומנים unsupported בתוך ה־probe ויש לצרף עבורם איסוף חיצוני.
 
-ה־pin `8f67ffd0f4bf850a0c183a8745ec3c607ba2c742` כולל את חוזה השגיאות
+ה־pin `66ed7ec924d6ce5366a79acf0f90b0932a334b0f` כולל את חוזה השגיאות
 המפורש של `getProcessInfos` מ־Otzaria/flutter_inappwebview#52. לכן
 `pluginWebViewProcessSnapshot` מקבל רשימה ריקה מוצלחת כ־`collected`.
 אין להחיל פירוש זה על גרסה ישנה שבה כשל יכול להחזיר רשימה ריקה.
