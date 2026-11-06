@@ -59,12 +59,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
   late final ScrollController _scrollController;
   late final PersonalNoteEditorResult _initialResult;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
+  Object? _draftVersion;
   bool _isSaving = false;
   bool _isClosing = false;
 
   @override
   void initState() {
     super.initState();
+    _draftVersion = _currentDraftVersion();
     _scrollController = ScrollController();
     _editorController = buildPersonalNoteEditorController(
       initialContent: widget.initialContent,
@@ -174,7 +176,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     if (bookId == null || (lineNumber == null && noteId == null)) return;
     final result = _editorController.buildResult();
     if (result.contentPlain.trim().isEmpty) return;
-    await _draftService.saveDraft(
+    final write = _draftService.saveDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,
@@ -188,6 +190,8 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
         pdfAnchor: widget.pdfAnchor,
       ),
     );
+    _draftVersion = _currentDraftVersion();
+    await write;
   }
 
   Future<void> _clearDraftIfPossible() async {
@@ -196,6 +200,21 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     final lineNumber = noteId == null ? widget.draftLineNumber : null;
     if (bookId == null || (lineNumber == null && noteId == null)) return;
     await _draftService.clearDraft(
+      bookId: bookId,
+      categoryId: widget.categoryId,
+      lineNumber: lineNumber,
+      noteId: noteId,
+      pdfAnchor: widget.pdfAnchor,
+      expectedVersion: _draftVersion,
+    );
+  }
+
+  Object? _currentDraftVersion() {
+    final bookId = widget.bookId;
+    final noteId = widget.draftNoteId;
+    final lineNumber = noteId == null ? widget.draftLineNumber : null;
+    if (bookId == null || (lineNumber == null && noteId == null)) return null;
+    return _draftService.draftVersion(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,

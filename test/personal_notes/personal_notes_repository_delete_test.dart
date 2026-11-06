@@ -79,6 +79,14 @@ void main() {
     expect(files.textReads, 0);
   });
 
+  test('מחיקה מאושרת אינה קוראת את תוכן הספר', () async {
+    await repository.removeNote(noteId: 'a');
+
+    expect(files.textReads, 0);
+    expect(await database.getNote('a'), isNull);
+    expect((await database.loadNotes(_bookId)).map((note) => note.id), ['b']);
+  });
+
   test('מחיקת הערה מחזירה את שאר הערות הספר', () async {
     final remaining = await repository.deleteNote(
       bookId: _bookId,
