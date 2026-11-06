@@ -296,9 +296,14 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
     excludeWireKey: sourceWireKey,
   );
   try {
-    // ללא אינדקס מתאים, ORDER BY ממיין את כל הקישורים לפני פתיחת הסמן.
-    // מאפשרים למיון לגלוש לדיסק במקום לצבור מיליוני שורות בזיכרון.
-    db.execute('PRAGMA temp_store=FILE');
+    // מיון desktop יכול לגלוש לדיסק; ב-mobile נשמרת מדיניות החיבור.
+    // Android אינו מבטיח temp ל-SQLite; שינוי נתיב גלובלי בחיבורים פעילים אינו בטוח.
+    if (defaultTargetPlatform
+        case TargetPlatform.windows ||
+            TargetPlatform.linux ||
+            TargetPlatform.macOS) {
+      db.execute('PRAGMA temp_store=FILE');
+    }
     final caps = DbCapabilities.probe(db);
     if (!caps.hasExternalLinks) return const [];
     int? bookId;
