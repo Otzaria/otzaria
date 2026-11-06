@@ -1,17 +1,30 @@
-# מריץ את אבחון המשאבים המלא:
-#   1. מגבה את נתוני המשתמש (טאבים/היסטוריה/סימניות) שהסימולציה עלולה לדרוס.
-#   2. מפעיל דוגם CPU/RAM חיצוני ברקע.
-#   3. מריץ את תרחיש השימוש (flutter drive, מצב profile).
-#   4. עוצר את הדוגם, משחזר את נתוני המשתמש, ומדפיס היכן הפלט.
-#
-# ניתוח התוצאות: dart run tool/perf_probe/analyze.dart <run-dir>
+# The default target uses isolated deterministic fixtures. Explicit older targets
+# retain the installed-library diagnostic path; see README.md before using them.
 param(
-  [string]$Mode = "profile",   # profile | debug
+  [ValidateSet('profile', 'debug', 'release')][string]$Mode = "profile",
   [string]$Target = "integration_test/perf_resource_probe_test.dart",
-  [switch]$SkipBackup
+  [switch]$SkipBackup,
+  [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
+  [ValidateRange(0, 10)][int]$Warmup = 1,
+  [ValidateRange(1, 100)][int]$Repetitions = 5,
+  [ValidateRange(1, 30)][int]$Launches = 3,
+  [string]$OutputDirectory = '',
+  [string]$Baseline = '',
+  [string]$HardwareId = '',
+  [ValidateRange(60, 7200)][int]$TimeoutSeconds = 1200
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($Target -eq 'integration_test/perf_resource_probe_test.dart') {
+  & (Join-Path $PSScriptRoot 'runner.ps1') -Mode $Mode -CacheState $CacheState `
+    -Warmup $Warmup -Repetitions $Repetitions -Launches $Launches `
+    -OutputDirectory $OutputDirectory -Baseline $Baseline -HardwareId $HardwareId `
+    -TimeoutSeconds $TimeoutSeconds
+  exit $LASTEXITCODE
+}
+if ($Mode -eq 'release') { throw 'Legacy flutter drive targets require profile or debug.' }
+Write-Warning 'Legacy target: uses the installed library; the Hive backup is partial. It is not a comparable benchmark.'
 
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $probeRoot = Join-Path $env:TEMP "otzaria_perf_probe"
