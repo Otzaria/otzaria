@@ -88,8 +88,8 @@ class UserBooksDatabaseHolder {
   Future<void>? _closeFuture;
   bool _releasing = false;
 
-  /// הסגירה ממתינה לקריאה כולה, כולל הכנת הנתיב ופתיחת חיבורים זמניים.
-  /// קריאה שמתחילה בזמן הסגירה מדולגת בלי לפתוח מחדש את הקובץ.
+  /// הסגירה ממתינה לפעולה כולה, כולל הכנת חיבור זמני לקריאה או לכתיבה.
+  /// פעולה שמתחילה בזמן הסגירה מדולגת בלי לפתוח מחדש את הקובץ.
   Future<void> trackRead(Future<void> Function() read) {
     if (_closeFuture != null) {
       return Future.value();

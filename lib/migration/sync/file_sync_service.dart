@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
+import '../database/repository/off_ui_deletion.dart';
 import '../database/repository/seforim_repository.dart';
 import '../database/database_compaction.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
@@ -67,12 +68,17 @@ class FileSyncService {
   /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית (תמיד user_books.db).
   SeforimRepository get _customFoldersRepo => _userBooksRepository;
 
+  final bool _isWorker;
   bool _isSyncing = false;
 
   /// Progress callback for UI updates
   void Function(double progress, String message)? onProgress;
 
-  FileSyncService._(this._repository, this._userBooksRepository);
+  FileSyncService._(
+    this._repository,
+    this._userBooksRepository, {
+    this._isWorker = false,
+  });
 
   /// Get singleton instance.
   ///
@@ -97,7 +103,7 @@ class FileSyncService {
     SeforimRepository repository, {
     required SeforimRepository userBooksRepository,
   }) {
-    return FileSyncService._(repository, userBooksRepository);
+    return FileSyncService._(repository, userBooksRepository, isWorker: true);
   }
 
   /// מאפס את הסינגלטון. שימושי בעיקר בטסטים שיוצרים DB חדש בכל setUp
@@ -107,80 +113,43 @@ class FileSyncService {
     _instance = null;
   }
 
-  /// Recursively delete a category and all its contents from the
-  /// custom-folders DB (`user_books.db`).
-  Future<void> _deleteCategoryRecursive(int categoryId) async {
+  /// אוסף את ספרי [categoryId] וצאצאיה, ואת הקטגוריות עצמן מהעמוקה אל השורש.
+  Future<void> _collectCategoryTree(
+    int categoryId,
+    List<int> bookIds,
+    List<int> categoryIds,
+  ) async {
     final repo = _customFoldersRepo;
-    // First, delete all books in this category
-    final books = await repo.getBooksByCategory(categoryId);
-    debugPrint(
-      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books',
+    bookIds.addAll(
+      (await repo.getBooksByCategory(categoryId)).map((b) => b.id),
     );
-    for (final book in books) {
-      debugPrint(
-        '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"',
-      );
-      try {
-        await repo.deleteBookCompletely(book.id);
-      } catch (e, st) {
-        _log.warning(
-          'Failed to delete book ${book.id} ("${book.title}"), continuing',
-          e,
-          st,
-        );
-      }
+    for (final subCat in await repo.getCategoryChildren(categoryId)) {
+      await _collectCategoryTree(subCat.id, bookIds, categoryIds);
     }
-
-    // Then, recursively delete subcategories
-    final subCategories = await repo.getCategoryChildren(categoryId);
-    debugPrint(
-      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories',
-    );
-    for (final subCat in subCategories) {
-      debugPrint(
-        '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"',
-      );
-      try {
-        await _deleteCategoryRecursive(subCat.id);
-      } catch (e, st) {
-        _log.warning(
-          'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
-          e,
-          st,
-        );
-      }
-    }
-
-    // Finally, delete this category
-    debugPrint('[FileSyncService]   deleting category itself: id=$categoryId');
-    await repo.deleteCategory(categoryId);
+    categoryIds.add(categoryId);
   }
 
-  /// Clean up empty parent categories recursively
-  /// Starts from a category and checks if it's empty, if so deletes it
-  /// and continues up the hierarchy.
-  /// פועל על ה-DB של תיקיות מותאמות אישית.
-  Future<void> _cleanupEmptyParentCategories(int categoryId) async {
-    final repo = _customFoldersRepo;
-    // Get the category to check its parent
-    final category = await repo.getCategory(categoryId);
-    if (category == null) return;
-
-    // Check if this category has any children (books or subcategories)
-    final books = await repo.getBooksByCategory(categoryId);
-    final subCategories = await repo.getCategoryChildren(categoryId);
-
-    // If category is empty, delete it and check parent
-    if (books.isEmpty && subCategories.isEmpty) {
-      final parentId = category.parentId;
-      await repo.deleteCategory(categoryId);
-      _log.info('Deleted empty category: ${category.title}');
-
-      // If there's a parent, check if it's now empty too
-      if (parentId != null) {
-        await _cleanupEmptyParentCategories(parentId);
-      }
+  /// מוחק מ-`user_books.db` מחוץ ל-UI isolate (ראה [deleteOffUi]) ומחזיר את
+  /// הספרים שנמחקו.
+  Future<List<int>> _deleteOffUi({
+    List<int> bookIds = const [],
+    List<int> categoryIds = const [],
+    Iterable<int> emptyCategoryRoots = const [],
+  }) async {
+    final result = await deleteOffUi(
+      _customFoldersRepo,
+      bookIds: bookIds,
+      categoryIds: categoryIds,
+      emptyCategoryRoots: emptyCategoryRoots,
+      useCurrentIsolate: _isWorker,
+    );
+    for (final (id, error) in result.failedBooks) {
+      _log.warning('Failed to remove book $id, continuing: $error');
     }
+    for (final title in result.deletedEmptyCategories) {
+      _log.info('Deleted empty category: $title');
+    }
+    return result.deletedBooks;
   }
 
   /// Delete a folder from the database.
@@ -329,16 +298,19 @@ class FileSyncService {
       return;
     }
 
+    final bookIds = <int>[];
+    final categoryIds = <int>[];
     for (final staleCategory in staleFolderCategories) {
       _log.info(
         'Removing stale custom folder from DB: ${staleCategory.title} (${staleCategory.id})',
       );
-      await _deleteCategoryRecursive(staleCategory.id);
+      await _collectCategoryTree(staleCategory.id, bookIds, categoryIds);
     }
-
-    await _cleanupEmptyParentCategories(personalCategory.id);
-    await repo.deleteOrphanedTocTexts();
-    await repo.deleteOrphanedLineToc();
+    await _deleteOffUi(
+      bookIds: bookIds,
+      categoryIds: categoryIds,
+      emptyCategoryRoots: [personalCategory.id],
+    );
   }
 
   /// מוחק מ-`user_books.db` ספרים שקובצם הפיזי כבר לא קיים בתיקייה.
@@ -429,8 +401,7 @@ class FileSyncService {
 
     final folderSourceName = _buildCustomFolderSourceName(folderPath);
 
-    final affectedCategoryIds = <int>{};
-    var removed = 0;
+    final categoryByBookId = <int, int>{};
     for (final entry in snap.booksByCategory.entries) {
       final categoryId = entry.key;
       for (final book in entry.value) {
@@ -491,24 +462,16 @@ class FileSyncService {
         _log.info(
           'Removing book from DB: "${currentBook.title}" (id=${currentBook.id})',
         );
-        try {
-          await repo.deleteBookCompletely(currentBook.id);
-          removed++;
-          affectedCategoryIds.add(categoryId);
-        } catch (e, st) {
-          _log.warning('Failed to remove book ${book.id}, continuing', e, st);
-        }
+        categoryByBookId[currentBook.id] = categoryId;
       }
     }
 
-    if (removed > 0) {
-      for (final categoryId in affectedCategoryIds) {
-        await _cleanupEmptyParentCategories(categoryId);
-      }
-      await repo.deleteOrphanedTocTexts();
-      await repo.deleteOrphanedLineToc();
-    }
-    return removed;
+    // קטגוריה שספרה נכשל במחיקה אינה ריקה, ולכן לא תימחק.
+    final removed = await _deleteOffUi(
+      bookIds: categoryByBookId.keys.toList(),
+      emptyCategoryRoots: categoryByBookId.values,
+    );
+    return removed.length;
   }
 
   Future<void> refreshSourcesAndPruneRemovedCustomFolders(

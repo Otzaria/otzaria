@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,7 @@ import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite;
 import 'package:otzaria/library/models/library.dart' as library_models;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -258,6 +260,40 @@ void main() {
       expect(await userRepo.getBook(txtId), isNull);
       expect(await userRepo.getBook(pdfId), isNotNull);
       expect(await seforimRepo.getBook(txtId), isNotNull);
+    });
+
+    test('המחיקה אינה כותבת בחיבור ה-UI ואינה נחסמת בנעילת כותב', () async {
+      final uiConnection = await userRepo.database.database;
+      int uiWrites() =>
+          uiConnection.select('SELECT total_changes() AS n').first['n'] as int;
+      final writesBefore = uiWrites();
+      final writer = sqlite.sqlite3.open(userRepo.database.path);
+      writer.execute('BEGIN IMMEDIATE');
+      var released = false;
+      // משתחרר רק אם ה-isolate הקורא פנוי בזמן שהמחיקה ממתינה לנעילה.
+      final release = Timer(const Duration(milliseconds: 300), () {
+        writer.execute('ROLLBACK');
+        released = true;
+      });
+      addTearDown(() {
+        release.cancel();
+        if (!released) writer.execute('ROLLBACK');
+        writer.close();
+      });
+
+      final ok = await BookLocator.deleteBook(
+        'תאום',
+        category: folder,
+        categoryId: folderId,
+        bookId: txtId,
+        source: BookSource.user,
+      );
+
+      expect(ok, isTrue);
+      expect(released, isTrue);
+      expect(uiWrites(), writesBefore);
+      expect(await userRepo.getBook(txtId), isNull);
+      expect(await userRepo.getBook(pdfId), isNotNull);
     });
 
     test('מזהה שכבר נמחק אינו מוחק את התאום', () async {

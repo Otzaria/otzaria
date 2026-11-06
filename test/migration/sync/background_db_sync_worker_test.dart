@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/models/book.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/sync/background_db_sync_worker.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
@@ -51,10 +53,9 @@ void main() {
   Future<String> makeFolder(String folderName, String bookTitle) async {
     final folderPath = p.join(tempDir.path, folderName);
     await Directory(folderPath).create(recursive: true);
-    await File(p.join(folderPath, '$bookTitle.txt')).writeAsString(
-      '\n<h1>פרק א</h1>\nשורת תוכן ראשונה\n',
-      flush: true,
-    );
+    await File(
+      p.join(folderPath, '$bookTitle.txt'),
+    ).writeAsString('\n<h1>פרק א</h1>\nשורת תוכן ראשונה\n', flush: true);
     return folderPath;
   }
 
@@ -393,8 +394,15 @@ void main() {
       );
 
       try {
-        // לא אמור לזרוק — כל הכתיבה ל-user_books בלבד.
+        final connection = await userBooksDatabase.database;
+        final writesBefore =
+            connection.select('SELECT total_changes() AS n').single['n'] as int;
         await service.deleteFolderFromDatabase('ro');
+        expect(
+          connection.select('SELECT total_changes() AS n').single['n'],
+          greaterThan(writesBefore),
+          reason: 'המחיקה חייבת לרוץ בחיבור שבבעלות ה-worker המפוקח',
+        );
 
         expect(
           await userBooksRepository.getCategory(folderCatId),
@@ -405,6 +413,54 @@ void main() {
         roDb.close();
       }
     });
+  });
+
+  test('הריגת worker מפסיקה את batch המחיקה לפני כתיבה נוספת', () async {
+    final rootId = await userBooksRepository.insertCategory(
+      const Category(title: 'ספרים אישיים'),
+    );
+    final categoryId = await userBooksRepository.insertCategory(
+      Category(title: 'cancel', parentId: rootId, level: 1),
+    );
+    final sourceId = await userBooksRepository.insertSource(
+      'Personal::cancel',
+      -1,
+    );
+    final bookId = await userBooksRepository.insertBook(
+      Book(
+        categoryId: categoryId,
+        sourceId: sourceId,
+        title: 'נשמר',
+        fileType: 'txt',
+      ),
+    );
+    await userBooksRepository.rebuildCategoryClosure();
+    final messages = ReceivePort();
+    final exits = ReceivePort();
+    final worker = await Isolate.spawn(_pausedDeletionWorker, (
+      dbPath: userBooksDbPath,
+      queries: QueryLoader.cacheSnapshot,
+      response: messages.sendPort,
+    ), onExit: exits.sendPort);
+    try {
+      final first = await messages.first.timeout(const Duration(seconds: 10));
+      expect(
+        first,
+        'deletion-paused',
+        reason: 'מחיקת הספר משתמשת ב-repository של ה-worker, ללא child עצמאי',
+      );
+      worker.kill(priority: Isolate.immediate);
+      await exits.first.timeout(const Duration(seconds: 5));
+      expect(
+        await userBooksRepository.getBook(bookId),
+        isNotNull,
+        reason: 'אין כותב ילד שממשיך אחרי הריגת ה-worker',
+      );
+    } finally {
+      worker.kill(priority: Isolate.immediate);
+      messages.close();
+      exits.close();
+    }
   });
 
   // ── serialization ─────────────────────────────────────────────────────────
@@ -489,4 +545,43 @@ void main() {
       expect(total, equals(2), reason: 'כל worker הוסיף ספר אחד');
     });
   });
+}
+
+Future<void> _pausedDeletionWorker(
+  ({String dbPath, Map<String, Map<String, String>> queries, SendPort response})
+  args,
+) async {
+  QueryLoader.seedCache(args.queries);
+  final database = MyDatabase.withPath(args.dbPath);
+  final repository = _PausedDeletionRepository(database, args.response);
+  try {
+    await repository.ensureInitialized();
+    final service = FileSyncService.createForWorker(
+      repository,
+      userBooksRepository: repository,
+    );
+    await service.deleteFolderFromDatabase('cancel');
+    args.response.send('deletion-completed');
+  } catch (error) {
+    args.response.send('error: $error');
+  } finally {
+    database.close();
+  }
+}
+
+class _PausedDeletionRepository extends SeforimRepository {
+  _PausedDeletionRepository(super.database, this.response);
+  final SendPort response;
+
+  @override
+  Future<void> deleteBookCompletely(int bookId) async {
+    response.send('deletion-paused');
+    final resume = ReceivePort();
+    try {
+      await resume.first;
+      await super.deleteBookCompletely(bookId);
+    } finally {
+      resume.close();
+    }
+  }
 }
