@@ -19,9 +19,24 @@ import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 List<Map<String, String>> rankAramaicMatches(
   List<Map<String, String>> entries,
   String field,
-  String query,
-) {
+  String query, {
+  void Function()? debugOnRank,
+}) {
   final wholeWord = RegExp('(^|\\s)${RegExp.escape(query)}(\$|\\s)');
+  int rankOf(String text, int pos) {
+    assert(() {
+      debugOnRank?.call();
+      return true;
+    }());
+    return text == query
+        ? 0
+        : pos == 0
+        ? 1
+        : wholeWord.hasMatch(text)
+        ? 2
+        : 3;
+  }
+
   final ranked =
       <
         ({int rank, bool other, int pos, int order, Map<String, String> entry})
@@ -30,13 +45,7 @@ List<Map<String, String>> rankAramaicMatches(
     final text = entry[field]!;
     final pos = text.indexOf(query);
     if (pos < 0) continue;
-    final rank = text == query
-        ? 0
-        : pos == 0
-        ? 1
-        : wholeWord.hasMatch(text)
-        ? 2
-        : 3;
+    final rank = rankOf(text, pos);
     final other =
         (entry['dictionary'] ?? AramaicDictionaryEntry.peshitaDictionary) !=
         AramaicDictionaryEntry.peshitaDictionary;

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../../test_helpers/pdf_document_dispose.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -77,6 +78,27 @@ void main() {
     final settingsBloc = _FakeSettingsBloc();
     addTearDown(settingsBloc.close);
 
+    final documentListenable = PdfFontFallback.documentRef(
+      pdfFile.path,
+    ).resolveListenable();
+    final releaseDocument = documentListenable.addListener(() {});
+    addTearDown(() async {
+      final document = documentListenable.document;
+      await tester.pumpWidget(const SizedBox.shrink());
+      releaseDocument();
+      if (document != null) await disposePdfDocument(tester, document);
+    });
+
+    // Native PDF work must complete outside FakeAsync before the viewer uses it.
+    await tester.runAsync(documentListenable.load);
+    expect(documentListenable.error, isNull);
+    final document = documentListenable.document!;
+    await tester.runAsync(() async {
+      final page = await document.pages.single.waitForLoaded();
+      expect(page, isNotNull);
+      await PdfPageTextCache.forDocument(document).load(page!);
+    });
+
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<SettingsBloc>.value(
@@ -95,18 +117,6 @@ void main() {
 
     PdfViewer viewer() => tester.widget<PdfViewer>(find.byType(PdfViewer));
     final controller = viewer().controller!;
-    // pdfium עונה מ-isolate אמיתי: בלי runAsync ההמשך נתקע בתור ה-microtasks
-    // של ה-FakeAsync, ו-await ישיר עליו לא חוזר לעולם.
-    Future<bool> pumpUntil(bool Function() condition) async {
-      for (var i = 0; i < 40 && !condition(); i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
-        );
-      }
-      return condition();
-    }
-
     bool hasLayout() {
       if (!controller.isReady) return false;
       try {
@@ -118,16 +128,14 @@ void main() {
       }
     }
 
-    expect(await pumpUntil(hasLayout), isTrue);
-    final document = controller.document;
-
-    final selecting = controller.textSelectionDelegate.selectAllText();
-    expect(
-      await pumpUntil(() => controller.textSelectionDelegate.hasSelectedText),
-      isTrue,
-    );
-    await selecting;
+    expect(viewer().documentRef.resolveListenable(), same(documentListenable));
     await tester.pumpAndSettle();
+    expect(hasLayout(), isTrue);
+    expect(controller.document, same(document));
+
+    await tester.runAsync(controller.textSelectionDelegate.selectAllText);
+    await tester.pumpAndSettle();
+    expect(controller.textSelectionDelegate.hasSelectedText, isTrue);
 
     String? clipboardText;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -175,8 +183,5 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('העתק'), findsOneWidget);
     expect(find.byType(AdaptiveTextSelectionToolbar), findsNothing);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await disposePdfDocument(tester, document);
   });
 }

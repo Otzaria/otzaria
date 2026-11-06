@@ -1635,6 +1635,12 @@ void main() {
         final provider = DatabaseLibraryProvider.instance;
         expect(await provider.getLinkContent(link('מפרש', 2)), isNotEmpty);
 
+        // גם כשל ב-assert לא ישאיר שער כתיבה סגור לבדיקות הבאות.
+        addTearDown(
+          () => SqliteDataProvider.instance.reopenAfterExternalWrite(
+            reopenDatabase: false,
+          ),
+        );
         final release = Completer<void>();
         final reading = DbReadWorker.trackTemporaryRead(
           () => release.future,

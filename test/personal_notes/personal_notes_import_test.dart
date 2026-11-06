@@ -331,6 +331,61 @@ void main() {
     expect(await database.userBookKeysPending(), isTrue);
   });
 
+  for (final clockOffsets in [
+    [0, 0, 0],
+    [0, -1, 0],
+  ]) {
+    test(
+      'keepBoth preserves every note with clock offsets $clockOffsets',
+      () async {
+        final instant = DateTime.utc(2026, 11, 6);
+        var clockReads = 0;
+        final importService = PersonalNotesImportExportService(
+          now: () => instant.add(Duration(seconds: clockOffsets[clockReads++])),
+        );
+        final incoming = [
+          note('same', content: 'first duplicate', day: 2),
+          note('same', content: 'second duplicate', day: 3),
+          note('new', content: 'new note', day: 2),
+          note('new', content: 'third duplicate', day: 3),
+        ];
+        final file = File('${root.path}/repeated_ids.json');
+        await file.writeAsString(
+          jsonEncode(
+            backup([
+              for (final item in incoming) item.toJson(),
+            ]),
+          ),
+        );
+
+        final summary = await importService.importFromFile(
+          path: file.path,
+          strategy: NotesImportConflictStrategy.keepBoth,
+        );
+
+        expectCounts(summary, inserted: 1, duplicated: 3);
+        final saved = await database.loadNotes('ספר');
+        expect(saved, hasLength(6));
+        expect(saved.map((n) => n.id).toSet(), hasLength(6));
+        expect(
+          (await database.getNote('same'))!.toJson(),
+          note('same').toJson(),
+        );
+        expect((await database.getNote('new'))!.toJson(), incoming[2].toJson());
+        expect(
+          saved
+              .where((n) => n.id != 'same' && n.id != 'untouched')
+              .map(
+                (n) => n.toJson()..remove('id'),
+              ),
+          unorderedEquals(incoming.map((n) => n.toJson()..remove('id'))),
+        );
+        expect(clockReads, 3);
+        expect(await database.userBookKeysPending(), isTrue);
+      },
+    );
+  }
+
   for (final (strategy, day) in [
     (NotesImportConflictStrategy.skip, 2),
     (NotesImportConflictStrategy.merge, 0),

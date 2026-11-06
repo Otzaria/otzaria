@@ -114,6 +114,17 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> importFile(WidgetTester tester) async {
+    await tester.runAsync(() async {
+      final saved = const HiddenLibraryStore().changes.first;
+      await tester.tap(find.text('בחר קובץ'));
+      await saved;
+      // השמירה מתפרסמת לפני סיום עדכון האינדקס באותה פעולה.
+      await HiddenLibraryUpdateQueue.instance.run(() async {});
+    });
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('בחירת ספר מהרשימה מסתירה אותו (issue #1448)', (tester) async {
     await pump(tester);
 
@@ -209,12 +220,7 @@ void main() {
       ..writeAsStringSync('בראשית\nאין כזה\n');
 
     await pump(tester, pickFile: () async => file.path);
-    // הייבוא קורא קובץ אמיתי; pumpAndSettle מריץ פריימים ואינו ממתין ל-IO.
-    await tester.runAsync(() async {
-      await tester.tap(find.text('בחר קובץ'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await importFile(tester);
 
     expect(
       const HiddenLibraryStore().load().bookKeys,
@@ -228,11 +234,7 @@ void main() {
     final file = File('${tempDir.path}/hide.csv')..writeAsStringSync('שמות\n');
 
     await pump(tester, pickFile: () async => file.path);
-    await tester.runAsync(() async {
-      await tester.tap(find.text('בחר קובץ'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await importFile(tester);
 
     expect(
       droppedFromIndex,
@@ -251,11 +253,7 @@ void main() {
     final file = File('${tempDir.path}/partial.csv')
       ..writeAsStringSync('בראשית\n');
     await pump(tester, pickFile: () async => file.path, showSnacks: true);
-    await tester.runAsync(() async {
-      await tester.tap(find.text('בחר קובץ'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pumpAndSettle();
+    await importFile(tester);
 
     expect(const HiddenLibraryStore().load().bookKeys, {_key('בראשית')});
     expect(const HiddenLibraryStore().load().categoryPaths, {'/לא קיימת'});

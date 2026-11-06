@@ -237,6 +237,10 @@ void main() {
       async.elapse(Duration.zero);
       expect(notifications.initCalls, 0);
       expect(store.ledger, isEmpty);
+      expect(
+        async.pendingTimers.single.duration,
+        const Duration(hours: 15, minutes: 5),
+      );
       now = DateTime(2027, 1, 31, 9);
       async.elapse(const Duration(days: 1));
       expect(notifications.scheduled, isNotEmpty);

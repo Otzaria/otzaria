@@ -9,9 +9,11 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 List<Map<String, String>> _referenceSearch(
   List<Map<String, String>> data,
   String field,
-  String query,
-) {
+  String query, {
+  void Function()? onRank,
+}) {
   int rank(String text) {
+    onRank?.call();
     if (text == query) return 0;
     if (text.startsWith(query)) return 1;
     if (RegExp('(^|\\s)${RegExp.escape(query)}(\$|\\s)').hasMatch(text)) {
@@ -53,17 +55,6 @@ List<Map<String, String>> _loadRealDictionary() {
   ];
 }
 
-int _medianMicros(void Function() run) {
-  final samples = <int>[];
-  for (var i = 0; i < 9; i++) {
-    final sw = Stopwatch()..start();
-    run();
-    samples.add(sw.elapsedMicroseconds);
-  }
-  samples.sort();
-  return samples[samples.length ~/ 2];
-}
-
 void main() {
   final data = _loadRealDictionary();
   const queries = ['א', 'ד', 'ה', 'אי', 'מאי', 'של', 'לא', 'דא', 'זה'];
@@ -86,22 +77,28 @@ void main() {
     }
   });
 
-  test('הקשת אות ראשונה בכיוון עברי מהירה מהמסלול הקודם', () {
-    for (var i = 0; i < 3; i++) {
-      _referenceSearch(data, 'hebrewPlain', 'א');
-      rankAramaicMatches(data, 'hebrewPlain', 'א');
-    }
-    final before = _medianMicros(
-      () => _referenceSearch(data, 'hebrewPlain', 'א'),
+  test('הקשת אות ראשונה מחשבת דירוג פעם אחת לכל התאמה', () {
+    var previousRanks = 0;
+    var ranks = 0;
+    final expected = _referenceSearch(
+      data,
+      'hebrewPlain',
+      'א',
+      onRank: () => previousRanks++,
     );
-    final after = _medianMicros(
-      () => rankAramaicMatches(data, 'hebrewPlain', 'א'),
+    final actual = rankAramaicMatches(
+      data,
+      'hebrewPlain',
+      'א',
+      debugOnRank: () => ranks++,
     );
-    // נמדד כפי 2-3; הסף רחב כדי לא להיכשל על מכונה עמוסה.
-    expect(
-      after * 1.3,
-      lessThan(before),
-      reason: 'before=$before after=$after',
+    printOnFailure(
+      'matches=${actual.length} ranks=$ranks referenceRanks=$previousRanks',
     );
+    expect(actual, orderedEquals(expected));
+    expect(actual.length, greaterThan(100));
+    // בודקים את החיסכון בחישוב עצמו, ללא תלות בתזמון ה-CPU של הראנר.
+    expect(ranks, actual.length);
+    expect(previousRanks, greaterThan(ranks));
   });
 }

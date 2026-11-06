@@ -27,13 +27,20 @@ Future<void> main() async {
     blocTest<CommentarySearchBloc, CommentarySearchState>(
       'טוען גם פריטים שלא נבנו ומפרסם ספירות וקטעים עם אותם היסטים',
       build: build,
-      act: (bloc) => bloc.add(
-        request([
-          _Link('ראשון', Future.value('<b>וַיֹּאמֶר</b> משה אמר משה')),
-          _Link('שני', Future.value('אמר רבי אמר')),
-        ], 'אמר'),
-      ),
-      wait: const Duration(milliseconds: 550),
+      act: (bloc) async {
+        final completed = bloc.stream.firstWhere(
+          (state) =>
+              state.counts.containsKey('ראשון') &&
+              state.counts.containsKey('שני'),
+        );
+        bloc.add(
+          request([
+            _Link('ראשון', Future.value('<b>וַיֹּאמֶר</b> משה אמר משה')),
+            _Link('שני', Future.value('אמר רבי אמר')),
+          ], 'אמר'),
+        );
+        await completed;
+      },
       verify: (bloc) {
         expect(bloc.state.counts, {'ראשון': 2, 'שני': 2});
         expect(bloc.state.total, 4);
