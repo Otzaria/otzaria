@@ -90,6 +90,14 @@ jobs:
           path: privacy-ocr-fixtures
           run-id: 42231302570
           github-token: ${{ github.token }}
+      - name: Download the observed Location transition for read-only validation
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: windows11-flutter-history-trace-*-42233490986
+          merge-multiple: false
+          path: privacy-transition-fixtures
+          run-id: 42233490986
+          github-token: ${{ github.token }}
       - name: Download the approved complete x64 standalone bundle
         uses: actions/download-artifact@v8.0.2
         with:

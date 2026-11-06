@@ -478,6 +478,65 @@ function Read-QAPrivacyAction($Ocr, [string]$ImagePath) {
     return @{ kind = 'advance-privacy-page'; label = $word.text; x = $x; y = $y; blueToggleCount = 0 }
   } finally { $bitmap.Dispose() }
 }
+function Assert-QAPrivacyToggleOff($Ocr, $Action) {
+  $crops = @($Ocr.valueCrops | Where-Object { $_.label -ceq $Action.label })
+  $values = @($Ocr.lines | Where-Object { $_.sourceLabel -ceq $Action.label })
+  if ($Action.kind -cne 'disable-optional-setting' -or $crops.Count -ne 1 -or $values.Count -ne 1 -or
+      $values[0].text.Trim() -cne 'No' -or $values[0].words.Count -ne 1) {
+    throw 'The same optional privacy setting did not visibly change to a unique No after the action.'
+  }
+  $word = $values[0].words[0]; $bounds = $crops[0].sourceBounds
+  $mapped = @($crops[0].mappedLines | Where-Object { $_.text.Trim() -cmatch '^(Yes|No)$' -and $_.words.Count -eq 1 })
+  if ($mapped.Count -ne 1 -or $mapped[0].sourceLabel -cne $Action.label -or $mapped[0].text.Trim() -cne 'No' -or
+      $word.text -cne 'No' -or $word.x -lt $bounds.x -or $word.y -lt $bounds.y -or
+      $word.x + $word.width -gt $bounds.x + $bounds.width -or $word.y + $word.height -gt $bounds.y + $bounds.height) {
+    throw 'The observed No must lie inside the current crop belonging to the same privacy label.'
+  }
+  return @{ label = $Action.label; value = 'No'; word = $word; bounds = $bounds }
+}
+function Test-QAStoredPrivacyTransitions {
+  $results = @()
+  try {
+    foreach ($trace in @('false', 'true')) {
+      $fixture = Join-Path 'privacy-transition-fixtures' ('windows11-flutter-history-trace-' + $trace + '-42233490986')
+      $provenance = Get-Content (Join-Path $fixture 'windows11-harness-source.json') -Raw | ConvertFrom-Json
+      if ($provenance.workflowHead -cne '1b545dbd45d677766373bf3c4a13080385008092') { throw 'Unexpected source for the captured privacy transition.' }
+      $preparation = Get-Content (Join-Path $fixture 'privacy-preparation.json') -Raw | ConvertFrom-Json
+      if ($preparation.actions.Count -ne 1 -or !$preparation.actions[0].inputSent -or $preparation.actions[0].label -cne 'Location') {
+        throw 'The stored transition does not identify the single observed Location action.'
+      }
+      $action = $preparation.actions[0]
+      $before = Get-Content (Join-Path $fixture 'privacy-00-ocr.json') -Raw | ConvertFrom-Json
+      $after = Get-Content (Join-Path $fixture 'privacy-01-ocr.json') -Raw | ConvertFrom-Json
+      $observation = Assert-QAPrivacyToggleOff $after $action
+      $unchangedRejected = $false
+      try { [void](Assert-QAPrivacyToggleOff $before $action) } catch { $unchangedRejected = $true }
+      if (!$unchangedRejected) { throw 'An unchanged Yes was incorrectly accepted as a completed disable action.' }
+      $missing = $after | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+      $missing.lines = @($missing.lines | Where-Object { $_.sourceLabel -cne 'Location' })
+      $missingRejected = $false
+      try { [void](Assert-QAPrivacyToggleOff $missing $action) } catch { $missingRejected = $true }
+      if (!$missingRejected) { throw 'A No belonging to another setting was incorrectly accepted.' }
+      $duplicate = $after | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+      $duplicate.lines += @($duplicate.lines | Where-Object { $_.sourceLabel -ceq 'Location' })
+      $duplicateRejected = $false
+      try { [void](Assert-QAPrivacyToggleOff $duplicate $action) } catch { $duplicateRejected = $true }
+      if (!$duplicateRejected) { throw 'Duplicate values for the same setting were incorrectly accepted.' }
+      $outside = $after | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+      ($outside.lines | Where-Object { $_.sourceLabel -ceq 'Location' }).words[0].y = 100
+      $outsideRejected = $false
+      try { [void](Assert-QAPrivacyToggleOff $outside $action) } catch { $outsideRejected = $true }
+      if (!$outsideRejected) { throw 'A No outside its associated crop was incorrectly accepted.' }
+      $results += @{ trace = $trace; observation = $observation; unchangedRejected = $unchangedRejected;
+        missingRejected = $missingRejected; duplicateRejected = $duplicateRejected; outsideRejected = $outsideRejected;
+        beforeSha256 = (Get-FileHash (Join-Path $fixture 'privacy-00.png')).Hash;
+        afterSha256 = (Get-FileHash (Join-Path $fixture 'privacy-01.png')).Hash; inputSent = $false; passed = $true }
+    }
+  } finally {
+    @{ cases = $results; allPassed = $results.Count -eq 2; inputSent = $false } | ConvertTo-Json -Depth 12 |
+      Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/stored-privacy-transition-smoke.json"
+  }
+}
 function Test-QAStoredPrivacyImages {
   $results = @()
   $expectedLabels = @('Location', 'Find my device', 'Inking & typing')
@@ -530,9 +589,7 @@ function Prepare-QAWindowsPrivacy {
       $imagePath = Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($name + '.png')
       $ocr = Read-QALocalOcr $imagePath (Join-Path $env:REPORT_QA_ARTIFACT_ROOT ($name + '-ocr.json'))
       if ($null -ne $previous -and $previous.kind -eq 'disable-optional-setting') {
-        $no = @($ocr.lines | Where-Object { $_.text.Trim() -ceq 'No' -and $_.words.Count -eq 1 -and
-          [Math]::Abs(($_.words[0].y + $_.words[0].height / 2) - $previous.y) -le 10 })
-        if ($no.Count -ne 1) { throw 'The optional privacy toggle did not visibly change to No after the action.' }
+        $previous['verifiedOffObservation'] = Assert-QAPrivacyToggleOff $ocr $previous
         $previous['verifiedOff'] = $true
       } elseif ($null -ne $previous -and $ocr.text -ceq $previousText) { throw 'The privacy page did not change after its observed Next/Accept action.' }
       $action = Read-QAPrivacyAction $ocr $imagePath
@@ -572,7 +629,7 @@ function Prepare-QAWindowsPrivacy {
   finally { $status | ConvertTo-Json -Depth 15 | Set-Content -Encoding utf8 $statusPath }
 }
 [void](Save-QAWindowSnapshot '00-before-launch')
-try { Test-QAStoredPrivacyImages; Prepare-QAWindowsPrivacy } catch {
+try { Test-QAStoredPrivacyImages; Test-QAStoredPrivacyTransitions; Prepare-QAWindowsPrivacy } catch {
   [IO.File]::WriteAllText("$env:REPORT_QA_ARTIFACT_ROOT/privacy-error.txt", $_.Exception.ToString())
   [void](Save-QAWindowSnapshot 'privacy-error')
   throw
