@@ -20,6 +20,9 @@ class _FakeRepository implements FindRefRepository {
   @override
   bool get respectHiddenLibrary => false;
 
+  @override
+  Stream<void> get userBooksChanges => const Stream.empty();
+
   final Future<List<DbReferenceResult>> Function(String) _fn;
   final Exception? _error;
   final List<bool> includePersonalBooksCalls = [];

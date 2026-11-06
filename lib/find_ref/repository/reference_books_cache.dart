@@ -625,6 +625,7 @@ class ReferenceBooksCache {
             filePath: baseHit.filePath,
             fileType: baseHit.fileType,
             matchRank: matchRank,
+            isWholeTitlePrefix: matchRank == 1 && t.startsWith('${scan.q} '),
             orderIndex: baseHit.orderIndex,
           ),
         );
@@ -1296,6 +1297,7 @@ class BookTitleIndex {
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
         isExactAlias: exactAlias,
+        isWholeTitlePrefix: matchRank == 1 && mt.startsWith('$q '),
         spellingVariantTitleIndex: spellingVariantTitleIndex,
         titleTokens: _titleTokens[book.id],
       ),
@@ -1473,16 +1475,27 @@ class ReferenceBookHit {
   /// השאילתה היא גם כינוי מדויק של ספר שהותאם לפי כותרתו ("זהר" ל"ספר הזהר").
   final bool isExactAlias;
 
+  /// תחילת כותרת המסתיימת בגבול מילה, בלי לשנות את משמעות [matchRank].
+  final bool isWholeTitlePrefix;
+
   /// מקום מילות השאילתה בכותרת כשהותאמו בכתיב מלא/חסר, גם לצד כינוי מילולי.
   final int? spellingVariantTitleIndex;
 
-  /// כתיב חלופי ללא התאמה מילולית מדורג אחרי כל הכינויים ולפני שגיאות הקלדה.
-  double get rankOrder => spellingVariantTitleIndex != null && matchRank == 2
+  /// מילות כותרת שלמות קודמות לכינוי, וכינוי מדויק קודם למילה חלקית.
+  /// [matchRank] נשמר לצורך פירוש טוקני המיקום.
+  double get rankOrder => matchRank == 1 && isWholeTitlePrefix
+      ? 0.25
+      : matchRank != 0 && matchesExactAlias
+      ? 0.5
+      : spellingVariantTitleIndex != null && matchRank == 2
       ? 5.5
       : matchRank.toDouble();
 
+  /// כינוי מדויק, גם כשהספר הותאם תחילה לפי כותרתו.
+  bool get matchesExactAlias => matchRank == 3 || isExactAlias;
+
   /// השאילתה היא שמו המדויק של הספר — כותרת מלאה או כינוי.
-  bool get namesBookExactly => matchRank == 0 || matchRank == 3 || isExactAlias;
+  bool get namesBookExactly => matchRank == 0 || matchesExactAlias;
 
   ReferenceBookHit({
     required this.bookId,
@@ -1495,6 +1508,7 @@ class ReferenceBookHit {
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
     this.isExactAlias = false,
+    this.isWholeTitlePrefix = false,
     this.spellingVariantTitleIndex,
     List<String>? titleTokens,
     Set<String>? titleMatchTokens,
@@ -1601,7 +1615,7 @@ class _QueryScan {
   int _selected = 0;
 
   void add(ReferenceBookHit hit) =>
-      (hit.matchRank <= 1 ? _starts : _contains).add(hit);
+      (hit.rankOrder <= 1 ? _starts : _contains).add(hit);
 
   void select(int limit) {
     _startsCount = _starts.length;
@@ -1618,14 +1632,19 @@ class _QueryScan {
       return <ReferenceBookHit>[..._starts, ..._contains];
     }
 
-    // issue #839: כשהתאמות-התחילית לבדן ממלאות את ה-limit, התאמות ה"מכיל"
-    // נחתכות כליל ("מא" לא החזיר את יומא) — שמורה להן מכסה בזנב.
+    // מכסת תת-מחרוזות מונעת מתחיליות לדחוק אותן כליל, אך אינה דוחקת
+    // כותרות וכינויים מדויקים.
     const containsReserve = 10;
     if (_startsCount >= limit && _containsCount > 0) {
       var reserve = containsReserve < _containsCount
           ? containsReserve
           : _containsCount;
       if (reserve >= limit) reserve = limit - 1;
+      final exactCount = _starts
+          .take(limit)
+          .takeWhile((hit) => hit.namesBookExactly)
+          .length;
+      if (reserve > limit - exactCount) reserve = limit - exactCount;
       return [..._starts.take(limit - reserve), ..._contains.take(reserve)];
     }
     return [..._starts, ..._contains].take(limit).toList();

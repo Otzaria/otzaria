@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,6 +32,8 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   bool? _shownIncludePersonalBooks;
   HiddenLibrarySelection? _shownVisibility;
   int _requestGeneration = 0;
+  SearchRefRequested? _lastRequest;
+  late final StreamSubscription<void> _userBooksChanges;
 
   /// השאילתה שכבר קיבלה ניסיון חוזר אחרי ביטול זר. מונעת לולאת ניסיונות
   /// כשהביטול חוזר על עצמו.
@@ -42,6 +46,10 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     // שעדיין בהמתנה וגם כאלה שכבר התחילו fetch.
     on<SearchRefRequested>(_onSearchRefRequested, transformer: restartable());
     on<ClearSearchRequested>(_onClearSearchRequested);
+    on<_UserBooksChanged>(_onUserBooksChanged, transformer: restartable());
+    _userBooksChanges = findRefRepository.userBooksChanges.listen(
+      (_) => add(const _UserBooksChanged()),
+    );
     _liveBlocs.add(this);
   }
 
@@ -55,10 +63,21 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   }
 
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _liveBlocs.remove(this);
+    await _userBooksChanges.cancel();
     findRefRepository.dispose();
-    return super.close();
+    await super.close();
+  }
+
+  Future<void> _onUserBooksChanged(
+    _UserBooksChanged event,
+    Emitter<FindRefState> emit,
+  ) async {
+    if (_shownIncludePersonalBooks == true) _shownNormalizedQuery = null;
+    final request = _lastRequest;
+    if (request == null || request.includePersonalBooks != true) return;
+    await _onSearchRefRequested(request, emit);
   }
 
   Future<void> _onSearchRefRequested(
@@ -68,9 +87,18 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     final normalized = normalizeQuery(event.refText);
     final includePersonalBooks =
         event.includePersonalBooks ?? FindRefPersonalBooksSetting.load();
+    _lastRequest = event.refText.length < 2
+        ? null
+        : SearchRefRequested(
+            event.refText,
+            includePersonalBooks: includePersonalBooks,
+          );
     final visibility = findRefRepository.respectHiddenLibrary
         ? const HiddenLibraryStore().load()
         : const HiddenLibrarySelection();
+    // גם שימוש בתוצאה קיימת מבטל רענון אישי שהתחיל בבקשה אחרת.
+    final requestGeneration = ++_requestGeneration;
+    findRefRepository.cancelPendingSearch();
     if (event.refText.length >= 2 &&
         state is FindRefSuccess &&
         normalized == _shownNormalizedQuery &&
@@ -79,8 +107,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       return;
     }
 
-    final requestGeneration = ++_requestGeneration;
-    findRefRepository.cancelPendingSearch();
     if (event.refText.length < 2) {
       _shownNormalizedQuery = null;
       _shownIncludePersonalBooks = null;
@@ -151,6 +177,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     ClearSearchRequested event,
     Emitter<FindRefState> emit,
   ) {
+    _lastRequest = null;
     _requestGeneration++;
     findRefRepository.cancelPendingSearch();
     _shownNormalizedQuery = null;
@@ -159,4 +186,8 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _retriedQuery = null;
     emit(FindRefInitial());
   }
+}
+
+class _UserBooksChanged extends FindRefEvent {
+  const _UserBooksChanged();
 }

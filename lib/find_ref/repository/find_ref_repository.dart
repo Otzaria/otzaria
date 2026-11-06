@@ -437,6 +437,11 @@ class FindRefRepository {
   /// [_userBooksJob]), ב-[clearCaches] ובסגירת המסד.
   _SecondaryIndex? _userBooksIndex;
 
+  final _userBooksChanges = StreamController<void>.broadcast();
+
+  /// שינוי בקטלוג אישי אחרי טעינה או כתיבה, לרענון התוצאות המוצגות.
+  Stream<void> get userBooksChanges => _userBooksChanges.stream;
+
   /// גרסת התוכן שממנה נבנה [_userBooksIndex].
   _UserBooksVersion? _userBooksContentVersion;
 
@@ -451,6 +456,9 @@ class FindRefRepository {
 
   @visibleForTesting
   Object? get debugUserBooksIndex => _userBooksIndex;
+
+  @visibleForTesting
+  Future<void> Function()? debugAfterUserBooksRead;
 
   /// נתיב user_books.db, לשאילתות ה-TOC ב-worker; נקבע בטעינת הרשימה.
   String? _userBooksDbPath;
@@ -531,6 +539,7 @@ class FindRefRepository {
     if (_disposed) return;
     cancelPendingSearch();
     _disposed = true;
+    unawaited(_userBooksChanges.close());
     releaseSearchScope?.call();
     AttachedFindRefWorker.instance.releaseSearchScope(_secondaryScope);
     _liveInstances.remove(this);
@@ -556,7 +565,6 @@ class FindRefRepository {
     _bookRanks.clear();
     _altBookRanksCache = null;
     _dropUserBooks();
-    _userBooksDbPath = null;
     _userBooksVersion++;
     _attachedBooksCache.clear();
     _visibility = null;
@@ -598,6 +606,7 @@ class FindRefRepository {
   }
 
   void _dropUserBooks() {
+    _userBooksDbPath = null;
     _userBooksIndex = null;
     _userBooksContentVersion = null;
     _userBooksRefresh = null;
@@ -642,13 +651,24 @@ class FindRefRepository {
   }
 
   /// בדיקת רקע אם user_books.db השתנה; כשל אינו נוגע באינדקס הקיים.
-  void _revalidateUserBooks(String path) {
+  /// אחרי כתיבה, הממתינים לקריאה שהחלה קודם חולקים סבב חדש אחריה.
+  void _revalidateUserBooks(String path, {bool afterWrite = false}) {
+    final epoch = _userBooksEpoch;
+    final running = afterWrite ? _userBooksRefresh : null;
+    void report(Object e) =>
+        debugPrint('[FindRef] personal books revalidation failed: $e');
     unawaited(
-      _refreshUserBooks(path, background: true).then<void>(
-        (_) {},
-        onError: (Object e) =>
-            debugPrint('[FindRef] personal books revalidation failed: $e'),
-      ),
+      () async {
+        if (running != null) {
+          await running.then<void>((_) {}, onError: report);
+        }
+        if (epoch != _userBooksEpoch || _disposed) return;
+        await _refreshUserBooks(
+          path,
+          background: true,
+          afterWrite: afterWrite,
+        );
+      }().then<void>((_) {}, onError: report),
     );
   }
 
@@ -657,6 +677,7 @@ class FindRefRepository {
   Future<_SecondaryIndex> _refreshUserBooks(
     String path, {
     required bool background,
+    bool afterWrite = false,
   }) {
     final running = _userBooksRefresh;
     if (running != null) return running;
@@ -672,14 +693,19 @@ class FindRefRepository {
           job: _userBooksJob(known),
           background: background,
         );
+        final afterRead = debugAfterUserBooksRead;
+        if (afterRead != null) await afterRead();
         final current = _userBooksIndex;
         final books = loaded.books;
         final index = books == null && current != null
             ? current
             : await _SecondaryIndex.build(books ?? const []);
-        if (epoch == _userBooksEpoch) {
+        if (epoch == _userBooksEpoch && !_disposed) {
           _userBooksIndex = index;
           _userBooksContentVersion = loaded.version;
+          if ((current != null || afterWrite) && !identical(current, index)) {
+            _userBooksChanges.add(null);
+          }
         }
         return index;
       } finally {
@@ -693,8 +719,8 @@ class FindRefRepository {
   static void revalidateUserBooks() {
     for (final repo in _liveInstances) {
       final path = repo._userBooksDbPath;
-      if (path != null && repo._userBooksIndex != null) {
-        repo._revalidateUserBooks(path);
+      if (path != null) {
+        repo._revalidateUserBooks(path, afterWrite: true);
       }
     }
   }
@@ -1150,7 +1176,7 @@ class FindRefRepository {
       visibility: visibility,
       books: books,
       detection: detection,
-      bookMatchRanks: _bookMatchRanks(detection.hits),
+      bookMatchRanks: _bookMatchRanks(detection, queryTokens),
       includePersonalBooks: includePersonalBooks,
       userBooks: userBooks,
     );
@@ -1325,22 +1351,40 @@ class FindRefRepository {
 
   /// דרגת ההתאמה של שם הספר חייבת לשרוד עד למיון הסופי: תוצאה מקורבת
   /// אינה רשאית לדחוק כינוי מדויק רק בגלל סדר הספרייה או תקרת התוצאות.
-  static Map<_BookKey, int> _bookMatchRanks(
-    List<ReferenceBookHit> hits, {
+  static Map<_BookKey, _BookMatchRank> _bookMatchRanks(
+    _BookDetection detection,
+    List<String> queryTokens, {
     BookSource source = BookSource.official,
-    Map<_BookKey, int>? into,
+    Map<_BookKey, _BookMatchRank>? into,
   }) {
-    final bookMatchRanks = into ?? <_BookKey, int>{};
-    for (final hit in hits) {
+    final bookMatchRanks = into ?? <_BookKey, _BookMatchRank>{};
+    for (final hit in detection.hits) {
       if (hit.bookId > 0 || hit.filePath.isNotEmpty) {
         final key = _bookKey(source, hit.bookId, hit.filePath);
         final previous = bookMatchRanks[key];
         final rank = hit.spellingVariantTitleIndex != null && hit.matchRank == 2
             ? ReferenceBooksCache.fuzzyMatchRank
             : hit.matchRank;
-        if (previous == null || rank < previous) {
-          bookMatchRanks[key] = rank;
-        }
+        final phraseTokens = queryTokens
+            .take(
+              detection.secondaryPhraseTokenCount[hit] ??
+                  detection.phraseTokenCount,
+            )
+            .toList(growable: false);
+        final titleWords = hit.titleMatchTokens.map(bookNameMatchToken).toSet();
+        bookMatchRanks[key] = (
+          rank: previous == null || rank < previous.rank ? rank : previous.rank,
+          exactAlias: hit.matchesExactAlias || (previous?.exactAlias ?? false),
+          wholeName:
+              hit.namesBookExactly ||
+              (hit.matchRank == 4 && hit.acronymTailIsTitleWords) ||
+              (rank != ReferenceBooksCache.fuzzyMatchRank &&
+                  phraseTokens.isNotEmpty &&
+                  phraseTokens.every(
+                    (token) => titleWords.contains(bookNameMatchToken(token)),
+                  )) ||
+              (previous?.wholeName ?? false),
+        );
       }
     }
     return bookMatchRanks;
@@ -1438,7 +1482,7 @@ class FindRefRepository {
     // בלי אקרוניום → הרא"ש על ב"ב במקום ~138). ממיינים כך שספרים שכותרתם
     // מכסה יותר מטוקני-השאילתה (מעבר לאותיות-מיקום בודדות) ייבדקו קודם.
     final bookHits = _prioritizeByTitleCoverage(
-      detection.hits,
+      detection,
       queryTokens,
       _maxTocLookups,
     );
@@ -2404,7 +2448,8 @@ class FindRefRepository {
     );
     final detection = _detectBooks(books, queryTokens);
     _bookMatchRanks(
-      detection.hits,
+      detection,
+      queryTokens,
       source: source,
       into: search.bookMatchRanks,
     );
@@ -2639,6 +2684,9 @@ class FindRefRepository {
           filePath: record.filePath ?? '',
           fileType: record.fileType,
           matchRank: name == phrase ? 0 : 1,
+          isWholeTitlePrefix: bookNameMatchForm(
+            name,
+          ).startsWith('${bookNameMatchForm(phrase)} '),
           orderIndex: record.orderIndex,
           titleTokens: candidate,
         );
@@ -2719,17 +2767,14 @@ class FindRefRepository {
     return _dropTalmudBavliPdfRefs(enriched);
   }
 
-  /// ממיין את [hits] כך שספרים שכותרתם מכסה יותר טוקני-שאילתה משמעותיים
-  /// (אורך >= 2, כלומר לא אותיות-מיקום בודדות) יופיעו קודם — כדי שהספר המכוון
-  /// ייכנס לתוך [maxTocLookups] גם כשטוקן ראשון רחב תפס מאות ספרים.
-  ///
-  /// לא-אופרטיבי כשיש מעט hits או שאין טוקן-מסנן מעבר לשם הספר — מוחזרת אז
-  /// אותה רשימה. המיון יציב: שובר-השוויון הוא סדר ה-search המקורי (matchRank).
+  /// מילות הכותרת והכינוי חולקות ציון כיסוי, כדי שכינוי קצר לא ידחק נושא
+  /// מפורש או כינוי ארוך יותר ממכסת חיפושי תוכן העניינים.
   List<ReferenceBookHit> _prioritizeByTitleCoverage(
-    List<ReferenceBookHit> hits,
+    _BookDetection detection,
     List<String> queryTokens,
     int maxTocLookups,
   ) {
+    final hits = detection.hits;
     final significant = _significantTokens(queryTokens);
     if (hits.length <= maxTocLookups || significant.length < 2) return hits;
 
@@ -2739,13 +2784,23 @@ class FindRefRepository {
             (
               index: i,
               hit: hits[i],
-              score: _titleCoverage(hits[i].titleTokens, significant),
+              score: _nameCoverage(hits[i], significant),
             ),
         ]..sort((a, b) {
           final c = b.score.compareTo(a.score);
           return c != 0 ? c : a.index.compareTo(b.index);
         });
     return [for (final e in indexed) e.hit];
+  }
+
+  static int _nameCoverage(ReferenceBookHit hit, List<String> tokens) {
+    final words = {
+      ...hit.titleMatchTokens,
+      ...titleMatchTokens(normalizeForFindRefMatch(hit.matchedTerm ?? '')),
+    }.map(bookNameMatchToken).toSet();
+    return tokens
+        .where((token) => words.contains(bookNameMatchToken(token)))
+        .length;
   }
 
   /// טוקני שאילתה שאינם אותיות-מיקום בודדות.
@@ -3210,7 +3265,7 @@ class FindRefRepository {
   List<DbReferenceResult> _rankResults(
     List<DbReferenceResult> results,
     List<String> queryTokens, {
-    Map<_BookKey, int> bookMatchRanks = const {},
+    Map<_BookKey, _BookMatchRank> bookMatchRanks = const {},
     Set<DbReferenceResult> directMatches = const {},
     Set<DbReferenceResult> dibburMatches = const {},
     bool preserveSubstringTail = false,
@@ -3231,6 +3286,23 @@ class FindRefRepository {
       for (final r in directMatches)
         (r.bookId, r.source, r.title, r.isPdf, r.reference),
     };
+    final exactDirectMatches = {
+      for (final r in directMatches)
+        if (_normalizeForMatch(r.reference) ==
+            qualifyAltTocReference(
+              _normalizeForMatch(r.title),
+              query.text,
+            )) ...[
+          (r.bookId, r.source, r.title, r.isPdf, r.segment),
+          (r.bookId, r.source, r.title, r.isPdf, r.reference),
+        ],
+    };
+    final hasExactAlias = results.any(
+      (r) =>
+          bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)]
+              ?.exactAlias ??
+          false,
+    );
 
     // מפתחות הכותרת פעם אחת לכל כותרת; השאילתה מנורמלת במלואה, וכותרת בנרמול
     // חלקי (עם גרשיים) לא תשתווה לה.
@@ -3260,25 +3332,28 @@ class FindRefRepository {
           final normTitle = _normalizeForMatch(r.title);
           return (normTitle: normTitle, match: query.titleMatch(normTitle));
         });
-        final fuzzyBookMatch =
-            !r.isSourceLine &&
-            !directMatches.contains(r) &&
-            !directSegments.contains((
+        final bookMatch =
+            bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)];
+        final directMatch =
+            directMatches.contains(r) ||
+            directSegments.contains((
               r.bookId,
               r.source,
               r.title,
               r.isPdf,
               r.segment,
-            )) &&
-            !directReferences.contains((
+            )) ||
+            directReferences.contains((
               r.bookId,
               r.source,
               r.title,
               r.isPdf,
               r.reference,
-            )) &&
-            bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)] ==
-                ReferenceBooksCache.fuzzyMatchRank;
+            ));
+        final fuzzyBookMatch =
+            !r.isSourceLine &&
+            !directMatch &&
+            bookMatch?.rank == ReferenceBooksCache.fuzzyMatchRank;
         final match = fuzzyBookMatch
             ? fuzzyTitleKeys.putIfAbsent(
                 r.title,
@@ -3291,6 +3366,23 @@ class FindRefRepository {
           answersDibbur: dibburMatches.contains(r),
           fuzzyBookMatch: fuzzyBookMatch,
           exactMatch: match.exactMatch,
+          directNameMatch:
+              hasExactAlias &&
+              ((bookMatch?.wholeName ?? false) ||
+                  exactDirectMatches.contains((
+                    r.bookId,
+                    r.source,
+                    r.title,
+                    r.isPdf,
+                    r.segment,
+                  )) ||
+                  exactDirectMatches.contains((
+                    r.bookId,
+                    r.source,
+                    r.title,
+                    r.isPdf,
+                    r.reference,
+                  ))),
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3421,6 +3513,8 @@ typedef _UserBooksVersion = ({
 
 /// ספר בכל מסד: מקור, מזהה, ונתיב הקובץ רק ל-PDF שמחוץ למסד (מזהה שלילי).
 typedef _BookKey = (String source, int bookId, String filePath);
+
+typedef _BookMatchRank = ({int rank, bool exactAlias, bool wholeName});
 
 _BookKey _bookKey(BookSource source, int bookId, String filePath) =>
     (source.wireKey, bookId, bookId > 0 ? '' : filePath);
@@ -3586,7 +3680,7 @@ class _FindRefSearch {
   final FindRefVisibility visibility;
   final _BookSearch books;
   final _BookDetection detection;
-  final Map<_BookKey, int> bookMatchRanks;
+  final Map<_BookKey, _BookMatchRank> bookMatchRanks;
   final bool includePersonalBooks;
 
   /// טעינת הספרים האישיים, שהתחילה עם השאילתה.

@@ -16,6 +16,9 @@ class _FakeRepository implements FindRefRepository {
   @override
   bool get respectHiddenLibrary => false;
 
+  @override
+  Stream<void> get userBooksChanges => const Stream.empty();
+
   _FakeRepository(this._error);
 
   final Object _error;

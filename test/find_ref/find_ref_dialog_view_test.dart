@@ -40,6 +40,9 @@ class _FakeRepository implements FindRefRepository {
   @override
   bool get respectHiddenLibrary => false;
 
+  @override
+  Stream<void> get userBooksChanges => const Stream.empty();
+
   _FakeRepository(this.results, {this.error, this.commentators = const []});
 
   final List<DbReferenceResult> results;
@@ -82,6 +85,9 @@ class _FakeRepository implements FindRefRepository {
 class _GatedRepository implements FindRefRepository {
   @override
   bool get respectHiddenLibrary => false;
+
+  @override
+  Stream<void> get userBooksChanges => const Stream.empty();
 
   _GatedRepository({required this.first, required this.second});
 
@@ -617,7 +623,11 @@ void main() {
         result('odt אישי', fileType: 'odt', source: BookSource.user),
         result('rtf אישי', fileType: 'rtf', source: BookSource.user),
         result('doc אישי', fileType: 'doc', source: BookSource.user),
-        result('html מצורף', fileType: 'html', source: BookSource.attached('l')),
+        result(
+          'html מצורף',
+          fileType: 'html',
+          source: BookSource.attached('l'),
+        ),
         result('md מצורף', fileType: 'md', source: BookSource.attached('l')),
         result('md רשמי', fileType: 'md'),
       ],

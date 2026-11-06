@@ -359,41 +359,55 @@ void main() {
     },
   );
 
-  test('שורת מקור מדויקת אינה יורשת דירוג מקורב משם הספר', () async {
-    final repo = FindRefRepository(
-      dataRepository: MockDataRepository(),
-      isReferenceBooksCacheLoaded: () => true,
-      warmUpReferenceBooksCache: () async {},
-      searchReferenceBooks: (query, {int limit = 50}) => query == 'תפלה'
-          ? [
-              _hit(
-                bookId: 1,
-                title: 'סדר תפילה',
-                matchRank: ReferenceBooksCache.fuzzyMatchRank,
-              ),
-              _hit(
-                bookId: 2,
-                title: 'ספר הכוונות',
-                matchRank: 3,
-                matchedTerm: query,
-                orderIndex: 100,
-              ),
-            ]
-          : const [],
-      getTocEntriesForReference: (id, title, {queryTokens}) async => id == 2
-          ? [
-              {'reference': 'ספר הכוונות לב', 'segment': 10, 'level': 2},
-            ]
-          : const [],
-      resolveLineRefs: (bookIds, refKey) async => {
-        1: (lineIndex: 5, lineId: 6, heRef: 'סדר תפילה לב, יא'),
-      },
-    );
+  test(
+    'שורת מקור אינה יורשת דירוג מקורב אך כינוי מדויק קודם לשם חלקי',
+    () async {
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks: (query, {int limit = 50}) => query == 'תפלה'
+            ? [
+                _hit(
+                  bookId: 1,
+                  title: 'סדר תפילה',
+                  matchRank: ReferenceBooksCache.fuzzyMatchRank,
+                  orderIndex: 10,
+                ),
+                _hit(
+                  bookId: 2,
+                  title: 'ספר הכוונות',
+                  matchRank: 3,
+                  matchedTerm: query,
+                  orderIndex: 100,
+                ),
+                _hit(
+                  bookId: 3,
+                  title: 'סדר תפילה אחר',
+                  matchRank: ReferenceBooksCache.fuzzyMatchRank,
+                ),
+              ]
+            : const [],
+        getTocEntriesForReference: (id, title, {queryTokens}) async =>
+            switch (id) {
+              2 => [
+                {'reference': 'ספר הכוונות לב', 'segment': 10, 'level': 2},
+              ],
+              3 => [
+                {'reference': 'סדר תפילה אחר לב', 'segment': 7, 'level': 2},
+              ],
+              _ => const [],
+            },
+        resolveLineRefs: (bookIds, refKey) async => {
+          1: (lineIndex: 5, lineId: 6, heRef: 'סדר תפילה לב, יא'),
+        },
+      );
 
-    final results = await repo.findRefs('תפלה לב יא');
-    expect(results.first.isSourceLine, isTrue);
-    expect(results.first.bookId, 1);
-  });
+      final results = await repo.findRefs('תפלה לב יא');
+      expect(results.map((result) => result.bookId), [2, 1, 3]);
+      expect(results[1].isSourceLine, isTrue);
+    },
+  );
 
   test(
     'FindRef: acronym + suffix token searches TOC without the acronym token',

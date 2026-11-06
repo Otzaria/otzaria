@@ -16,6 +16,9 @@ class _FakeRepository implements FindRefRepository {
   bool get respectHiddenLibrary => false;
 
   @override
+  Stream<void> get userBooksChanges => const Stream.empty();
+
+  @override
   void cancelPendingSearch() {}
 
   @override
