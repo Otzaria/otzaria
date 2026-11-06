@@ -27,7 +27,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
-      OTZARIA_DOMLESS_CACHE: ${{ runner.temp }}/otzaria-domless-experiment
       OTZARIA_DOMLESS_MEASURE: '1'
     steps:
       - uses: actions/checkout@v7.0.1
@@ -42,11 +41,15 @@ jobs:
       - name: Unicode preparation and archive integrity contract
         run: python -m unittest discover -s tool/perf_probe/domless_runtime -p prepare_test.py -v
       - name: Build pinned experimental engine and verify pinned plugin source
+        env:
+          OTZARIA_DOMLESS_CACHE: ${{ runner.temp }}/otzaria-domless-experiment
         shell: bash
         run: python tool/perf_probe/domless_runtime/prepare.py --cache "$OTZARIA_DOMLESS_CACHE"
       - name: Resolve unchanged application dependencies
         run: flutter pub get --enforce-lockfile
       - name: Native SDK, permission, lifecycle and resource contract
+        env:
+          OTZARIA_DOMLESS_CACHE: ${{ runner.temp }}/otzaria-domless-experiment
         run: flutter test --no-pub --reporter expanded test/tool/perf_probe/domless_runtime_test.dart
       - name: Preserve native-only observations
         if: always()
