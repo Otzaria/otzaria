@@ -366,6 +366,8 @@ Future<void> _closeProbe(WidgetTester tester, MethodChannel channel) async {
   fail('ערוץ המופע הנייטיבי נשאר רשום אחרי הסרת ה-widget');
 }
 
+typedef _IdentifiedWebViewProcess = ({String kind, int pid, String? page});
+
 typedef _ProcessPoint = ({
   int creation100ns,
   int? exit100ns,
@@ -379,7 +381,7 @@ typedef _ProcessInterval = ({
   int elapsedMicros,
 });
 
-Future<Map<int, WebViewProcess>> _processes(
+Future<Map<int, _IdentifiedWebViewProcess>> _processes(
   WebViewEnvironment environment,
 ) async {
   final infos = await environment.getProcessInfos().timeout(_nativeDeadline);
@@ -465,7 +467,7 @@ _ProcessPoint? _readProcessPoint(HANDLE handle) {
 class _TrackedProcess {
   _TrackedProcess(this.info, this.creation100ns, this._handle);
 
-  factory _TrackedProcess.capture(WebViewProcess info) {
+  factory _TrackedProcess.capture(_IdentifiedWebViewProcess info) {
     final handle = OpenProcess(
       PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
       false,
@@ -486,7 +488,7 @@ class _TrackedProcess {
     }
   }
 
-  final WebViewProcess info;
+  final _IdentifiedWebViewProcess info;
   final int? creation100ns;
   HANDLE? _handle;
 
@@ -661,6 +663,7 @@ Future<void> _measureResources(
   // PID שהוחלף או קריאה שנכשלה אינם זיכרון אפס; אין סכום חלקי שנראה מלא.
   final memory = memoryComplete
       ? buildProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
           hostBytes: after[pid]!.privateBytes,
           processes: [
             for (final process in processes)

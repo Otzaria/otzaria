@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
+import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -275,15 +276,35 @@ String formatFrameStats(FrameStats stats) {
     if (processes.hostPrivMb case final value?) {
       buffer.write('  $metric $value MiB');
     }
-    if (processes.webview.isNotEmpty) {
-      final count = processes.webview.values.fold(0, (n, k) => n + k.count);
+    buffer.write('\nwebview   ');
+    if (processes.webviewPrivMb case final value?) {
+      final coverage = processes.memoryCoverage == ProcessMemoryCoverage.partial
+          ? 'partial'
+          : 'observed';
+      buffer.write('$metric $value MiB ($coverage)');
+    } else {
       buffer.write(
-        '\nwebview   $metric ${processes.webviewPrivMb} MiB  $count proc',
+        'memory ${processes.webviewCollection.status == ProcessCollectionStatus.unsupported ? 'unsupported' : 'unavailable'}',
+      );
+    }
+    if (processes.observedProcessCount case final count?) {
+      buffer.write(
+        '\nprocesses $count observed  ${processes.measuredProcessCount} measured'
+        '  ${processes.unavailableProcessCount} unavailable',
       );
       if (processes.renderers case final r?) {
-        buffer.write('  ${r.count} rend ${r.privMb} MiB');
+        buffer.write(
+          '\nrenderers ${r.measuredCount}/${r.observedCount} measured',
+        );
+        if (r.privMb case final value?) buffer.write('  $value MiB');
         if (r.eachMb.isNotEmpty) buffer.write(' (max ${r.eachMb.first})');
+        if (r.eachMbTruncated || r.pagesTruncated) {
+          buffer.write('  detail capped');
+        }
       }
+    }
+    if (processes.webviewCollection.partial == true) {
+      buffer.write('  source partial');
     }
   }
   final estimates = stats.estimates;

@@ -577,9 +577,17 @@ void main() {
 
     group('process tree', () {
       const sample = ProcessTreeSample(
+        webviewCollection: ProcessCollection.collected(),
         hostPrivMb: 260,
         webview: {
-          'RENDERER': (count: 2, privMb: 120, eachMb: [70, 50], pages: []),
+          'RENDERER': (
+            count: 2,
+            observedCount: 2,
+            privMb: 120,
+            eachMb: [70, 50],
+            pages: [],
+            measuredPageCount: 0,
+          ),
         },
       );
       late int calls;
@@ -703,6 +711,29 @@ void main() {
           },
         );
 
+        testWidgets(
+          'enumeration timeout retains host within the diagnostics deadline',
+          (tester) async {
+            final pending = Completer<WebViewProcessSnapshot>();
+            diagnostics.processSampler = () => sampleWindowsProcessTree(
+              webViewProcesses: () => pending.future,
+              readBytes: (ids) async => [8 << 20],
+            );
+            diagnostics.toggle();
+            diagnostics.debugTick();
+            await tester.pump(const Duration(seconds: 1));
+            diagnostics.debugTick();
+            final sample = diagnostics.stats.value.processes;
+            expect(sample, isNotNull);
+            expect(sample!.hostPrivMb, 8);
+            expect(sample.webviewCollection.reason, 'process_info_timeout');
+            expect(sample.observedProcessCount, isNull);
+            pending.completeError(StateError('late collection failure'));
+            await tester.pump();
+            diagnostics.resetForTesting();
+          },
+        );
+
         test(
           'the default sampler uses the registered WebView lister',
           () async {
@@ -710,7 +741,7 @@ void main() {
             var listed = 0;
             diagnostics.webViewProcessLister = () async {
               listed++;
-              return const [];
+              return const WebViewProcessSnapshot.collected([]);
             };
             diagnostics.toggle();
             diagnostics.debugTick();

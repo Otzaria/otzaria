@@ -132,11 +132,31 @@ Offstage אינו מדמה פעולות מערכת אלה. המשך אימות A
 - ב־Windows המקור הוא private commit; ב־Linux הוא anonymous RSS. הסכמה
   שומרת metric, source, unit ו־scope. אין להשוות את המספרים בין מערכות
   כאילו היו אותו מדד, או לחסר Dart heap מ־RSS כדי לחשב native memory.
-- `engineObserved` ו־`observedReadableProcessCount` כוללים רק תהליכים שהדוגם
-  הצליח לקרוא. `complete` נשאר null: API חסר/כשל COM עשויים להחזיר רשימה
-  ריקה, ותהליך שיצא או אינו קריא עלול להיגרע. רשימה ריקה נשארת unavailable,
-  לא זיכרון אפס. הפירוט הוא לפי סוג, אינו משתמש ברשימת `eachMb` המוגבלת
-  ל־12, ואינו ממפה תהליך יחיד לכל טאב.
+- בסכמה 2, `observedProcessCount` סופר את כל התצפיות, כולל PID חסר;
+  `measuredProcessCount` ו־`unavailableProcessCount` מפרידים קריאות שהצליחו
+  מקריאות חסרות. `observedReadableProcessCount` נשמר ככינוי למספר המדידות
+  שהצליחו; גם `webview.<KIND>.count` ביומן האבחון שומר משמעות זו לתאימות.
+- `webviewCollection` מתאר את זמינות מקור המנייה בנפרד מהזיכרון. כשמקור
+  Windows חסר או נכשל, נשמרים reason, stage ו־HRESULT חתום כשקיימים,
+  וה־host עדיין נמדד. רשימה ריקה מה־native הנעול נשארת unavailable כי
+  חוזה זה עשוי להחזיר ריק בכשל; סריקה בעלת זמינות מפורשת יכולה לדווח
+  אפס תצפיות. אף אחד מאלה אינו מדידת אפס זיכרון של המנוע.
+- `engineObserved` מסכם רק קריאות שהצליחו. `memoryCoverage` הוא
+  `allObserved`, `partial` או `unavailable`; הראשון מתייחס לתצפיות בלבד.
+  `complete` נשאר null, וכך גם `engineComplete` ביומן האבחון. ב־Linux,
+  כשל בקריאת רשומת stat מסומן גם `webviewCollection.partial`; אין הבטחה
+  שסריקת צאצאי WPE גילתה את כל המנוע. אין התאמה של renderer יחיד לכל טאב.
+  `webviewCollection.partial` נשאר null כשאין מידע על שלמות מקור המנייה,
+  לרבות רשימה לא ריקה מהפורק הנעול ב־Windows.
+- סכומי הזיכרון והספירות כוללים את כל התצפיות. `eachMb` ו־`pages` מוגבלים
+  בנפרד ל־12, עם `eachMbTruncated`, `pagesTruncated` ו־`measuredPageCount`.
+  ה־probe שומר את מטא־נתוני הפירוט בלי כתובות עמודים. מידע חסר נשאר null
+  או אינו נכתב בשדה המספרי הישן; מדידה אמיתית של אפס נשמרת.
+- קריאת host מתחילה במקביל למניית Windows. למניית המנוע יש deadline
+  אסינכרוני של שנייה, בתוך מגבלת שתי השניות של אבחון האפליקציה. בקשה
+  שטרם הסתיימה נשארת יחידה לכל סביבת WebView; דגימה נוספת מסמנת pending
+  וקוראת host, וסביבה חלופית אינה נחסמת. אין polling נוסף או פניות לדף.
+  timeout אינו יכול לעצור קריאה נייטיבית סינכרונית שחוסמת את ה־platform thread.
 - המונים `fixtureCommands/Replies` ובייטי ה־JSON שלהם סופרים את תעבורת
   פקודות המדידה בלבד. הם אינם כוללים codecs של platform channel, תשובות
   תשתית הגשר, console, scroll callbacks או RPC של ה־SDK. אין להסיק מהם את
@@ -146,6 +166,13 @@ Offstage אינו מדמה פעולות מערכת אלה. המשך אימות A
 `unavailable` מציין איסוף חסר/כושל, ו־`notRun` מציין פעולה שלא בוצעה.
 ערך חסר הוא null; אפס מותר רק כשזה ערך שנמדד. CPU, PSS וזיכרון GPU
 מסומנים unsupported בתוך ה־probe ויש לצרף עבורם איסוף חיצוני.
+
+לאחר עדכון ה־pin לפורק שבו כשל `getProcessInfos` מחזיר שגיאה מפורשת
+(Otzaria/flutter_inappwebview#52), אפשר לעדכן את
+`pluginWebViewProcessSnapshot` כך שרשימה ריקה מוצלחת תיחשב `collected`.
+יש לעשות זאת יחד עם ה־pin ובדיקות החוזה; היעדר חריגה מהגרסה הנעולה
+כעת אינו מוכיח שמקור המנייה היה זמין. גם אחרי העדכון, אפס תצפיות אינו
+הוכחה לזיכרון כולל אפס או לכיסוי מלא של המנוע.
 
 ## איסוף חיצוני ומטריצת האימות
 

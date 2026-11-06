@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - 'tool/perf_probe/**'
+      - 'lib/core/diagnostics/**'
+      - 'lib/plugins/services/plugin_webview_diagnostics.dart'
+      - 'test/core/diagnostics/**'
+      - 'test/plugins/services/plugin_webview_diagnostics_test.dart'
+      - 'test/tool/perf_probe/webview_probe_metrics_test.dart'
       - 'integration_test/support/webview_probe_fixture.dart'
       - 'integration_test/support/webview_probe_metrics.dart'
       - 'integration_test/support/webview_probe_window.dart'
@@ -64,6 +69,18 @@ jobs:
         run: |
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
+      - name: Validate process coverage with the real Windows host sampler
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path '${{ runner.temp }}/webview-probe' | Out-Null
+          flutter test --no-pub --reporter expanded `
+            test/core/diagnostics/process_tree_sampler_test.dart `
+            test/core/diagnostics/process_tree_coverage_test.dart `
+            test/core/diagnostics/frame_stats_overlay_test.dart `
+            test/plugins/services/plugin_webview_diagnostics_test.dart `
+            test/tool/perf_probe/webview_probe_metrics_test.dart `
+            2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/process-coverage-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run the native scenario without performance thresholds
         shell: pwsh
         env:
@@ -88,6 +105,7 @@ jobs:
           retention-days: 14
           path: |
             ${{ runner.temp }}/webview-probe/run.log
+            ${{ runner.temp }}/webview-probe/process-coverage-tests.log
             ${{ runner.temp }}/webview-probe/host/**/*.json
             ${{ runner.temp }}/webview-probe/device/**/phases.jsonl
             ${{ runner.temp }}/webview-probe/device/**/report.json

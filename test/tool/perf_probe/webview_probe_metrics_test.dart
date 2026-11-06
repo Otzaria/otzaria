@@ -111,8 +111,10 @@ void main() {
     final result = webViewProbeMemory(sample, platform: 'linux');
     expect((result['host'] as Map)['availability'], 'unavailable');
     expect((result['engineObserved'] as Map)['value'], isNull);
-    expect(result['observedReadableProcessCount'], isNull);
-    expect(result['byKind'], isEmpty);
+    expect(result['observedProcessCount'], 1);
+    expect(result['observedReadableProcessCount'], 1);
+    expect((result['byKind'] as Map)['RENDERER']['memoryMiB'], isNull);
+    expect(result['memoryCoverage'], 'unavailable');
   });
 
   test('commit and anonymous RSS retain distinct labels and sources', () {
@@ -154,11 +156,109 @@ void main() {
       expect(sample.renderers!.eachMb, hasLength(12));
       final result = webViewProbeMemory(sample, platform: 'windows');
       expect(result['observedReadableProcessCount'], 20);
+      expect(result['observedProcessCount'], 21);
+      expect(result['measuredProcessCount'], 20);
+      expect(result['unavailableProcessCount'], 1);
+      expect(result['memoryCoverage'], 'partial');
       expect((result['engineObserved'] as Map)['value'], 20);
       expect((result['host'] as Map)['availability'], 'unavailable');
       expect(result['complete'], isNull);
-      expect(result['coverage'], contains('unreadable'));
+      expect(result['coverage'], contains('Unreadable'));
       expect(jsonEncode(result), isNot(contains('p19')));
+    },
+  );
+
+  test(
+    'explicit empty enumeration exposes zero observations but no memory',
+    () {
+      final result = webViewProbeMemory(
+        buildProcessTreeSample(
+          metric: ProcessMemoryMetric.anonymousRss,
+          hostBytes: 8 << 20,
+          processes: [],
+        ),
+        platform: 'linux',
+      );
+      expect(result['observedProcessCount'], 0);
+      expect(result['measuredProcessCount'], 0);
+      expect(result['unavailableProcessCount'], 0);
+      expect((result['webviewCollection'] as Map)['status'], 'collected');
+      expect((result['engineObserved'] as Map)['availability'], 'unavailable');
+      expect((result['engineObserved'] as Map)['value'], isNull);
+      expect(result['complete'], isNull);
+    },
+  );
+
+  test('engine source failure preserves host and signed HRESULT metadata', () {
+    for (final status in [
+      ProcessCollectionStatus.unsupported,
+      ProcessCollectionStatus.unavailable,
+    ]) {
+      final result = webViewProbeMemory(
+        ProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
+          hostPrivMb: 8,
+          webviewCollection: ProcessCollection(
+            status: status,
+            reason: status == ProcessCollectionStatus.unsupported
+                ? 'process_info_unsupported'
+                : 'process_info_collection_failed',
+            stage: 'GetProcessExtendedInfos.callback',
+            hresult: -2147467259,
+          ),
+        ),
+        platform: 'windows',
+      );
+      expect((result['host'] as Map)['availability'], 'collected');
+      expect((result['host'] as Map)['value'], 8);
+      expect((result['engineObserved'] as Map)['availability'], status.name);
+      expect((result['engineObserved'] as Map)['value'], isNull);
+      expect(result['observedProcessCount'], isNull);
+      expect(result['measuredProcessCount'], isNull);
+      expect((result['webviewCollection'] as Map)['hresult'], -2147467259);
+    }
+  });
+
+  test('all unreadable observations stay counted without a memory value', () {
+    final result = webViewProbeMemory(
+      buildProcessTreeSample(
+        metric: ProcessMemoryMetric.privateCommit,
+        hostBytes: null,
+        processes: [(kind: 'RENDERER', bytes: null, page: 'missing')],
+      ),
+      platform: 'windows',
+    );
+    expect(result['observedProcessCount'], 1);
+    expect(result['measuredProcessCount'], 0);
+    expect(result['unavailableProcessCount'], 1);
+    expect((result['engineObserved'] as Map)['value'], isNull);
+    expect((result['byKind'] as Map)['RENDERER']['memoryMiB'], isNull);
+    expect(jsonEncode(result), isNot(contains('missing')));
+  });
+
+  test(
+    'a measured zero and limited detail remain visible without page labels',
+    () {
+      final result = webViewProbeMemory(
+        buildProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
+          hostBytes: 0,
+          processes: [
+            for (var i = 0; i < 20; i++)
+              (kind: 'RENDERER', bytes: 0, page: 'private-page$i'),
+          ],
+        ),
+        platform: 'windows',
+      );
+      expect((result['engineObserved'] as Map)['value'], 0);
+      expect((result['engineObserved'] as Map)['availability'], 'collected');
+      expect(result['memoryCoverage'], 'allObserved');
+      final kind = (result['byKind'] as Map)['RENDERER'] as Map;
+      expect(kind['observedProcessCount'], 20);
+      expect(kind['eachMbTruncated'], isTrue);
+      expect(kind['measuredPageCount'], 20);
+      expect(kind['pagesTruncated'], isTrue);
+      expect(jsonEncode(result), isNot(contains('private-page')));
     },
   );
 }
