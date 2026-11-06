@@ -290,23 +290,38 @@ void main() {
     expect(find.text(ReportMessages.appReportMerged(7)), findsOneWidget);
   });
 
-  testSnack('נשמר בתור — הודעת queued', (tester) async {
-    await pumpDialog(
+  for (final scenario in [
+    (
+      schema: 1,
+      message: 'הדיווח נשמר בתור לשליחה. ניתן לנהל או לייצא אותו בהגדרות.',
+    ),
+    (schema: 2, message: ReportMessages.extendedReportQueued),
+  ]) {
+    testSnack('נשמר בתור — הודעת queued עבור schema ${scenario.schema}', (
       tester,
-      withService: FakeAppReportService(
-        respond: (r) => AppReportDeliveryResult(
-          status: AppReportDeliveryStatus.queued,
-          report: r,
+    ) async {
+      await pumpDialog(
+        tester,
+        withService: FakeAppReportService(
+          respond: (r) => AppReportDeliveryResult(
+            status: AppReportDeliveryStatus.queued,
+            report: r.copyWith(schema: scenario.schema),
+          ),
         ),
-      ),
-    );
-    await fill(tester);
-    await send(tester);
-    expect(
-      find.text('הדיווח נשמר בתור לשליחה. ניתן לנהל או לייצא אותו בהגדרות.'),
-      findsOneWidget,
-    );
-  });
+      );
+      await fill(tester);
+      await send(tester);
+      expect(find.byType(AppReportDialog), findsNothing);
+      expect(popped, isNotNull);
+      expect(popped!.status, AppReportDeliveryStatus.queued);
+      expect(service.sent.single.schema, AppReport.schemaVersion);
+      expect(
+        popped!.report.toJson(),
+        service.sent.single.copyWith(schema: scenario.schema).toJson(),
+      );
+      expect(find.text(scenario.message), findsOneWidget);
+    });
+  }
 
   testSnack('נדחה בשרת — הודעת שגיאה עם השדה', (tester) async {
     await pumpDialog(
