@@ -29,6 +29,9 @@ jobs:
     env:
       OTZARIA_DOMLESS_MEASURE: '1'
     steps:
+      - name: Enable long Git paths on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@v7.0.1
       - name: Checkout the pinned audited plugin source
         uses: actions/checkout@v7.0.1
