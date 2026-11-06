@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the exact final candidate with full suites and combined RED/GREEN proof."""
 import hashlib
+import difflib
 import json
 import os
 from pathlib import Path
@@ -374,8 +375,8 @@ def copy_test_fixtures(fixtures):
     for destination, source in fixtures.items():
         if destination.exists():
             raise RuntimeError('Temporary QA test would overwrite a repository file')
-        shutil.copyfile(source, destination)
         created_test_fixtures.add(destination)
+        shutil.copyfile(source, destination)
 
 
 def remove_test_fixtures():
@@ -385,12 +386,172 @@ def remove_test_fixtures():
         created_test_fixtures.remove(destination)
 
 
+def require_clean_checkout(commit, context):
+    if git('rev-parse', 'HEAD') != commit or git('status', '--porcelain', '--untracked-files=all'):
+        raise RuntimeError(context + ' requires the exact clean checkout')
+
+
+def blob_sha(data):
+    return hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+
+
+def verify_reader_failure_signature(data, proof):
+    """Recognize only the CI7 source-prefix mismatch at the classified assertion."""
+    accepted = {}
+    for name, assertion in proof['accepted_assertions'].items():
+        test_id = assertion['test_id']
+        diagnostics = [row['message'] for row in data
+                       if row.get('type') == 'print' and row.get('testID') == test_id
+                       and row.get('messageType') == 'print'
+                       and 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK' in row.get('message', '')]
+        if len(diagnostics) != 1:
+            raise RuntimeError('Reader known RED needs its one classified Flutter assertion')
+        lines = diagnostics[0].splitlines()
+        expected = "Expected: a string starting with 'הַבֹּכִ֑ים'"
+        actual = "  Actual: 'כִ֑ים {פ} וַיֹּ֩אמֶר֩'"
+        if [line for line in lines if line.startswith('Expected: ')] != [expected] or [line for line in lines if line.startswith('  Actual: ')] != [actual]:
+            raise RuntimeError('Reader known RED differs from the exact CI7 source-prefix mismatch: ' + name)
+        accepted[name] = {'test_id': test_id, 'expected': expected, 'actual': actual}
+    return accepted
+
+
+def run_exact_green(label, names, paths):
+    result_path = out / (label + '.json')
+    selection = '^(?:' + '|'.join(re.escape(name) for name in sorted(names)) + ')$'
+    code = run(label, [
+        'flutter', 'test', '--no-pub', '--file-reporter', 'json:' + str(result_path),
+        '--name', selection, *map(str, paths),
+    ])
+    if not result_path.exists():
+        raise RuntimeError(label + ' produced no test report')
+    result = summarize(result_path)
+    if code or not result['success'] or not result['completed'] or result['passed'] != len(names) or set(result['passed_names']) != set(names) or result['skipped'] or result['failed'] or result['errors']:
+        raise RuntimeError(label + ' must pass every exact expected name without skips or errors')
+    return result
+
+
+def run_reader_known_red(label, commit):
+    require_clean_checkout(commit, label)
+    result = {'commit': commit, 'status': 'FAIL', 'meaning': 'Known pre-existing issue 3260; this product does not fix it.'}
+    report.setdefault('reader_known_red', {})[label] = result
+    try:
+        copy_test_fixtures(base_control_fixtures)
+        result['shown_marks_pass'] = run_exact_green(
+            label + '-reader-pass', expected_reader_pass, base_control_fixtures,
+        )
+        result_path = out / (label + '-reader-known-red.json')
+        selection = '^(?:' + '|'.join(re.escape(name) for name in sorted(expected_reader_red)) + ')$'
+        code = run(label + '-reader-known-red', [
+            'flutter', 'test', '--no-pub', '--file-reporter', 'json:' + str(result_path),
+            '--name', selection, *map(str, base_control_fixtures),
+        ])
+        if not result_path.exists():
+            raise RuntimeError(label + ' reader known RED produced no test report')
+        data = events(result_path)
+        proof = classify_red(data, reader_red_locations, code)
+        proof['source_prefix_failures'] = verify_reader_failure_signature(data, proof)
+        result['hidden_marks_known_red'] = proof
+    finally:
+        remove_test_fixtures()
+        require_clean_checkout(commit, label + ' cleanup')
+        result['clean_checkout_restored'] = True
+    result['status'] = 'EXPECTED_KNOWN_RED_PROVED'
+
+
+overlay_backups = {}
+
+
+def restore_pr_overlay():
+    failures = []
+    for name, original in tuple(overlay_backups.items()):
+        try:
+            (repo / name).write_bytes(original)
+            if (repo / name).read_bytes() != original:
+                raise RuntimeError('Restored bytes differ')
+            del overlay_backups[name]
+        except Exception as error:
+            failures.append(name + ': ' + str(error))
+    if failures:
+        raise RuntimeError('PR3036 overlay restoration failed: ' + '; '.join(failures))
+
+
+def overlay_diff(originals, replacements):
+    return ''.join(
+        line
+        for name in originals
+        for line in difflib.unified_diff(
+            originals[name].decode('utf-8').splitlines(keepends=True),
+            replacements[name].decode('utf-8').splitlines(keepends=True),
+            fromfile='a/' + name, tofile='b/' + name,
+        )
+    )
+
+
+def validate_overlay_sources():
+    originals = {}
+    replacements = {}
+    for spec in overlay['files']:
+        name = spec['path']
+        original = (repo / name).read_bytes()
+        replacement = (bundle / spec['fixture']).read_bytes()
+        if hashlib.sha256(original).hexdigest() != spec['original_sha256'] or blob_sha(original) != spec['original_blob']:
+            raise RuntimeError('Original PR3036 overlay path differs from the reviewed base: ' + name)
+        if git('rev-parse', base + ':' + name) != spec['original_blob'] or git('rev-parse', target + ':' + name) != spec['original_blob']:
+            raise RuntimeError('PR3036 overlay original is not identical on base and candidate: ' + name)
+        if hashlib.sha256(replacement).hexdigest() != spec['sha256'] or blob_sha(replacement) != spec['blob'] or len(replacement) != spec['bytes']:
+            raise RuntimeError('PR3036 overlay does not match its exact author blob: ' + name)
+        originals[name] = original
+        replacements[name] = replacement
+    patch = overlay_diff(originals, replacements).encode('utf-8')
+    if patch != (bundle / overlay['diff_fixture']).read_bytes() or hashlib.sha256(patch).hexdigest() != overlay['diff_sha256']:
+        raise RuntimeError('PR3036 overlay diff differs from the reviewed complete-file diff')
+    control = overlay['unchanged_plugin_control']
+    control_data = (repo / control['path']).read_bytes()
+    if hashlib.sha256(control_data).hexdigest() != control['sha256'] or blob_sha(control_data) != control['blob'] or git('rev-parse', base + ':' + control['path']) != control['blob'] or git('rev-parse', target + ':' + control['path']) != control['blob']:
+        raise RuntimeError('Unchanged reader-selection plugin suite differs from the reviewed source')
+    return originals, replacements, patch
+
+
+def run_pr3036_overlay():
+    require_clean_checkout(target, 'PR3036 overlay start')
+    result = {'status': 'FAIL', 'product_commit': target, 'head_sha': overlay['head_sha'], 'meaning': 'QA-only pinned PR3036 experiment; no overlay file belongs to the product diff.'}
+    report['pr3036_overlay'] = result
+    originals, replacements, patch = validate_overlay_sources()
+    # Back up every original before the first write, including partial-copy failures.
+    overlay_backups.update(originals)
+    try:
+        for name, replacement in replacements.items():
+            (repo / name).write_bytes(replacement)
+            if (repo / name).read_bytes() != replacement:
+                raise RuntimeError('PR3036 overlay copy changed bytes: ' + name)
+        (out / 'pr3036-overlay.patch').write_bytes(patch)
+        result['diff_sha256'] = hashlib.sha256(patch).hexdigest()
+        result['source_files'] = overlay['files']
+        copy_test_fixtures(base_control_fixtures)
+        result['reader_green'] = run_exact_green(
+            'pr3036-overlay-reader-green', expected_base_controls, base_control_fixtures,
+        )
+        result['plugin_green'] = run_exact_green(
+            'pr3036-overlay-plugin-green', expected_plugin_names, overlay['plugin_test_targets'],
+        )
+    finally:
+        try:
+            remove_test_fixtures()
+        finally:
+            restore_pr_overlay()
+            require_clean_checkout(target, 'PR3036 overlay cleanup')
+            result['clean_checkout_restored'] = True
+    result['status'] = 'PASS'
+
+
 try:
     for sha in [target, base]:
         if not re.fullmatch('[0-9a-f]{40}', sha):
             raise RuntimeError('Expected a frozen commit SHA')
     if manifest.get('product_inventory_frozen') is not True:
         raise RuntimeError('The final reviewed product inventory has not been frozen')
+    if target != manifest['candidate_sha']:
+        raise RuntimeError('TARGET_SHA differs from the reviewed manifest candidate')
     names = manifest['red_test_names']
     expected_red = set(names)
     if len(names) != len(expected_red) or expected_red != set(red_assertion_specs):
@@ -412,13 +573,70 @@ try:
     base_control = manifest['upstream_control']
     control_names = base_control['test_names']
     expected_base_controls = set(control_names)
-    if len(control_names) != 4 or len(expected_base_controls) != 4 or any(not isinstance(name, str) or not name for name in control_names):
-        raise RuntimeError('Upstream reader proof must name exactly four distinct controls')
-    if base_control['issue'] != 3260 or base_control['fixture'] != 'reader_marker_selection_base_test.dart' or base_control['source'] != 'test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart' or base_control['destination'] != 'test/personal_notes/widgets/qa_reader_marker_selection_base_test.dart':
-        raise RuntimeError('Unexpected upstream reader control fixture mapping')
+    expected_reader_pass = {
+        'Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=false)',
+        'Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=true)',
+    }
+    expected_reader_red = {
+        'Judges reader selection crosses paragraph marker (removeMarks=true, HtmlWidget=false)',
+        'Judges reader selection crosses paragraph marker (removeMarks=true, HtmlWidget=true)',
+    }
+    if len(control_names) != 4 or expected_base_controls != expected_reader_pass | expected_reader_red:
+        raise RuntimeError('Issue 3260 proof must name exactly the four frozen reader cases')
+    if len(base_control['expected_pass_names']) != 2 or set(base_control['expected_pass_names']) != expected_reader_pass or len(base_control['expected_known_red_names']) != 2 or set(base_control['expected_known_red_names']) != expected_reader_red:
+        raise RuntimeError('Issue 3260 proof must separate the two PASS and two known RED cases')
+    absent_reader_source = 'test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart'
+    if base_control['issue'] != 3260 or base_control['fixture'] != 'reader_marker_selection_base_test.dart' or base_control['product_source_must_be_absent'] != absent_reader_source or base_control['destination'] != 'test/personal_notes/widgets/qa_reader_marker_selection_base_test.dart':
+        raise RuntimeError('Unexpected QA-only reader fixture mapping')
+    if base_control['sha256'] != '02a4cc8c7f40b7afb26ae87cb163e5a6ab2581d39cfd7cc16b495e069142dd5c':
+        raise RuntimeError('Reader fixture is not the unchanged reviewed CI7 fixture')
+    if base_control['red_assertion'] != {
+        'anchor': 'expect(repository.sourceText, startsWith(_firstWord));',
+        'expected': "Expected: a string starting with 'הַבֹּכִ֑ים'",
+        'actual': "  Actual: 'כִ֑ים {פ} וַיֹּ֩אמֶר֩'",
+    }:
+        raise RuntimeError('Reader known-RED assertion must match the observed CI7 source-prefix failure')
+    reader_red_specs = {name: {
+        'fixture': base_control['fixture'], 'path': base_control['destination'],
+        'anchor': base_control['red_assertion']['anchor'], 'kind': 'widget',
+    } for name in expected_reader_red}
+    reader_red_locations = resolve_red_assertions(bundle, reader_red_specs)
+    report['intended_reader_known_red_assertions'] = reader_red_locations
+    overlay = manifest['pr3036_overlay']
+    if overlay['repository'] != 'Otzaria/otzaria' or overlay['pull_request'] != 3036 or overlay['author'] != 'mmichaelush' or overlay['head_sha'] != 'b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af':
+        raise RuntimeError('Overlay must use the exact reviewed PR3036 author revision')
+    expected_overlay_blobs = {
+        'lib/plugins/services/text_source_map_service.dart': '68b6f7e21edddc037e55c1689b593da2331688bf',
+        'test/plugins/services/text_source_map_service_test.dart': '3de394b209c63b5fe63939c6b49acd6332819139',
+        'test/plugins/services/text_source_map_engine_test.dart': 'c82549f76a477dc7f9271601115e811779ea4228',
+    }
+    if len(overlay['files']) != 3 or {spec['path']: spec['blob'] for spec in overlay['files']} != expected_overlay_blobs:
+        raise RuntimeError('Overlay must contain exactly the three complete author blobs')
+    for spec in overlay['files']:
+        if spec['fixture'] != 'pr3036/' + spec['path'] or spec['head'] != overlay['head_sha'] or spec['source_url'] != 'https://github.com/Otzaria/otzaria/blob/' + overlay['head_sha'] + '/' + spec['path']:
+            raise RuntimeError('Unexpected PR3036 source provenance')
+    if overlay['diff_fixture'] != 'pr3036/overlay.patch' or overlay['provenance_fixture'] != 'pr3036/provenance.json':
+        raise RuntimeError('Unexpected PR3036 overlay evidence mapping')
+    provenance_bytes = (bundle / overlay['provenance_fixture']).read_bytes()
+    provenance = json.loads(provenance_bytes)
+    if hashlib.sha256(provenance_bytes).hexdigest() != overlay['provenance_sha256'] or provenance['head'] != overlay['head_sha'] or provenance['base_sha'] != base or provenance['files'] != overlay['files'] or provenance['overlay_diff_sha256'] != overlay['diff_sha256']:
+        raise RuntimeError('PR3036 provenance differs from the pinned manifest')
+    plugin_targets = overlay['plugin_test_targets']
+    if len(plugin_targets) != 3 or set(plugin_targets) != {
+        'test/plugins/services/text_source_map_service_test.dart',
+        'test/plugins/services/text_source_map_engine_test.dart',
+        'test/plugins/services/reader_selection_service_test.dart',
+    } or set(overlay['plugin_test_names_by_file']) != set(plugin_targets):
+        raise RuntimeError('Overlay must run exactly the three reviewed plugin suites')
+    plugin_names = [name for names in overlay['plugin_test_names_by_file'].values() for name in names]
+    expected_plugin_names = set(plugin_names)
+    if len(plugin_names) != 35 or len(expected_plugin_names) != 35 or overlay['plugin_expected_passes'] != 35 or overlay['unchanged_plugin_control']['path'] != 'test/plugins/services/reader_selection_service_test.dart':
+        raise RuntimeError('Overlay must include all 35 distinct plugin test names')
     inventory = manifest['changed_files']
-    if not inventory or len(inventory) != len(set(inventory)) or set(manifest['source_sha256']) != set(inventory):
+    if len(inventory) != 20 or len(inventory) != len(set(inventory)) or set(manifest['source_sha256']) != set(inventory) or absent_reader_source in inventory or (repo / absent_reader_source).exists():
         raise RuntimeError('Every changed product file must have a frozen source hash')
+    if manifest['full_suite_expected_passes'] != 659:
+        raise RuntimeError('Product suite must contain the 659 existing tests without the QA-only reader fixture')
     red_selection = '^(?:' + '|'.join(re.escape(name) for name in sorted(expected_red)) + ')$'
     red_locations = resolve_red_assertions(bundle, red_assertion_specs)
     if set(red_locations) != expected_red:
@@ -428,6 +646,8 @@ try:
         raise RuntimeError('QA must start on the exact clean product commit')
     if git('rev-parse', target + '^') != base:
         raise RuntimeError('Product commit is not based on the reviewed upstream commit')
+    if git('rev-parse', target + '^{tree}') != manifest['candidate_tree_sha']:
+        raise RuntimeError('Product tree differs from the reviewed manifest tree')
     changed = git('diff', '--name-only', base, target).splitlines()
     if sorted(changed) != sorted(inventory):
         raise RuntimeError('Unexpected product file inventory: ' + repr(changed))
@@ -454,9 +674,10 @@ try:
         raise RuntimeError('Draft RED fixture must derive from the frozen reviewed product test')
 
     control_fixture_hash = hashlib.sha256((bundle / base_control['fixture']).read_bytes()).hexdigest()
-    if control_fixture_hash != base_control['sha256'] or control_fixture_hash != report['source_hashes'][base_control['source']]:
-        raise RuntimeError('Baseline reader fixture must match the final product test byte for byte')
-    report['base_control_fixture_sha256'] = control_fixture_hash
+    if control_fixture_hash != base_control['sha256']:
+        raise RuntimeError('QA-only reader fixture differs from the complete reviewed CI7 fixture')
+    report['reader_fixture_sha256'] = control_fixture_hash
+    validate_overlay_sources()
 
     if run('pub-get', ['flutter', 'pub', 'get', '--enforce-lockfile']):
         raise RuntimeError('Locked dependency resolution failed')
@@ -495,21 +716,7 @@ try:
     subprocess.run(['git', 'checkout', '--detach', base], cwd=repo, check=True)
     if git('rev-parse', 'HEAD') != base or git('status', '--porcelain', '--untracked-files=all'):
         raise RuntimeError('RED must start on the exact clean reviewed base')
-    copy_test_fixtures(base_control_fixtures)
-    control_report = out / 'baseline-reader-controls.json'
-    control_code = run('baseline-reader-controls', [
-        'flutter', 'test', '--no-pub', '--file-reporter', 'json:' + str(control_report),
-        *map(str, base_control_fixtures),
-    ])
-    if not control_report.exists():
-        raise RuntimeError('Baseline reader controls produced no test report')
-    report['baseline_reader_controls'] = summarize(control_report)
-    controls = report['baseline_reader_controls']
-    if control_code or not controls['success'] or not controls['completed'] or controls['passed'] != 4 or set(controls['passed_names']) != expected_base_controls or controls['skipped'] or controls['failed'] or controls['errors']:
-        raise RuntimeError('Exactly the four reader selection controls must pass on the reviewed base without skips or errors')
-    remove_test_fixtures()
-    if git('rev-parse', 'HEAD') != base or git('status', '--porcelain', '--untracked-files=all'):
-        raise RuntimeError('Baseline reader controls changed the reviewed base checkout')
+    run_reader_known_red('baseline', base)
     copy_test_fixtures(red_fixtures)
     red_report = out / 'red-tests.json'
     red_code = run('red-tests', [
@@ -546,8 +753,11 @@ try:
     remove_test_fixtures()
     if git('rev-parse', 'HEAD') != target or git('status', '--porcelain', '--untracked-files=all'):
         raise RuntimeError('Product checkout changed during verification')
+    run_reader_known_red('candidate', target)
+    run_pr3036_overlay()
+    require_clean_checkout(target, 'Final product verification')
     focused = report['focused_tests']
-    if not focused['success'] or not focused['passed'] or not (expected_red | required_controls | expected_base_controls).issubset(focused['passed_names']) or focused['failed'] or focused['errors']:
+    if not focused['success'] or not focused['completed'] or focused['passed'] != manifest['full_suite_expected_passes'] or not (expected_red | required_controls).issubset(focused['passed_names']) or focused['skipped'] or focused['failed'] or focused['errors']:
         raise RuntimeError('Full suites must pass and include every regression and required draft control')
     if any([format_code, analyze_code, test_code, green_code]):
         raise RuntimeError('One or more product checks failed')
@@ -556,11 +766,27 @@ except Exception as error:
     report['error'] = str(error)
     print('QA ERROR: ' + str(error), flush=True)
 finally:
-    remove_test_fixtures()
-    tracked_diff = git('diff', 'HEAD', '--binary')
-    if tracked_diff:
-        (out / 'working-tree-diff.patch').write_text(tracked_diff + '\n')
-    subprocess.run(['git', 'checkout', '--detach', target], cwd=repo, check=False)
+    cleanup_errors = []
+    for cleanup in (remove_test_fixtures, restore_pr_overlay):
+        try:
+            cleanup()
+        except Exception as error:
+            cleanup_errors.append(str(error))
+    try:
+        tracked_diff = git('diff', 'HEAD', '--binary')
+        if tracked_diff:
+            (out / 'working-tree-diff.patch').write_text(tracked_diff + '\n')
+        checkout = subprocess.run(['git', 'checkout', '--detach', target], cwd=repo, check=False)
+        if checkout.returncode:
+            raise RuntimeError('Cannot restore the exact product commit after QA')
+        require_clean_checkout(target, 'Final cleanup')
+    except Exception as error:
+        cleanup_errors.append(str(error))
+    if cleanup_errors:
+        report['status'] = 'FAIL'
+        report['cleanup_errors'] = cleanup_errors
+    else:
+        report['final_clean_checkout'] = target
     (out / 'qa-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     sums = [hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + str(path.relative_to(out)) for path in sorted(out.rglob('*')) if path.is_file() and path.name != 'SHA256SUMS']
     (out / 'SHA256SUMS').write_text('\n'.join(sums) + '\n')

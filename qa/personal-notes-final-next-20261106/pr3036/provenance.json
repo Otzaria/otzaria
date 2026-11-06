@@ -1,0 +1,43 @@
+{
+  "repository": "Otzaria/otzaria",
+  "pull_request": 3036,
+  "author": "mmichaelush",
+  "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+  "files": [
+    {
+      "path": "lib/plugins/services/text_source_map_service.dart",
+      "blob": "68b6f7e21edddc037e55c1689b593da2331688bf",
+      "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+      "source_url": "https://github.com/Otzaria/otzaria/blob/b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af/lib/plugins/services/text_source_map_service.dart",
+      "fixture": "pr3036/lib/plugins/services/text_source_map_service.dart",
+      "sha256": "a75321cf17b351a82d833e263bd1f8f4eabffabec9630ebbfda53812488f97dd",
+      "original_blob": "d02306a7d0dc1b0abb323cfc2d3535edcd5f1b40",
+      "original_sha256": "11e9d9bcd285463c04f87c813a795f7b83a98d4bf5e38b8c45b8520c50fda917",
+      "bytes": 15772
+    },
+    {
+      "path": "test/plugins/services/text_source_map_service_test.dart",
+      "blob": "3de394b209c63b5fe63939c6b49acd6332819139",
+      "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+      "source_url": "https://github.com/Otzaria/otzaria/blob/b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af/test/plugins/services/text_source_map_service_test.dart",
+      "fixture": "pr3036/test/plugins/services/text_source_map_service_test.dart",
+      "sha256": "5a0694288781ce6392a73bdc601388b5d81655278bb59a52c00904481fd67c29",
+      "original_blob": "252e1e1a1b202dd2d333dcc8b4aad3f9da0157f0",
+      "original_sha256": "2fd61ffae44c37fbe658eb4c45be2eb358385c02d63f933fd11b769a400223da",
+      "bytes": 4922
+    },
+    {
+      "path": "test/plugins/services/text_source_map_engine_test.dart",
+      "blob": "c82549f76a477dc7f9271601115e811779ea4228",
+      "head": "b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af",
+      "source_url": "https://github.com/Otzaria/otzaria/blob/b07bb4b8bf3ed7c4d0ac8f34b68d5238bccc94af/test/plugins/services/text_source_map_engine_test.dart",
+      "fixture": "pr3036/test/plugins/services/text_source_map_engine_test.dart",
+      "sha256": "e5ef3b9934909dd27f357a66b01ff26ddd54a36b6b96caf8bf27faf008f7c8a3",
+      "original_blob": "023a9ffa578a7faa886f97678220da8a9dc0cdb7",
+      "original_sha256": "0612c44104fa4f249e7ba0832f27076f308e4e29bfd8424f6828f878048cac72",
+      "bytes": 12718
+    }
+  ],
+  "base_sha": "59f779144da6b8524f0fa5062374ee0228f9b0e5",
+  "overlay_diff_sha256": "451aa4d879f4a1630fe1b2c3d8de0ba6089ae11d4702155774ebf898460acc92"
+}

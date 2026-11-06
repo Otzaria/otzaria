@@ -1,4 +1,4 @@
-name: Personal notes final and upstream reader QA
+name: Personal notes and pinned PR3036 QA
 
 on:
   push:
