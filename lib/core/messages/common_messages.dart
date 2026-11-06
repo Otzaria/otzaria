@@ -17,8 +17,6 @@ abstract class CommonMessages {
   static const String paragraphCopied = 'הפסקה הועתקה בהצלחה';
   static const String paragraphCopyError = 'שגיאה בהעתקת הפסקה';
 
-  static String copiedToClipboard(String text) => 'הועתק ללוח: $text';
-
   static String copyErrorWithDetails(Object error) => 'שגיאה בהעתקה: $error';
 
   // ── ניווט וקישורים ──────────────────────────────────────────────────────
