@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,9 +33,7 @@ void main() {
     expect(longWidth, greaterThan(shortWidth));
   });
 
-  testWidgets('רשימת ענק (שורות ספר בטווח הדפסה) נמדדת מהר ושומרת על הארוך', (
-    tester,
-  ) async {
+  testWidgets('רשימת ענק נמדדת במנות ושומרת על הרוחב המרבי', (tester) async {
     const longest = 'כותרת ארוכה מאוד שנמצאת בסוף רשימה של עשרות אלפי שורות';
     final entries = [
       for (var i = 0; i < 60000; i++)
@@ -43,7 +42,6 @@ void main() {
     ];
 
     var individualMaxWidth = 0.0;
-    final individualStopwatch = Stopwatch()..start();
     for (final entry in entries) {
       final painter = TextPainter(
         text: TextSpan(
@@ -62,21 +60,34 @@ void main() {
       }
       painter.dispose();
     }
-    individualStopwatch.stop();
     expect(individualMaxWidth, greaterThan(0));
 
-    final stopwatch = Stopwatch()..start();
-    final width = calculateAppMenuPreferredWidth<int>(metrics, entries);
-    stopwatch.stop();
+    var painterCount = 0;
+    void countPainter(ObjectEvent event) {
+      if (event is ObjectCreated && event.object is TextPainter) painterCount++;
+    }
 
-    final longestOnly = calculateAppMenuPreferredWidth<int>(
-      metrics,
-      const [AppMenuEntry<int>(value: -1, label: longest)],
-    );
+    late final double width;
+    FlutterMemoryAllocations.instance.addListener(countPainter);
+    try {
+      width = calculateAppMenuPreferredWidth<int>(metrics, entries);
+    } finally {
+      FlutterMemoryAllocations.instance.removeListener(countPainter);
+    }
+
+    final longestOnly = calculateAppMenuPreferredWidth<int>(metrics, const [
+      AppMenuEntry<int>(value: -1, label: longest),
+    ]);
     expect(width, longestOnly);
+    final labelWidth =
+        width - metrics.itemPadding.horizontal - metrics.iconSize - 4;
+    expect(labelWidth, greaterThanOrEqualTo(individualMaxWidth));
+    expect(labelWidth - individualMaxWidth, lessThanOrEqualTo(2));
+    expect(painterCount, greaterThan(0));
     expect(
-      stopwatch.elapsedMicroseconds * 1.5,
-      lessThan(individualStopwatch.elapsedMicroseconds),
+      painterCount,
+      lessThan(entries.length / 10),
+      reason: 'המדידה חייבת לחסוך יצירת TextPainter לכל תווית',
     );
   });
 

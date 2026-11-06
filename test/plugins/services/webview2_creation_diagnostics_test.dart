@@ -265,6 +265,12 @@ void main() {
           );
           final mockedScript =
               '''
+# Only the CIM outcome is under test, independently of the host's other probes.
+function Test-Path { \$false }
+function Get-ChildItem {}
+function Get-Item {}
+function Get-ItemProperty {}
+function Get-WinEvent {}
 function Get-CimInstance {
   param(\$ClassName, \$Filter)
   if (\$Filter -like 'Name=*') {

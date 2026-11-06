@@ -8,12 +8,16 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -23,6 +27,28 @@ import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+
+class _IdleSearchEngine implements SearchEngine {
+  @override
+  Future<SemanticStatus> semanticStatus() async => const SemanticStatus(
+    state: SemanticState.notConfigured,
+    enabled: false,
+    available: false,
+    modelLoaded: false,
+    indexedBookCount: 0,
+    vectorCount: 0,
+    modelId: '',
+    embeddingDim: 0,
+    vectorBackend: '',
+    vectorsPersisted: false,
+    vectorSegments: 0,
+    needsCompaction: false,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class _SettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -63,6 +89,10 @@ void main() {
     Hive.init(root.path);
     cache = _DelayedHiveCache();
     await Settings.init(cacheProvider: cache);
+    // הכרטיס הסמנטי קורא מצב מנוע; בטסט גיבוי אין לפתוח אינדקס ברקע.
+    TantivyDataProvider.instance = TantivyDataProvider.forTesting(
+      Future.value(_IdleSearchEngine()),
+    );
     DataRepository.instance.library = Future.value(Library(categories: []));
     final warmUp = await BackupService.createBackup(
       includeSettings: true,
@@ -98,6 +128,9 @@ void main() {
   tearDown(() async {
     await settings.close();
     await library.close();
+    await PersonalNotesDatabase.instance.close();
+    await PluginSystemDatabase.instance.close();
+    UserStateDatabase.instance.close();
     await Hive.close();
     AppPaths.debugOverrideDataRootPath(null);
     AppPaths.debugOverrideDocumentsRootPath(null);

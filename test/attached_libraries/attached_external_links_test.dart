@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -845,18 +846,15 @@ void main() {
       expect(seen.where((slugs) => slugs.isNotEmpty), isEmpty);
     });
 
-    /// בנייה איטית וצפופה בדיווחים, כדי שאפשר לתפוס אותה באמצע.
-    void slowBuild({int batchSize = 1}) {
+    /// מנות קטנות ודיווח על כל מנה, בלי השהיות לפי שעון הקיר.
+    void smallBatches({int batchSize = 1}) {
       final batch = ExternalLinkRepository.insertBatchSize;
-      final pause = ExternalLinkRepository.batchPause;
       final interval = ExternalLinkRepository.progressInterval;
       addTearDown(() {
         ExternalLinkRepository.insertBatchSize = batch;
-        ExternalLinkRepository.batchPause = pause;
         ExternalLinkRepository.progressInterval = interval;
       });
       ExternalLinkRepository.insertBatchSize = batchSize;
-      ExternalLinkRepository.batchPause = const Duration(milliseconds: 100);
       ExternalLinkRepository.progressInterval = Duration.zero;
     }
 
@@ -969,68 +967,99 @@ void main() {
       expect(indexRows(library.slug), 5);
     });
 
-    /// בונה את [slug] מחדש ועוצר אותו אחרי המנה הראשונה.
-    Future<void> rebuildAndCancel(String slug) async {
-      void cancelOnStart() {
-        if (links.buildingSlugs.value.isNotEmpty) links.cancelBuild();
-      }
-
-      links.buildingSlugs.addListener(cancelOnStart);
-      await links.rebuild(slug);
-      links.buildingSlugs.removeListener(cancelOnStart);
+    /// מעמיד את הבקרה לפני שה-isolate יכול לעבור את נקודת הבקרה הראשונה.
+    void onNextBuild(void Function() action) {
+      expect(links.onBuildStart, isNull);
+      links.onBuildStart = () {
+        links.onBuildStart = null;
+        action();
+      };
+      addTearDown(() => links.onBuildStart = null);
     }
 
-    /// ממתין לתנאי (בדיקה כל 10ms), בלי להסתמך על משכי זמן קבועים.
-    Future<void> waitFor(bool Function() condition) async {
-      final deadline = DateTime.now().add(const Duration(seconds: 20));
-      while (!condition()) {
-        if (DateTime.now().isAfter(deadline)) fail('התנאי לא התקיים בזמן');
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+    /// בונה את [slug] מחדש ועוצר אותו אחרי המנה הראשונה.
+    Future<void> rebuildAndCancel(String slug) async {
+      onNextBuild(links.cancelBuild);
+      try {
+        await links.rebuild(slug);
+      } finally {
+        links.onBuildStart = null;
       }
     }
 
     int doneOf(String slug) => links.buildProgress.value[slug]?.done ?? -1;
 
+    Future<void> waitForProgress(
+      String slug,
+      int minimum,
+      Future<Object?> build,
+    ) async {
+      final reached = Completer<void>();
+      void record() {
+        if (doneOf(slug) >= minimum && !reached.isCompleted) {
+          reached.complete();
+        }
+      }
+
+      links.buildProgress.addListener(record);
+      try {
+        record();
+        await Future.any([
+          reached.future,
+          build.then((_) {
+            if (!reached.isCompleted) {
+              fail('הבנייה הסתיימה לפני דיווח ההתקדמות המצופה');
+            }
+          }),
+        ]);
+      } finally {
+        links.buildProgress.removeListener(record);
+      }
+    }
+
     test('השהיה עוצרת את ההתקדמות, והמשך ממשיך', () async {
-      slowBuild();
+      smallBatches();
       final library = await attach(attachedDb('ext', rows: fiveRows()));
-      links.buildingSlugs.addListener(() {
-        if (links.buildingSlugs.value.isNotEmpty) links.pauseBuild();
-      });
+      onNextBuild(links.pauseBuild);
       var finished = false;
       final done = links.sync().whenComplete(() => finished = true);
+      try {
+        // המנה הראשונה נכתבה והבנייה ממתינה בהשהיה.
+        await waitForProgress(library.slug, 1, done);
+        expect(links.buildPaused.value, isTrue);
+        expect(doneOf(library.slug), 1);
+        expect(indexRows(library.slug), 1);
+        expect(finished, isFalse);
 
-      // המנה הראשונה נכתבה והבנייה ממתינה בהשהיה.
-      await waitFor(() => doneOf(library.slug) >= 1);
-      expect(links.buildPaused.value, isTrue);
-      final frozen = doneOf(library.slug);
-      expect(frozen, lessThan(5));
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      expect(doneOf(library.slug), frozen);
-      expect(finished, isFalse);
-
-      links.resumeBuild();
-      expect(await done, {library.slug});
-      expect(indexRows(library.slug), 5);
-      expect(links.buildPaused.value, isFalse);
-      expect(links.buildProgress.value, isEmpty);
+        links.resumeBuild();
+        expect(await done, {library.slug});
+        expect(indexRows(library.slug), 5);
+        expect(links.buildPaused.value, isFalse);
+        expect(links.buildProgress.value, isEmpty);
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
     });
 
     test('עצירה בזמן השהיה מסיימת את הסנכרון ושומרת התקדמות', () async {
-      slowBuild();
+      smallBatches();
       final library = await attach(attachedDb('ext', rows: fiveRows()));
-      links.buildingSlugs.addListener(() {
-        if (links.buildingSlugs.value.isNotEmpty) links.pauseBuild();
-      });
+      onNextBuild(links.pauseBuild);
       final done = links.sync();
-      await waitFor(() => doneOf(library.slug) >= 1);
-
-      links.cancelBuild();
-      expect(await done, isEmpty);
-      expect(links.incompleteSlugs.value, {library.slug});
-      expect(metaSignature(library.slug), contains('stop'));
-      expect(links.buildPaused.value, isFalse);
-      expect(links.buildProgress.value, isEmpty);
+      try {
+        await waitForProgress(library.slug, 1, done);
+        links.cancelBuild();
+        expect(await done, isEmpty);
+        expect(indexRows(library.slug), 1);
+        expect(links.incompleteSlugs.value, {library.slug});
+        expect(metaSignature(library.slug), contains('stop'));
+        expect(links.buildPaused.value, isFalse);
+        expect(links.buildProgress.value, isEmpty);
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
     });
 
     test('requestRebuild כפול ללחיצה כפולה מתבצע פעם אחת', () async {
@@ -1044,14 +1073,13 @@ void main() {
       links.requestRebuild(library.slug);
       links.requestRebuild(library.slug);
       await links.sync();
-      await waitFor(() => !links.buildingSlugs.value.contains(library.slug));
       expect(builds, 1);
       expect(indexRows(library.slug), 5);
 
       // אחרי שהסתיימה, בקשה חדשה מתקבלת.
       links.requestRebuild(library.slug);
       await links.sync();
-      await waitFor(() => builds == 2);
+      expect(builds, 2);
     });
 
     test(
@@ -1081,11 +1109,11 @@ void main() {
           if (progress.total > 0) total = progress.total;
         });
 
-        slowBuild(batchSize: 2);
+        smallBatches(batchSize: 2);
         await rebuildAndCancel(library.slug);
         links.requestResume(library.slug);
         await links.sync();
-        await waitFor(() => links.buildProgress.value.isEmpty);
+        expect(links.buildProgress.value, isEmpty);
 
         expect(total, 5);
         expect(runs, hasLength(2));
@@ -1101,14 +1129,14 @@ void main() {
       final path = attachedDb('ext', rows: fiveRows());
       final library = await attach(path);
       await links.sync();
-      slowBuild(batchSize: 2);
+      smallBatches(batchSize: 2);
       await rebuildAndCancel(library.slug);
       touch(path);
       await attached.rescan();
 
       links.requestResume(library.slug);
       expect(await links.sync(), isEmpty);
-      await waitFor(() => indexRows(library.slug) == 5);
+      expect(indexRows(library.slug), 5);
       expect(links.incompleteSlugs.value, isEmpty);
     });
 
@@ -1160,14 +1188,14 @@ void main() {
     test('עצירה שומרת התקדמות, מסמנת לא שלם ומנקה את buildProgress', () async {
       final library = await attach(attachedDb('ext', rows: fourPerLine()));
       await links.sync();
-      slowBuild(batchSize: 3);
+      smallBatches(batchSize: 3);
       await rebuildAndCancel(library.slug);
 
       expect(links.incompleteSlugs.value, {library.slug});
       expect(metaSignature(library.slug), startsWith('!building:'));
       expect(links.buildProgress.value, isEmpty);
       expect(links.buildingSlugs.value, isEmpty);
-      expect(indexRows(library.slug), inInclusiveRange(3, 6));
+      expect(indexRows(library.slug), 3);
     });
 
     test(
@@ -1178,7 +1206,7 @@ void main() {
         final continuous = indexSnapshot(library.slug);
         expect(continuous, hasLength(6));
 
-        slowBuild(batchSize: 3);
+        smallBatches(batchSize: 3);
         await rebuildAndCancel(library.slug);
 
         final firstDone = await firstDoneDuring(library.slug, () async {
@@ -1198,7 +1226,7 @@ void main() {
       await links.sync();
       final continuous = indexSnapshot(library.slug);
 
-      slowBuild(batchSize: 3);
+      smallBatches(batchSize: 3);
       await rebuildAndCancel(library.slug);
       touch(path);
       await attached.rescan();
@@ -1217,7 +1245,7 @@ void main() {
       await links.sync();
       final continuous = indexSnapshot(library.slug);
 
-      slowBuild(batchSize: 3);
+      smallBatches(batchSize: 3);
       await rebuildAndCancel(library.slug);
 
       final firstDone = await firstDoneDuring(library.slug, () async {
@@ -1247,7 +1275,7 @@ void main() {
       final library = await attach(attachedDb('ext', rows: fourPerLine()));
       await links.sync();
       final full = indexSnapshot(library.slug);
-      slowBuild(batchSize: 3);
+      smallBatches(batchSize: 3);
       await rebuildAndCancel(library.slug);
       expect(indexRows(library.slug), lessThan(full.length));
       return (slug: library.slug, full: full);
@@ -1310,8 +1338,7 @@ void main() {
       ExternalLinkRepository.insertBatchSize = 4;
       final library = await attach(attachedDb('ext', rows: fiveRows()));
       var sawEconomy = false;
-      links.buildingSlugs.addListener(() {
-        if (links.buildingSlugs.value.isEmpty) return;
+      onNextBuild(() {
         links.setBuildEconomy(true);
         sawEconomy = links.buildEconomy.value;
       });
@@ -1327,7 +1354,7 @@ void main() {
       final cap = ExternalLinkRepository.maxIndexRows;
       addTearDown(() => ExternalLinkRepository.maxIndexRows = cap);
       ExternalLinkRepository.maxIndexRows = 5;
-      slowBuild();
+      smallBatches(batchSize: 2);
       final library = await attach(
         attachedDb(
           'resume-cap',
@@ -1339,17 +1366,8 @@ void main() {
       );
       await links.sync();
       expect(links.tooLargeSlugs.value, contains(library.slug));
-      void cancelAfterResolvedRow() {
-        if (doneOf(library.slug) >= 2) links.cancelBuild();
-      }
-
-      links.buildProgress.addListener(cancelAfterResolvedRow);
-      try {
-        await links.rebuild(library.slug);
-      } finally {
-        links.buildProgress.removeListener(cancelAfterResolvedRow);
-      }
-      expect(indexRows(library.slug), inInclusiveRange(1, 4));
+      await rebuildAndCancel(library.slug);
+      expect(indexRows(library.slug), 1);
       expect(links.incompleteSlugs.value, {library.slug});
       links.requestResume(library.slug);
       await links.sync();
@@ -1358,7 +1376,7 @@ void main() {
     });
 
     test('סריקת יעדים חסרים מכבדת השהיה, עצירה ומנות חסכוניות', () async {
-      slowBuild(batchSize: 4);
+      smallBatches(batchSize: 4);
       final library = await attach(
         attachedDb(
           'unresolved',
@@ -1374,24 +1392,17 @@ void main() {
         if (progress != null && progress.total > 0) reported.add(progress.done);
       }
 
-      void pause() {
-        if (links.buildingSlugs.value.isNotEmpty) {
-          links.setBuildEconomy(true);
-          links.pauseBuild();
-        }
-      }
-
+      onNextBuild(() {
+        links.setBuildEconomy(true);
+        links.pauseBuild();
+      });
       links.buildProgress.addListener(record);
-      links.buildingSlugs.addListener(pause);
       final first = links.sync();
       try {
-        await waitFor(() => reported.any((v) => v > 0));
-        expect(reported.last, lessThan(30));
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await waitForProgress(library.slug, 1, first);
         expect(reported.last, 2);
         expect(links.buildEconomy.value, isTrue);
       } finally {
-        links.buildingSlugs.removeListener(pause);
         links.cancelBuild();
         await first;
         links.buildProgress.removeListener(record);

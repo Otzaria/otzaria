@@ -252,6 +252,7 @@ void main() {
             await tester.tap(find.text('ספר פעיל'));
             await tester.pumpAndSettle();
             expect(find.byType(BookDetailScreen), findsOneWidget);
+            expect(find.byTooltip('חזרה'), findsOneWidget);
           }
 
           Future<void> expectAllBooksList() async {
@@ -407,6 +408,7 @@ void main() {
         }
 
         Future<void> expectKeysScroll(ScrollPosition position) async {
+          expect(position.maxScrollExtent, greaterThan(0));
           await press(LogicalKeyboardKey.pageDown);
           expect(position.pixels, greaterThan(0));
           await press(LogicalKeyboardKey.pageUp);
@@ -640,6 +642,21 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
   @override
   BookDetails? getBookDetails(String categoryName, String bookName) {
     return _categories[categoryName]?.books[bookName];
+  }
+
+  @override
+  (BookDetails, String, String)? getBookById(int bookId) {
+    for (final entry in allBookData.entries) {
+      final categories = [entry.value];
+      while (categories.isNotEmpty) {
+        final category = categories.removeLast();
+        for (final book in category.books.entries) {
+          if (book.value.id == bookId) return (book.value, book.key, entry.key);
+        }
+        categories.addAll(category.subcategories ?? const []);
+      }
+    }
+    return null;
   }
 
   @override

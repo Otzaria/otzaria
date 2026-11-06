@@ -90,17 +90,18 @@ void main() {
 
   setUp(() {
     final tmp = Directory.systemTemp.createTempSync('otzaria_reports_dialog_');
+    final previousWriteInline = UserStateDatabase.debugWriteInline;
+    // פעולות ה-UI נוצרות ב-FakeAsync; תשובות isolate אינן מתנקזות ב-pump.
+    UserStateDatabase.debugWriteInline = true;
     UserStateDatabase.instance.overridePath('${tmp.path}/state.db');
     addTearDown(() {
       UserStateDatabase.instance.close();
+      UserStateDatabase.debugWriteInline = previousWriteInline;
       tmp.deleteSync(recursive: true);
     });
   });
 
   Future<void> settleReports(WidgetTester tester) async {
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    });
     await tester.pumpAndSettle();
   }
 

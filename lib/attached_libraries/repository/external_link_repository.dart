@@ -512,6 +512,7 @@ class ExternalLinkRepository {
     final control = calloc<Int32>();
     _control = control;
     try {
+      onBuildStart?.call();
       final result = await _syncInIsolate((
         path: path,
         jobs: jobs,
@@ -648,6 +649,10 @@ class ExternalLinkRepository {
   /// השהיה קבועה אחרי כל מנה — לבדיקות שצריכות לתפוס בנייה באמצע.
   @visibleForTesting
   static Duration batchPause = Duration.zero;
+
+  /// נקודת סנכרון לבדיקה: הבקרה מוכנה וה-isolate טרם התחיל לקרוא מנות.
+  @visibleForTesting
+  VoidCallback? onBuildStart;
 
   /// התקדמות הבנייה לכל מסד שנבנה כעת (המפתחות זהים ל-[buildingSlugs]):
   /// `done` שורות נסרקו מתוך `total` שורות `external_link` במקור.

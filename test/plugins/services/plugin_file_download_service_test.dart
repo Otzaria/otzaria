@@ -8,6 +8,67 @@ import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:path/path.dart' as p;
 
+class _ObservedBodyClient extends http.BaseClient {
+  final _client = http.Client();
+  int subscriptions = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await _client.send(request);
+    return http.StreamedResponse(
+      _ObservedStream(response.stream, () => subscriptions++),
+      response.statusCode,
+      headers: response.headers,
+      contentLength: response.contentLength,
+    );
+  }
+
+  @override
+  void close() => _client.close();
+}
+
+class _ObservedStream extends StreamView<List<int>> {
+  _ObservedStream(super.stream, this.onListen);
+
+  final void Function() onListen;
+
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int>)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    onListen();
+    return super.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+}
+
+class _GatedDirectory extends Fake implements Directory {
+  _GatedDirectory(this.directory, {required this.failCreate});
+
+  final Directory directory;
+  final bool failCreate;
+  final started = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  String get path => directory.path;
+
+  @override
+  Future<Directory> create({bool recursive = false}) async {
+    started.complete();
+    await release.future;
+    if (failCreate) throw const FileSystemException('injected create failure');
+    return directory.create(recursive: recursive);
+  }
+}
+
 void main() {
   late Directory tempDir;
 
@@ -761,6 +822,92 @@ void main() {
       maxBytes: maxBytes,
       expired: expired,
     );
+
+    for (final failCreate in [false, true]) {
+      test(
+        '${failCreate ? 'כשל תיקייה' : 'ביטול'} אחרי headers מנתק את החיבור לפני כתיבת הגוף',
+        () async {
+          final server = await ServerSocket.bind(
+            InternetAddress.loopbackIPv4,
+            0,
+          );
+          final disconnected = Completer<void>();
+          Socket? socket;
+          server.listen((connected) {
+            socket = connected;
+            var sent = false;
+            void disconnect() {
+              connected.destroy();
+              if (!disconnected.isCompleted) disconnected.complete();
+            }
+
+            unawaited(
+              connected.done.then<void>((_) {}, onError: (Object _) {}),
+            );
+            connected.listen(
+              (_) {
+                if (sent) return;
+                sent = true;
+                connected.write(
+                  'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n'
+                  '\r\n1\r\nx\r\n',
+                );
+              },
+              onDone: disconnect,
+              onError: (Object _) => disconnect(),
+            );
+          });
+          final client = _ObservedBodyClient();
+          final service = PluginFileDownloadService(client: client);
+          final dir = _GatedDirectory(
+            Directory(p.join(tempDir.path, 'gated')),
+            failCreate: failCreate,
+          );
+          final abort = Completer<void>();
+          final rejected = expectLater(
+            service.downloadToDirectory(
+              Uri.parse('http://127.0.0.1:${server.port}/file.bin'),
+              dir,
+              isAllowed: allowAll,
+              maxBytes: 1024,
+              abortTrigger: abort.future,
+            ),
+            throwsA(
+              failCreate
+                  ? isA<FileSystemException>()
+                  : isA<http.RequestAbortedException>(),
+            ),
+          );
+          try {
+            await dir.started.future;
+            // ההאזנה חייבת להתחיל לפני IO נוסף; http אינו מנתק גוף שלא נקרא.
+            expect(client.subscriptions, 1);
+            if (failCreate) {
+              dir.release.complete();
+            } else {
+              abort.complete();
+            }
+            await disconnected.future;
+            if (!dir.release.isCompleted) dir.release.complete();
+            await rejected;
+            expect(
+              dir.directory.existsSync() ? dir.directory.listSync() : [],
+              isEmpty,
+            );
+          } finally {
+            if (!abort.isCompleted) abort.complete();
+            if (!dir.release.isCompleted) dir.release.complete();
+            try {
+              await rejected;
+            } finally {
+              service.dispose();
+              socket?.destroy();
+              await server.close();
+            }
+          }
+        },
+      );
+    }
 
     test('שומר בתיקייה שנוצרה, בשם מה-URL ובלי קובץ חלקי', () async {
       final result = await download(serviceReturning([1, 2, 3]));

@@ -88,6 +88,8 @@ void main() {
   test('האירועים נכתבים לתור בסדר שבו נרשמו', () async {
     final service = makeService();
     await service.grant();
+    // grant מפעיל flush מיד, גם כשהטיימרים מוחלפים בבדיקה.
+    await service.flush();
     final context = searchContext();
     service.recordSearch(context);
     service.recordResultsShown(context, 0, [result()]);
@@ -100,6 +102,7 @@ void main() {
   test('ביטול בחלון אחר מוחק את המפתח, והחלון הזה אינו משחזר אותו', () async {
     final service = makeService();
     await service.grant();
+    await service.flush();
     service.recordSearch(searchContext());
     await service.whenQueued();
     await service.flush();
@@ -131,6 +134,7 @@ void main() {
         baseUrl: SearchFeedbackService.defaultBaseUrl,
       );
       await service.grant();
+      await service.flush();
       service.recordSearch(debugContext());
       await service.whenQueued();
       await service.flush();
@@ -142,6 +146,7 @@ void main() {
     test('נשלחת לכתובת עקיפה, בלי הסימון המקומי', () async {
       final service = makeService();
       await service.grant();
+      await service.flush();
       service.recordSearch(debugContext());
       await service.whenQueued();
       await service.flush();

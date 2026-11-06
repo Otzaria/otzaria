@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1999,22 +2000,26 @@ void main() {
             .cast<EmptyLibraryDirectorySelected>()
             .first;
 
-        bloc.add(
+        final updated = bloc.update(
           UpdateLibraryRequested(
             targetPath: libDir.path,
             existingLibraryPath: libDir.path,
           ),
         );
 
-        await selectedFuture.timeout(const Duration(seconds: 5));
+        await Future.wait([
+          selectedFuture,
+          updated,
+        ]).timeout(const Duration(seconds: 5));
 
         // הקובץ החדש הוחלף במקום הישן, והגיבוי הזמני נמחק.
         expect(
           await File(path.join(libDir.path, dbName)).readAsString(),
           'new-db',
         );
-        await _eventually(
-          () => !Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
+        expect(
+          Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
+          isFalse,
         );
         expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
       },
@@ -2476,13 +2481,16 @@ void main() {
               .where((s) => s is EmptyLibraryError)
               .first;
 
-          bloc.add(
+          final failedUpdate = bloc.update(
             UpdateLibraryRequested(
               targetPath: libDir.path,
               existingLibraryPath: libDir.path,
             ),
           );
-          await errorFuture.timeout(const Duration(seconds: 5));
+          await Future.wait([
+            errorFuture,
+            failedUpdate,
+          ]).timeout(const Duration(seconds: 5));
 
           expect(
             await File(path.join(libDir.path, dbName)).readAsString(),
@@ -2497,19 +2505,22 @@ void main() {
           final selectedFuture = bloc.stream
               .where((s) => s is EmptyLibraryDirectorySelected)
               .first;
-          bloc.add(
+          final updated = bloc.update(
             UpdateLibraryRequested(
               targetPath: libDir.path,
               existingLibraryPath: libDir.path,
             ),
           );
-          await selectedFuture.timeout(const Duration(seconds: 5));
+          await Future.wait([
+            selectedFuture,
+            updated,
+          ]).timeout(const Duration(seconds: 5));
 
           expect(
             await File(path.join(libDir.path, dbName)).readAsString(),
             'new-db',
           );
-          await _eventually(() => backupDirs().isEmpty);
+          expect(backupDirs(), isEmpty);
         },
       );
     });
@@ -2543,14 +2554,17 @@ void main() {
             .cast<EmptyLibraryError>()
             .first;
 
-        bloc.add(
+        final updated = bloc.update(
           UpdateLibraryRequested(
             targetPath: libDir.path,
             existingLibraryPath: libDir.path,
           ),
         );
 
-        await errorFuture.timeout(const Duration(seconds: 5));
+        await Future.wait([
+          errorFuture,
+          updated,
+        ]).timeout(const Duration(seconds: 5));
 
         expect(DbReadWorker.corruptDatabaseDetected.value, isTrue);
         // הקובץ הישן שוחזר, והגיבוי נוקה.
@@ -2919,23 +2933,42 @@ Future<void> _cleanDownloadTemps() async {
   }
 }
 
-/// DirectorySelected נפלט לפני שהמטפל מוחק את הגיבוי; ממתינים לסיום המחיקה.
-Future<void> _eventually(bool Function() condition) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 5));
-  while (!condition()) {
-    if (DateTime.now().isAfter(deadline)) {
-      fail('התנאי לא התקיים תוך 5 שניות');
+/// bloc לעדכון ספרייה בהורדה; [db] null — ההורדה נכשלת.
+_UpdateLibraryBloc _updateBloc(String? Function() db) => _UpdateLibraryBloc(db);
+
+class _UpdateLibraryBloc extends EmptyLibraryBloc {
+  _UpdateLibraryBloc(String? Function() db)
+    : super(
+        httpClient: fakeLibraryReleaseClient(db),
+        extractCompressedDatabase: copyAsExtracted,
+        extractTarArchive: ignoreTarArchive,
+      );
+
+  final _updates = Map<UpdateLibraryRequested, Completer<void>>.identity();
+
+  // המצב הסופי נפלט לפני ניקוי הגיבוי ושחרור הנעילה ב-finally.
+  Future<void> update(UpdateLibraryRequested event) {
+    final done = Completer<void>();
+    _updates[event] = done;
+    add(event);
+    return done.future;
+  }
+
+  @override
+  void onDone(
+    EmptyLibraryEvent event, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
+    super.onDone(event, error, stackTrace);
+    final done = _updates.remove(event);
+    if (error == null) {
+      done?.complete();
+    } else {
+      done?.completeError(error, stackTrace);
     }
-    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
-
-/// bloc לעדכון ספרייה בהורדה; [db] null — ההורדה נכשלת.
-EmptyLibraryBloc _updateBloc(String? Function() db) => EmptyLibraryBloc(
-  httpClient: fakeLibraryReleaseClient(db),
-  extractCompressedDatabase: copyAsExtracted,
-  extractTarArchive: ignoreTarArchive,
-);
 
 final class _IsolatedTempOverrides extends IOOverrides {
   _IsolatedTempOverrides(this.root);

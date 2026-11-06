@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -31,6 +32,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../support/fake_line_source_engine.dart';
 import '../test_helpers/memory_cache_provider.dart';
+
+void _failWorkerStartup() => throw StateError('worker startup failure');
 
 Future<int> Function() _pausedFallback(SendPort checkpoint) => () async {
   final release = ReceivePort();
@@ -636,13 +639,30 @@ void main() {
 
   test('סגירה ופתיחה מחדש דוחות timeout ישן של ספר בלי fallback', () async {
     final dbPath = await seedDb('seforim', bigBookLines: 4097);
-    DbReadWorker.stallTimeout = const Duration(milliseconds: 50);
-    final full = await pausedBookRead(dbPath);
-    await DbReadWorker.closeConnectionIfRunning(wait: false);
-    DbReadWorker.allowReopen();
-    expect(await full.result, isA<DbReadWorkerSuspended>());
-    DbReadWorker.stallTimeout = const Duration(seconds: 10);
-    full.release.send(null);
+    const readTimeout = Duration(milliseconds: 50);
+    DbReadWorker.stallTimeout = readTimeout;
+    final clock = FakeAsync();
+    final timerZone = clock.run((_) => Zone.current);
+    final full = await runZoned(
+      () => pausedBookRead(dbPath),
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) =>
+            duration == readTimeout
+            ? timerZone.createTimer(duration, callback)
+            : parent.createTimer(zone, duration, callback),
+      ),
+    );
+    try {
+      expect(clock.nonPeriodicTimerCount, 1);
+      await DbReadWorker.closeConnectionIfRunning(wait: false);
+      DbReadWorker.allowReopen();
+      // הקריאה והמחסום נשארים אמיתיים; רק ה-timeout הישן מופעל אחרי הסגירה.
+      clock.elapse(readTimeout);
+      expect(await full.result, isA<DbReadWorkerSuspended>());
+    } finally {
+      DbReadWorker.stallTimeout = const Duration(seconds: 10);
+      full.release.send(null);
+    }
     expect(
       await DbReadWorker.request('bookText', {
         'dbPath': dbPath,
@@ -829,7 +849,8 @@ void main() {
     final dbPath = await seedDb('seforim');
     final checkpoint = ReceivePort();
     addTearDown(checkpoint.close);
-    DbReadWorker.stallTimeout = Duration.zero;
+    DbReadWorker.workerSetUpForTesting = _failWorkerStartup;
+    addTearDown(() => DbReadWorker.workerSetUpForTesting = null);
     final read = DatabaseLibraryProvider.loadOnReadWorkerForTesting(
       trustedDbTarget(dbPath),
       'textRange',
@@ -1462,7 +1483,7 @@ void main() {
     );
 
     test(
-      'an unreleased worker stays suspended when releaseOnFailure is false',
+      'an unreleased read stays suspended when releaseOnFailure is false',
       () async {
         final lineSource = FakeLineSourceEngine();
         LibraryLineSource.debugReset(engine: lineSource);
@@ -1470,6 +1491,10 @@ void main() {
         final provider = DatabaseLibraryProvider.instance;
         expect(await provider.getLinkContent(link('מפרש', 2)), isNotEmpty);
 
+        final release = Completer<void>();
+        final reading = DbReadWorker.trackTemporaryRead(
+          () => release.future,
+        ).then<Object?>((_) => null, onError: (Object error) => error);
         DbReadWorker.lifecycleCommandTimeout = Duration.zero;
         try {
           await expectLater(
@@ -1480,6 +1505,8 @@ void main() {
           );
         } finally {
           DbReadWorker.lifecycleCommandTimeout = const Duration(seconds: 4);
+          release.complete();
+          await reading;
         }
         await expectLater(
           DbReadWorker.request('textRange', textRangeArgs(dbPath, 'בראשית')),
@@ -1509,6 +1536,10 @@ void main() {
         final provider = DatabaseLibraryProvider.instance;
         expect(await provider.getLinkContent(link('מפרש', 2)), isNotEmpty);
 
+        final release = Completer<void>();
+        final reading = DbReadWorker.trackTemporaryRead(
+          () => release.future,
+        ).then<Object?>((_) => null, onError: (Object error) => error);
         DbReadWorker.lifecycleCommandTimeout = Duration.zero;
         try {
           await expectLater(
@@ -1517,6 +1548,8 @@ void main() {
           );
         } finally {
           DbReadWorker.lifecycleCommandTimeout = const Duration(seconds: 4);
+          release.complete();
+          await reading;
         }
         expect(lineSource.suspends, 1);
         expect(lineSource.resumes, 1);

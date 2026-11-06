@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart'
     show Listenable, debugDefaultTargetPlatformOverride, TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
@@ -106,16 +107,22 @@ void main() {
   group('WindowPersistenceBinding — מופע לכל חלון', () {
     late Directory tmp;
     late UserStateDatabase database;
-    late WindowSessionStore sessions;
+    late _ObservedWindowSessionStore sessions;
+    final bindings = <WindowPersistenceBinding>[];
 
     setUp(() async {
       tmp = Directory.systemTemp.createTempSync('otzaria_window_persist_');
       database = UserStateDatabase.openAt('${tmp.path}/user_state.db');
       await database.database;
-      sessions = WindowSessionStore(database: database);
+      sessions = _ObservedWindowSessionStore(database: database);
     });
 
-    tearDown(() {
+    tearDown(() async {
+      for (final binding in bindings) {
+        binding.dispose();
+      }
+      bindings.clear();
+      await database.flushWrites();
       database.close();
       if (tmp.existsSync()) tmp.deleteSync(recursive: true);
     });
@@ -126,13 +133,15 @@ void main() {
       double Function()? devicePixelRatio,
     }) {
       final window = _RecordingWindow(visible: true, bounds: bounds);
-      return WindowPersistenceBinding(
+      final binding = WindowPersistenceBinding(
         controller: window,
         geometry: window,
         slot: () => slot,
         sessions: sessions,
         devicePixelRatio: devicePixelRatio,
       );
+      bindings.add(binding);
+      return binding;
     }
 
     Future<Rect?> savedBounds(int slot) async {
@@ -172,6 +181,7 @@ void main() {
             sessions: sessions,
             devicePixelRatio: () => currentDpr,
           );
+          bindings.add(persistence);
           await persistence.restoreIfAny();
           await persistence.applyRestoredBounds();
           expect(
@@ -185,9 +195,12 @@ void main() {
     test('כל חלון שומר את הגבולות שלו לשורה שלו', () async {
       const a = Rect.fromLTWH(10, 20, 800, 600);
       const b = Rect.fromLTWH(900, 40, 640, 480);
-      bindingFor(1, a).scheduleSave();
-      bindingFor(2, b).scheduleSave();
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final saved = Future.wait([sessions.nextSave(1), sessions.nextSave(2)]);
+      _fireSaveTimers(() {
+        bindingFor(1, a).scheduleSave();
+        bindingFor(2, b).scheduleSave();
+      });
+      await saved;
 
       expect(await savedBounds(1), a);
       expect(await savedBounds(2), b);
@@ -197,26 +210,33 @@ void main() {
       const b = Rect.fromLTWH(900, 40, 640, 480);
       final first = bindingFor(1, const Rect.fromLTWH(0, 0, 500, 500))
         ..splashMode = true;
-      first.scheduleSave();
-      bindingFor(2, b).scheduleSave();
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final saved = sessions.nextSave(2);
+      _fireSaveTimers(() {
+        first.scheduleSave();
+        bindingFor(2, b).scheduleSave();
+      });
+      await saved;
 
       expect(await savedBounds(1), isNull);
       expect(await savedBounds(2), b);
     });
 
     test('חלון בלי משבצת אינו שומר', () async {
-      bindingFor(null, const Rect.fromLTWH(0, 0, 500, 500)).scheduleSave();
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      _fireSaveTimers(() {
+        bindingFor(null, const Rect.fromLTWH(0, 0, 500, 500)).scheduleSave();
+      });
 
       expect(await sessions.loadAll(), isEmpty);
     });
 
     test('כל חלון שומר את ה-DPR של התצוגה שלו', () async {
       const bounds = Rect.fromLTWH(10, 20, 800, 600);
-      bindingFor(1, bounds, devicePixelRatio: () => 1.5).scheduleSave();
-      bindingFor(2, bounds, devicePixelRatio: () => 2).scheduleSave();
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final saved = Future.wait([sessions.nextSave(1), sessions.nextSave(2)]);
+      _fireSaveTimers(() {
+        bindingFor(1, bounds, devicePixelRatio: () => 1.5).scheduleSave();
+        bindingFor(2, bounds, devicePixelRatio: () => 2).scheduleSave();
+      });
+      await saved;
 
       double? savedDpr(WindowSession? session) =>
           WindowBounds.decode(session?.boundsJson)?.dpr;
@@ -239,9 +259,11 @@ void main() {
         sessions: sessions,
         view: view,
       );
+      bindings.add(persistence);
       Future<double?> saveAndReadDpr() async {
-        persistence.scheduleSave();
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+        final saved = sessions.nextSave(1);
+        _fireSaveTimers(persistence.scheduleSave);
+        await saved;
         return WindowBounds.decode((await sessions.load(1))?.boundsJson)?.dpr;
       }
 
@@ -257,16 +279,20 @@ void main() {
         visible: true,
         bounds: const Rect.fromLTWH(10, 20, 800, 600),
       );
+      final failingStore = _FailingBoundsStore(database: database);
       final persistence = WindowPersistenceBinding(
         controller: window,
         geometry: window,
         slot: () => 1,
-        sessions: _FailingBoundsStore(database: database),
+        sessions: failingStore,
       );
+      bindings.add(persistence);
       final unhandled = <Object>[];
       await runZonedGuarded(() async {
-        persistence.scheduleSave();
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+        _fireSaveTimers(persistence.scheduleSave);
+        await failingStore.attempted.future;
+        // נותן ל-catchError לכתוב את היומן אחרי כשל השמירה.
+        await pumpEventQueue(times: 1);
       }, (error, _) => unhandled.add(error));
 
       expect(unhandled, isEmpty);
@@ -277,11 +303,52 @@ void main() {
   });
 }
 
-class _FailingBoundsStore extends WindowSessionStore {
-  _FailingBoundsStore({super.database});
+// מקדמים רק את ה-debounce; פעולת השמירה ממשיכה ב-zone האמיתי כדי
+// להמתין לכתיבת SQLite ב-isolate, ולא למועד שרירותי אחרי הפעלת הטיימר.
+void _fireSaveTimers(void Function() schedule) {
+  final clock = FakeAsync();
+  final timerZone = clock.run((_) => Zone.current);
+  var scheduling = true;
+  runZoned(
+    schedule,
+    zoneSpecification: ZoneSpecification(
+      createTimer: (self, parent, zone, duration, callback) => scheduling
+          ? timerZone.createTimer(duration, callback)
+          : parent.createTimer(zone, duration, callback),
+    ),
+  );
+  scheduling = false;
+  clock.elapse(const Duration(seconds: 1));
+}
+
+class _ObservedWindowSessionStore extends WindowSessionStore {
+  _ObservedWindowSessionStore({super.database});
+
+  final _saves = <int, Completer<void>>{};
+
+  Future<void> nextSave(int slot) => (_saves[slot] = Completer<void>()).future;
 
   @override
   Future<void> saveBounds(int slot, String? boundsJson) async {
+    final saved = _saves.remove(slot);
+    try {
+      await super.saveBounds(slot, boundsJson);
+      saved?.complete();
+    } catch (error, stackTrace) {
+      saved?.completeError(error, stackTrace);
+      rethrow;
+    }
+  }
+}
+
+class _FailingBoundsStore extends WindowSessionStore {
+  _FailingBoundsStore({super.database});
+
+  final attempted = Completer<void>();
+
+  @override
+  Future<void> saveBounds(int slot, String? boundsJson) async {
+    attempted.complete();
     throw const FileSystemException('disk I/O error');
   }
 }

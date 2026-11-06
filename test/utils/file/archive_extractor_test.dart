@@ -180,26 +180,21 @@ void main() {
     expect(extracted.lengthSync(), _fileSizeMb * 1024 * 1024);
   });
 
-  test('אינו חוסם את לולאת ההודעות של ה-isolate הקורא', () async {
+  test('קורא וכותב את קבצי הארכיון ב-isolate נפרד', () async {
     final target = '${tempDir.path}/out';
 
-    // חילוץ על ה-isolate הקורא אינו מאפשר לספירה להתקדם בזמן הפענוח.
-    var eventLoopTurns = 0;
-    var keepSpinning = true;
-    Future<void> spin() async {
-      while (keepSpinning) {
-        await Future<void>.delayed(Duration.zero);
-        eventLoopTurns++;
-      }
-    }
-
-    final spinner = spin();
-    await extractArchiveFileToDisk(tarPath, target);
-    keepSpinning = false;
-    await spinner;
+    // IOOverrides שייכים ל-zone הקורא ואינם עוברים ל-isolate של החילוץ.
+    await IOOverrides.runZoned(
+      () => extractArchiveFileToDisk(tarPath, target),
+      createFile: (path) =>
+          throw StateError('Archive file I/O ran on the caller isolate: $path'),
+    );
 
     expect(File('$target/source/big.bin').existsSync(), isTrue);
-    expect(eventLoopTurns, greaterThan(20));
+    expect(
+      File('$target/source/big.bin').lengthSync(),
+      _fileSizeMb * 1024 * 1024,
+    );
   });
 
   test('שגיאת חילוץ חוצה את גבול ה-isolate עם הטיפוס המקורי', () async {

@@ -60,6 +60,8 @@ abstract final class SeforimFixtureDb {
     final dbPath = path.join(directory.path, '${variant.name}.db');
     final db = sqlite3.sqlite3.open(dbPath);
     try {
+      // עסקה אחת מונעת סנכרון נפרד לדיסק לכל משפט ביצירת ה-fixture.
+      db.execute('BEGIN');
       switch (variant) {
         case SeforimFixtureVariant.minimal:
           _createMinimal(db);
@@ -81,6 +83,7 @@ abstract final class SeforimFixtureDb {
           _createFull(db);
           _createPluginTables(db);
       }
+      db.execute('COMMIT');
     } finally {
       db.close();
     }

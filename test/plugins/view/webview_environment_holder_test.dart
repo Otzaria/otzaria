@@ -44,14 +44,17 @@ void main() {
     late _FakeEnvironment fakeEnvironment;
     InAppWebViewPlatform? previousPlatform;
     Completer<WebViewEnvironmentPrewarmResult?>? pendingPrewarm;
+    late Completer<void> prewarmStarted;
 
     setUp(() async {
       calls = [];
       pendingPrewarm = null;
+      prewarmStarted = Completer<void>();
       dataRoot = await Directory.systemTemp.createTemp('otzaria_prewarm_');
       AppPaths.debugOverrideDataRootPath(dataRoot.path);
       WebViewEnvironmentHolder.debugOverridePrewarm((settings) {
         calls.add(settings);
+        if (!prewarmStarted.isCompleted) prewarmStarted.complete();
         return pendingPrewarm?.future ?? Future.value(_okResult);
       });
       WebViewEnvironmentHolder.debugIsWindowsOverride = true;
@@ -121,11 +124,24 @@ void main() {
       final prewarm = WebViewEnvironmentHolder.prewarm(
         hasEnabledPlugin: () async => true,
       );
-      await pumpEventQueue();
+      await prewarmStarted.future;
       expect(calls, hasLength(1));
 
-      final initialize = WebViewEnvironmentHolder.initialize();
-      await pumpEventQueue();
+      final waiting = Completer<void>();
+      final initialize = runZoned(
+        WebViewEnvironmentHolder.initialize,
+        zoneSpecification: ZoneSpecification(
+          createTimer: (self, parent, zone, duration, callback) {
+            // יצירת התיקייה חייבת להסתיים לפני שהמתנת החימום מתחילה.
+            if (duration == WebViewEnvironmentHolder.prewarmWaitLimit &&
+                !waiting.isCompleted) {
+              waiting.complete();
+            }
+            return parent.createTimer(zone, duration, callback);
+          },
+        ),
+      );
+      await waiting.future;
       expect(fakeEnvironment.creates, 0);
 
       pendingPrewarm!.complete(_okResult);
@@ -143,10 +159,10 @@ void main() {
       WebViewEnvironmentHolder.prewarmWaitLimit = const Duration(
         milliseconds: 20,
       );
-      unawaited(
-        WebViewEnvironmentHolder.prewarm(hasEnabledPlugin: () async => true),
+      final prewarm = WebViewEnvironmentHolder.prewarm(
+        hasEnabledPlugin: () async => true,
       );
-      await pumpEventQueue();
+      await prewarmStarted.future;
       expect(calls, hasLength(1));
 
       await WebViewEnvironmentHolder.initialize();
@@ -165,6 +181,7 @@ void main() {
         1,
       );
       pendingPrewarm!.complete(_okResult);
+      await prewarm;
     });
   });
 
