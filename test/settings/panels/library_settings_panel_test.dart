@@ -261,7 +261,7 @@ void main() {
     ),
   ];
   for (final item in unavailableCases) {
-    testWidgets('חיפוש היברובוקס: ' + item.name, (tester) async {
+    testWidgets('חיפוש היברובוקס: ${item.name}', (tester) async {
       await setHebrewBooksPath(item.path);
       final settingsBloc = _FakeSettingsBloc(
         showExternalBooks: item.included,

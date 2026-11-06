@@ -1,5 +1,3 @@
-import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -167,7 +165,6 @@ void main() {
   late SettingsScreenController controller;
 
   setUp(() async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     cache = _TrackingCache();
     await Settings.init(cacheProvider: cache);
     DynamicShortcutRegistry.instance.loadFromJson('[]');
@@ -188,7 +185,6 @@ void main() {
     await navigation.close();
     await plugins.close();
     await tour.close();
-    debugDefaultTargetPlatformOverride = null;
   });
 
   Future<void> mount(WidgetTester tester) async {
@@ -256,7 +252,7 @@ void main() {
     (id: 'shortcuts.book.print', key: ShortcutValidator.printKey),
   ];
   for (final item in hiddenCases) {
-    testWidgets('קיצור מוסתר: ' + item.id, (tester) async {
+    testWidgets('קיצור מוסתר: ${item.id}', (tester) async {
       if (item.key == ShortcutValidator.printKey) {
         await Settings.setValue<String>(item.key, '');
       }
@@ -269,7 +265,7 @@ void main() {
       expect(cache.writes, isEmpty);
       await _cancelDialog(tester);
       expect(cache.writes, isEmpty);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
 
   testWidgets('בקשה שנשלחה לפני בניית המסך פותחת קיצור מוסתר', (tester) async {
@@ -283,7 +279,7 @@ void main() {
     await _cancelDialog(tester);
     expect(settings.dispatched, isEmpty);
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   const zoomCases = [
     (id: 'shortcuts.zoom.in', key: ShortcutValidator.zoomInKey),
@@ -291,7 +287,7 @@ void main() {
     (id: 'shortcuts.zoom.reset', key: ShortcutValidator.zoomResetKey),
   ];
   for (final item in zoomCases) {
-    testWidgets('קיצור זום שבוטל: ' + item.id, (tester) async {
+    testWidgets('קיצור זום שבוטל: ${item.id}', (tester) async {
       await Settings.setValue<String>(item.key, '');
       await mount(tester);
       cache.writes.clear();
@@ -300,7 +296,7 @@ void main() {
       _expectActionDialog(tester, item.key);
       await _cancelDialog(tester);
       expect(cache.writes, isEmpty);
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
 
   testWidgets('קיצור מוגדר נשאר בכרטיס הרגיל ללא פתיחת דיאלוג', (tester) async {
@@ -324,7 +320,7 @@ void main() {
       isTrue,
     );
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('קיצור שהוגדר אחרי הבקשה נפתר לפי המצב העדכני', (tester) async {
     await mount(tester);
@@ -348,7 +344,7 @@ void main() {
       findsOneWidget,
     );
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('קיצור שבוטל אחרי הבקשה נפתח כפעולה זמינה', (tester) async {
     await mount(tester);
@@ -362,7 +358,7 @@ void main() {
     _expectActionDialog(tester, ShortcutValidator.printKey);
     await _cancelDialog(tester);
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   for (final leaveSettings in [true, false]) {
     testWidgets(
@@ -436,6 +432,7 @@ void main() {
         expect(settings.dispatched, isEmpty);
         expect(cache.writes, isEmpty);
       },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
     );
   }
 
@@ -469,7 +466,7 @@ void main() {
       Settings.getValue<String>(ShortcutValidator.openAdvancedSearchKey),
       'ctrl+alt+q',
     );
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('מסך שהוסר בזמן ההמתנה אינו פותח דיאלוג מאוחר', (tester) async {
     await mount(tester);
@@ -483,7 +480,7 @@ void main() {
     expect(_dialogs(), findsNothing);
     expect(tester.takeException(), isNull);
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('בקשה חדשה לפני הגלילה מבטלת את הדיאלוג הישן', (tester) async {
     await mount(tester);
@@ -502,7 +499,7 @@ void main() {
       reason: 'רק הבקשה האחרונה רשאית לפתוח דיאלוג לפני תחילת הגלילה',
     );
     await _cancelDialog(tester);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('בקשה חדשה בזמן הגלילה מבטלת את הדיאלוג הישן', (tester) async {
     await mount(tester);
@@ -518,7 +515,7 @@ void main() {
       reason: 'רק הבקשה האחרונה רשאית לפתוח דיאלוג בסיום הגלילה',
     );
     await _cancelDialog(tester);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('יציאה מההגדרות בזמן גלילה אינה פותחת דיאלוג מעל הספרייה', (
     tester,
@@ -540,7 +537,7 @@ void main() {
       reason: 'בקשת חיפוש שהמסך שלה כבר לא פעיל אינה רשאית לפתוח דיאלוג',
     );
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('יציאה וחזרה בזמן גלילה אינן מחיות בקשה ישנה', (tester) async {
     await mount(tester);
@@ -573,7 +570,7 @@ void main() {
     await _cancelDialog(tester);
     expect(settings.dispatched, isEmpty);
     expect(cache.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('שאילתה חדשה ובחירת לשונית מבטלות ניווט שממתין', (tester) async {
     await mount(tester);
@@ -602,5 +599,5 @@ void main() {
     await _finishNavigation(tester);
     expect(_dialogs(), findsNothing);
     expect(settings.dispatched, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }
