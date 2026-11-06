@@ -121,6 +121,15 @@ Offstage אינו מדמה פעולות מערכת אלה. המשך אימות A
   ב־Apple/Linux יש לצרף את גרסת WebKit/WPE מבחוץ. UA אינו תחליף לגרסה זו.
   ה־viewport נשמר אחרי חשיפת החלון; הגבולות בפלט עשויים להיות שונים מהגודל
   המבוקש בגלל מסגרת החלון, DPI או מגבלות מנהל החלונות.
+- ב־Windows כל `onWebViewCreated` קורא את ה־getter הציבורי
+  `WindowsInAppWebViewController.creationDetails` ורושם `webviewBackend`
+  עם run/PID ומזהה ההצמדה של ה־fixture. mode יצירה חסר או לא מאומת מכשיל
+  את התרחיש ב־Windows; בפלטפורמות אחרות הוא unsupported. בקשת HWND
+  חייבת לקבל HWND ו־stage `forced`; בקשת composition רשאית לקבל HWND עם
+  סיבת fallback מפורשת. סיבת הבחירה אינה נגזרת מהיעדר אירוע fallback.
+  כל תצפית היא `nativeCreation`, עם `ongoingModeVerified=false`: אין כאן
+  בדיקת מצב מחזורית, אין פניות נוספות לדף בחלונות idle ואין קיבוץ לפי
+  nativeViewId. יצירה מחדש מקבלת זהות fixture חדשה גם אם native מחזר מזהה.
 - latency, RSS ופריימי Flutter נאספים ב־`PerfRecorder` הקיים. זיכרון התהליך
   הנוכחי הוא `ProcessInfo.currentRss` בבייטים, עם שיא דגימה כל 250ms.
   הקלט הגולמי נשמר; אחוזוני `flutterFrameSummary` משתמשים ב־nearest-rank
@@ -196,20 +205,25 @@ WebView. אין לנחש PID לפי מספר הטאבים או לייחס את �
 viewport ו־DPR, עם אותו hash של fixture ופרמטרים. בצע כמה הפעלות חדשות,
 החלף את סדר הבסיס והמועמד, ושמור raw data; הרצה יחידה אינה אומדן p95 של
 startup/resume. לבדיקת 1/5/10 מופעים שנה רק את `WEBVIEW_PROBE_TABS`.
-אין ריקון מטמוני OS או טענה ל־cold engine. backend בפלט מסומן unavailable
-עד אימות חיצוני: בקשת FORCE_HWND או בחירת default אינה הוכחה למסלול שנבחר.
+אין ריקון מטמוני OS או טענה ל־cold engine. בקשת FORCE_HWND או default
+אינה הוכחה למסלול שנבחר; ב־Windows משתמשים ברשומת היצירה של כל מופע.
+בפלטפורמות אחרות אין API מקביל בפורק הזה והנתון נשאר unsupported.
 
 ## CI ובדיקות חוזה
 
 `Performance probe tools` מריץ את בדיקות JavaScript ללא דפדפן, וב־Windows
-job נפרד מפעיל את אותו תרחיש עם WebView2 חי וב־profile. הוא משתמש בשלושה
-מופעים ובחלונות idle של שנייה, ללא ספי זמן או זיכרון. JSON, JSONL ולוג
-נשמרים כ־artifact גם בכשל. נתוני GitHub hosted הם תצפית סינתטית; הם אינם
+job נפרד מפעיל את אותו תרחיש עם WebView2 חי וב־profile, פעמיים בתהליכים
+טריים: בקשה `0` ואז בקשה `1`. הוא משתמש בשלושה מופעים ובחלונות idle של
+שנייה, ללא ספי זמן או זיכרון. אי־התאמה בבקשת HWND מכשילה את הבדיקה;
+fallback תקין בבקשת composition נשמר HWND ואינו הופך להשוואה בין מסלולים.
+JSON, JSONL ולוג נפרדים לשתי ההפעלות נשמרים כ־artifact גם בכשל.
+נתוני GitHub hosted הם תצפית סינתטית; הם אינם
 ראיה לחיסכון במחשב משתמש או להצלחה בארבע המערכות האחרות.
 
 ```bash
 node --test tool/perf_probe/test_webview_probe_fixture.mjs
 flutter test test/tool/perf_probe/webview_probe_metrics_test.dart \
+  test/plugins/services/webview_backend_observation_test.dart \
   test/tool/perf_probe/webview_probe_window_test.dart \
   test/tool/perf_probe/perf_recorder_test.dart \
   test/core/diagnostics/process_tree_sampler_test.dart

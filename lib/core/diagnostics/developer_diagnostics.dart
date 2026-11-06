@@ -290,11 +290,26 @@ class DeveloperDiagnostics {
 
   /// A sample started in an earlier collection is dropped when it lands.
   int _session = 0;
+  String? _probeRunId;
 
   bool get isCollecting => _running;
 
   /// מודיע כשהאיסוף מתחיל או נפסק, גם בלי הצגת חלונית האבחון.
   ValueListenable<bool> get collectionState => _collectionState;
+
+  /// Adds lifecycle observations to the existing bounded, opt-in log queue.
+  void recordEvent(String type, Map<String, Object?> fields) {
+    if (!_running) return;
+    _write({
+      ...fields,
+      'type': type,
+      't': _elapsedMs,
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'pid': pid,
+      'session': _session,
+      'probeRunId': _probeRunId,
+    });
+  }
 
   /// רשימה שעלות רענון ההערכות שלה נכנסת ל-stats. נרשמת גם כשהאיסוף כבוי,
   /// כדי שהפעלה ב-Ctrl+Shift+I תכלול רשימות שכבר פתוחות.
@@ -328,6 +343,7 @@ class DeveloperDiagnostics {
   void initFromLaunch(List<String> args, {Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
     _launchMode = parseDiagnosticsLaunchMode(args, env);
+    _probeRunId = env['OTZARIA_WEBVIEW_PROBE_RUN_ID'];
     final out = env[devDiagnosticsOutEnv];
     if (out != null && out.trim().isNotEmpty) outputPath = out.trim();
     _update();
@@ -390,6 +406,7 @@ class DeveloperDiagnostics {
     _write({
       'type': 'session',
       'time': DateTime.now().toIso8601String(),
+      'utc': DateTime.now().toUtc().toIso8601String(),
       'version': ErrorLogFile.appVersion,
       'buildMode': kReleaseMode
           ? 'release'
@@ -398,6 +415,12 @@ class DeveloperDiagnostics {
       'osVersion': _lastOsVersion,
       'cores': Platform.numberOfProcessors,
       'pid': pid,
+      'session': _session,
+      'probeRunId': _probeRunId,
+      'flutterVersion': const String.fromEnvironment(
+        'FLUTTER_VERSION',
+        defaultValue: 'unavailable',
+      ),
       'launchMode': _launchMode.name,
       'rebuildTracking': kDebugMode,
     });
@@ -420,7 +443,14 @@ class DeveloperDiagnostics {
       debugOnRebuildDirtyWidget = _previousRebuildCallback;
     }
     _restoreDebugPaintFlags();
-    _write({'type': 'end', 't': _elapsedMs});
+    _write({
+      'type': 'end',
+      't': _elapsedMs,
+      'utc': DateTime.now().toUtc().toIso8601String(),
+      'pid': pid,
+      'session': _session,
+      'probeRunId': _probeRunId,
+    });
     if (flush) unawaited(_flushAll());
     _samples.clear();
     _rebuildsInWindow.clear();
@@ -572,6 +602,7 @@ class DeveloperDiagnostics {
         ...startup,
       });
     }
+    if (_probeRunId != null) recordEvent('webview_probe_tick', const {});
     unawaited(_flush());
   }
 
@@ -724,6 +755,7 @@ class DeveloperDiagnostics {
       _restoreDebugPaintFlags();
     }
     _launchMode = DiagnosticsLaunchMode.off;
+    _probeRunId = null;
     _toggledOn = false;
     _pending = [];
     _flushInFlight = null;

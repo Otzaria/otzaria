@@ -6,8 +6,13 @@ on:
       - 'tool/perf_probe/**'
       - 'lib/core/diagnostics/**'
       - 'lib/plugins/services/plugin_webview_diagnostics.dart'
+      - 'lib/plugins/services/webview_backend_observation.dart'
+      - 'lib/plugins/view/plugin_webview_host.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
       - 'test/core/diagnostics/**'
       - 'test/plugins/services/plugin_webview_diagnostics_test.dart'
+      - 'test/plugins/services/webview_backend_observation_test.dart'
       - 'test/tool/perf_probe/webview_probe_metrics_test.dart'
       - 'integration_test/support/webview_probe_fixture.dart'
       - 'integration_test/support/webview_probe_metrics.dart'
@@ -50,6 +55,9 @@ jobs:
       - name: Validate process identity and invariant CSV formatting
         shell: pwsh
         run: ./tool/perf_probe/test_sample_resources.ps1
+      - name: Validate backend correlation and comparison readiness
+        shell: pwsh
+        run: ./tool/perf_probe/test_webview_hosting_probe.ps1
       - name: Validate WebView fixture state and bounded observers
         run: node --test tool/perf_probe/test_webview_probe_fixture.mjs
 
@@ -78,6 +86,7 @@ jobs:
             test/core/diagnostics/process_tree_coverage_test.dart `
             test/core/diagnostics/frame_stats_overlay_test.dart `
             test/plugins/services/plugin_webview_diagnostics_test.dart `
+            test/plugins/services/webview_backend_observation_test.dart `
             test/tool/perf_probe/webview_probe_metrics_test.dart `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/process-coverage-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -86,6 +95,7 @@ jobs:
         env:
           WEBVIEW_PROBE_REPORTS: ${{ runner.temp }}/webview-probe/host
           WEBVIEW_PROBE_DEVICE_OUTPUT: ${{ runner.temp }}/webview-probe/device
+          FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '0'
         run: |
           New-Item -ItemType Directory -Force -Path '${{ runner.temp }}/webview-probe' | Out-Null
           flutter drive --profile -d windows --no-pub `
@@ -96,6 +106,22 @@ jobs:
             --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run forced HWND in a fresh native process
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        env:
+          WEBVIEW_PROBE_REPORTS: ${{ runner.temp }}/webview-probe/host-hwnd
+          WEBVIEW_PROBE_DEVICE_OUTPUT: ${{ runner.temp }}/webview-probe/device-hwnd
+          FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '1'
+        run: |
+          flutter drive --profile -d windows --no-pub `
+            --driver=test_driver/webview_resource_probe.dart `
+            --target=integration_test/webview_resource_probe_test.dart `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
+            --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
+            2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run-hwnd.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve native observations and partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -105,10 +131,14 @@ jobs:
           retention-days: 14
           path: |
             ${{ runner.temp }}/webview-probe/run.log
+            ${{ runner.temp }}/webview-probe/run-hwnd.log
             ${{ runner.temp }}/webview-probe/process-coverage-tests.log
             ${{ runner.temp }}/webview-probe/host/**/*.json
             ${{ runner.temp }}/webview-probe/device/**/phases.jsonl
             ${{ runner.temp }}/webview-probe/device/**/report.json
+            ${{ runner.temp }}/webview-probe/host-hwnd/**/*.json
+            ${{ runner.temp }}/webview-probe/device-hwnd/**/phases.jsonl
+            ${{ runner.temp }}/webview-probe/device-hwnd/**/report.json
 
   desktop:
     name: Optional Windows measurements

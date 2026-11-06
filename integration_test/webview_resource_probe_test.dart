@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
 import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
+import 'package:otzaria/plugins/services/webview_backend_observation.dart';
 import 'package:path/path.dart' as p;
 
 import '../tool/perf_probe/src/report.dart' show sampleDistribution;
@@ -61,6 +62,7 @@ void main() {
       'otzaria-webview-probe-',
     );
     final journal = File(p.join(directory.path, 'phases.jsonl'));
+    final runId = p.basename(directory.path);
     final recorder = PerfRecorder(journal, binding, launchIndex: 0);
     final slots = <_ProbeSlot>[];
     final statuses = {for (final name in _phases) name: 'notRun'};
@@ -160,6 +162,24 @@ void main() {
       });
       await tester.pump();
       await slot.created.future.timeout(_deadline);
+      final backend = slot.backend!;
+      if (Platform.isWindows) {
+        expect(backend['verified'], isTrue, reason: '$backend');
+        if (backend['requested'] == 'hwnd') {
+          expect(
+            backend['observed'],
+            'hwnd',
+            reason: 'Forced HWND must be observed.',
+          );
+          expect(backend['fallbackStage'], 'forced');
+          expect(backend['fallbackHresult'], 0);
+        } else if (backend['observed'] == 'hwnd') {
+          expect(backend['fallbackReasonAvailable'], isTrue);
+          expect(backend['fallbackStage'], isNot('forced'));
+        }
+      } else {
+        expect(backend['availability'], 'unsupported');
+      }
       await slot.loaded.future.timeout(_deadline);
       await slot.command(background ? 'snapshot' : 'paint');
       return slot;
@@ -225,7 +245,7 @@ void main() {
           Future<void>.delayed(Duration(milliseconds: idleMs));
       recorder.write({
         'type': 'meta',
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'protocol': 'otzaria-synthetic-webview-v1',
         'fixtureVersion': webViewProbeFixtureVersion,
         'fixtureSha256': sha256
@@ -243,17 +263,17 @@ void main() {
           defaultValue: 'unavailable',
         ),
         'pid': pid,
+        'runId': runId,
         'cores': Platform.numberOfProcessors,
         'tabs': tabCount,
         'idleMs': idleMs,
         'backend': {
-          'availability': 'unavailable',
-          'requested':
-              perfOption('FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND', '') == '1'
-              ? 'HWND'
-              : 'default',
-          'reason':
-              'Runtime hosting/backend selection is not exposed by a portable API. Verify using native logs.',
+          'scope': 'nativeCreation',
+          'requested': Platform.isWindows
+              ? requestedWebViewBackend(Platform.environment)
+              : null,
+          'observations': 'webviewBackend records, one per widget attachment',
+          'ongoingModeVerified': false,
         },
         'externalMetrics': {
           for (final metric in [
@@ -308,7 +328,19 @@ void main() {
                             initialSettings: InAppWebViewSettings(
                               javaScriptEnabled: true,
                             ),
-                            onWebViewCreated: slot.attach,
+                            onWebViewCreated: (controller) {
+                              slot.backend = observeWebViewBackend(controller);
+                              recorder.write({
+                                'type': 'webviewBackend',
+                                'event': 'created',
+                                'runId': runId,
+                                'pid': pid,
+                                'attachmentId': slot.id,
+                                'background': slot.background,
+                                'backend': slot.backend,
+                              });
+                              slot.attach(controller);
+                            },
                             onLoadStop: (_, _) {
                               slot.loads++;
                               if (!slot.loaded.isCompleted) {
@@ -539,6 +571,7 @@ class _ProbeSlot {
   _ProbeSlot(this.id, {this.background = false});
   final String id;
   final bool background;
+  Map<String, Object?>? backend;
   final created = Completer<InAppWebViewController>();
   final loaded = Completer<void>();
   final _pending = <int, Completer<Map<String, dynamic>>>{};
