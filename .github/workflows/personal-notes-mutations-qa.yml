@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TARGET_SHA: '064c220774b94bd280219a499d18544a51e90e81'
+      TARGET_SHA: '34b845d7ab244e25252d0d7c370cd8ebc587f20b'
       TZ: Asia/Jerusalem
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CI: 'true'

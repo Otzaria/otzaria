@@ -22,6 +22,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart'
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -77,6 +78,9 @@ void main() {
             await tester.pumpWidget(
               MultiBlocProvider(
                 providers: [
+                  RepositoryProvider<SettingsRepository>.value(
+                    value: SettingsRepository(),
+                  ),
                   BlocProvider<TextBookBloc>.value(value: readerBloc),
                   BlocProvider<PersonalNotesBloc>.value(value: notesBloc),
                   BlocProvider<SettingsBloc>.value(value: settingsBloc),
@@ -167,14 +171,18 @@ void main() {
             await tester.pump();
             await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
             await tester.pumpAndSettle();
-            expect(find.byType(PersonalNoteEditorDialog), findsNothing);
+            expect(
+              repository.createdAtLine,
+              1,
+              reason: 'The Save action reached the notes repository',
+            );
             expect(database.rows, hasLength(1));
+            expect(find.byType(PersonalNoteEditorDialog), findsNothing);
 
             // The expected offsets come directly from the pinned verse,
             // independently of the production source mapper/anchor locator.
             final rawStart = _verseHtml.indexOf(_firstWord);
             final rawEnd = _verseHtml.indexOf(_lastWord) + _lastWord.length;
-            expect(repository.createdAtLine, 1);
             expect(
               normalizeAnchorText(repository.selectedText!),
               _selectedAnchor,

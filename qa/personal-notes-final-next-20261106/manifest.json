@@ -43,7 +43,7 @@
     "test/personal_notes/personal_notes_repository_delete_test.dart": "84ab65ac31f41047ea1774262db8bd0f54d806d66b4f2dac43d53f74706292d2",
     "test/personal_notes/personal_notes_write_confirmation_test.dart": "3b07f15eb099548a7f9ea0b16f44f28f353fc356a56413455e940d7502727a20",
     "test/personal_notes/widgets/personal_note_list_backspace_test.dart": "b4c0a990769ab114d73a21aa6217c558388145e6f113e8e85b9e37fdd566ab09",
-    "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart": "1cb0679ad9ec571ecea0d8be2d31d2b9ed984a2f44378b4894d70e52274d51eb",
+    "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart": "02a4cc8c7f40b7afb26ae87cb163e5a6ab2581d39cfd7cc16b495e069142dd5c",
     "test/personal_notes/widgets/personal_notes_draft_navigation_test.dart": "7d51a76fd6bba8db14fefdfcebffc9648fcc9965212c3777313db39e1e4d9770",
     "test/personal_notes/widgets/personal_notes_sidebar_mutation_confirmation_test.dart": "3d3e4286ccb7a6bb1eb29c2c0ca76a32e5a720ac80d4f9e3ee6d73e3e3b8fb3a"
   },
@@ -73,7 +73,7 @@
   ],
   "red_fixture_source": "test/personal_notes/widgets/personal_note_list_backspace_test.dart",
   "red_fixture_sha256": "b4c0a990769ab114d73a21aa6217c558388145e6f113e8e85b9e37fdd566ab09",
-  "scope_reason": "Full personal-note suite and four PDF suites on the exact combined candidate. Fifteen RED assertions cover mutation acknowledgements, empty-list Backspace, Windows Alt line deletion and draft lifecycle races. No-Save navigation, pending cleanup, same-key drafts and repeated Alt remain mandatory product controls. Four reader marker/selection controls must additionally pass on the reviewed base and the final product; this next candidate inventory is not frozen.",
+  "scope_reason": "Full personal-note suite and four PDF suites on the exact combined candidate. Fifteen RED assertions cover mutation acknowledgements, empty-list Backspace, Windows Alt line deletion and draft lifecycle races. No-Save navigation, pending cleanup, same-key drafts and repeated Alt remain mandatory product controls. Four reader marker/selection controls must additionally pass on the reviewed base and the final product.",
   "draft_fixture_source": "test/personal_notes/widgets/personal_notes_draft_navigation_test.dart",
   "draft_fixture_source_sha256": "7d51a76fd6bba8db14fefdfcebffc9648fcc9965212c3777313db39e1e4d9770",
   "draft_fixture_sha256": "665d74cf7397751af49142cf08c19b29c1f1de6057d0cf61cf7cb3940b1b27a2",
@@ -99,7 +99,7 @@
     "fixture": "reader_marker_selection_base_test.dart",
     "source": "test/personal_notes/widgets/personal_note_reader_marker_selection_test.dart",
     "destination": "test/personal_notes/widgets/qa_reader_marker_selection_base_test.dart",
-    "sha256": "1cb0679ad9ec571ecea0d8be2d31d2b9ed984a2f44378b4894d70e52274d51eb",
+    "sha256": "02a4cc8c7f40b7afb26ae87cb163e5a6ab2581d39cfd7cc16b495e069142dd5c",
     "test_names": [
       "Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=false)",
       "Judges reader selection crosses paragraph marker (removeMarks=false, HtmlWidget=true)",
@@ -108,5 +108,5 @@
     ],
     "status": "Independently reviewed final fixture, copied byte for byte from combined; exact four baseline and target successes remain mandatory."
   },
-  "candidate_sha": "064c220774b94bd280219a499d18544a51e90e81"
+  "candidate_sha": "34b845d7ab244e25252d0d7c370cd8ebc587f20b"
 }
