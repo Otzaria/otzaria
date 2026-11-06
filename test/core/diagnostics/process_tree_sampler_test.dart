@@ -69,20 +69,23 @@ void main() {
       });
     });
 
-    test('anonymous RSS is labelled explicitly, including host-only samples', () {
-      final sample = buildProcessTreeSample(
-        metric: ProcessMemoryMetric.anonymousRss,
-        hostBytes: 4 * mb,
-        processes: [],
-      );
-      expect(sample.metric, ProcessMemoryMetric.anonymousRss);
-      expect(sample.toJson(), {
-        'metric': 'anonymousRss',
-        'source': '/proc/<pid>/status:RssAnon',
-        'unit': 'MiB',
-        'hostPrivMb': 4,
-      });
-    });
+    test(
+      'anonymous RSS is labelled explicitly, including host-only samples',
+      () {
+        final sample = buildProcessTreeSample(
+          metric: ProcessMemoryMetric.anonymousRss,
+          hostBytes: 4 * mb,
+          processes: [],
+        );
+        expect(sample.metric, ProcessMemoryMetric.anonymousRss);
+        expect(sample.toJson(), {
+          'metric': 'anonymousRss',
+          'source': '/proc/<pid>/status:RssAnon',
+          'unit': 'MiB',
+          'hostPrivMb': 4,
+        });
+      },
+    );
 
     test('missing measurements are not serialized as zero', () {
       final sample = buildProcessTreeSample(

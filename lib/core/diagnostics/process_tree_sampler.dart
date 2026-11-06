@@ -10,7 +10,11 @@ import 'package:win32/win32.dart';
 /// ו-RssAnon הוא זיכרון אנונימי תושב, לא כלל הזיכרון הפרטי.
 enum ProcessMemoryMetric {
   unknown('unknown', 'memory', null),
-  privateCommit('privateCommit', 'commit', 'GetProcessMemoryInfo.PagefileUsage'),
+  privateCommit(
+    'privateCommit',
+    'commit',
+    'GetProcessMemoryInfo.PagefileUsage',
+  ),
   anonymousRss('anonymousRss', 'RssAnon', '/proc/<pid>/status:RssAnon');
 
   const ProcessMemoryMetric(this.jsonName, this.label, this.source);
