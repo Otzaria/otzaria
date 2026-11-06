@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'tool/perf_probe/**'
+      - 'integration_test/support/webview_probe_fixture.dart'
+      - 'integration_test/support/webview_probe_metrics.dart'
+      - 'integration_test/support/webview_probe_window.dart'
+      - 'integration_test/support/perf_recorder.dart'
+      - 'integration_test/webview_resource_probe_test.dart'
+      - 'test_driver/webview_resource_probe.dart'
       - '.github/workflows/perf_probe.yml'
   workflow_dispatch:
     inputs:
@@ -39,6 +45,52 @@ jobs:
       - name: Validate process identity and invariant CSV formatting
         shell: pwsh
         run: ./tool/perf_probe/test_sample_resources.ps1
+      - name: Validate WebView fixture state and bounded observers
+        run: node --test tool/perf_probe/test_webview_probe_fixture.mjs
+
+  webview:
+    name: Live WebView2 resource scenario (profile)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Resolve pinned dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+      - name: Run the native scenario without performance thresholds
+        shell: pwsh
+        env:
+          WEBVIEW_PROBE_REPORTS: ${{ runner.temp }}/webview-probe/host
+          WEBVIEW_PROBE_DEVICE_OUTPUT: ${{ runner.temp }}/webview-probe/device
+        run: |
+          New-Item -ItemType Directory -Force -Path '${{ runner.temp }}/webview-probe' | Out-Null
+          flutter drive --profile -d windows --no-pub `
+            --driver=test_driver/webview_resource_probe.dart `
+            --target=integration_test/webview_resource_probe_test.dart `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
+            --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
+            2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve native observations and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: webview-resource-probe-windows-profile
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/webview-probe/run.log
+            ${{ runner.temp }}/webview-probe/host/**/*.json
+            ${{ runner.temp }}/webview-probe/device/**/phases.jsonl
+            ${{ runner.temp }}/webview-probe/device/**/report.json
 
   desktop:
     name: Optional Windows measurements
