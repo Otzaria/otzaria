@@ -1093,7 +1093,8 @@ class DbReadWorker {
     _receivePort.close();
     _errorPort.close();
     _exitPort.close();
-    _isolate?.kill(priority: Isolate.immediate);
+    // ניתוק ה-finalizer של SQLite חייב להסתיים לפני עצירת ה-isolate.
+    _isolate?.kill(priority: Isolate.beforeNextEvent);
     if (identical(_slot.instance, this)) _slot.instance = null;
   }
 }

@@ -116,7 +116,7 @@ dependencies:
   otzaria_search_engine:
     git:
       url: https://github.com/Otzaria/otzaria_search_engine
-      ref: 2da23091237ed0f0a612de3b2d18cfc99d8b7d2a
+      ref: 18f34fd8c1ec32b1c8132d45e45b80392724f50a
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
