@@ -46,6 +46,7 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -1129,37 +1130,64 @@ class _CombinedViewState extends State<CombinedView> {
         : null;
   }
 
-  Future<void> _loadSectionMarkers() async {
+  int _sectionMarkersGeneration = 0;
+
+  Future<void> _loadSectionMarkers({bool retryAfterBusy = true}) async {
+    final generation = ++_sectionMarkersGeneration;
     final tab = widget.tab;
     final book = tab.book;
+    bool isCurrent() =>
+        mounted &&
+        generation == _sectionMarkersGeneration &&
+        identical(tab, widget.tab);
     // הסימנים ממופים ל-lineIndex של הטקסט הממוזג במסד — מהדורה חלופית
     // (version_line) או ספר שתוכנו מוגש מקבצים ממוספרים אחרת.
     if (book.versionTitle != null) return;
     final InlineSectionMarks marks;
-    if (book.isUserBook) {
-      marks = await DatabaseLibraryProvider.instance.getUserInlineSectionMarks(
-        book,
-        _loadedLineAt,
-      );
-    } else {
-      if (book.source.isOfficial &&
-          LibraryProviderManager.instance.getProviderForBook(
-                book.title,
-                categoryId: book.categoryId,
-                fileType: book.fileType,
-              )
-              is! DatabaseLibraryProvider) {
-        return;
+    try {
+      if (book.isUserBook) {
+        marks = await DatabaseLibraryProvider.instance
+            .getUserInlineSectionMarks(
+              book,
+              _loadedLineAt,
+            );
+      } else {
+        if (book.source.isOfficial &&
+            LibraryProviderManager.instance.getProviderForBook(
+                  book.title,
+                  categoryId: book.categoryId,
+                  fileType: book.fileType,
+                )
+                is! DatabaseLibraryProvider) {
+          return;
+        }
+        marks = await DatabaseLibraryProvider.instance
+            .getInlineSectionMarksByLineIndex(
+              book.title,
+              categoryId: book.categoryId,
+              source: book.source,
+            );
       }
-      marks = await DatabaseLibraryProvider.instance
-          .getInlineSectionMarksByLineIndex(
-            book.title,
-            categoryId: book.categoryId,
-            source: book.source,
-          );
+    } on DbReadWorkerBusy {
+      if (!isCurrent()) return;
+      if (retryAfterBusy) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (isCurrent()) {
+          unawaited(_loadSectionMarkers(retryAfterBusy: false));
+        }
+      } else {
+        UiSnack.showError(
+          TextBookMessages.sectionMarkersBusy,
+          window: _previewWindow,
+          duration: const Duration(seconds: 10),
+          onTap: () {
+            if (isCurrent()) unawaited(_loadSectionMarkers());
+          },
+        );
+      }
+      return;
     }
-    // מעבר מהיר בין ספרים עלול לסיים await זה אחרי החלפת הספר.
-    if (!mounted || !identical(tab, widget.tab)) return;
+    if (!isCurrent()) return;
     if (marks.markers.isEmpty &&
         marks.headings.isEmpty &&
         _sectionMarkersByLine.isEmpty &&

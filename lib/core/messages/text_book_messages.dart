@@ -61,6 +61,8 @@ abstract class TextBookMessages {
   static const String selectTextToCopy = 'אנא בחר טקסט להעתקה';
   static const String noteSaved = 'ההערה נשמרה בהצלחה';
   static const String searchContentLoadFailed = 'טעינת תוכן הספר לחיפוש נכשלה';
+  static const String sectionMarkersBusy =
+      'סמני החלוקה והכותרות לא נטענו בגלל עומס. לחצו כדי לנסות שוב.';
 
   static String formattedCopyError(Object error) =>
       'שגיאה בהעתקה מעוצבת: $error';
