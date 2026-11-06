@@ -140,14 +140,42 @@ jobs:
           [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $source 'windows_history_qa_controller.ps1'), [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | Format-List; throw 'The Shell observer failed PowerShell parsing.' }
           Add-Type -Path (Join-Path $source 'windows_history_qa_native.cs')
-          $signatureCheck = '$ErrorActionPreference="Stop"; $signature=Get-AuthenticodeSignature -LiteralPath (Join-Path $env:windir "System32/user32.dll"); if ($signature.Status -ne "Valid") { throw "The Windows PowerShell signature verifier is unavailable." }'
-          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($signatureCheck))
-          & "$env:windir/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -NonInteractive -EncodedCommand $encoded
-          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell could not verify the observed Shell process.' }
+          $smokeRoot = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'shell-verifier-smoke'
+          New-Item -ItemType Directory $smokeRoot | Out-Null
+          '{}' | Set-Content -Encoding utf8 (Join-Path $smokeRoot 'case.json')
+          $child = New-Object Diagnostics.Process
+          $child.StartInfo.FileName = Join-Path $env:windir 'System32/WindowsPowerShell/v1.0/powershell.exe'
+          $child.StartInfo.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -MTA -File "' + (Join-Path "$bundle/qa" 'windows_history_qa_controller.ps1') + '" -Root "' + $smokeRoot + '" -ValidateShellVerifier'
+          $child.StartInfo.UseShellExecute = $false
+          $child.StartInfo.CreateNoWindow = $true
+          $child.StartInfo.RedirectStandardOutput = $true
+          $child.StartInfo.RedirectStandardError = $true
+          $childStarted = $false
+          try {
+            # .NET preserves the PS7 environment, like the intermediate Flutter process.
+            $childStarted = $child.Start()
+            if (!$childStarted) { throw 'The same-environment signature smoke did not start.' }
+            $stdout = $child.StandardOutput.ReadToEndAsync()
+            $stderr = $child.StandardError.ReadToEndAsync()
+            if (!$child.WaitForExit(60000)) { throw 'The same-environment signature smoke timed out.' }
+            if (!$stdout.Wait(1000) -or !$stderr.Wait(1000)) { throw 'The signature smoke streams did not finish.' }
+            [IO.File]::WriteAllText((Join-Path $smokeRoot 'stdout.log'), $stdout.Result)
+            [IO.File]::WriteAllText((Join-Path $smokeRoot 'stderr.log'), $stderr.Result)
+            @{ exitCode = $child.ExitCode; launcherPSVersion = [string]$PSVersionTable.PSVersion;
+              launcherModulePath = $env:PSModulePath; inputSent = $false } | ConvertTo-Json |
+              Set-Content -Encoding utf8 (Join-Path $smokeRoot 'process.json')
+            if ($child.ExitCode -ne 0) { throw 'The actual controller could not verify the Windows signature.' }
+            $proof = Get-Content (Join-Path $smokeRoot 'shell-verifier.json') -Raw | ConvertFrom-Json
+            if (!$proof.verifierReady -or $proof.inputSent -or $proof.psVersion -notlike '5.1.*') { throw 'The controller signature smoke did not prove the intended environment.' }
+          } finally {
+            if ($childStarted -and !$child.HasExited) { $child.Kill() }
+            $child.Dispose()
+          }
           $exeAfter = (Get-FileHash "$bundle/otzaria.exe").Hash
           if ($exeAfter -cne $exeBefore) { throw 'The Flutter executable changed while installing observation helpers.' }
           @{ workflowHead = $env:REPORT_QA_WORKFLOW_HEAD; bundleHead = $env:REPORT_QA_AFTER_HEAD; productHead = $env:REPORT_QA_PRODUCT_HEAD;
-            executableSha256 = $exeAfter; helpers = $records; completionInputSimulated = $false } | ConvertTo-Json -Depth 10 |
+            executableSha256 = $exeAfter; helpers = $records; completionInputSimulated = $false;
+            negativeControl = 'V remains scan0; the optional Alt modifier uses the active keyboard layout' } | ConvertTo-Json -Depth 10 |
             Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides.json"
       - name: Run actual Flutter history selection under Windows x64 emulation
         timeout-minutes: 21

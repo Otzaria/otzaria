@@ -1,4 +1,4 @@
-param([Parameter(Mandatory = $true)][string]$Root, [switch]$ValidateClipboardHelper)
+param([Parameter(Mandatory = $true)][string]$Root, [switch]$ValidateClipboardHelper, [switch]$ValidateShellVerifier)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.Windows.Forms
@@ -32,6 +32,40 @@ function File-Sha256([string]$Path) {
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose(); $stream.Dispose() }
+}
+function Initialize-ShellVerifier {
+    $manifest = [IO.Path]::GetFullPath((Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1'))
+    $evidence = [ordered]@{
+        processId = $PID; processPath = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        psVersion = [string]$PSVersionTable.PSVersion; psHome = $PSHOME; inheritedModulePath = $env:PSModulePath
+        moduleManifest = $manifest; inputSent = $false; verifierReady = $false
+    }
+    Save-Json $evidence 'shell-verifier.json'
+    try {
+        # Flutter inherits PS7's module paths; bind the verifier to this PS5 installation.
+        $modules = @(Import-Module -Name $manifest -Force -PassThru -ErrorAction Stop)
+        if ($modules.Count -ne 1 -or $modules[0].Name -cne 'Microsoft.PowerShell.Security') { throw 'The installed Security manifest did not load the expected module.' }
+        $script:signatureCommand = $modules[0].ExportedCommands['Get-AuthenticodeSignature']
+        if ($null -eq $script:signatureCommand -or $script:signatureCommand.CommandType -ne 'Cmdlet') { throw 'The installed Security module does not export its signature cmdlet.' }
+        $probePath = Join-Path $env:windir 'System32/user32.dll'
+        $probe = & $script:signatureCommand -LiteralPath $probePath -ErrorAction Stop
+        $evidence.moduleBase = $script:signatureCommand.Module.ModuleBase
+        $evidence.modulePath = $script:signatureCommand.Module.Path
+        $evidence.moduleVersion = [string]$script:signatureCommand.Module.Version
+        $evidence.commandAssembly = $script:signatureCommand.ImplementingType.Assembly.Location
+        $evidence.probePath = $probePath
+        $evidence.probeStatus = [string]$probe.Status
+        $evidence.probeSigner = $probe.SignerCertificate.Subject
+        if ($probe.Status -ne 'Valid' -or $probe.SignerCertificate.Subject -notmatch 'CN=Microsoft Windows(?:,|$)') {
+            throw 'The signature verifier did not validate the trusted Windows probe.'
+        }
+        $evidence.verifierReady = $true
+        Save-Json $evidence 'shell-verifier.json'
+    } catch {
+        $evidence.error = $_.Exception.ToString()
+        Save-Json $evidence 'shell-verifier.json'
+        throw
+    }
 }
 function Assert-Time {
     if ([DateTime]::UtcNow -ge $script:deadline) { throw 'Controller deadline exceeded' }
@@ -85,33 +119,36 @@ function Snapshot([string]$Name) {
     $windowsObservedAt = [DateTime]::UtcNow.ToString('o')
     foreach ($window in $observedWindows) {
         Assert-Time
+        $metadata = [ordered]@{
+            processId = $window.processId; processName = $null; processPath = $null
+            window = $window.handle; name = $window.title; className = $window.className
+            offscreen = !$window.visible; trustedWindowsShell = $false; shellSignature = $null
+            sampledByWindowFromPoint = $window.sampled; sampleX = $window.sampleX; sampleY = $window.sampleY
+        }
+        $top.Add($metadata)
         try {
             $process = [Diagnostics.Process]::GetProcessById($window.processId)
             $processPath = $null
             try { $processPath = $process.MainModule.FileName } catch { }
+            $metadata.processName = $process.ProcessName
+            $metadata.processPath = $processPath
             $signatureInfo = $null
             $trusted = $process.ProcessName -in @('TextInputHost', 'InputApp', 'ShellExperienceHost', 'ShellHost', 'explorer') -and
                 $null -ne $processPath -and $processPath.StartsWith(($env:windir.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)
             if ($trusted) {
                 $identityKey = [string]$process.Id + '|' + $processPath
                 if (!$script:verifiedShellProcesses.ContainsKey($identityKey)) {
-                    $signature = Get-AuthenticodeSignature -LiteralPath $processPath
+                    $signature = & $script:signatureCommand -LiteralPath $processPath -ErrorAction Stop
                     $script:verifiedShellProcesses[$identityKey] = @{ status = [string]$signature.Status; subject = $signature.SignerCertificate.Subject;
                         trusted = $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'CN=Microsoft Windows(?:,|$)' }
                 }
                 $signatureInfo = $script:verifiedShellProcesses[$identityKey]
                 $trusted = $signatureInfo.trusted
             }
-            $metadata = [ordered]@{
-                processId = $process.Id; processName = $process.ProcessName; processPath = $processPath
-                window = $window.handle; name = $window.title; className = $window.className
-                offscreen = !$window.visible; trustedWindowsShell = $trusted
-                shellSignature = $signatureInfo
-                sampledByWindowFromPoint = $window.sampled; sampleX = $window.sampleX; sampleY = $window.sampleY
-            }
-            $top.Add($metadata)
+            $metadata.trustedWindowsShell = $trusted
+            $metadata.shellSignature = $signatureInfo
             if ($trusted -and $window.visible) { $candidates.Add($metadata) }
-        } catch { $top.Add(@{ error = $_.Exception.Message; window = $window.handle }) }
+        } catch { $metadata.error = $_.Exception.ToString() }
     }
     $seenRoots = @{}
     foreach ($metadata in @($candidates | Sort-Object { if ($_.processName -in @('TextInputHost', 'InputApp')) { 0 } else { 1 } })) {
@@ -301,8 +338,13 @@ if ($ValidateClipboardHelper) {
     Save-Json @{ helperValidated = $true; failureExitCodeValidated = $true; nativeHelperSha256 = (File-Sha256 (Join-Path $Root 'native.dll')); historyTested = $false } 'smoke-result.json'
     exit 0
 }
+if ($ValidateShellVerifier) {
+    Initialize-ShellVerifier
+    exit 0
+}
 try {
     Save-Json @{ os = [Environment]::OSVersion.VersionString; imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; flutterProcess = $config.processId; flutterWindow = $config.window; payload = $config.payload; sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD } 'environment.json'
+    Initialize-ShellVerifier
     Focus-Flutter
     try {
         $runtimeDirectory = Join-Path $env:REPORT_QA_HISTORY_OUTPUT 'runtime-x64'
@@ -321,15 +363,19 @@ try {
         Seed 'B'
         if ((Clipboard-Label) -ne 'B') { throw 'Negative-control clipboard fixture verification failed' }
         $result.clipboardBeforeSelection = 'B'
+        $result['controlForegroundBeforeInput'] = [WinVQa.Native]::GetForegroundWindow().ToInt64()
+        if ($result.controlForegroundBeforeInput -ne $config.window) { throw 'Flutter lost the foreground before the negative control input.' }
         if ($config.mode -eq 'posted-v') {
             [WinVQa.Native]::PostUnmodifiedV([IntPtr][long]$config.window)
         } else { [WinVQa.Native]::TypeV($config.mode -eq 'alt-v') }
         $result['nativeControlInputSent'] = $true
-        $result['controlMechanism'] = if ($config.mode -eq 'posted-v') { 'PostMessage WM_KEYDOWN/UP with scan=0, no modifiers' } else { 'SendInput VK_V with wScan=0, optionally Alt, no Ctrl' }
+        $result['controlForegroundAfterInput'] = [WinVQa.Native]::GetForegroundWindow().ToInt64()
+        $result['controlMechanism'] = if ($config.mode -eq 'posted-v') { 'PostMessage WM_KEYDOWN/UP with scan=0, no modifiers' } else { 'SendInput VK_V with wScan=0; optional Alt uses MapVirtualKeyEx for the active layout; no Ctrl' }
         $result.outcome = 'native-negative-control-sent-without-history-ui'
         $result.probeCompleted = $true
         Start-Sleep -Milliseconds 700
         [void](Snapshot '02-negative-control-result')
+        $result['controlForegroundAtCompletion'] = [WinVQa.Native]::GetForegroundWindow().ToInt64()
         Save-Json $result 'result.json'
         exit 0
     }

@@ -73,6 +73,7 @@ namespace WinVQa {
         public static VisibleWindow[] ObserveDesktopWindows() {
             var windows = new Dictionary<long, VisibleWindow>();
             EnumWindows((window, data) => { ObserveWindow(windows, window, false, 0, 0); return true; }, IntPtr.Zero);
+            ObserveWindow(windows, GetForegroundWindow(), false, 0, 0);
             int left = GetSystemMetrics(76), top = GetSystemMetrics(77), width = GetSystemMetrics(78), height = GetSystemMetrics(79);
             if (width <= 0 || height <= 0 || width > 8192 || height > 8192) throw new Exception("Unexpected desktop bounds for window observation");
             for (int y = top + 32; y < top + height; y += 64) {
@@ -105,7 +106,7 @@ namespace WinVQa {
         }
         static Input PhysicalKey(ushort key, bool up) {
             uint scan = MapVirtualKeyEx(key, 4, GetKeyboardLayout(0));
-            if ((scan & 0xFF) == 0) throw new Exception("No scan code for the history opening shortcut");
+            if ((scan & 0xFF) == 0) throw new Exception("No scan code for the requested physical key");
             Input input = Key(key, up);
             input.data.keyboard.scan = (ushort)(scan & 0xFF);
             input.data.keyboard.flags = (up ? 2u : 0u) | ((scan & 0xFF00) == 0xE000 ? 1u : 0u);
@@ -148,7 +149,7 @@ namespace WinVQa {
         public static void TypeV(bool alt) {
             try {
                 Send(alt
-                    ? new[] { Key(0x12, false), Key(0x56, false), Key(0x56, true), Key(0x12, true) }
+                    ? new[] { PhysicalKey(0x12, false), Key(0x56, false), Key(0x56, true), PhysicalKey(0x12, true) }
                     : new[] { Key(0x56, false), Key(0x56, true) });
             } catch {
                 if (alt) Send(new[] { Key(0x12, true) });
