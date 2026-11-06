@@ -408,6 +408,171 @@ void main() {
       }
     });
 
+    for (final mode in const ['מהיר', 'HtmlWidget', 'רציף']) {
+      testWidgets(
+        'sup עם צבע: 1–6 ו-7–10 בסדר RTL גם בגלישה, הצבע וההעתקה נשמרים — '
+        '$mode (issue #3239)',
+        (tester) async {
+          SmartTextWidget.debugForceHtmlWidget = mode == 'HtmlWidget';
+          addTearDown(() => SmartTextWidget.debugForceHtmlWidget = false);
+          const settings = RenderSettings(fontSize: 20);
+          const style = TextStyle(fontSize: 20);
+          String line(int from, int to) => [
+            for (var n = from; n <= to; n++)
+              'מילה<sup style="color: gray;">$n</sup>',
+          ].join(' ');
+          String? copied;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  body: SelectionArea(
+                    onSelectionChanged: (content) =>
+                        copied = content?.plainText,
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: SizedBox(
+                        width: 300,
+                        child: Column(
+                          children: [
+                            for (final html in [line(1, 6), line(7, 10)])
+                              mode == 'רציף'
+                                  ? ContinuousReadingParagraph(
+                                      lines: [
+                                        ContinuousReadingParagraphLine(
+                                          lineIndex: 0,
+                                          htmlText:
+                                              TextRendererService.processText(
+                                                html,
+                                                settings,
+                                              ),
+                                          style: style,
+                                        ),
+                                      ],
+                                      baseStyle: style,
+                                    )
+                                  : SmartTextWidget(
+                                      text: html,
+                                      settings: settings,
+                                    ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // מיקום כל מספר על המסך וצבע הגליפים שלו בשורה, מכל פסקה שמוצגת.
+          final digits = RegExp(r'\d+');
+          final rects = <int, Rect>{};
+          final inlineColors = <Color?>[];
+          void collectColors(
+            InlineSpan span,
+            Color? inherited,
+            List<Color?> out,
+          ) {
+            if (span is! TextSpan) return;
+            final color = span.style?.color ?? inherited;
+            if (digits.hasMatch(span.text ?? '')) out.add(color);
+            for (final child in span.children ?? const <InlineSpan>[]) {
+              collectColors(child, color, out);
+            }
+          }
+
+          void visit(RenderObject object) {
+            object.visitChildren(visit);
+            if (object is! RenderParagraph) return;
+            final paragraph = object;
+            final text = paragraph.text.toPlainText();
+            for (final m in digits.allMatches(text)) {
+              final box = paragraph
+                  .getBoxesForSelection(
+                    TextSelection(baseOffset: m.start, extentOffset: m.end),
+                  )
+                  .map((b) => b.toRect())
+                  .reduce((a, b) => a.expandToInclude(b));
+              rects[int.parse(m[0]!)] = MatrixUtils.transformRect(
+                paragraph.getTransformTo(null),
+                box,
+              );
+            }
+            collectColors(paragraph.text, null, inlineColors);
+          }
+
+          visit(tester.renderObject(find.byType(SelectionArea)));
+          expect(rects.keys.toSet(), {for (var n = 1; n <= 10; n++) n});
+
+          var sameLine = 0;
+          var wrapped = 0;
+          for (final n in const [1, 2, 3, 4, 5, 7, 8, 9]) {
+            final a = rects[n]!;
+            final b = rects[n + 1]!;
+            if ((a.center.dy - b.center.dy).abs() < a.height / 2) {
+              sameLine++;
+              expect(
+                a.center.dx,
+                greaterThan(b.center.dx),
+                reason: 'ב-RTL $n חייב להופיע מימין ל-${n + 1}',
+              );
+            } else {
+              wrapped++;
+              expect(b.center.dy, greaterThan(a.center.dy));
+            }
+          }
+          expect(sameLine, greaterThan(0));
+          expect(wrapped, greaterThan(0), reason: 'הבדיקה מכסה גלישת שורה');
+
+          // הגליף בשורה שקוף, והציור המורם נושא את הצבע של הספר.
+          expect(
+            inlineColors,
+            everyElement(predicate<Color?>((c) => c?.a == 0)),
+          );
+          final placements = [
+            for (final overlay
+                in tester.renderObjectList<RenderRaisedMarkerOverlay>(
+                  find.byType(RaisedMarkerOverlay),
+                ))
+              ...overlay.debugPlacements(),
+          ];
+          expect(placements, hasLength(10));
+          for (final p in placements) {
+            expect(p.paintRect.top, lessThan(p.anchorRect.top));
+            final painted = <Color?>[];
+            collectColors(
+              p.marker.textSpan(const TextStyle(color: Colors.black)),
+              null,
+              painted,
+            );
+            expect(painted, [const Color(0xFF808080)], reason: p.text);
+          }
+
+          tester
+              .state<SelectableRegionState>(find.byType(SelectableRegion))
+              .selectAll(SelectionChangedCause.keyboard);
+          await tester.pump();
+          expect(
+            digits.allMatches(copied ?? '').map((m) => int.parse(m[0]!)),
+            [for (var n = 1; n <= 10; n++) n],
+            reason: 'ההעתקה שומרת את המספרים בסדר הלוגי',
+          );
+        },
+      );
+    }
+
+    test('רק style פשוט שעוטף סימון עובר לציור המורם (issue #3239)', () {
+      for (final style in const ['color: gray;', 'background-color: yellow']) {
+        final marker = RaisedMarkers.extract(
+          '<span style="$style"><span class="$kRaisedSupClass">1</span></span>',
+        ).single;
+        expect(marker.inlineHtml != null, style.startsWith('color'));
+      }
+    });
+
     test('SimpleInlineHtml: span זר ותג יתום כמו ב-fwfh, sup מעוצב נופל', () {
       const style = TextStyle(fontSize: 18);
       expect(
