@@ -9,6 +9,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -234,7 +235,10 @@ class _SemanticSearchResultsScreenState
             if (!mounted || searchId != _bloc.state.searchId) return;
             final book = resolution.book;
             if (book is TextBook) {
-              await IndexFreshnessWarner.instance.warnIfContentDrifted(book);
+              await IndexFreshnessWarner.instance.warnIfContentDrifted(
+                book,
+                indexingBloc: context.read<IndexingBloc?>(),
+              );
             }
           }
         })

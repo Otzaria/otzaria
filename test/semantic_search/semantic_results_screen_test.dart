@@ -10,6 +10,9 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -71,6 +74,20 @@ class _RecordingTabsBloc extends Bloc<TabsEvent, TabsState>
   }
 
   final List<OpenOrFocusTab> opened = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingIndexingBloc extends Bloc<IndexingEvent, IndexingState>
+    implements IndexingBloc {
+  _RecordingIndexingBloc() : super(IndexingInitial()) {
+    on<IndexingEvent>((event, emit) {
+      if (event is DeferIndexing) deferred.add(event);
+    });
+  }
+
+  final List<DeferIndexing> deferred = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -158,6 +175,7 @@ void main() {
     Library? library,
     double? paneWidth,
     bool platformSupported = true,
+    IndexingBloc? indexingBloc,
   }) async {
     if (library != null) {
       DataRepository.instance.library = Future.value(library);
@@ -216,6 +234,8 @@ void main() {
           BlocProvider<TabsBloc>.value(value: tabs),
           BlocProvider<NavigationBloc>.value(value: navigation),
           BlocProvider<LibraryBloc>.value(value: libraryBloc),
+          if (indexingBloc != null)
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
         ],
         child: MaterialApp(
           home: MediaQuery(
@@ -298,6 +318,54 @@ void main() {
     expect(checkedBooks, ['ספר 1']);
     expect(notifications, [LibraryMessages.searchResultContentDrifted]);
     expect(find.text(kSemanticSourceLexicalLabel), findsOneWidget);
+  });
+
+  testWidgets('אימות תוצאה חכמה מוסר דריפט לאינדוקס גם מתוך בדיקה משותפת', (
+    tester,
+  ) async {
+    final warner = IndexFreshnessWarner.instance;
+    final provider = _WarnerProvider();
+    final indexing = _RecordingIndexingBloc();
+    final verifier = Completer<bool>();
+    final checks = <String>[];
+    warner
+      ..resetForTesting()
+      ..providerResolver = (() => provider)
+      ..debugNotifier = (_) {}
+      ..debugBookVerifier = (book, _) {
+        checks.add(book.title);
+        return verifier.future;
+      };
+    addTearDown(() async {
+      if (!verifier.isCompleted) verifier.complete(true);
+      warner.resetForTesting();
+      provider.isIndexing.dispose();
+      await indexing.close();
+    });
+    final library = Library(categories: const [])
+      ..books.add(TextBook(id: 1, title: 'ספר 1'));
+    DataRepository.instance.library = Future.value(library);
+    final existing = warner.warnIfContentDrifted(library.books.first);
+    await pumpScreen(
+      tester,
+      indexingBloc: indexing,
+      injectedSource: FakeResultsSource(
+        items: [_engineItem(1, TextStatus.stale)],
+      ),
+    );
+    expect(checks, ['ספר 1']);
+    expect(indexing.deferred, isEmpty);
+    verifier.complete(false);
+    await settle(tester);
+    await existing;
+    expect(indexing.deferred, hasLength(1));
+    expect(indexing.deferred.single.changedBooks.single.title, 'ספר 1');
+    await warner.warnIfContentDrifted(
+      library.books.first,
+      indexingBloc: indexing,
+    );
+    expect(checks, ['ספר 1']);
+    expect(indexing.deferred, hasLength(1));
   });
 
   test('קטע שהשתנה אינו נשלח להדגשה סמנטית (issue #3410)', () {
