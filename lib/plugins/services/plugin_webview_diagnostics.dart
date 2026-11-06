@@ -10,22 +10,63 @@ void registerPluginWebViewDiagnostics() {
   DeveloperDiagnostics.instance.webViewProcessLister ??= _listProcesses;
 }
 
-Future<List<WebViewProcess>> _listProcesses() async {
-  final environment = WebViewEnvironmentHolder.environment;
-  if (environment == null) return const [];
-  return pluginWebViewProcesses(await environment.getProcessInfos());
+Future<WebViewProcessSnapshot> _listProcesses() =>
+    collectPluginWebViewProcesses(WebViewEnvironmentHolder.environment);
+
+final _pendingProcessLists = Expando<Future<List<BrowserProcessInfo>>>();
+
+/// בקשה אחת לכל סביבה, גם אם הדוגם הפסיק להמתין לתשובה שלה.
+Future<WebViewProcessSnapshot> collectPluginWebViewProcesses(
+  WebViewEnvironment? environment,
+) async {
+  if (environment == null) {
+    return const WebViewProcessSnapshot(
+      collection: ProcessCollection.unavailable(
+        'webview_environment_unavailable',
+        source: 'WebViewEnvironment.getProcessInfos',
+      ),
+    );
+  }
+  if (_pendingProcessLists[environment] != null) {
+    return const WebViewProcessSnapshot(
+      collection: ProcessCollection.unavailable(
+        'process_info_pending',
+        source: 'WebViewEnvironment.getProcessInfos',
+      ),
+    );
+  }
+  final pending = Future<List<BrowserProcessInfo>>.sync(
+    environment.getProcessInfos,
+  );
+  _pendingProcessLists[environment] = pending;
+  try {
+    return pluginWebViewProcessSnapshot(await pending);
+  } finally {
+    _pendingProcessLists[environment] = null;
+  }
 }
+
+/// בחוזה ה-native הנעול, רשימה ריקה עשויה גם לציין כשל באיסוף.
+WebViewProcessSnapshot pluginWebViewProcessSnapshot(
+  List<BrowserProcessInfo> infos,
+) => infos.isEmpty
+    ? const WebViewProcessSnapshot(
+        collection: ProcessCollection.unavailable(
+          'empty_process_list_ambiguous',
+          source: 'WebViewEnvironment.getProcessInfos',
+        ),
+      )
+    : WebViewProcessSnapshot.collected(pluginWebViewProcesses(infos));
 
 /// תהליכי ה-WebView מ-`getProcessInfos()`.
 @visibleForTesting
 List<WebViewProcess> pluginWebViewProcesses(List<BrowserProcessInfo> infos) => [
   for (final info in infos)
-    if (info.processId case final id?)
-      (
-        kind: info.kind.name(),
-        pid: id,
-        page: framePageLabel(info.frameInfos?.firstOrNull?.request?.url),
-      ),
+    (
+      kind: info.kind.name(),
+      pid: info.processId,
+      page: framePageLabel(info.frameInfos?.firstOrNull?.request?.url),
+    ),
 ];
 
 /// התווית של ה-main frame: תיקיית הקובץ (תיקיית התוסף) ב-`file:`, ה-host בשאר.

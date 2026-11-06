@@ -10,6 +10,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
+import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
 import 'package:path/path.dart' as p;
 
 import '../tool/perf_probe/src/report.dart' show sampleDistribution;
@@ -92,21 +93,15 @@ void main() {
       if (errors.isNotEmpty) throw StateError(errors.join('\n'));
     };
 
+    Future<WebViewProcessSnapshot> listProcesses() =>
+        collectPluginWebViewProcesses(environment);
+
     Future<void> memory(String phase, String boundary) async {
       ProcessTreeSample? sample;
       String? error;
       try {
         sample = await sampleProcessTree(
-          webViewProcesses: environment == null
-              ? null
-              : () async {
-                  final infos = await environment!.getProcessInfos();
-                  return [
-                    for (final info in infos)
-                      if (info.processId case final id?)
-                        (kind: info.kind.name(), pid: id, page: null),
-                  ];
-                },
+          webViewProcesses: listProcesses,
         ).timeout(_deadline);
       } catch (exception) {
         error = exception.toString();

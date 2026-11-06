@@ -239,11 +239,26 @@ void main() {
         rssMb: 300,
         peakRssMb: 320,
         processes: ProcessTreeSample(
+          webviewCollection: ProcessCollection.collected(),
           metric: ProcessMemoryMetric.privateCommit,
           hostPrivMb: 262,
           webview: {
-            'BROWSER': (count: 1, privMb: 61, eachMb: [61], pages: []),
-            'RENDERER': (count: 2, privMb: 130, eachMb: [70, 60], pages: []),
+            'BROWSER': (
+              count: 1,
+              observedCount: 1,
+              privMb: 61,
+              eachMb: [61],
+              pages: [],
+              measuredPageCount: 0,
+            ),
+            'RENDERER': (
+              count: 2,
+              observedCount: 2,
+              privMb: 130,
+              eachMb: [70, 60],
+              pages: [],
+              measuredPageCount: 0,
+            ),
           },
         ),
       ),
@@ -251,18 +266,28 @@ void main() {
     expect(text, contains('memory    300 MiB  peak 320 MiB  commit 262 MiB'));
     expect(
       text,
-      contains('webview   commit 191 MiB  3 proc  2 rend 130 MiB (max 70)'),
+      contains('webview   commit 191 MiB (observed)'),
     );
+    expect(text, contains('processes 3 observed  3 measured  0 unavailable'));
+    expect(text, contains('renderers 2/2 measured  130 MiB (max 70)'));
   });
 
   test('formatFrameStats distinguishes anonymous RSS from private commit', () {
     final text = formatFrameStats(
       const FrameStats(
         processes: ProcessTreeSample(
+          webviewCollection: ProcessCollection.collected(),
           metric: ProcessMemoryMetric.anonymousRss,
           hostPrivMb: 15,
           webview: {
-            'RENDERER': (count: 1, privMb: 4, eachMb: [4], pages: []),
+            'RENDERER': (
+              count: 1,
+              observedCount: 1,
+              privMb: 4,
+              eachMb: [4],
+              pages: [],
+              measuredPageCount: 0,
+            ),
           },
         ),
       ),
@@ -287,16 +312,126 @@ void main() {
     final text = formatFrameStats(
       const FrameStats(
         processes: ProcessTreeSample(
+          webviewCollection: ProcessCollection.collected(),
           metric: ProcessMemoryMetric.privateCommit,
           webview: {
-            'RENDERER': (count: 1, privMb: 4, eachMb: [], pages: []),
+            'RENDERER': (
+              count: 1,
+              observedCount: 1,
+              privMb: 4,
+              eachMb: [],
+              pages: [],
+              measuredPageCount: 0,
+            ),
           },
         ),
       ),
     );
-    expect(text, contains('webview   commit 4 MiB  1 proc  1 rend 4 MiB'));
+    expect(text, contains('webview   commit 4 MiB (observed)'));
+    expect(text, contains('renderers 1/1 measured  4 MiB'));
     expect(text, isNot(contains('max 0')));
     expect(text, isNot(contains('(max')));
+  });
+
+  test('partial and missing memory stay explicit in diagnostic text', () {
+    final sample = buildProcessTreeSample(
+      metric: ProcessMemoryMetric.privateCommit,
+      hostBytes: 8 << 20,
+      processes: [
+        (kind: 'RENDERER', bytes: 3 << 20, page: null),
+        (kind: 'RENDERER', bytes: null, page: null),
+        (kind: 'GPU', bytes: null, page: null),
+      ],
+    );
+    final text = formatFrameStats(FrameStats(processes: sample));
+    expect(text, contains('commit 8 MiB'));
+    expect(text, contains('webview   commit 3 MiB (partial)'));
+    expect(text, contains('processes 3 observed  1 measured  2 unavailable'));
+    expect(text, contains('renderers 1/2 measured  3 MiB'));
+  });
+
+  test(
+    'unreadable and empty observations never display zero engine memory',
+    () {
+      for (final processes in [
+        <({String kind, int? bytes, String? page})>[],
+        [(kind: 'RENDERER', bytes: null, page: null)],
+      ]) {
+        final sample = buildProcessTreeSample(
+          hostBytes: null,
+          processes: processes,
+        );
+        final text = formatFrameStats(FrameStats(processes: sample));
+        expect(text, contains('webview   memory unavailable'));
+        expect(text, contains('0 measured'));
+        expect(text, isNot(contains('webview   memory 0 MiB')));
+        expect(text, isNot(contains('(max')));
+      }
+    },
+  );
+
+  test('unsupported engine enumeration still shows available host memory', () {
+    final text = formatFrameStats(
+      const FrameStats(
+        processes: ProcessTreeSample(
+          metric: ProcessMemoryMetric.privateCommit,
+          hostPrivMb: 8,
+          webviewCollection: ProcessCollection(
+            status: ProcessCollectionStatus.unsupported,
+            reason: 'process_info_unsupported',
+          ),
+        ),
+      ),
+    );
+    expect(text, contains('commit 8 MiB'));
+    expect(text, contains('webview   memory unsupported'));
+    expect(text, isNot(contains('0 observed')));
+  });
+
+  test('capped details and a partial process source are visible', () {
+    final sample = buildProcessTreeSample(
+      hostBytes: null,
+      webviewCollection: const ProcessCollection.collected(partial: true),
+      processes: [
+        for (var i = 1; i <= 20; i++)
+          (kind: 'RENDERER', bytes: i << 20, page: 'page$i'),
+      ],
+    );
+    final text = formatFrameStats(FrameStats(processes: sample));
+    expect(text, contains('20 observed  20 measured'));
+    expect(text, contains('(max 20)  detail capped  source partial'));
+  });
+
+  testWidgets('coverage renders in the diagnostics panel with a Hebrew host', (
+    tester,
+  ) async {
+    DeveloperDiagnostics.instance.stats.value = FrameStats(
+      processes: buildProcessTreeSample(
+        metric: ProcessMemoryMetric.anonymousRss,
+        hostBytes: 8 << 20,
+        processes: [
+          (kind: 'RENDERER', bytes: 2 << 20, page: null),
+          (kind: 'RENDERER', bytes: null, page: null),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Column(
+              children: [Text('אבחון התוסף'), FrameStatsPanel()],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('אבחון התוסף'), findsOneWidget);
+    final report = find.textContaining('RssAnon 2 MiB (partial)');
+    expect(report, findsOneWidget);
+    expect(Directionality.of(tester.element(report)), TextDirection.ltr);
+    expect(tester.takeException(), isNull);
   });
 
   test('formatFrameStats has no process line without a sample', () {
