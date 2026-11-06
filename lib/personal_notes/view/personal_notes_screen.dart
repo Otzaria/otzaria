@@ -1517,7 +1517,7 @@ class _PersonalNotesManagerScreenState
     if (shouldDelete == true) {
       if (!mounted) return;
       try {
-        await _repository.deleteNote(bookId: note.bookId, noteId: note.id);
+        await _repository.removeNote(noteId: note.id);
         if (mounted) UiSnack.show(NotesMessages.noteDeleted);
       } catch (error) {
         if (mounted) UiSnack.showError(NotesMessages.noteDeleteFailed(error));
@@ -1546,7 +1546,7 @@ class _PersonalNotesManagerScreenState
     if (newLine != null) {
       if (!mounted) return;
       try {
-        await _repository.repositionNote(
+        await _repository.moveNote(
           bookId: note.bookId,
           noteId: note.id,
           lineNumber: newLine,
