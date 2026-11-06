@@ -52,7 +52,7 @@ class ProximityHighlightPattern implements Pattern {
   Iterable<Match> allMatches(String string, [int start = 0]) => [
     for (final span in spans(string))
       if (span[0] >= start && span[1] > span[0])
-        _SpanMatch(this, string, span[0], span[1]),
+        PdfSpanMatch(this, string, span[0], span[1]),
   ];
 
   @override
@@ -71,11 +71,12 @@ class ProximityHighlightPattern implements Pattern {
   int get hashCode => key.hashCode;
 }
 
-class _SpanMatch implements Match {
-  _SpanMatch(this.pattern, this.input, this.start, this.end);
+/// התאמה בלי קבוצות לכידה: הטווח [start]–[end] של [input].
+class PdfSpanMatch<P extends Pattern> implements Match {
+  PdfSpanMatch(this.pattern, this.input, this.start, this.end);
 
   @override
-  final Pattern pattern;
+  final P pattern;
   @override
   final String input;
   @override
