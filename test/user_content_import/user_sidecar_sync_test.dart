@@ -298,6 +298,34 @@ void main() {
       }
     });
 
+    test(
+      'כשל בפתיחת המסד הרשמי דוחה את הקובץ ומשאיר אותו לסריקה הבאה',
+      () async {
+        await addBook('מפרש.txt', 'פירוש');
+        final sidecar = writeSidecar(
+          'מגילה רשמית_links.json',
+          '[{"line_index_1": 2, "line_index_2": 1, '
+              '"path_2": "מפרש.txt", "Conection Type": "linker"}]',
+        );
+
+        final errors = await UserSidecarSync.applyForFolder(
+          userDb: db,
+          folderPath: folder.path,
+          officialError: Exception('seforim.db פגום'),
+        );
+
+        expect(errors, [
+          'מגילה רשמית_links.json: לא ניתן לבדוק את הספרייה הרשמית',
+        ]);
+        final repo = UserContentRepository(db);
+        expect(await repo.sidecarSignature(sidecar.path), isNull);
+        expect(
+          await repo.forwardUserLinks('מגילה רשמית', sourceIsUserBook: false),
+          isEmpty,
+        );
+      },
+    );
+
     test('שינוי במסד הרשמי מבטל חתימת קובץ קישורים שלא השתנה', () async {
       final officialPath = p.join(tempDir.path, 'seforim.db');
       final officialDb = MyDatabase.withPath(officialPath);

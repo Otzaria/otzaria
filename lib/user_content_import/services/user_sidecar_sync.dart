@@ -34,6 +34,7 @@ class UserSidecarSync {
     required MyDatabase userDb,
     required String folderPath,
     SeforimRepository? officialRepository,
+    Exception? officialError,
   }) async {
     final repo = UserContentRepository(userDb);
     final errors = <String>[];
@@ -59,6 +60,7 @@ class UserSidecarSync {
               kind,
               errors,
               officialRepository: officialRepository,
+              officialError: officialError,
               officialStamp: officialStamp,
             );
           } catch (e) {
@@ -105,6 +107,7 @@ class UserSidecarSync {
     _SidecarKind kind,
     List<String> errors, {
     SeforimRepository? officialRepository,
+    Exception? officialError,
     String? officialStamp,
   }) async {
     final name = p.basename(file.path);
@@ -115,6 +118,7 @@ class UserSidecarSync {
         name,
         errors,
         officialRepository: officialRepository,
+        officialError: officialError,
         officialStamp: officialStamp,
       );
       return;
@@ -245,6 +249,7 @@ class UserSidecarSync {
     String name,
     List<String> errors, {
     SeforimRepository? officialRepository,
+    Exception? officialError,
     String? officialStamp,
   }) async {
     final repo = UserContentRepository(userDb);
@@ -262,6 +267,7 @@ class UserSidecarSync {
     final resolvers = userLinkResolversFor(
       userDb,
       officialRepository: officialRepository,
+      officialError: officialError,
     );
     final db = await userDb.database;
     db.execute('SAVEPOINT apply_sidecar_links');
