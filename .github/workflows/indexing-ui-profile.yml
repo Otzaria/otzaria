@@ -32,6 +32,10 @@ jobs:
               throw 'Both source revisions must be full commit SHAs.'
             }
           }
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not enable Git long paths.'
+          }
           $pairRoot = Join-Path $env:RUNNER_TEMP 'indexing-ui-profile'
           "PAIR_ROOT=$pairRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
           New-Item -ItemType Directory -Path $pairRoot | Out-Null
