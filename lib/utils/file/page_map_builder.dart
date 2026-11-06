@@ -19,30 +19,23 @@ class PageMap {
       pdfPages.length >= 2 && textIndices.length >= 2;
 
   /// Converts a PDF page to a text index via binary search + linear interpolation.
-  int? pdfToText(int page) {
-    if (pdfPages.isEmpty) return null;
-    final i = _lowerBound(pdfPages, page);
-    if (i == 0) return textIndices.first;
-    if (i >= pdfPages.length) return textIndices.last;
-    final pA = pdfPages[i - 1], pB = pdfPages[i];
-    final tA = textIndices[i - 1], tB = textIndices[i];
-    if (pB == pA) return tA;
-    return tA + ((page - pA) * (tB - tA) / (pB - pA)).round();
-  }
+  int? pdfToText(int page) => _interpolate(pdfPages, textIndices, page);
 
   /// Converts a text index to a PDF page via binary search + linear interpolation.
-  int? textToPdf(int index) {
-    if (textIndices.isEmpty) return null;
-    final i = _lowerBound(textIndices, index);
-    if (i == 0) return pdfPages.first;
-    if (i >= textIndices.length) return pdfPages.last;
-    final tA = textIndices[i - 1], tB = textIndices[i];
-    final pA = pdfPages[i - 1], pB = pdfPages[i];
-    if (tB == tA) return pA;
-    return pA + ((index - tA) * (pB - pA) / (tB - tA)).round();
+  int? textToPdf(int index) => _interpolate(textIndices, pdfPages, index);
+
+  static int? _interpolate(List<int> from, List<int> to, int x) {
+    if (from.isEmpty) return null;
+    final i = _lowerBound(from, x);
+    if (i == 0) return to.first;
+    if (i >= from.length) return to.last;
+    final fromA = from[i - 1], fromB = from[i];
+    final toA = to[i - 1], toB = to[i];
+    if (fromB == fromA) return toA;
+    return toA + ((x - fromA) * (toB - toA) / (fromB - fromA)).round();
   }
 
-  int _lowerBound(List<int> a, int x) {
+  static int _lowerBound(List<int> a, int x) {
     var lo = 0, hi = a.length;
     while (lo < hi) {
       final mid = (lo + hi) >> 1;
