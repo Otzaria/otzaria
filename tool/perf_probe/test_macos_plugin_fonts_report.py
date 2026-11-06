@@ -19,9 +19,12 @@ def report(mode, count=1):
                 'outcome': {'reason': 'style-blocked' if blocked else 'loaded'}}
         if mode == 'scheme' and scenario != 'normal':
             prep['schemeFailure'] = 'style-blocked' if blocked else 'font-load-failed'
-        cases.append({'scenario': scenario, 'status': 'passed', 'views': [{
+        cases.append({'scenario': scenario, 'status': 'passed', 'cleanupStatus': 'completed', 'views': [{
             'index': 0, 'preparation': prep, 'bootJavascriptUtf8Bytes': 50000,
-            'status': 'completed',
+            'status': 'completed', 'disposed': True,
+            'events': [{'event': 'navigation-decision', 'policy': 'allow',
+                        'isForMainFrame': True,
+                        'url': f'otzaria-plugin://font.probe/{scenario}.html'}],
             'operations': [{'name': name, 'status': 'completed'} for name in
                            ['font-preparation', 'boot', 'rendering'] + ([] if blocked else ['screenshot'])],
             'bootAcknowledged': True,
@@ -58,6 +61,34 @@ class ReportTests(unittest.TestCase):
         summary = validate_pair(self.data, self.scheme)
         self.assertEqual(summary['decision'], 'keep-default-off')
         self.assertTrue(summary['normalSchemeVerified'])
+
+    def test_navigation_requires_an_explicit_allow_for_the_exact_document(self):
+        view = self.scheme['cases'][0]['views'][0]
+        expected = copy.deepcopy(view['events'])
+        for events in ([], [dict(expected[0], policy='cancel')],
+                       [dict(expected[0], isForMainFrame=False)],
+                       [dict(expected[0], url='otzaria-plugin://other/normal.html')],
+                       expected + [dict(expected[0], policy='cancel')]):
+            with self.subTest(events=events):
+                view['events'] = events
+                with self.assertRaisesRegex(ValueError, 'navigation was not allowed'):
+                    validate_pair(self.data, self.scheme)
+
+    def test_late_cleanup_failure_cannot_be_a_passing_case(self):
+        case = self.scheme['cases'][0]
+        for status in ('pending', 'failed', None):
+            case['cleanupStatus'] = status
+            with self.assertRaisesRegex(ValueError, 'cleanup did not complete'):
+                validate_pair(self.data, self.scheme)
+        case['cleanupStatus'] = 'completed'
+        case['cleanupError'] = 'timed out'
+        with self.assertRaisesRegex(ValueError, 'cleanup did not complete'):
+            validate_pair(self.data, self.scheme)
+
+    def test_completed_rendering_requires_view_disposal(self):
+        self.scheme['cases'][0]['views'][0]['disposed'] = False
+        with self.assertRaisesRegex(ValueError, 'disposal was not observed'):
+            validate_pair(self.data, self.scheme)
 
     def test_completed_samples_cannot_hide_failed_run_or_case(self):
         for target in (self.scheme, self.scheme['cases'][0], self.scheme['cases'][0]['views'][0]):

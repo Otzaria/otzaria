@@ -22,6 +22,9 @@ class FontProbeViewProgress {
 
   final Map<String, Object?> report;
   final _clock = Stopwatch();
+  final _disposal = Completer<void>();
+
+  Future<void> get whenDisposed => _disposal.future;
   bool _disposed = false;
 
   bool get isActive => !_disposed && report['status'] != 'failed';
@@ -125,42 +128,10 @@ class FontProbeViewProgress {
     }
     if (report['status'] == 'pending') report['status'] = 'disposed';
     record('disposed');
+    if (!_disposal.isCompleted) _disposal.complete();
   }
 
   Object? _bounded(Object? value) => value is String && value.length > 2048
       ? '${value.substring(0, 2048)}… [truncated]'
       : value;
-}
-
-Future<T> pumpFontProbeUntil<T>(
-  Future<T> future, {
-  required Future<void> Function(Duration) pumpFrame,
-  Future<void> Function()? start,
-  Duration timeout = const Duration(seconds: 60),
-}) async {
-  T? value;
-  Object? error;
-  StackTrace? stack;
-  var done = false;
-  future.then(
-    (v) {
-      value = v;
-      done = true;
-    },
-    onError: (Object e, StackTrace s) {
-      error = e;
-      stack = s;
-      done = true;
-    },
-  );
-  final watch = Stopwatch()..start();
-  if (start != null) await start().timeout(timeout);
-  while (!done && watch.elapsed < timeout) {
-    await pumpFrame(
-      const Duration(milliseconds: 100),
-    ).timeout(timeout - watch.elapsed);
-  }
-  if (!done) throw TimeoutException('Font probe did not finish', timeout);
-  if (error != null) Error.throwWithStackTrace(error!, stack!);
-  return value as T;
 }

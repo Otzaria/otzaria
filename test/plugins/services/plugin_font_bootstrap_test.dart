@@ -340,21 +340,24 @@ void main() {
     );
   });
 
-  test(
-    'real SDK boots once with event options when only fonts are unavailable',
-    () async {
-      final controller = _Controller(bindingError: 'font binding unavailable');
-      final preparation = await preparePluginFontExperiment(
-        controller,
-        lease: lease,
-        theme: theme,
-        isCurrent: () => true,
-      );
-      expect(preparation.ready, isFalse);
-      controller.onBoot = (source) async {
-        final process = await Process.run('node', [
-          '-e',
-          '''
+  for (final guarded in [false, true]) {
+    test(
+      'real SDK boots synchronously ${guarded ? 'with a font guard' : 'without a font guard'}',
+      () async {
+        final controller = _Controller(
+          bindingError: 'font binding unavailable',
+        );
+        final preparation = await preparePluginFontExperiment(
+          controller,
+          lease: lease,
+          theme: theme,
+          isCurrent: () => true,
+        );
+        expect(preparation.ready, isFalse);
+        controller.onBoot = (source) async {
+          final process = await Process.run('node', [
+            '-e',
+            '''
 const document = {
   __otzariaFontDocumentId: 'document-1',
   __otzariaFontBootAttempt: ${jsonEncode(lease.id)}
@@ -381,28 +384,36 @@ window.addEventListener('plugin.ready', () => ready++);
 window.addEventListener('plugin.boot', () => boots++);
 window.Otzaria.on('book.opened', () => {}, {rawDivineNames: true});
 const value = eval(${jsonEncode(source)});
-console.log(JSON.stringify({value, ready, boots}));
+console.log(JSON.stringify({value, ready, boots,
+  isPromise: !!value && typeof value.then === 'function',
+  eventOptionsPromise: !!value?.eventOptions && typeof value.eventOptions.then === 'function'}));
 ''',
-        ]);
-        expect(process.exitCode, 0, reason: process.stderr.toString());
-        final output = jsonDecode(process.stdout.toString()) as Map;
-        expect(output['ready'], 1);
-        expect(output['boots'], 1);
-        return output['value'];
-      };
-      final boot = await preparation.evaluateBoot(
-        controller,
-        source: buildPluginBootScript(
+          ]);
+          expect(process.exitCode, 0, reason: process.stderr.toString());
+          final output = jsonDecode(process.stdout.toString()) as Map;
+          expect(output['ready'], 1);
+          expect(output['boots'], 1);
+          expect(output['isPromise'], isFalse);
+          expect(output['eventOptionsPromise'], isFalse);
+          return output['value'];
+        };
+        final source = buildPluginBootScript(
           nonceJson: jsonEncode('font-test'),
           payloadJson: jsonEncode({'theme': theme}),
-        ),
-        isCurrent: () => true,
-      );
-      expect(boot.eventOptions, [
-        {'topic': 'book.opened', 'rawDivineNames': true},
-      ]);
-    },
-  );
+        );
+        final eventOptions = guarded
+            ? (await preparation.evaluateBoot(
+                controller,
+                source: source,
+                isCurrent: () => true,
+              )).eventOptions
+            : await controller.evaluateJavascript(source: source);
+        expect(eventOptions, [
+          {'topic': 'book.opened', 'rawDivineNames': true},
+        ]);
+      },
+    );
+  }
 
   test(
     'navigation before queued native execution cannot report boot success',
