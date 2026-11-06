@@ -258,7 +258,7 @@
 | Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
 | Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
 | Focus restore | `test/core/focus_restore_test.dart` |
-| Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |
+| Models (books, links) | `test/models/books_test.dart`, `…links_test.dart` |
 | Link types (נרמול, סוג קנוני, תוויות) | `test/models/link_types_test.dart` |
 | Utils (page map builder, page converter, TOC parser) | `test/utils/page_map_builder_test.dart`, `…page_converter_test.dart`, `…toc_parser_test.dart` |
 | Utils (link processing) | `test/text_book/utils/link_processing_test.dart` |
