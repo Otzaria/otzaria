@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:win32/win32.dart' as win;
@@ -140,6 +141,115 @@ Future<void> sendNativePaste(
         reason:
             'The injected keys must be released even if an assertion fails.',
       );
+    } finally {
+      HardwareKeyboard.instance.removeHandler(observe);
+    }
+  }
+}
+
+/// Submits down/down/up/up together, without holding Ctrl until Dart responds.
+/// Zero wScan is submitted to Windows; the engine's received scan code may differ.
+Future<List<Map<String, Object?>>> sendNativeBatchedPaste(
+  WidgetTester tester, {
+  required bool Function() applied,
+}) async {
+  await focusNativeReportWindow(tester);
+  expect(win.GetAsyncKeyState(win.VK_CONTROL) & 0x8000, 0);
+  expect(win.GetAsyncKeyState(win.VK_V) & 0x8000, 0);
+  final trace = <Map<String, Object?>>[];
+  var observed = false;
+  bool observe(KeyEvent event) {
+    if (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+        event.logicalKey == LogicalKeyboardKey.controlRight ||
+        event.logicalKey == LogicalKeyboardKey.keyV) {
+      trace.add({
+        'type': event.runtimeType.toString(),
+        'logical': event.logicalKey.keyId,
+        'physical': event.physicalKey.usbHidUsage,
+        'synthesized': event.synthesized,
+        'controlPressed': HardwareKeyboard.instance.isControlPressed,
+        'win32LeftControlPressedAtCallback':
+            (win.GetKeyState(win.VK_LCONTROL) & 0x8000) != 0,
+      });
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.keyV &&
+          !event.synthesized) {
+        observed = true;
+      }
+    }
+    return false;
+  }
+
+  bool released() =>
+      !HardwareKeyboard.instance.isControlPressed &&
+      !HardwareKeyboard.instance.logicalKeysPressed.contains(
+        LogicalKeyboardKey.keyV,
+      ) &&
+      (win.GetAsyncKeyState(win.VK_CONTROL) & 0x8000) == 0 &&
+      (win.GetAsyncKeyState(win.VK_V) & 0x8000) == 0;
+
+  Object? firstError;
+  HardwareKeyboard.instance.addHandler(observe);
+  try {
+    final submitted = using((arena) {
+      final inputs = arena<win.INPUT>(4);
+      final keys = [win.VK_CONTROL, win.VK_V, win.VK_V, win.VK_CONTROL];
+      for (var index = 0; index < keys.length; index++) {
+        inputs[index].type = win.INPUT_KEYBOARD;
+        inputs[index].ki.wVk = keys[index];
+        inputs[index].ki.wScan = 0;
+        inputs[index].ki.dwFlags = win.KEYBD_EVENT_FLAGS(
+          index >= 2 ? win.KEYEVENTF_KEYUP : 0,
+        );
+      }
+      return win.SendInput(4, inputs, sizeOf<win.INPUT>()).value;
+    });
+    expect(submitted, 4, reason: 'Windows must accept the complete key batch.');
+    await pumpNativeUntil(
+      tester,
+      () => observed && applied() && released(),
+      reason:
+          'The complete native chord must paste once and release all keys; '
+          'trace: $trace',
+    );
+    expect(_windowProcess(win.GetForegroundWindow()), pid);
+    return List<Map<String, Object?>>.unmodifiable(trace);
+  } catch (error, stack) {
+    firstError = error;
+    debugPrint('Batched paste failure before cleanup: $error\n$stack');
+    rethrow;
+  } finally {
+    final beforeCleanup = <String, Object?>{
+      'observedV': observed,
+      'released': released(),
+      'frameworkKeys': HardwareKeyboard.instance.logicalKeysPressed
+          .map((key) => key.keyId)
+          .toList(),
+      'win32ControlPressed':
+          (win.GetAsyncKeyState(win.VK_CONTROL) & 0x8000) != 0,
+      'win32VPressed': (win.GetAsyncKeyState(win.VK_V) & 0x8000) != 0,
+    };
+    try {
+      beforeCleanup['applied'] = applied();
+    } catch (error) {
+      beforeCleanup['appliedError'] = error.toString();
+    }
+    debugPrint(
+      'Batched native Ctrl+V state before cleanup: $beforeCleanup',
+    );
+    debugPrint('Batched native Ctrl+V trace: $trace');
+    try {
+      if (!released()) {
+        expect(_sendKeys([win.VK_V, win.VK_CONTROL], release: true), 2);
+        await pumpNativeUntil(
+          tester,
+          released,
+          reason: 'Batched paste must not leave Ctrl or V pressed.',
+        );
+      }
+    } catch (error, stack) {
+      debugPrint('Batched paste cleanup failure: $error\n$stack');
+      if (firstError == null) rethrow;
     } finally {
       HardwareKeyboard.instance.removeHandler(observe);
     }

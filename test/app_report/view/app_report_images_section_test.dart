@@ -104,47 +104,25 @@ void main() {
       await tester.pump();
     }
 
-    void replayHistoryPaste() {
-      // Replay the KeyEvent trace documented in flutter/flutter#143997.
-      // The test simulator's physical scan-code map cannot encode this value.
-      const physical = PhysicalKeyboardKey(0x1600000000);
-      for (final event in const <KeyEvent>[
-        KeyDownEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.controlLeft,
-          timeStamp: Duration.zero,
-        ),
-        KeyUpEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.controlLeft,
-          timeStamp: Duration.zero,
-          synthesized: true,
-        ),
-        KeyDownEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.keyV,
-          timeStamp: Duration.zero,
-        ),
-        KeyUpEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.keyV,
-          timeStamp: Duration.zero,
-        ),
-        KeyDownEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.controlLeft,
-          timeStamp: Duration.zero,
-          synthesized: true,
-        ),
-        KeyUpEvent(
-          physicalKey: physical,
-          logicalKey: LogicalKeyboardKey.controlLeft,
-          timeStamp: Duration.zero,
-          synthesized: true,
-        ),
-      ]) {
-        HardwareKeyboard.instance.handleKeyEvent(event);
-      }
+    Future<void> replayNormalizedPaste(WidgetTester tester) async {
+      // Models the framework contract after native scan-code normalization.
+      // The Windows integration tests verify the actual native event conversion.
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.keyV,
+        physicalKey: PhysicalKeyboardKey.keyV,
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.keyV,
+        physicalKey: PhysicalKeyboardKey.keyV,
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+      );
     }
 
     Future<void> pressPaste(WidgetTester tester) async {
@@ -219,11 +197,11 @@ void main() {
       });
 
       testWidgets(
-        'Windows history V after early Ctrl-up pastes once (text focus: $withTextField)',
+        'normalized Windows Ctrl+V pastes images once (text focus: $withTextField)',
         (tester) async {
           final sources = _FakeSources(clipboard: [_image('history.png')]);
           await pump(tester, sources, withTextField: withTextField);
-          replayHistoryPaste();
+          await replayNormalizedPaste(tester);
           await tester.pump();
           expect(images.single.fileName, 'history.png');
           expect(sources.clipboardReads, [withTextField]);
@@ -232,13 +210,96 @@ void main() {
       );
     }
 
-    testWidgets('ordinary text paste and Windows history text are preserved', (
+    for (final withAlt in [false, true]) {
+      testWidgets(
+        'virtual V without a paste chord never reads or pastes clipboard (Alt: $withAlt)',
+        (tester) async {
+          const originalText = 'Original report text';
+          const clipboardText = 'This is not a paste request';
+          var plainTextClipboardReads = 0;
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            (call) async {
+              if (call.method == 'Clipboard.getData') {
+                plainTextClipboardReads++;
+                return {'text': clipboardText};
+              }
+              return null;
+            },
+          );
+          addTearDown(
+            () => tester.binding.defaultBinaryMessenger
+                .setMockMethodCallHandler(SystemChannels.platform, null),
+          );
+          final sources = _FakeSources(clipboard: [_image('unrequested.png')]);
+          await pump(tester, sources, withTextField: true);
+          await tester.enterText(
+            find.byKey(const ValueKey('field')),
+            originalText,
+          );
+          await tester.pump();
+
+          if (withAlt) {
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+          }
+          try {
+            // A missing scan code does not establish a clipboard-history paste.
+            // This sequence deliberately has no Ctrl or Win key event.
+            const physical = PhysicalKeyboardKey(0x1600000000);
+            HardwareKeyboard.instance.handleKeyEvent(
+              const KeyDownEvent(
+                physicalKey: physical,
+                logicalKey: LogicalKeyboardKey.keyV,
+                timeStamp: Duration.zero,
+              ),
+            );
+            HardwareKeyboard.instance.handleKeyEvent(
+              const KeyUpEvent(
+                physicalKey: physical,
+                logicalKey: LogicalKeyboardKey.keyV,
+                timeStamp: Duration.zero,
+              ),
+            );
+            await tester.pump();
+          } finally {
+            if (withAlt) {
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+            }
+          }
+          await tester.pump();
+
+          final editor = tester.widget<EditableText>(find.byType(EditableText));
+          expect(
+            {
+              'imageClipboardReads': sources.clipboardReads,
+              'plainTextClipboardReads': plainTextClipboardReads,
+              'attachedImages': images.length,
+              'reportText': editor.controller.text,
+            },
+            {
+              'imageClipboardReads': <bool>[],
+              'plainTextClipboardReads': 0,
+              'attachedImages': 0,
+              'reportText': originalText,
+            },
+            reason: 'A virtual V alone or with Alt is not a paste command.',
+          );
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    testWidgets('ordinary and normalized Ctrl+V each paste text once', (
       tester,
     ) async {
+      var plainTextReads = 0;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        (call) async =>
-            call.method == 'Clipboard.getData' ? {'text': 'טקסט'} : null,
+        (call) async {
+          if (call.method != 'Clipboard.getData') return null;
+          plainTextReads++;
+          return {'text': 'טקסט'};
+        },
       );
       addTearDown(
         () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -246,13 +307,17 @@ void main() {
           null,
         ),
       );
-      await pump(tester, _FakeSources(), withTextField: true);
+      final sources = _FakeSources();
+      await pump(tester, sources, withTextField: true);
       await pressPaste(tester);
       await tester.pump();
       expect(find.text('טקסט'), findsOneWidget);
-      replayHistoryPaste();
+      expect(plainTextReads, 1);
+      await replayNormalizedPaste(tester);
       await tester.pump();
       expect(find.text('טקסטטקסט'), findsOneWidget);
+      expect(plainTextReads, 2);
+      expect(sources.clipboardReads, [true, true]);
       expect(images, isEmpty);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 

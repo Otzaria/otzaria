@@ -3,9 +3,11 @@
 
 #include <windows.h>
 
-// מתקן הודעות Shift עם דגל extended או scancode חריג לפני שה-engine רואה אותן.
-// ה-engine רושם אותן כמקש פיזי לא מוכר שאינו משתחרר, ולחיצה מרחיבה בחירה (#1645).
-// TODO: למחוק כשה-engine יתקן את flutter/flutter#181907.
+// מתקן קודי סריקה חסרים של Ctrl/V והודעות Shift חריגות לפני מיפוי ה-engine,
+// כדי שמקשים שונים לא יירשמו כאותו מקש פיזי לא מוכר.
 void InstallShiftKeyNormalizer(HWND flutter_view);
+
+// רץ לפני TranslateMessage כדי שגם הודעות התו יקבלו את קוד הסריקה התקין.
+void NormalizeFlutterKeyboardMessage(MSG& message);
 
 #endif  // RUNNER_SHIFT_KEY_NORMALIZER_H_
