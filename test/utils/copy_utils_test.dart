@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_clipboard/super_clipboard.dart';
+import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
@@ -36,6 +37,24 @@ void main() {
   });
 
   group('CopyUtils.applyCopyPreferencesForClipboard', () {
+    test('מקף מוקף רווחים שהוסתר בהעתקה אינו משאיר רווח כפול', () {
+      const line =
+          'וְטַבְּעוֹתָיו בְּיָדָיו — פָּטוּר, וְאִילּוּ הוֹצִיאָן כְּמוֹת שֶׁהֵן — חַיָּיב.';
+      final result = CopyUtils.applyCopyPreferencesForClipboard(
+        plainText: line,
+        htmlText: '<b>$line</b>',
+        replaceHolyNames: false,
+        profile: const TextDisplayProfile(
+          nikud: MarkVisibility.hide,
+          punctuation: MarkVisibility.hide,
+        ),
+      );
+
+      const expected = 'וטבעותיו בידיו פטור ואילו הוציאן כמות שהן חייב.';
+      expect(result.plainText, expected);
+      expect(result.htmlText, '<b>$expected</b>');
+    });
+
     test('שומר תגיות HTML כאשר שם הוי"ה נמצא בתוך text node יחיד', () {
       final result = CopyUtils.applyCopyPreferencesForClipboard(
         plainText: 'יהוה',

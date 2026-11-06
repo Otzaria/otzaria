@@ -2,7 +2,7 @@ import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 /// מעבד שורת מקור לטקסט הפשוט שהמשתמש רואה במסך. הרווחים מכווצים כמו
-/// בתצוגת ה-HTML, אחרת רווח כפול שמותיר `removePunctuation` יכשיל את ההתאמה.
+/// בתצוגת ה-HTML, אחרת רווח כפול מהמקור או מ-`removePunctuation` יכשיל את ההתאמה.
 String renderSelectionLine({
   required String rawText,
   required RenderSettings settings,

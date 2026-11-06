@@ -549,8 +549,10 @@ String removePunctuation(String text) {
     var parenDepth = 0;
     var inTag = false;
     var previous = 0; // התו הגלוי האחרון שנכתב
+    var previousWasLiteralSpace = false;
     // רצף פיסוק חולק תוצאת מבט קדימה, גם כשלא נוסף רווח.
     var nextVisible = (0, -1);
+    var skipSpaceAt = -1;
     // יחידות קוד ולא processed[i]: אחרת כל תו מקצה מחרוזת חדשה.
     for (var i = 0; i < processed.length; i++) {
       final ch = processed.codeUnitAt(i);
@@ -568,6 +570,8 @@ String removePunctuation(String text) {
         continue;
       }
 
+      if (i == skipSpaceAt && previousWasLiteralSpace) continue;
+
       // ישות HTML עוברת כמכלול - אחרת ה-";" שלה נמחק כפיסוק והישות מוצגת
       // כטקסט גלוי (למשל "&thinsp" סביב פסק בתנ"ך).
       if (ch == 0x26) {
@@ -577,6 +581,7 @@ String removePunctuation(String text) {
           if (decoded.isNotEmpty) {
             previous = decoded.codeUnitAt(decoded.length - 1);
           }
+          previousWasLiteralSpace = false;
           buffer.write(entity.group(0));
           i = entity.end - 1;
           continue;
@@ -588,6 +593,7 @@ String removePunctuation(String text) {
         parenDepth++;
         buffer.writeCharCode(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
 
@@ -598,6 +604,7 @@ String removePunctuation(String text) {
         }
         buffer.writeCharCode(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
 
@@ -609,6 +616,7 @@ String removePunctuation(String text) {
               i >= lastAllowedPunctuationIndex)) {
         buffer.writeCharCode(ch);
         previous = ch;
+        previousWasLiteralSpace = false;
         continue;
       }
 
@@ -619,12 +627,19 @@ String removePunctuation(String text) {
         if (punctuationSeparatesWords(previous, nextVisible.$1)) {
           buffer.writeCharCode(0x20);
           previous = 0x20;
+          previousWasLiteralSpace = true;
+        } else if (previousWasLiteralSpace &&
+            nextVisible.$2 < processed.length &&
+            processed.codeUnitAt(nextVisible.$2) == 0x20) {
+          // מכווצים רק רווחים רגילים; ישויות ורווחים מיוחדים עשויים לשנות פריסה.
+          skipSpaceAt = nextVisible.$2;
         }
         continue;
       }
 
       buffer.writeCharCode(ch);
       previous = ch;
+      previousWasLiteralSpace = ch == 0x20;
     }
     processed = buffer.toString();
 

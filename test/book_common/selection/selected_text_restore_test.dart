@@ -540,12 +540,10 @@ void main() {
     });
 
     test('מכווץ רווחים כפולים שמותיר הסתרת פיסוק כדי שהתצוגה תתאים', () {
-      // הסתרת פיסוק מסירה את ה"-" ומותירה רווח כפול במקומו;
-      // התצוגה ב-HTML מכווצת אותו, ולכן גם renderSelectionLine חייב לכווץ.
-      expect(removePunctuation('לאמר - דבר').contains('  '), isTrue);
-
+      // התצוגה ב-HTML מכווצת רווחים, ולכן גם renderSelectionLine חייב לכווץ.
+      expect(removePunctuation('לאמר  - דבר'), contains('  '));
       final line = renderSelectionLine(
-        rawText: 'לאמר - דבר',
+        rawText: 'לאמר  - דבר',
         settings: const RenderSettings(removePunctuation: true),
       );
 
