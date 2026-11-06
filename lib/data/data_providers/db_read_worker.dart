@@ -342,6 +342,14 @@ class DbReadWorker {
       .whereType<DbReadWorker>()
       .where((worker) => !worker._disposed);
 
+  /// כולל קריאות שעדיין חיות אחרי timeout, בלי ליצור worker חדש.
+  static bool get hasPendingReads =>
+      _oneShotReads.isNotEmpty ||
+      _fallbackQueue.isNotEmpty ||
+      _batch.isNotEmpty ||
+      _slots.any((slot) => slot.spawnFuture != null) ||
+      _runningWorkers.any((worker) => worker._pending.isNotEmpty);
+
   static Future<DbReadWorker> _instanceOrSpawn(_WorkerSlot slot) {
     final existing = slot.instance;
     if (existing != null && !existing._disposed) return Future.value(existing);
@@ -806,7 +814,8 @@ class DbReadWorker {
   static Future<bool> shrinkMemoryIfRunning() async {
     final results = await Future.wait([
       for (final service in _runningWorkers)
-        if (!service._stalled) service._lifecycle('shrinkMemory', const {}),
+        if (!service._stalled && service._pending.isEmpty)
+          service._lifecycle('shrinkMemory', const {}),
     ]);
     return results.any((result) => result == true);
   }
