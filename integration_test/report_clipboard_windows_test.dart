@@ -176,8 +176,14 @@ void main() {
     );
   });
 
-  for (final shiftInsert in [false, true]) {
-    final shortcut = shiftInsert ? 'Shift+Insert' : 'Ctrl+V';
+  for (final mode in ['ctrlV', 'shiftInsert', 'batchedZeroScanCtrlV']) {
+    final shiftInsert = mode == 'shiftInsert';
+    final batched = mode == 'batchedZeroScanCtrlV';
+    final shortcut = batched
+        ? 'Ctrl+V in one zero-scan batch'
+        : shiftInsert
+        ? 'Shift+Insert'
+        : 'Ctrl+V';
     for (final textFocus in [false, true]) {
       // Separate forms keep the text-only asynchronous clipboard read from
       // overlapping a subsequent clipboard write for the PNG case.
@@ -290,13 +296,19 @@ void main() {
                 item.add(Formats.plainText(text));
               }
               await clipboard.write([item]);
-              await sendNativePaste(
-                tester,
-                shiftInsert: shiftInsert,
-                applied: () => imagePayload
-                    ? (bloc.state as AppReportEditing).images.length == 1
-                    : editor.controller.text == expectedTitle,
-              );
+              bool applied() => imagePayload
+                  ? (bloc.state as AppReportEditing).images.length == 1
+                  : editor.controller.text == expectedTitle;
+              List<Map<String, Object?>>? trace;
+              if (batched) {
+                trace = await sendNativeBatchedPaste(tester, applied: applied);
+              } else {
+                await sendNativePaste(
+                  tester,
+                  shiftInsert: shiftInsert,
+                  applied: applied,
+                );
+              }
               expect(editor.controller.text, expectedTitle);
               expect((bloc.state as AppReportEditing).title, expectedTitle);
               final images = (bloc.state as AppReportEditing).images;
@@ -324,6 +336,12 @@ void main() {
                 'textFieldFocus': textFocus,
                 'foregroundProcessId': pid,
                 'nativeNonSynthesizedKeyDownObserved': true,
+                if (batched) ...{
+                  'sendInputCallsForChord': 1,
+                  'submittedScanCodes': [0, 0, 0, 0],
+                  'heldModifierUntilApplied': false,
+                  'flutterKeyTrace': trace,
+                },
                 'titlePreservedExactly': true,
                 'mixedTextAndImagePreservesTextPrecedence':
                     textFocus && !imagePayload ? true : null,

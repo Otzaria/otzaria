@@ -446,6 +446,11 @@ jobs:
         shell: pwsh
         run: native/splash/test/run_splash_timeline_test.ps1
 
+      - name: Test native keyboard scan codes
+        shell: pwsh
+        timeout-minutes: 3
+        run: test/windows/run_shift_key_normalizer_test.ps1
+
       # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
       # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית
       # בשבריר מהזמן, ובניית ה-release כבר מכוסה ב-build-and-announce.
@@ -476,7 +481,9 @@ jobs:
         uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-native-report-clipboard
-          path: build/reporting_qa/native-clipboard.*
+          path: |
+            build/reporting_qa/native-clipboard.*
+            build/reporting_qa/native-keyboard.log
           if-no-files-found: warn
 
       # ריבוי תצוגות באפליקציה המלאה. `flutter drive` ולא integration_test: ה-binding
