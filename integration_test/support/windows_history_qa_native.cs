@@ -1,9 +1,17 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace WinVQa {
+    public sealed class VisibleWindow {
+        public long handle;
+        public uint processId;
+        public string title, className;
+        public bool visible, sampled;
+        public int sampleX, sampleY;
+    }
     public static class Native {
         [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
         [StructLayout(LayoutKind.Sequential)] struct MouseInput {
@@ -32,6 +40,13 @@ namespace WinVQa {
         [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
         [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point point);
+        delegate bool EnumWindowProc(IntPtr window, IntPtr parameter);
+        [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
+        [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+        [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+        [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int length);
         [DllImport("user32.dll", SetLastError = true)] static extern bool OpenClipboard(IntPtr owner);
         [DllImport("user32.dll", SetLastError = true)] static extern bool EmptyClipboard();
         [DllImport("user32.dll")] static extern bool CloseClipboard();
@@ -42,6 +57,42 @@ namespace WinVQa {
         [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr memory);
         [DllImport("kernel32.dll")] static extern IntPtr GlobalFree(IntPtr memory);
 
+        static void ObserveWindow(Dictionary<long, VisibleWindow> windows, IntPtr window, bool sampled, int x, int y) {
+            if (window == IntPtr.Zero) return;
+            VisibleWindow found;
+            if (!windows.TryGetValue(window.ToInt64(), out found)) {
+                uint process; GetWindowThreadProcessId(window, out process);
+                var title = new StringBuilder(512); var name = new StringBuilder(256);
+                GetWindowText(window, title, title.Capacity); GetClassName(window, name, name.Capacity);
+                found = new VisibleWindow { handle = window.ToInt64(), processId = process, title = title.ToString(),
+                    className = name.ToString(), visible = IsWindowVisible(window) };
+                windows.Add(found.handle, found);
+            }
+            if (sampled) { found.sampled = true; found.sampleX = x; found.sampleY = y; }
+        }
+        public static VisibleWindow[] ObserveDesktopWindows() {
+            var windows = new Dictionary<long, VisibleWindow>();
+            EnumWindows((window, data) => { ObserveWindow(windows, window, false, 0, 0); return true; }, IntPtr.Zero);
+            int left = GetSystemMetrics(76), top = GetSystemMetrics(77), width = GetSystemMetrics(78), height = GetSystemMetrics(79);
+            if (width <= 0 || height <= 0 || width > 8192 || height > 8192) throw new Exception("Unexpected desktop bounds for window observation");
+            for (int y = top + 32; y < top + height; y += 64) {
+                for (int x = left + 32; x < left + width; x += 64) {
+                    IntPtr hit = WindowFromPoint(new Point { X = x, Y = y });
+                    ObserveWindow(windows, hit, true, x, y);
+                    ObserveWindow(windows, GetAncestor(hit, 2), true, x, y);
+                }
+            }
+            var result = new VisibleWindow[windows.Count]; windows.Values.CopyTo(result, 0); return result;
+        }
+        public static bool WindowStillOwned(IntPtr window, uint expectedPid) {
+            uint process; GetWindowThreadProcessId(window, out process);
+            return process == expectedPid && IsWindowVisible(window);
+        }
+        public static bool PointStillOwned(int x, int y, uint expectedPid) {
+            IntPtr window = WindowFromPoint(new Point { X = x, Y = y });
+            uint process; GetWindowThreadProcessId(window, out process);
+            return window != IntPtr.Zero && process == expectedPid && IsWindowVisible(window);
+        }
         static Input Key(ushort key, bool up) {
             Input input = new Input { type = 1 };
             input.data.keyboard.key = key;
@@ -66,8 +117,10 @@ namespace WinVQa {
         }
         public static void ReleaseKeys() { Send(new[] { Key(0x56, true), Key(0x5B, true) }); }
         public static void Escape() { Send(new[] { Key(0x1B, false), Key(0x1B, true) }); }
-        public static void Click(int x, int y) {
+        public static void Click(int x, int y, uint expectedPid) {
+            if (!PointStillOwned(x, y, expectedPid)) throw new Exception("The observed Shell target no longer owns this point");
             if (!SetCursorPos(x, y)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (!PointStillOwned(x, y, expectedPid)) throw new Exception("The observed Shell target moved before its click");
             Input down = new Input(), up = new Input();
             down.data.mouse.flags = 2; up.data.mouse.flags = 4;
             try { Send(new[] { down, up }); } finally { Send(new[] { up }); }

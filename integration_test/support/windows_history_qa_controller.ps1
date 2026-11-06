@@ -19,6 +19,7 @@ $result = [ordered]@{
 }
 $script:deadline = [DateTime]::UtcNow.AddSeconds(70)
 $script:clipboardCall = 0
+$script:verifiedShellProcesses = @{}
 # UI Automation runs in MTA; short, bounded STA helpers own clipboard data.
 $originalCursor = New-Object WinVQa.Native+Point
 [void][WinVQa.Native]::GetCursorPos([ref]$originalCursor)
@@ -49,6 +50,7 @@ function Get-NodeData($Element, [int]$Parent, [int]$Depth) {
     $rectangle = $current.BoundingRectangle
     return [ordered]@{
         parent = $Parent; depth = $Depth; name = $current.Name; automationId = $current.AutomationId
+        runtimeId = @($Element.GetRuntimeId())
         className = $current.ClassName; controlType = $current.ControlType.ProgrammaticName
         processId = $current.ProcessId; enabled = $current.IsEnabled; offscreen = $current.IsOffscreen
         rectangle = @{ x = $rectangle.X; y = $rectangle.Y; width = $rectangle.Width; height = $rectangle.Height }
@@ -56,53 +58,81 @@ function Get-NodeData($Element, [int]$Parent, [int]$Depth) {
 }
 function Read-Branch($Element, [int]$Parent, [int]$Depth, $Nodes, $Budget) {
     Assert-Time
-    if ($Depth -gt 10 -or $Nodes.Count -ge 300 -or $Budget.remaining -le 0) { return }
+    if ($Depth -gt 16 -or $Nodes.Count -ge 600 -or $Budget.remaining -le 0) { return }
     $index = $Nodes.Count
     try { $data = Get-NodeData $Element $Parent $Depth }
     catch { return }
     $Nodes.Add([pscustomobject]@{ element = $Element; data = $data })
     $Budget.remaining--
-    $walker = [Windows.Automation.TreeWalker]::ControlViewWalker
+    $walker = [Windows.Automation.TreeWalker]::RawViewWalker
     try { $child = $walker.GetFirstChild($Element) } catch { return }
-    while ($null -ne $child -and $Nodes.Count -lt 300 -and $Budget.remaining -gt 0) {
+    while ($null -ne $child -and $Nodes.Count -lt 600 -and $Budget.remaining -gt 0) {
         Read-Branch $child $index ($Depth + 1) $Nodes $Budget
         try { $child = $walker.GetNextSibling($child) } catch { break }
     }
 }
 function Snapshot([string]$Name) {
     Assert-Time
+    $capturedAt = [DateTime]::UtcNow.ToString('o')
     # Save the real desktop before any potentially blocking UIA provider call.
     Capture-Screen $Name
     $trees = New-Object 'System.Collections.Generic.List[object]'
     $top = New-Object 'System.Collections.Generic.List[object]'
-    $budget = @{ remaining = 1200 }
+    $budget = @{ remaining = 2000 }
     Save-Json @{ stage = 'enumerating-top-level'; topLevel = @(); shellTrees = @() } "$Name.uia.json"
-    $roots = [Windows.Automation.AutomationElement]::RootElement.FindAll(
-        [Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)
-    foreach ($element in $roots) {
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
+    $observedWindows = [WinVQa.Native]::ObserveDesktopWindows()
+    $windowsObservedAt = [DateTime]::UtcNow.ToString('o')
+    foreach ($window in $observedWindows) {
         Assert-Time
         try {
-            $current = $element.Current
-            $process = [Diagnostics.Process]::GetProcessById($current.ProcessId)
+            $process = [Diagnostics.Process]::GetProcessById($window.processId)
             $processPath = $null
             try { $processPath = $process.MainModule.FileName } catch { }
+            $signatureInfo = $null
             $trusted = $process.ProcessName -in @('TextInputHost', 'InputApp', 'ShellExperienceHost', 'ShellHost', 'explorer') -and
                 $null -ne $processPath -and $processPath.StartsWith(($env:windir.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)
+            if ($trusted) {
+                $identityKey = [string]$process.Id + '|' + $processPath
+                if (!$script:verifiedShellProcesses.ContainsKey($identityKey)) {
+                    $signature = Get-AuthenticodeSignature -LiteralPath $processPath
+                    $script:verifiedShellProcesses[$identityKey] = @{ status = [string]$signature.Status; subject = $signature.SignerCertificate.Subject;
+                        trusted = $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'CN=Microsoft Windows(?:,|$)' }
+                }
+                $signatureInfo = $script:verifiedShellProcesses[$identityKey]
+                $trusted = $signatureInfo.trusted
+            }
             $metadata = [ordered]@{
                 processId = $process.Id; processName = $process.ProcessName; processPath = $processPath
-                window = $current.NativeWindowHandle; name = $current.Name; className = $current.ClassName
-                offscreen = $current.IsOffscreen; trustedWindowsShell = $trusted
+                window = $window.handle; name = $window.title; className = $window.className
+                offscreen = !$window.visible; trustedWindowsShell = $trusted
+                shellSignature = $signatureInfo
+                sampledByWindowFromPoint = $window.sampled; sampleX = $window.sampleX; sampleY = $window.sampleY
             }
             $top.Add($metadata)
-            if (!$trusted -or $current.IsOffscreen) { continue }
+            if ($trusted -and $window.visible) { $candidates.Add($metadata) }
+        } catch { $top.Add(@{ error = $_.Exception.Message; window = $window.handle }) }
+    }
+    $seenRoots = @{}
+    foreach ($metadata in @($candidates | Sort-Object { if ($_.processName -in @('TextInputHost', 'InputApp')) { 0 } else { 1 } })) {
+        Assert-Time
+        try {
+            if (![WinVQa.Native]::WindowStillOwned([IntPtr]$metadata.window, [uint32]$metadata.processId)) { continue }
+            $element = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$metadata.window)
+            if ($null -eq $element -or $element.Current.ProcessId -ne $metadata.processId) { continue }
+            $runtimeId = [string]$metadata.processId + '|' + ($element.GetRuntimeId() -join '.')
+            if ($seenRoots.ContainsKey($runtimeId)) { continue }
+            $seenRoots[$runtimeId] = $true
             $nodes = New-Object 'System.Collections.Generic.List[object]'
             Save-Json @{ stage = 'reading-shell-tree'; currentRoot = $metadata; topLevel = @($top.ToArray()) } "$Name.uia.json"
             Read-Branch $element -1 0 $nodes $budget
             $trees.Add([pscustomobject]@{ root = $metadata; nodes = $nodes })
-        } catch { $top.Add(@{ error = $_.Exception.Message }) }
+        } catch { $top.Add(@{ error = $_.Exception.Message; window = $metadata.window }) }
     }
     $export = @($trees | ForEach-Object { @{ root = $_.root; nodes = @($_.nodes | ForEach-Object { $_.data }) } })
-    Save-Json @{ stage = 'complete'; foreground = [WinVQa.Native]::GetForegroundWindow().ToInt64(); topLevel = @($top.ToArray()); shellTrees = $export; remainingNodeBudget = $budget.remaining } "$Name.uia.json"
+    Save-Json @{ stage = 'complete'; capturedAt = $capturedAt; windowsObservedAt = $windowsObservedAt;
+        foreground = [WinVQa.Native]::GetForegroundWindow().ToInt64(); topLevel = @($top.ToArray()); shellTrees = $export;
+        remainingNodeBudget = $budget.remaining } "$Name.uia.json"
     return @($trees.ToArray())
 }
 function History-Trees($Trees) {
@@ -131,9 +161,14 @@ function Activate-Node($Tree, [int]$Index, [string]$Reason, [string]$Expected) {
     $x = [int]($rectangle.X + $rectangle.Width / 2)
     $y = [int]($rectangle.Y + $rectangle.Height / 2)
     if (!$screen.Contains($x, $y)) { throw 'UI target is outside the captured desktop' }
-    $result.actions += @{ reason = $Reason; mechanism = 'SendInput mouse click'; target = $node.data; root = $Tree.root; x = $x; y = $y }
+    if (![WinVQa.Native]::PointStillOwned($x, $y, [uint32]$Tree.root.processId)) { throw 'The observed Shell target does not own the visible click point' }
+    $action = @{ reason = $Reason; mechanism = 'SendInput mouse click'; target = $node.data; root = $Tree.root;
+        x = $x; y = $y; pointOwnershipVerified = $true; inputSent = $false }
+    $result.actions += $action
     Save-Json $result 'result.json'
-    [WinVQa.Native]::Click($x, $y)
+    [WinVQa.Native]::Click($x, $y, [uint32]$Tree.root.processId)
+    $action.inputSent = $true
+    Save-Json $result 'result.json'
 }
 
 function Focus-Flutter {
@@ -301,9 +336,13 @@ try {
     [WinVQa.Native]::OpenHistory()
     Start-Sleep -Milliseconds 1800
     $histories = @(History-Trees @(Snapshot '02-win-v-initial'))
-    if ($histories.Count -eq 0) {
+    $historyDeadline = [DateTime]::UtcNow.AddSeconds(10)
+    $retry = 0
+    while ($histories.Count -eq 0 -and [DateTime]::UtcNow -lt $historyDeadline) {
+        Assert-Time
         Start-Sleep -Milliseconds 1000
-        $histories = @(History-Trees @(Snapshot '02-win-v-retry'))
+        $histories = @(History-Trees @(Snapshot ('02-win-v-retry-' + $retry)))
+        $retry++
     }
     if ($histories.Count -eq 0) {
         $result.outcome = 'history-window-not-identified'
@@ -320,6 +359,8 @@ try {
             }
         }
     }
+    $turnOn = @($turnOn | Group-Object { $_.tree.root.processId.ToString() + '|' + ($_.tree.nodes[$_.index].element.GetRuntimeId() -join '.') } | ForEach-Object { $_.Group[0] })
+    if ($turnOn.Count -gt 1) { throw 'More than one distinct Windows history Turn on control was observed.' }
     if ($turnOn.Count -eq 1) {
         Activate-Node $turnOn[0].tree $turnOn[0].index 'Enable local history through its real Turn on button' 'Turn on'
         $result.enableButtonInvoked = $true

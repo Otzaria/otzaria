@@ -244,7 +244,10 @@ function Save-QAWindowSnapshot([string]$Name) {
   try {
     $nodes = New-Object 'Collections.Generic.List[object]'
     $budget = @{ remaining = 200 }
-    if ($state.foreground.Hwnd -ne 0) {
+    $element = $null
+    $isFlutter = $state.foreground.ClassName -in @('FLUTTER_RUNNER_WIN32_WINDOW', 'FLUTTERVIEW')
+    if ($isFlutter) { $state['automationSkipped'] = 'Flutter uses Win32 metadata and screenshot only; do not enable platform semantics during a test.' }
+    if (!$isFlutter -and $state.foreground.Hwnd -ne 0) {
       $element = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$state.foreground.Hwnd)
       Read-QaAutomationBranch $element 0 -1 $nodes $budget ([Windows.Automation.TreeWalker]::ControlViewWalker)
     }

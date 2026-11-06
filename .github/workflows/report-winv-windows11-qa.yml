@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [palmoni5/report-winv-after-qa-20261106]
-    paths: ['.github/workflows/report-winv-windows11-qa.yml', 'integration_test/support/windows_history_qa_windows11.ps1']
+    paths: ['.github/workflows/report-winv-windows11-qa.yml', 'integration_test/support/windows_history_qa_windows11.ps1', 'integration_test/support/windows_history_qa_controller.ps1', 'integration_test/support/windows_history_qa_native.cs']
 
 permissions:
   contents: read
@@ -113,6 +113,42 @@ jobs:
           path: flutter-history-x64
           run-id: 42221915069
           github-token: ${{ github.token }}
+      - name: Install the reviewed Shell-only observation helpers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'integration_test/support'
+          $bundle = (Resolve-Path flutter-history-x64).Path
+          $expected = @{
+            'windows_history_qa_controller.ps1' = 'b158ef83e0ca5166c0aa486b491dc35e0eec9eceb8f67da411d5de81ac7fc0a8'
+            'windows_history_qa_native.cs' = '48d0ff3d31ca717327050c29a321fe88dbdb151853ecab3ebe75a6773b778c81'
+          }
+          $exeBefore = (Get-FileHash "$bundle/otzaria.exe").Hash
+          $records = @()
+          New-Item -ItemType Directory "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides" | Out-Null
+          foreach ($name in $expected.Keys) {
+            $target = Join-Path "$bundle/qa" $name
+            $normalized = [Text.Encoding]::UTF8.GetBytes(([IO.File]::ReadAllText($target) -replace "`r`n", "`n"))
+            $oldSourceHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($normalized)).ToLowerInvariant()
+            if ($oldSourceHash -cne $expected[$name]) { throw ('The original bundle helper differs from the reviewed source: ' + $name) }
+            $before = (Get-FileHash $target).Hash
+            Copy-Item (Join-Path $source $name) $target -Force
+            Copy-Item (Join-Path $source $name) "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides/$name"
+            $records += @{ name = $name; originalSha256 = $before; originalNormalizedSha256 = $oldSourceHash; installedSha256 = (Get-FileHash $target).Hash }
+          }
+          $tokens = $null; $errors = $null
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $source 'windows_history_qa_controller.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | Format-List; throw 'The Shell observer failed PowerShell parsing.' }
+          Add-Type -Path (Join-Path $source 'windows_history_qa_native.cs')
+          $signatureCheck = '$ErrorActionPreference="Stop"; $signature=Get-AuthenticodeSignature -LiteralPath (Join-Path $env:windir "System32/user32.dll"); if ($signature.Status -ne "Valid") { throw "The Windows PowerShell signature verifier is unavailable." }'
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($signatureCheck))
+          & "$env:windir/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -NonInteractive -EncodedCommand $encoded
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell could not verify the observed Shell process.' }
+          $exeAfter = (Get-FileHash "$bundle/otzaria.exe").Hash
+          if ($exeAfter -cne $exeBefore) { throw 'The Flutter executable changed while installing observation helpers.' }
+          @{ workflowHead = $env:REPORT_QA_WORKFLOW_HEAD; bundleHead = $env:REPORT_QA_AFTER_HEAD; productHead = $env:REPORT_QA_PRODUCT_HEAD;
+            executableSha256 = $exeAfter; helpers = $records; completionInputSimulated = $false } | ConvertTo-Json -Depth 10 |
+            Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides.json"
       - name: Run actual Flutter history selection under Windows x64 emulation
         timeout-minutes: 21
         shell: pwsh
