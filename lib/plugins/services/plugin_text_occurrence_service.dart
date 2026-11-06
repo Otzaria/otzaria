@@ -4,6 +4,8 @@ import 'package:characters/characters.dart';
 import 'package:crypto/crypto.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
 import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
+import 'package:otzaria/plugins/services/plugin_section_text_map_service.dart'
+    show decodePluginTextCursor, encodePluginTextCursor;
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 
 class PluginTextOccurrenceService {
@@ -124,7 +126,9 @@ class PluginTextOccurrenceService {
     return PluginFindTextOccurrencesResult(
       results: List.unmodifiable(results),
       hasMore: hasMore,
-      nextCursor: hasMore ? _encodeCursor(nextOffset, fingerprint) : null,
+      nextCursor: hasMore
+          ? encodePluginTextCursor(nextOffset, fingerprint)
+          : null,
       totalCount: matches.length,
     );
   }
@@ -177,27 +181,12 @@ class PluginTextOccurrenceService {
       .toString()
       .substring(0, 24);
 
-  String _encodeCursor(int offset, String fingerprint) =>
-      base64Url.encode(utf8.encode('$offset:$fingerprint')).replaceAll('=', '');
-
-  int _decodeCursor(String cursor, String fingerprint) {
-    try {
-      final padded = cursor.padRight((cursor.length + 3) ~/ 4 * 4, '=');
-      final decoded = utf8.decode(base64Url.decode(padded));
-      final separator = decoded.indexOf(':');
-      final offset = int.parse(decoded.substring(0, separator));
-      final cursorFingerprint = decoded.substring(separator + 1);
-      if (offset < 0 || cursorFingerprint != fingerprint) {
-        throw const FormatException();
-      }
-      return offset;
-    } catch (_) {
-      throw const PluginTextOccurrenceException(
+  int _decodeCursor(String cursor, String fingerprint) =>
+      decodePluginTextCursor(cursor, fingerprint) ??
+      (throw const PluginTextOccurrenceException(
         'error.invalid_params',
         'cursor is invalid for this query',
-      );
-    }
-  }
+      ));
 }
 
 class PluginTextOccurrence {

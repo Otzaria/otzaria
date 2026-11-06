@@ -140,7 +140,9 @@ class PluginSectionTextMapService {
       words: words == null ? null : List.unmodifiable(words),
       chars: chars == null ? null : List.unmodifiable(chars),
       hasMore: hasMore,
-      nextCursor: hasMore ? _encodeCursor(nextOffset, fingerprint) : null,
+      nextCursor: hasMore
+          ? encodePluginTextCursor(nextOffset, fingerprint)
+          : null,
     );
   }
 
@@ -262,25 +264,31 @@ class PluginSectionTextMapService {
       .toString()
       .substring(0, 24);
 
-  String _encodeCursor(int offset, String fingerprint) =>
-      base64Url.encode(utf8.encode('$offset:$fingerprint')).replaceAll('=', '');
-
-  int _decodeCursor(String cursor, String fingerprint) {
-    try {
-      final padded = cursor.padRight((cursor.length + 3) ~/ 4 * 4, '=');
-      final decoded = utf8.decode(base64Url.decode(padded));
-      final separator = decoded.indexOf(':');
-      final offset = int.parse(decoded.substring(0, separator));
-      if (offset < 0 || decoded.substring(separator + 1) != fingerprint) {
-        throw const FormatException();
-      }
-      return offset;
-    } catch (_) {
-      throw const PluginSectionTextMapException(
+  int _decodeCursor(String cursor, String fingerprint) =>
+      decodePluginTextCursor(cursor, fingerprint) ??
+      (throw const PluginSectionTextMapException(
         'error.invalid_params',
         'cursor is invalid for this request',
-      );
+      ));
+}
+
+/// סמן העמוד הבא שהתוסף מחזיר כמות שהוא: ההיסט וטביעת הבקשה שיצרה אותו.
+String encodePluginTextCursor(int offset, String fingerprint) =>
+    base64Url.encode(utf8.encode('$offset:$fingerprint')).replaceAll('=', '');
+
+/// ההיסט שב-[cursor], או null כשהסמן פגום או נוצר לבקשה אחרת.
+int? decodePluginTextCursor(String cursor, String fingerprint) {
+  try {
+    final padded = cursor.padRight((cursor.length + 3) ~/ 4 * 4, '=');
+    final decoded = utf8.decode(base64Url.decode(padded));
+    final separator = decoded.indexOf(':');
+    final offset = int.parse(decoded.substring(0, separator));
+    if (offset < 0 || decoded.substring(separator + 1) != fingerprint) {
+      return null;
     }
+    return offset;
+  } catch (_) {
+    return null;
   }
 }
 
