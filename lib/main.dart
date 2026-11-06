@@ -774,9 +774,9 @@ Future<void> _runDeferredInputFocusHistory() async {
   InputFocusDiagnostics.instance.install();
 }
 
-/// טוען את WebView2 ב-thread רקע, כדי שהתוסף הראשון שנפתח לא יקפיא את ה-UI (#3375).
+/// מחמם WebView ברקע אחרי חשיפת האפליקציה, ב-Windows וב-Android.
 Future<void> _runDeferredWebViewPrewarm() async {
-  if (kIsWeb || !Platform.isWindows) return;
+  if (!WebViewEnvironmentHolder.supportsPrewarm) return;
   try {
     await _mainWindowRevealedCompleter.future.timeout(
       const Duration(seconds: 20),
@@ -789,7 +789,7 @@ Future<void> _runDeferredWebViewPrewarm() async {
       hasEnabledPlugin: PluginRegistryRepository().hasEnabledPlugin,
     );
   } catch (error, stackTrace) {
-    _logNonFatalInitializationError('WebView2 prewarm', error, stackTrace);
+    _logNonFatalInitializationError('WebView prewarm', error, stackTrace);
   }
 }
 

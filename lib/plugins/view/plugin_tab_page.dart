@@ -1002,6 +1002,8 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// שהמשתמש יראה מסך הכוונה להתקנה ולא שגיאה טכנית גולמית.
   static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {
     if (Platform.isAndroid) {
+      // גם הגדרת debugging יכולה לאתחל את המנוע — ממתינים לחימום לפניה.
+      await WebViewEnvironmentHolder.initialize();
       await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
       return _WebViewPrereqStatus.ready;
     }

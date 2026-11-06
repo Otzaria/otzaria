@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart'
@@ -13,8 +14,8 @@ import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 
-/// מחזיק סביבת WebView2 עם תיקיית נתונים הניתנת לכתיבה ב-APPDATA,
-/// כדי שהתקנה ב-Program Files לא תנסה לכתוב לצד ה-EXE.
+/// מתאם חימום WebView וב-Windows מחזיק סביבת WebView2 עם תיקיית נתונים
+/// הניתנת לכתיבה ב-APPDATA, כדי שלא לכתוב לצד ה-EXE ב-Program Files.
 class WebViewEnvironmentHolder {
   static WebViewEnvironment? _environment;
   // Coalesces concurrent init calls (background host vs. plugin tab): two
@@ -75,7 +76,7 @@ class WebViewEnvironmentHolder {
   static String? _unwritableDataFolderOverride;
   static bool _hasUnwritableDataFolderOverride = false;
 
-  /// מגדיר ערך קבוע ל-[checkDataFolderWritable]. העבר `null` לנתיב חסום
+  /// מגדיר ערך קבוע ל-[checkDataFolderWritable] בבדיקות. העבר `null` לנתיב חסום
   /// מדומה; קרא ל-[debugClearUnwritableDataFolder] לאיפוס.
   @visibleForTesting
   static void debugOverrideUnwritableDataFolder(String? path) {
@@ -120,10 +121,14 @@ class WebViewEnvironmentHolder {
   }
 
   /// מאתחל לפני יצירת WebView; קוראים מקבילים חולקים Future שניתן לנסות שוב בכשל.
+  /// ב-Android רק ממתין לחימום שכבר התחיל, בלי ליצור WebView2 environment.
+  /// יש לקרוא לפני כל API של Android שעשוי לאתחל WebView, כולל debugging.
   /// [dataFolderChecked] חוסך בדיקה חוזרת כשהקורא כבר בדק כתיבה מיד לפני הקריאה.
   static Future<void> initialize({bool dataFolderChecked = false}) {
     if (_initializeOverride != null) return _initializeOverride!();
-    if (!_isWindows) return Future<void>.value();
+    if (!_isWindows) {
+      return _isAndroid ? _awaitPrewarm() : Future<void>.value();
+    }
     if (_environment != null) return Future<void>.value();
     return _initializeFuture ??= _runInitialize(
       checkDataFolder: !dataFolderChecked,
@@ -201,54 +206,84 @@ class WebViewEnvironmentHolder {
 
   static bool get _isWindows => debugIsWindowsOverride ?? Platform.isWindows;
 
+  static bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// הפורק מממש חימום רקע ב-Windows וב-Android בלבד.
+  static bool get supportsPrewarm => !kIsWeb && (_isWindows || _isAndroid);
+
   static Future<void>? _prewarmInFlight;
+  static Future<void>? _waitedPrewarm;
+  static Future<void>? _prewarmWait;
   @visibleForTesting
   static Duration prewarmWaitLimit = const Duration(seconds: 30);
 
-  /// טוען את WebView2 לתהליך ב-thread רקע, כדי שיצירת הסביבה הראשונה לא תחסום
-  /// את ה-UI (#3375). מחזיר false כשדולג: הסביבה כבר קיימת או שאין תוסף מופעל.
+  /// מחמם את המנוע ברקע בלי ליצור WebView. נקרא במסלול האתחול הדחוי,
+  /// אחרי הצגת האפליקציה. מחזיר false כשדולג או בפלטפורמה שאינה תומכת.
   static Future<bool> prewarm({
     required Future<bool> Function() hasEnabledPlugin,
   }) async {
-    if (_environment != null || _initializeFuture != null) {
-      _recordPrewarm('skipped: environment exists');
-      return false;
-    }
-    if (!await hasEnabledPlugin()) {
-      _recordPrewarm('skipped: no enabled plugin');
+    if (!supportsPrewarm) {
+      _recordPrewarm('unsupported');
       return false;
     }
     if (_environment != null || _initializeFuture != null) {
       _recordPrewarm('skipped: environment exists');
       return false;
     }
+    // Publish the gate before eligibility awaits: Android creation must
+    // not slip through while the enabled-plugin lookup is still pending.
+    if (_prewarmInFlight != null) return false;
     final done = Completer<void>();
     _prewarmInFlight = done.future;
     try {
-      final settings = _environmentSettings(
-        p.join(await AppPaths.getDataRootPath(), 'webview2'),
-      );
+      if (!await hasEnabledPlugin()) {
+        _recordPrewarm('skipped: no enabled plugin');
+        return false;
+      }
+      // Creation may have timed out and proceeded. Never start a late
+      // native prewarm after this operation lost its gate.
+      if (!identical(_prewarmInFlight, done.future)) return false;
+      if (_environment != null || _initializeFuture != null) {
+        _recordPrewarm('skipped: environment exists');
+        return false;
+      }
+      // Android מנהל את הפרופיל בעצמו. אין גישה ל-AppPaths או להגדרות
+      // UDF/custom schemes של WebView2 במסלול הזה.
+      final settings = _isWindows
+          ? _environmentSettings(
+              p.join(await AppPaths.getDataRootPath(), 'webview2'),
+            )
+          : WebViewEnvironmentSettings();
+      if (!identical(_prewarmInFlight, done.future)) return false;
       final result =
           await (_prewarmOverride ??
-              (settings) => WebViewEnvironment.prewarm(settings: settings))(
-            settings,
-          );
+              (settings) =>
+                  WebViewEnvironment.prewarm(settings: settings))(settings);
       _recordPrewarm(result?.toString() ?? 'unsupported');
       return true;
     } catch (error) {
       _recordPrewarm('error: $error');
       rethrow;
     } finally {
-      _prewarmInFlight = null;
+      if (identical(_prewarmInFlight, done.future)) _prewarmInFlight = null;
       done.complete();
     }
   }
 
   // יצירה ב-thread ה-UI בזמן שהחימום עוד טוען הייתה נחסמת בטעינת ה-DLL;
   // ההמתנה כאן אסינכרונית ומוגבלת.
-  static Future<void> _awaitPrewarm() async {
+  static Future<void> _awaitPrewarm() {
     final prewarm = _prewarmInFlight;
-    if (prewarm == null) return;
+    if (prewarm == null) return Future<void>.value();
+    // Every consumer of this operation shares the same bounded wait.
+    // A later consumer must not keep waiting after the first timeout.
+    if (identical(_waitedPrewarm, prewarm)) return _prewarmWait!;
+    _waitedPrewarm = prewarm;
+    return _prewarmWait = _waitForPrewarm(prewarm);
+  }
+
+  static Future<void> _waitForPrewarm(Future<void> prewarm) async {
     final waited = Stopwatch()..start();
     await prewarm.timeout(
       prewarmWaitLimit,
