@@ -188,20 +188,16 @@ class FacetHelper {
     return counts;
   }
 
-  static void _incrementBookAndAncestors(
-    Map<String, int> counts,
-    Book book, {
-    int delta = 1,
-  }) {
+  static void _incrementBookAndAncestors(Map<String, int> counts, Book book) {
     final categoryPath = resolveCategoryPath(book);
     final bookFacet = buildBookFacet(categoryPath, book);
 
-    incrementFacet(counts, bookFacet, delta);
+    incrementFacet(counts, bookFacet);
 
     if (categoryPath != null && categoryPath.isNotEmpty) {
-      incrementFacetWithAncestors(counts, categoryPath, delta);
+      incrementFacetWithAncestors(counts, categoryPath);
     } else {
-      incrementFacet(counts, '/', delta);
+      incrementFacet(counts, '/');
     }
   }
 }

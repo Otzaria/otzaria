@@ -145,10 +145,10 @@ class CalendarCubit extends Cubit<CalendarState> {
        super(CalendarState.initial()) {
     _alertsUpdates = _alerts.updates.listen(_onAlertsUpdate);
     _scheduleStatuses = _alerts.scheduleStatuses.listen(_onScheduleStatus);
-    _initializeCalendar(resetSelectedToToday: true);
+    _initializeCalendar();
   }
 
-  Future<void> _initializeCalendar({bool resetSelectedToToday = false}) async {
+  Future<void> _initializeCalendar() async {
     final settings = await _settingsRepository.loadSettings();
     if (isClosed) return;
     final calendarTypeString = settings['calendarType'] as String;
@@ -164,18 +164,6 @@ class CalendarCubit extends Cubit<CalendarState> {
       transition: dayTransition,
     );
     final todayJewishDate = JewishDate.fromDateTime(today);
-    final selectedGregorianDate = resetSelectedToToday
-        ? today
-        : state.selectedGregorianDate;
-    final selectedJewishDate = resetSelectedToToday
-        ? todayJewishDate
-        : JewishDate.fromDateTime(selectedGregorianDate);
-    final currentGregorianDate = resetSelectedToToday
-        ? today
-        : state.currentGregorianDate;
-    final currentJewishDate = resetSelectedToToday
-        ? todayJewishDate
-        : JewishDate.fromDateTime(currentGregorianDate);
     final eventsJson = settings['calendarEvents'] as String;
     final bool inIsrael = _isCityInIsrael(selectedCity);
     final bool calendarNotificationsEnabled =
@@ -236,10 +224,10 @@ class CalendarCubit extends Cubit<CalendarState> {
         dayTransition: dayTransition,
         twelveHourClock: twelveHourClock,
         selectedCity: selectedCity,
-        selectedJewishDate: selectedJewishDate,
-        selectedGregorianDate: selectedGregorianDate,
-        currentJewishDate: currentJewishDate,
-        currentGregorianDate: currentGregorianDate,
+        selectedJewishDate: todayJewishDate,
+        selectedGregorianDate: today,
+        currentJewishDate: todayJewishDate,
+        currentGregorianDate: today,
         todayGregorianDate: today,
         events: [...userEvents, ..._pluginEvents],
         inIsrael: inIsrael,

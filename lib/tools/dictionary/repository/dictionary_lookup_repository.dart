@@ -905,26 +905,22 @@ class DictionaryLookupRepository {
         .replaceAll('“', '"')
         .replaceAll('”', '"');
 
-    return _normalizeCommon(compact, keepQuotes: false);
+    return _normalizeCommon(compact);
   }
 
   static String _normalizeAramaic(String raw) {
-    return _normalizeCommon(_trimDecorations(raw), keepQuotes: false);
+    return _normalizeCommon(_trimDecorations(raw));
   }
 
-  static String _normalizeCommon(String raw, {required bool keepQuotes}) {
-    var normalized = utils.removeVolwels(raw).trim();
-    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
-
-    if (!keepQuotes) {
-      normalized = normalized
-          .replaceAll('"', '')
-          .replaceAll('״', '')
-          .replaceAll("'", '')
-          .replaceAll('׳', '');
-    }
-
-    return normalized;
+  static String _normalizeCommon(String raw) {
+    return utils
+        .removeVolwels(raw)
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll('"', '')
+        .replaceAll('״', '')
+        .replaceAll("'", '')
+        .replaceAll('׳', '');
   }
 
   static String _trimDecorations(String raw) {
