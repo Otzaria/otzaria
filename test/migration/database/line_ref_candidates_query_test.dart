@@ -326,6 +326,40 @@ void main() {
       }
     }
 
+    test('פתרון שורות רבות מכין כל שאילתה פעם אחת ובטרנזקציית קריאה', () {
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+      ]);
+      final writer = sqlite3.sqlite3.open(refsPath);
+      try {
+        for (var i = 0; i < 50; i++) {
+          final byRef = resolver.resolve(
+            targetSource: 'official',
+            targetTitle: _title,
+            targetRef: _ref,
+            targetLineIndex: null,
+          );
+          expect(byRef?.lineIndex, 11);
+          final byIndex = resolver.resolve(
+            targetSource: 'official',
+            targetTitle: _title,
+            targetRef: null,
+            targetLineIndex: 10,
+          );
+          expect(byIndex?.heRef, 'ישעיהו לב, י');
+        }
+        expect(resolver.preparedStatements, 2);
+        // נעילת הקריאה מוחזקת בין שורות, ומשתחררת לפני המתנה.
+        expect(() => writer.execute('BEGIN EXCLUSIVE'), throwsA(anything));
+        resolver.releaseReads();
+        writer.execute('BEGIN EXCLUSIVE');
+        writer.execute('ROLLBACK');
+      } finally {
+        writer.close();
+        resolver.close();
+      }
+    });
+
     test('רק יעד רשמי מהימן (slug null) מקבל את הנוסח הכפוי', () {
       expect(
         sentSql(target('o', null, untrusted: false), 'official'),

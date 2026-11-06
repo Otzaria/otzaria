@@ -1230,13 +1230,14 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
 
       final batch = <ResolvedExternalLink>[];
       var scannedInBatch = 0;
-      void flush() {
+      void flush([VoidCallback? releaseTargetReads]) {
         if (batch.isNotEmpty) {
           _transaction(db, () => _insertRows(db, job.slug, batch));
         }
         batch.clear();
         scannedInBatch = 0;
         report();
+        releaseTargetReads?.call();
         _controlPoint(control, batchPauseMs);
       }
 
@@ -1251,9 +1252,11 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
           targets: jobTargets,
           maxRows: maxRows - counts.before,
           resumeFrom: resumeFrom,
-          onScanned: () {
+          onScanned: (releaseTargetReads) {
             scanned++;
-            if (++scannedInBatch >= currentBatchSize()) flush();
+            if (++scannedInBatch >= currentBatchSize()) {
+              flush(releaseTargetReads);
+            }
           },
           onRow: batch.add,
         );
