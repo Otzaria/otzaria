@@ -1,0 +1,232 @@
+{
+  "reviewedHead": "41692d0fe5a90d314991425b7ac2f40a7a16c107",
+  "reviewedTree": "000d8a643e84cdd323a6dee0a16b01bf07e0c4f9",
+  "pullRequest": "https://github.com/Otzaria/otzaria/pull/4132",
+  "independentReviewer": "qa_final_forms",
+  "recordedAt": "2026-11-06T00:48:37.909649+00:00",
+  "captureKind": "Actual Flutter widgets rendered by Flutter widget tests on Linux with bundled fonts and temporary SQLite; not native Windows desktop screenshots.",
+  "reporting": {
+    "run": 42137152509,
+    "job": 127628101843,
+    "artifact": 13466432881,
+    "artifactSha256": "e9a978ff2e0331cf6b8bdc33287e8fe65f7751c25ddfe708989a70267fe47fd8",
+    "passed": 734,
+    "failed": 0,
+    "skipped": 1,
+    "skipReason": "Existing Windows-only locked user_books.db backup test on Linux",
+    "legacyClientBackupChecksPassed": 5,
+    "formattedFiles": 84,
+    "formatterChanges": 0
+  },
+  "windows": {
+    "run": 42137152470,
+    "job": 127628105499,
+    "artifact": 13466895218,
+    "artifactSha256": "3079d1b611a5e590db69278171d48922a32eeaba782031daed8a0abda6a397ad",
+    "mergeCheckout": "a086e07b50b8f483ef5044e0cba234dedf60418f",
+    "mergeTreeMatchesReviewedHead": true,
+    "platform": "Windows Server 2025 Build 26100",
+    "nativeClipboardChecks": 5,
+    "nativeSendInputChecks": 8,
+    "all13Passed": true,
+    "windowsClipboardHistoryUi": false
+  },
+  "fullCI": {
+    "run": 42137152470,
+    "shards0_1_2_4": "success",
+    "shard3": {
+      "job": 127628105555,
+      "passed": 4886,
+      "failed": 5,
+      "skipped": 21,
+      "retryPassed": 7,
+      "retryFailed": 5,
+      "remainingFailures": "Only the same five Shamor focus failures reproduced in the recorded clean bc398 baseline. No additional plugin failure in this run."
+    },
+    "baseline": "Local clean worktree bc398e6908004901cf8d38bbd5ed2dae1feb3a62 with Flutter 3.47.7; not a CI run on current dev. Same five failures, seven passes. Shamor source and test files unchanged up to dev2ba and reviewed head.",
+    "shard4": {
+      "job": 127628105407,
+      "passed": 4467,
+      "skipped": 10,
+      "failed": 0,
+      "savedReportEditCases": [
+        "he",
+        "en"
+      ]
+    },
+    "fullWindowsBuild": "Native13 checks passed; remaining generic multiview smoke was still running at evidence capture."
+  },
+  "images": [
+    {
+      "path": "book-queue-edit-low-en-context.png",
+      "bytes": 79118,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "6dfec7d401ea584530a80e59c72b592f4bc5c0ec35086370fcb68955353c465d",
+      "sha": "1ba3dc2518410fbcc30159079d3e1ac8c4d4b035",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "book-queue-edit-low-en-top.png",
+      "bytes": 83045,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "5d55c32f342760f357b98d8caa1daf952ce8e9fb31472841e4088873e63b3d01",
+      "sha": "5a7dda30e52bb40b494fc8616bf23d21fe64ba60",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "book-report-low-en-details.png",
+      "bytes": 76366,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "08e208e47bf94450e42ec9c70ce039e2a9b75f9a7bc38bcb2e4c8b188e939b22",
+      "sha": "6752567e30a79b7cdd1d60d298e10c8cb20c47f7",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "book-report-low-en-quote.png",
+      "bytes": 92163,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "a64cb81d40b91a0d06dd97591adad350f982e836055f513cfa325f673c97b8b6",
+      "sha": "c60ba969f2697a79f253bfcc26e6984eb871e719",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "book-report-low-he-details.png",
+      "bytes": 67349,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "e4cea2427ddb7a2247d6c01a8f1e445fc7dedcac298614d9af10e9554af47020",
+      "sha": "ab5b0203bf398a789d7e3315fa129a1916abac00",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "book-report-low-he-quote.png",
+      "bytes": 72207,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "5a35984085fbf917eb29578da83025ccf510ad288b7519eeb68750b104758624",
+      "sha": "ae6cfa23a865a826b6f606d3233701db25e22302",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "settings-after-last-draft-removed-he.png",
+      "bytes": 31991,
+      "dimensions": [
+        1650,
+        1140
+      ],
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "sha": "2f2e6f756f4a0cf1241ec910686dfca2e38d317b",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "settings-no-drafts-he.png",
+      "bytes": 31991,
+      "dimensions": [
+        1650,
+        1140
+      ],
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "sha": "2f2e6f756f4a0cf1241ec910686dfca2e38d317b",
+      "unchangedFromB2ae": true
+    },
+    {
+      "path": "settings-with-drafts-he.png",
+      "bytes": 87467,
+      "dimensions": [
+        1650,
+        1140
+      ],
+      "sha256": "0dea11da76d0fa851ebd402fa1885c51976e740a5c8c2156daba55de9b0f757e",
+      "sha": "d9f5a1340407c2a9b3934d3e400995404d5ca8df",
+      "unchangedFromB2ae": false
+    },
+    {
+      "path": "software-queue-edit-low-en-attachments.png",
+      "bytes": 78353,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "f121716ee68e2a784397e05cbbff571ab1e1b7638759c4abb7e60e2ca7f7688e",
+      "sha": "209e455ba5d9560f9b0d195ceb50b367c6bc6c67",
+      "unchangedFromB2ae": false
+    },
+    {
+      "path": "software-queue-edit-low-en-top.png",
+      "bytes": 82457,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "ca02a2b95b5c9b45e9f659d8c282fe50624c131e14be3fc6c9c8d7d69c5e12a9",
+      "sha": "7d060bd73311e3657a3b8c3bc1bed3d7f82d33a7",
+      "unchangedFromB2ae": false
+    },
+    {
+      "path": "software-queue-edit-low-he-attachments.png",
+      "bytes": 62810,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "bf4a5c2b1eaeb25fe4d49f6c5eceab8ef17ad43d30dfc6c824de137b557ee46d",
+      "sha": "157223dc4b515edc9e6bc353aaee2b5e38620ef5",
+      "unchangedFromB2ae": false
+    },
+    {
+      "path": "software-queue-edit-low-he-top.png",
+      "bytes": 65469,
+      "dimensions": [
+        1650,
+        540
+      ],
+      "sha256": "0a061a8fd1c0de9acd291d40eed96ea10d6022f9aa7ad4c46be0eea623e5a86b",
+      "sha": "702a3306c11d56913a638c3a32ec4b4ea46b3a97",
+      "unchangedFromB2ae": false
+    },
+    {
+      "path": "software-report-low-en.png",
+      "bytes": 75688,
+      "dimensions": [
+        1650,
+        630
+      ],
+      "sha256": "6a160e2a05c2075382c74ebab4f5ea420d232feb177b68a9ebd890a1960ea57d",
+      "sha": "62557e44fc84fd4330ffb06dd784b3f9eb5df2ff",
+      "unchangedFromB2ae": true
+    }
+  ],
+  "finalPullRequestCI": {
+    "reportingRun": 42138762552,
+    "reportingJob": 127633461229,
+    "flutterRun": 42138762550,
+    "statusAtEvidenceCapture": "in_progress",
+    "mergeCheckout": "3330e91b",
+    "mergeTreeMatchesReviewedHead": true
+  },
+  "lastChangeReview": {
+    "issue": 3448,
+    "changedProductFile": "lib/settings/panels/app_reports_panel.dart",
+    "changedTestFile": "test/reports/reporting_visual_qa_test.dart",
+    "independentReview": "qa_final_forms approved exact head after static review, Reporting734, legacy5, Analyze, shard4 and visual evidence. Native evidence also independently verified. No code changes after approval.",
+    "coAuthor": "mmichaelush",
+    "sourcePullRequest": 4269,
+    "priorReviewedHead": "b2ae2fa4ebf760a05ceddd02b4e8528c8606ce23"
+  }
+}
