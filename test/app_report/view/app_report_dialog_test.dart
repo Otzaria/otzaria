@@ -8,6 +8,7 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -139,7 +140,26 @@ void main() {
       find.byKey(const ValueKey('report-opener'), skipOffstage: false),
     );
     expect(Localizations.localeOf(opener), const Locale('he', 'IL'));
+    for (final label in [
+      'Report type',
+      'Title',
+      'What happened?',
+      'Steps to reproduce',
+      '(optional)',
+      'Email address for replies',
+      PluginFileDropService.isSupported
+          ? 'Paste, drop, or click to choose an image'
+          : 'Paste or click to choose an image',
+      'Included with this report',
+    ]) {
+      final translated = find.text(label);
+      expect(translated, findsOneWidget);
+      await tester.ensureVisible(translated);
+      await tester.pumpAndSettle();
+      expect(translated.hitTestable(), findsOneWidget);
+    }
     final title = find.byKey(const ValueKey('app-report-title'));
+    await tester.ensureVisible(title);
     await tester.enterText(title, 'טקסט בעברית נשמר בדיוק');
     final field = tester.widget<EditableText>(
       find.descendant(of: title, matching: find.byType(EditableText)),

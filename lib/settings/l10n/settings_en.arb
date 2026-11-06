@@ -1656,5 +1656,13 @@
   "גזור": "Cut",
   "העתק": "Copy",
   "הדבק": "Paste",
-  "הטקסט הועתק": "Text copied"
+  "הטקסט הועתק": "Text copied",
+  "סוג הדיווח": "Report type",
+  "מה קרה?": "What happened?",
+  "שלבים לשחזור": "Steps to reproduce",
+  "(לא חובה)": "(optional)",
+  "דואר אלקטרוני לחזרה אליך": "Email address for replies",
+  "מה נשלח יחד עם הדיווח": "Included with this report",
+  "הדביקו, שחררו או הקליקו לבחירת תמונה": "Paste, drop, or click to choose an image",
+  "הדביקו או הקליקו לבחירת תמונה": "Paste or click to choose an image"
 }
