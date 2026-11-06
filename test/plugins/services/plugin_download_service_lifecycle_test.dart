@@ -190,10 +190,8 @@ void main() {
     expect(HttpClientRegistry.registeredCount, registryBefore);
   });
 
-  Future<T> inDownloads<T>(Future<T> Function() body) => IOOverrides.runZoned(
-    body,
-    getSystemTempDirectory: () => downloads,
-  );
+  Future<T> inDownloads<T>(Future<T> Function() body) =>
+      IOOverrides.runZoned(body, getSystemTempDirectory: () => downloads);
 
   test('owned client unregisters and closes exactly once', () async {
     final client = _RecordingClient();
@@ -593,7 +591,16 @@ void main() {
         }
         await pumpEventQueue();
         if (before != null) {
-          expect(_descriptorCount('socket:'), lessThanOrEqualTo(before));
+          var after = _descriptorCount('socket:');
+          // pumpEventQueue does not wait for server-side I/O to close.
+          final closeWait = Stopwatch()..start();
+          while (after != null &&
+              after > before &&
+              closeWait.elapsed < const Duration(seconds: 2)) {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            after = _descriptorCount('socket:');
+          }
+          expect(after, lessThanOrEqualTo(before));
         }
       });
 
