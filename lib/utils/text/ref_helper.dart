@@ -235,7 +235,7 @@ String formatDisplayReference({
 String _normalizeReferenceForDisplay(String ref) {
   final parts = ref
       .trim()
-      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_whitespaceRun, ' ')
       .split(',')
       .map((part) => part.trim())
       .where((part) => part.isNotEmpty);
@@ -323,7 +323,7 @@ int _referenceSpecificityScore(String ref) {
   }
 
   score += ','.allMatches(ref).length;
-  score += RegExp(r'[א-ת0-9]+').allMatches(ref).length ~/ 3;
+  score += _hebrewOrDigitRun.allMatches(ref).length ~/ 3;
   return score;
 }
 
@@ -337,14 +337,21 @@ bool _referencesAreRelated(String resolvedDisplay, String fallbackDisplay) {
 /// כך "רמבם" (בשם הספר) תואם "רמב"ם" (בערך TOC), ו"חברותא על X" תואם "חברותא - X".
 List<String> _significantWordList(String s) {
   return s
-      .replaceAll(RegExp(r'\p{Mn}', unicode: true), '') // ניקוד וטעמים
-      .replaceAll(RegExp('''['"״׳’”“`]'''), '') // גרשיים — השם נשמר בלעדיהם
-      .replaceAll(RegExp(r'[-–־,.]'), ' ') // מפרידים
-      .split(RegExp(r'\s+'))
+      .replaceAll(_nonSpacingMarks, '') // ניקוד וטעמים
+      .replaceAll(_quoteMarks, '') // גרשיים — השם נשמר בלעדיהם
+      .replaceAll(_wordSeparators, ' ') // מפרידים
+      .split(_whitespaceRun)
       .map((w) => w.trim())
       .where((w) => w.length > 2)
       .toList();
 }
+
+// נקרא בכל תזוזת עכבר על פס הגלילה; הידור RegExp בכל קריאה חוסם את ה-UI.
+final _nonSpacingMarks = RegExp(r'\p{Mn}', unicode: true);
+final _quoteMarks = RegExp('''['"״׳’”“`]''');
+final _wordSeparators = RegExp(r'[-–־,.]');
+final _whitespaceRun = RegExp(r'\s+');
+final _hebrewOrDigitRun = RegExp(r'[א-ת0-9]+');
 
 final _dafLevel = RegExp(r',\s*[א-ת]{1,4}[.:](?=,)');
 
