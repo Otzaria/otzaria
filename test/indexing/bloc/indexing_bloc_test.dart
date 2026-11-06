@@ -718,11 +718,17 @@ void main() {
         addTearDown(bloc.close);
         final library = libraryWithBooks(2);
         final changed = [library.books.first];
+        final checked = [library.books.last];
         final settled = Completer<void>();
         bloc
           ..add(StartIndexing(library))
           ..add(
-            DeferIndexing(library, changedBooks: changed, checkLibrary: true),
+            DeferIndexing(
+              library,
+              changedBooks: changed,
+              checkBooks: checked,
+              checkLibrary: true,
+            ),
           )
           ..add(IndexingWorkBarrier(onSettled: settled.complete));
         await pumpEventQueue();
@@ -735,6 +741,7 @@ void main() {
 
         expect(repository.runs, hasLength(1));
         expect(repository.rememberedChanged, changed);
+        expect(repository.rememberedChecks, checked);
         expect(repository.rememberedLibraryCheck, isTrue);
         expect(bloc.state, isA<IndexingInitial>());
       },
@@ -767,8 +774,8 @@ void main() {
       await settled.future.timeout(const Duration(seconds: 2));
 
       expect(repository.runs, hasLength(1));
-      // ספר שנשלח לבדיקה נזכר כשונה, ובקשת הבדיקה המלאה נדחית לריצה הבאה.
-      expect(repository.rememberedChanged, [...changed, ...checked]);
+      expect(repository.rememberedChanged, changed);
+      expect(repository.rememberedChecks, checked);
       expect(repository.rememberedLibraryCheck, isTrue);
 
       // ריצה שנשלחה אחרי הביטול רצה כרגיל.
@@ -1124,6 +1131,7 @@ class _FakeIndexingRepository extends IndexingRepository {
   int get indexAllCalls => runs.where((run) => run.books == null).length;
   int get indexBooksCalls => runs.where((run) => run.books != null).length;
   final rememberedChanged = <Book>[];
+  final rememberedChecks = <Book>[];
   bool rememberedLibraryCheck = false;
 
   /// כשהוא מסופק — כל ריצה ממתינה לו לפני שהיא מתחילה.
@@ -1213,9 +1221,11 @@ class _FakeIndexingRepository extends IndexingRepository {
   @override
   Future<void> rememberChangedBooks(
     List<Book> books, {
+    List<Book> checkBooks = const [],
     bool checkLibrary = false,
   }) async {
     rememberedChanged.addAll(books);
+    rememberedChecks.addAll(checkBooks);
     rememberedLibraryCheck |= checkLibrary;
   }
 
@@ -1263,6 +1273,7 @@ class _FakeIndexingRepository extends IndexingRepository {
     statusChecks++;
     await statusGate?.future;
     return rememberedLibraryCheck ||
+        rememberedChecks.isNotEmpty ||
         rememberedChanged.isNotEmpty ||
         library.getIndexableBooks().any((book) => !isBookIndexed(book));
   }

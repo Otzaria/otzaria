@@ -26,6 +26,9 @@ class LibraryState extends Equatable {
   /// ספרים שתוכנם השתנה ודורשים אינדוקס מחדש. מתאפס אחרי כל copyWith.
   final List<Book>? changedBooksToIndex;
 
+  /// ספרים שהועברו קטגוריה; יש לבדוק אם מיקומם באינדקס עדיין שונה.
+  final List<Book>? booksToCheckForIndex;
+
   /// מזהי RefreshLibrary.requestIds שהרענון הזה השלים בהצלחה.
   /// מתאפס אחרי כל copyWith.
   final Set<int>? completedRefreshRequestIds;
@@ -52,6 +55,7 @@ class LibraryState extends Equatable {
     this.previewCategory,
     this.newBooksToIndex,
     this.changedBooksToIndex,
+    this.booksToCheckForIndex,
     this.completedRefreshRequestIds,
     this.failedRefreshRequestIds,
     this.changedHebrewBooksPath,
@@ -265,6 +269,7 @@ class LibraryState extends Equatable {
     bool clearPreviewBook = false,
     List<Book>? newBooksToIndex,
     List<Book>? changedBooksToIndex,
+    List<Book>? booksToCheckForIndex,
     Set<int>? completedRefreshRequestIds,
     Set<int>? failedRefreshRequestIds,
     String? changedHebrewBooksPath,
@@ -287,6 +292,7 @@ class LibraryState extends Equatable {
           : (previewCategory ?? this.previewCategory),
       newBooksToIndex: newBooksToIndex, // null = אין ספרים לאינדוקס
       changedBooksToIndex: changedBooksToIndex, // null = אין ספרים שהשתנו
+      booksToCheckForIndex: booksToCheckForIndex,
       completedRefreshRequestIds: completedRefreshRequestIds,
       failedRefreshRequestIds: failedRefreshRequestIds,
       changedHebrewBooksPath: changedHebrewBooksPath,
@@ -308,6 +314,7 @@ class LibraryState extends Equatable {
     previewCategory,
     newBooksToIndex,
     changedBooksToIndex,
+    booksToCheckForIndex,
     completedRefreshRequestIds,
     failedRefreshRequestIds,
     changedHebrewBooksPath,

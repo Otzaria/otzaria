@@ -170,6 +170,51 @@ void main() {
       expect(deferred.checkLibrary, isFalse);
     });
 
+    test('אינדוקס כבוי — הזזת קטגוריה נשארת בדיקה ולא החלפה', () {
+      final checked = [TextBook(id: 1, title: 'ספר שהועבר')];
+      final events = buildRefreshIndexingPlan(
+        library: library,
+        newBooks: const [],
+        changedBooks: const [],
+        checkBooks: checked,
+        indexWholeLibrary: false,
+        reconcile: false,
+        indexUpdateMode: IndexUpdateMode.off,
+      );
+
+      final deferred = events.single as DeferIndexing;
+      expect(deferred.changedBooks, isEmpty);
+      expect(deferred.checkBooks, checked);
+      expect(deferred.checkLibrary, isFalse);
+    });
+
+    test('בלי אישיים — גם בדיקות הזזה מסוננות לפי מקור הספר', () {
+      final official = TextBook(id: 1, title: 'ספר ראשי');
+      final checked = [
+        official,
+        TextBook(id: 2, title: 'ספר אישי', source: BookSource.user),
+        TextBook(
+          id: 3,
+          title: 'ספר מצורף',
+          source: BookSource.attached('reference'),
+        ),
+      ];
+      final run = single(
+        buildRefreshIndexingPlan(
+          library: library,
+          newBooks: const [],
+          changedBooks: const [],
+          checkBooks: checked,
+          indexWholeLibrary: false,
+          reconcile: false,
+          indexUpdateMode: IndexUpdateMode.libraryOnly,
+        ),
+      );
+
+      expect(run.changedBooks, isEmpty);
+      expect(run.check.books, [official]);
+    });
+
     test('אינדוקס כבוי — שומר בדיקה מלאה גם בלי רשימת שינויים', () {
       final deferred =
           plan(

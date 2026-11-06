@@ -1199,6 +1199,55 @@ void main() {
       expect(await storedPending(), {'id:5'});
     });
 
+    for (final withMetadataChange in [false, true]) {
+      test(
+        'שינוי תוכן שהתגלה בבדיקה נשמר בלי מקור להשוואה בחידוש (מטא־דאטה: $withMetadataChange)',
+        () async {
+          final engine = _CancellationRecordingEngine()
+            ..fingerprints = {'id:5': BigInt.one}
+            ..sourceHashes['id:5'] = BigInt.one;
+          final changed = TextBook(id: 5, title: 'שבת');
+          final library = Library(categories: [])..books.add(changed);
+          final provider = providerWith(engine, [changed]);
+          final repository = _ReindexProbeRepository(provider);
+          repository.changeDetector = _textDetector(
+            repository,
+            loadText: (_) async => 'חדש',
+            fingerprintOf: (_, _) async => BigInt.two,
+            sourceHashes: withMetadataChange
+                ? BookSourceHashes({5: BigInt.two}, {})
+                : null,
+            metadataOf: withMetadataChange ? (_) => BigInt.from(88) : null,
+          );
+          final cancelled = await repository.runIndexing(
+            library,
+            books: const [],
+            check: IndexCheckScope.library,
+            onWorkListReady: (_) => repository.cancelIndexing(),
+            onProgress: (_, _) {},
+          );
+          expect(cancelled.cancelled, isTrue);
+          PendingReindexStore.resetMemoryForTesting();
+          repository.changeDetector = _textDetector(
+            repository,
+            loadText: (_) async => null,
+            fingerprintOf: (_, _) async => BigInt.two,
+          );
+
+          final resumed = await repository.runIndexing(
+            library,
+            check: IndexCheckScope.library,
+            onProgress: (_, _) {},
+          );
+
+          expect(resumed.isClean, isTrue);
+          expect(resumed.indexedBooks, 1);
+          expect(engine.committedCounts, {'id:5': 1});
+          expect(pendingFile().existsSync(), isFalse);
+        },
+      );
+    }
+
     test('ריצה שבוטלה בתור שומרת את הספרים שהשתנו בסימון', () async {
       final engine = _CancellationRecordingEngine();
       final changed = TextBook(id: 5, title: 'שבת');
@@ -1213,6 +1262,35 @@ void main() {
         ).hasUnindexedBooks(Library(categories: [])..books.add(changed)),
         isTrue,
       );
+    });
+
+    test('בדיקה שנדחתה משפיעה על החיווי רק כל עוד הספר מותר באינדקס', () async {
+      final book = TextBook(id: 5, title: 'אישי', source: BookSource.user);
+      final library = Library(categories: [])..books.add(book);
+      final provider = providerWith(_CancellationRecordingEngine(), [book]);
+      final store = PendingReindexStore.forIndex(indexDir.path)!;
+      await store.save({}, checkKeys: {'uid:5'});
+      final repository = IndexingRepository(provider);
+
+      expect(await repository.hasUnindexedBooks(library), isTrue);
+      expect(
+        await IndexingRepository(
+          provider,
+          indexUpdateMode: () => IndexUpdateMode.libraryOnly,
+        ).hasUnindexedBooks(library),
+        isFalse,
+      );
+      expect(
+        await IndexingRepository(
+          provider,
+          hiddenStore: _FixedHiddenStore(
+            HiddenLibrarySelection(bookKeys: {PerBookSettings.bookKey(book)}),
+          ),
+        ).hasUnindexedBooks(library),
+        isFalse,
+      );
+      expect((await store.read()).checkKeys, {'uid:5'});
+      expect(await repository.hasUnindexedBooks(library), isTrue);
     });
 
     test('ספר שחזר למעקב באמצע הריצה אינו נמחק ונשאר בסימון', () async {

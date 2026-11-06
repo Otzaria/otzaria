@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/cross_line_result.dart';
@@ -135,6 +136,11 @@ Future<OpenedTab?> openSearchResultInReader(
         );
 
   open(tab);
-  unawaited(IndexFreshnessWarner.instance.warnIfContentDrifted(textBook));
+  unawaited(
+    IndexFreshnessWarner.instance.warnIfContentDrifted(
+      textBook,
+      indexingBloc: context.read<IndexingBloc?>(),
+    ),
+  );
   return tab;
 }

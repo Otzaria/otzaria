@@ -8,6 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/indexing/utils/pending_reindex_store.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
@@ -78,6 +84,307 @@ Future<void> main() async {
     await warner.warnIfContentDrifted(TextBook(id: 2, title: 'טרי'));
 
     expect(notifications, isEmpty);
+  });
+
+  for (final scenario in ['drift', 'fresh', 'invalidated']) {
+    test('חיווי ושימור החלפה אחרי אימות חיפוש: $scenario', () async {
+      final dir = await Directory.systemTemp.createTemp('freshness_pending');
+      addTearDown(() async {
+        PendingReindexStore.resetMemoryForTesting();
+        await dir.delete(recursive: true);
+      });
+      provider.activeIndexPath = dir.path;
+      provider.indexedFilePaths.add('id:1');
+      final book = TextBook(id: 1, title: 'ספר');
+      final library = Library(categories: [])..books.add(book);
+      DataRepository.instance.library = Future.value(library);
+      final repository = IndexingRepository(
+        provider,
+        indexUpdateMode: () => IndexUpdateMode.off,
+      );
+      final bloc = IndexingBloc(repository);
+      addTearDown(bloc.close);
+      final ready = bloc.stream.firstWhere((s) => s is IndexingComplete);
+      bloc.add(CheckIndexStatus(library));
+      await ready.timeout(const Duration(seconds: 2));
+
+      final entered = Completer<void>();
+      final gate = Completer<bool>();
+      final notifications = <String>[];
+      warner.debugBookVerifier = (_, _) {
+        if (!entered.isCompleted) entered.complete();
+        return gate.future;
+      };
+      warner.debugNotifier = notifications.add;
+      final first = warner.warnIfContentDrifted(book, indexingBloc: bloc);
+      final second = warner.warnIfContentDrifted(book, indexingBloc: bloc);
+      await entered.future;
+      if (scenario == 'invalidated') {
+        DataRepository.instance.library = Future.value(library);
+      }
+      gate.complete(scenario == 'fresh');
+      await Future.wait([first, second]);
+      final settled = Completer<void>();
+      bloc.add(IndexingWorkBarrier(onSettled: settled.complete));
+      await settled.future.timeout(const Duration(seconds: 2));
+
+      final drift = scenario == 'drift';
+      expect(
+        bloc.state,
+        drift ? isA<IndexingInitial>() : isA<IndexingComplete>(),
+      );
+      expect(provider.isIndexing.value, isFalse);
+      expect(provider.indexedFilePaths, {'id:1'});
+      expect(
+        notifications,
+        drift ? [LibraryMessages.searchResultContentDrifted] : isEmpty,
+      );
+      PendingReindexStore.resetMemoryForTesting();
+      expect(
+        await PendingReindexStore.forIndex(dir.path)!.load(),
+        drift ? {'id:1'} : isEmpty,
+      );
+    });
+  }
+
+  group('מסירת דריפט למנהל אינדוקס מאוחר', () {
+    late Directory dir;
+    late TextBook book;
+    late Library library;
+    late _RecordingIndexingBloc bloc;
+
+    Future<_RecordingIndexingBloc> createBloc({Library? statusLibrary}) async {
+      final created = _RecordingIndexingBloc(
+        IndexingRepository(
+          provider,
+          indexUpdateMode: () => IndexUpdateMode.off,
+        ),
+      );
+      addTearDown(() async {
+        if (!created.isClosed) await created.close();
+      });
+      final ready = created.stream.firstWhere((s) => s is IndexingComplete);
+      created.add(CheckIndexStatus(statusLibrary ?? library));
+      await ready.timeout(const Duration(seconds: 2));
+      return created;
+    }
+
+    Future<void> settle(_RecordingIndexingBloc target) async {
+      final settled = Completer<void>();
+      target.add(IndexingWorkBarrier(onSettled: settled.complete));
+      await settled.future.timeout(const Duration(seconds: 2));
+    }
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('freshness_late_bloc');
+      PendingReindexStore.resetMemoryForTesting();
+      addTearDown(() async {
+        PendingReindexStore.resetMemoryForTesting();
+        await dir.delete(recursive: true);
+      });
+      provider.activeIndexPath = dir.path;
+      provider.indexedFilePaths.add('id:1');
+      book = TextBook(id: 1, title: 'ספר');
+      library = Library(categories: [])..books.add(book);
+      DataRepository.instance.library = Future.value(library);
+      bloc = await createBloc();
+    });
+
+    for (final timing in ['completed', 'in-flight']) {
+      for (final drift in [true, false]) {
+        test('$timing: null → bloc, drift=$drift', () async {
+          var verifierCalls = 0;
+          final notifications = <String>[];
+          final entered = Completer<void>();
+          final gate = Completer<bool>();
+          warner.debugBookVerifier = (_, _) {
+            verifierCalls++;
+            if (!entered.isCompleted) entered.complete();
+            return gate.future;
+          };
+          warner.debugNotifier = notifications.add;
+
+          final first = warner.warnIfContentDrifted(book);
+          await entered.future;
+          if (timing == 'completed') {
+            gate.complete(!drift);
+            await first;
+          }
+          var joinedCompleted = false;
+          final joined = warner
+              .warnIfContentDrifted(book, indexingBloc: bloc)
+              .then((_) {
+                joinedCompleted = true;
+              });
+          final another = warner.warnIfContentDrifted(book, indexingBloc: bloc);
+          if (timing == 'in-flight') {
+            await Future<void>.delayed(Duration.zero);
+            expect(joinedCompleted, isFalse);
+            expect(verifierCalls, 1);
+            gate.complete(!drift);
+          }
+          await Future.wait([first, joined, another]);
+          await settle(bloc);
+
+          expect(
+            bloc.deferred,
+            hasLength(drift ? 1 : 0),
+            reason: 'קורא מאוחר עם מנהל אינדוקס מקבל את הדריפט פעם אחת',
+          );
+          expect(verifierCalls, 1);
+          expect(provider.fakeEngine.requestedPaths, ['id:1']);
+          expect(
+            notifications,
+            drift ? [LibraryMessages.searchResultContentDrifted] : isEmpty,
+          );
+          expect(
+            bloc.state,
+            drift ? isA<IndexingInitial>() : isA<IndexingComplete>(),
+          );
+          expect(provider.isIndexing.value, isFalse);
+          expect(provider.indexedFilePaths, {'id:1'});
+          PendingReindexStore.resetMemoryForTesting();
+          expect(
+            await PendingReindexStore.forIndex(dir.path)!.load(),
+            drift ? {'id:1'} : isEmpty,
+          );
+          await warner.warnIfContentDrifted(book, indexingBloc: bloc);
+          await settle(bloc);
+          expect(bloc.deferred, hasLength(drift ? 1 : 0));
+          expect(verifierCalls, 1);
+        });
+      }
+    }
+
+    for (final generation in ['library', 'engine', 'indexing']) {
+      test('פסילה בזמן המתנה לספרייה לפני מסירה: $generation', () async {
+        final libraryGate = Completer<Library>();
+        DataRepository.instance.library = libraryGate.future;
+        final notifications = <String>[];
+        var verifierCalls = 0;
+        warner.debugBookVerifier = (_, _) async {
+          verifierCalls++;
+          return false;
+        };
+        warner.debugNotifier = notifications.add;
+        await warner.warnIfContentDrifted(book);
+
+        var completed = false;
+        final waiting = warner
+            .warnIfContentDrifted(book, indexingBloc: bloc)
+            .then((_) {
+              completed = true;
+            });
+        await Future<void>.delayed(Duration.zero);
+        expect(completed, isFalse);
+        switch (generation) {
+          case 'library':
+            DataRepository.instance.library = Future.value(library);
+          case 'engine':
+            provider.replaceEngine(_FakeSearchEngine());
+          case 'indexing':
+            provider.isIndexing.value = true;
+            provider.isIndexing.value = false;
+        }
+        libraryGate.complete(library);
+        await waiting;
+        await settle(bloc);
+
+        expect(bloc.deferred, isEmpty);
+        expect(bloc.state, isA<IndexingComplete>());
+        expect(notifications, [LibraryMessages.searchResultContentDrifted]);
+        expect(await PendingReindexStore.forIndex(dir.path)!.load(), isEmpty);
+
+        await warner.warnIfContentDrifted(book, indexingBloc: bloc);
+        await settle(bloc);
+        expect(bloc.deferred, hasLength(1));
+        expect(verifierCalls, 2);
+        expect(notifications, hasLength(2));
+        PendingReindexStore.resetMemoryForTesting();
+        expect(await PendingReindexStore.forIndex(dir.path)!.load(), {'id:1'});
+      });
+    }
+
+    test('סגירת מנהל בזמן ההמתנה אינה צורכת מסירה למחליפו', () async {
+      final libraryGate = Completer<Library>();
+      DataRepository.instance.library = libraryGate.future;
+      var verifierCalls = 0;
+      final notifications = <String>[];
+      warner.debugBookVerifier = (_, _) async {
+        verifierCalls++;
+        return false;
+      };
+      warner.debugNotifier = notifications.add;
+      await warner.warnIfContentDrifted(book);
+
+      var completed = false;
+      final waiting = warner
+          .warnIfContentDrifted(book, indexingBloc: bloc)
+          .then((_) {
+            completed = true;
+          });
+      await Future<void>.delayed(Duration.zero);
+      expect(completed, isFalse);
+      await bloc.close();
+      libraryGate.complete(library);
+      await waiting;
+      expect(bloc.deferred, isEmpty);
+
+      final replacement = await createBloc();
+      await warner.warnIfContentDrifted(book, indexingBloc: replacement);
+      await settle(replacement);
+      await warner.warnIfContentDrifted(book, indexingBloc: replacement);
+      await settle(replacement);
+      expect(replacement.deferred, hasLength(1));
+      expect(replacement.state, isA<IndexingInitial>());
+      expect(verifierCalls, 1);
+      expect(notifications, [LibraryMessages.searchResultContentDrifted]);
+      PendingReindexStore.resetMemoryForTesting();
+      expect(await PendingReindexStore.forIndex(dir.path)!.load(), {'id:1'});
+    });
+
+    test('מנהל מחליף טוען עבודה שנשמרה בדיסק בלי מסירה כפולה', () async {
+      var verifierCalls = 0;
+      final notifications = <String>[];
+      warner.debugBookVerifier = (_, _) async {
+        verifierCalls++;
+        return false;
+      };
+      warner.debugNotifier = notifications.add;
+      expect(
+        await PendingReindexStore.forIndex(dir.path)!.save({'uid:99'}),
+        isTrue,
+      );
+      await warner.warnIfContentDrifted(book, indexingBloc: bloc);
+      await settle(bloc);
+      expect(bloc.deferred, hasLength(1));
+      await bloc.close();
+      PendingReindexStore.resetMemoryForTesting();
+      expect(
+        await PendingReindexStore.forIndex(dir.path)!.load(),
+        {'uid:99', 'id:1'},
+      );
+
+      final replacement = await createBloc(
+        statusLibrary: Library(categories: []),
+      );
+      final pending = replacement.stream.firstWhere(
+        (s) => s is IndexingInitial,
+      );
+      replacement.add(CheckIndexStatus(library));
+      await pending.timeout(const Duration(seconds: 2));
+      await warner.warnIfContentDrifted(book, indexingBloc: replacement);
+      await settle(replacement);
+      expect(replacement.deferred, isEmpty);
+      expect(replacement.state, isA<IndexingInitial>());
+      expect(verifierCalls, 1);
+      expect(notifications, [LibraryMessages.searchResultContentDrifted]);
+      PendingReindexStore.resetMemoryForTesting();
+      expect(
+        await PendingReindexStore.forIndex(dir.path)!.load(),
+        {'uid:99', 'id:1'},
+      );
+    });
   });
 
   test(
@@ -474,6 +781,18 @@ Future<void> main() async {
 Uint8List utf8Bytes(String text) =>
     Uint8List.fromList(const Utf8Encoder().convert(text));
 
+class _RecordingIndexingBloc extends IndexingBloc {
+  _RecordingIndexingBloc(super.repository);
+
+  final List<DeferIndexing> deferred = [];
+
+  @override
+  void add(IndexingEvent event) {
+    if (event is DeferIndexing) deferred.add(event);
+    super.add(event);
+  }
+}
+
 class _FakeSearchEngine implements SearchEngine {
   final List<String> requestedPaths = [];
   final Map<String, BigInt> textFingerprints = {};
@@ -505,6 +824,18 @@ class _FakeTantivyDataProvider implements TantivyDataProvider {
 
   @override
   ValueNotifier<bool> isIndexing = ValueNotifier(false);
+
+  @override
+  String? activeIndexPath;
+
+  @override
+  final Set<String> indexedFilePaths = {};
+
+  @override
+  bool get isEconomyIndexing => false;
+
+  @override
+  bool get requiresManualReindex => false;
 
   /// מדמה reopen: המנוע (וזהות ה-Future) מוחלפים, כמו ב-_doReopen האמיתי.
   void replaceEngine(_FakeSearchEngine next) {

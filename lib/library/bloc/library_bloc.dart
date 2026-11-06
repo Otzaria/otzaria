@@ -362,8 +362,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
       final changedBooksToIndex = booksToReindex(
         indexableBooks,
-        changedBookKeys: {...event.changedBookKeys, ...movedBookKeys},
+        changedBookKeys: event.changedBookKeys,
         changedAttachedSlugs: event.changedAttachedSlugs,
+      );
+      movedBookKeys.removeAll(changedBooksToIndex.map(BookIdentity.keyOf));
+      final booksToCheckForIndex = booksToReindex(
+        indexableBooks,
+        changedBookKeys: movedBookKeys,
+        changedAttachedSlugs: const {},
       );
 
       final hadResults = _showsSearch;
@@ -380,6 +386,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           newBooksToIndex: newBooksToIndex.isNotEmpty ? newBooksToIndex : null,
           changedBooksToIndex: changedBooksToIndex.isNotEmpty
               ? changedBooksToIndex
+              : null,
+          booksToCheckForIndex: booksToCheckForIndex.isNotEmpty
+              ? booksToCheckForIndex
               : null,
           // רענון שנכשל אינו מדווח requestIds — בקשת reindex לא תרוץ על קטלוג ישן.
           completedRefreshRequestIds: event.requestIds.isNotEmpty

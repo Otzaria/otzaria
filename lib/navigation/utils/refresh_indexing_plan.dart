@@ -50,16 +50,18 @@ List<IndexingEvent> buildRefreshIndexingPlan({
   required Library library,
   required List<Book> newBooks,
   required List<Book> changedBooks,
+  List<Book> checkBooks = const [],
   required bool indexWholeLibrary,
   required bool reconcile,
   required IndexUpdateMode indexUpdateMode,
 }) {
   if (!indexUpdateMode.isAutomatic) {
-    if (changedBooks.isNotEmpty || reconcile) {
+    if (changedBooks.isNotEmpty || checkBooks.isNotEmpty || reconcile) {
       return [
         DeferIndexing(
           library,
           changedBooks: changedBooks,
+          checkBooks: checkBooks,
           checkLibrary: reconcile,
         ),
       ];
@@ -70,10 +72,11 @@ List<IndexingEvent> buildRefreshIndexingPlan({
   if (!indexUpdateMode.indexesPersonalBooks) {
     newBooks = newBooks.where(indexUpdateMode.admits).toList();
     changedBooks = changedBooks.where(indexUpdateMode.admits).toList();
+    checkBooks = checkBooks.where(indexUpdateMode.admits).toList();
   }
   // קובץ מסד מצורף מדווח כשינוי של כל ספריו; השוואת טביעת האצבע מחליפה רק
   // את אלה שתוכנם באמת השתנה. ל-PDF אין טביעת אצבע, ולכן הוא מוחלף כמדווח.
-  final checkedBooks = <Book>[];
+  final checkedBooks = [...checkBooks];
   final explicitChanged = <Book>[];
   for (final book in changedBooks) {
     (book.source.isAttached && book is! PdfBook

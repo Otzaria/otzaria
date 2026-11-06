@@ -3,13 +3,15 @@ import 'package:otzaria/models/books.dart';
 
 /// שלב הבדיקה של ריצת אינדוקס: אילו ספרים מאונדקסים התיישנו מול מקורם.
 abstract interface class IndexChangeDetector {
-  /// הספרים המאונדקסים מתוך [candidates] שיש להחליף; null כשבוטל. בין ספרים
-  /// נקרא [waitWhilePaused]; [onProgress] מדווח (0, total) ואחריו כל ספר.
+  /// ספרים שיש להחליף; null כשבוטל. [onMetadataOnlyChanged] מציין שינוי
+  /// מטא־דאטה ללא שינוי תוכן ידוע.
+  /// בין ספרים נקרא [waitWhilePaused]; [onProgress] מדווח (0, total) ואחריו כל ספר.
   Future<List<Book>?> detectChanged(
     List<Book> candidates, {
     required Library library,
     required bool Function() isCancelled,
     required Future<void> Function() waitWhilePaused,
+    void Function(Book book)? onMetadataOnlyChanged,
     void Function(int processed, int total)? onProgress,
   });
 }

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
@@ -610,7 +611,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       if (!mounted) return;
       final book = resolution.book;
       if (book is TextBook) {
-        await IndexFreshnessWarner.instance.warnIfContentDrifted(book);
+        await IndexFreshnessWarner.instance.warnIfContentDrifted(
+          book,
+          indexingBloc: context.read<IndexingBloc?>(),
+        );
       }
     }
   }

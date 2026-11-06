@@ -3124,7 +3124,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 (current.completedRefreshRequestIds?.isNotEmpty ?? false) ||
                 (current.failedRefreshRequestIds?.isNotEmpty ?? false) ||
                 (current.newBooksToIndex?.isNotEmpty ?? false) ||
-                (current.changedBooksToIndex?.isNotEmpty ?? false),
+                (current.changedBooksToIndex?.isNotEmpty ?? false) ||
+                (current.booksToCheckForIndex?.isNotEmpty ?? false),
             listener: (context, state) async {
               final startupRefreshId = _startupRefreshWait.requestId;
               final completedIds = state.completedRefreshRequestIds;
@@ -3160,6 +3161,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   library: library,
                   newBooks: state.newBooksToIndex ?? const [],
                   changedBooks: state.changedBooksToIndex ?? const [],
+                  checkBooks: state.booksToCheckForIndex ?? const [],
                   indexWholeLibrary: resolved.indexWholeLibrary,
                   reconcile: resolved.reconcile,
                   indexUpdateMode: refreshIndexUpdateMode(

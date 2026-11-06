@@ -6,6 +6,8 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -39,8 +41,8 @@ class IndexFreshnessWarner {
   @visibleForTesting
   void Function(String message)? debugNotifier;
 
-  /// המפתח באינדקס → ה-revision של המקור בזמן הבדיקה המוצלחת האחרונה.
-  final Map<String, String> _checkedRevisionByKey = {};
+  /// הבדיקה האחרונה לכל מפתח, כולל דריפט שטרם נמסר למנהל האינדוקס.
+  final Map<String, _CheckedRevision> _checkedRevisionByKey = {};
 
   /// בדיקות שכבר רצות, לפי מפתח+revision+דור — שתי פתיחות של אותו ספר
   /// חולקות ריצה אחת במקום לגבב אותו פעמיים ולהזהיר פעמיים.
@@ -91,7 +93,12 @@ class IndexFreshnessWarner {
   /// בודק ספר פעם אחת לכל שילוב של מפתח-אינדקס ו-revision של המקור,
   /// ומזהיר על אי-התאמה ודאית. לעולם אינו זורק — כשל אימות אינו מפריע
   /// לפתיחת התוצאה, ואינו נצרב כדי שהבדיקה תנוסה שוב בפתיחה הבאה.
-  Future<void> warnIfContentDrifted(Book book) async {
+  /// עם [indexingBloc], אי־התאמה גם נשמרת להחלפה ומרעננת את החיווי בלי
+  /// להתחיל אינדוקס.
+  Future<void> warnIfContentDrifted(
+    Book book, {
+    IndexingBloc? indexingBloc,
+  }) async {
     final provider = providerResolver();
     _hookIndexingInvalidation(provider);
     // אינדקס שנמצא באמצע בנייה אינו בסיס להשוואה: חלק מהמסמכים כבר
@@ -112,21 +119,35 @@ class IndexFreshnessWarner {
       // ה-revision מזהה שינוי בקובץ המקור עצמו: ספר file-backed נקרא
       // ישירות מהדיסק, ואין רענון ספרייה שיסמן עריכה חיצונית שלו.
       final revision = await _sourceRevision(book);
-      if (_checkedRevisionByKey[key] == revision) return;
-
-      // איחוד ריצות: הבדיקה נכתבת למטמון רק בסופה, ולכן בלי השורות האלה
-      // שתי פתיחות מקבילות של אותו ספר היו שתיהן מפספסות את המטמון.
-      final runKey = '$key|$revision|$token';
-      final running = _inFlightByKey[runKey];
-      if (running != null) {
-        // await ולא return: שגיאה מריצה משותפת חייבת להיתפס כאן — Future
-        // שמוחזר כמות שהוא עוקף את ה-try והקורא המצטרף (unawaited) היה
-        // מקבל async error גלובלי.
-        await running;
-        return;
+      if (_checkedRevisionByKey[key]?.revision != revision) {
+        final runKey = '$key|$revision|$token';
+        final running = _inFlightByKey[runKey];
+        if (running != null) {
+          // גם הקורא המצטרף ממתין בתוך ה-try, כדי שכשל בריצה המשותפת
+          // יטופל כאן ולא יהפוך לשגיאה אסינכרונית לא מטופלת.
+          await running;
+        } else {
+          final run = _checkAndWarn(
+            book: book,
+            key: key,
+            revision: revision,
+            token: token,
+            provider: provider,
+            engineGeneration: engineGeneration,
+            libraryGeneration: libraryGeneration,
+          );
+          _inFlightByKey[runKey] = run;
+          try {
+            await run;
+          } finally {
+            if (identical(_inFlightByKey[runKey], run)) {
+              _inFlightByKey.remove(runKey);
+            }
+          }
+        }
       }
 
-      final run = _checkAndWarn(
+      await _deferIfNeeded(
         book: book,
         key: key,
         revision: revision,
@@ -134,15 +155,8 @@ class IndexFreshnessWarner {
         provider: provider,
         engineGeneration: engineGeneration,
         libraryGeneration: libraryGeneration,
+        indexingBloc: indexingBloc,
       );
-      _inFlightByKey[runKey] = run;
-      try {
-        await run;
-      } finally {
-        if (identical(_inFlightByKey[runKey], run)) {
-          _inFlightByKey.remove(runKey);
-        }
-      }
     } catch (error) {
       debugPrint('אימות טריות האינדקס נכשל עבור "${book.title}": $error');
     }
@@ -174,12 +188,52 @@ class IndexFreshnessWarner {
     )) {
       return;
     }
-    _checkedRevisionByKey[key] = revision;
+    _checkedRevisionByKey[key] = _CheckedRevision(
+      revision,
+      needsReindex: !matches,
+    );
     if (!matches) {
       (debugNotifier ?? UiSnack.show)(
         LibraryMessages.searchResultContentDrifted,
       );
     }
+  }
+
+  Future<void> _deferIfNeeded({
+    required Book book,
+    required String key,
+    required String revision,
+    required int token,
+    required TantivyDataProvider provider,
+    required Future<SearchEngine> engineGeneration,
+    required Future<Library> libraryGeneration,
+    required IndexingBloc? indexingBloc,
+  }) async {
+    if (indexingBloc == null || indexingBloc.isClosed) return;
+    final checked = _checkedRevisionByKey[key];
+    if (checked == null ||
+        checked.revision != revision ||
+        !checked.needsReindex) {
+      return;
+    }
+
+    final library = await libraryGeneration;
+    if (await _sourceRevision(book) != revision) return;
+    if (!_generationUnchanged(
+          provider,
+          token,
+          engineGeneration,
+          libraryGeneration,
+        ) ||
+        indexingBloc.isClosed ||
+        !identical(_checkedRevisionByKey[key], checked) ||
+        !checked.needsReindex) {
+      return;
+    }
+
+    // בלי await בין המסירה לסימונה: קורא אחר לא ישלח אותה שוב.
+    indexingBloc.add(DeferIndexing(library, changedBooks: [book]));
+    checked.needsReindex = false;
   }
 
   /// חתימת המקור של הספר: נתיב + זמן שינוי + גודל, כשיש קובץ מקור.
@@ -223,4 +277,11 @@ class IndexFreshnessWarner {
   Future<bool> _bookMatches(Book book, BigInt indexHash) => IndexingRepository(
     providerResolver(),
   ).textBookContentMatchesIndex(book, indexHash);
+}
+
+class _CheckedRevision {
+  _CheckedRevision(this.revision, {required this.needsReindex});
+
+  final String revision;
+  bool needsReindex;
 }
