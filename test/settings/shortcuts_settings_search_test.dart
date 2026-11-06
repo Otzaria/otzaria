@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/tabs/shortcuts_settings_tab.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
 void main() {
   test('כל רשומת חיפוש של קיצור מפנה לכרטיס שבו הקיצור מוצג', () {
@@ -25,5 +26,32 @@ void main() {
       expect(prefix, isNotEmpty, reason: 'אין כרטיס צפוי עבור ${entry.id}');
       expect(entry.cardId, cardByPrefix[prefix], reason: entry.id);
     }
+  });
+
+  test('לכל תוצאת קיצור יש מפתח פעולה תקף וייחודי', () {
+    final entries = ShortcutsSettingsTab.searchEntries
+        .where((entry) => entry.id != 'shortcuts.reset')
+        .toList();
+    expect(entries, hasLength(46));
+    expect(entries.map((entry) => entry.expandSection).toSet(), hasLength(46));
+    for (final entry in entries) {
+      expect(entry.expandSection, isNotNull, reason: entry.id);
+      expect(
+        ShortcutValidator.shortcutKeys,
+        contains(entry.expandSection),
+        reason: entry.id,
+      );
+      expect(
+        ShortcutValidator.shortcutNames[entry.expandSection],
+        isNotEmpty,
+        reason: entry.id,
+      );
+    }
+    expect(
+      ShortcutsSettingsTab.searchEntries
+          .singleWhere((entry) => entry.id == 'shortcuts.reset')
+          .expandSection,
+      isNull,
+    );
   });
 }

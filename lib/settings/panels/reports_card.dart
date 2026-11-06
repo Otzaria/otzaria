@@ -54,8 +54,10 @@ class _ReportsCardState extends State<ReportsCard> {
   }
 
   /// A [ReportsTab] name opens that tab; any other section opens the default.
-  void _openSection(String section) =>
-      _openDialog(ReportsTab.values.asNameMap()[section]);
+  void _openSection(String section, {bool Function()? isCurrent}) {
+    if (isCurrent?.call() == false) return;
+    _openDialog(ReportsTab.values.asNameMap()[section]);
+  }
 
   Future<void> _openDialog([ReportsTab? tab]) async {
     await widget.openManagement(context, initialTab: tab);

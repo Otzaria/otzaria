@@ -184,13 +184,10 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
                 // כשהקטלוג חסר מוצג כפתור הורדה במקום תפריט המקורות.
                 if (_catalogExists == false)
                   _buildMissingCatalogTile(context)
-                else if (_catalogExists == true) ...[
+                else if (_catalogExists == true)
                   _buildSourceModeTile(context, state),
-                  // כשהקטלוג עצמו מוצג הספרים המקומיים כלולים בו ממילא.
-                  if (_hasHebrewBooksPath &&
-                      !(state.showExternalBooks && state.showHebrewBooks))
-                    _buildLocalHebrewBooksTile(context, state),
-                ],
+                if (_catalogExists != null)
+                  _buildLocalHebrewBooksTile(context, state),
               ],
             ),
           ],
@@ -228,6 +225,26 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   /// מתג הצגת ספרי היברובוקס שכבר ירדו למחשב (issue #1143) — מיועד למי
   /// שהגדיר את התיקייה עבור תוסף ואינו רוצה אותם באיתור הספר.
   Widget _buildLocalHebrewBooksTile(BuildContext context, SettingsState state) {
+    final unavailableReason = _catalogExists == false
+        ? context.settingsText(
+            'כדי להציג ספרי היברובוקס מקומיים, יש להוריד את הקטלוג באמצעות "הורד קטלוג".',
+          )
+        : !_hasHebrewBooksPath
+        ? context.settingsText(
+            'כדי להציג ספרי היברובוקס שברשותך, יש לבחור תיקייה ב"מיקום ספרי היברובוקס".',
+          )
+        : state.showExternalBooks && state.showHebrewBooks
+        ? context.settingsText(
+            'ספרי היברובוקס שברשותך כבר כלולים במקור היברובוקס שנבחר ב"מקורות אחרים לספרים".',
+          )
+        : null;
+    if (unavailableReason != null) {
+      return SettingsActionTile.text(
+        icon: FluentIcons.document_folder_24_regular,
+        title: context.settingsText('הצג ספרי היברובוקס שברשותך'),
+        subtitle: unavailableReason,
+      );
+    }
     return SettingsActionTile.switchTile(
       icon: FluentIcons.document_folder_24_regular,
       title: context.settingsText('הצג ספרי היברובוקס שברשותך'),
