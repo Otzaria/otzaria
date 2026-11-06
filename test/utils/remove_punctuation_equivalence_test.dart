@@ -22,10 +22,12 @@ final RegExp _oracleWordEnd = RegExp(
   "[א-ײ0-9a-zA-Z'׳)\\]\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]",
 );
 final RegExp _oracleWordStart = RegExp(r'[א-ײ0-9a-zA-Z(\[]');
+final RegExp _oracleSpace = RegExp(r'^\s$');
 
 /// התו הגלוי שאחרי רצף פיסוק ותגים, אחרי פענוח ישות.
 final RegExp _oracleAfterPunctuation = RegExp(
   r'(?:[!:;.,?\-—–]|<[^>]*>)*(&(?:#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);|.)?',
+  dotAll: true,
 );
 
 String _oracleNextVisible(String line, int from) {
@@ -76,6 +78,7 @@ String _oracleRemovePunctuation(String text) {
     var parenDepth = 0;
     var inTag = false;
     var previous = '';
+    var skipAt = -1;
     for (var i = 0; i < processed.length; i++) {
       final ch = processed[i];
 
@@ -89,6 +92,7 @@ String _oracleRemovePunctuation(String text) {
         buffer.write(ch);
         continue;
       }
+      if (i == skipAt) continue;
       if (ch == '&') {
         final entity = _oracleHtmlEntity.matchAsPrefix(processed, i);
         if (entity != null) {
@@ -138,6 +142,12 @@ String _oracleRemovePunctuation(String text) {
             _oracleWordStart.hasMatch(_oracleNextVisible(processed, i + 1))) {
           buffer.write(' ');
           previous = ' ';
+        } else if (_oracleSpace.hasMatch(previous)) {
+          final next = _oracleAfterPunctuation.matchAsPrefix(processed, i + 1);
+          final visible = next?.group(1);
+          if (visible != null && _oracleSpace.hasMatch(visible)) {
+            skipAt = next!.end - 1;
+          }
         }
         continue;
       }

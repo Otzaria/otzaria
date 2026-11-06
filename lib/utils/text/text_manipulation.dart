@@ -551,6 +551,7 @@ String removePunctuation(String text) {
     var previous = 0; // התו הגלוי האחרון שנכתב
     // רצף פיסוק חולק תוצאת מבט קדימה, גם כשלא נוסף רווח.
     var nextVisible = (0, -1);
+    var skipSpaceAt = -1;
     // יחידות קוד ולא processed[i]: אחרת כל תו מקצה מחרוזת חדשה.
     for (var i = 0; i < processed.length; i++) {
       final ch = processed.codeUnitAt(i);
@@ -567,6 +568,8 @@ String removePunctuation(String text) {
         buffer.writeCharCode(ch);
         continue;
       }
+
+      if (i == skipSpaceAt) continue;
 
       // ישות HTML עוברת כמכלול - אחרת ה-";" שלה נמחק כפיסוק והישות מוצגת
       // כטקסט גלוי (למשל "&thinsp" סביב פסק בתנ"ך).
@@ -619,6 +622,11 @@ String removePunctuation(String text) {
         if (punctuationSeparatesWords(previous, nextVisible.$1)) {
           buffer.writeCharCode(0x20);
           previous = 0x20;
+        } else if (_isRegExpSpace(previous) &&
+            nextVisible.$2 < processed.length &&
+            _isRegExpSpace(processed.codeUnitAt(nextVisible.$2))) {
+          // "א — ב": הרווח השני היה נשאר כפול בטקסט פשוט (העתקה, ייצוא).
+          skipSpaceAt = nextVisible.$2;
         }
         continue;
       }

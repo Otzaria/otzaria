@@ -34,7 +34,10 @@ void main() {
       'פרקים 3-4': 'פרקים 3 4',
       'see-also': 'see also',
       // פיסוק שכבר צמוד לרווח, לתחילת השורה או לסופה — רק נמחק.
-      'לאמר - דבר': 'לאמר  דבר',
+      'לאמר - דבר': 'לאמר דבר',
+      'לאמר - - דבר': 'לאמר דבר',
+      'לאמר <b>—</b> דבר': 'לאמר <b></b>דבר',
+      'לאמר —&nbsp;דבר': 'לאמר &nbsp;דבר',
       'לאמר, דבר': 'לאמר דבר',
       '-שלום': 'שלום',
       'שלום-': 'שלום',
@@ -59,6 +62,22 @@ void main() {
   });
 
   group('מיפוי בחירה מהתצוגה בלי פיסוק', () {
+    test('בחירה סביב מקף מוקף רווחים ממופה למקור', () {
+      const line = 'בְּיָדָיו — פָּטוּר, וְאִילּוּ';
+      final shown = removeVolwels(removePunctuation(line));
+      expect(shown, 'בידיו פטור ואילו');
+      final anchor = computeAnchorForSelection(
+        rawLine: line,
+        selectedText: shown,
+        punctuationHidden: true,
+      );
+      expect(line.substring(anchor!.start, anchor.end), line);
+      expect(
+        sliceHtmlBySelection(html: '<b>$line</b>', selectedText: shown),
+        isNotNull,
+      );
+    });
+
     test('html_slice מוצא את הבחירה עם הרווח ובלעדיו', () {
       const html = '<b>אֲסִירֵי</b>-חֵשֶׁק';
       expect(

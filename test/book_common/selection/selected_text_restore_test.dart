@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 void main() {
@@ -540,10 +539,7 @@ void main() {
     });
 
     test('מכווץ רווחים כפולים שמותיר הסתרת פיסוק כדי שהתצוגה תתאים', () {
-      // הסתרת פיסוק מסירה את ה"-" ומותירה רווח כפול במקומו;
-      // התצוגה ב-HTML מכווצת אותו, ולכן גם renderSelectionLine חייב לכווץ.
-      expect(removePunctuation('לאמר - דבר').contains('  '), isTrue);
-
+      // התצוגה ב-HTML מכווצת רווחים, ולכן גם renderSelectionLine חייב לכווץ.
       final line = renderSelectionLine(
         rawText: 'לאמר - דבר',
         settings: const RenderSettings(removePunctuation: true),
