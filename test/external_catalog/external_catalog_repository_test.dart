@@ -13,6 +13,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,9 +28,7 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp(
         'otzaria-external-catalog-test-',
       );
-      libraryDir = Directory(
-        path.join(tempDir.path, 'Otzaria'),
-      );
+      libraryDir = Directory(path.join(tempDir.path, 'Otzaria'));
       await libraryDir.create(recursive: true);
 
       await Settings.init(cacheProvider: _MemoryCacheProvider());
@@ -288,11 +288,18 @@ void main() {
         String? extractedFrom;
         repository = ExternalCatalogRepository(
           httpClient: client(),
-          extractZst: (archivePath, outputPath) async {
-            extractedFrom = archivePath;
-            expect(await File(archivePath).readAsBytes(), remoteDbBytes);
-            await File(archivePath).copy(outputPath);
-          },
+          extractZst:
+              (
+                archivePath,
+                outputPath, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async {
+                extractedFrom = archivePath;
+                expect(await File(archivePath).readAsBytes(), remoteDbBytes);
+                await File(archivePath).copy(outputPath);
+              },
         );
 
         await repository.downloadLatestDatabase();
@@ -310,7 +317,14 @@ void main() {
         await _createCatalogDatabase(repository.databasePath, version: 3);
         repository = ExternalCatalogRepository(
           httpClient: client(),
-          extractZst: (_, _) async => throw const FormatException('corrupt'),
+          extractZst:
+              (
+                _,
+                _, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async => throw const FormatException('corrupt'),
         );
 
         await expectLater(repository.downloadLatestDatabase(), throwsException);
@@ -321,6 +335,388 @@ void main() {
           isFalse,
         );
       });
+
+      test('ביטול בדיווח האחרון משמר DB והורדה ומנקה staging', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        var cancelled = false;
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          extractZst:
+              (
+                archive,
+                output, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async {
+                expect(maxOutputBytes, kDefaultMaxExtractedBytes);
+                expect(isCancelled, isNotNull);
+                await File(archive).copy(output);
+                onProgress?.call(1);
+              },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(
+            isCancelled: () => cancelled,
+            onExtractionProgress: (_) => cancelled = true,
+          ),
+          throwsA(isA<PatchDownloadCancelled>()),
+        );
+
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        expect(
+          File('${repository.databasePath}.download').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${repository.databasePath}.download.zst').existsSync(),
+          isTrue,
+        );
+      });
+
+      test('מגבלת הפלט מועברת למחלץ לפני החלפת הקטלוג', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          maxOutputBytes: 128,
+          extractZst:
+              (_, _, {required maxOutputBytes, isCancelled, onProgress}) async {
+                expect(maxOutputBytes, 128);
+                throw ZstdOutputLimitExceeded(maxOutputBytes);
+              },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsA(isA<ZstdOutputLimitExceeded>()),
+        );
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        expect(
+          File('${repository.databasePath}.download').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('פלט שאינו SQLite נדחה לפני החלפת מסד תקין', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          extractZst:
+              (
+                _,
+                output, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async {
+                await File(output).writeAsString('invalid database');
+              },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsA(isA<FormatException>()),
+        );
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        expect(
+          File('${repository.databasePath}.download').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${repository.databasePath}.download.zst').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('פלט ריק אינו הופך לקטלוג חדש בהחתמת גרסה', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          extractZst:
+              (
+                _,
+                output, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async {
+                await File(output).writeAsBytes(const []);
+              },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsA(isA<FormatException>()),
+        );
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        expect(
+          File('${repository.databasePath}.download').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('מגבלת הורדה עוצרת את הזרם לפני חילוץ ושומרת DB קיים', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        var extractionStarted = false;
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          maxDownloadBytes: 128,
+          extractZst:
+              (_, _, {required maxOutputBytes, isCancelled, onProgress}) async {
+                extractionStarted = true;
+              },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsA(isA<PatchDownloadException>()),
+        );
+        expect(extractionStarted, isFalse);
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        expect(
+          File('${repository.databasePath}.download.zst').existsSync(),
+          isFalse,
+        );
+      });
+    });
+
+    group('החלפת משפחת SQLite', () {
+      late List<int> remoteDbBytes;
+
+      setUp(() async {
+        final remote = path.join(tempDir.path, 'remote_family.db');
+        await _createCatalogDatabase(remote, version: 5);
+        remoteDbBytes = File(remote).readAsBytesSync();
+      });
+
+      http.Client client() => MockClient((request) async {
+        final url = request.url.toString();
+        if (url == ExternalCatalogRepository.releaseApiUrl) {
+          return http.Response(
+            jsonEncode({
+              'tag_name': 'db-v5',
+              'assets': [
+                {
+                  'name': DatabaseConstants.externalCatalogDatabaseFileName,
+                  'browser_download_url': 'https://example.com/family.db',
+                  'size': remoteDbBytes.length,
+                },
+                {
+                  'name': DatabaseConstants.externalCatalogVersionFileName,
+                  'browser_download_url': 'https://example.com/version.txt',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (url == 'https://example.com/version.txt') {
+          return http.Response('5', 200);
+        }
+        if (url == 'https://example.com/family.db') {
+          return http.Response.bytes(remoteDbBytes, 200);
+        }
+        return http.Response('Not found', 404);
+      });
+
+      test('WAL ישן אינו מוחל על המסד החדש', () async {
+        await _createOrphanWalCatalog(repository.databasePath);
+        expect(File('${repository.databasePath}-wal').existsSync(), isTrue);
+        repository = ExternalCatalogRepository(httpClient: client());
+
+        await repository.downloadLatestDatabase();
+
+        expect(await repository.getCurrentDatabaseVersion(), 5);
+        _expectCatalogIntegrity(repository.databasePath);
+        expect(File('${repository.databasePath}-wal').existsSync(), isFalse);
+        expect(
+          Directory(
+            '${repository.databasePath}.catalog-update-backup',
+          ).existsSync(),
+          isFalse,
+        );
+      });
+
+      test('קורא WAL פעיל מעכב החלפה ושומר את התוכן הישן', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        final reader = sqlite3.open(repository.databasePath);
+        reader.execute('PRAGMA journal_mode=WAL');
+        reader.execute('PRAGMA wal_autocheckpoint=0');
+        reader.execute("UPDATE db_meta SET value='4' WHERE key='version'");
+        reader.execute('BEGIN');
+        expect(reader.select('SELECT value FROM db_meta').single['value'], '4');
+        repository = ExternalCatalogRepository(httpClient: client());
+        try {
+          await expectLater(
+            repository.downloadLatestDatabase(),
+            throwsA(isA<ExternalCatalogDatabaseBusyException>()),
+          );
+          expect(
+            reader.select('SELECT value FROM db_meta').single['value'],
+            '4',
+          );
+          expect(
+            Directory(
+              '${repository.databasePath}.catalog-update-backup',
+            ).existsSync(),
+            isFalse,
+          );
+          expect(
+            File('${repository.databasePath}.download.zst').existsSync(),
+            isTrue,
+          );
+        } finally {
+          reader.execute('ROLLBACK');
+          reader.close();
+        }
+        await repository.downloadLatestDatabase();
+        expect(await repository.getCurrentDatabaseVersion(), 5);
+        _expectCatalogIntegrity(repository.databasePath);
+      });
+
+      test('כשל אחרי העברת המסד החדש משחזר את הקטלוג הקודם', () async {
+        await _createOrphanWalCatalog(repository.databasePath);
+        var reachedCommit = false;
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          beforeFileRename: (source, destination) {
+            if (path.basename(source) == 'committed.tmp') {
+              reachedCommit = true;
+              throw StateError('injected commit decision failure');
+            }
+          },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsStateError,
+        );
+
+        expect(reachedCommit, isTrue);
+        expect(await repository.getCurrentDatabaseVersion(), 4);
+        _expectCatalogIntegrity(repository.databasePath);
+        expect(
+          Directory(
+            '${repository.databasePath}.catalog-update-backup',
+          ).existsSync(),
+          isFalse,
+        );
+      });
+
+      test('כשל בשחזור נשמר ביומן ומתאושש לפני פנייה לרשת', () async {
+        await _createCatalogDatabase(repository.databasePath, version: 3);
+        final target = repository.databasePath;
+        final backup = '$target.catalog-update-backup';
+        var failedCommit = false;
+        repository = ExternalCatalogRepository(
+          httpClient: client(),
+          beforeFileRename: (source, destination) {
+            if (path.basename(source) == 'committed.tmp') {
+              failedCommit = true;
+              throw StateError('injected commit failure');
+            }
+            if (failedCommit && source == path.join(backup, '0')) {
+              throw StateError('injected rollback failure');
+            }
+          },
+        );
+
+        await expectLater(
+          repository.downloadLatestDatabase(),
+          throwsStateError,
+        );
+        expect(File(path.join(backup, '0')).existsSync(), isTrue);
+        expect(File(path.join(backup, 'state.json')).existsSync(), isTrue);
+        expect(File(target).existsSync(), isFalse);
+        var restoredBeforeNetwork = false;
+        repository = ExternalCatalogRepository(
+          httpClient: MockClient((_) async {
+            restoredBeforeNetwork =
+                File(target).existsSync() && !Directory(backup).existsSync();
+            return http.Response('unavailable', 404);
+          }),
+        );
+
+        await expectLater(repository.downloadLatestDatabase(), throwsException);
+
+        expect(restoredBeforeNetwork, isTrue);
+        expect(await repository.getCurrentDatabaseVersion(), 3);
+        _expectCatalogIntegrity(target);
+      });
+
+      test('יומן שנקטע משחזר גם WAL שטרם נכתב לקובץ הראשי', () async {
+        final target = repository.databasePath;
+        await _createOrphanWalCatalog(target);
+        final backup = Directory('$target.catalog-update-backup')..createSync();
+        const suffixes = ['', '-wal', '-shm', '-journal'];
+        final existed = [
+          for (final suffix in suffixes) File('$target$suffix').existsSync(),
+        ];
+        expect(existed[1], isTrue);
+        File(
+          path.join(backup.path, 'state.json'),
+        ).writeAsStringSync(jsonEncode(existed), flush: true);
+        for (var i = 0; i < suffixes.length; i++) {
+          if (existed[i]) {
+            File(
+              '$target${suffixes[i]}',
+            ).renameSync(path.join(backup.path, '$i'));
+          }
+        }
+        await _createCatalogDatabase(target, version: 9);
+        File('$target-journal').writeAsBytesSync([1, 2, 3]);
+        repository = ExternalCatalogRepository(
+          httpClient: MockClient(
+            (_) async => http.Response('unavailable', 404),
+          ),
+        );
+
+        await expectLater(repository.downloadLatestDatabase(), throwsException);
+
+        expect(await repository.getCurrentDatabaseVersion(), 4);
+        _expectCatalogIntegrity(target);
+        expect(File('$target-journal').existsSync(), isFalse);
+        expect(backup.existsSync(), isFalse);
+      });
+
+      test('החלטת commit נשמרת גם כאשר ניקוי הגיבוי נקטע', () async {
+        final target = repository.databasePath;
+        await _createCatalogDatabase(target, version: 5);
+        final backup = Directory('$target.catalog-update-backup')..createSync();
+        await _createCatalogDatabase(path.join(backup.path, '0'), version: 3);
+        File(
+          path.join(backup.path, 'state.json'),
+        ).writeAsStringSync('[true,false,false,false]', flush: true);
+        File(
+          path.join(backup.path, 'committed'),
+        ).writeAsStringSync('1', flush: true);
+        repository = ExternalCatalogRepository(
+          httpClient: MockClient(
+            (_) async => http.Response('unavailable', 404),
+          ),
+        );
+
+        await expectLater(repository.downloadLatestDatabase(), throwsException);
+
+        expect(await repository.getCurrentDatabaseVersion(), 5);
+        _expectCatalogIntegrity(target);
+        expect(backup.existsSync(), isFalse);
+      });
+    });
+
+    test('גיבוי מ-swap שנקטע משוחזר גם כשהרשת אינה זמינה', () async {
+      await _createCatalogDatabase(repository.databasePath, version: 3);
+      await File(
+        repository.databasePath,
+      ).rename('${repository.databasePath}.bak');
+      repository = ExternalCatalogRepository(
+        httpClient: MockClient((_) async => http.Response('unavailable', 404)),
+      );
+
+      await expectLater(repository.downloadLatestDatabase(), throwsException);
+      expect(await repository.getCurrentDatabaseVersion(), 3);
+      expect(File(repository.databasePath).existsSync(), isTrue);
     });
 
     test(
@@ -383,11 +779,9 @@ void main() {
       },
     );
 
-    test(
-      'getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני',
-      () async {
-        final db = sqlite3.open(repository.databasePath);
-        db.execute('''
+    test('getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני', () async {
+      final db = sqlite3.open(repository.databasePath);
+      db.execute('''
             CREATE TABLE otzar_hahochma (
               book_id INTEGER PRIMARY KEY,
               title TEXT,
@@ -400,7 +794,7 @@ void main() {
               pages INTEGER
             )
           ''');
-        db.execute('''
+      db.execute('''
             CREATE TABLE hebrew_books (
               id_book INTEGER PRIMARY KEY,
               title TEXT,
@@ -412,60 +806,59 @@ void main() {
               tags TEXT
             )
           ''');
-        db.execute(
-          'INSERT INTO otzar_hahochma (book_id, title, authors, from_year, to_year, places, subjects, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [
-            42,
-            'ספר אוצר',
-            '["מחבר א","מחבר ב"]',
-            'תש"ס',
-            'תשס"א',
-            'ירושלים',
-            'הלכה, מוסר',
-            200,
-          ],
-        );
-        db.execute(
-          'INSERT INTO hebrew_books (id_book, title, author, printing_place, printing_year, pub_date, pages, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [
-            77,
-            'ספר היברו',
-            'מחבר ג',
-            'ורשה',
-            'תרצ"ד',
-            1934,
-            120,
-            '["שו\\"ת","הלכה"]',
-          ],
-        );
-        db.close();
+      db.execute(
+        'INSERT INTO otzar_hahochma (book_id, title, authors, from_year, to_year, places, subjects, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          42,
+          'ספר אוצר',
+          '["מחבר א","מחבר ב"]',
+          'תש"ס',
+          'תשס"א',
+          'ירושלים',
+          'הלכה, מוסר',
+          200,
+        ],
+      );
+      db.execute(
+        'INSERT INTO hebrew_books (id_book, title, author, printing_place, printing_year, pub_date, pages, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          77,
+          'ספר היברו',
+          'מחבר ג',
+          'ורשה',
+          'תרצ"ד',
+          1934,
+          120,
+          '["שו\\"ת","הלכה"]',
+        ],
+      );
+      db.close();
 
-        final otzarBooks = await repository.getOtzarBooks();
-        final hebrewBooks = await repository.getHebrewBooks();
+      final otzarBooks = await repository.getOtzarBooks();
+      final hebrewBooks = await repository.getHebrewBooks();
 
-        expect(otzarBooks, hasLength(1));
-        expect(otzarBooks.first.title, 'ספר אוצר');
-        expect(otzarBooks.first.author, 'מחבר א, מחבר ב');
-        expect(otzarBooks.first.pubDate, 'תש"ס-תשס"א');
-        expect(otzarBooks.first.pubPlace, 'ירושלים');
-        expect(otzarBooks.first.topics, 'הלכה, מוסר');
-        expect(
-          otzarBooks.first.link,
-          'https://tablet.otzar.org/book/book.php?book=42',
-        );
-        expect(otzarBooks.first.externalLibraryId, 'oh:42');
+      expect(otzarBooks, hasLength(1));
+      expect(otzarBooks.first.title, 'ספר אוצר');
+      expect(otzarBooks.first.author, 'מחבר א, מחבר ב');
+      expect(otzarBooks.first.pubDate, 'תש"ס-תשס"א');
+      expect(otzarBooks.first.pubPlace, 'ירושלים');
+      expect(otzarBooks.first.topics, 'הלכה, מוסר');
+      expect(
+        otzarBooks.first.link,
+        'https://tablet.otzar.org/book/book.php?book=42',
+      );
+      expect(otzarBooks.first.externalLibraryId, 'oh:42');
 
-        expect(hebrewBooks, hasLength(1));
-        final hebrewBook = hebrewBooks.first;
-        expect(hebrewBook.title, 'ספר היברו');
-        expect(hebrewBook.author, 'מחבר ג');
-        expect(hebrewBook.pubDate, 'תרצ"ד');
-        expect(hebrewBook.pubPlace, 'ורשה');
-        expect(hebrewBook.topics, 'שו"ת, הלכה');
-        expect((hebrewBook as dynamic).link, 'https://hebrewbooks.org/77');
-        expect(hebrewBook.externalLibraryId, 'hb:77');
-      },
-    );
+      expect(hebrewBooks, hasLength(1));
+      final hebrewBook = hebrewBooks.first;
+      expect(hebrewBook.title, 'ספר היברו');
+      expect(hebrewBook.author, 'מחבר ג');
+      expect(hebrewBook.pubDate, 'תרצ"ד');
+      expect(hebrewBook.pubPlace, 'ורשה');
+      expect(hebrewBook.topics, 'שו"ת, הלכה');
+      expect((hebrewBook as dynamic).link, 'https://hebrewbooks.org/77');
+      expect(hebrewBook.externalLibraryId, 'hb:77');
+    });
 
     test('getHebrewBooksByIds מחזיר רק את המזהים המבוקשים', () async {
       final db = sqlite3.open(repository.databasePath);
@@ -722,6 +1115,36 @@ Future<void> _createCatalogDatabase(
     version.toString(),
   ]);
   db.close();
+}
+
+Future<void> _createOrphanWalCatalog(String target) async {
+  await _createCatalogDatabase(target, version: 3);
+  final db = sqlite3.open(target);
+  final files = <String, List<int>>{};
+  try {
+    db.execute('PRAGMA journal_mode=WAL');
+    db.execute('PRAGMA wal_autocheckpoint=0');
+    db.execute("UPDATE db_meta SET value='4' WHERE key='version'");
+    for (final suffix in ['', '-wal', '-shm']) {
+      final file = File('$target$suffix');
+      if (file.existsSync()) files[suffix] = file.readAsBytesSync();
+    }
+  } finally {
+    db.close();
+  }
+  // משחזר snapshot עקבי של קריסה לפני checkpoint, ללא handle חי.
+  for (final entry in files.entries) {
+    File('$target${entry.key}').writeAsBytesSync(entry.value, flush: true);
+  }
+}
+
+void _expectCatalogIntegrity(String target) {
+  final db = sqlite3.open(target, mode: OpenMode.readOnly);
+  try {
+    expect(db.select('PRAGMA quick_check').single.values.single, 'ok');
+  } finally {
+    db.close();
+  }
 }
 
 class _MemoryCacheProvider extends CacheProvider {

@@ -40,6 +40,19 @@ import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as path;
 import 'package:http/http.dart' as http;
 import 'package:seforim_library_updater/seforim_library_updater.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
+
+typedef LibraryDownloadExtractor =
+    Future<void> Function(
+      String archivePath,
+      String outputPath,
+      void Function(double progress)? onProgress, {
+      required int maxOutputBytes,
+      bool Function()? isCancelled,
+    });
+
+typedef LibraryDatabaseVerifier =
+    Future<void> Function(String dbPath, {required bool verifyLibrarySchema});
 
 class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   static const Duration _defaultDownloadConnectTimeout = Duration(seconds: 20);
@@ -47,18 +60,10 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   EmptyLibraryBloc({
     http.Client? httpClient,
-    Future<void> Function(
-      String archivePath,
-      String outputPath,
-      void Function(double progress)? onProgress,
-    )?
-    extractCompressedDatabase,
-    Future<void> Function(
-      String archivePath,
-      String outputDir,
-      void Function(double progress)? onProgress,
-    )?
-    extractTarArchive,
+    LibraryDownloadExtractor? extractCompressedDatabase,
+    LibraryDownloadExtractor? extractTarArchive,
+    LibraryDatabaseVerifier? verifyDatabase,
+    this.maxExtractedBytes = kDefaultMaxExtractedBytes,
     this._defaultLibraryPathOverride,
     this.downloadConnectTimeout = _defaultDownloadConnectTimeout,
     this.downloadSpaceChecker,
@@ -70,20 +75,29 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
        _logError = logError ?? _appendToErrorLog,
        _foregroundWork = foregroundWork ?? ForegroundWork.instance,
        _accessGate = accessGate ?? LibraryAccessGate.instance,
-       _packageImporter = packageImporter ?? LibraryPackageImporter(),
+       _packageImporter =
+           packageImporter ??
+           LibraryPackageImporter(maxOutputBytes: maxExtractedBytes),
        _extractCompressedDatabase = extractCompressedDatabase ?? _extractZst,
        _extractTarArchive = extractTarArchive ?? _extractTarZst,
+       _verifyDatabase = verifyDatabase ?? _verifyDatabaseOffThread,
        super(
          const EmptyLibraryInitial(downloadDisabledReason: 'בודק מקום פנוי...'),
        ) {
+    if (maxExtractedBytes <= 0) {
+      throw ArgumentError.value(maxExtractedBytes, 'maxExtractedBytes');
+    }
     HttpClientRegistry.register(_httpClient.close);
     on<UseLibraryInPlaceRequested>(_onUseLibraryInPlaceRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
     on<ImportLibraryFolderRequested>(_onImportLibraryFolderRequested);
     on<ImportLibraryPackageRequested>(_onImportLibraryPackageRequested);
-    on<CancelLibraryImportRequested>(
-      (_, _) => _activeImportCancel?.cancel(),
-    );
+    on<CancelLibraryImportRequested>((_, _) {
+      _activeImportCancel?.cancel();
+      if (state case EmptyLibraryExtracting(cancellable: true)) {
+        _downloadCancelled = true;
+      }
+    });
     on<UpdateLibraryRequested>(_onUpdateLibraryRequested);
     on<CheckDiskSpaceRequested>(_onCheckDiskSpaceRequested);
     on<StorageLocationSelected>(_onStorageLocationSelected);
@@ -94,6 +108,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   final http.Client _httpClient;
   final Duration downloadConnectTimeout;
   final Future<String?> Function(int? downloadSize)? downloadSpaceChecker;
+  final int maxExtractedBytes;
 
   /// מוודא שהמסד שוחרר לפני הזזתו לגיבוי: מסד פתוח אינו זז ב-Windows.
   final LibraryAccessGate _accessGate;
@@ -118,21 +133,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   /// המערכת עצרה את שירות החזית — ההורדה נעצרת כמו בביטול.
   bool _foregroundTimedOut = false;
+  bool _downloadCancelled = false;
+  bool _closing = false;
+
+  bool get _isDownloadCancelled =>
+      _closing || _foregroundTimedOut || _downloadCancelled;
+
+  void _checkDownloadCancelled() {
+    if (_isDownloadCancelled) throw const PatchDownloadCancelled();
+  }
 
   /// נכסי ההורדה האחרונה — לבדיקת קובץ חלקי אחרי כשל.
   List<_DownloadAsset> _downloadAssets = const [];
-  final Future<void> Function(
-    String archivePath,
-    String outputPath,
-    void Function(double progress)? onProgress,
-  )
-  _extractCompressedDatabase;
-  final Future<void> Function(
-    String archivePath,
-    String outputDir,
-    void Function(double progress)? onProgress,
-  )
-  _extractTarArchive;
+  final LibraryDownloadExtractor _extractCompressedDatabase;
+  final LibraryDownloadExtractor _extractTarArchive;
+  final LibraryDatabaseVerifier _verifyDatabase;
 
   // סיבת השבתת כפתור ההורדה — נשמרת כ-instance field כדי להישמר בין state transitions
   String? _downloadDisabledReason = 'בודק מקום פנוי...';
@@ -154,7 +169,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) => _replaceLibrarySafely(
     emit,
+    targetPath: event.targetPath,
     backupPath: event.backupExistingPath,
+    validateSources: () => _validateReplacementSources(
+      event.targetPath,
+      event.backupExistingPath,
+      [
+        for (final asset in event.assets.assets.values) ...[
+          if (asset.directoryPath case final source?)
+            (path: source, directory: true),
+          for (final part in asset.parts)
+            if (asset.folder.localPath(part.entry) case final source?)
+              (path: source, directory: false),
+        ],
+      ],
+    ),
     body: () => _importRawAssets(event.assets, event.targetPath, emit),
     onError: (e) => _error(
       errorMessage: packageImportErrorMessage(e, assistantFiles: false),
@@ -165,6 +194,66 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// מריץ ייבוא שמחליף את הספרייה. עם [backupPath] (עדכון במקום) המסד מושעה
   /// בתהליך, ה-DB הישן מגובה, ומשוחזר אם [body] לא הסתיים בבחירת ספרייה.
   Future<void> _replaceLibrarySafely(
+    Emitter<EmptyLibraryState> emit, {
+    required String targetPath,
+    required String? backupPath,
+    required Future<void> Function() validateSources,
+    required Future<void> Function() body,
+    required EmptyLibraryState Function(Object error) onError,
+    Future<void> Function()? afterReplacement,
+  }) async {
+    try {
+      // Includes the files opened as locks, so validation precedes acquisition.
+      await validateSources();
+      await _withLibraryOperationLocks(targetPath, () async {
+        await validateSources();
+        await _replaceLibrarySafelyLocked(
+          emit,
+          backupPath: backupPath,
+          body: body,
+          onError: onError,
+          afterReplacement: afterReplacement,
+        );
+      }, previousPath: backupPath);
+    } catch (error) {
+      emit(onError(error));
+    }
+  }
+
+  static Future<void> _validateReplacementSources(
+    String target,
+    String? backupPath,
+    List<({String path, bool directory})> sources, {
+    List<String> additionalPaths = const [],
+  }) async {
+    final managed = [
+      stagingDirFor(target),
+      '${_dbPathIn(target)}.lock',
+      path.join(_tempRoot, 'library-acquisition.lock'),
+      ...additionalPaths,
+      if (backupPath != null) ...[
+        stagingDirFor(backupPath),
+        '${_dbPathIn(backupPath)}.lock',
+        for (final suffix in _dbFileSuffixes) ...[
+          '${_dbPathIn(backupPath)}$suffix',
+          '${_dbTempPathFor(_dbPathIn(backupPath))}$suffix',
+        ],
+        dbBackupDirPath,
+      ],
+    ];
+    // Recovery also removes legacy backup directories carrying timestamps.
+    if (backupPath != null && await Directory(_tempRoot).exists()) {
+      await for (final entry in Directory(_tempRoot).list()) {
+        if (entry is Directory &&
+            path.basename(entry.path).startsWith('otzaria_db_backup')) {
+          managed.add(entry.path);
+        }
+      }
+    }
+    await LibraryPackageImporter.verifySourceSeparation(managed, sources);
+  }
+
+  Future<void> _replaceLibrarySafelyLocked(
     Emitter<EmptyLibraryState> emit, {
     required String? backupPath,
     required Future<void> Function() body,
@@ -224,7 +313,34 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     var indexReleased = false;
     await _replaceLibrarySafely(
       emit,
+      targetPath: event.targetPath,
       backupPath: event.backupExistingPath,
+      validateSources: () async {
+        final indexTarget = event.packages.index == null
+            ? null
+            : await LibraryPackageImporter.indexTargetFor(event.targetPath);
+        await _validateReplacementSources(
+          event.targetPath,
+          event.backupExistingPath,
+          [
+            for (final package in [
+              event.packages.library,
+              ?event.packages.index,
+            ])
+              for (final part in package.parts)
+                if (event.packages.folder.localPath(part.entry)
+                    case final source?)
+                  (path: source, directory: false),
+          ],
+          additionalPaths: [
+            if (indexTarget != null)
+              LibraryPackageImporter.indexStagingRootFor(
+                event.targetPath,
+                indexTarget,
+              ),
+          ],
+        );
+      },
       body: () => _importLibraryPackage(
         event.packages,
         event.targetPath,
@@ -274,6 +390,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         : await LibraryPackageImporter.indexTargetFor(target);
     await _packageImporter.checkSpace(packages, target, indexTarget);
 
+    if (_closing) throw const LibraryImportCancelled();
     final cancel = ZstdCancelFlag();
     _activeImportCancel = cancel;
     final StagedLibraryPackage staged;
@@ -322,6 +439,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         );
       }
       await _checkDbSchemaOffThread(stagedDb);
+      if (_closing) throw const LibraryImportCancelled();
       final imported = {
         ...await _presentComponents(staged.booksDir),
         if (hasIndex) LibraryComponent.searchIndex,
@@ -377,8 +495,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
   }
 
-  static Future<void> _checkDbSchemaOffThread(String dbPath) =>
-      Isolate.run(() => requireReadableDbSchema(dbPath));
+  Future<void> _checkDbSchemaOffThread(String dbPath) =>
+      _verifyDatabase(dbPath, verifyLibrarySchema: true);
 
   /// הודעה למשתמש על כשל בייבוא; [assistantFiles] — הקבצים הוכנו במסייע ההורדה.
   @visibleForTesting
@@ -433,6 +551,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
     await _packageImporter.checkRawSpace(raw, target);
 
+    if (_closing) throw const LibraryImportCancelled();
     final cancel = ZstdCancelFlag();
     _activeImportCancel = cancel;
     String? staging;
@@ -502,6 +621,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     UpdateLibraryRequested event,
     Emitter<EmptyLibraryState> emit,
   ) async {
+    try {
+      await _withLibraryOperationLocks(
+        event.targetPath,
+        () => _updateLibraryLocked(event, emit),
+        previousPath: event.existingLibraryPath,
+      );
+    } catch (error) {
+      emit(_error(errorMessage: 'שגיאה בעדכון הספרייה: $error'));
+    }
+  }
+
+  Future<void> _updateLibraryLocked(
+    UpdateLibraryRequested event,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
     final target = event.targetPath;
     emit(EmptyLibraryLoading(selectedPath: target));
     String? backupDir;
@@ -552,6 +686,44 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   static String _dbPathIn(String dir) =>
       path.join(dir, DatabaseConstants.databaseFileName);
 
+  /// שומר את ה-staging והגיבוי עד סיום הפריסה, ההתקנה והניקוי גם בין חלונות.
+  static Future<T> _withLibraryOperationLocks<T>(
+    String target,
+    Future<T> Function() action, {
+    String? previousPath,
+    bool createDirectories = true,
+  }) async {
+    final previous = previousPath == null
+        ? null
+        : path.normalize(path.absolute(previousPath));
+    final directories = {
+      path.normalize(path.absolute(target)),
+      ?previous,
+    }.toList()..sort();
+    for (final directory in directories) {
+      if (createDirectories && directory != previous) {
+        await Directory(directory).create(recursive: true);
+      } else if (!await Directory(directory).exists()) {
+        // A removed volume must not be recreated on a different filesystem.
+        throw FileSystemException(
+          'Library directory is unavailable',
+          directory,
+        );
+      }
+    }
+    await Directory(_tempRoot).create(recursive: true);
+    Future<T> lockAt(int index) => index == directories.length
+        ? withFileOperationLock(
+            path.join(_tempRoot, 'library-acquisition'),
+            action,
+          )
+        : withFileOperationLock(
+            _dbPathIn(directories[index]),
+            () => lockAt(index + 1),
+          );
+    return lockAt(0);
+  }
+
   /// שם הקובץ הזמני שאליו נכתב ה-DB לפני ההעברה לשם הסופי.
   static String _dbTempPathFor(String finalPath) => '$finalPath.new';
 
@@ -570,17 +742,36 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// כותב את ה-DB דרך שם זמני באותה תיקייה ומעביר אותו לשם הסופי רק בסיום
   /// מוצלח. הריגת התהליך באמצע משאירה שארית `.new` ולא DB חלקי בשם האמיתי —
   /// שאחרת נראה תקין ומאבד את הגיבוי היחיד.
-  static Future<void> _writeDbAtomically(
+  Future<void> _writeDbAtomically(
     String finalPath,
-    Future<void> Function(String tempPath) write,
-  ) async {
+    Future<void> Function(String tempPath) write, {
+    bool verifySchema = true,
+    int? maxOutputBytes,
+    bool Function()? isCancelled,
+  }) async {
+    void checkCancelled() {
+      if (isCancelled?.call() ?? false) throw const PatchDownloadCancelled();
+    }
+
+    checkCancelled();
     final tempPath = _dbTempPathFor(finalPath);
     await _deleteDbFamily(tempPath);
     try {
       await write(tempPath);
-      await Isolate.run(() => requireReadableDbSchema(tempPath));
-      await _deleteDbFamily(finalPath);
-      await File(tempPath).rename(finalPath);
+      checkCancelled();
+      if (maxOutputBytes != null &&
+          await File(tempPath).length() > maxOutputBytes) {
+        throw ZstdOutputLimitExceeded(maxOutputBytes);
+      }
+      await _verifyDatabase(tempPath, verifyLibrarySchema: verifySchema);
+      checkCancelled();
+      for (final suffix in _dbFileSuffixes.where((s) => s.isNotEmpty)) {
+        final sidecar = File('$finalPath$suffix');
+        if (await sidecar.exists()) await sidecar.delete();
+      }
+      // Once sidecar replacement starts, finish the commit before accepting
+      // cancellation; the installed database must not be left without its WAL.
+      File(tempPath).renameSync(finalPath);
     } catch (_) {
       await _deleteDbFamily(tempPath);
       rethrow;
@@ -595,6 +786,49 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     if (schema != null && schema > readable) {
       throw UnsupportedDbSchemaException(schema, readable);
     }
+  }
+
+  static Future<void> _verifyDatabaseOffThread(
+    String dbPath, {
+    required bool verifyLibrarySchema,
+  }) => Isolate.run(
+    () => requireHealthyDatabase(
+      dbPath,
+      verifyLibrarySchema: verifyLibrarySchema,
+    ),
+  );
+
+  /// SQLite תקין ללא metadata של סכמה נשאר נתמך; קובץ פגום אינו מתפרסם.
+  @visibleForTesting
+  static void requireHealthyDatabase(
+    String dbPath, {
+    bool verifyLibrarySchema = true,
+  }) {
+    if (File(dbPath).lengthSync() == 0) {
+      throw const FormatException('מסד הנתונים שהתקבל ריק');
+    }
+    try {
+      final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      try {
+        // Avoid mapping the entire library and bound SQLite's page cache while
+        // checking large databases in the worker isolate.
+        db.execute('PRAGMA mmap_size=0');
+        db.execute('PRAGMA cache_size=-8192');
+        final check = db.select('PRAGMA quick_check');
+        if (check.length != 1 || check.first.values.first != 'ok') {
+          throw const FormatException('בדיקת תקינות מסד הנתונים נכשלה');
+        }
+      } finally {
+        db.close();
+      }
+    } on sqlite3.SqliteException catch (error) {
+      if (error.resultCode == sqlite3.SqlError.SQLITE_CORRUPT ||
+          error.resultCode == sqlite3.SqlError.SQLITE_NOTADB) {
+        throw const FormatException('מסד הנתונים שהתקבל פגום');
+      }
+      rethrow;
+    }
+    if (verifyLibrarySchema) requireReadableDbSchema(dbPath);
   }
 
   static String? _tempRootOverride;
@@ -652,10 +886,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// מעביר ייבוא שחולץ ל-[staging] אל [target]. seforim.db עובר אחרון, ולכן
   /// הופעתו ביעד משמעה שהייבוא הושלם.
   @visibleForTesting
-  static Future<void> promoteStagedImport(
-    String staging,
-    String target,
-  ) async {
+  static Future<void> promoteStagedImport(String staging, String target) async {
     final dbName = DatabaseConstants.databaseFileName;
     final family = {for (final s in _dbFileSuffixes) '$dbName$s'};
     final lexicalName = DatabaseConstants.lexicalDatabaseFileName;
@@ -692,6 +923,15 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// [onlyIfDbMissing] — לעלייה: כש-seforim.db קיים נמחק רק הגיבוי בשם הקבוע,
   /// בלי לסרוק את כל תיקיית ה-temp; שמות ישנים נמחקים לפני הגיבוי הבא.
   static Future<void> recoverOrphanedDbBackup(
+    String dir, {
+    bool onlyIfDbMissing = false,
+  }) => _withLibraryOperationLocks(
+    dir,
+    () => _recoverOrphanedDbBackupLocked(dir, onlyIfDbMissing: onlyIfDbMissing),
+    createDirectories: false,
+  );
+
+  static Future<void> _recoverOrphanedDbBackupLocked(
     String dir, {
     bool onlyIfDbMissing = false,
   }) async {
@@ -746,7 +986,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// מעביר את seforim.db (ולוואיו) מ-[dir] לתיקיית גיבוי זמנית. מחזיר את נתיב
   /// תיקיית הגיבוי, או null אם אין seforim.db לגבות.
   Future<String?> _backupDatabaseFiles(String dir) async {
-    await recoverOrphanedDbBackup(dir);
+    await _recoverOrphanedDbBackupLocked(dir);
     final dbFile = File(path.join(dir, DatabaseConstants.databaseFileName));
     if (!await dbFile.exists()) return null;
     final backup = await Directory(dbBackupDirPath).create(recursive: true);
@@ -1078,7 +1318,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           event.targetPath ??
           _defaultLibraryPathOverride ??
           await AppPaths.getDefaultLibraryPath();
-      await _downloadLibrary(libraryPath, emit);
+      await _withLibraryOperationLocks(libraryPath, () async {
+        if (await File(_dbPathIn(libraryPath)).exists()) {
+          // A retry may target an existing installation even from the setup
+          // screen. Retain its full SQLite family until every asset succeeds.
+          await _updateLibraryLocked(
+            UpdateLibraryRequested(
+              targetPath: libraryPath,
+              existingLibraryPath: libraryPath,
+            ),
+            emit,
+          );
+        } else {
+          await _downloadLibrary(libraryPath, emit);
+        }
+      });
     } catch (e, st) {
       _logError('Library Download Error', e, st);
       // קבצי ה-temp נשמרים בכוונה — ישמשו ל-resume בניסיון הבא
@@ -1094,6 +1348,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   Future<String> _downloadFailureMessage(Object error, String fallback) async {
     final cause = error is PatchDownloadCancelled && _foregroundTimedOut
         ? LibraryMessages.backgroundTimeLimitReached
+        : error is PatchDownloadCancelled && _downloadCancelled
+        ? 'הפעולה בוטלה'
         : PatchDownloader.isTransientNetworkError(error)
         ? LibraryMessages.updateNetworkInterrupted
         : null;
@@ -1121,6 +1377,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     _foregroundTimedOut = false;
+    _downloadCancelled = false;
+    _checkDownloadCancelled();
     _downloadAssets = const [];
     _foregroundWork.acquire(
       this,
@@ -1174,6 +1432,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           outputFileName: DatabaseConstants.databaseFileName,
           isMainDb: true,
           split: latestAsset.split,
+          sha256: latestAsset.sha256,
         ),
         _DownloadAsset(
           url:
@@ -1299,6 +1558,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       } finally {
         etaTicker.cancel();
       }
+      _checkDownloadCancelled();
 
       emit(
         const EmptyLibraryExtracting(
@@ -1331,6 +1591,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   }) async {
     var downloadedBase = 0;
     for (final asset in assets) {
+      _checkDownloadCancelled();
       if (!asset.skipped) {
         try {
           await _downloadAsset(
@@ -1342,6 +1603,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           );
         } catch (e) {
           eta.estimator?.endPhase();
+          if (e is PatchDownloadCancelled) rethrow;
           if (!asset.optional) rethrow;
           debugPrint('הורדת ${asset.tempFileName} (אופציונלי) נכשלה: $e');
           asset.skipped = true;
@@ -1368,6 +1630,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     // שלב 2 — חילוץ כל הקבצים יחד (פס מאוחד, משוקלל לפי הגודל הדחוס)
     var extractBase = 0;
     for (final asset in assets) {
+      _checkDownloadCancelled();
       if (!asset.skipped) {
         try {
           await _extractAsset(
@@ -1379,6 +1642,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
             emit: emit,
           );
         } catch (e) {
+          if (e is PatchDownloadCancelled) rethrow;
           if (!asset.optional) rethrow;
           debugPrint('חילוץ ${asset.tempFileName} (אופציונלי) נכשל: $e');
           asset.skipped = true;
@@ -1501,7 +1765,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         destPath: tempPath,
         resumeToken: identity,
         onProgress: (downloaded, _) => onProgress(downloaded),
-        isCancelled: () => _foregroundTimedOut,
+        isCancelled: () => _isDownloadCancelled,
       );
     } else {
       await downloader.downloadToFile(
@@ -1511,7 +1775,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         expectedSha256: asset.sha256,
         resumeToken: identity,
         onProgress: (downloaded, _) => onProgress(downloaded),
-        isCancelled: () => _foregroundTimedOut,
+        isCancelled: () => _isDownloadCancelled,
       );
     }
     eta.estimator
@@ -1552,6 +1816,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         EmptyLibraryExtracting(
           selectedPath: tempPath,
           progress: combined,
+          cancellable: true,
           message: etaText != null
               ? '${asset.extractTitle}\n$etaText'
               : asset.extractTitle,
@@ -1565,28 +1830,37 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       emitProgress();
     }
 
-    // העתקת קובץ לא דחוס אינה מדווחת התקדמות — נספרת לאחור מההערכה.
-    eta.estimator?.startPhase(
-      asset.extractPhase,
-      tracksProgress: asset.isCompressed,
-    );
+    eta.estimator?.startPhase(asset.extractPhase, tracksProgress: true);
     eta.refresh = emitProgress;
     report(0.0);
+    _checkDownloadCancelled();
 
     try {
       if (asset.isTar) {
-        await _extractTarArchive(tempPath, outputDir, report);
-        // עדיף digest: תגי otzaria-library מתחלפים כמעט יומית גם כשהתוכן זהה.
-        await _writeTalmudVersionMarker(
+        await _extractTalmudDownload(
+          tempPath,
           outputDir,
+          report,
           asset.sha256 ?? asset.releaseTag,
         );
       } else if (!asset.isCompressed) {
         // קובץ לא דחוס (lexical.db) — מועתק מ-temp ליעד ללא חילוץ.
         final outputPath = path.join(outputDir, asset.outputFileName!);
-        await File(tempPath).copy(outputPath);
+        String? digest;
+        await _writeDbAtomically(
+          outputPath,
+          (staged) async {
+            digest = await _copyDownloadedFile(tempPath, staged, report);
+            if (asset.sha256 != null && digest != asset.sha256) {
+              throw const FormatException('SHA-256 של הקובץ המועתק אינו תואם');
+            }
+          },
+          verifySchema: false,
+          maxOutputBytes: maxExtractedBytes,
+          isCancelled: () => _isDownloadCancelled,
+        );
         // בלי סימון גרסה, בדיקת העדכון הבאה תוריד את המילון מחדש בכל הפעלה.
-        final version = asset.sha256 ?? asset.releaseTag;
+        final version = asset.sha256 ?? asset.releaseTag ?? digest;
         if (asset.outputFileName == DatabaseConstants.lexicalDatabaseFileName) {
           if (version != null) {
             await MagicDictionaryDownloader.writeVersionMarker(
@@ -1605,19 +1879,22 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           // הסגירה משחררת את ה-handle של seforim.db לפני מחיקתו והחלפתו;
           // מחיקת shm/wal (בתוך ההעברה האטומית) מונעת מ-SQLite לקרוא WAL ישן.
           await SqliteDataProvider.instance.dispose();
-          await _writeDbAtomically(
-            outputPath,
-            (dbTempPath) =>
-                _extractCompressedDatabase(tempPath, dbTempPath, report),
-          );
-        } else {
-          await _extractCompressedDatabase(tempPath, outputPath, report);
         }
+        await _writeDbAtomically(
+          outputPath,
+          (dbTempPath) => _extractCompressedDatabase(
+            tempPath,
+            dbTempPath,
+            report,
+            maxOutputBytes: maxExtractedBytes,
+            isCancelled: () => _isDownloadCancelled,
+          ),
+          verifySchema: asset.isMainDb,
+          maxOutputBytes: maxExtractedBytes,
+          isCancelled: () => _isDownloadCancelled,
+        );
       }
-    } on FileSystemException {
-      // כשל כתיבה ביעד (הרשאה, מקום) אינו ארכיון פגום — שומרים לניסיון חוזר.
-      rethrow;
-    } catch (_) {
+    } on FormatException {
       // חילוץ שנכשל על קובץ שלם (פגום/franken) משאיר temp שיגרום לדילוג על
       // ההורדה בניסיון הבא ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
       await deleteDownloadWithSidecars(tempPath);
@@ -1626,6 +1903,104 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     // מחיקת קובץ ה-temp לאחר חילוץ מוצלח.
     await deleteDownloadWithSidecars(tempPath);
+  }
+
+  Future<String> _copyDownloadedFile(
+    String source,
+    String output,
+    void Function(double) onProgress,
+  ) async {
+    _checkDownloadCancelled();
+    final sourceFile = File(source);
+    final expected = await sourceFile.length();
+    if (expected > maxExtractedBytes) {
+      throw ZstdOutputLimitExceeded(maxExtractedBytes);
+    }
+    final hash = Sha256Stream();
+    RandomAccessFile? target;
+    var written = 0;
+    try {
+      final out = target = await File(output).open(mode: FileMode.write);
+      await for (final bytes in sourceFile.openRead()) {
+        _checkDownloadCancelled();
+        if (bytes.length > maxExtractedBytes - written) {
+          throw ZstdOutputLimitExceeded(maxExtractedBytes);
+        }
+        if (bytes.length > expected - written) {
+          throw const FormatException('קובץ המקור השתנה בזמן ההעתקה');
+        }
+        await out.writeFrom(bytes);
+        hash.add(bytes);
+        written += bytes.length;
+        onProgress(expected == 0 ? 1 : written / expected);
+        _checkDownloadCancelled();
+      }
+      if (written != expected) {
+        throw const FormatException('קובץ המקור השתנה בזמן ההעתקה');
+      }
+      await out.flush();
+      _checkDownloadCancelled();
+      return hash.close();
+    } finally {
+      await target?.close();
+      hash.dispose();
+    }
+  }
+
+  Future<void> _extractTalmudDownload(
+    String archive,
+    String outputDir,
+    void Function(double) onProgress,
+    String? version,
+  ) async {
+    final staging = await Directory(outputDir).createTemp('.talmud-extract-');
+    try {
+      await _extractTarArchive(
+        archive,
+        staging.path,
+        onProgress,
+        maxOutputBytes: maxExtractedBytes,
+        isCancelled: () => _isDownloadCancelled,
+      );
+      _checkDownloadCancelled();
+      final entries = await staging.list(followLinks: false).toList();
+      final name = DatabaseConstants.talmudBavliFolderName;
+      if (entries.length != 1 ||
+          entries.single is! Directory ||
+          path.basename(entries.single.path) != name) {
+        throw const FormatException('ארכיון התלמוד מכיל תיקיית שורש לא צפויה');
+      }
+      await _writeTalmudVersionMarker(staging.path, version);
+      final target = Directory(path.join(outputDir, name));
+      final previous = Directory('${target.path}.replaced');
+      if (await previous.exists()) {
+        if (!await target.exists()) {
+          await previous.rename(target.path);
+        } else {
+          await previous.delete(recursive: true);
+        }
+      }
+      final hadPrevious = await target.exists();
+      if (hadPrevious) {
+        await CompanionAssetsService.preserveTalmudEntries(
+          target.list(followLinks: false),
+          Directory(path.join(staging.path, name)),
+          maxOutputBytes: maxExtractedBytes,
+          isCancelled: () => _isDownloadCancelled,
+        );
+      }
+      _checkDownloadCancelled();
+      if (hadPrevious) target.renameSync(previous.path);
+      try {
+        Directory(path.join(staging.path, name)).renameSync(target.path);
+      } catch (_) {
+        if (hadPrevious) previous.renameSync(target.path);
+        rethrow;
+      }
+      await _deleteEntity(previous.path);
+    } finally {
+      await _deleteEntity(staging.path);
+    }
   }
 
   /// כותב את זיהוי הגרסה (digest או תג) לתיקיית התלמוד שחולצה. בלי הסימון,
@@ -1652,18 +2027,30 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   static Future<void> _extractZst(
     String archivePath,
     String outputPath,
-    void Function(double progress)? onProgress,
-  ) => ZstdStreamExtractor.extractToFile(
+    void Function(double progress)? onProgress, {
+    required int maxOutputBytes,
+    bool Function()? isCancelled,
+  }) => ZstdStreamExtractor.extractToFile(
     archivePath,
     outputPath,
     onProgress: onProgress,
+    maxOutputBytes: maxOutputBytes,
+    isCancelled: isCancelled,
   );
 
   static Future<void> _extractTarZst(
     String archivePath,
     String outputDir,
-    void Function(double progress)? onProgress,
-  ) => extractTarZstToDir(archivePath, outputDir, onProgress: onProgress);
+    void Function(double progress)? onProgress, {
+    required int maxOutputBytes,
+    bool Function()? isCancelled,
+  }) => extractTarZstToDir(
+    archivePath,
+    outputDir,
+    onProgress: onProgress,
+    maxOutputBytes: maxOutputBytes,
+    isCancelled: isCancelled,
+  );
 
   /// עוקב אחרי redirects ידנית ומחזיר את ה-URL הסופי, גודל הקובץ
   /// (Content-Length) ו-[identity] המקשר שריד temp לגרסה המרוחקת. נדרש כי
@@ -1768,6 +2155,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       assetName: asset.assetName,
       downloadUrl: asset.downloadUrl,
       split: resolved.split,
+      sha256: resolved.split?.sha256,
     );
   }
 
@@ -1782,6 +2170,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
 
     final urlsByName = <String, String>{};
+    final hashesByName = <String, String>{};
     for (final asset in assets) {
       if (asset is! Map<String, dynamic>) {
         continue;
@@ -1790,6 +2179,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       final name = asset['name']?.toString() ?? '';
       final downloadUrl = asset['browser_download_url']?.toString() ?? '';
       if (downloadUrl.isNotEmpty) urlsByName[name] = downloadUrl;
+      final digest = asset['digest'];
+      if (digest is String &&
+          RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(digest)) {
+        hashesByName[name] = digest.substring('sha256:'.length).toLowerCase();
+      }
     }
 
     // הסכמה הגבוהה ביותר שהגרסה הזו קוראת; ארכיון בסכמה חדשה יותר מדולג.
@@ -1797,7 +2191,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     for (final name in DatabaseConstants.supportedDatabaseArchiveFileNames) {
       final downloadUrl = urlsByName[name];
       if (downloadUrl != null) {
-        return DatabaseReleaseAsset(assetName: name, downloadUrl: downloadUrl);
+        return DatabaseReleaseAsset(
+          assetName: name,
+          downloadUrl: downloadUrl,
+          sha256: hashesByName[name],
+        );
       }
       final manifestUrl = urlsByName['$name$kSplitManifestSuffix'];
       if (manifestUrl != null) {
@@ -1814,6 +2212,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   @override
   Future<void> close() {
+    _closing = true;
+    _downloadCancelled = true;
+    _activeImportCancel?.cancel();
     _foregroundWork.release(this);
     HttpClientRegistry.unregister(_httpClient.close);
     _httpClient.close();
@@ -1907,6 +2308,7 @@ class DatabaseReleaseAsset {
     required this.downloadUrl,
     this.isSplitManifest = false,
     this.split,
+    this.sha256,
   });
 
   final String assetName;
@@ -1919,6 +2321,9 @@ class DatabaseReleaseAsset {
 
   /// החלקים, כשה-DB מתפרסם בחלקים מתחת למגבלת GitHub.
   final SplitAsset? split;
+
+  /// SHA-256 של הארכיון הדחוס, כשה-release או מניפסט החלקים מספק אותו.
+  final String? sha256;
 }
 
 /// ה-DB שנבחר חדש מהסכמה שהגרסה הזו קוראת.

@@ -1597,11 +1597,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "24d1a13f4f9e9a05fe7ef7eb71750a8a81a3ea6c"
-      resolved-ref: "24d1a13f4f9e9a05fe7ef7eb71750a8a81a3ea6c"
+      ref: 6bfd33c3bc14392c1a6bb0887fdb23209068eab5
+      resolved-ref: 6bfd33c3bc14392c1a6bb0887fdb23209068eab5
       url: "https://github.com/Otzaria/otzaria_library_updater"
     source: git
-    version: "0.8.1"
+    version: "0.9.0"
   sentry:
     dependency: transitive
     description:

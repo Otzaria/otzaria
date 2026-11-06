@@ -3,15 +3,35 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
+import 'package:otzaria/utils/file/zstd_stream_extractor.dart'
+    show ZstdOutputLimitExceeded;
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    show kDefaultMaxExtractedBytes;
 
 /// פורס tar שמגיע בנתחים (ustar, GNU long names ו-pax) ישירות לתיקייה,
 /// בלי לשמור את ה-tar. כל רשומה חייבת לשבת תחת [rootFolder] (null — כל שורש),
 /// ונתיב שבורח מהיעד נדחה. [add] מסתיים רק אחרי שכל הכתיבות שלו הסתיימו.
 class TarStreamExtractor {
-  TarStreamExtractor(this.destination, {required this.rootFolder});
+  TarStreamExtractor(
+    this.destination, {
+    required this.rootFolder,
+    this.maxOutputBytes = kDefaultMaxExtractedBytes,
+    this.checkCancelled,
+    this.onWrite,
+  }) {
+    if (maxOutputBytes <= 0) {
+      throw ArgumentError.value(maxOutputBytes, 'maxOutputBytes');
+    }
+  }
 
   final String destination;
   final String? rootFolder;
+  final int maxOutputBytes;
+  final void Function()? checkCancelled;
+
+  /// נקרא לפני כל כתיבה פיזית, לרבות עותקים של רשומות hardlink.
+  final void Function(int bytes)? onWrite;
+  int _outputBytes = 0;
 
   static const _block = 512;
   static const _maxMetaEntrySize = 1 << 20;
@@ -38,6 +58,7 @@ class TarStreamExtractor {
 
   Future<void> add(Uint8List data) async {
     try {
+      checkCancelled?.call();
       await _feed(data);
     } catch (_) {
       try {
@@ -46,11 +67,13 @@ class TarStreamExtractor {
       rethrow;
     }
     await _drain();
+    checkCancelled?.call();
   }
 
   Future<void> _feed(Uint8List data) async {
     var offset = 0;
     while (offset < data.length) {
+      checkCancelled?.call();
       if (_ended) return;
       if (_remaining > 0) {
         final take = (data.length - offset).clamp(0, _remaining);
@@ -76,6 +99,7 @@ class TarStreamExtractor {
 
   /// מוודא שה-tar לא נקטע באמצע רשומה וסוגר את הקובץ הפתוח.
   void close() {
+    checkCancelled?.call();
     final midEntry = _remaining > 0 || _header.length > 0 || _meta != null;
     _closeFile();
     if (midEntry) {
@@ -117,6 +141,7 @@ class TarStreamExtractor {
     if (length == 0) return;
     final file = _file;
     if (file != null) {
+      _reserveOutput(length);
       // writeFrom מעתיק את הנתונים כבר בקריאה; view ולא offset, אחרת כל
       // ה-buffer נשלח.
       _write = file.writeFrom(
@@ -130,6 +155,60 @@ class TarStreamExtractor {
         throw const FormatException('רשומת מטא-דאטה גדולה מדי בארכיון');
       }
       meta.add(Uint8List.sublistView(data, offset, offset + length));
+    }
+  }
+
+  void _reserveOutput(int bytes) {
+    checkCancelled?.call();
+    if (bytes > maxOutputBytes - _outputBytes) {
+      throw ZstdOutputLimitExceeded(maxOutputBytes);
+    }
+    onWrite?.call(bytes);
+    _outputBytes += bytes;
+  }
+
+  Future<void> _copyHardlink(String source, String target) async {
+    final inputFile = File(source);
+    final outputFile = File(target);
+    if (p.equals(p.absolute(source), p.absolute(target)) ||
+        (await outputFile.exists() &&
+            await FileSystemEntity.identical(
+              await inputFile.resolveSymbolicLinks(),
+              await outputFile.resolveSymbolicLinks(),
+            ))) {
+      throw const FormatException('קישור קשיח מפנה אל עצמו');
+    }
+    final input = await inputFile.open();
+    RandomAccessFile? output;
+    try {
+      final size = await input.length();
+      if (size > maxOutputBytes - _outputBytes) {
+        throw ZstdOutputLimitExceeded(maxOutputBytes);
+      }
+      checkCancelled?.call();
+      final out = output = await outputFile.open(mode: FileMode.write);
+      final buffer = Uint8List(1 << 20);
+      var read = 0;
+      while (true) {
+        checkCancelled?.call();
+        final count = await input.readInto(buffer);
+        if (count == 0) break;
+        if (count > size - read) {
+          throw const FormatException('מקור הקישור הקשיח השתנה במהלך הקריאה');
+        }
+        _reserveOutput(count);
+        await out.writeFrom(buffer, 0, count);
+        read += count;
+        checkCancelled?.call();
+      }
+      if (read != size) {
+        throw const FormatException('מקור הקישור הקשיח נקטע במהלך הקריאה');
+      }
+      await out.flush();
+      checkCancelled?.call();
+    } finally {
+      await output?.close();
+      await input.close();
     }
   }
 
@@ -175,14 +254,14 @@ class TarStreamExtractor {
               (_inFlight.isNotEmpty && file.existsSync())) {
             await _drain();
           }
-          Directory(p.dirname(target)).createSync(recursive: true);
+          await Directory(p.dirname(target)).create(recursive: true);
           _file = file.openSync(mode: FileMode.writeOnly);
           _filesWritten++;
         }
       case 0x35: // תיקייה
         _resetPending();
         final target = _resolve(name);
-        if (target != null) Directory(target).createSync(recursive: true);
+        if (target != null) await Directory(target).create(recursive: true);
       case 0x31: // קישור קשיח — עותק של קובץ שכבר נפרס
         _resetPending();
         final target = _resolve(name);
@@ -191,8 +270,8 @@ class TarStreamExtractor {
           throw FormatException('קישור לא תקין בארכיון: $name');
         }
         await _drain();
-        Directory(p.dirname(target)).createSync(recursive: true);
-        File(source).copySync(target);
+        await Directory(p.dirname(target)).create(recursive: true);
+        await _copyHardlink(source, target);
         _filesWritten++;
       default:
         // קישורים סימבוליים והתקנים אינם חלק מהספרייה — מדלגים על התוכן.

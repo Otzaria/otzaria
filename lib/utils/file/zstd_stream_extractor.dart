@@ -1,12 +1,9 @@
 import 'zstd_stream_extractor_stub.dart'
     if (dart.library.io) 'zstd_stream_extractor_io.dart'
     as impl;
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
-/// מחלץ קבצי `.zst` בזרימה (streaming) דרך ZSTD FFI — מעבד נתחים של ~128KB
-/// ישירות לדיסק, כך שצריכת ה-RAM נשארת בכמה מאות KB גם לקבצים בגודל ג'יגות.
-///
-/// טעינת הקובץ כולו ל-RAM (`Zstandard().decompress`) קרסה על מכשירים עם
-/// 8GB RAM (DB של ~6.5GB פרוס). שיטה זו אינה חורגת מכמה מאות KB.
+/// חילוץ zstd בחוצצים קבועים; חלון הפענוח הנייטיבי מוגבל בנפרד לפי הפלטפורמה.
 class ZstdStreamExtractor {
   const ZstdStreamExtractor();
 
@@ -16,12 +13,29 @@ class ZstdStreamExtractor {
     String archivePath,
     String outputPath, {
     void Function(double progress)? onProgress,
-    int? maxOutputBytes,
+    int? maxOutputBytes = kDefaultMaxExtractedBytes,
+    bool Function()? isCancelled,
   }) => impl.extractToFile(
     archivePath,
     outputPath,
     onProgress: onProgress,
     maxOutputBytes: maxOutputBytes,
+    isCancelled: isCancelled,
+  );
+
+  /// חילוץ חסום בגודל עם SHA-256 המחושב בזמן הכתיבה, ללא קריאה חוזרת של הפלט.
+  static Future<FileExtractionResult> extractVerifiedToFile(
+    String archivePath,
+    String outputPath, {
+    required int maxOutputBytes,
+    bool Function()? isCancelled,
+    void Function(int bytesWritten)? onProgress,
+  }) => impl.extractVerifiedToFile(
+    archivePath,
+    outputPath,
+    maxOutputBytes: maxOutputBytes,
+    isCancelled: isCancelled,
+    onProgress: onProgress,
   );
 
   /// פורס את ה-tar.zst [archivePath] אל [outputDir] ב-isolate נפרד, בלי קובץ
@@ -30,7 +44,15 @@ class ZstdStreamExtractor {
     String archivePath,
     String outputDir, {
     void Function(double progress)? onProgress,
-  }) => impl.extractTarToDir(archivePath, outputDir, onProgress: onProgress);
+    int? maxOutputBytes = kDefaultMaxExtractedBytes,
+    bool Function()? isCancelled,
+  }) => impl.extractTarToDir(
+    archivePath,
+    outputDir,
+    onProgress: onProgress,
+    maxOutputBytes: maxOutputBytes,
+    isCancelled: isCancelled,
+  );
 }
 
 /// הפלט הפרוס חרג מהתקרה שנקבעה — הארכיון אינו מה שהוצהר עליו.

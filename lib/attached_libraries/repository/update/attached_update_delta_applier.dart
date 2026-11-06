@@ -20,23 +20,9 @@ typedef AttachedUpdatePatchDecoder =
 /// בונה את קובץ ה-.db מתיקון `zstd --patch-from` שהורד בחלקים: הקובץ המותקן
 /// משמש prefix, והתוצאה נבדקת מול אותם גודל ו-sha256 של המסלול המלא.
 class AttachedUpdateDeltaApplier {
-  const AttachedUpdateDeltaApplier({this.decodePatch = _zstdPatch});
+  const AttachedUpdateDeltaApplier({this.decodePatch});
 
-  final AttachedUpdatePatchDecoder decodePatch;
-
-  static Future<void> _zstdPatch(
-    String patch,
-    String base,
-    String output,
-    int max,
-    ZstdCancelFlag? cancel,
-  ) => decodePatchToFile(
-    patch,
-    base,
-    output,
-    maxOutputBytes: max,
-    cancelAddress: cancel?.address ?? 0,
-  );
+  final AttachedUpdatePatchDecoder? decodePatch;
 
   /// [combinedPath] הוא התיקון המשורשר, [basePath] המסד המותקן (אינו נכתב).
   /// בהצלחה [combinedPath] נמחק; בכשל הפלט נמחק ו-[combinedPath] נשאר.
@@ -46,12 +32,20 @@ class AttachedUpdateDeltaApplier {
     String basePath,
     String outputPath, {
     AttachedUpdateCancelToken? cancel,
+    void Function(int bytesWritten)? onProgress,
+    bool retainInput = false,
   }) async {
     if (artifact.compression != AttachedUpdateCompression.zstdPatch) {
       throw const AttachedUpdateArtifactMismatch(
         'delta artifact must be zstd-patch',
       );
     }
+    AttachedUpdateArtifactBuilder.checkCancelled(cancel);
+    await AttachedUpdateArtifactBuilder.ensureDistinctPaths([
+      combinedPath,
+      basePath,
+      outputPath,
+    ]);
     await AttachedUpdateArtifactBuilder.produceVerified(
       artifact,
       combinedPath,
@@ -66,13 +60,19 @@ class AttachedUpdateDeltaApplier {
         final unsubscribe = cancel?.onCancel(flag.cancel);
         if (cancel?.isCancelled ?? false) flag.cancel();
         try {
-          await decodePatch(
-            combinedPath,
-            basePath,
-            outputPath,
-            artifact.size,
-            flag,
-          );
+          final legacy = decodePatch;
+          if (legacy == null) {
+            return await decodePatchVerifiedToFile(
+              combinedPath,
+              basePath,
+              outputPath,
+              maxOutputBytes: artifact.size,
+              cancelAddress: flag.address,
+              onProgress: onProgress,
+            );
+          }
+          await legacy(combinedPath, basePath, outputPath, artifact.size, flag);
+          return null;
         } on ZstdOutputLimitExceeded {
           throw AttachedUpdateArtifactMismatch(
             'patched output exceeds ${artifact.size}',
@@ -84,6 +84,9 @@ class AttachedUpdateDeltaApplier {
           flag.dispose();
         }
       },
+      cancel: cancel,
+      onProgress: onProgress,
+      retainInput: retainInput,
     );
   }
 }

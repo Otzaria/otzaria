@@ -1,0 +1,103 @@
+name: Library streaming probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/library-streaming-probe.yml'
+      - 'lib/utils/file/zstd_library.dart'
+      - 'lib/utils/file/tar_stream_extractor.dart'
+      - 'lib/utils/file/zstd_stream_decoder.dart'
+      - 'lib/utils/file/zstd_patch_decoder.dart'
+      - 'lib/attached_libraries/repository/update/**'
+      - 'lib/utils/file/zstd_stream_extractor*.dart'
+      - 'lib/library_update/services/streaming_patch_downloader.dart'
+      - 'test/utils/file/zstd_stream_extractor_adversarial_test.dart'
+      - 'test/utils/file/zstd_patch_decoder*_test.dart'
+      - 'test/utils/file/tar_stream_extractor_limits_test.dart'
+      - 'test/attached_libraries/update/**'
+      - 'tool/perf_probe/zstd_streaming_probe.dart'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: library-streaming-probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Native streaming memory and cancellation (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Timing/RSS measurements are diagnostic and have no thresholds. Codec
+    # tests and output/hash/cancellation verification must fail this job.
+    env:
+      OTZARIA_REQUIRE_CODEC_TESTS: '1'
+      OTZARIA_REQUIRE_PRODUCTION_CODEC_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang libzstd-dev zstd
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve pinned dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Make the real system codec available to the production loader
+        run: |
+          mkdir -p "$RUNNER_TEMP/zstd-library" streaming-probe-results
+          codec=$(ldconfig -p | awk '$1 == "libzstd.so.1" && /x86-64/ {print $NF; exit}')
+          test -n "$codec"
+          ln -s "$codec" "$RUNNER_TEMP/zstd-library/libzstandard_linux_plugin.so"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/zstd-library${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+      - name: Run adversarial tests through the production isolate
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded \
+            test/utils/file/zstd_stream_extractor_adversarial_test.dart \
+            test/utils/file/zstd_patch_decoder_safety_test.dart \
+            test/utils/file/zstd_patch_decoder_verified_test.dart \
+            test/utils/file/tar_stream_extractor_limits_test.dart \
+            test/attached_libraries/update/attached_update_downloader_test.dart \
+            test/attached_libraries/update/attached_update_fetcher_test.dart \
+            test/attached_libraries/update/attached_update_delta_applier_test.dart \
+            test/attached_libraries/update/attached_update_end_to_end_test.dart 2>&1 | tee streaming-probe-results/adversarial-tests.log
+      - name: Compile the probe ahead of time
+        run: |
+          set -o pipefail
+          dart compile exe tool/perf_probe/zstd_streaming_probe.dart -o "$RUNNER_TEMP/zstd-streaming-probe" 2>&1 | tee streaming-probe-results/compile.log
+      - name: Record environment and prepare fixtures in a separate process
+        run: |
+          set -o pipefail
+          {
+            flutter --version
+            dart --version
+            uname -a
+            lscpu
+          } > streaming-probe-results/environment.txt 2>&1
+          "$RUNNER_TEMP/zstd-streaming-probe" prepare "$RUNNER_TEMP/zstd-fixtures" 64 512 2>&1 | tee streaming-probe-results/prepare.log
+          cp "$RUNNER_TEMP"/zstd-fixtures/*.json streaming-probe-results/
+      - name: Measure fresh processes twice per size and mode
+        run: |
+          set -o pipefail
+          for size in 64 512; do
+            for repeat in 1 2; do
+              # Alternate order to reduce consistent filesystem-cache bias.
+              if [ "$repeat" -eq 1 ]; then modes="two-pass inline cancel"; else modes="inline two-pass cancel"; fi
+              for mode in $modes; do
+                "$RUNNER_TEMP/zstd-streaming-probe" "$mode" "$RUNNER_TEMP/zstd-fixtures/zstd-$size-mib.zst.json" 2>> streaming-probe-results/probe-stderr.log | tee -a streaming-probe-results/results.jsonl
+              done
+            done
+          done
+      - name: Upload raw measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: library-streaming-probe-${{ github.run_id }}
+          path: streaming-probe-results/
+          if-no-files-found: warn

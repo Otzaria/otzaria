@@ -28,6 +28,7 @@ import 'package:path/path.dart' as p;
 import '../support/zstd_test_lib.dart';
 import '../test_helpers/memory_cache_provider.dart';
 import 'library_package_test_support.dart';
+import 'library_release_test_support.dart';
 
 const _library = 'otzaria-0.9.98-library.tar.zst';
 const _index = 'otzaria-0.9.98-library-index.tar.zst';
@@ -185,6 +186,7 @@ void main() {
     Future<void> Function()? afterIndexCommit,
     Future<void> Function()? afterStagingDiscard,
   }) => EmptyLibraryBloc(
+    verifyDatabase: verifyFixtureDatabase,
     accessGate: gate = _Gate(),
     downloadSpaceChecker: (_) async => null,
     packageImporter: _Importer(

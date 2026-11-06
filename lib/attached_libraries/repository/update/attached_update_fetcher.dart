@@ -139,6 +139,11 @@ class AttachedUpdateFetcher {
     void Function(int received, int total)? onProgress,
     AttachedUpdateCancelToken? cancel,
   }) async {
+    void checkCancelled() {
+      if (cancel?.isCancelled ?? false) throw const AttachedUpdateCancelled();
+    }
+
+    checkCancelled();
     final total = parts.fold<int>(0, (sum, part) => sum + part.size);
     final file = File(targetPath);
     var existing = await file.exists() ? await file.length() : 0;
@@ -150,14 +155,22 @@ class AttachedUpdateFetcher {
     var resumeSink = _DigestSink();
     ByteConversionSink? resumeHash;
     var resumeHave = 0;
+    onProgress?.call(0, total);
+    checkCancelled();
     while (index < parts.length) {
+      checkCancelled();
       final part = parts[index];
       final have = (existing - start).clamp(0, part.size);
       if (have == 0) break;
       resumeSink = _DigestSink();
       resumeHash = sha256.startChunkedConversion(resumeSink);
+      var verified = 0;
       await for (final chunk in file.openRead(start, start + have)) {
+        checkCancelled();
         resumeHash.add(chunk);
+        verified += chunk.length;
+        onProgress?.call(start + verified, total);
+        checkCancelled();
       }
       if (have < part.size) {
         resumeHave = have;
@@ -172,17 +185,22 @@ class AttachedUpdateFetcher {
       start += part.size;
       index++;
     }
+    checkCancelled();
     final raf = await file.open(mode: FileMode.append);
     try {
+      checkCancelled();
       await _truncate(raf, start + resumeHave);
       var received = start + resumeHave;
       onProgress?.call(received, total);
+      checkCancelled();
       void onBytes(int n) {
         received += n;
         onProgress?.call(received, total);
+        checkCancelled();
       }
 
       for (; index < parts.length; index++) {
+        checkCancelled();
         final part = parts[index];
         final have = resumeHave;
         resumeHave = 0;
@@ -204,6 +222,8 @@ class AttachedUpdateFetcher {
         }
         start += part.size;
       }
+      await raf.flush();
+      checkCancelled();
     } finally {
       await raf.close();
     }
@@ -309,15 +329,13 @@ class AttachedUpdateFetcher {
       ..findProxy = findProxy
       ..connectionFactory = _connect;
     // גם המתנה לחיבור או לכותרות נקטעת בביטול, לא רק קריאת הגוף.
-    final cancelled = Completer<T>();
-    final unsubscribe = cancel?.onCancel(() {
-      client.close(force: true);
-      if (!cancelled.isCompleted) {
-        cancelled.completeError(const AttachedUpdateCancelled());
-      }
-    });
+    final unsubscribe = cancel?.onCancel(() => client.close(force: true));
     try {
-      return await Future.any([body(client), cancelled.future]);
+      // Wait for the body to settle after aborting the socket: racing it with
+      // cancellation could close/reuse its destination during an awaited write.
+      final result = await body(client);
+      if (cancel?.isCancelled ?? false) throw const AttachedUpdateCancelled();
+      return result;
     } on AttachedUpdateHostRejected {
       rethrow;
     } catch (e) {
@@ -376,6 +394,7 @@ class AttachedUpdateFetcher {
   }) async {
     var current = uri;
     for (var hop = 0; hop <= maxRedirects; hop++) {
+      if (cancel?.isCancelled ?? false) throw const AttachedUpdateCancelled();
       policy.checkUri(current);
       final request = await client
           .getUrl(current)

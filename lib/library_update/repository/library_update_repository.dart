@@ -17,7 +17,8 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/empty_library/services/library_space_estimate.dart'
     show isSameVolume;
-import 'package:seforim_library_updater/seforim_library_updater.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    hide StreamingPatchDownloader;
 
 import '../services/library_access_gate.dart';
 import '../services/library_runtime_refresh_service.dart';
@@ -68,7 +69,13 @@ typedef LibraryUpdateProgressCallback =
 typedef FullDbReplacedCallback = void Function();
 
 typedef FullDbExtractor =
-    Future<void> Function(String archivePath, String outputPath);
+    Future<void> Function(
+      String archivePath,
+      String outputPath, {
+      required int maxOutputBytes,
+      bool Function()? isCancelled,
+      void Function(double progress)? onProgress,
+    });
 
 /// אין מספיק מקום פנוי בדיסק לעדכון (הורדה מלאה או צעד דלתא) — נבדק לפני
 /// תחילת ההורדה.
@@ -78,6 +85,10 @@ class LibraryUpdateDiskSpaceException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class _FullDbValidationFailure extends StateError {
+  _FullDbValidationFailure(super.message);
 }
 
 /// הרשאות הספרייה אינן מאפשרות את העדכון.
@@ -187,6 +198,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   final LibraryDbRecoveryService recovery;
   final LibraryRuntimeRefreshService refreshService;
   final FullDbExtractor fullDbExtractor;
+  final int maxFullDbBytes;
 
   /// סוגר את הספרייה בתהליך לפני החלפת קובץ המסד.
   final LibraryAccessGate accessGate;
@@ -210,6 +222,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     this.recovery = const LibraryDbRecoveryService(),
     this.refreshService = const LibraryRuntimeRefreshService(),
     FullDbExtractor? fullDbExtractor,
+    this.maxFullDbBytes = kDefaultMaxExtractedBytes,
     LibraryAccessGate? accessGate,
     String Function()? dbPathProvider,
     Future<String> Function()? dataRootProvider,
@@ -230,7 +243,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
            (() => LibraryUpdateSqliteSetup.instance.prepareApplier()),
        sqliteTempDirectoryInitializer =
            sqliteTempDirectoryInitializer ??
-           _installSqliteTempDirectoryWhenQuiesced;
+           _installSqliteTempDirectoryWhenQuiesced {
+    if (maxFullDbBytes <= 0) {
+      throw ArgumentError.value(maxFullDbBytes, 'maxFullDbBytes');
+    }
+  }
 
   static Future<void> _installSqliteTempDirectoryWhenQuiesced() async {
     final setup = LibraryUpdateSqliteSetup.instance;
@@ -257,9 +274,18 @@ class LibraryUpdateRepository implements LibraryUpdateService {
 
   static Future<void> _defaultFullDbExtractor(
     String archivePath,
-    String outputPath,
-  ) {
-    return ZstdStreamExtractor.extractToFile(archivePath, outputPath);
+    String outputPath, {
+    required int maxOutputBytes,
+    bool Function()? isCancelled,
+    void Function(double progress)? onProgress,
+  }) {
+    return ZstdStreamExtractor.extractToFile(
+      archivePath,
+      outputPath,
+      maxOutputBytes: maxOutputBytes,
+      isCancelled: isCancelled,
+      onProgress: onProgress,
+    );
   }
 
   /// פתיחת המסד חוסמת עשרות ms ויותר, וב-Windows ה-UI isolate הוא ה-platform thread.
@@ -306,16 +332,27 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
+  }) => _withUpdateLocks(
+    (dbPath, cacheDir) => _applyDeltaPlan(
+      plan,
+      dbPath: dbPath,
+      cacheDir: cacheDir,
+      onProgress: onProgress,
+      isCancelled: isCancelled,
+    ),
+    isCancelled: isCancelled,
+  );
+
+  Future<LibraryDeltaApplyResult> _applyDeltaPlan(
+    LibraryUpdatePlan plan, {
+    required String dbPath,
+    required Directory cacheDir,
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
   }) async {
-    final dbPath = dbPathProvider();
-    await _ensureDbDirectoryWritable(dbPath);
     if (_hasWindowsReadOnlyAttribute(dbPath)) {
       throw LibraryUpdateReadOnlyException(p.dirname(dbPath));
     }
-    final cacheDir = Directory(
-      p.join(await dataRootProvider(), 'library_update_cache'),
-    );
-
     // סך-הבתים של ה-hash מהריצה הקודמת — total מדויק למד ההתקדמות (גודל
     // הקובץ הוא הערכת-יתר של ~25%). בריצה הראשונה נופלים לגודל הקובץ.
     final hintFile = File(p.join(cacheDir.path, 'verify_total_bytes.txt'));
@@ -337,7 +374,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final steps = plan.deltaSteps;
     // לפני בדיקת המקום: patch של תוכנית אחרת שנשאר בקאש תופס גיגה-בייטים
     // שבלעדיהם הבדיקה תיכשל, והניקוי שבסוף לא היה מגיע לעולם.
-    _deleteStalePatchFiles(cacheDir, steps);
+    await _deleteStalePatchFiles(cacheDir, steps);
     // מכינים את הנתיב כעת; מתקינים אותו רק אחרי השהיית חיבורי SQLite.
     final applier = await applierProvider();
     var sqliteTempDirectoryInitialized = false;
@@ -466,7 +503,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             _writeIntQuietly(hintFile, lastVerifyDone);
           }
         } finally {
-          _deleteQuietly(patchPath); // מנקה גם בכשל apply, לא רק בהצלחה.
+          await _deleteQuietlyAsync(
+            patchPath,
+          ); // מנקה גם בכשל apply, לא רק בהצלחה.
         }
       }
     } catch (error, stackTrace) {
@@ -595,20 +634,23 @@ class LibraryUpdateRepository implements LibraryUpdateService {
 
   /// מוחק patch-ים מחולצים של תוכניות אחרות שנשארו בקאש מריצה שנקטעה;
   /// הקבצים של התוכנית הנוכחית נשמרים לשימוש חוזר.
-  void _deleteStalePatchFiles(Directory cacheDir, List<PatchEdge> steps) {
+  Future<void> _deleteStalePatchFiles(
+    Directory cacheDir,
+    List<PatchEdge> steps,
+  ) async {
     final planFiles = <String>{
       for (final step in steps)
         for (final patch in step.manifest.patchFiles)
           extractedPatchFileName(patch.file),
     };
     try {
-      if (!cacheDir.existsSync()) return;
-      for (final entity in cacheDir.listSync()) {
+      if (!await cacheDir.exists()) return;
+      await for (final entity in cacheDir.list()) {
         if (entity is! File) continue;
         final name = p.basename(entity.path);
         if (!name.startsWith('patch-') || !name.endsWith('.db')) continue;
         if (planFiles.contains(name)) continue;
-        _deleteQuietly(entity.path);
+        await _deleteQuietlyAsync(entity.path);
       }
     } catch (_) {}
   }
@@ -716,18 +758,56 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     LibraryUpdateProgressCallback? onProgress,
     FullDbReplacedCallback? onDbReplaced,
     bool Function()? isCancelled,
+  }) => _withUpdateLocks(
+    (dbPath, cacheDir) => _applyFullDownload(
+      plan,
+      dbPath: dbPath,
+      cacheDir: cacheDir,
+      onProgress: onProgress,
+      onDbReplaced: onDbReplaced,
+      isCancelled: isCancelled,
+    ),
+    isCancelled: isCancelled,
+  );
+
+  Future<T> _withUpdateLocks<T>(
+    Future<T> Function(String dbPath, Directory cacheDir) action, {
+    bool Function()? isCancelled,
   }) async {
-    final asset = plan.fullDbAsset;
-    if (asset == null) {
-      throw StateError('אין DB מלא בתוכנית');
-    }
+    _throwIfCancelled(isCancelled);
     final dbPath = dbPathProvider();
     await _ensureDbDirectoryWritable(dbPath);
     final cacheDir = Directory(
       p.join(await dataRootProvider(), 'library_update_cache'),
     );
-    if (!cacheDir.existsSync()) cacheDir.createSync(recursive: true);
-    _deleteStalePatchFiles(cacheDir, const []);
+    await cacheDir.create(recursive: true);
+    _throwIfCancelled(isCancelled);
+    // נועלים גם את המסד וגם את הקאש עד סיום ה-workers והניקוי.
+    return withFileOperationLock(
+      dbPath,
+      () => withFileOperationLock(
+        p.join(cacheDir.path, 'update-pipeline'),
+        () async {
+          _throwIfCancelled(isCancelled);
+          return action(dbPath, cacheDir);
+        },
+      ),
+    );
+  }
+
+  Future<void> _applyFullDownload(
+    LibraryUpdatePlan plan, {
+    required String dbPath,
+    required Directory cacheDir,
+    LibraryUpdateProgressCallback? onProgress,
+    FullDbReplacedCallback? onDbReplaced,
+    bool Function()? isCancelled,
+  }) async {
+    final asset = plan.fullDbAsset;
+    if (asset == null) {
+      throw StateError('אין DB מלא בתוכנית');
+    }
+    await _deleteStalePatchFiles(cacheDir, const []);
     final archivePath = p.join(cacheDir.path, 'seforim.db.zst');
     final sidecarPath = PatchDownloader.resumeSidecarPath(archivePath);
     // מחולץ ליד ה-DB (אותו filesystem) כדי שה-rename יהיה אטומי.
@@ -767,22 +847,45 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       onProgress?.call(
         const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying),
       );
-      _deleteDbWithSidecarsQuietly(newDbPath);
+      await _deleteDbWithSidecarsQuietlyAsync(newDbPath);
       try {
-        await fullDbExtractor(archivePath, newDbPath);
-      } catch (_) {
-        // ארכיון שלם-אך-פגום: בלי מחיקה ה-resume ידלג על ההורדה וייתקע בלולאה.
-        _deleteDownloadStateQuietly(archivePath, sidecarPath);
+        await fullDbExtractor(
+          archivePath,
+          newDbPath,
+          maxOutputBytes: maxFullDbBytes,
+          isCancelled: isCancelled,
+          onProgress: (progress) => onProgress?.call(
+            LibraryUpdateProgress(
+              phase: LibraryUpdatePhase.applying,
+              applyProgress: progress,
+            ),
+          ),
+        );
+      } on FormatException {
+        // רק קלט פגום מחייב הורדה מחדש; ביטול וכשל דיסק משמרים את הארכיון.
+        await _deleteDownloadStateQuietly(archivePath, sidecarPath);
         rethrow;
       }
-      _deleteDownloadStateQuietly(archivePath, sidecarPath);
       _throwIfCancelled(isCancelled);
+      if (await File(newDbPath).length() > maxFullDbBytes) {
+        throw ZstdOutputLimitExceeded(maxFullDbBytes);
+      }
 
       onProgress?.call(
         const LibraryUpdateProgress(phase: LibraryUpdatePhase.verifying),
       );
       // האימות הכבד (quick_check על ~5.5GB) רץ ב-isolate כדי לא לחסום UI.
-      await _verifyFullDbInIsolate(newDbPath, plan.targetVersion);
+      try {
+        _throwIfCancelled(isCancelled);
+        await _verifyFullDbInIsolate(newDbPath, plan.targetVersion);
+      } catch (error) {
+        if (error is _FullDbValidationFailure ||
+            (error is sqlite3.SqliteException &&
+                const {11, 26}.contains(error.resultCode))) {
+          await _deleteDownloadStateQuietly(archivePath, sidecarPath);
+        }
+        rethrow;
+      }
       _throwIfCancelled(isCancelled);
 
       await _replaceDbInQueue(
@@ -792,6 +895,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         isCancelled: isCancelled,
         onDbReplaced: onDbReplaced,
       );
+      await _deleteDownloadStateQuietly(archivePath, sidecarPath);
 
       onProgress?.call(
         const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
@@ -803,7 +907,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       );
     } catch (_) {
       // הארכיון החלקי נשמר בכוונה — ההורדה תתחדש ממנו בניסיון הבא.
-      _deleteDbWithSidecarsQuietly(newDbPath);
+      await _deleteDbWithSidecarsQuietlyAsync(newDbPath);
       rethrow;
     }
   }
@@ -888,10 +992,27 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  void _deleteDownloadStateQuietly(String dataPath, String sidecarPath) {
-    _deleteQuietly(dataPath);
+  Future<void> _deleteDownloadStateQuietly(
+    String dataPath,
+    String sidecarPath,
+  ) async {
+    await _deleteQuietlyAsync(dataPath);
     // אם מחיקת הארכיון נכשלה, ה-sidecar עדיין נחוץ כדי לאמת/לחדש אותו.
-    if (!File(dataPath).existsSync()) _deleteQuietly(sidecarPath);
+    if (!await File(dataPath).exists()) await _deleteQuietlyAsync(sidecarPath);
+  }
+
+  Future<void> _deleteDbWithSidecarsQuietlyAsync(String path) async {
+    await _deleteQuietlyAsync(path);
+    await _deleteQuietlyAsync('$path-wal');
+    await _deleteQuietlyAsync('$path-shm');
+  }
+
+  Future<void> _deleteQuietlyAsync(String path) async {
+    try {
+      await File(path).delete();
+    } on FileSystemException {
+      // שומרים את השגיאה המקורית; התקנה משתמשת רק ב-staging שאומת.
+    }
   }
 
   void _throwIfCancelled(bool Function()? isCancelled) {
@@ -908,14 +1029,16 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       final check = db.select('PRAGMA quick_check');
       final result = check.isEmpty ? '' : check.first.values.first?.toString();
       if (result != 'ok') {
-        throw StateError('בדיקת תקינות ה-DB שהורד נכשלה: $result');
+        throw _FullDbValidationFailure(
+          'בדיקת תקינות ה-DB שהורד נכשלה: $result',
+        );
       }
     } finally {
       db.close();
     }
     final local = const LocalDbVersionReader().read(newDbPath);
     if (expectedVersion != null && local.dbVersion != expectedVersion) {
-      throw StateError(
+      throw _FullDbValidationFailure(
         'גרסת ה-DB שהורד (${local.dbVersion}) אינה הגרסה הצפויה '
         '($expectedVersion)',
       );
@@ -923,7 +1046,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final schema = local.schemaVersion;
     const readable = DatabaseConstants.readableDbSchemaVersion;
     if (schema != null && schema > readable) {
-      throw StateError(
+      throw _FullDbValidationFailure(
         'ה-DB שהורד בסכמה $schema, חדשה מהנתמכת ($readable) — '
         'נדרש עדכון אפליקציה',
       );

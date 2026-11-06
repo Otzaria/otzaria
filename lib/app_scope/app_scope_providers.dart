@@ -21,7 +21,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
-import 'package:seforim_library_updater/seforim_library_updater.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    hide StreamingPatchDownloader;
 
 /// ספקים ברמת התהליך, שאינם קוראים ספק של [WindowScopeProviders]. מעט מצב חלון
 /// שנשאר בהם (`_dismissed` של [PluginUpdatesCubit]) יפוצל בהמשך.

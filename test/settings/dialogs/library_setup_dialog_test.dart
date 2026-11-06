@@ -34,6 +34,7 @@ import '../../empty_library/library_package_test_support.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import '../../empty_library/library_release_test_support.dart';
 
 // navigatorKey — כדי ש-UiSnack ימצא Overlay להודעות השגיאה.
 Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
@@ -556,6 +557,7 @@ void main() {
         late EmptyLibraryBloc bloc;
         bloc = (await tester.runAsync(
           () async => EmptyLibraryBloc(
+            verifyDatabase: verifyFixtureDatabase,
             accessGate: gate,
             downloadSpaceChecker: (_) => checkSpace.future,
             packageImporter: LibraryPackageImporter(
@@ -912,6 +914,7 @@ void main() {
     ) async {
       EmptyLibraryBloc.tempRootOverride = temp.path;
       debugCreateLibrarySetupBloc = () => EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         downloadSpaceChecker: (_) async => null,
         packageImporter: LibraryPackageImporter(
           rawRunner: (job, {required onProgress, required cancel}) =>
@@ -1043,6 +1046,7 @@ void main() {
       }
 
       debugCreateLibrarySetupBloc = () => EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         downloadSpaceChecker: (_) async => null,
         packageImporter: LibraryPackageImporter(
           runner: waitForCancel,

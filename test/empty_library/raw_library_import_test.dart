@@ -28,6 +28,7 @@ import 'package:path/path.dart' as p;
 import '../support/zstd_test_lib.dart';
 import '../test_helpers/memory_cache_provider.dart';
 import 'library_package_test_support.dart';
+import 'library_release_test_support.dart';
 
 /// תיקייה בזיכרון — כמו עץ SAF: אין לה נתיב, והקריאה בנתחים.
 class _MemoryFolder extends PackageFolder {
@@ -138,6 +139,7 @@ void main() {
   }
 
   EmptyLibraryBloc build({RawAssetRunner? runner}) => EmptyLibraryBloc(
+    verifyDatabase: verifyFixtureDatabase,
     downloadSpaceChecker: (_) async => null,
     packageImporter: LibraryPackageImporter(
       rawRunner: runner ?? inlineRunner,

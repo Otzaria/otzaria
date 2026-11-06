@@ -12,6 +12,7 @@ import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/tools/biographies/data/biographies_downloader.dart';
 import 'package:otzaria/utils/download_sidecar.dart';
 import 'package:otzaria/utils/file/tar_zst_extractor.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
@@ -28,7 +29,16 @@ typedef TalmudRelease = ({
   String? sha256,
 });
 
-enum CompanionAssetPhase { checking, downloading, applying }
+enum CompanionAssetPhase { checking, downloading, extracting, applying }
+
+typedef CompanionTarExtractor =
+    Future<void> Function(
+      String archivePath,
+      String outputDir,
+      void Function(double progress)? onProgress, {
+      required int maxOutputBytes,
+      bool Function()? isCancelled,
+    });
 
 typedef CompanionAssetStatusCallback =
     void Function(String message, CompanionAssetPhase phase);
@@ -63,12 +73,8 @@ class CompanionAssetsService {
   final ExternalCatalogRepository Function() _catalogRepository;
   final MagicDictionaryDownloader Function() _dictionaryFactory;
   final BiographiesDownloader Function() _biographiesFactory;
-  final Future<void> Function(
-    String archivePath,
-    String outputDir,
-    void Function(double progress)? onProgress,
-  )
-  _extractTarArchive;
+  final CompanionTarExtractor _extractTarArchive;
+  final int maxExtractedBytes;
   final List<String> Function() _talmudDirsProvider;
   final VoidCallback _invalidateExternalBooksCache;
   final VoidCallback _invalidateLibraryCaches;
@@ -80,8 +86,8 @@ class CompanionAssetsService {
     ExternalCatalogRepository Function()? catalogRepository,
     MagicDictionaryDownloader Function()? dictionaryFactory,
     BiographiesDownloader Function()? biographiesFactory,
-    Future<void> Function(String, String, void Function(double)?)?
-    extractTarArchive,
+    CompanionTarExtractor? extractTarArchive,
+    this.maxExtractedBytes = kDefaultMaxExtractedBytes,
     List<String> Function()? talmudDirsProvider,
     VoidCallback? invalidateExternalBooksCache,
     VoidCallback? invalidateLibraryCaches,
@@ -99,8 +105,19 @@ class CompanionAssetsService {
        _biographiesFactory = biographiesFactory ?? BiographiesDownloader.new,
        _extractTarArchive =
            extractTarArchive ??
-           ((archive, outputDir, onProgress) =>
-               extractTarZstToDir(archive, outputDir, onProgress: onProgress)),
+           ((
+             archive,
+             outputDir,
+             onProgress, {
+             required maxOutputBytes,
+             isCancelled,
+           }) => extractTarZstToDir(
+             archive,
+             outputDir,
+             onProgress: onProgress,
+             maxOutputBytes: maxOutputBytes,
+             isCancelled: isCancelled,
+           )),
        _talmudDirsProvider =
            talmudDirsProvider ?? DatabaseConstants.getTalmudBavliDirectoryPaths,
        _invalidateExternalBooksCache =
@@ -133,7 +150,9 @@ class CompanionAssetsService {
     if (cancelled()) return libraryChanged;
 
     try {
-      if (await _ensureCatalog(onStatus)) libraryChanged = true;
+      if (await _ensureCatalog(onStatus, onDownloadProgress, cancelled)) {
+        libraryChanged = true;
+      }
     } catch (e) {
       debugPrint('[CompanionAssets] catalog update failed: $e');
     }
@@ -231,7 +250,20 @@ class CompanionAssetsService {
     CompanionAssetStatusCallback? onStatus,
     void Function(int received, int? total)? onDownloadProgress,
     bool Function() cancelled,
+  ) => withFileOperationLock(
+    p.join(Directory.systemTemp.path, 'otzaria_talmud-update'),
+    () => _ensureTalmudLocked(onStatus, onDownloadProgress, cancelled),
+  );
+
+  Future<bool> _ensureTalmudLocked(
+    CompanionAssetStatusCallback? onStatus,
+    void Function(int received, int? total)? onDownloadProgress,
+    bool Function() cancelled,
   ) async {
+    if (maxExtractedBytes <= 0) {
+      throw ArgumentError.value(maxExtractedBytes, 'maxExtractedBytes');
+    }
+    if (cancelled()) return false;
     onStatus?.call('בודק את התלמוד הבבלי', CompanionAssetPhase.checking);
     final dirs = _talmudDirsProvider();
     // רק IO אסינכרוני על תיקיית התלמוד: מאות קבצים מול אנטי-וירוס או דיסק
@@ -240,6 +272,7 @@ class CompanionAssetsService {
     for (final d in dirs) {
       // תיקייה שאינה נגישה לקריאה (הרשאות, אחסון חיצוני) נחשבת כלא קיימת.
       try {
+        await _recoverDirectory(d);
         final dir = Directory(d);
         if (await dir.exists() && await dir.list().any((e) => e is File)) {
           existingDir = d;
@@ -294,50 +327,218 @@ class CompanionAssetsService {
       );
       if (cancelled()) return false;
 
-      onStatus?.call('מחלץ את התלמוד הבבלי', CompanionAssetPhase.applying);
-      final dir = Directory(targetDir);
-      await dir.create(recursive: true);
-      final markerFile = File(p.join(targetDir, talmudVersionFileName));
-      await markerFile.writeAsString(talmudInstallingMarker);
-      // עדכון מעל התקנה קיימת: מנקים קבצים ישנים שאולי הוסרו ב-release החדש.
-      // הסימון-ביניים כבר נכתב, כך שקטיעה בשלב הזה מותירה התקנה חלקית מסומנת.
-      for (final entity in await dir.list().toList()) {
-        if (entity is File &&
-            p.basename(entity.path) != talmudVersionFileName) {
-          await entity.delete();
-        }
-      }
+      onStatus?.call('מחלץ את התלמוד הבבלי', CompanionAssetPhase.extracting);
+      final parent = Directory(p.dirname(targetDir));
+      await parent.create(recursive: true);
+      final stage = await parent.createTemp('.otzaria-talmud-');
       // הארכיון מכיל את התיקייה 'תלמוד בבלי/' — מחולץ לתיקיית האב.
       // ההתקדמות מכסה את שלב ה-zst; שלב פריסת ה-tar ללא מדידה — עוברים
       // להודעת ספינר כדי שהמד לא ייתקע על 100%.
       var zstDone = false;
       try {
-        await _extractTarArchive(tempPath, p.dirname(targetDir), (progress) {
-          if (zstDone) return;
-          if (progress >= 0.999) {
-            zstDone = true;
-            onStatus?.call('פורס את קבצי התלמוד', CompanionAssetPhase.applying);
-          } else {
-            onDownloadProgress?.call((progress * 10000).round(), 10000);
-          }
-        });
+        await _extractTarArchive(
+          tempPath,
+          stage.path,
+          (progress) {
+            if (zstDone) return;
+            if (progress >= 0.999) {
+              zstDone = true;
+              onStatus?.call(
+                'פורס את קבצי התלמוד',
+                CompanionAssetPhase.extracting,
+              );
+            } else {
+              onDownloadProgress?.call((progress * 10000).round(), 10000);
+            }
+          },
+          maxOutputBytes: maxExtractedBytes,
+          isCancelled: cancelled,
+        );
+        if (cancelled()) throw PatchDownloadCancelled();
+        final extracted = Directory(
+          p.join(stage.path, DatabaseConstants.talmudBavliFolderName),
+        );
+        if (!await extracted.exists()) {
+          throw const FormatException(
+            'Talmud archive is missing its directory',
+          );
+        }
+        final previous = Directory(targetDir);
+        if (await previous.exists()) {
+          await preserveTalmudEntries(
+            previous
+                .list(followLinks: false)
+                .where(
+                  (entry) => entry is Directory || entry is Link,
+                ),
+            extracted,
+            maxOutputBytes: maxExtractedBytes,
+            isCancelled: cancelled,
+            onProgress: onDownloadProgress,
+          );
+        }
+        await File(
+          p.join(extracted.path, talmudVersionFileName),
+        ).writeAsString(release.sha256 ?? release.tag, flush: true);
+        if (cancelled()) throw PatchDownloadCancelled();
+        onStatus?.call('מתקין את התלמוד הבבלי', CompanionAssetPhase.applying);
+        if (cancelled()) throw PatchDownloadCancelled();
+        await _replaceDirectory(extracted, Directory(targetDir));
       } catch (e) {
         // ארכיון פגום שנשאר שלם יחזיר 416 (דילוג הורדה) ולולאה — מוחקים; כשל
         // מערכת-קבצים (קובץ יעד נעול) אינו ארכיון פגום — ה-temp נשמר ל-resume.
-        if (e is! FileSystemException) {
+        if (e is FormatException) {
           await deleteDownloadWithSidecars(tempPath);
         }
         rethrow;
+      } finally {
+        await _cleanupDirectory(stage);
       }
       // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.
       await deleteDownloadWithSidecars(tempPath);
-      await markerFile.writeAsString(release.sha256 ?? release.tag);
       // קיום תיקיית התלמוד ממוטמן ב-DatabaseLibraryProvider — בלי ניקוי,
       // הריענון שאחרי העדכון לא יגלה את התיקייה החדשה עד הפעלה מחדש.
       _invalidateLibraryCaches();
       return true;
     } finally {
       client.close();
+    }
+  }
+
+  static Future<void> _recoverDirectory(String path) async {
+    final target = Directory(path);
+    final backup = Directory('$path.update-old');
+    if (!await target.exists() && await backup.exists()) {
+      await backup.rename(path);
+    }
+  }
+
+  /// משמר פריטים חסרים ב-staging לפני החלפה, במגבלת הפלט וביטול בין נתחים.
+  static Future<void> preserveTalmudEntries(
+    Stream<FileSystemEntity> entries,
+    Directory staged, {
+    required int maxOutputBytes,
+    required bool Function() isCancelled,
+    void Function(int received, int? total)? onProgress,
+  }) async {
+    void checkCancelled() {
+      if (isCancelled()) throw const PatchDownloadCancelled();
+    }
+
+    checkCancelled();
+    var stagedBytes = 0;
+    await for (final entry in staged.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      checkCancelled();
+      if (entry is File) {
+        final size = await entry.length();
+        if (size > maxOutputBytes - stagedBytes) {
+          throw ZstdOutputLimitExceeded(maxOutputBytes);
+        }
+        stagedBytes += size;
+      }
+    }
+    var copied = 0;
+    Future<void> preserve(FileSystemEntity source, String destination) async {
+      checkCancelled();
+      final destinationType = await FileSystemEntity.type(
+        destination,
+        followLinks: false,
+      );
+      if (source is Directory) {
+        if (destinationType != FileSystemEntityType.notFound &&
+            destinationType != FileSystemEntityType.directory) {
+          throw StateError('קובץ בארכיון מתנגש בתיקייה קיימת');
+        }
+        await Directory(destination).create(recursive: true);
+        await for (final child in source.list(followLinks: false)) {
+          await preserve(child, p.join(destination, p.basename(child.path)));
+        }
+      } else if (destinationType == FileSystemEntityType.notFound) {
+        if (source is File) {
+          final expected = await source.length();
+          if (expected > maxOutputBytes - stagedBytes) {
+            throw ZstdOutputLimitExceeded(maxOutputBytes);
+          }
+          checkCancelled();
+          final output = await File(destination).open(mode: FileMode.writeOnly);
+          try {
+            var read = 0;
+            await for (final bytes in source.openRead()) {
+              checkCancelled();
+              if (bytes.length > expected - read) {
+                throw StateError('קובץ קיים השתנה בזמן ההעתקה');
+              }
+              if (bytes.length > maxOutputBytes - stagedBytes) {
+                throw ZstdOutputLimitExceeded(maxOutputBytes);
+              }
+              await output.writeFrom(bytes);
+              read += bytes.length;
+              stagedBytes += bytes.length;
+              copied += bytes.length;
+              onProgress?.call(copied, null);
+              checkCancelled();
+            }
+            if (read != expected) {
+              throw StateError('קובץ קיים השתנה בזמן ההעתקה');
+            }
+            await output.flush();
+            checkCancelled();
+          } finally {
+            await output.close();
+          }
+        } else if (source is Link) {
+          await Link(destination).create(await source.target());
+        }
+      }
+      checkCancelled();
+    }
+
+    // משלימים רק לאחר החילוץ, כדי שהארכיון לא יעקוב אחרי קישורים קיימים.
+    await for (final entry in entries) {
+      checkCancelled();
+      await preserve(entry, p.join(staged.path, p.basename(entry.path)));
+    }
+  }
+
+  static Future<void> _cleanupDirectory(Directory directory) async {
+    try {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    } on FileSystemException catch (error) {
+      debugPrint('[CompanionAssets] directory cleanup failed: $error');
+    }
+  }
+
+  static Future<void> _replaceDirectory(
+    Directory staged,
+    Directory target,
+  ) async {
+    final backup = Directory('${target.path}.update-old');
+    var moved = false;
+    var installed = false;
+    await _recoverDirectory(target.path);
+    if (await backup.exists()) await backup.delete(recursive: true);
+    try {
+      if (await target.exists()) {
+        await target.rename(backup.path);
+        moved = true;
+      }
+      await staged.rename(target.path);
+      installed = true;
+    } catch (_) {
+      if (moved && !await target.exists()) {
+        try {
+          await backup.rename(target.path);
+          moved = false;
+        } catch (_) {
+          // Leave the backup intact if rollback cannot complete.
+        }
+      }
+      rethrow;
+    } finally {
+      if (installed && moved) await _cleanupDirectory(backup);
     }
   }
 
@@ -490,11 +691,23 @@ class CompanionAssetsService {
   // ── קטלוג otzar-HB ────────────────────────────────────────────────────
 
   /// מחזיר `true` כשהקטלוג הורד או עודכן בפועל.
-  Future<bool> _ensureCatalog(CompanionAssetStatusCallback? onStatus) async {
+  Future<bool> _ensureCatalog(
+    CompanionAssetStatusCallback? onStatus,
+    void Function(int received, int? total)? onDownloadProgress,
+    bool Function() cancelled,
+  ) async {
     final repository = _catalogRepository();
+    void extractionProgress(double progress) {
+      onStatus?.call('מחלץ את הקטלוגים', CompanionAssetPhase.extracting);
+      onDownloadProgress?.call((progress * 10000).round(), 10000);
+    }
+
     if (await repository.databaseExists()) {
       onStatus?.call('בודק עדכון קטלוגים', CompanionAssetPhase.checking);
       final updated = await repository.updateDatabaseIfNeeded(
+        isCancelled: cancelled,
+        onDownloadProgress: onDownloadProgress,
+        onExtractionProgress: extractionProgress,
         onUpdateAvailable: () => onStatus?.call(
           'מוריד את הקטלוגים',
           CompanionAssetPhase.downloading,
@@ -504,7 +717,11 @@ class CompanionAssetsService {
       return updated;
     }
     onStatus?.call('מוריד את הקטלוגים', CompanionAssetPhase.downloading);
-    await repository.downloadLatestDatabase();
+    await repository.downloadLatestDatabase(
+      isCancelled: cancelled,
+      onDownloadProgress: onDownloadProgress,
+      onExtractionProgress: extractionProgress,
+    );
     _invalidateExternalBooksCache();
     return true;
   }

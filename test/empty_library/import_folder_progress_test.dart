@@ -12,6 +12,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
 import '../test_helpers/memory_cache_provider.dart';
+import 'library_release_test_support.dart';
 
 /// issue #1334 — בייבוא seforim.db לא-דחוס מסך ההתקדמות הציג 0% לכל אורך
 /// ההעתקה: הקובץ הועתק ב-File.copy בלי דיווח ביניים.
@@ -34,7 +35,7 @@ void main() {
 
     await Settings.init(cacheProvider: MemoryCacheProvider());
     await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-    final bloc = EmptyLibraryBloc();
+    final bloc = EmptyLibraryBloc(verifyDatabase: verifyFixtureDatabase);
     addTearDown(bloc.close);
 
     final progressValues = <double>[];

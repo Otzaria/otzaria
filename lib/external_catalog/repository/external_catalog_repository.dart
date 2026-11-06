@@ -10,6 +10,16 @@ import 'package:otzaria/models/books.dart';
 import 'package:path/path.dart' as path;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart';
+
+typedef ExternalCatalogExtractor =
+    Future<void> Function(
+      String archivePath,
+      String outputPath, {
+      required int maxOutputBytes,
+      bool Function()? isCancelled,
+      void Function(double)? onProgress,
+    });
 
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).
 class ExternalCatalogRepository {
@@ -29,19 +39,26 @@ class ExternalCatalogRepository {
   static final ExternalCatalogRepository instance = ExternalCatalogRepository();
 
   final http.Client _httpClient;
-  final Future<void> Function(String archivePath, String outputPath)
-  _extractZst;
+  final ExternalCatalogExtractor _extractZst;
   final Duration apiTimeout;
   final Duration downloadTimeout;
+  final int maxOutputBytes;
+  final int maxDownloadBytes;
+  final void Function(String source, String destination)? _beforeFileRename;
 
   ExternalCatalogRepository({
     http.Client? httpClient,
-    @visibleForTesting
-    Future<void> Function(String archivePath, String outputPath)? extractZst,
+    @visibleForTesting ExternalCatalogExtractor? extractZst,
+    @visibleForTesting this._beforeFileRename,
     this.apiTimeout = defaultApiTimeout,
     this.downloadTimeout = defaultDownloadTimeout,
+    this.maxOutputBytes = kDefaultMaxExtractedBytes,
+    this.maxDownloadBytes = kDefaultMaxExtractedBytes,
   }) : _httpClient = httpClient ?? http.Client(),
        _extractZst = extractZst ?? ZstdStreamExtractor.extractToFile {
+    if (maxOutputBytes <= 0 || maxDownloadBytes <= 0) {
+      throw ArgumentError('Catalog size limits must be positive');
+    }
     HttpClientRegistry.register(_httpClient.close);
   }
 
@@ -154,7 +171,14 @@ class ExternalCatalogRepository {
   /// מעדכן את מסד הקטלוגים רק אם קיימת גרסה חדשה יותר.
   ///
   /// מחזיר `true` אם בוצע עדכון בפועל.
-  Future<bool> updateDatabaseIfNeeded({VoidCallback? onUpdateAvailable}) async {
+  Future<bool> updateDatabaseIfNeeded({
+    VoidCallback? onUpdateAvailable,
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+  }) async {
+    _checkCancelled(isCancelled);
+    await _recoverInterruptedInstall();
     if (!await databaseExists()) {
       return false;
     }
@@ -168,8 +192,13 @@ class ExternalCatalogRepository {
     }
 
     onUpdateAvailable?.call();
-    await _downloadReleaseDatabase(release.databaseAsset);
-    _ensureVersionStamped(latestVersion);
+    await _downloadReleaseDatabase(
+      release.databaseAsset,
+      isCancelled: isCancelled,
+      onDownloadProgress: onDownloadProgress,
+      onExtractionProgress: onExtractionProgress,
+      version: latestVersion,
+    );
     return true;
   }
 
@@ -177,10 +206,10 @@ class ExternalCatalogRepository {
   ///
   /// בלי זה, מסד שהורד ללא מפתח `version` משאיר את הגרסה המקומית null,
   /// ו-[updateDatabaseIfNeeded] מוריד את הקטלוג מחדש בכל עליית אפליקציה.
-  void _ensureVersionStamped(int version) {
+  void _ensureVersionStamped(int version, String filePath) {
     sqlite3.Database? db;
     try {
-      db = sqlite3.sqlite3.open(databasePath);
+      db = sqlite3.sqlite3.open(filePath);
       db.execute(
         'CREATE TABLE IF NOT EXISTS db_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
@@ -204,97 +233,379 @@ class ExternalCatalogRepository {
   }
 
   /// מוריד את מסד הקטלוגים מהרליס האחרון ומחלץ אותו ליד `seforim.db`.
-  Future<void> downloadLatestDatabase() async {
+  Future<void> downloadLatestDatabase({
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+  }) async {
+    _checkCancelled(isCancelled);
+    await _recoverInterruptedInstall();
     final release = await _fetchLatestReleaseInfo();
-    await _downloadReleaseDatabase(release.databaseAsset);
-    // החתמת גרסה גם במסלול ההורדה הראשונית — אחרת DB שהורד בלי
-    // db_meta.version משאיר גרסה מקומית null, ו-maybeAutoSyncCatalogs יוריד
-    // אותו שוב בעלייה הבאה. best-effort: כשל בקריאת הגרסה (version.txt חסר)
-    // לא מכשיל את ההורדה עצמה, שהצליחה גם בלעדיו עד כה.
+    int? version;
     try {
-      _ensureVersionStamped(await _fetchReleaseVersion(release));
+      version = await _fetchReleaseVersion(release);
     } catch (e) {
-      debugPrint('Could not stamp external catalog version after download: $e');
+      debugPrint('Could not read external catalog version: $e');
     }
+    await _downloadReleaseDatabase(
+      release.databaseAsset,
+      isCancelled: isCancelled,
+      onDownloadProgress: onDownloadProgress,
+      onExtractionProgress: onExtractionProgress,
+      version: version,
+    );
+  }
+
+  Future<void> _recoverInterruptedInstall() async {
+    final destination = databasePath;
+    if (!Directory(_catalogBackupPath(destination)).existsSync() &&
+        !File('$destination.bak').existsSync()) {
+      return;
+    }
+    await withFileOperationLock(destination, () async {
+      await _recoverCatalogFamily(destination);
+      // הגיבוי הישן כלל רק את קובץ המסד; ה-sidecars נשארו בנתיב המקורי.
+      if (!File(destination).existsSync() &&
+          File('$destination.bak').existsSync()) {
+        _renameCatalogFile('$destination.bak', destination);
+      }
+    });
   }
 
   Future<void> _downloadReleaseDatabase(
-    ExternalCatalogReleaseAsset asset,
-  ) async {
+    ExternalCatalogReleaseAsset asset, {
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+    int? version,
+  }) async {
     final dbDir = Directory(path.dirname(databasePath));
     if (!await dbDir.exists()) {
       await dbDir.create(recursive: true);
     }
+    final destination = databasePath;
+    await withFileOperationLock(
+      destination,
+      () => _downloadAndInstall(
+        destination,
+        asset,
+        isCancelled,
+        onDownloadProgress,
+        onExtractionProgress,
+        version,
+      ),
+    );
+  }
 
-    final dbFile = File(databasePath);
+  Future<void> _downloadAndInstall(
+    String databasePath,
+    ExternalCatalogReleaseAsset asset,
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+    int? version,
+  ) async {
     final tempFile = File('$databasePath.download');
     final archiveFile = File('$databasePath.download.zst');
-    final backupFile = File('$databasePath.bak');
-    if (await tempFile.exists()) {
-      await tempFile.delete();
-    }
-    final downloadedBytes = await _downloadAssetBytes(asset.downloadUrl);
-    if (asset.isCompressed) {
-      // פריסה בזרימה מהדיסק ב-isolate: ה-DB הפרוס אינו נטען לזיכרון.
-      await archiveFile.writeAsBytes(downloadedBytes, flush: true);
-      try {
-        await _extractZst(archiveFile.path, tempFile.path);
-      } catch (e) {
-        throw Exception('חילוץ DB הקטלוגים נכשל: $e');
-      } finally {
-        if (await archiveFile.exists()) await archiveFile.delete();
-      }
-    } else {
-      await tempFile.writeAsBytes(downloadedBytes, flush: true);
-    }
-
-    // מעבירים את הקובץ הקיים לגיבוי לפני ההחלפה (במקום למחוק אותו), כדי שאם
-    // ההחלפה תיכשל באמצע — נוכל לשחזר ולא להשאיר את המשתמש ללא קטלוג כלל.
-    var backupCreated = false;
     var replaced = false;
     try {
-      if (await dbFile.exists()) {
-        if (await backupFile.exists()) {
-          await backupFile.delete();
-        }
-        try {
-          await dbFile.rename(backupFile.path);
-          backupCreated = true;
-        } on FileSystemException catch (e) {
-          if (_isFileInUseError(e)) {
-            throw ExternalCatalogDatabaseBusyException(databasePath, e);
-          }
-          rethrow;
+      _checkCancelled(isCancelled);
+      await _recoverCatalogFamily(databasePath);
+      await _removeCatalogFamily(tempFile.path);
+      // Keep the verified download separate from the staging output so a
+      // cancelled extraction or validation can reuse it on the next attempt.
+      await _downloadAssetToFile(
+        asset,
+        archiveFile.path,
+        isCancelled,
+        onDownloadProgress,
+      );
+      if (asset.isCompressed) {
+        await _extractZst(
+          archiveFile.path,
+          tempFile.path,
+          maxOutputBytes: maxOutputBytes,
+          isCancelled: isCancelled,
+          onProgress: onExtractionProgress,
+        );
+      } else {
+        await _copyCatalog(archiveFile, tempFile, isCancelled);
+      }
+      if (await tempFile.length() > maxOutputBytes) {
+        throw ZstdOutputLimitExceeded(maxOutputBytes);
+      }
+      _checkCancelled(isCancelled);
+      await _validateCatalog(tempFile.path);
+      _checkCancelled(isCancelled);
+      if (version != null) _ensureVersionStamped(version, tempFile.path);
+      await _prepareStagedCatalog(tempFile.path);
+      if (tempFile.lengthSync() > maxOutputBytes) {
+        throw ZstdOutputLimitExceeded(maxOutputBytes);
+      }
+      _checkCancelled(isCancelled);
+      _swapCatalogFamily(databasePath, tempFile.path);
+      replaced = true;
+      try {
+        await _cleanCommittedCatalogBackup(
+          Directory(_catalogBackupPath(databasePath)),
+        );
+      } on FileSystemException catch (error) {
+        debugPrint('Catalog installed; backup cleanup deferred: $error');
+      }
+    } on FormatException {
+      await _discardDownload(archiveFile.path);
+      rethrow;
+    } finally {
+      try {
+        await _removeCatalogFamily(tempFile.path);
+      } on FileSystemException catch (error) {
+        debugPrint('Could not remove catalog staging files: $error');
+      }
+      if (replaced) await _discardDownload(archiveFile.path);
+    }
+  }
+
+  static const _catalogSuffixes = ['', '-wal', '-shm', '-journal'];
+  static String _catalogBackupPath(String target) =>
+      '$target.catalog-update-backup';
+
+  void _renameCatalogFile(String source, String destination) {
+    _beforeFileRename?.call(source, destination);
+    File(source).renameSync(destination);
+  }
+
+  static Future<void> _removeCatalogFamily(String target) async {
+    for (final suffix in _catalogSuffixes) {
+      final file = File('$target$suffix');
+      if (await file.exists()) await file.delete();
+    }
+  }
+
+  static Future<void> _prepareStagedCatalog(String target) => Isolate.run(() {
+    _closeCatalogGuard(_prepareCatalogForSwap(target));
+  });
+
+  static sqlite3.Database? _prepareCatalogForSwap(String target) {
+    if (!File(target).existsSync()) return null;
+    sqlite3.Database? db;
+    try {
+      db = sqlite3.sqlite3.open(target, mode: sqlite3.OpenMode.readWrite);
+      db.execute('PRAGMA busy_timeout=0');
+      db.execute('PRAGMA mmap_size=0');
+      db.execute('PRAGMA cache_size=-8192');
+      // WAL פעיל מחייב סגירת הקוראים; אין לנתק WAL ממסד שנמצא עדיין בשימוש.
+      final journal = db.select('PRAGMA journal_mode=DELETE');
+      if (journal.single.values.first.toString().toLowerCase() != 'delete') {
+        throw ExternalCatalogDatabaseBusyException(target);
+      }
+      final locking = db.select('PRAGMA locking_mode=EXCLUSIVE');
+      if (locking.single.values.first.toString().toLowerCase() != 'exclusive') {
+        throw ExternalCatalogDatabaseBusyException(target);
+      }
+      db.execute('BEGIN EXCLUSIVE');
+      return db;
+    } catch (error, stack) {
+      db?.close();
+      if (error is sqlite3.SqliteException &&
+          (error.resultCode == 5 || error.resultCode == 6)) {
+        Error.throwWithStackTrace(
+          ExternalCatalogDatabaseBusyException(target, error),
+          stack,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  static void _closeCatalogGuard(sqlite3.Database? guard) {
+    if (guard == null) return;
+    try {
+      guard.execute('ROLLBACK');
+    } finally {
+      guard.close();
+    }
+  }
+
+  void _swapCatalogFamily(String target, String staged) {
+    final backup = Directory(_catalogBackupPath(target));
+    final paths = [for (final suffix in _catalogSuffixes) '$target$suffix'];
+    var guard = _prepareCatalogForSwap(target);
+    var prepared = false;
+    try {
+      // ב-Windows SQLite אוסר rename עם handle פתוח; handles אחרים יכשילו
+      // את ה-rename. ב-POSIX הנעילה נשארת עד שכל פעולות ההחלפה הסתיימו.
+      if (Platform.isWindows) {
+        _closeCatalogGuard(guard);
+        guard = null;
+      }
+      final existed = [for (final name in paths) File(name).existsSync()];
+      backup.createSync();
+      final state = File(path.join(backup.path, 'state.json.tmp'));
+      state.writeAsStringSync(jsonEncode(existed), flush: true);
+      state.renameSync(path.join(backup.path, 'state.json'));
+      prepared = true;
+      for (var i = 0; i < paths.length; i++) {
+        if (existed[i]) {
+          _renameCatalogFile(paths[i], path.join(backup.path, '$i'));
         }
       }
-
+      // אין await או נקודת ביטול בתוך ההחלפה; ההחלטה נשמרת לפני ניקוי הגיבוי.
+      _renameCatalogFile(staged, target);
+      for (var i = 1; i < paths.length; i++) {
+        final source = '$staged${_catalogSuffixes[i]}';
+        if (File(source).existsSync()) _renameCatalogFile(source, paths[i]);
+      }
+      final committed = File(path.join(backup.path, 'committed.tmp'));
+      committed.writeAsStringSync('1', flush: true);
+      _renameCatalogFile(committed.path, path.join(backup.path, 'committed'));
+    } catch (error, stack) {
       try {
-        await tempFile.rename(databasePath);
-        replaced = true;
-      } on FileSystemException catch (e) {
-        // ההחלפה נכשלה — משחזרים את הגיבוי כדי לא להשאיר את המשתמש ללא קטלוג.
-        if (backupCreated) {
-          try {
-            await backupFile.rename(databasePath);
-            backupCreated = false;
-          } catch (_) {
-            // השחזור נכשל — משאירים את הגיבוי על כנו לשחזור ידני (אל תמחק!).
-          }
+        if (prepared) {
+          _restoreUncommittedCatalogFamily(target);
+        } else if (backup.existsSync()) {
+          backup.deleteSync(recursive: true);
         }
-        if (_isFileInUseError(e)) {
-          throw ExternalCatalogDatabaseBusyException(databasePath, e);
+      } catch (recoveryError) {
+        debugPrint('Catalog rollback deferred to next start: $recoveryError');
+      }
+      if (error is FileSystemException && _isFileInUseError(error)) {
+        Error.throwWithStackTrace(
+          ExternalCatalogDatabaseBusyException(target, error),
+          stack,
+        );
+      }
+      rethrow;
+    } finally {
+      _closeCatalogGuard(guard);
+    }
+  }
+
+  Future<void> _recoverCatalogFamily(String target) async {
+    final backup = Directory(_catalogBackupPath(target));
+    if (!await backup.exists()) return;
+    if (await File(path.join(backup.path, 'committed')).exists()) {
+      await _cleanCommittedCatalogBackup(backup);
+      return;
+    }
+    _restoreUncommittedCatalogFamily(target);
+  }
+
+  void _restoreUncommittedCatalogFamily(String target) {
+    final backup = Directory(_catalogBackupPath(target));
+    final state = File(path.join(backup.path, 'state.json'));
+    if (!state.existsSync() &&
+        backup.listSync().every(
+          (entry) => path.basename(entry.path) == 'state.json.tmp',
+        )) {
+      backup.deleteSync(recursive: true);
+      return;
+    }
+    final dynamic existed = jsonDecode(state.readAsStringSync());
+    if (existed is! List ||
+        existed.length != _catalogSuffixes.length ||
+        existed.any((dynamic value) => value is! bool)) {
+      throw StateError('Invalid catalog recovery journal: ${backup.path}');
+    }
+    // הקובץ החדש יורד ראשון והישן חוזר אחרון, כדי שלא ייפתח מסד עם WAL זר.
+    if (File(path.join(backup.path, '0')).existsSync()) {
+      final live = File(target);
+      if (live.existsSync()) live.deleteSync();
+    }
+    for (var i = _catalogSuffixes.length - 1; i >= 0; i--) {
+      final saved = File(path.join(backup.path, '$i'));
+      final live = File('$target${_catalogSuffixes[i]}');
+      if (saved.existsSync()) {
+        if (live.existsSync()) live.deleteSync();
+        _renameCatalogFile(saved.path, live.path);
+      } else if (existed[i] == false && live.existsSync()) {
+        live.deleteSync();
+      }
+    }
+    for (final entry in backup.listSync(followLinks: false)) {
+      if (path.basename(entry.path) != 'state.json') {
+        entry.deleteSync(recursive: true);
+      }
+    }
+    state.deleteSync();
+    backup.deleteSync();
+  }
+
+  static Future<void> _cleanCommittedCatalogBackup(Directory backup) async {
+    await for (final entry in backup.list(followLinks: false)) {
+      if (path.basename(entry.path) != 'committed') {
+        await entry.delete(recursive: true);
+      }
+    }
+    await File(path.join(backup.path, 'committed')).delete();
+    await backup.delete();
+  }
+
+  static void _checkCancelled(bool Function()? isCancelled) {
+    if (isCancelled?.call() ?? false) throw PatchDownloadCancelled();
+  }
+
+  Future<void> _copyCatalog(
+    File source,
+    File output,
+    bool Function()? isCancelled,
+  ) async {
+    final target = await output.open(mode: FileMode.writeOnly);
+    try {
+      var written = 0;
+      await for (final chunk in source.openRead()) {
+        _checkCancelled(isCancelled);
+        if (chunk.length > maxOutputBytes - written) {
+          throw ZstdOutputLimitExceeded(maxOutputBytes);
         }
-        rethrow;
+        await target.writeFrom(chunk);
+        written += chunk.length;
+      }
+      await target.flush();
+      _checkCancelled(isCancelled);
+    } finally {
+      await target.close();
+    }
+  }
+
+  static Future<void> _validateCatalog(String filePath) => Isolate.run(() {
+    if (File(filePath).lengthSync() == 0) {
+      throw const FormatException('Catalog database is empty');
+    }
+    final input = File(filePath).openSync();
+    try {
+      final header = input.readSync(16);
+      if (String.fromCharCodes(header) != 'SQLite format 3\u0000') {
+        throw const FormatException('Catalog SQLite header is invalid');
       }
     } finally {
-      if (await tempFile.exists()) {
-        await tempFile.delete();
+      input.closeSync();
+    }
+    sqlite3.Database? db;
+    try {
+      db = sqlite3.sqlite3.open(filePath, mode: sqlite3.OpenMode.readOnly);
+      db.execute('PRAGMA mmap_size=0');
+      db.execute('PRAGMA cache_size=-8192');
+      final rows = db.select('PRAGMA quick_check');
+      if (rows.isEmpty || rows.any((row) => row.values.first != 'ok')) {
+        throw const FormatException('Catalog SQLite quick_check failed');
       }
-      // מוחקים את הגיבוי רק אם ההחלפה הצליחה (אז הוא מיותר). אם ההחלפה
-      // נכשלה — הגיבוי הוא הקטלוג היחיד ששרד, ואסור למחוק אותו.
-      if (replaced && backupCreated && await backupFile.exists()) {
-        await backupFile.delete();
+    } on sqlite3.SqliteException catch (error) {
+      if (error.resultCode == 11 || error.resultCode == 26) {
+        throw FormatException('Invalid catalog database: $error');
       }
+      rethrow;
+    } finally {
+      db?.close();
+    }
+  });
+
+  static Future<void> _discardDownload(String filePath) async {
+    for (final name in [
+      filePath,
+      PatchDownloader.resumeSidecarPath(filePath),
+    ]) {
+      final file = File(name);
+      if (await file.exists()) await file.delete();
     }
   }
 
@@ -422,15 +733,27 @@ class ExternalCatalogRepository {
     );
   }
 
-  Future<Uint8List> _downloadAssetBytes(String downloadUrl) async {
-    final response = await _httpClient
-        .get(Uri.parse(downloadUrl))
-        .timeout(downloadTimeout);
-    if (response.statusCode != 200) {
-      throw Exception('שגיאה בהורדת DB הקטלוגים: ${response.statusCode}');
-    }
-    return response.bodyBytes;
-  }
+  Future<void> _downloadAssetToFile(
+    ExternalCatalogReleaseAsset asset,
+    String outputPath,
+    bool Function()? isCancelled,
+    void Function(int received, int? total)? onProgress,
+  ) =>
+      PatchDownloader(
+        decompress: (_) async => null,
+        httpClient: _BoundedCatalogClient(_httpClient, maxDownloadBytes),
+        connectTimeout: apiTimeout,
+        stallTimeout: downloadTimeout,
+      ).downloadToFile(
+        url: asset.downloadUrl,
+        destPath: outputPath,
+        expectedSize: asset.size,
+        expectedSha256: asset.sha256,
+        resumeToken:
+            '${asset.downloadUrl}|${asset.revision}|${asset.size}|${asset.sha256}',
+        isCancelled: isCancelled,
+        onProgress: onProgress,
+      );
 
   Future<String> _downloadTextAsset(String downloadUrl) async {
     final response = await _httpClient
@@ -490,6 +813,9 @@ class ExternalCatalogRepository {
           fileName: name,
           downloadUrl: downloadUrl,
           isCompressed: true,
+          size: (asset['size'] as num?)?.toInt(),
+          sha256: _assetDigest(asset['digest']),
+          revision: '${asset['id']}|${asset['updated_at']}',
         );
       }
 
@@ -498,11 +824,23 @@ class ExternalCatalogRepository {
           fileName: name,
           downloadUrl: downloadUrl,
           isCompressed: false,
+          size: (asset['size'] as num?)?.toInt(),
+          sha256: _assetDigest(asset['digest']),
+          revision: '${asset['id']}|${asset['updated_at']}',
         );
       }
     }
 
     return fallbackDb;
+  }
+
+  static String? _assetDigest(Object? digest) {
+    if (digest is! String || !digest.startsWith('sha256:')) return null;
+    final value = digest.substring(7).toLowerCase();
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(value)) {
+      throw const FormatException('Invalid catalog SHA-256 metadata');
+    }
+    return value;
   }
 
   @visibleForTesting
@@ -656,11 +994,56 @@ class ExternalCatalogReleaseAsset {
     required this.fileName,
     required this.downloadUrl,
     required this.isCompressed,
+    this.size,
+    this.sha256,
+    this.revision = '',
   });
 
   final String fileName;
   final String downloadUrl;
   final bool isCompressed;
+  final int? size;
+  final String? sha256;
+  final String revision;
+}
+
+/// Rejects a chunk before the shared downloader can write beyond the ceiling,
+/// including legacy metadata with no size and chunked HTTP responses. Range,
+/// ETag, retry, resume and input hashing remain owned by PatchDownloader.
+class _BoundedCatalogClient extends http.BaseClient {
+  _BoundedCatalogClient(this.delegate, this.maxBytes);
+  final http.Client delegate;
+  final int maxBytes;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await delegate.send(request);
+    final range = response.headers['content-range'];
+    var received = response.statusCode == 206 && range != null
+        ? int.tryParse(
+                RegExp(r'^bytes (\d+)-').firstMatch(range)?.group(1) ?? '',
+              ) ??
+              0
+        : 0;
+    return http.StreamedResponse(
+      response.stream.map((chunk) {
+        if (chunk.length > maxBytes - received) {
+          throw PatchDownloadException(
+            'Catalog download exceeds $maxBytes bytes',
+          );
+        }
+        received += chunk.length;
+        return chunk;
+      }),
+      response.statusCode,
+      contentLength: response.contentLength,
+      headers: response.headers,
+      request: response.request,
+      isRedirect: response.isRedirect,
+      persistentConnection: response.persistentConnection,
+      reasonPhrase: response.reasonPhrase,
+    );
+  }
 }
 
 class ExternalCatalogReleaseInfo {

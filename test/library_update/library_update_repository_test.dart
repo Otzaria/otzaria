@@ -21,7 +21,8 @@ import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/library_update/services/library_runtime_refresh_service.dart';
 import 'package:otzaria/library_update/services/streaming_patch_downloader.dart';
 import 'package:otzaria/library_update/services/update_sqlite_setup.dart';
-import 'package:seforim_library_updater/seforim_library_updater.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart'
+    hide StreamingPatchDownloader;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor_io.dart';
@@ -103,13 +104,20 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-06-28T00:00:00Z',
         diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-        fullDbExtractor: (archivePath, outputPath) async {
-          await decompressForTest(
-            archivePath,
-            outputPath,
-            lib,
-          );
-        },
+        fullDbExtractor:
+            (
+              archivePath,
+              outputPath, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async {
+              await decompressForTest(
+                archivePath,
+                outputPath,
+                lib,
+              );
+            },
       );
       final plan = LibraryUpdatePlan.fullDownload(
         localVersion: 1,
@@ -203,9 +211,16 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-06-28T00:00:00Z',
         diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-        fullDbExtractor: (archivePath, outputPath) async {
-          await decompressForTest(archivePath, outputPath, lib);
-        },
+        fullDbExtractor:
+            (
+              archivePath,
+              outputPath, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async {
+              await decompressForTest(archivePath, outputPath, lib);
+            },
       );
       final manifestAsset = ReleaseAsset(
         name: '$name.manifest.json',
@@ -229,6 +244,8 @@ void main() {
       expect(
         leftovers.map((entry) => p.basename(entry.path)),
         unorderedEquals([
+          'update-pipeline.lock',
+          '${DatabaseConstants.databaseFileName}.zst.lock',
           '${DatabaseConstants.databaseFileName}.zst.part-000.lock',
           '${DatabaseConstants.databaseFileName}.zst.part-001.lock',
         ]),
@@ -270,7 +287,14 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-07-19T00:00:00Z',
         diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-        fullDbExtractor: (a, o) async => fail('כשל רשת — אסור להגיע לחילוץ'),
+        fullDbExtractor:
+            (
+              a,
+              o, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async => fail('כשל רשת — אסור להגיע לחילוץ'),
       );
       LibraryUpdatePlan planFor(String updatedAt) =>
           LibraryUpdatePlan.fullDownload(
@@ -301,6 +325,153 @@ void main() {
       );
     },
     timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test('ביטול בחילוץ מלא שומר ארכיון לחידוש ואינו משנה את הספרייה', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    var cancelled = false;
+    final reports = <double>[];
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      maxFullDbBytes: 12345,
+      fullDbExtractor:
+          (
+            archive,
+            output, {
+            required maxOutputBytes,
+            isCancelled,
+            onProgress,
+          }) async {
+            expect(maxOutputBytes, 12345);
+            expect(isCancelled, isNotNull);
+            await File(output).writeAsString('partial');
+            onProgress?.call(0.4);
+            cancelled = true;
+            if (isCancelled!()) throw const PatchDownloadCancelled();
+          },
+    );
+    await expectLater(
+      repository.applyFullDownload(
+        _localFullDownloadPlan(),
+        isCancelled: () => cancelled,
+        onProgress: (progress) {
+          if (progress.applyProgress case final value?) reports.add(value);
+        },
+      ),
+      throwsA(isA<PatchDownloadCancelled>()),
+    );
+    expect(reports, contains(0.4));
+    expect(_readMarker(dbPath), 'old');
+    expect(File('$dbPath.new').existsSync(), isFalse);
+    expect(File('$dbPath.backup').existsSync(), isFalse);
+    expect(File('$dbPath.applying').existsSync(), isFalse);
+    final archive = File(
+      p.join(tmp.path, 'library_update_cache', 'seforim.db.zst'),
+    );
+    expect(archive.readAsBytesSync(), [1]);
+    expect(
+      File(PatchDownloader.resumeSidecarPath(archive.path)).existsSync(),
+      isTrue,
+    );
+    expect(
+      await repository.hasResumableDownload(_localFullDownloadPlan()),
+      isTrue,
+    );
+
+    await _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      refreshService: _NoopRefreshService(),
+    ).applyFullDownload(_localFullDownloadPlan());
+    expect(_readMarker(dbPath), 'new');
+    expect(archive.existsSync(), isFalse);
+  });
+
+  test('כשל כתיבה בחילוץ מלא מנקה staging ושומר את ההורדה התקינה', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      fullDbExtractor:
+          (
+            archive,
+            output, {
+            required maxOutputBytes,
+            isCancelled,
+            onProgress,
+          }) async {
+            await File(output).writeAsString('partial');
+            throw const FileSystemException('disk full');
+          },
+    );
+    await expectLater(
+      repository.applyFullDownload(_localFullDownloadPlan()),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(_readMarker(dbPath), 'old');
+    expect(File('$dbPath.new').existsSync(), isFalse);
+    expect(
+      await repository.hasResumableDownload(_localFullDownloadPlan()),
+      isTrue,
+    );
+  });
+
+  test('ביטול אחרי חילוץ ולפני ההחלפה שומר את הארכיון ואת ה-DB הישן', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    var cancelled = false;
+    final repository = _localFullDownloadRepository(tmp: tmp, dbPath: dbPath);
+    await expectLater(
+      repository.applyFullDownload(
+        _localFullDownloadPlan(),
+        isCancelled: () => cancelled,
+        onProgress: (progress) {
+          if (progress.phase == LibraryUpdatePhase.verifying) cancelled = true;
+        },
+      ),
+      throwsA(isA<PatchDownloadCancelled>()),
+    );
+    expect(_readMarker(dbPath), 'old');
+    expect(File('$dbPath.new').existsSync(), isFalse);
+    expect(
+      await repository.hasResumableDownload(_localFullDownloadPlan()),
+      isTrue,
+    );
+  });
+
+  test(
+    'full DB פגום לאחר חילוץ אינו מחליף ספרייה ואינו נשמר ל-resume',
+    () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      final repository = _localFullDownloadRepository(
+        tmp: tmp,
+        dbPath: dbPath,
+        fullDbExtractor:
+            (
+              archive,
+              output, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async {
+              await File(output).writeAsString('not a SQLite database');
+            },
+      );
+      await expectLater(
+        repository.applyFullDownload(_localFullDownloadPlan()),
+        throwsA(isA<sqlite3.SqliteException>()),
+      );
+      expect(_readMarker(dbPath), 'old');
+      expect(File('$dbPath.new').existsSync(), isFalse);
+      expect(
+        await repository.hasResumableDownload(_localFullDownloadPlan()),
+        isFalse,
+      );
+    },
   );
 
   test('hasResumableDownload בדלתא: רק patch חלקי עם validator חזק', () async {
@@ -351,8 +522,14 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-07-19T00:00:00Z',
         diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-        fullDbExtractor: (a, o) async =>
-            fail('ביטול בהורדה — אסור להגיע לחילוץ'),
+        fullDbExtractor:
+            (
+              a,
+              o, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async => fail('ביטול בהורדה — אסור להגיע לחילוץ'),
       );
       final plan = LibraryUpdatePlan.fullDownload(
         localVersion: 1,
@@ -542,7 +719,14 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-07-19T00:00:00Z',
         diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-        fullDbExtractor: (a, o) async => throw Exception('ארכיון פגום'),
+        fullDbExtractor:
+            (
+              a,
+              o, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async => throw const FormatException('ארכיון פגום'),
       );
       final plan = LibraryUpdatePlan.fullDownload(
         localVersion: 1,
@@ -595,7 +779,14 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-08-19T00:00:00Z',
         diskSpaceProvider: diskSpaceProvider,
-        fullDbExtractor: (a, o) async => fail('אסור להגיע לחילוץ'),
+        fullDbExtractor:
+            (
+              a,
+              o, {
+              required maxOutputBytes,
+              isCancelled,
+              onProgress,
+            }) async => fail('אסור להגיע לחילוץ'),
       );
     }
 
@@ -903,7 +1094,14 @@ void main() {
           httpClient: MockClient.streaming(
             (request, bodyStream) async => throw Exception('אסור להוריד'),
           ),
-          extractor: (archive, output) async => fail('אסור לחלץ'),
+          extractor:
+              (
+                archive,
+                output, {
+                required maxOutputBytes,
+                isCancelled,
+                onProgress,
+              }) async => fail('אסור לחלץ'),
         ),
       );
 
@@ -2533,6 +2731,8 @@ LibraryUpdateRepository _localFullDownloadRepository({
   LibraryDbRecoveryService recovery = const LibraryDbRecoveryService(),
   LibraryRuntimeRefreshService refreshService =
       const LibraryRuntimeRefreshService(),
+  FullDbExtractor? fullDbExtractor,
+  int maxFullDbBytes = kDefaultMaxExtractedBytes,
 }) => LibraryUpdateRepository(
   discovery: _unusedDiscovery(),
   downloader: PatchDownloader(
@@ -2551,9 +2751,18 @@ LibraryUpdateRepository _localFullDownloadRepository({
   dataRootProvider: () async => tmp.path,
   nowTimestamp: () => '2026-09-01T00:00:00Z',
   diskSpaceProvider: (_) async => DiskSpaceInfo.unknown,
-  fullDbExtractor: (archivePath, outputPath) async {
-    _writeDb(outputPath, version: 2, marker: 'new');
-  },
+  maxFullDbBytes: maxFullDbBytes,
+  fullDbExtractor:
+      fullDbExtractor ??
+      (
+        archivePath,
+        outputPath, {
+        required maxOutputBytes,
+        isCancelled,
+        onProgress,
+      }) async {
+        _writeDb(outputPath, version: 2, marker: 'new');
+      },
 );
 
 Future<void> _waitUntil(bool Function() predicate) async {

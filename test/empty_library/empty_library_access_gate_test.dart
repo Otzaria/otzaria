@@ -100,6 +100,7 @@ void main() {
   /// [db] null — ההורדה נכשלת.
   EmptyLibraryBloc updateBloc(_RecordingGate gate, String? db) =>
       EmptyLibraryBloc(
+        verifyDatabase: verifyFixtureDatabase,
         accessGate: gate,
         httpClient: fakeLibraryReleaseClient(() => db),
         extractCompressedDatabase: copyAsExtracted,
@@ -111,6 +112,7 @@ void main() {
     final response = Completer<http.Response>();
     final target = path.join(temp.path, 'new-library', 'books');
     final bloc = EmptyLibraryBloc(
+      verifyDatabase: verifyFixtureDatabase,
       downloadSpaceChecker: (_) async => null,
       httpClient: MockClient((_) {
         preparing.complete();
@@ -127,8 +129,36 @@ void main() {
     final error = await failed.timeout(const Duration(seconds: 5));
     expect(error.isLoading, isFalse);
     expect(error.errorMessage, contains('503'));
-    expect(Directory(target).existsSync(), isFalse);
+    // The persistent operation lock is created before networking; no library
+    // data is published when preparation fails.
+    expect(
+      Directory(target).listSync().map((entry) => path.basename(entry.path)),
+      ['$dbName.lock'],
+    );
     expect(await File(path.join(libDir.path, dbName)).readAsString(), 'old-db');
+  });
+
+  test('מקור שהוא ה־DB המגובה נדחה לפני הזזה או השעיית ספרייה', () async {
+    final raw = await scanRawLibraryAssets(DirectoryPackageFolder(libDir.path));
+    final gate = _RecordingGate();
+    final bloc = EmptyLibraryBloc(
+      accessGate: gate,
+      verifyDatabase: verifyFixtureDatabase,
+    );
+    addTearDown(bloc.close);
+    final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
+    bloc.add(
+      ImportLibraryFolderRequested(
+        assets: raw,
+        targetPath: libDir.path,
+        backupExistingPath: libDir.path,
+      ),
+    );
+    await failed.timeout(const Duration(seconds: 5));
+    expect(gate.calls, isEmpty);
+    expect(File(path.join(libDir.path, dbName)).readAsStringSync(), 'old-db');
+    expect(Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(), isFalse);
+    expect(File(path.join(libDir.path, '$dbName.lock')).existsSync(), isFalse);
   });
 
   test('הורדה מחדש מסמנת עבודה לפני שהכנת ההחלפה מסתיימת', () async {
@@ -147,6 +177,7 @@ void main() {
   test('בדיקת מקום מאוחרת שומרת שגיאת הכנה ומאפשרת ניסיון חוזר', () async {
     final checkedSpace = Completer<String?>();
     final bloc = EmptyLibraryBloc(
+      verifyDatabase: verifyFixtureDatabase,
       accessGate: _RecordingGate(failSuspend: true),
       downloadSpaceChecker: (_) => checkedSpace.future,
     );
@@ -232,7 +263,10 @@ void main() {
   test('ייבוא תיקייה עם גיבוי עובר דרך ההשעיה', () async {
     await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
     final gate = _RecordingGate();
-    final bloc = EmptyLibraryBloc(accessGate: gate);
+    final bloc = EmptyLibraryBloc(
+      accessGate: gate,
+      verifyDatabase: verifyFixtureDatabase,
+    );
     addTearDown(bloc.close);
 
     bloc.add(
