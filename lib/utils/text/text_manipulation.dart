@@ -625,7 +625,7 @@ String removePunctuation(String text) {
         } else if (_isRegExpSpace(previous) &&
             nextVisible.$2 < processed.length &&
             _isRegExpSpace(processed.codeUnitAt(nextVisible.$2))) {
-          // "א — ב": הרווח השני היה נשאר כפול בטקסט פשוט (העתקה, ייצוא).
+          // "א — ב": בלי זה הרווח השני נשאר כפול בטקסט פשוט (העתקה, ייצוא).
           skipSpaceAt = nextVisible.$2;
         }
         continue;
