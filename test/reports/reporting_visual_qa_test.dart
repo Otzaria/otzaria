@@ -747,87 +747,164 @@ void main() {
     },
   );
 
-  visualTest(
-    'saved software edit keeps fields, attachments, actions and validation accessible in a low English window',
-    (tester) async {
-      final image = AppReportImage(
-        fileName: 'screenshot.png',
-        mimeType: 'image/png',
-        bytes: base64Decode(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOwSdnyHwAEiAJU2GM8WwAAAABJRU5ErkJggg==',
-        ),
-      );
-      final original = AppReport(
-        reportId: 'qa-edit-software',
-        type: AppReportType.bug,
-        trigger: AppReportTrigger.manual,
-        title: 'תוכן המשתמש נשאר בעברית',
-        description: List.filled(12, 'תיאור ארוך שנשמר בתור').join('\n'),
-        stepsToReproduce: List.filled(12, 'שלב נוסף לשחזור').join('\n'),
-        reporterEmail: 'qa@example.com',
-        appVersion: 'qa',
-        platform: 'linux',
-        createdAt: DateTime.utc(2026, 11, 5),
-        images: [image],
-      );
-      final service = AppReportService();
-      await tester.runAsync(() => service.queueReport(original));
-      await mount(
-        tester,
-        SettingsLanguage.english,
-        Scaffold(
-          body: SingleChildScrollView(
-            child: AppReportsPanel(
-              isOfflineMode: true,
-              crashReportMode: AppCrashReportMode.ask,
-              onCrashReportModeChanged: (_) {},
-              service: service,
+  for (final language in [SettingsLanguage.hebrew, SettingsLanguage.english]) {
+    visualTest(
+      'saved software edit keeps fields, attachments, actions and validation accessible in a low ${language.code} window',
+      (tester) async {
+        String label(String text) =>
+            resolveSettingsText(text, language: language);
+        final image = AppReportImage(
+          fileName: 'screenshot.png',
+          mimeType: 'image/png',
+          bytes: base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOwSdnyHwAEiAJU2GM8WwAAAABJRU5ErkJggg==',
+          ),
+        );
+        final original = AppReport(
+          reportId: 'qa-edit-software',
+          type: AppReportType.bug,
+          trigger: AppReportTrigger.manual,
+          title: 'תוכן המשתמש נשאר בעברית',
+          description: List.filled(12, 'תיאור ארוך שנשמר בתור').join('\n'),
+          stepsToReproduce: List.filled(12, 'שלב נוסף לשחזור').join('\n'),
+          reporterEmail: 'qa@example.com',
+          appVersion: 'qa',
+          platform: 'linux',
+          createdAt: DateTime.utc(2026, 11, 5),
+          images: [image],
+        );
+        final service = AppReportService();
+        await tester.runAsync(() => service.queueReport(original));
+        await mount(
+          tester,
+          language,
+          Scaffold(
+            body: SingleChildScrollView(
+              child: AppReportsPanel(
+                isOfflineMode: true,
+                crashReportMode: AppCrashReportMode.ask,
+                onCrashReportModeChanged: (_) {},
+                service: service,
+              ),
             ),
           ),
-        ),
-        size: const Size(1100, 360),
-      );
-      await nativeWork(tester);
-      final queue = find.text(
-        resolveSettingsText(
-          'ניהול דיווחים שמורים',
-          language: SettingsLanguage.english,
-        ),
-      );
-      await tester.ensureVisible(queue);
-      await tester.tap(queue);
-      await nativeWork(tester);
-      final edit = find.text('Edit');
-      await tester.ensureVisible(edit);
-      await tester.tap(edit);
-      await nativeWork(tester);
-      expect(find.byType(AppReportEditFields), findsOneWidget);
-      await capture(tester, 'software-queue-edit-low-en-top');
-      expect(find.text('Title'), findsOneWidget);
-      expect(find.text('Description'), findsOneWidget);
-      final save = find.descendant(
-        of: find.byType(AppDialog),
-        matching: find.text('Save'),
-      );
-      expect(save.hitTestable(), findsOneWidget);
-      await enter(tester, 'app-report-edit-email', 'invalid@');
-      final removeImage = find.byKey(const ValueKey('app-report-image-remove'));
-      await tester.ensureVisible(removeImage);
-      await tester.pumpAndSettle();
-      expect(removeImage.hitTestable(), findsOneWidget);
-      expect(save.hitTestable(), findsOneWidget);
-      await capture(tester, 'software-queue-edit-low-en-attachments');
-      await tester.tap(save);
-      await nativeWork(tester);
-      expect(find.byType(AppReportEditFields), findsNothing);
-      expect(find.text('The email address is invalid.'), findsOneWidget);
-      expect(
-        (await tester.runAsync(service.getPendingReports))!.single.toJson(),
-        original.toJson(),
-      );
-      await clearSnack(tester);
-    },
-  );
+          size: const Size(1100, 360),
+        );
+        await nativeWork(tester);
+        final queue = find.text(
+          resolveSettingsText(
+            'ניהול דיווחים שמורים',
+            language: language,
+          ),
+        );
+        await tester.ensureVisible(queue);
+        await tester.tap(queue);
+        await nativeWork(tester);
+        final edit = find.text(label('ערוך'));
+        await tester.ensureVisible(edit);
+        await tester.tap(edit);
+        await nativeWork(tester);
+        expect(find.byType(AppReportEditFields), findsOneWidget);
+        await capture(tester, 'software-queue-edit-low-${language.code}-top');
+        expect(find.text(label('כותרת')), findsOneWidget);
+        expect(find.text(label('תיאור')), findsOneWidget);
+        final save = find.descendant(
+          of: find.byType(AppDialog),
+          matching: find.text(label('שמור')),
+        );
+        final cancel = find.descendant(
+          of: find.byType(AppDialog),
+          matching: find.text(label('ביטול')),
+        );
+        expect(save.hitTestable(), findsOneWidget);
+        expect(cancel.hitTestable(), findsOneWidget);
+        final editScroll = find.byKey(const ValueKey('app-report-edit-scroll'));
+        final scrollbar = tester.widget<Scrollbar>(
+          find.descendant(of: editScroll, matching: find.byType(Scrollbar)),
+        );
+        expect(scrollbar.thumbVisibility, isTrue);
+        final outerPosition = scrollbar.controller!.position;
+        expect(outerPosition.maxScrollExtent, greaterThan(0));
+        for (final fieldName in ['title', 'description', 'steps', 'email']) {
+          final field = find.byKey(ValueKey('app-report-edit-$fieldName'));
+          final decoration = tester
+              .widget<InputDecorator>(
+                find.descendant(
+                  of: field,
+                  matching: find.byType(InputDecorator),
+                ),
+              )
+              .decoration;
+          expect(decoration.filled, isTrue, reason: fieldName);
+          expect(
+            decoration.fillColor,
+            AppSurfaces.card(tester.element(field)),
+            reason: fieldName,
+          );
+          if (fieldName == 'description' || fieldName == 'steps') {
+            final fieldPosition = tester
+                .state<ScrollableState>(
+                  find.descendant(of: field, matching: find.byType(Scrollable)),
+                )
+                .position;
+            expect(
+              fieldPosition.maxScrollExtent,
+              closeTo(0, 0.01),
+              reason:
+                  '$fieldName grows with its text instead of scrolling inside.',
+            );
+          }
+        }
+        final description = find.byKey(
+          const ValueKey('app-report-edit-description'),
+        );
+        final visibleDescription = tester
+            .getRect(description)
+            .intersect(
+              tester.getRect(editScroll),
+            );
+        expect(visibleDescription.height, greaterThan(0));
+        final beforeWheel = outerPosition.pixels;
+        final mouse = TestPointer(41, PointerDeviceKind.mouse)
+          ..hover(visibleDescription.center);
+        await tester.sendEventToBinding(mouse.scroll(const Offset(0, 100)));
+        await tester.pump();
+        expect(
+          outerPosition.pixels,
+          greaterThan(beforeWheel),
+          reason:
+              'A wheel event over the long field must move the dialog body.',
+        );
+        expect(save.hitTestable(), findsOneWidget);
+        expect(cancel.hitTestable(), findsOneWidget);
+        await enter(tester, 'app-report-edit-email', 'invalid@');
+        final removeImage = find.byKey(
+          const ValueKey('app-report-image-remove'),
+        );
+        await tester.ensureVisible(removeImage);
+        await tester.pumpAndSettle();
+        expect(removeImage.hitTestable(), findsOneWidget);
+        expect(save.hitTestable(), findsOneWidget);
+        expect(cancel.hitTestable(), findsOneWidget);
+        await capture(
+          tester,
+          'software-queue-edit-low-${language.code}-attachments',
+        );
+        await tester.tap(save);
+        await nativeWork(tester);
+        expect(find.byType(AppReportEditFields), findsNothing);
+        expect(
+          find.text(label(ReportMessages.appReportInvalidEmail)),
+          findsOneWidget,
+        );
+        expect(
+          (await tester.runAsync(service.getPendingReports))!.single.toJson(),
+          original.toJson(),
+        );
+        await clearSnack(tester);
+      },
+    );
+  }
 
   visualTest(
     'saved free-text book edit scrolls long content and keeps English fields and pinned actions',

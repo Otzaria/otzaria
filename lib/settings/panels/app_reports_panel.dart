@@ -12,6 +12,8 @@ import 'package:otzaria/reports/view_scope.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -330,7 +332,9 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
       handleEnterKey: false,
       customContent: wrapWithReportScope(
         context,
-        SingleChildScrollView(
+        PanelScrollableContent(
+          key: const ValueKey('app-report-edit-scroll'),
+          thumbVisibility: true,
           child: SizedBox(
             width: 560,
             child: AppReportEditFields(
@@ -515,6 +519,8 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           controller: _title,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('כותרת'),
             isDense: true,
           ),
@@ -526,9 +532,11 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('תיאור'),
             alignLabelWithHint: true,
             isDense: true,
@@ -541,9 +549,11 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),
             alignLabelWithHint: true,
             isDense: true,
@@ -556,6 +566,8 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.emailAddress,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: emailRequired
                 ? context.settingsText('דואר אלקטרוני')
                 : context.settingsText('דואר אלקטרוני (לא חובה)'),
