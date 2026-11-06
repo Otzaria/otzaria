@@ -173,6 +173,10 @@ class PersonalNotesRepository {
     required String noteId,
   }) => _service.deleteNote(bookId: bookId, noteId: noteId);
 
+  /// מסיים לאחר המחיקה; המאזינים לשינויים מרעננים בנפרד.
+  Future<void> removeNote({required String noteId}) =>
+      _service.removeNote(noteId: noteId);
+
   Future<List<PersonalNote>> repositionNote({
     required String bookId,
     required String noteId,
@@ -182,6 +186,23 @@ class PersonalNotesRepository {
   }) async {
     final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
     return _service.repositionNote(
+      bookId: bookId,
+      bookContent: bookContent,
+      noteId: noteId,
+      lineNumber: lineNumber,
+      pdfAnchor: pdfAnchor,
+    );
+  }
+
+  Future<PersonalNote> moveNote({
+    required String bookId,
+    required String noteId,
+    required int lineNumber,
+    PdfNoteAnchor? pdfAnchor,
+    int? categoryId,
+  }) async {
+    final bookContent = await _loadBookContent(bookId, categoryId: categoryId);
+    return _service.moveNote(
       bookId: bookId,
       bookContent: bookContent,
       noteId: noteId,

@@ -64,6 +64,26 @@ class PersonalNoteDraftService {
   /// ההגדרות יחריג אותה — טיוטה היא תוכן הערה אישית, לא הגדרה.
   static const keyPrefix = 'personal_note_draft:';
 
+  // גרסה לתחרות בין פעולות אסינכרוניות באותו תהליך; אינה חלק מהקובץ.
+  // מופעי שירות שונים חולקים מפתחות טיוטה, ולכן חולקים גם את הגרסאות.
+  static final _versions = <String, Object>{};
+  static const _anyVersion = Object();
+
+  Object? draftVersion({
+    required String bookId,
+    int? categoryId,
+    int? lineNumber,
+    String? noteId,
+    PdfNoteAnchor? pdfAnchor,
+  }) =>
+      _versions[_key(
+        bookId,
+        categoryId: categoryId,
+        lineNumber: lineNumber,
+        noteId: noteId,
+        pdfAnchor: pdfAnchor,
+      )];
+
   String _key(
     String bookId, {
     int? categoryId,
@@ -139,6 +159,7 @@ class PersonalNoteDraftService {
       noteId: noteId,
       pdfAnchor: draft.pdfAnchor,
     );
+    final version = _versions[key] = Object();
     final normalizedDraft = PersonalNoteDraft(
       content: draft.content,
       contentPlain: draft.contentPlain,
@@ -157,6 +178,8 @@ class PersonalNoteDraftService {
         categoryId: categoryId,
         lineNumber: lineNumber,
       );
+      final legacyVersion = _versions[legacyKey];
+      final legacyRaw = Settings.getValue<String>(legacyKey);
       final legacyDraft = _readDraft(legacyKey);
       if (legacyDraft?.pdfAnchor != null) {
         final pointKey = _key(
@@ -171,10 +194,19 @@ class PersonalNoteDraftService {
             jsonEncode(legacyDraft.toJson()),
           );
         }
-        await Settings.setValue<String?>(legacyKey, null);
+        if (identical(_versions[legacyKey], legacyVersion) &&
+            Settings.getValue<String>(legacyKey) == legacyRaw) {
+          await Settings.setValue<String?>(legacyKey, null);
+        }
       }
     }
-    await Settings.setValue<String>(key, jsonEncode(normalizedDraft.toJson()));
+    // העברה ממפתח PDF ישן עשויה להמתין. כתיבה/ניקוי חדשים גוברים עליה.
+    if (identical(_versions[key], version)) {
+      await Settings.setValue<String>(
+        key,
+        jsonEncode(normalizedDraft.toJson()),
+      );
+    }
   }
 
   Future<void> clearDraft({
@@ -183,6 +215,7 @@ class PersonalNoteDraftService {
     int? lineNumber,
     String? noteId,
     PdfNoteAnchor? pdfAnchor,
+    Object? expectedVersion = _anyVersion,
   }) async {
     final key = _key(
       bookId,
@@ -191,21 +224,42 @@ class PersonalNoteDraftService {
       noteId: noteId,
       pdfAnchor: pdfAnchor,
     );
+    if (!identical(expectedVersion, _anyVersion) &&
+        !identical(_versions[key], expectedVersion)) {
+      return;
+    }
+    final version = _versions[key];
+    final clearingVersion = _versions[key] = Object();
     if (noteId == null &&
         pdfAnchor == null &&
         _readDraft(key)?.pdfAnchor != null) {
+      // ביטול כתיבת טקסט שממתינה להעברת PDF אינו מוחק את ה-PDF הישן.
+      _versions.remove(key);
       return;
     }
-    await Settings.setValue<String?>(key, null);
-    if (noteId == null && pdfAnchor != null) {
-      final legacyKey = _key(
-        bookId,
-        categoryId: categoryId,
-        lineNumber: lineNumber,
-      );
-      if (_readDraft(legacyKey)?.pdfAnchor == pdfAnchor) {
-        await Settings.setValue<String?>(legacyKey, null);
+    final legacyKey = noteId == null && pdfAnchor != null
+        ? _key(bookId, categoryId: categoryId, lineNumber: lineNumber)
+        : null;
+    try {
+      // שתי המחיקות מתחילות לפני ההמתנה. כך writer חדש אינו פוגש
+      // PDF שכבר נוקה בנקודה אבל עדיין ממתין למחיקת המפתח הישן שלו.
+      await Future.wait([
+        Settings.setValue<String?>(key, null),
+        if (legacyKey != null && _readDraft(legacyKey)?.pdfAnchor == pdfAnchor)
+          Settings.setValue<String?>(legacyKey, null),
+      ]);
+      // עורך שנפתח בזמן הניקוי מזהה שהצילום שלו כבר אינו טיוטה פעילה.
+      if (identical(_versions[key], clearingVersion)) _versions.remove(key);
+    } catch (_) {
+      // כשל מחיקה מאפשר ניסיון חוזר, בלי להחליף גרסה שנכתבה בינתיים.
+      if (identical(_versions[key], clearingVersion)) {
+        if (version == null) {
+          _versions.remove(key);
+        } else {
+          _versions[key] = version;
+        }
       }
+      rethrow;
     }
   }
 
