@@ -184,9 +184,9 @@ test('expired native queue entries perform no DOM work', async () => {
   assert.equal(f.styles.length, 0);
 });
 
-const probeSource = readFileSync(new URL('../../integration_test/macos_plugin_font_probe_test.dart', import.meta.url), 'utf8');
+const probeSource = readFileSync(new URL('../../integration_test/support/apple_font_probe_view.dart', import.meta.url), 'utf8');
 const supportSource = readFileSync(new URL('../../integration_test/support/macos_font_probe.dart', import.meta.url), 'utf8');
-const renderingBody = probeSource.match(/const _measureJs = r'''([\s\S]*?)''';/)[1];
+const renderingBody = probeSource.match(/const appleFontProbeMeasureJs = r'''([\s\S]*?)''';/)[1];
 const snapshotBody = supportSource.match(/const fontProbeFailureSnapshotJs = r'''([\s\S]*?)''';/)[1];
 const settled = () => new Promise(resolve => setImmediate(resolve));
 

@@ -155,6 +155,15 @@ Window visibility alone does not establish canvas or typography success.
 
 ### Rendering failure diagnostics
 
+The follow-up [run 42293498985](https://github.com/Otzaria/otzaria/actions/runs/42293498985)
+on head `293d8e1bc2d6c287bb76f2702e0fe7a055dd3edb` passed both transports and
+all three CSP cases with 1/5/10 views on macOS 26.7.2, including fresh survivor
+fonts for 5/10 views. It does not establish the cause of the earlier failure or
+representative performance savings. The shared widget extraction for the
+[separate iOS experiment](IOS_PLUGIN_FONTS.md) retains this rendering program and
+its operation, batch, snapshot and cleanup limits; it still requires the Mac
+workflow on the new source. Production remains OFF.
+
 [Native run 42277391417](https://github.com/Otzaria/otzaria/actions/runs/42277391417)
 passed both transports and all three CSP cases with one and five views. With ten
 views, both transports failed the normal case's ten-second rendering operation
@@ -184,8 +193,8 @@ is retained explicitly. Snapshot errors never replace the original case error,
 and a late successful snapshot cannot repair a failed rendering operation.
 Snapshot timestamps describe capture after failure, not the exact timeout instant.
 The original ten-second operation, sixty-second batch and cleanup deadlines are
-unchanged. Linux contract tests exercise these diagnostic boundaries; the next
-macOS run is still required to locate the native stall.
+unchanged. Linux contract tests exercise these diagnostic boundaries. The passing
+follow-up run did not reproduce or identify the earlier native stall.
 
 ## Measurement boundaries and enablement
 
