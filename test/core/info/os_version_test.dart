@@ -117,10 +117,10 @@ void main() {
           'majorVersion': 15,
           'minorVersion': 4,
           'patchVersion': 1,
-          'osRelease': '24.4.0',
+          'osRelease': 'Version 15.4.1 (Build 24E263)',
           'computerName': 'private',
         }),
-        'macOS 15.4.1; Darwin 24.4.0',
+        'macOS Version 15.4.1 (Build 24E263)',
       );
       expect(
         describeOperatingSystem('ios', 'Darwin', {
@@ -137,6 +137,23 @@ void main() {
       );
     });
 
+    test('macOS retains product numbers if the native release is absent', () {
+      expect(
+        describeOperatingSystem('macos', 'Darwin', {
+          'majorVersion': 15,
+          'minorVersion': 4,
+          'patchVersion': 1,
+        }),
+        'macOS 15.4.1',
+      );
+      expect(
+        describeOperatingSystem('macos', 'Darwin', {
+          'osRelease': 'Version 15.4.1 (assemblage 24E263)',
+        }),
+        'macOS Version 15.4.1 (assemblage 24E263)',
+      );
+    });
+
     test('unknown platforms and incomplete details retain useful fallback', () {
       expect(describeOperatingSystem('fuchsia', 'build123', {}), 'build123');
       expect(describeOperatingSystem('android', '6.8', {}), 'Android 6.8');
@@ -149,10 +166,7 @@ void main() {
         'iOS Version 18.1',
       );
       expect(describeOperatingSystem('linux', '6.1', {}), 'Linux; kernel 6.1');
-      expect(
-        describeOperatingSystem('linux', 'x' * 300, {}).length,
-        200,
-      );
+      expect(describeOperatingSystem('linux', 'x' * 300, {}).length, 200);
     });
   });
 

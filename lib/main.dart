@@ -755,6 +755,8 @@ Future<void> _initializeProcessSingletons() async {
   unawaited(_runDeferredOsVersion());
 }
 
+// Native device-info handlers may block the platform thread (including macOS).
+// Never invoke them before reveal, even if revealing the window is slow.
 Future<void> _runDeferredOsVersion() async {
   await _mainWindowRevealedCompleter.future;
   await warmUpOsVersion();

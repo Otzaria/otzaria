@@ -101,15 +101,15 @@ String describeOperatingSystem(
           'security patch $patch',
       ]);
     }(),
-    'macos' => join([
-      if (details['majorVersion'] is int && details['minorVersion'] is int)
+    // osRelease is ProcessInfo.operatingSystemVersionString (product + build),
+    // not the Darwin release. Keep its native wording, including localized builds.
+    'macos' => switch (text(details['osRelease'])) {
+      final String release => 'macOS $release',
+      _ when details['majorVersion'] is int && details['minorVersion'] is int =>
         'macOS ${details['majorVersion']}.${details['minorVersion']}.'
-            '${details['patchVersion'] is int ? details['patchVersion'] : 0}'
-      else
-        'macOS $rawVersion',
-      if (text(details['osRelease']) case final String release)
-        'Darwin $release',
-    ]),
+            '${details['patchVersion'] is int ? details['patchVersion'] : 0}',
+      _ => 'macOS $rawVersion',
+    },
     'ios' => join([
       '${text(details['systemName']) ?? 'iOS'} '
           '${text(details['systemVersion']) ?? rawVersion}',

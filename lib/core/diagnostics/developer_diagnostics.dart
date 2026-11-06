@@ -265,6 +265,10 @@ class DeveloperDiagnostics {
   Stopwatch? _clock;
   bool _startupWritten = false;
   String? _lastContext;
+  String? _lastOsVersion;
+
+  @visibleForTesting
+  String Function() osVersionForTesting = displayOsVersion;
   RebuildDirtyWidgetCallback? _previousRebuildCallback;
   bool _previousRepaintRainbow = false;
   bool _previousPaintSize = false;
@@ -357,6 +361,7 @@ class DeveloperDiagnostics {
     _peakRss = 0;
     _startupWritten = false;
     _lastContext = null;
+    _lastOsVersion = osVersionForTesting();
     _resetProcesses();
     // רענונים שקדמו לאיסוף אינם נספרים.
     _lastEstimates = Expando();
@@ -378,7 +383,7 @@ class DeveloperDiagnostics {
           ? 'release'
           : (kProfileMode ? 'profile' : 'debug'),
       'os': Platform.operatingSystem,
-      'osVersion': displayOsVersion(),
+      'osVersion': _lastOsVersion,
       'cores': Platform.numberOfProcessors,
       'pid': pid,
       'launchMode': _launchMode.name,
@@ -488,6 +493,13 @@ class DeveloperDiagnostics {
   }
 
   void _onTick() {
+    if (!_running) return;
+    final osVersion = osVersionForTesting();
+    if (osVersion != _lastOsVersion) {
+      _lastOsVersion = osVersion;
+      _write({'type': 'os_version', 't': _elapsedMs, 'osVersion': osVersion});
+      if (!_running) return;
+    }
     final startup = StartupTimeline.instance.toJson();
     _maybeSampleProcesses(revealed: startup['revealMs'] != null);
     final cutoff = DateTime.now().subtract(window);
@@ -561,6 +573,7 @@ class DeveloperDiagnostics {
     final processesAt = _processesAt;
     final record = {
       'type': 'snapshot',
+      'osVersion': osVersionForTesting(),
       't': _elapsedMs,
       'time': DateTime.now().toIso8601String(),
       ...stats.value.toJson(includeProcesses: false),
@@ -687,6 +700,8 @@ class DeveloperDiagnostics {
     _estimateLists.clear();
     _lastEstimates = Expando();
     contextProvider = null;
+    osVersionForTesting = displayOsVersion;
+    _lastOsVersion = null;
     errorLogWriter = ErrorLogFile.appendText;
     processSampler = _sampleProcessTree;
     webViewProcessLister = null;
