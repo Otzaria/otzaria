@@ -1,0 +1,631 @@
+// Temporary, opt-in QA. The workflow copies this beside reporting_test_pump.dart.
+// No report request is allowed until an isolated Linux network namespace has
+// been verified. No mock response or synthetic SocketException is used.
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/io_client.dart';
+import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
+import 'package:otzaria/app_report/bloc/app_report_event.dart';
+import 'package:otzaria/app_report/bloc/app_report_state.dart';
+import 'package:otzaria/app_report/repository/app_report_collector.dart';
+import 'package:otzaria/app_report/services/app_report_service.dart';
+import 'package:otzaria/app_report/view/app_report_dialog.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/windowing/runner_window_channel.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/reports/repository/report_draft_store.dart';
+import 'package:otzaria/services/direct_error_report_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+
+import '../helpers/seforim_fixture_db.dart';
+import '../test_helpers/memory_cache_provider.dart';
+import 'reporting_test_pump.dart';
+
+const _productHead = 'd1a05625b66536ac3c93267add80acf0b95b3987';
+const _original = 'בראשית א';
+const _proposed = 'בראשית א מתוקן';
+const _details = 'פירוט מדויק <b> &amp;\nשורה שנייה 😀';
+final _socketTarget = InternetAddress('192.0.2.1');
+
+class _Collector extends AppReportCollector {
+  @override
+  Future<AppReportAttachments> collect() async => const AppReportAttachments(
+    diagnostics: {'networkQa': 'real Linux ENETUNREACH'},
+    errorLog: 'preserved diagnostic line\n',
+  );
+}
+
+class _NetworkAudit extends HttpOverrides {
+  _NetworkAudit(this.output);
+
+  final Directory output;
+  final sockets = <Map<String, Object?>>[];
+  final cases = <Map<String, Object?>>[];
+  final clients = <HttpClient>[];
+  String caseName = 'preflight';
+
+  List<dynamic> _ip(List<String> args) {
+    final result = Process.runSync('ip', ['-j', ...args]);
+    if (result.exitCode != 0) throw StateError('ip failed: ${result.stderr}');
+    return jsonDecode(result.stdout as String) as List<dynamic>;
+  }
+
+  Map<String, Object?> guard() {
+    final host = Platform.environment['REPORT_NETWORK_HOST_NAMESPACE'];
+    final current = Link('/proc/self/ns/net').targetSync();
+    final links = _ip(['link', 'show']);
+    final ipv4 = _ip(['-4', 'route', 'show', 'table', 'main']);
+    final ipv6 = _ip(['-6', 'route', 'show', 'table', 'main']);
+    if (Platform.environment['REPORT_NETWORK_QA_PHASE'] != 'isolated' ||
+        host == null ||
+        host == current ||
+        links.length != 1 ||
+        (links.single as Map)['ifname'] != 'lo' ||
+        ipv4.isNotEmpty ||
+        ipv6.isNotEmpty) {
+      throw StateError(
+        'Real report HTTP requires a separate, loopback-only '
+        'namespace with empty IPv4/IPv6 main route tables.',
+      );
+    }
+    return {
+      'hostNamespace': host,
+      'testNamespace': current,
+      'interfaces': links,
+      'ipv4MainRoutes': ipv4,
+      'ipv6MainRoutes': ipv6,
+      'ipv4AllRoutes': _ip(['-4', 'route', 'show', 'table', 'all']),
+      'ipv6AllRoutes': _ip(['-6', 'route', 'show', 'table', 'all']),
+    };
+  }
+
+  void save() {
+    File('${output.path}/network-audit.json').writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert({
+        'reviewedProductHead': _productHead,
+        'qaHead': Platform.environment['REPORT_NETWORK_QA_COMMIT'],
+        'platform': Platform.operatingSystemVersion,
+        'renderer': 'Flutter Linux widget test',
+        'nativeDesktopUi': false,
+        'transport': 'dart:io HttpClient + real Socket; no HTTP mock',
+        'qaSocketDestination': '${_socketTarget.address}:80',
+        'destinationReason':
+            'A numeric TEST-NET destination avoids DNS. '
+            'No route exists; connection must fail before HTTP/TLS bytes.',
+        'namespace': guard(),
+        'sockets': sockets,
+        'cases': cases,
+      }),
+    );
+  }
+
+  void _failure(Uri uri, Object error) {
+    sockets.add({
+      'case': caseName,
+      'requestedUri': uri.toString(),
+      'socketDestination': '${_socketTarget.address}:80',
+      'errorType': error.runtimeType.toString(),
+      'errno': error is SocketException ? error.osError?.errorCode : null,
+      'message': error.toString(),
+    });
+    save();
+  }
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    guard();
+    // Call the base implementation, bypassing Flutter's fake HTTP-400 client.
+    final client = super.createHttpClient(context);
+    client.findProxy = (_) => 'DIRECT';
+    client.connectionTimeout = const Duration(seconds: 5);
+    clients.add(client);
+    client.connectionFactory = (uri, proxyHost, proxyPort) async {
+      guard(); // Fail closed before every real connection, including retries.
+      if (uri.host != 'otzaria.org' && uri.host != _socketTarget.address) {
+        throw StateError('Unexpected QA endpoint: $uri');
+      }
+      ConnectionTask<Socket> task;
+      try {
+        task = await Socket.startConnect(_socketTarget, 80);
+      } catch (error) {
+        _failure(uri, error);
+        rethrow;
+      }
+      return ConnectionTask.fromSocket(
+        task.socket.then(
+          (socket) {
+            socket.destroy();
+            throw StateError('An unrouted QA socket unexpectedly connected.');
+          },
+          onError: (Object error, StackTrace stack) {
+            _failure(uri, error);
+            Error.throwWithStackTrace(error, stack);
+          },
+        ),
+        task.cancel,
+      );
+    };
+    return client;
+  }
+
+  void verifyAttempts(
+    int start, {
+    required bool offline,
+    required String path,
+  }) {
+    final attempts = sockets.skip(start).toList();
+    if (offline) {
+      expect(
+        attempts,
+        isEmpty,
+        reason: 'Configured offline mode must not try HTTP.',
+      );
+    } else {
+      expect(attempts, isNotEmpty);
+      for (final attempt in attempts) {
+        expect(
+          attempt['errno'],
+          101,
+          reason: 'Linux itself must report ENETUNREACH.',
+        );
+        expect(Uri.parse(attempt['requestedUri']! as String).path, path);
+      }
+    }
+  }
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  if (Platform.environment['REPORT_NETWORK_QA_PHASE'] == 'prepare') {
+    // Compile this entire file and warm native hooks before isolation. This
+    // phase constructs no services, HttpClient, socket, report, or database.
+    test('prepare test kernel and native hooks without report HTTP', () {
+      expect(Platform.isLinux, isTrue);
+    });
+    return;
+  }
+
+  final output = Directory(
+    Platform.environment['REPORT_NETWORK_QA_OUTPUT'] ??
+        'build/network-isolation-qa',
+  )..createSync(recursive: true);
+  final audit = _NetworkAudit(output);
+  final previousOverrides = HttpOverrides.current;
+
+  setUpAll(() {
+    audit.guard();
+    HttpOverrides.global = audit;
+    audit.save();
+  });
+  tearDownAll(() {
+    audit.save();
+    for (final client in audit.clients) {
+      client.close(force: true);
+    }
+    HttpOverrides.global = previousOverrides;
+  });
+
+  test('real Socket and real HttpClient fail with Linux ENETUNREACH', () async {
+    audit.guard();
+    try {
+      final socket = await Socket.connect(
+        _socketTarget,
+        80,
+        timeout: const Duration(seconds: 5),
+      );
+      socket.destroy();
+      fail('The namespace unexpectedly reached TEST-NET.');
+    } on SocketException catch (error) {
+      expect(error.osError?.errorCode, 101);
+      audit._failure(Uri.parse('socket://192.0.2.1:80'), error);
+    }
+    final http = audit.createHttpClient(null);
+    await expectLater(
+      http.getUrl(Uri.parse('http://192.0.2.1/network-qa')),
+      throwsA(
+        isA<SocketException>().having(
+          (error) => error.osError?.errorCode,
+          'Linux errno',
+          101,
+        ),
+      ),
+    );
+    expect(audit.sockets, hasLength(2));
+    audit.cases.add({'name': 'preflight', 'passed': true});
+    audit.save();
+  });
+
+  Future<BuildContext> mount(WidgetTester tester) async {
+    late BuildContext result;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1100, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        locale: const Locale('he', 'IL'),
+        supportedLocales: const [Locale('he', 'IL')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: SettingsTextScope(
+          language: SettingsLanguage.hebrew,
+          child: Scaffold(
+            body: Builder(
+              builder: (context) {
+                result = context;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    return result;
+  }
+
+  Future<void> edit(WidgetTester tester, String key, String value) async {
+    final field = find.byKey(ValueKey(key));
+    await tester.ensureVisible(field);
+    await tester.enterText(field, value);
+    await tester.pump();
+  }
+
+  String fieldText(WidgetTester tester, String key) => tester
+      .widget<EditableText>(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(EditableText),
+        ),
+      )
+      .controller
+      .text;
+
+  Future<void> restartState(WidgetTester tester) => reportIo(tester, () async {
+    await UserStateDatabase.instance.flushWrites();
+    UserStateDatabase.instance.close();
+    await UserStateDatabase.instance.database;
+  });
+
+  void scenario(
+    String name,
+    bool offline,
+    Future<void> Function(WidgetTester, BuildContext, Directory) body,
+  ) {
+    testWidgets('$name (offline setting=$offline)', (tester) async {
+      audit.caseName = name;
+      audit.guard();
+      final directory = Directory('${output.path}/$name')..createSync();
+      try {
+        await tester.runAsync(() async {
+          await Settings.init(cacheProvider: MemoryCacheProvider());
+          RunnerWindowChannel.debugSupportedOverride = false;
+          AppPaths.debugOverrideDataRootPath('${directory.path}/data');
+          UserStateDatabase.instance.overridePath('${directory.path}/state.db');
+          await Settings.setValue<bool>(
+            SettingsRepository.keyOfflineMode,
+            offline,
+          );
+          await Settings.setValue<bool>(
+            SettingsRepository.keyQueueErrorReportsWhenOffline,
+            true,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyErrorReportSenderEmail,
+            'qa@example.com',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keySettingsLanguage,
+            'he',
+          );
+          final library = SeforimFixtureDb.create(
+            directory,
+            SeforimFixtureVariant.full,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            directory.path,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            library,
+          );
+          await SqliteDataProvider.instance.initialize();
+        });
+        expect(
+          Settings.getValue<bool>(SettingsRepository.keyOfflineMode),
+          offline,
+        );
+        await body(tester, await mount(tester), directory);
+        audit.cases.add({
+          'name': name,
+          'offlineSetting': offline,
+          'passed': true,
+        });
+      } catch (error) {
+        audit.cases.add({
+          'name': name,
+          'offlineSetting': offline,
+          'passed': false,
+          'error': error.toString(),
+        });
+        rethrow;
+      } finally {
+        audit.save();
+        UiSnack.hide();
+        await tester.pump(const Duration(seconds: 7));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await reportIo(tester, () async {
+          await AppReportService.suspendAutomaticFlush();
+          await DirectErrorReportService.suspendAutomaticFlush();
+          await UserStateDatabase.instance.flushWrites();
+          UserStateDatabase.instance.close();
+          await SqliteDataProvider.instance.dispose();
+          DbReadWorker.disposeForTesting();
+          await UserBooksDatabaseHolder.instance.close();
+        });
+        RunnerWindowChannel.debugSupportedOverride = null;
+        AppPaths.debugOverrideDataRootPath(null);
+      }
+    }, timeout: const Timeout(Duration(minutes: 2)));
+  }
+
+  for (final offline in [false, true]) {
+    final suffix = offline ? 'configured-offline' : 'no-route';
+    scenario('software-$suffix', offline, (tester, context, directory) async {
+      final start = audit.sockets.length;
+      AppReportService service() => AppReportService(
+        client: IOClient(audit.createHttpClient(null)),
+      );
+      AppReportBloc? bloc;
+      Future<AppReportDeliveryResult?> open({String? draftId}) {
+        return showAppReportDialog(
+          context,
+          createBloc: () => bloc = AppReportBloc(
+            trigger: AppReportTrigger.manual,
+            service: service(),
+            collector: _Collector(),
+            redactor: AppReportRedactor(environment: const {}),
+            appVersion: 'network-qa',
+            draftId: draftId,
+          ),
+        );
+      }
+
+      var reporting = open();
+      final dialog = find.byType(AppReportDialog);
+      await waitForReportDialog(tester, dialog: dialog);
+      await waitForReportDialog(
+        tester,
+        dialog: find.byKey(const ValueKey('app-report-title')),
+      );
+      await edit(tester, 'app-report-title', 'כותרת מדויקת 😀');
+      await edit(tester, 'app-report-description', _details);
+      await edit(tester, 'app-report-steps', 'שלב א\nשלב ב');
+      final image = AppReportImage(
+        fileName: 'network-qa.gif',
+        mimeType: 'image/gif',
+        bytes: base64Decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='),
+      );
+      bloc!.add(AppReportImagesChanged([image]));
+      await tester.pump();
+      expect(
+        (bloc!.state as AppReportEditing).images.single.bytes,
+        image.bytes,
+      );
+      await tester.tap(find.byKey(const ValueKey('app-report-save-draft')));
+      await finishReportDialog(tester, dialog: dialog, reporting: reporting);
+      final draft = (await reportIo(
+        tester,
+        () => ReportDraftStore.instance.list(),
+      )).single;
+      final saved = (await reportIo(
+        tester,
+        () => ReportDraftStore.instance.read(draft.id),
+      ))!;
+      expect(saved.payload['description'], _details);
+      expect(saved.attachments['images'], [image.toJson()]);
+      expect(
+        await reportIo(tester, () => service().getPendingReportsCount()),
+        0,
+      );
+      await restartState(tester);
+      reporting = open(draftId: draft.id);
+      await waitForReportDialog(tester, dialog: dialog);
+      await waitForReportDialog(
+        tester,
+        dialog: find.byKey(const ValueKey('app-report-title')),
+      );
+      expect(fieldText(tester, 'app-report-description'), _details);
+      expect(
+        (bloc!.state as AppReportEditing).images.single.bytes,
+        image.bytes,
+      );
+      final send = find.byKey(const ValueKey('app-report-send'));
+      expect(tester.widget<ActionButton>(send).onPressed, isNotNull);
+      await tester.tap(send);
+      await finishReportDialog(tester, dialog: dialog, reporting: reporting);
+      final result = await reporting;
+      expect(result!.status, AppReportDeliveryStatus.queued);
+      audit.verifyAttempts(start, offline: offline, path: '/api/app-reports');
+      final queued = (await reportIo(
+        tester,
+        () => service().getPendingReports(),
+      )).single;
+      expect(queued.description, _details);
+      expect(queued.title, 'כותרת מדויקת 😀');
+      expect(queued.stepsToReproduce, 'שלב א\nשלב ב');
+      expect(queued.images.single.bytes, image.bytes);
+      expect(queued.errorLog, 'preserved diagnostic line\n');
+      expect(
+        await reportIo(tester, () => ReportDraftStore.instance.list()),
+        isEmpty,
+      );
+      await restartState(tester);
+      final restored = (await reportIo(
+        tester,
+        () => service().getPendingReports(),
+      )).single;
+      expect(restored.toJson(), queued.toJson());
+      expect(
+        await reportIo(tester, () => ReportDraftStore.instance.list()),
+        isEmpty,
+      );
+      File('${directory.path}/verified-payload.json').writeAsStringSync(
+        jsonEncode({
+          'draftBeforeSend': {...saved.payload, ...saved.attachments},
+          'queuedAfterRestart': restored.toJson(),
+          'draftRemovedOnlyAfterHandoff': true,
+        }),
+      );
+    });
+
+    for (final correction in [false, true]) {
+      final mode = correction ? 'correction' : 'free-text';
+      scenario('book-$mode-$suffix', offline, (
+        tester,
+        context,
+        directory,
+      ) async {
+        final start = audit.sockets.length;
+        Future<void>? reporting;
+        await tester.runAsync(() async {
+          reporting = ErrorReportHelper.showErrorReportDialog(
+            context: context,
+            selectedText: _original,
+            state: null,
+            fontSize: 18,
+            bookTitle: SeforimFixtureIds.bereshitTitle,
+            reportBook: TextBook(title: SeforimFixtureIds.bereshitTitle),
+            savedSelectedIndex: 0,
+            reportContent: const [_original],
+          );
+        });
+        final dialog = find.byType(TabbedReportDialog);
+        await waitForReportDialog(tester, dialog: dialog);
+        await waitForBookReportMetadata(tester, dialog: dialog);
+        if (correction) {
+          await edit(tester, 'correction-proposal-field', _proposed);
+        } else {
+          await tester.tap(find.text('דיווח חופשי'));
+          await tester.pump();
+        }
+        await edit(tester, 'report-details-field', _details);
+        await tester.tap(find.byKey(const ValueKey('book-report-save-draft')));
+        await finishReportDialog(tester, dialog: dialog, reporting: reporting!);
+        final draft = (await reportIo(
+          tester,
+          () => ReportDraftStore.instance.list(),
+        )).single;
+        final saved = (await reportIo(
+          tester,
+          () => ReportDraftStore.instance.read(draft.id),
+        ))!;
+        final form = saved.payload['form'] as Map;
+        final target = saved.payload['target'] as Map;
+        expect(form['details'], _details);
+        expect(form['mode'], correction ? 'correction' : 'freeText');
+        expect(target['bookTitle'], SeforimFixtureIds.bereshitTitle);
+        expect((target['source'] as Map)['originalLine'], _original);
+        if (correction) expect(form['proposedText'], _proposed);
+        final service = DirectErrorReportService();
+        expect(await reportIo(tester, service.getPendingReportsCount), 0);
+        await restartState(tester);
+        await tester.runAsync(() async {
+          reporting = ErrorReportHelper.resumeDraft(context, draft);
+        });
+        await waitForReportDialog(tester, dialog: dialog);
+        await waitForBookReportMetadata(tester, dialog: dialog);
+        expect(fieldText(tester, 'report-details-field'), _details);
+        if (correction) {
+          expect(fieldText(tester, 'correction-proposal-field'), _proposed);
+        }
+        final action = find.byWidgetPredicate(
+          (widget) =>
+              widget is ActionButton &&
+              widget.text.startsWith(offline ? 'שמור בתור ל' : 'שלח ישירות ל'),
+        );
+        expect(action, findsOneWidget);
+        expect(tester.widget<ActionButton>(action).onPressed, isNotNull);
+        await tester.tap(action);
+        if (!offline) {
+          await tester.pumpAndSettle();
+          final confirm = find.widgetWithText(ActionButton, 'שלח דיווח');
+          expect(confirm, findsOneWidget);
+          await tester.tap(confirm);
+        }
+        await finishReportDialog(tester, dialog: dialog, reporting: reporting!);
+        audit.verifyAttempts(
+          start,
+          offline: offline,
+          path: '/api/reportingerrors',
+        );
+        final queued = (await reportIo(
+          tester,
+          service.getPendingReports,
+        )).single;
+        expect(queued.bookTitle, SeforimFixtureIds.bereshitTitle);
+        expect(queued.errorDetails, _details);
+        expect(queued.location!.bookId, SeforimFixtureIds.bereshitId);
+        expect(queued.location!.lineIndex, 0);
+        expect(queued.selectedText, _original);
+        expect(queued.isTextCorrection, correction);
+        expect(
+          queued.queueType,
+          offline
+              ? DirectErrorReportQueueType.manual
+              : DirectErrorReportQueueType.automaticRetry,
+        );
+        if (correction) {
+          expect(queued.correction!.originalLine, _original);
+          expect(queued.correction!.proposedText, _proposed);
+        } else {
+          expect(queued.correction, isNull);
+        }
+        expect(
+          await reportIo(tester, () => ReportDraftStore.instance.list()),
+          isEmpty,
+        );
+        await restartState(tester);
+        final restored = (await reportIo(
+          tester,
+          service.getPendingReports,
+        )).single;
+        expect(restored.toJson(), queued.toJson());
+        expect(
+          await reportIo(tester, () => ReportDraftStore.instance.list()),
+          isEmpty,
+        );
+        File('${directory.path}/verified-payload.json').writeAsStringSync(
+          jsonEncode({
+            'draftBeforeSend': saved.payload,
+            'queuedAfterRestart': restored.toJson(),
+            'draftRemovedOnlyAfterHandoff': true,
+          }),
+        );
+        await service.closeHttpClient();
+      });
+    }
+  }
+}

@@ -1,0 +1,132 @@
+name: Reporting without a network route (temporary QA)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/report-no-network-qa.yml'
+      - 'test/reports/fixtures/network_isolation_qa.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: report-no-network-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-network-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      PUB_CACHE: ${{ runner.temp }}/report-network-pub-cache
+      REPORT_NETWORK_QA_OUTPUT: ${{ github.workspace }}/build/network-isolation-qa
+      REPORT_NETWORK_QA_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - uses: actions/cache@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      - name: Materialize opt-in QA and install dependencies outside isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_NETWORK_QA_OUTPUT"
+          command -v ip unshare runuser sudo
+          cp test/reports/fixtures/network_isolation_qa.dart.fixture \
+            test/reports/network_isolation_qa_test.dart
+          git rev-parse HEAD HEAD^{tree} > "$REPORT_NETWORK_QA_OUTPUT/source.txt"
+          flutter pub get --enforce-lockfile 2>&1 | tee "$REPORT_NETWORK_QA_OUTPUT/dependencies.log"
+
+      - name: Analyze the QA fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format --language-version=3.12 --output=none --set-exit-if-changed \
+            test/reports/network_isolation_qa_test.dart
+          flutter analyze --no-pub test/reports/network_isolation_qa_test.dart \
+            2>&1 | tee "$REPORT_NETWORK_QA_OUTPUT/analyze.log"
+
+      - name: Prepare compilation and native hooks without report HTTP
+        shell: bash
+        env:
+          REPORT_NETWORK_QA_PHASE: prepare
+        run: |
+          set -euo pipefail
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/reports/network_isolation_qa_test.dart \
+            2>&1 | tee "$REPORT_NETWORK_QA_OUTPUT/prepare.log"
+
+      - name: Exercise real reports in a separate network namespace
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          export REPORT_NETWORK_HOST_NAMESPACE="$(readlink /proc/self/ns/net)"
+          printf '%s\n' "$REPORT_NETWORK_HOST_NAMESPACE" > "$REPORT_NETWORK_QA_OUTPUT/host-namespace-before.txt"
+          ip -j -4 route show table main > "$REPORT_NETWORK_QA_OUTPUT/host-ipv4-before.json"
+          ip -j -6 route show table main > "$REPORT_NETWORK_QA_OUTPUT/host-ipv6-before.json"
+          set +e
+          sudo -n --preserve-env=PATH,FLUTTER_ROOT,PUB_CACHE,REPORT_NETWORK_HOST_NAMESPACE,REPORT_NETWORK_QA_OUTPUT,REPORT_NETWORK_QA_COMMIT \
+            unshare --net -- bash test/reports/fixtures/network_isolation_qa.sh "$(id -un)" \
+            2>&1 | tee "$REPORT_NETWORK_QA_OUTPUT/isolated-tests.log"
+          qa_status=${PIPESTATUS[0]}
+          set -e
+          readlink /proc/self/ns/net > "$REPORT_NETWORK_QA_OUTPUT/host-namespace-after.txt"
+          ip -j -4 route show table main > "$REPORT_NETWORK_QA_OUTPUT/host-ipv4-after.json"
+          ip -j -6 route show table main > "$REPORT_NETWORK_QA_OUTPUT/host-ipv6-after.json"
+          cmp "$REPORT_NETWORK_QA_OUTPUT/host-namespace-before.txt" "$REPORT_NETWORK_QA_OUTPUT/host-namespace-after.txt"
+          cmp "$REPORT_NETWORK_QA_OUTPUT/host-ipv4-before.json" "$REPORT_NETWORK_QA_OUTPUT/host-ipv4-after.json"
+          cmp "$REPORT_NETWORK_QA_OUTPUT/host-ipv6-before.json" "$REPORT_NETWORK_QA_OUTPUT/host-ipv6-after.json"
+          exit "$qa_status"
+
+      - name: Verify all six form paths completed with real network evidence
+        if: always()
+        shell: python
+        run: |
+          import json, os, pathlib
+          output = pathlib.Path(os.environ['REPORT_NETWORK_QA_OUTPUT'])
+          audit = json.loads((output / 'network-audit.json').read_text())
+          assert audit['reviewedProductHead'] == 'd1a05625b66536ac3c93267add80acf0b95b3987'
+          assert audit['qaHead'] == os.environ['REPORT_NETWORK_QA_COMMIT']
+          assert audit['namespace']['hostNamespace'] != audit['namespace']['testNamespace']
+          assert audit['namespace']['ipv4MainRoutes'] == []
+          assert audit['namespace']['ipv6MainRoutes'] == []
+          expected = {'preflight'} | {
+              f'{kind}-{mode}'
+              for kind in ['software', 'book-free-text', 'book-correction']
+              for mode in ['no-route', 'configured-offline']
+          }
+          assert len(audit['cases']) == len(expected)
+          assert {case['name'] for case in audit['cases']} == expected
+          assert all(case['passed'] for case in audit['cases'])
+          assert all(socket['errno'] == 101 for socket in audit['sockets'])
+          for name in expected - {'preflight'}:
+              attempts = [item for item in audit['sockets'] if item['case'] == name]
+              assert bool(attempts) == name.endswith('-no-route'), (name, attempts)
+              assert (output / name / 'state.db').is_file()
+              assert (output / name / 'verified-payload.json').is_file()
+          print('7 cases passed: Socket/HttpClient preflight, 3 real no-route forms, 3 configured-offline forms.')
+
+      - name: Upload exact-head namespace, socket and SQLite evidence
+        if: always()
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: report-no-network-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/network-isolation-qa
+          if-no-files-found: error
+          retention-days: 14
