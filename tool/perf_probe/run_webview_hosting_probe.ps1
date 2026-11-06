@@ -2,8 +2,8 @@
 <##
 Paired manual-workload probe for #4110. No change to application defaults.
 Run on a test profile; normal application activity can save tabs/documents.
-The requested 'default' mode can fall back to HWND. Backend confirmation,
-GPU/latency measurements and UI compatibility checks are separate requirements.
+The requested 'default' mode can fall back to HWND. Creation observations are
+correlated with each trial; GPU/latency and UI compatibility remain separate.
 ##>
 [CmdletBinding()]
 param(
@@ -29,7 +29,7 @@ $output = [System.IO.Path]::GetFullPath($OutDirectory)
 if (Test-Path -LiteralPath $output) { throw 'Output directory already exists; refusing to overwrite it.' }
 [void][System.IO.Directory]::CreateDirectory($output)
 $metadata = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     createdUtc = [DateTimeOffset]::UtcNow.ToString('o')
     executableSha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
     scenario = $Scenario
@@ -41,7 +41,7 @@ $metadata = [ordered]@{
     intervalMs = $IntervalMs
     memoryUnit = 'bytes'
     cpuUnit = 'percentOfOneCore'
-    actualBackend = 'not verified by this tool'
+    backendObservation = 'per-attachment native creation snapshot; see pair reports'
     gpuMeasurement = 'not collected'
     startupLatency = 'not collected: measurement starts after manual setup'
     frameLatency = 'not collected: use the application diagnostics log'
@@ -56,6 +56,7 @@ try {
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $output 'metadata.json') -Encoding utf8
 
 for ($pair = 0; $pair -lt $Pairs; $pair++) {
+    $trials = @()
     # AB/BA reduces order bias; it does not eliminate cache or workload effects.
     $modes = if ($pair % 2 -eq 0) { @('default', 'hwnd') } else { @('hwnd', 'default') }
     foreach ($mode in $modes) {
@@ -63,22 +64,28 @@ for ($pair = 0; $pair -lt $Pairs; $pair++) {
             throw 'An application instance is still running. No process was terminated.'
         }
         $trialName = ('{0:D2}-{1}' -f ($pair + 1), $mode)
+        $runId = [guid]::NewGuid().ToString('N')
+        $diagnosticsPath = Join-Path $output "$trialName-diagnostics.jsonl"
         $writer = $null
         $app = $null
         try {
-            $app = [System.Diagnostics.Process]::Start((New-WebViewHostingStartInfo -Executable $exe -Mode $mode))
+            $app = [System.Diagnostics.Process]::Start((New-WebViewHostingStartInfo -Executable $exe -Mode $mode -RunId $runId -DiagnosticsPath $diagnosticsPath))
             if ($null -eq $app) { throw 'Could not launch the application.' }
             Write-Host "Trial $trialName; PID $($app.Id). Prepare exactly this workload: $Scenario"
             Write-Host 'Keep the same plugins, documents, viewport, DPI and window state in both modes.'
+            $setupConfirmed = (Read-Host 'Confirm the documented workload, viewport/DPI, versions and power state match the paired run (type yes)') -ceq 'yes'
             [void](Read-Host 'Press Enter when setup is complete; sampling starts immediately')
             $app.Refresh()
             if ($app.HasExited) { throw 'The launched process exited during setup (possibly single-instance forwarding).' }
             $rootStart = $app.StartTime.ToUniversalTime().ToString('o')
+            $sampleStarted = [datetime]::UtcNow
             $writer = [System.IO.StreamWriter]::new((Join-Path $output "$trialName.jsonl"), $false, [System.Text.UTF8Encoding]::new($false))
             $writer.WriteLine((@{
                 type = 'trial'; requestedMode = $mode; processId = $app.Id
                 startedUtc = $rootStart; scenario = $Scenario
-                actualBackend = $null
+                runId = $runId; setupConfirmed = $setupConfirmed
+                diagnosticsFile = [System.IO.Path]::GetFileName($diagnosticsPath)
+                backendScope = 'nativeCreation'; actualBackend = $null
             } | ConvertTo-Json -Compress))
             $clock = [System.Diagnostics.Stopwatch]::StartNew()
             $previous = $null
@@ -113,14 +120,34 @@ for ($pair = 0; $pair -lt $Pairs; $pair++) {
                 if ($delay -gt 0) { Start-Sleep -Milliseconds ([int]$delay) }
             }
             Complete-WebViewHostingTrial -Process $app -Writer $writer -ElapsedSeconds $clock.Elapsed.TotalSeconds
+            $sampleEnded = [datetime]::UtcNow
+            # The existing diagnostics tick must flush a boundary after sampling.
+            Start-Sleep -Seconds 2
+            $app.Refresh()
+            if ($app.HasExited) { throw 'Application exited before the diagnostics boundary was captured.' }
             Write-Host "Saved $trialName. Close the application normally, including any save prompts."
             [void](Read-Host 'Press Enter after the application has closed')
             $app.Refresh()
             if (-not $app.HasExited) { throw 'Application is still running. No process was terminated.' }
+            $requested = if ($mode -eq 'hwnd') { 'hwnd' } else { 'composition' }
+            $backend = Read-WebViewHostingBackend -Path $diagnosticsPath -RunId $runId -RootProcessId $app.Id `
+                -RootStartedUtc ([datetime]$rootStart) -SampleStartedUtc $sampleStarted -SampleEndedUtc $sampleEnded `
+                -RequestedBackend $requested
+            $trial = [pscustomobject]@{
+                runId = $runId; processId = $app.Id; startedUtc = $rootStart; complete = $true
+                sampleStartedUtc = $sampleStarted.ToString('o'); sampleEndedUtc = $sampleEnded.ToString('o')
+                requestedBackend = $requested; setupConfirmed = $setupConfirmed; backend = $backend
+                executableSha256 = $metadata.executableSha256; scenario = $Scenario; displaySetup = $DisplaySetup
+            }
+            $trials += $trial
+            $trial | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $output "$trialName-backend.json") -Encoding utf8
         } finally {
             if ($null -ne $writer) { $writer.Dispose() }
             if ($null -ne $app) { $app.Dispose() }
         }
     }
+    $comparison = Get-WebViewHostingComparison -Trials $trials
+    $comparison | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath (Join-Path $output ('pair-{0:D2}.json' -f ($pair + 1))) -Encoding utf8
+    Write-Host "Pair $($pair + 1): comparisonReady=$($comparison.comparisonReady); $($comparison.reasons -join ', ')"
 }
 Write-Host "Raw results: $output. A trial without a complete end record must not be compared."

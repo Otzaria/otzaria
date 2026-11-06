@@ -1,11 +1,14 @@
 #Requires -Version 7.0
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:assertions = 0
 Import-Module (Join-Path $PSScriptRoot 'webview_hosting_probe.psm1') -Force
 function Assert-Equal($Expected, $Actual, [string]$Message) {
+    $script:assertions++
     if ($Expected -cne $Actual) { throw "$Message; expected=$Expected actual=$Actual" }
 }
 function Assert-Throws([scriptblock]$Action, [string]$Pattern, [string]$Message) {
+    $script:assertions++
     $failure = $null
     try { & $Action | Out-Null } catch { $failure = $_.Exception.Message }
     if ($null -eq $failure -or $failure -notlike $Pattern) { throw "$Message; failure=$failure" }
@@ -165,14 +168,182 @@ $original = [System.Environment]::GetEnvironmentVariable($variable, 'Process')
 try {
     [System.Environment]::SetEnvironmentVariable($variable, 'parent-value', 'Process')
     $executable = (Get-Process -Id $PID).Path
-    $forced = New-WebViewHostingStartInfo -Executable $executable -Mode hwnd
-    $normal = New-WebViewHostingStartInfo -Executable $executable -Mode default
+    $forced = New-WebViewHostingStartInfo -Executable $executable -Mode hwnd -RunId 'run-forced' -DiagnosticsPath 'forced.jsonl'
+    $normal = New-WebViewHostingStartInfo -Executable $executable -Mode default -RunId 'run-default' -DiagnosticsPath 'default.jsonl'
     Assert-Equal '1' $forced.Environment[$variable] 'HWND set only for the child'
-    Assert-Equal $false $normal.Environment.ContainsKey($variable) 'Default must clear an inherited force flag'
+    Assert-Equal '0' $normal.Environment[$variable] 'Composition request replaces an inherited force flag'
+    Assert-Equal 'run-forced' $forced.Environment['OTZARIA_WEBVIEW_PROBE_RUN_ID'] 'Run identity is child-specific'
+    Assert-Equal 'default.jsonl' $normal.Environment['OTZARIA_DEV_DIAGNOSTICS_OUT'] 'Diagnostics use a per-trial file'
     Assert-Equal 'parent-value' ([System.Environment]::GetEnvironmentVariable($variable, 'Process')) 'Parent environment is unchanged'
     Assert-Equal '--dev-diagnostics=log' $forced.ArgumentList[0] 'Arguments are not shell text'
     Assert-Equal $false $forced.UseShellExecute 'No shell interpolation'
 } finally {
     [System.Environment]::SetEnvironmentVariable($variable, $original, 'Process')
 }
-Write-Host 'WebView hosting probe unit tests passed.'
+
+$directory = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
+[void][System.IO.Directory]::CreateDirectory($directory)
+try {
+    $path = Join-Path $directory 'observations.jsonl'
+    function New-DiagnosticRecord([string]$Type, [double]$Second) {
+        return @{
+            type = $Type; utc = $started.AddSeconds($Second).ToString('o')
+            pid = 10; probeRunId = 'run-a'; session = 1
+            version = 'test-build'; buildMode = 'profile'; flutterVersion = '3.47.7'; osVersion = 'Windows test'
+        }
+    }
+    function New-Attachment([string]$Mode = 'composition', [string]$Id = ('a' * 32), [double]$Second = 1) {
+        $record = New-DiagnosticRecord 'webview_backend' $Second
+        $record.event = 'attached'; $record.attachmentId = $Id
+        $record.pluginId = 'test.plugin'; $record.hostKind = 'Plugin'
+        $record.physicalWidth = 1200; $record.physicalHeight = 800; $record.devicePixelRatio = 1.25
+        $record.webView2RuntimeVersion = '123.0.0.0'
+        $record.backend = @{
+            schemaVersion = 1; scope = 'nativeCreation'; availability = 'collected'
+            source = 'WindowsInAppWebViewController.creationDetails'
+            requested = $Mode; observed = $Mode; verified = $true; nativeViewId = 8
+            fallbackReasonAvailable = $false; fallbackStage = $null; fallbackHresult = $null
+            ongoingModeVerified = $false
+        }
+        return $record
+    }
+    function New-Diagnostics([string]$Mode = 'composition') {
+        return @(
+            (New-DiagnosticRecord 'session' 0.1), (New-Attachment $Mode)
+            (New-DiagnosticRecord 'webview_probe_tick' 2), (New-DiagnosticRecord 'webview_probe_tick' 3)
+            (New-DiagnosticRecord 'webview_probe_tick' 4), (New-DiagnosticRecord 'webview_probe_tick' 5)
+        )
+    }
+    function Read-Backend([object[]]$Records, [string]$Requested = 'composition') {
+        $Records | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 10 -Compress } |
+            Set-Content -LiteralPath $path -Encoding utf8
+        return Read-WebViewHostingBackend -Path $path -RunId 'run-a' -RootProcessId 10 -RootStartedUtc $started `
+            -SampleStartedUtc $started.AddSeconds(2.5) -SampleEndedUtc $started.AddSeconds(4.5) -RequestedBackend $Requested
+    }
+    function Assert-Reason($Backend, [string]$Reason) {
+        Assert-Equal $true ($Backend.reasons -ccontains $Reason) "Must retain reason $Reason"
+    }
+    $composition = Read-Backend (New-Diagnostics)
+    $hwnd = Read-Backend (New-Diagnostics 'hwnd') 'hwnd'
+    Assert-Equal 'composition' $composition.actualBackend 'Composition comes from the getter record'
+    Assert-Equal 'hwnd' $hwnd.actualBackend 'HWND comes from the getter record'
+    Assert-Equal $true $composition.verified 'An explicit native mode is verified'
+    Assert-Equal $false $composition.ongoingModeVerified 'Creation is never rebranded as continuous observation'
+    Assert-Equal 0 $composition.reasons.Count 'A complete creation observation is comparable'
+    Assert-Equal $false $composition.activeAttachments[0].backend.fallbackReasonAvailable 'No reason does not imply no fallback'
+
+    $records = New-Diagnostics
+    $records[1].backend.observed = 'hwnd'
+    $records[1].backend.fallbackReasonAvailable = $true
+    $records[1].backend.fallbackStage = 'capture'; $records[1].backend.fallbackHresult = 2147500037
+    $fallback = Read-Backend $records
+    Assert-Equal 'hwnd' $fallback.actualBackend 'Capture/RDP fallback remains observed HWND'
+    Assert-Equal $true $fallback.verified 'Fallback does not erase valid native evidence'
+    Assert-Reason $fallback 'composition_fell_back_to_hwnd'
+    Assert-Equal 2147500037 $fallback.observations[0].backend.fallbackHresult 'Unsigned creation HRESULT is preserved'
+
+    $records = New-Diagnostics 'hwnd'; $records[1].backend.observed = 'composition'
+    Assert-Reason (Read-Backend $records 'hwnd') 'forced_hwnd_mismatch'
+    $records = New-Diagnostics; $records[1].backend.verified = $false; $records[1].backend.observed = $null
+    $legacy = Read-Backend $records
+    Assert-Reason $legacy 'unverified_backend'
+    Assert-Equal $null $legacy.actualBackend 'A force flag or compatibility default cannot infer the backend'
+    $records = New-Diagnostics; $records[1].backend.observed = 'future-mode'
+    Assert-Reason (Read-Backend $records) 'unverified_backend'
+    $records = New-Diagnostics; $records[1].backend.source = 'absence-of-fallback-event'
+    Assert-Reason (Read-Backend $records) 'unverified_backend'
+    $records = New-Diagnostics; $records[1].backend.verified = 1
+    Assert-Reason (Read-Backend $records) 'unverified_backend'
+    $records = New-Diagnostics; $records[1].backend.requested = 'hwnd'
+    Assert-Reason (Read-Backend $records) 'request_metadata_mismatch'
+    $records = New-Diagnostics; $records[1].probeRunId = 'older-run'
+    Assert-Reason (Read-Backend $records) 'foreign_run_or_process'
+    $records = New-Diagnostics; $records[1].pid = 99
+    Assert-Reason (Read-Backend $records) 'foreign_run_or_process'
+    $records = New-Diagnostics; $records[1].utc = $started.AddSeconds(-1).ToString('o')
+    Assert-Reason (Read-Backend $records) 'invalid_record_time'
+    $records = New-Diagnostics; $records[3].session = 2
+    Assert-Reason (Read-Backend $records) 'collection_session_changed'
+    $records = New-Diagnostics; $records[3].type = 'end'
+    Assert-Reason (Read-Backend $records) 'collection_stopped_during_sampling'
+    $records = New-Diagnostics
+    Assert-Reason (Read-Backend $records[0..4]) 'sampling_interval_not_covered'
+    $records = New-Diagnostics
+    $records[5].utc = $started.AddSeconds(6).ToString('o')
+    Assert-Reason (Read-Backend @($records[0], $records[1], $records[2], $records[5])) 'diagnostics_gap_during_sampling'
+    $records = New-Diagnostics; $records[0].utc = $started.AddSeconds(3).ToString('o')
+    Assert-Reason (Read-Backend $records) 'collection_started_after_sampling'
+    $records = New-Diagnostics; $records[1].physicalWidth = 0
+    Assert-Reason (Read-Backend $records) 'host_setup_unavailable'
+    $records = New-Diagnostics; $records[1].webView2RuntimeVersion = $null
+    Assert-Reason (Read-Backend $records) 'host_setup_unavailable'
+    $records = New-Diagnostics
+    Assert-Reason (Read-Backend (@($records[0]) + $records[2..5])) 'no_active_webviews'
+
+    $records = New-Diagnostics
+    $records = @($records[0], $records[1], (New-Attachment 'hwnd' ('b' * 32) 1.5)) + $records[2..5]
+    $mixed = Read-Backend $records
+    Assert-Reason $mixed 'mixed_backends'
+    Assert-Equal $null $mixed.actualBackend 'Mixed hosts never collapse to one backend'
+    Assert-Equal 2 $mixed.activeAttachments.Count 'Same native id does not merge independent attachments'
+
+    $records = New-Diagnostics
+    $detached = New-Attachment 'composition' ('a' * 32) 1.5; $detached.event = 'detached'
+    $records = @($records[0], $records[1], $detached, (New-Attachment 'composition' ('b' * 32) 1.75)) + $records[2..5]
+    $replacement = Read-Backend $records
+    Assert-Equal 0 $replacement.reasons.Count 'A disposed pre-sampling host is replaced without stale metadata'
+    Assert-Equal ('b' * 32) $replacement.activeAttachments[0].attachmentId 'Native id reuse keeps the new lifetime'
+    $records[2].utc = $started.AddSeconds(3).ToString('o')
+    Assert-Reason (Read-Backend $records) 'host_set_changed_during_sampling'
+    $records = New-Diagnostics
+    Assert-Reason (Read-Backend (@($records[0], $records[1], $records[1]) + $records[2..5])) 'duplicate_attachment'
+
+    $records = New-Diagnostics
+    [void](Read-Backend $records)
+    Add-Content -LiteralPath $path -Value '{"truncated":' -Encoding utf8
+    $invalid = Read-WebViewHostingBackend -Path $path -RunId 'run-a' -RootProcessId 10 -RootStartedUtc $started `
+        -SampleStartedUtc $started.AddSeconds(2.5) -SampleEndedUtc $started.AddSeconds(4.5) -RequestedBackend composition
+    Assert-Reason $invalid 'diagnostics_unreadable_or_invalid'
+    $missing = Read-WebViewHostingBackend -Path (Join-Path $directory 'missing.jsonl') -RunId 'run-a' -RootProcessId 10 -RootStartedUtc $started `
+        -SampleStartedUtc $started.AddSeconds(2.5) -SampleEndedUtc $started.AddSeconds(4.5) -RequestedBackend composition
+    Assert-Reason $missing 'diagnostics_unreadable_or_invalid'
+
+    function New-Trial($Backend, [int]$Number) {
+        return [pscustomobject]@{
+            complete = $true; setupConfirmed = $true; backend = $Backend
+            runId = "run-$Number"; processId = $Number; startedUtc = "start-$Number"
+            executableSha256 = 'same-build'; scenario = 'same-workload'; displaySetup = 'same-DPI'
+        }
+    }
+    $left = New-Trial $composition 1; $right = New-Trial $hwnd 2
+    $pair = Get-WebViewHostingComparison @($left, $right)
+    Assert-Equal $true $pair.comparisonReady 'Only verified different modes with matching setup are comparable'
+    Assert-Equal $null $pair.performanceConclusion 'Readiness never invents a performance winner'
+    $left.backend = $fallback
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'HWND versus HWND is not an A/B comparison'
+    $left.backend = $legacy
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Missing metadata keeps the pair noncomparable'
+    $left.backend = $invalid
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'A truncated diagnostics file cannot make a comparable pair'
+    $left.backend = $missing
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'An absent diagnostics file remains an explicit noncomparable result'
+    $left.backend = $composition; $left.setupConfirmed = $false
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Unconfirmed manual setup is not accepted'
+    $left.setupConfirmed = 'false'
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'A string cannot forge boolean setup confirmation'
+    $left.setupConfirmed = $true; $left.complete = $false
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Incomplete raw trials cannot be compared'
+    $left.complete = $true; $right.displaySetup = 'different-DPI'
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Different DPI/workload descriptions are rejected'
+    $right.displaySetup = 'same-DPI'; $right.runId = $left.runId
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'A reused run identity is rejected'
+    $right.runId = 'run-2'; $right.backend.setup = @('different-viewport')
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Different native viewport observations are rejected'
+    $right.backend.setup = $left.backend.setup; $right.backend.collectionMetadata.buildMode = 'debug'
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Debug measurements are not compared with profile'
+    $right.backend.collectionMetadata.buildMode = 'profile'; $right.backend.collectionMetadata.flutterVersion = 'unavailable'
+    Assert-Equal $false (Get-WebViewHostingComparison @($left, $right)).comparisonReady 'Missing Flutter version keeps the pair noncomparable'
+} finally {
+    [System.IO.Directory]::Delete($directory, $true)
+}
+Write-Host "WebView hosting probe unit tests passed: $script:assertions assertions."

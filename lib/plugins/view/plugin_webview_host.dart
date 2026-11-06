@@ -41,6 +41,8 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/services/plugin_webview_settings_updater.dart';
+import 'package:otzaria/plugins/services/webview_backend_observation.dart';
+import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/utils/plugin_dev_tools_mode.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
@@ -124,6 +126,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   BuildContext? get dialogContext;
 
   InAppWebViewController? _webViewController;
+  late final _backendDiagnostics = WebViewBackendDiagnostics();
   late final _settingsUpdater = PluginWebViewSettingsUpdater(
     onError: (error) => debugPrint(
       '$logTag [${plugin.pluginId}] WebView settings update: $error',
@@ -133,10 +136,34 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   InAppWebViewController? get webViewController => _webViewController;
 
   set webViewController(InAppWebViewController? controller) {
+    final changed = !identical(
+      controller?.platform,
+      _webViewController?.platform,
+    );
+    if (changed) _backendDiagnostics.detach();
     _webViewController = controller;
     if (controller == null || !mounted) {
       _settingsUpdater.detach();
       return;
+    }
+    if (changed) {
+      final view = View.of(context);
+      _backendDiagnostics.attach(
+        controller,
+        host: {
+          'pluginId': plugin.pluginId,
+          'instanceId': instanceId,
+          'hostKind': logTag,
+          'flutterViewId': view.viewId,
+          'viewportScope': 'flutterViewAtAttachment',
+          'physicalWidth': view.physicalSize.width,
+          'physicalHeight': view.physicalSize.height,
+          'devicePixelRatio': view.devicePixelRatio,
+          'webView2RuntimeVersion': WebView2CreationDiagnostics.runtimeVersion,
+          'webView2RuntimeVersionSource':
+              'WebViewEnvironment.getAvailableVersion',
+        },
+      );
     }
     unawaited(
       _settingsUpdater.attach(
@@ -488,6 +515,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
       _syncConsoleMessageLevels,
     );
     _settingsUpdater.dispose();
+    _backendDiagnostics.dispose();
     _webViewController = null;
     _confirmationDialog.dispose();
     _findRefRepository.dispose();

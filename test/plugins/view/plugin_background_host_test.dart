@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -902,6 +903,24 @@ void main() {
               await tester.runAsync(() async {
                 diagnostics.toggle();
                 await diagnostics.snapshot();
+                final records = (await File(
+                  diagnostics.outputPath,
+                ).readAsLines()).map((line) => jsonDecode(line) as Map);
+                final backend = records.singleWhere(
+                  (record) => record['type'] == 'webview_backend',
+                );
+                expect(
+                  backend['event'],
+                  initiallyCollecting ? 'attached' : 'present',
+                );
+                expect(backend['pluginId'], plugin.pluginId);
+                expect(backend['instanceId'], PluginInstanceIds.background);
+                expect(backend['backend']['verified'], isFalse);
+                expect(backend['backend']['observed'], isNull);
+                expect(
+                  backend['backend']['availability'],
+                  Platform.isWindows ? 'unavailable' : 'unsupported',
+                );
               });
               await tester.pump();
               expect(native.nativeSettings!.consoleMessageLevels, [
@@ -929,6 +948,17 @@ void main() {
               });
               await tester.pump();
               expect(native.settingsReads, readsAfterDisposal);
+              await tester.runAsync(() async {
+                final records = (await File(
+                  diagnostics.outputPath,
+                ).readAsLines()).map((line) => jsonDecode(line) as Map);
+                expect(
+                  records.where((r) => r['type'] == 'webview_backend'),
+                  hasLength(1),
+                  reason:
+                      'A disposed Offstage host cannot replay its old observation.',
+                );
+              });
             }, io);
           } finally {
             diagnostics.resetForTesting();
