@@ -40,6 +40,7 @@ import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../helpers/printing_raster_idle.dart';
 
 class _MockHistoryBloc extends Mock implements HistoryBloc {}
 
@@ -287,13 +288,14 @@ void main() {
   }
 
   bool previewDone() =>
-      find.byType(Image).evaluate().isNotEmpty &&
+      find.byType(RawImage).evaluate().isNotEmpty &&
       find.byType(CircularProgressIndicator).evaluate().isEmpty;
 
   Future<void> closeWithEscape(WidgetTester tester) async {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    await drainPrintingRasterQueue(tester);
   }
 
   for (final fromRemoteCache in [false, true]) {

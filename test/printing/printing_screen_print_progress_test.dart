@@ -25,6 +25,7 @@ import 'package:printing/printing.dart';
 import 'package:printing/src/interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -179,7 +180,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     bool previewDone() =>
-        find.byType(Image).evaluate().isNotEmpty &&
+        find.byType(RawImage).evaluate().isNotEmpty &&
         find.byType(CircularProgressIndicator).evaluate().isEmpty;
     for (var i = 0; i < 200 && !previewDone(); i++) {
       await tester.runAsync(
@@ -195,6 +196,7 @@ void main() {
     // מעבר לזמן התצוגה של UiSnack, כדי שלא יישאר טיימר פתוח.
     await tester.pump(const Duration(seconds: 7));
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   }
 
   Future<void> pumpFrames(WidgetTester tester) async {
@@ -414,6 +416,7 @@ void main() {
       if (fail) expect(tester.takeException(), isA<StateError>());
       expect(tester.takeException(), isNull);
       expect(PrintWorkStatus.hasActiveJobs, isFalse);
+      await closeScreen(tester);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   }
 
