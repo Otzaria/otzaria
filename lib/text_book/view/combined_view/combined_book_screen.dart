@@ -1459,7 +1459,12 @@ class _CombinedViewState extends State<CombinedView> {
       _selectionStartColumn,
     );
     final sourceText = source.text;
-    final menuSelection = ReaderMenuSelection(sourceText);
+    final menuSelection = ReaderMenuSelection(
+      sourceText,
+      sourceLines: widget.data,
+      lineStart: _selectionLineStart,
+      lineEnd: _selectionLineEnd,
+    );
 
     return [
       // שורת אייקונים עליונה בסגנון Windows 11 — הרשימה המלאה נשארת מתחת.
@@ -1552,7 +1557,7 @@ class _CombinedViewState extends State<CombinedView> {
         tabId: readerBookTabId(widget.tab, state),
         lines: widget.data,
         paragraphIndex: paragraphIndex,
-        hasSelection: menuSelection.hasText,
+        hasSelection: menuSelection.hasOriginalText,
         selectedText: sourceText,
         anchor: (
           lineStart: _selectionLineStart,
