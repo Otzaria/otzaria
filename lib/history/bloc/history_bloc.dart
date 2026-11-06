@@ -212,27 +212,38 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
 
   static const int _maxHistorySize = 200;
 
-  /// מכניס את [snapshots] לראש ההיסטוריה, מדיח רשומה קודמת עם אותו
-  /// `historyKey`, וגוזם לתקרה.
-  ///
-  /// ⚠️ פונקציה **טהורה**, ובמכוון: היא מוחלת על ההיסטוריה הטרייה של
-  /// הבעלים ועשויה לרוץ שוב אם חלון אחר כתב בינתיים. חישוב מ-`state`
-  /// כאן היה מחזיר את הבאג שהיא באה לתקן.
+  static bool Function(Bookmark) _historyMatcher(Bookmark bookmark) {
+    if (!bookmark.isSearch) {
+      final key = bookmark.historyKey;
+      return (other) => !other.isSearch && other.historyKey == key;
+    }
+    Set<String> scopeOf(Bookmark entry) =>
+        entry.searchScopeFacets?.isNotEmpty == true
+        ? entry.searchScopeFacets!.toSet()
+        : {'/'};
+    final scope = scopeOf(bookmark);
+    final filter = bookmark.searchFilterFacets?.toSet() ?? scope;
+    return (other) {
+      if (!other.isSearch || other.ref != bookmark.ref) return false;
+      // מסנן קטן יכול לפסול רשומה בלי לקרוא שוב תחום של אלפי ספרים.
+      final otherFilter = other.searchFilterFacets;
+      if (otherFilter != null && !setEquals(otherFilter.toSet(), filter)) {
+        return false;
+      }
+      final otherScope = scopeOf(other);
+      return setEquals(otherScope, scope) &&
+          (otherFilter != null || setEquals(otherScope, filter));
+    };
+  }
+
+  /// מוחל רק על ההיסטוריה הטרייה שבטרנזקציית הכתיבה, ולא על state מקומי.
   static List<Bookmark> _withSnapshots(
     List<Bookmark> current,
     List<Bookmark> snapshots,
   ) {
     final updated = List<Bookmark>.from(current);
     for (final bookmark in snapshots) {
-      final key = bookmark.historyKey;
-      // מפתח חיפוש עשוי לכלול אלפי facets. רק חיפושים באותה שאילתה
-      // יכולים להתנגש, ואין צורך למיין ולקודד את התחומים של כל היתר.
-      updated.removeWhere(
-        (b) =>
-            b.isSearch == bookmark.isSearch &&
-            (!bookmark.isSearch || b.ref == bookmark.ref) &&
-            b.historyKey == key,
-      );
+      updated.removeWhere(_historyMatcher(bookmark));
       updated.insert(0, bookmark);
     }
     if (updated.length > _maxHistorySize) {
@@ -449,20 +460,12 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   ) async {
     try {
       if (event.index < 0 || event.index >= state.history.length) return;
-      // ⚠️ האינדקס מתורגם לזהות כאן, מול הרשימה שממנה ה-UI חישב אותו.
-      // מחיקה לפי אינדקס אצל הבעלים הייתה מוחקת רשומה אחרת אם חלון אחר
-      // פתח ספר בינתיים — כל פתיחת ספר נכנסת בראש הרשימה ומזיזה את כולה.
+      // מתרגמים אינדקס לזהות מול רשימת ה-UI: חלון אחר עשוי להזיז את
+      // הרשומות בבסיס בינתיים, ומחיקה לפי האינדקס החדש תמחק רשומה אחרת.
       final bookmark = state.history[event.index];
-      final key = bookmark.historyKey;
+      final matches = _historyMatcher(bookmark);
       final updatedHistory = await _repository.mutateHistory(
-        (current) => current
-            .where(
-              (b) =>
-                  b.isSearch != bookmark.isSearch ||
-                  (bookmark.isSearch && b.ref != bookmark.ref) ||
-                  b.historyKey != key,
-            )
-            .toList(),
+        (current) => current.where((b) => !matches(b)).toList(),
       );
       _emitWritten(emit, updatedHistory);
     } catch (e) {

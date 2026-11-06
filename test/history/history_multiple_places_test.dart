@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -50,14 +51,18 @@ class _MemoryHistoryRepository extends HistoryRepository {
 }
 
 class _CountingSearchBookmark extends Bookmark {
-  _CountingSearchBookmark(String query, List<String> facets)
-    : super(
-        ref: query,
-        book: TextBook(title: query),
-        index: 0,
-        isSearch: true,
-        searchScopeFacets: facets,
-      );
+  _CountingSearchBookmark(
+    String query,
+    List<String> facets, {
+    List<String>? filter,
+  }) : super(
+         ref: query,
+         book: TextBook(title: query),
+         index: 0,
+         isSearch: true,
+         searchScopeFacets: facets,
+         searchFilterFacets: filter,
+       );
 
   int historyKeyReads = 0;
 
@@ -66,6 +71,29 @@ class _CountingSearchBookmark extends Bookmark {
     historyKeyReads++;
     return super.historyKey;
   }
+}
+
+class _CountingFacets extends ListBase<String> {
+  _CountingFacets(this.values);
+
+  final List<String> values;
+  int reads = 0;
+
+  @override
+  int get length => values.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read only');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return values[index];
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('read only');
 }
 
 class _FakeNavigationRepository implements NavigationRepository {
@@ -228,6 +256,99 @@ void main() {
         },
       );
     }
+
+    for (final removing in [false, true]) {
+      test('אותה שאילתה עם 200 מסננים אינה קוראת תחומים שאינם מתאימים: '
+          '${removing ? 'מחיקה' : 'הוספה'}', () async {
+        final values = List.generate(5000, (i) => '/personal/uid:${5000 - i}');
+        final scopes = List.generate(200, (_) => _CountingFacets(values));
+        final entries = List.generate(
+          200,
+          (i) => _CountingSearchBookmark(
+            'ממון מזיק',
+            scopes[i],
+            filter: ['/personal/uid:$i'],
+          ),
+        );
+        final repository = _MemoryHistoryRepository(entries);
+        final bloc = HistoryBloc(repository);
+        addTearDown(bloc.close);
+        await bloc.stream.firstWhere((state) => state is HistoryLoaded);
+        final replacement = Bookmark(
+          ref: 'ממון מזיק',
+          book: TextBook(title: 'ממון מזיק'),
+          index: 0,
+          isSearch: true,
+          searchScopeFacets: values.reversed.toList(),
+          searchFilterFacets: ['/personal/uid:98', '/personal/uid:98'],
+        );
+        if (removing) {
+          bloc.add(RemoveHistory(98));
+          await bloc.stream.firstWhere((state) => state.history.length == 199);
+        } else {
+          await add(bloc, replacement);
+        }
+        expect(
+          bloc.state.history,
+          [
+            if (!removing) replacement,
+            ...entries.where((e) => e != entries[98]),
+          ],
+        );
+        expect(
+          [
+            for (var i = 0; i < scopes.length; i++)
+              if (i != 98) scopes[i].reads,
+          ],
+          everyElement(0),
+        );
+      });
+    }
+
+    test('השוואת הזהות שקולה למפתח בכל צירופי התחום והסינון', () async {
+      final variants = <Bookmark>[
+        for (final query in ['ממון מזיק', ' ממון מזיק'])
+          for (final scope in <List<String>?>[
+            null,
+            [],
+            ['/'],
+            ['/א', '/ב'],
+            ['/ב', '/א', '/א'],
+          ])
+            for (final filter in <List<String>?>[
+              null,
+              [],
+              ['/'],
+              ['/א'],
+              ['/ב', '/א', '/א'],
+            ])
+              Bookmark(
+                ref: query,
+                book: TextBook(title: query),
+                index: 0,
+                isSearch: true,
+                searchScopeFacets: scope,
+                searchFilterFacets: filter,
+              ),
+        _entry(10),
+        _entry(20),
+        _entry(10, slot: 'other'),
+      ];
+      final repository = _MemoryHistoryRepository(variants);
+      final bloc = HistoryBloc(repository);
+      addTearDown(bloc.close);
+      await bloc.stream.firstWhere((state) => state is HistoryLoaded);
+      for (final incoming in variants) {
+        final expected = [
+          incoming,
+          ...repository.stored.where(
+            (b) => b.historyKey != incoming.historyKey,
+          ),
+        ].take(200).toList();
+        await add(bloc, incoming);
+        expect(bloc.state.history, expected);
+      }
+    });
 
     test('שני מקומות באותו ספר נשמרים שניהם', () async {
       final bloc = await loadedBloc();
