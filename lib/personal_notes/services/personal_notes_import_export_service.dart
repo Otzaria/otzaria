@@ -300,83 +300,85 @@ class PersonalNotesImportExportService {
               json.containsKey('pdfAnchor'),
             ),
     ];
-    int inserted = 0;
-    int updated = 0;
-    int skipped = 0;
-    int duplicated = 0;
+    return _database.batchNotifications((batch) async {
+      int inserted = 0;
+      int updated = 0;
+      int skipped = 0;
+      int duplicated = 0;
 
-    for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
-      final existing = await _database.getNote(note.id);
+      for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
+        final existing = await _database.getNote(note.id);
 
-      if (existing == null) {
-        await _database.insertNote(note);
-        inserted++;
-        continue;
-      }
+        if (existing == null) {
+          await batch.insertNote(note);
+          inserted++;
+          continue;
+        }
 
-      switch (strategy) {
-        case NotesImportConflictStrategy.skip:
-          skipped++;
-          break;
-        case NotesImportConflictStrategy.overwrite:
-        case NotesImportConflictStrategy.merge:
-          if (strategy == NotesImportConflictStrategy.merge &&
-              !note.updatedAt.isAfter(existing.updatedAt)) {
+        switch (strategy) {
+          case NotesImportConflictStrategy.skip:
             skipped++;
             break;
-          }
-          // שדה חסר בגיבוי ישן אינו מבטל עוגן מקומי; null מפורש כן.
-          // שומרים עוגן רק כשהספר, המיקום והקשר המקור עדיין תואמים.
-          final preserveAnchor =
-              !hasAnchorText &&
-              existing.isWordAnchored &&
-              note.bookId == existing.bookId &&
-              note.lineNumber == existing.lineNumber &&
-              note.status == existing.status &&
-              note.displayTitle == existing.displayTitle &&
-              (note.hasLocation ||
-                  note.lastKnownLineNumber == existing.lastKnownLineNumber);
-          var updatedNote = preserveAnchor
-              ? note
-                    .copyWith(clearAnchor: true)
-                    .copyWith(
-                      anchorText: existing.anchorText,
-                      anchorPrefix: existing.anchorPrefix,
-                      anchorSuffix: existing.anchorSuffix,
-                      anchorStart: existing.anchorStart,
-                      anchorEnd: existing.anchorEnd,
-                    )
-              : note;
-          if (!hasPdfAnchor &&
-              existing.pdfAnchor != null &&
-              note.bookId == existing.bookId &&
-              note.lineNumber == existing.lineNumber &&
-              note.displayTitle == existing.displayTitle &&
-              note.status == existing.status &&
-              (note.hasLocation ||
-                  note.lastKnownLineNumber == existing.lastKnownLineNumber)) {
-            updatedNote = updatedNote.copyWith(pdfAnchor: existing.pdfAnchor);
-          }
-          await _database.updateNote(updatedNote);
-          updated++;
-          break;
-        case NotesImportConflictStrategy.keepBoth:
-          await _database.insertNote(note.copyWith(id: _generateId()));
-          duplicated++;
-          break;
+          case NotesImportConflictStrategy.overwrite:
+          case NotesImportConflictStrategy.merge:
+            if (strategy == NotesImportConflictStrategy.merge &&
+                !note.updatedAt.isAfter(existing.updatedAt)) {
+              skipped++;
+              break;
+            }
+            // שדה חסר בגיבוי ישן אינו מבטל עוגן מקומי; null מפורש כן.
+            // שומרים עוגן רק כשהספר, המיקום והקשר המקור עדיין תואמים.
+            final preserveAnchor =
+                !hasAnchorText &&
+                existing.isWordAnchored &&
+                note.bookId == existing.bookId &&
+                note.lineNumber == existing.lineNumber &&
+                note.status == existing.status &&
+                note.displayTitle == existing.displayTitle &&
+                (note.hasLocation ||
+                    note.lastKnownLineNumber == existing.lastKnownLineNumber);
+            var updatedNote = preserveAnchor
+                ? note
+                      .copyWith(clearAnchor: true)
+                      .copyWith(
+                        anchorText: existing.anchorText,
+                        anchorPrefix: existing.anchorPrefix,
+                        anchorSuffix: existing.anchorSuffix,
+                        anchorStart: existing.anchorStart,
+                        anchorEnd: existing.anchorEnd,
+                      )
+                : note;
+            if (!hasPdfAnchor &&
+                existing.pdfAnchor != null &&
+                note.bookId == existing.bookId &&
+                note.lineNumber == existing.lineNumber &&
+                note.displayTitle == existing.displayTitle &&
+                note.status == existing.status &&
+                (note.hasLocation ||
+                    note.lastKnownLineNumber == existing.lastKnownLineNumber)) {
+              updatedNote = updatedNote.copyWith(pdfAnchor: existing.pdfAnchor);
+            }
+            await batch.updateNote(updatedNote);
+            updated++;
+            break;
+          case NotesImportConflictStrategy.keepBoth:
+            await batch.insertNote(note.copyWith(id: _generateId()));
+            duplicated++;
+            break;
+        }
       }
-    }
 
-    // קובץ מגרסה ישנה מחזיק הערות של ספר אישי תחת הכותרת בלבד.
-    if (inserted + updated + duplicated > 0) {
-      await _database.setUserBookKeysPending(true);
-    }
-    return NotesImportSummary(
-      inserted: inserted,
-      updated: updated,
-      skipped: skipped,
-      duplicated: duplicated,
-    );
+      // קובץ מגרסה ישנה מחזיק הערות של ספר אישי תחת הכותרת בלבד.
+      if (inserted + updated + duplicated > 0) {
+        await _database.setUserBookKeysPending(true);
+      }
+      return NotesImportSummary(
+        inserted: inserted,
+        updated: updated,
+        skipped: skipped,
+        duplicated: duplicated,
+      );
+    });
   }
 
   String _generateId() {

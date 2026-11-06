@@ -119,6 +119,58 @@ void main() {
     expect(await delivered(), ['תוספות']);
   });
 
+  test('איגוד הודעות מפרסם את הספרים רק אחרי הכתיבות', () async {
+    final result = await db.batchNotifications((batch) async {
+      await batch.insertNote(_note('1', bookId: 'א'));
+      await batch.updateNote(_note('1', bookId: 'א', content: 'עודכן'));
+      await batch.insertNote(_note('2', bookId: 'ב'));
+      expect(await delivered(), isEmpty);
+      expect((await db.getNote('1'))!.content, 'עודכן');
+      return 2;
+    });
+
+    expect(result, 2);
+    expect(await delivered(), ['א', 'ב']);
+  });
+
+  test('עדכון חסר באצוות הודעות שומר ומפרסם כתיבות קודמות', () async {
+    await expectLater(
+      db.batchNotifications((batch) async {
+        await batch.insertNote(_note('1', bookId: 'א'));
+        await batch.insertNote(_note('2', bookId: 'א'));
+        await batch.updateNote(_note('missing', bookId: 'ב'));
+      }),
+      throwsStateError,
+    );
+
+    expect(await delivered(), ['א']);
+    expect((await db.loadNotes('א')).map((note) => note.id), ['1', '2']);
+    expect(await db.getNote('missing'), isNull);
+  });
+
+  test('פעולה מקבילה אינה מצטרפת לאצוות הודעות ממתינה', () async {
+    final started = Completer<void>();
+    final resume = Completer<void>();
+    addTearDown(() {
+      if (!resume.isCompleted) resume.complete();
+    });
+    final batch = db.batchNotifications((batch) async {
+      await batch.insertNote(_note('1', bookId: 'א'));
+      started.complete();
+      await resume.future;
+      await batch.insertNote(_note('2', bookId: 'א'));
+    });
+    await started.future;
+    expect(await delivered(), isEmpty);
+
+    await db.insertNote(_note('3', bookId: 'ב'));
+    expect(await delivered(), ['ב']);
+    changes.clear();
+    resume.complete();
+    await batch;
+    expect(await delivered(), ['א']);
+  });
+
   test('הוספת אצווה מודיעה פעם אחת על כל ספר', () async {
     await db.batchInsertNotes([
       _note('1', bookId: 'רש"י'),
