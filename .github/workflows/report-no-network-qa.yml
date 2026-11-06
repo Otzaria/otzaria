@@ -22,13 +22,18 @@ jobs:
       CI: 'true'
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
-      PUB_CACHE: ${{ runner.temp }}/report-network-pub-cache
       REPORT_NETWORK_QA_OUTPUT: ${{ github.workspace }}/build/network-isolation-qa
       REPORT_NETWORK_QA_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Configure the package cache on the runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'PUB_CACHE=%s/report-network-pub-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - uses: subosito/flutter-action@v2
         with:
