@@ -1,0 +1,284 @@
+{
+  "testedCommit": "d1a05625b66536ac3c93267add80acf0b95b3987",
+  "testedTree": "0e1b560e0bbb9ccb138a47b8045e6f8c0e3fed07",
+  "workflowRun": 42221633238,
+  "jobId": 127904851355,
+  "artifactId": 13504970038,
+  "artifactName": "reporting-qa-d1a05625b66536ac3c93267add80acf0b95b3987",
+  "artifactSha256": "5efb6bf2c56c578b9a13425985483b0ef3036f5e78dd3ee996146c14f7e6fc52",
+  "artifactBytes": 1177413,
+  "workflowRunUrl": "https://github.com/Otzaria/otzaria/actions/runs/42221633238",
+  "artifactUrl": "https://github.com/Otzaria/otzaria/actions/runs/42221633238/artifacts/13504970038",
+  "testedCommitUrl": "https://github.com/Otzaria/otzaria/commit/d1a05625b66536ac3c93267add80acf0b95b3987",
+  "testCounts": {
+    "passed": 788,
+    "skipped": 1,
+    "failed": 0,
+    "countingRule": "testDone events with hidden=false; skipped excluded from passed"
+  },
+  "legacyGates": {
+    "releasedUpdaterV0280": {
+      "passed": 4,
+      "failed": 0
+    },
+    "legacyBackupClient": {
+      "passed": 5,
+      "failed": 0
+    },
+    "legacyWebsiteValidator": {
+      "losslessAccepted": 9,
+      "expectedSchema2Rejections": 4
+    }
+  },
+  "format": {
+    "files": 92,
+    "changed": 0
+  },
+  "catalogEntries": 1655,
+  "renderingContext": {
+    "renderer": "Flutter widget tests",
+    "hostPlatform": "linux",
+    "commit": "d1a05625b66536ac3c93267add80acf0b95b3987",
+    "dartVersion": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+    "fonts": [
+      "Roboto",
+      "Rubik",
+      "FrankRuhlCLM",
+      "bundled icon faces"
+    ],
+    "pixelRatio": 1.5,
+    "capture": "Actual reporting/settings widgets with temporary SQLite data",
+    "nativeWindowsRun": false
+  },
+  "renderingContextSha256": "3f5566a53fe97d8b3bc7a1ddd8acef32dedc568dccfd2cc195c40bdd907f05c8",
+  "images": [
+    {
+      "name": "book-queue-edit-low-en-context.png",
+      "path": "report-forms-qa/book-queue-edit-low-en-context.png",
+      "artifactPath": "report-forms-qa/book-queue-edit-low-en-context.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 79118,
+      "sha256": "6dfec7d401ea584530a80e59c72b592f4bc5c0ec35086370fcb68955353c465d",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "book-queue-edit-low-en-top.png",
+      "path": "report-forms-qa/book-queue-edit-low-en-top.png",
+      "artifactPath": "report-forms-qa/book-queue-edit-low-en-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 83045,
+      "sha256": "5d55c32f342760f357b98d8caa1daf952ce8e9fb31472841e4088873e63b3d01",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "book-report-low-en-details.png",
+      "path": "report-forms-qa/book-report-low-en-details.png",
+      "artifactPath": "report-forms-qa/book-report-low-en-details.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 76366,
+      "sha256": "08e208e47bf94450e42ec9c70ce039e2a9b75f9a7bc38bcb2e4c8b188e939b22",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "book-report-low-en-quote.png",
+      "path": "report-forms-qa/book-report-low-en-quote.png",
+      "artifactPath": "report-forms-qa/book-report-low-en-quote.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 92163,
+      "sha256": "a64cb81d40b91a0d06dd97591adad350f982e836055f513cfa325f673c97b8b6",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "book-report-low-he-details.png",
+      "path": "report-forms-qa/book-report-low-he-details.png",
+      "artifactPath": "report-forms-qa/book-report-low-he-details.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 67349,
+      "sha256": "e4cea2427ddb7a2247d6c01a8f1e445fc7dedcac298614d9af10e9554af47020",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "book-report-low-he-quote.png",
+      "path": "report-forms-qa/book-report-low-he-quote.png",
+      "artifactPath": "report-forms-qa/book-report-low-he-quote.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 72207,
+      "sha256": "5a35984085fbf917eb29578da83025ccf510ad288b7519eeb68750b104758624",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "settings-after-last-draft-removed-he.png",
+      "path": "report-forms-qa/settings-after-last-draft-removed-he.png",
+      "artifactPath": "report-forms-qa/settings-after-last-draft-removed-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "bytes": 31991,
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "settings-no-drafts-he.png",
+      "path": "report-forms-qa/settings-no-drafts-he.png",
+      "artifactPath": "report-forms-qa/settings-no-drafts-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "bytes": 31991,
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "settings-with-drafts-he.png",
+      "path": "report-forms-qa/settings-with-drafts-he.png",
+      "artifactPath": "report-forms-qa/settings-with-drafts-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "bytes": 87622,
+      "sha256": "f14eb6e7bd732edb16d97956e0973cae81d35c237ae9180c5e8992a4437cd56f",
+      "comparisonToB8": "changed"
+    },
+    {
+      "name": "software-queue-edit-low-en-attachments.png",
+      "path": "report-forms-qa/software-queue-edit-low-en-attachments.png",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-en-attachments.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 78353,
+      "sha256": "f121716ee68e2a784397e05cbbff571ab1e1b7638759c4abb7e60e2ca7f7688e",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "software-queue-edit-low-en-top.png",
+      "path": "report-forms-qa/software-queue-edit-low-en-top.png",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-en-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 82457,
+      "sha256": "ca02a2b95b5c9b45e9f659d8c282fe50624c131e14be3fc6c9c8d7d69c5e12a9",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "software-queue-edit-low-he-attachments.png",
+      "path": "report-forms-qa/software-queue-edit-low-he-attachments.png",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-he-attachments.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 62810,
+      "sha256": "bf4a5c2b1eaeb25fe4d49f6c5eceab8ef17ad43d30dfc6c824de137b557ee46d",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "software-queue-edit-low-he-top.png",
+      "path": "report-forms-qa/software-queue-edit-low-he-top.png",
+      "artifactPath": "report-forms-qa/software-queue-edit-low-he-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "bytes": 65469,
+      "sha256": "0a061a8fd1c0de9acd291d40eed96ea10d6022f9aa7ad4c46be0eea623e5a86b",
+      "comparisonToB8": "identical"
+    },
+    {
+      "name": "software-report-low-en-attachments.png",
+      "path": "report-forms-qa/software-report-low-en-attachments.png",
+      "artifactPath": "report-forms-qa/software-report-low-en-attachments.png",
+      "size": [
+        1650,
+        630
+      ],
+      "bytes": 86201,
+      "sha256": "12f2b6a42af5c5e4e72e011e9b940f6eb51623d5f5efca1237697786ba0c27f4",
+      "comparisonToB8": "new"
+    },
+    {
+      "name": "software-report-low-en-description.png",
+      "path": "report-forms-qa/software-report-low-en-description.png",
+      "artifactPath": "report-forms-qa/software-report-low-en-description.png",
+      "size": [
+        1650,
+        630
+      ],
+      "bytes": 72203,
+      "sha256": "7d13f3da1ca001c4cdb33662e3103b99de81257ab8b55ec3f129a02677861b17",
+      "comparisonToB8": "new"
+    },
+    {
+      "name": "software-report-low-en.png",
+      "path": "report-forms-qa/software-report-low-en.png",
+      "artifactPath": "report-forms-qa/software-report-low-en.png",
+      "size": [
+        1650,
+        630
+      ],
+      "bytes": 75847,
+      "sha256": "34b4dedf1b3efe550d49fc219761da94ad7aa620853be8e252dccaf1dfafd6b3",
+      "comparisonToB8": "changed"
+    }
+  ],
+  "comparison": {
+    "baselineCommit": "b8def1a76c8533eb8fcd80e35bf7ada81f4e6542",
+    "baselineArtifactId": 13502555639,
+    "identicalImages": 12,
+    "changedImages": [
+      {
+        "name": "settings-with-drafts-he.png",
+        "changedPixelBounds": [
+          1206,
+          477,
+          1251,
+          721
+        ]
+      },
+      {
+        "name": "software-report-low-en.png",
+        "changedPixelBounds": [
+          420,
+          380,
+          579,
+          383
+        ]
+      }
+    ],
+    "newImages": [
+      "software-report-low-en-attachments.png",
+      "software-report-low-en-description.png"
+    ],
+    "visualDifference": "Draft creation times changed from 12:23 to 13:03. The fresh English software form now uses English labels. Two new scroll positions expose the English description and attachment controls."
+  },
+  "visualReview": {
+    "reviewer": "merged_followup",
+    "imagesOpened": 16,
+    "result": "No material visual issue found. The draft section is present for two identifiable drafts and absent initially and after the last draft is removed. Hebrew RTL and English controls remain accessible through scrolling, with fixed action buttons in short windows. The phone reporting route remains visible. User-authored Hebrew text remains unchanged in the English form.",
+    "limits": "Actual production widgets rendered by Linux Flutter widget tests with temporary SQLite data and bundled fonts. These screenshots do not prove native Windows clipboard-history behavior."
+  }
+}
