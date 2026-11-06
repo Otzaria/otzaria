@@ -437,6 +437,28 @@ void main() {
       }
     });
 
+    test('BUSY בפתיחת מסד היעד אינו מפיל אותו עד סוף הבנייה', () {
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+      ]);
+      final writer = sqlite3.sqlite3.open(refsPath);
+      try {
+        writer.execute('BEGIN EXCLUSIVE');
+        expect(resolver.bookDatabase('official', _title), isNull);
+        writer.execute('ROLLBACK');
+        final hit = resolver.resolve(
+          targetSource: 'official',
+          targetTitle: _title,
+          targetRef: _ref,
+          targetLineIndex: null,
+        );
+        expect(hit?.lineIndex, 11);
+      } finally {
+        writer.close();
+        resolver.close();
+      }
+    });
+
     test('רק יעד רשמי מהימן (slug null) מקבל את הנוסח הכפוי', () {
       expect(
         sentSql(target('o', null, untrusted: false), 'official'),
