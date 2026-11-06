@@ -370,7 +370,8 @@ class PluginLazyActivationService {
     final readyGeneration = generation ?? activationGeneration(pluginId);
     bool stale() =>
         !_ownsRuntime(pluginId, runtimeToken) ||
-        !isActivationCurrent(pluginId, readyGeneration) ||
+        activationGeneration(pluginId) != readyGeneration ||
+        (generation != null && !isActivationCurrent(pluginId, generation)) ||
         (isCurrent != null && !isCurrent());
     if (stale()) return;
     _activating.remove(pluginId);
