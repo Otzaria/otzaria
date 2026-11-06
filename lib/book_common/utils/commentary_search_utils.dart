@@ -22,6 +22,7 @@ int countCommentarySearchMatches({
     _searchableText(content, displayProfile),
     query,
     partialWordMatch: partialWordMatch,
+    punctuationHidden: displayProfile.removePunctuation,
   );
 }
 
@@ -73,6 +74,7 @@ TargetRectResolver? commentarySearchMatchTarget({
       query,
       matchIndex,
       partialWordMatch: true,
+      punctuationHidden: displayProfile.removePunctuation,
     );
     // תוכן מוסתר או WidgetSpan עשויים לשנות את הספירה; אין לנחש אז מיקום.
     if (match == null || match.totalCount != count) return null;

@@ -35,22 +35,32 @@ String _collapse(String query) => utils
 }
 
 /// בודקת שהתאמה בטווח `[start, end)` של `text` עומדת בגבול המילה שהרווח
-/// בקצה דורש.
+/// בקצה דורש, ובשאילתה עם פיסוק — שהיא בתוך התאמה ליטרלית.
 typedef LiteralEdgeCheck = bool Function(String text, int start, int end);
 
-String? _edgeCheckQuery;
+(String, bool)? _edgeCheckKey;
 LiteralEdgeCheck? _edgeCheck;
 
 /// גבולות המילה של המנוע בקצוות של [query] שיש בהם רווח — אותם גבולות של
-/// [buildLiteralPattern]. `null` כשאין קצה מעוגן.
-LiteralEdgeCheck? literalEdgeCheck(String query) {
-  if (query == _edgeCheckQuery) return _edgeCheck;
-  final check = _buildEdgeCheck(query);
-  _edgeCheckQuery = query;
+/// [buildLiteralPattern]; בשאילתה עם פיסוק — הכלה בהתאמת [buildLiteralPattern].
+/// `null` כשאין קצה מעוגן ואין פיסוק. [punctuationHidden]: הטקסט המוצג בלי
+/// פיסוק, ולכן הפיסוק שבשאילתה אינו יכול להתאים בו.
+LiteralEdgeCheck? literalEdgeCheck(
+  String query, {
+  bool punctuationHidden = false,
+}) {
+  final key = (query, punctuationHidden);
+  if (key == _edgeCheckKey) return _edgeCheck;
+  final check = _buildEdgeCheck(query, punctuationHidden);
+  _edgeCheckKey = key;
   return _edgeCheck = check;
 }
 
-LiteralEdgeCheck? _buildEdgeCheck(String query) {
+LiteralEdgeCheck? _buildEdgeCheck(String query, bool punctuationHidden) {
+  if (!punctuationHidden &&
+      _punctuation.hasMatch(normalizeLiteralQuery(query))) {
+    return _insideLiteralMatchCheck(query);
+  }
   final edges = literalQueryWordEdges(query);
   if (!edges.start && !edges.end) return null;
   final source = _literalSource(normalizeLiteralQuery(query));
@@ -78,6 +88,42 @@ LiteralEdgeCheck? _buildEdgeCheck(String query) {
                   offsets.isEmpty ? end : offsets[end],
                 ) !=
                 null);
+  };
+}
+
+final RegExp _punctuation = RegExp(
+  '[^\\p{L}\\p{M}\\p{N}\\s\'"׳״‘’“”]',
+  unicode: true,
+);
+
+// תבנית ההדגשה מדלגת על פיסוק כמו `[א*]` ומתאימה לכל "א"; החיפוש דורש אותו.
+LiteralEdgeCheck? _insideLiteralMatchCheck(String query) {
+  final literal = buildLiteralPattern(query, wholeWord: false)?.regExp;
+  if (literal == null) return null;
+  String? previousText;
+  var context = (text: '', offsets: const <int>[]);
+  var found = const <RegExpMatch>[];
+  return (text, start, end) {
+    if (previousText != text) {
+      context = _visibleEdgeContext(text);
+      found = literal.allMatches(context.text).toList();
+      previousText = text;
+    }
+    final offsets = context.offsets;
+    final from = offsets.isEmpty ? start : offsets[start];
+    final to = offsets.isEmpty ? end : offsets[end];
+    // ההתאמות אינן חופפות ולכן ממוינות גם לפי סופן.
+    var low = 0;
+    var high = found.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (found[mid].end < to) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low < found.length && found[low].start <= from;
   };
 }
 

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 import '../support/search_engine_test_init.dart';
 import '../text_book/utils/literal_pattern_test_helper.dart';
@@ -300,6 +302,86 @@ Future<void> main() async {
         utils.computeHighlightRanges('אב ג', '/אב/', partialWordMatch: true),
         isNotEmpty,
       );
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
+
+  group('התאמה חלקית — פיסוק בשאילתה (issue #4349)', () {
+    test('ההדגשה מוגבלת להתאמות החיפוש הליטרלי', () {
+      const line = 'ואלו הן <b>סתמא</b> חייבין [א*] אז הן א';
+      final start = line.indexOf('[א*]') + 1;
+      expect(
+        buildLiteralPattern('[א*]', wholeWord: false)!.regExp.allMatches(line),
+        hasLength(1),
+      );
+      expect(
+        utils.computeHighlightRanges(line, '[א*]', partialWordMatch: true),
+        [
+          [start, start + 1],
+        ],
+      );
+      expect(utils.countMatches(line, '[א*]', partialWordMatch: true), 1);
+      final highlighted = utils.highLight(
+        line,
+        '[א*]',
+        partialWordMatch: true,
+      );
+      expect(highlighted, contains('ואלו'));
+      expect(highlighted, contains('סתמא'));
+    });
+
+    test('ההדגשה ליניארית: כל התאמה נבדקת בחיפוש בינארי', () {
+      final line = List.filled(3000, 'אבא אמר [א*] ואמא ').join();
+      final ranges = utils.computeHighlightRanges(
+        line,
+        '[א*]',
+        partialWordMatch: true,
+      );
+      expect(ranges, hasLength(3000));
+      expect({for (final r in ranges) line[r.first]}, {'א'});
+      expect(line[ranges.last.first - 1], '[');
+    });
+
+    test('כשהפיסוק מוסתר בתצוגה ההדגשה אינה דורשת אותו', () {
+      for (final (query, displayed) in [
+        ('בראשית.', 'בראשית ברא'),
+        ('?אמר', 'ויאמר משה'),
+        ('שמע, ישראל', 'שמע ישראל'),
+        ('אמר:', 'ויאמר משה'),
+      ]) {
+        final visible = utils.removePunctuation(displayed);
+        expect(
+          TextRendererService.processText(
+            visible,
+            RenderSettings(
+              searchText: query,
+              removePunctuation: true,
+              partialWordHighlight: true,
+            ),
+          ),
+          contains('color: red'),
+          reason: 'רינדור: "$query"',
+        );
+        expect(
+          utils.highLight(
+            visible,
+            query,
+            partialWordMatch: true,
+            punctuationHidden: true,
+          ),
+          contains('color: red'),
+          reason: '"$query"',
+        );
+        expect(
+          utils.countMatches(
+            visible,
+            query,
+            partialWordMatch: true,
+            punctuationHidden: true,
+          ),
+          greaterThan(0),
+          reason: 'מונה: "$query"',
+        );
+      }
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }
