@@ -1,6 +1,11 @@
 {
   "@@locale": "en",
   "@@comment": "קטלוג התרגום של מסך ההגדרות. המפתח הוא המקור העברי, כדי שחיפוש בקוד לפי מה שכתוב על המסך ימשיך למצוא את מקום השימוש. מפתח שנושא הקשר מופרד ב-'|'. הרץ dart run tool/generate_settings_l10n.dart אחרי עריכה.",
+  "משאבי אינדוקס": "Indexing resources",
+  "התאמה אוטומטית למחשב או בחירה במצב חסכוני": "Adapt automatically to this computer or choose economy mode",
+  "מתאים למעבד ולזיכרון הזמין בתחילת האינדוקס": "Adapts to the CPU and available memory when indexing starts",
+  "פחות זיכרון ועומס על המעבד; האינדוקס עשוי להימשך יותר זמן": "Uses less memory and CPU; indexing may take longer",
+  "הכנה מקבילית לפי יכולות המעבד": "Parallel preparation within the CPU budget",
   "הגדרות": "Settings",
   "ספר זה": "This Sefer",
   "ספר זה בשולחן": "Workspace Sefer",

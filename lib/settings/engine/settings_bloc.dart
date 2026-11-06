@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -53,6 +54,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateShowLocalHebrewBooks>(_onUpdateShowLocalHebrewBooks);
     on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
     on<UpdateIndexUpdateMode>(_onUpdateIndexUpdateMode);
+    on<UpdateIndexingResourceMode>(
+      _onUpdateIndexingResourceMode,
+      transformer: sequential(),
+    );
     on<UpdateTextDisplayPolicy>(_onUpdateTextDisplayPolicy);
     on<UpdateDefaultContinuousReadingMode>(
       _onUpdateDefaultContinuousReadingMode,
@@ -144,6 +149,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       showLocalHebrewBooks: settings['showLocalHebrewBooks'] ?? true,
       showExternalBooks: settings['showExternalBooks'],
       indexUpdateMode: settings['indexUpdateMode'],
+      indexingResourceMode:
+          settings['indexingResourceMode'] ?? IndexingResourceMode.automatic,
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
       defaultContinuousReadingMode:
           settings['defaultContinuousReadingMode'] ?? false,
@@ -502,6 +509,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateShowExternalBooks(event.showExternalBooks);
     emit(state.copyWith(showExternalBooks: event.showExternalBooks));
+  }
+
+  Future<void> _onUpdateIndexingResourceMode(
+    UpdateIndexingResourceMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateIndexingResourceMode(event.mode);
+    emit(state.copyWith(indexingResourceMode: event.mode));
   }
 
   Future<void> _onUpdateIndexUpdateMode(

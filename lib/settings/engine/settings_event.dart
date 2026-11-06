@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
@@ -167,6 +168,15 @@ class UpdateShowExternalBooks extends SettingsEvent {
 
   @override
   List<Object?> get props => [showExternalBooks];
+}
+
+class UpdateIndexingResourceMode extends SettingsEvent {
+  final IndexingResourceMode mode;
+
+  const UpdateIndexingResourceMode(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
 }
 
 class UpdateIndexUpdateMode extends SettingsEvent {

@@ -1,3 +1,7 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import '../../test_helpers/memory_cache_provider.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -65,6 +69,48 @@ void main() {
   });
 
   group('מצב אינדוקס חסכוני', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+    });
+
+    test(
+      'automatic resource choice is not persisted as a manual override',
+      () async {
+        final provider = _PauseProbeProvider();
+        final repository = IndexingRepository(
+          provider,
+          sampleResources: () async => const IndexingResourcePolicy(
+            cpuCount: 2,
+            mobile: false,
+            totalRamMb: 4096,
+          ),
+        );
+        await repository.prepareIndexingResources();
+        expect(provider.isEconomyIndexing, isTrue);
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyIndexingResourceMode),
+          isNull,
+        );
+
+        await repository.setEconomyIndexing(false);
+        final reopened = IndexingRepository(
+          provider,
+          sampleResources: () async => const IndexingResourcePolicy(
+            cpuCount: 2,
+            mobile: false,
+            totalRamMb: 4096,
+          ),
+        );
+        await reopened.prepareIndexingResources();
+        expect(provider.isEconomyIndexing, isFalse);
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyIndexingResourceMode),
+          'normal',
+        );
+        expect(provider.engineInstance.economyCalls, [true, false]);
+      },
+    );
+
     test('מעביר את הדגל למנוע ושומר אותו לריצות הבאות', () async {
       final provider = _PauseProbeProvider();
       final repository = IndexingRepository(provider);
@@ -90,6 +136,10 @@ void main() {
       );
 
       expect(repository.isEconomyIndexing, isFalse);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyIndexingResourceMode),
+        isNull,
+      );
     });
   });
 }

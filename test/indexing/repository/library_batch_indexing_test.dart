@@ -8,6 +8,7 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/models/index_commit_policy.dart';
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/indexing/utils/pending_reindex_store.dart';
@@ -22,6 +23,7 @@ import 'package:path/path.dart' as p;
 import '../../support/fake_line_source_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('IndexingRepository.engineBookSource', () {
     LibraryBookSource? source(
       Book book, {
@@ -380,6 +382,66 @@ void main() {
       expect(provider.indexedFilePaths, {'id:1', 'id:2', 'id:3'});
     });
 
+    test('ביטול בזמן דגימת משאבים אינו פותח writer או מתחיל אצווה', () async {
+      repository = _Repository(
+        provider,
+        sampleResources: () async {
+          repository.cancelIndexing();
+          return const IndexingResourcePolicy(cpuCount: 2, mobile: false);
+        },
+      );
+      final result = await repository.indexAllBooks(
+        libraryOf(officialBooks(2)),
+        onProgress: (_, _) {},
+      );
+
+      expect(result.cancelled, isTrue);
+      expect(engine.batches, isEmpty);
+      expect(engine.openWriterCalls, 0);
+    });
+
+    test('ביטול בזמן קבלת המנוע אינו מתחיל אצווה חדשה', () async {
+      final result = await repository.indexAllBooks(
+        libraryOf(officialBooks(2)),
+        onProgress: (_, _) {
+          provider.beforeEngine = () async => repository.cancelIndexing();
+        },
+      );
+
+      expect(result.cancelled, isTrue);
+      expect(engine.batches, isEmpty);
+      expect(engine.bytesFilePaths, isEmpty);
+      expect(engine.openWriterCalls, 0);
+    });
+
+    test('השהיה בזמן קבלת המנוע ממתינה להמשך לפני תחילת אצווה', () async {
+      var pausedOnce = false;
+      engine.duringBatch = (token, inputs) {
+        expect(repository.isPaused, isFalse);
+        expect(token.isCancelled, isFalse);
+        return inputs.length;
+      };
+      final result = await repository.indexAllBooks(
+        libraryOf(officialBooks(2)),
+        onProgress: (_, _) {
+          if (pausedOnce) return;
+          pausedOnce = true;
+          provider.beforeEngine = () async {
+            repository.pauseIndexing();
+            Future<void>.delayed(
+              const Duration(milliseconds: 20),
+              repository.resumeIndexing,
+            );
+          };
+        },
+      );
+
+      expect(result.completed, isTrue);
+      expect(engine.batches, [
+        ['id:1', 'id:2'],
+      ]);
+    });
+
     test('ביטול באמצע אצווה: מה שנוסף נחתם ונרשם, השאר לא נקרא', () async {
       final books = officialBooks(4);
       engine.duringBatch = (token, inputs) {
@@ -662,8 +724,16 @@ void main() {
   });
 }
 
+Future<IndexingResourcePolicy> _testResources() async =>
+    const IndexingResourcePolicy(
+      cpuCount: 8,
+      mobile: false,
+      totalRamMb: 8192,
+      availableRamMb: 4096,
+    );
+
 class _Repository extends IndexingRepository {
-  _Repository(super.provider);
+  _Repository(super.provider, {super.sampleResources = _testResources});
 
   final loadedTitles = <String>[];
 
@@ -706,10 +776,19 @@ class _FakeToken implements IndexingCancellationToken {
 }
 
 class _Provider implements TantivyDataProvider {
+  @override
+  bool isEconomyIndexing = false;
+
+  @override
+  Future<void> setEconomyIndexing(bool enabled) async {
+    isEconomyIndexing = enabled;
+  }
+
   _Provider(this._engine);
 
   final _BatchEngine _engine;
   int reopenCount = 0;
+  Future<void> Function()? beforeEngine;
 
   @override
   Future<bool> reopenIndex({bool force = false}) async {
@@ -737,7 +816,12 @@ class _Provider implements TantivyDataProvider {
   bool get requiresManualReindex => false;
 
   @override
-  Future<SearchEngine> get engine async => _engine;
+  Future<SearchEngine> get engine async {
+    final before = beforeEngine;
+    beforeEngine = null;
+    await before?.call();
+    return _engine;
+  }
 
   @override
   set engine(Future<SearchEngine> value) {}

@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:otzaria/data/book_identity.dart';
 // לתחזוקת חיבור הסיור המודרך למסך הראשי ראו:
 // docs/guided_tour_developer_guide.md
@@ -3224,8 +3225,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     onTogglePause: () => indexingBloc.add(
                       state.isPaused ? ResumeIndexing() : PauseIndexing(),
                     ),
-                    onToggleEconomy: () =>
-                        indexingBloc.add(SetEconomyIndexing(!state.isEconomy)),
+                    onToggleEconomy: () => context.read<SettingsBloc>().add(
+                      UpdateIndexingResourceMode(
+                        state.isEconomy
+                            ? IndexingResourceMode.normal
+                            : IndexingResourceMode.economy,
+                      ),
+                    ),
                     onTap: _openIndexingSettings,
                   ),
                 );

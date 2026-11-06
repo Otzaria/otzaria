@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -38,6 +39,7 @@ class SettingsRepository {
   /// מבחין בין "כל הספרים" ל"בלי ספרים אישיים"; ההפעלה עצמה נשמרת גם
   /// ב-[keyAutoUpdateIndex], שגרסאות קודמות קוראות.
   static const String keyIndexUpdateMode = 'key-index-update-mode';
+  static const String keyIndexingResourceMode = 'key-indexing-resource-mode';
   static const String keyDefaultNikud = 'key-default-nikud';
   static const String keyRemoveNikudFromTanach = 'key-remove-nikud-tanach';
   static const String keyDefaultRemovePunctuation =
@@ -266,6 +268,7 @@ class SettingsRepository {
     keyHolyNameStyle,
     keyAutoUpdateIndex,
     keyIndexUpdateMode,
+    keyIndexingResourceMode,
     keyDefaultNikud,
     keyRemoveNikudFromTanach,
     keyDefaultRemovePunctuation,
@@ -436,6 +439,9 @@ class SettingsRepository {
       'showExternalBooks': _settings.getValue<bool>(
         keyShowExternalBooks,
         defaultValue: false,
+      ),
+      'indexingResourceMode': IndexingResourceMode.fromStorage(
+        _settings.getValue<String>(keyIndexingResourceMode, defaultValue: ''),
       ),
       'indexUpdateMode': IndexUpdateMode.resolve(
         legacyEnabled: _settings.getValue<bool>(
@@ -735,6 +741,9 @@ class SettingsRepository {
   Future<void> updateShowExternalBooks(bool value) async {
     await _settings.setValue(keyShowExternalBooks, value);
   }
+
+  Future<void> updateIndexingResourceMode(IndexingResourceMode mode) =>
+      _settings.setValue(keyIndexingResourceMode, mode.name);
 
   Future<void> updateIndexUpdateMode(IndexUpdateMode mode) async {
     await _settings.setValue(keyAutoUpdateIndex, mode.isAutomatic);
@@ -1238,6 +1247,7 @@ class SettingsRepository {
     await _settings.setValue(keyShowExternalBooks, false);
     await updateTextDisplayPolicy(TextDisplayPolicy.empty);
     await updateIndexUpdateMode(IndexUpdateMode.all);
+    await updateIndexingResourceMode(IndexingResourceMode.automatic);
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);
