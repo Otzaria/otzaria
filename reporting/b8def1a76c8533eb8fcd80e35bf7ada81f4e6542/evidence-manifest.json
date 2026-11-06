@@ -1,0 +1,205 @@
+{
+  "testedCommit": "b8def1a76c8533eb8fcd80e35bf7ada81f4e6542",
+  "testedTree": "ca1d144a746f129a5cf4f7bef04fdc4279c56b8f",
+  "workflowRun": 42216520186,
+  "artifactId": 13502555639,
+  "artifactName": "reporting-qa-b8def1a76c8533eb8fcd80e35bf7ada81f4e6542",
+  "artifactSha256": "a335339fe3e675c7d1c1ff8a23c9ff20629b82de0580e9bd54e03271e7f2d666",
+  "artifactBytes": 1030048,
+  "workflowRunUrl": "https://github.com/Otzaria/otzaria/actions/runs/42216520186",
+  "artifactUrl": "https://github.com/Otzaria/otzaria/actions/runs/42216520186/artifacts/13502555639",
+  "testedCommitUrl": "https://github.com/Otzaria/otzaria/commit/b8def1a76c8533eb8fcd80e35bf7ada81f4e6542",
+  "testCounts": {
+    "passed": 788,
+    "skipped": 1,
+    "failed": 0,
+    "countingRule": "testDone events with hidden=false; skipped excluded from passed"
+  },
+  "renderingContext": {
+    "renderer": "Flutter widget tests",
+    "hostPlatform": "linux",
+    "commit": "b8def1a76c8533eb8fcd80e35bf7ada81f4e6542",
+    "dartVersion": "3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+    "fonts": [
+      "Roboto",
+      "Rubik",
+      "FrankRuhlCLM",
+      "bundled icon faces"
+    ],
+    "pixelRatio": 1.5,
+    "capture": "Actual reporting/settings widgets with temporary SQLite data",
+    "nativeWindowsRun": false
+  },
+  "renderingContextSha256": "503bc54acbfbf019c50c53edd38f70604a51cb85695c80bdecdff1261ba9c293",
+  "images": [
+    {
+      "name": "book-queue-edit-low-en-context.png",
+      "path": "report-forms-qa/book-queue-edit-low-en-context.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "6dfec7d401ea584530a80e59c72b592f4bc5c0ec35086370fcb68955353c465d",
+      "identicalToE7": true
+    },
+    {
+      "name": "book-queue-edit-low-en-top.png",
+      "path": "report-forms-qa/book-queue-edit-low-en-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "5d55c32f342760f357b98d8caa1daf952ce8e9fb31472841e4088873e63b3d01",
+      "identicalToE7": true
+    },
+    {
+      "name": "book-report-low-en-details.png",
+      "path": "report-forms-qa/book-report-low-en-details.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "08e208e47bf94450e42ec9c70ce039e2a9b75f9a7bc38bcb2e4c8b188e939b22",
+      "identicalToE7": true
+    },
+    {
+      "name": "book-report-low-en-quote.png",
+      "path": "report-forms-qa/book-report-low-en-quote.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "a64cb81d40b91a0d06dd97591adad350f982e836055f513cfa325f673c97b8b6",
+      "identicalToE7": true
+    },
+    {
+      "name": "book-report-low-he-details.png",
+      "path": "report-forms-qa/book-report-low-he-details.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "e4cea2427ddb7a2247d6c01a8f1e445fc7dedcac298614d9af10e9554af47020",
+      "identicalToE7": true
+    },
+    {
+      "name": "book-report-low-he-quote.png",
+      "path": "report-forms-qa/book-report-low-he-quote.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "5a35984085fbf917eb29578da83025ccf510ad288b7519eeb68750b104758624",
+      "identicalToE7": true
+    },
+    {
+      "name": "settings-after-last-draft-removed-he.png",
+      "path": "report-forms-qa/settings-after-last-draft-removed-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "identicalToE7": true
+    },
+    {
+      "name": "settings-no-drafts-he.png",
+      "path": "report-forms-qa/settings-no-drafts-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "sha256": "1ae55cc69b61e3021f6120c420ede922312253741b7ba954bf3203141e4c05fb",
+      "identicalToE7": true
+    },
+    {
+      "name": "settings-with-drafts-he.png",
+      "path": "report-forms-qa/settings-with-drafts-he.png",
+      "size": [
+        1650,
+        1140
+      ],
+      "sha256": "da2bf185f0a0a1456f6c4af1b4e96cd3f928e7c4186df80f9c75b57f5d3e857d",
+      "identicalToE7": false
+    },
+    {
+      "name": "software-queue-edit-low-en-attachments.png",
+      "path": "report-forms-qa/software-queue-edit-low-en-attachments.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "f121716ee68e2a784397e05cbbff571ab1e1b7638759c4abb7e60e2ca7f7688e",
+      "identicalToE7": true
+    },
+    {
+      "name": "software-queue-edit-low-en-top.png",
+      "path": "report-forms-qa/software-queue-edit-low-en-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "ca02a2b95b5c9b45e9f659d8c282fe50624c131e14be3fc6c9c8d7d69c5e12a9",
+      "identicalToE7": true
+    },
+    {
+      "name": "software-queue-edit-low-he-attachments.png",
+      "path": "report-forms-qa/software-queue-edit-low-he-attachments.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "bf4a5c2b1eaeb25fe4d49f6c5eceab8ef17ad43d30dfc6c824de137b557ee46d",
+      "identicalToE7": true
+    },
+    {
+      "name": "software-queue-edit-low-he-top.png",
+      "path": "report-forms-qa/software-queue-edit-low-he-top.png",
+      "size": [
+        1650,
+        540
+      ],
+      "sha256": "0a061a8fd1c0de9acd291d40eed96ea10d6022f9aa7ad4c46be0eea623e5a86b",
+      "identicalToE7": true
+    },
+    {
+      "name": "software-report-low-en.png",
+      "path": "report-forms-qa/software-report-low-en.png",
+      "size": [
+        1650,
+        630
+      ],
+      "sha256": "6a160e2a05c2075382c74ebab4f5ea420d232feb177b68a9ebd890a1960ea57d",
+      "identicalToE7": true
+    }
+  ],
+  "comparison": {
+    "baselineCommit": "e7c687fc997d726715b8857750a6d09c9a24424a",
+    "baselineArtifactId": 13498434119,
+    "byteIdenticalImages": 13,
+    "changedImage": "settings-with-drafts-he.png",
+    "changedPixelBounds": [
+      1206,
+      477,
+      1262,
+      721
+    ],
+    "changedPixelYBands": [
+      [
+        477,
+        489
+      ],
+      [
+        708,
+        720
+      ]
+    ],
+    "visualDifference": "Only creation-time digits in the two draft cards changed from 11:30 to 12:23; layout and text are unchanged."
+  },
+  "visualReview": {
+    "reviewer": "qa_retention",
+    "all14ImagesOpened": true,
+    "result": "No material visual regression found. Draft section is present for two identifiable drafts and absent both initially and after removing the last draft; Hebrew RTL and English controls remain accessible in low-height windows.",
+    "limits": "Real application widgets rendered by Linux Flutter widget tests with bundled fonts and temporary SQLite data. These images do not prove native Windows clipboard-history behavior."
+  }
+}
