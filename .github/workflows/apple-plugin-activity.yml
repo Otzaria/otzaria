@@ -1,0 +1,138 @@
+name: Apple installed plugin activity
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/apple-plugin-activity.yml'
+      - 'integration_test/apple_plugin_activity_probe_test.dart'
+      - 'integration_test/support/apple_plugin_activity_fixture.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'integration_test/support/webview_probe_window.dart'
+      - 'test_driver/apple_plugin_activity.dart'
+      - 'tool/perf_probe/apple_plugin_activity/**'
+      - 'test/tool/perf_probe/apple_plugin_activity_contract_test.dart'
+      - 'test/tool/perf_probe/perf_fixture_test.dart'
+      - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
+      - 'lib/app_scope/external_activation_service.dart'
+      - 'test/app_scope/external_activation_service_test.dart'
+      - 'lib/plugins/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-plugin-activity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Native source fallback prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Resolve exact dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Counter, identity and boundary controls
+        run: |
+          set -euo pipefail
+          node --test tool/perf_probe/apple_plugin_activity/test_fixture.mjs
+          python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
+          ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
+          flutter test --no-pub \
+            test/tool/perf_probe/apple_plugin_activity_contract_test.dart \
+            test/tool/perf_probe/perf_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
+            test/app_scope/external_activation_service_test.dart \
+            test/core/external_activation_channel_test.dart \
+            test/core/external_activation_queue_test.dart
+
+  actual-app:
+    name: Actual app (${{ matrix.platform }} ${{ matrix.mode }})
+    runs-on: macos-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            mode: profile
+          - platform: ios
+            mode: debug
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Native iOS Simulator source targets
+        if: matrix.platform == 'ios'
+        run: rustup target add aarch64-apple-ios-sim x86_64-apple-ios
+      - name: Resolve exact dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Select actual runtime
+        env:
+          PROBE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          if [ "$PROBE_PLATFORM" = macos ]; then
+            echo 'APPLE_PROBE_DEVICE=macos' >> "$GITHUB_ENV"
+          else
+            ruby -e 'require "xcodeproj"'
+            xcrun simctl list devices available --json > "$RUNNER_TEMP/apple-devices.json"
+            python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          data = json.loads(Path(os.environ['RUNNER_TEMP'], 'apple-devices.json').read_text())
+          candidates = [d for runtime, devices in data['devices'].items() if '.iOS-' in runtime
+                        for d in devices if d['name'].startswith('iPhone') and d.get('isAvailable', True)]
+          if not candidates:
+              raise SystemExit('No available iPhone simulator; do not substitute a fake background transition')
+          device = next((d for d in candidates if d['state'] == 'Booted'), candidates[0])
+          if device['state'] != 'Booted':
+              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('APPLE_PROBE_DEVICE=' + device['udid'] + '\n')
+          PY
+            open -a Simulator
+          fi
+      - name: Verify public identity and diagnose native macOS hide
+        if: matrix.platform == 'macos'
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/apple-helper-controls
+        run: python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_macos_controller.py' -v
+      - name: Run installed app hosts and quiet OS transitions
+        run: >-
+          python3 tool/perf_probe/apple_plugin_activity/run.py
+          --platform '${{ matrix.platform }}' --mode '${{ matrix.mode }}'
+          --device "$APPLE_PROBE_DEVICE" --seconds 12
+          --output '${{ runner.temp }}/apple-plugin-activity'
+      - name: Preserve completed and partial evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-plugin-activity-${{ matrix.platform }}-${{ matrix.mode }}
+          path: |
+            ${{ runner.temp }}/apple-plugin-activity/*.json
+            ${{ runner.temp }}/apple-plugin-activity/*.log
+            ${{ runner.temp }}/apple-plugin-activity/control/*.swift
+            ${{ runner.temp }}/apple-plugin-activity/control/Control.xcodeproj
+            ${{ runner.temp }}/apple-plugin-activity/control.xcresult
+            ${{ runner.temp }}/apple-helper-controls/*.json
+            ${{ runner.temp }}/apple-helper-controls/*.log
+            ${{ runner.temp }}/apple-helper-controls/*.swift
+          if-no-files-found: warn
+          retention-days: 14
