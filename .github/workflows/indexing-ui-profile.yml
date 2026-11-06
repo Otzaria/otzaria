@@ -21,8 +21,8 @@ jobs:
       run:
         shell: pwsh
     env:
-      BASELINE_SHA: 416bacc9c8a9fe481e1f320f96ac989d7cae1866
-      CANDIDATE_SHA: 1d2a58396220b960e02b06be351871cd7be7d561
+      BASELINE_SHA: b9a29933a7e1adaca3976370d4a5f8f0b5be3853
+      CANDIDATE_SHA: 02a82c14a0d7e88421995f19589f395083fa1424
       PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Validate the fixed source revisions
