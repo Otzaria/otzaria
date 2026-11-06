@@ -302,6 +302,31 @@ Future<void> main() async {
       );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
+
+  group('התאמה חלקית — פיסוק בשאילתה (issue #4349)', () {
+    test('ההדגשה מוגבלת להתאמות החיפוש הליטרלי', () {
+      const line = 'ואלו הן <b>סתמא</b> חייבין [א*] אז הן א';
+      final start = line.indexOf('[א*]') + 1;
+      expect(
+        buildLiteralPattern('[א*]', wholeWord: false)!.regExp.allMatches(line),
+        hasLength(1),
+      );
+      expect(
+        utils.computeHighlightRanges(line, '[א*]', partialWordMatch: true),
+        [
+          [start, start + 1],
+        ],
+      );
+      expect(utils.countMatches(line, '[א*]', partialWordMatch: true), 1);
+      final highlighted = utils.highLight(
+        line,
+        '[א*]',
+        partialWordMatch: true,
+      );
+      expect(highlighted, contains('ואלו'));
+      expect(highlighted, contains('סתמא'));
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }
 
 String _wordAt(String line, int offset) {
