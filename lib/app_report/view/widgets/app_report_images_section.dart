@@ -60,23 +60,9 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
   /// כדי שהדבקת טקסט לשדה תמשיך לעבוד.
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent || !widget.enabled) return false;
-    final historyPaste =
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.windows &&
-        event.logicalKey == LogicalKeyboardKey.keyV &&
-        event.physicalKey.usbHidUsage == 0x1600000000 &&
-        !event.synthesized;
-    if (!_isPasteShortcut(event) && !historyPaste) return false;
+    if (!_isPasteShortcut(event)) return false;
     if (!(ModalRoute.of(context)?.isCurrent ?? false)) return false;
     if (!AppWindowKeys.isActiveWindow(context)) return false;
-    // Win+V משחרר Ctrl לפני V בעל קוד פיזי לא ממופה (flutter/flutter#143997).
-    // רק במסלול הזה משלימים הדבקת טקסט; Ctrl+V רגיל נשאר בידי EditableText.
-    if (historyPaste && !HardwareKeyboard.instance.isControlPressed) {
-      final editor = _focusedEditor;
-      if (editor != null) {
-        unawaited(editor.pasteText(SelectionChangedCause.keyboard));
-      }
-    }
     unawaited(_paste());
     return false;
   }
