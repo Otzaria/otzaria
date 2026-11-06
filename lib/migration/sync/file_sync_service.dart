@@ -68,12 +68,17 @@ class FileSyncService {
   /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית (תמיד user_books.db).
   SeforimRepository get _customFoldersRepo => _userBooksRepository;
 
+  final bool _isWorker;
   bool _isSyncing = false;
 
   /// Progress callback for UI updates
   void Function(double progress, String message)? onProgress;
 
-  FileSyncService._(this._repository, this._userBooksRepository);
+  FileSyncService._(
+    this._repository,
+    this._userBooksRepository, {
+    this._isWorker = false,
+  });
 
   /// Get singleton instance.
   ///
@@ -98,7 +103,7 @@ class FileSyncService {
     SeforimRepository repository, {
     required SeforimRepository userBooksRepository,
   }) {
-    return FileSyncService._(repository, userBooksRepository);
+    return FileSyncService._(repository, userBooksRepository, isWorker: true);
   }
 
   /// מאפס את הסינגלטון. שימושי בעיקר בטסטים שיוצרים DB חדש בכל setUp
@@ -136,6 +141,7 @@ class FileSyncService {
       bookIds: bookIds,
       categoryIds: categoryIds,
       emptyCategoryRoots: emptyCategoryRoots,
+      useCurrentIsolate: _isWorker,
     );
     for (final (id, error) in result.failedBooks) {
       _log.warning('Failed to remove book $id, continuing: $error');

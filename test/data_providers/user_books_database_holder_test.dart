@@ -6,6 +6,10 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/off_ui_deletion.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/models/book.dart';
+import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -92,6 +96,90 @@ void main() {
       finish.completeError(StateError('read failed'));
       await Future.wait([failed, closing]);
       expect(holder.openDbPath, isNull);
+    });
+
+    Future<int> addBook(SeforimRepository repository) async {
+      final categoryId = await repository.insertCategory(
+        const Category(title: 'אישי'),
+      );
+      final sourceId = await repository.insertSource('personal', -1);
+      return repository.insertBook(
+        Book(
+          categoryId: categoryId,
+          sourceId: sourceId,
+          title: 'יישאר',
+          fileType: 'txt',
+        ),
+      );
+    }
+
+    test('close ממתין למחיקה ברקע ומשאיר את החיבור חי עד לסיומה', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final repository = await holder.repository;
+      final bookId = await addBook(repository);
+      final writer = sqlite3.open(repository.database.path);
+      writer.execute('BEGIN IMMEDIATE');
+      var closed = false;
+      var reachedCloseListeners = false;
+      var observing = true;
+      holder.addCloseListener(() {
+        if (observing) reachedCloseListeners = true;
+      });
+      final deletion = deleteOffUi(
+        repository,
+        bookIds: [bookId],
+        cleanupOrphans: false,
+      );
+      final closing = holder.close().then((_) => closed = true);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(closed, isFalse);
+        expect(reachedCloseListeners, isFalse);
+        expect(
+          repository.database.isOpen,
+          isTrue,
+          reason: 'retirement מתחיל רק אחרי שהחיבור הזמני סיים לכתוב',
+        );
+      } finally {
+        writer.execute('ROLLBACK');
+        writer.close();
+        await Future.wait([deletion, closing]);
+        observing = false;
+      }
+      expect((await holder.repository).getBook(bookId), completion(isNull));
+    });
+
+    test('מחיקה שמתחילה בזמן close מסורבת ואינה פותחת כותב', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final repository = await holder.repository;
+      final bookId = await addBook(repository);
+      final finish = Completer<void>();
+      final active = holder.trackRead(() => finish.future);
+      final closing = holder.close();
+      try {
+        await expectLater(
+          deleteOffUi(repository, bookIds: [bookId], cleanupOrphans: false),
+          throwsStateError,
+        );
+        expect(await repository.getBook(bookId), isNotNull);
+      } finally {
+        finish.complete();
+        await Future.wait([active, closing]);
+      }
+    });
+
+    test('repository פרוש אינו מוחק ספרים מהמסד שנפתח מחדש', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final repository = await holder.repository;
+      final bookId = await addBook(repository);
+      await holder.close();
+      final reopened = await holder.repository;
+      await expectLater(
+        deleteOffUi(repository, bookIds: [bookId], cleanupOrphans: false),
+        throwsStateError,
+      );
+      expect(await reopened.getBook(bookId), isNotNull);
+      expect(repository.database.isOpen, isFalse);
     });
 
     test('close ממתין לאתחול שכבר התחיל ולא משאיר חיבור פתוח', () async {
@@ -270,10 +358,7 @@ void main() {
 
         final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
 
-        expect(
-          dbPath,
-          path.join(tempDir.path, 'databases', 'user_books.db'),
-        );
+        expect(dbPath, path.join(tempDir.path, 'databases', 'user_books.db'));
       },
     );
 
@@ -294,10 +379,7 @@ void main() {
 
       final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
 
-      expect(
-        dbPath,
-        path.join(libraryRoot.path, 'databases', 'user_books.db'),
-      );
+      expect(dbPath, path.join(libraryRoot.path, 'databases', 'user_books.db'));
     });
 
     test(
