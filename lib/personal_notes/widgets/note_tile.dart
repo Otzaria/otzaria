@@ -124,6 +124,7 @@ class _NoteTileState extends State<NoteTile> {
   }
 
   void _finishSave() {
+    if (!mounted) return;
     setState(() {
       _draftContent = null;
       _draftFormat = null;
