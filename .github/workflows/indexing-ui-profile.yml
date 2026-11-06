@@ -1,4 +1,4 @@
-name: Indexing UI source cleanliness probe
+name: Indexing UI profile comparison
 
 on:
   pull_request:
@@ -13,26 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  source-probe:
-    name: Diagnose Windows checkout and dependency generation
+  paired-profile:
+    name: Baseline and candidate on one Windows runner
     runs-on: windows-2025
-    timeout-minutes: 15
+    timeout-minutes: 100
     defaults:
       run:
         shell: pwsh
     env:
-      BASELINE_SHA: 0006cf887aff520675dc49e6d4737f1b04eb3af6
-      CANDIDATE_SHA: e389e714d35fbfc2d7ad7023a1247a78b9d99fcf
+      BASELINE_SHA: 416bacc9c8a9fe481e1f320f96ac989d7cae1866
+      CANDIDATE_SHA: 1d2a58396220b960e02b06be351871cd7be7d561
+      PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Prepare diagnostic output and long paths
+      - name: Validate the fixed source revisions
         run: |
+          foreach ($revision in @($env:BASELINE_SHA, $env:CANDIDATE_SHA)) {
+            if ($revision -notmatch '^[0-9a-f]{40}$') {
+              throw 'Both source revisions must be full commit SHAs.'
+            }
+          }
           git config --global core.longpaths true
-          if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not enable Git long paths.'
+          }
           git config --global core.autocrlf false
-          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve LF source checkouts.' }
-          $probeRoot = Join-Path $env:RUNNER_TEMP 'indexing-ui-source-probe'
-          New-Item -ItemType Directory -Path $probeRoot | Out-Null
-          "PROBE_ROOT=$probeRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not preserve LF source checkouts.'
+          }
+          $pairRoot = Join-Path $env:RUNNER_TEMP 'indexing-ui-profile'
+          "PAIR_ROOT=$pairRoot" | Add-Content -LiteralPath $env:GITHUB_ENV
+          New-Item -ItemType Directory -Path $pairRoot | Out-Null
 
       - name: Check out the baseline
         uses: actions/checkout@v7.0.1
@@ -57,54 +67,185 @@ jobs:
           flutter-version: 3.47.7
           cache: true
 
-      - name: Inspect source before and after pinned dependency resolution
+      - name: Install Rust for native source builds
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate fixture controls before measuring
+        timeout-minutes: 25
+        working-directory: candidate
         run: |
-          function Save-SourceState([string]$Side, [string]$Stage) {
-            $checkoutPath = Join-Path $env:GITHUB_WORKSPACE $Side
-            $prefix = Join-Path $env:PROBE_ROOT "$Side-$Stage"
-            & git -C $checkoutPath rev-parse HEAD | Set-Content "$prefix-head.txt"
-            $sourceStatus = (& git -C $checkoutPath status --porcelain=v1 --untracked-files=all | Out-String)
-            $statusExitCode = $LASTEXITCODE
-            Set-Content -LiteralPath "$prefix-status.txt" -Value $sourceStatus
-            if ($statusExitCode -ne 0) { throw "Cannot inspect $Side source status." }
-            & git -C $checkoutPath diff --no-ext-diff --raw | Set-Content "$prefix-raw.txt"
-            & git -C $checkoutPath diff --no-ext-diff --numstat | Set-Content "$prefix-numstat.txt"
-            & git -C $checkoutPath diff --no-ext-diff | Set-Content "$prefix-diff.patch"
-            & git -C $checkoutPath diff --cached --no-ext-diff | Set-Content "$prefix-staged.patch"
-            & git -C $checkoutPath config --show-origin --get-regexp 'core\.(autocrlf|eol|filemode)' | Set-Content "$prefix-config.txt"
-            if ($LASTEXITCODE -gt 1) { throw "Cannot inspect $Side Git settings." }
+          $validationRoot = Join-Path $env:PAIR_ROOT 'validation'
+          New-Item -ItemType Directory -Path $validationRoot | Out-Null
+          & flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency resolution failed.' }
+          & dart format --output=none --set-exit-if-changed integration_test/perf_resource_probe_test.dart integration_test/support/perf_fixture.dart integration_test/support/perf_reader_scroll.dart test/tool/perf_probe/perf_fixture_test.dart test/tool/perf_probe/perf_reader_scroll_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Probe formatting is not canonical.' }
+          & flutter analyze --no-pub 2>&1 | Tee-Object -FilePath (Join-Path $validationRoot 'analyze.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Probe candidate analysis failed.' }
+
+          $fixturePath = Join-Path $PWD 'integration_test/support/perf_fixture.dart'
+          $original = [IO.File]::ReadAllText($fixturePath)
+          $originalHash = (Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash
+          $marker = "(?m)^[ \t]*'settings_initialized': true,\r?\n"
+          if ([regex]::Matches($original, $marker).Count -ne 1) {
+            throw 'Expected exactly one fixture initialization marker.'
           }
-          foreach ($side in @('baseline', 'candidate')) {
-            Save-SourceState $side 'before-pub'
-            Push-Location (Join-Path $env:GITHUB_WORKSPACE $side)
-            try {
-              & flutter pub get --enforce-lockfile 2>&1 | Tee-Object -FilePath (Join-Path $env:PROBE_ROOT "$side-pub.log")
-              $pubExitCode = $LASTEXITCODE
-            } finally {
-              Pop-Location
-              Save-SourceState $side 'after-pub'
+          $negativeLog = Join-Path $validationRoot 'fixture-negative.jsonl'
+          try {
+            [IO.File]::WriteAllText($fixturePath, [regex]::Replace($original, $marker, ''), [Text.UTF8Encoding]::new($false))
+            & flutter test --no-pub --reporter json --plain-name 'application settings loading preserves the prepared fixture' test/tool/perf_probe/perf_fixture_test.dart 2>&1 | Tee-Object -FilePath $negativeLog
+            $negativeExitCode = $LASTEXITCODE
+          } finally {
+            [IO.File]::WriteAllText($fixturePath, $original, [Text.UTF8Encoding]::new($false))
+          }
+          if ((Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash -ne $originalHash) {
+            throw 'The original fixture bytes were not restored.'
+          }
+          $events = @(
+            foreach ($line in [IO.File]::ReadLines($negativeLog)) {
+              if (-not $line.TrimStart().StartsWith('{')) { continue }
+              try { $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
             }
-            if ($pubExitCode -ne 0) { throw "Pinned dependency resolution failed for $side." }
+          )
+          $errors = @($events | Where-Object { $_.type -eq 'error' })
+          $expected = @($errors | Where-Object {
+            $_.error -like '*Prepared fixture font was overwritten by first-run defaults.*' -and
+            $_.error -like '*NotoSerifHebrew*' -and $_.error -like '*FrankRuhlCLM*'
+          })
+          $done = @($events | Where-Object { $_.type -eq 'done' -and $_.success -eq $false })
+          if ($negativeExitCode -eq 0 -or $errors.Count -ne 1 -or $expected.Count -ne 1 -or $done.Count -ne 1) {
+            throw 'The negative control did not complete with the expected font assertion.'
+          }
+          & flutter test --no-pub --reporter expanded test/tool/perf_probe/perf_fixture_test.dart test/tool/perf_probe/perf_reader_scroll_test.dart 2>&1 | Tee-Object -FilePath (Join-Path $validationRoot 'fixture-positive.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Corrected probe controls failed.' }
+          $sourceStatus = (& git status --porcelain=v1 --untracked-files=all | Out-String)
+          if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($sourceStatus)) {
+            throw "Validation left an unverified source tree: $sourceStatus"
+          }
+
+      - name: Measure the baseline
+        timeout-minutes: 35
+        working-directory: baseline
+        run: |
+          ./tool/perf_probe/run_perf_probe.ps1 -Mode profile -CacheState cold `
+            -Warmup 1 -Repetitions 3 -Launches 2 -TimeoutSeconds 300 `
+            -HardwareId $env:PAIR_HARDWARE_ID `
+            -OutputDirectory (Join-Path $env:PAIR_ROOT 'baseline')
+          exit $LASTEXITCODE
+
+      - name: Record baseline binaries and free completed build artifacts
+        run: |
+          $sourceRoot = Join-Path $env:PAIR_ROOT 'source'
+          New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
+          $buildRoot = Join-Path $env:GITHUB_WORKSPACE 'baseline/build/windows/x64/runner/Profile'
+          $binaries = @(Get-ChildItem -LiteralPath $buildRoot -Recurse -File | Where-Object {
+            $_.Name -match 'search_engine.*\.dll$|^app\.so$|^otzaria\.exe$|^native_assets\.json$'
+          } | ForEach-Object {
+            [ordered]@{ path = [IO.Path]::GetRelativePath($buildRoot, $_.FullName); bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+          })
+          ConvertTo-Json -InputObject $binaries -Depth 5 | Set-Content -LiteralPath (Join-Path $sourceRoot 'baseline-binaries.json')
+          foreach ($relative in @('baseline/build', 'baseline/.dart_tool/hooks_runner/shared')) {
+            $ownedPath = Join-Path $env:GITHUB_WORKSPACE $relative
+            if (Test-Path -LiteralPath $ownedPath) {
+              Remove-Item -LiteralPath $ownedPath -Recurse -Force
+            }
+          }
+
+      - name: Measure and compare the candidate
+        timeout-minutes: 35
+        working-directory: candidate
+        run: |
+          ./tool/perf_probe/run_perf_probe.ps1 -Mode profile -CacheState cold `
+            -Warmup 1 -Repetitions 3 -Launches 2 -TimeoutSeconds 300 `
+            -HardwareId $env:PAIR_HARDWARE_ID `
+            -OutputDirectory (Join-Path $env:PAIR_ROOT 'candidate') `
+            -Baseline (Join-Path $env:PAIR_ROOT 'baseline')
+          exit $LASTEXITCODE
+
+      - name: Preserve source and native identity evidence
+        if: always()
+        run: |
+          $sourceRoot = Join-Path $env:PAIR_ROOT 'source'
+          New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
+          foreach ($side in @('baseline', 'candidate')) {
+            $checkoutPath = Join-Path $env:GITHUB_WORKSPACE $side
+            if (-not (Test-Path -LiteralPath (Join-Path $checkoutPath '.git'))) { continue }
+            & git -C $checkoutPath rev-parse HEAD | Set-Content -LiteralPath (Join-Path $sourceRoot "$side-head.txt")
+            $sourceStatus = (& git -C $checkoutPath status --porcelain=v1 --untracked-files=all | Out-String)
+            Set-Content -LiteralPath (Join-Path $sourceRoot "$side-status.txt") -Value $sourceStatus
+            & git -C $checkoutPath diff --no-ext-diff | Set-Content -LiteralPath (Join-Path $sourceRoot "$side-diff.patch")
+            & git -C $checkoutPath config --show-origin --get-regexp 'core\.(autocrlf|eol|filemode)' | Set-Content -LiteralPath (Join-Path $sourceRoot "$side-git-config.txt")
+            $buildRoot = Join-Path $checkoutPath 'build/windows/x64/runner/Profile'
+            if (Test-Path -LiteralPath $buildRoot) {
+              $binaries = @(Get-ChildItem -LiteralPath $buildRoot -Recurse -File | Where-Object {
+                $_.Name -match 'search_engine.*\.dll$|^app\.so$|^otzaria\.exe$|^native_assets\.json$'
+              } | ForEach-Object {
+                [ordered]@{ path = [IO.Path]::GetRelativePath($buildRoot, $_.FullName); bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+              })
+              ConvertTo-Json -InputObject $binaries -Depth 5 | Set-Content -LiteralPath (Join-Path $sourceRoot "$side-binaries.json")
+            }
           }
           exit 0
 
-      - name: Identify the scope of this diagnostic run
+      - name: Summarize measurement coverage
         if: always()
         run: |
-          @(
-            '## Windows source cleanliness diagnostic',
+          $comparisonFailure = $false
+          $summary = @(
+            '## Indexing UI profile observations',
             '',
-            'This run only inspects source status before and after pinned dependency resolution.',
-            'No application build or performance measurement was attempted.',
-            'The original comparison failed before search.while_indexing; its partial data are not a valid comparison.',
-            'The performance runner and its dirty-worktree rejection are unchanged.'
-          ) -join "`n" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+            'Each side requests 2 launches with 3 measured repetitions and 1 warmup per launch.',
+            'A completed search without confirmed indexing overlap remains skipped.',
+            '',
+            '| Side | Search status | Measured | Skipped | Frames | Truncated iterations |',
+            '|---|---|---:|---:|---:|---:|'
+          )
+          foreach ($side in @('baseline', 'candidate')) {
+            $reportPath = Join-Path $env:PAIR_ROOT "$side/report.json"
+            if (-not (Test-Path -LiteralPath $reportPath)) {
+              $summary += "| $side | report unavailable | — | — | — | — |"
+              Write-Warning "$side report is unavailable; inspect the partial logs."
+              continue
+            }
+            $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+            $search = $report.scenarios | Where-Object { $_.name -eq 'search.while_indexing' } | Select-Object -First 1
+            if ($null -eq $search) {
+              $summary += "| $side | search scenario unavailable | — | — | — | — |"
+              Write-Warning "$side has no search.while_indexing observation."
+              continue
+            }
+            $summary += "| $side | $($search.status) | $($search.measured) | $($search.skipped) | $($search.frames.count) | $($search.frames.truncatedIterations) |"
+            if ($search.measured -lt 6 -or $search.frames.count -eq 0 -or $search.frames.truncatedIterations -gt 0) {
+              Write-Warning "$side has incomplete search/frame coverage; no observations are fabricated or retried."
+            }
+            if ($side -eq 'candidate' -and $null -ne $report.comparison) {
+              $comparison = $report.comparison
+              if (-not $comparison.comparable) { $comparisonFailure = $true }
+              $row = $comparison.scenarios | Where-Object { $_.name -eq 'search.while_indexing' } | Select-Object -First 1
+              $summary += "`nReport comparison eligible: $($comparison.comparable). Search comparison: $($row.status)."
+              if ($comparison.reasons.Count -gt 0) {
+                $summary += "Reasons: $($comparison.reasons -join '; ')."
+              }
+            }
+          }
+          $summary += @(
+            '',
+            'Skipped reasons and raw frame observations are retained in phases.jsonl.',
+            'The existing analyzer omits frame percentiles when collection is truncated.',
+            'No timing thresholds are applied. With at most 6 latency samples, p95/p99 are not stable tail estimates.',
+            'This scenario does not measure scrolling during indexing, internal queue bytes, or engine/DB worker counts.',
+            'Cold means fresh application data; operating-system caches are not cleared.'
+          )
+          $summary -join "`n" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          if ($comparisonFailure) { throw 'The completed reports do not qualify for comparison.' }
 
-      - name: Upload source diagnostics
+      - name: Upload reports and partial observations
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: indexing-ui-source-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          name: indexing-ui-profile-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 14
           if-no-files-found: warn
-          path: ${{ runner.temp }}/indexing-ui-source-probe/**
+          path: |
+            ${{ runner.temp }}/indexing-ui-profile/**
+            !${{ runner.temp }}/indexing-ui-profile/*/data/**

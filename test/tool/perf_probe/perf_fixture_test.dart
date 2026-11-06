@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
@@ -90,5 +94,28 @@ void main() {
     );
     expect(await sentinel.readAsString(), 'untouched');
     expect(await root.list().length, 1);
+  });
+
+  test('application settings loading preserves the prepared fixture', () async {
+    final fixture = PerfFixture(Directory(p.join(temp.path, 'settings')));
+    await fixture.prepare(preparationOnly: true);
+    await Settings.init(cacheProvider: HiveCache());
+
+    final loaded = await SettingsRepository().loadSettings();
+
+    expect(
+      loaded['fontFamily'],
+      'NotoSerifHebrew',
+      reason: 'Prepared fixture font was overwritten by first-run defaults.',
+    );
+    expect(loaded['fontSize'], 22.0);
+    expect(loaded['indexUpdateMode'], IndexUpdateMode.off);
+    expect(loaded['softwareAndBookUpdatesEnabled'], isFalse);
+    expect(loaded['showLocalHebrewBooks'], isFalse);
+    expect(Settings.getValue<bool>(SettingsRepository.keyOfflineMode), isTrue);
+    expect(
+      Settings.getValue<String>(SettingsRepository.keyAppCrashReportMode),
+      'never',
+    );
   });
 }
