@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -15,28 +18,28 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
-/// עמודת כרטיסיות העיון שבין סרגל הניווט לתוכן המסך.
-///
-/// חייבת להישאר ילד קבוע ב-Row של המסך הראשי: היעלמות מהעץ בונה מחדש את
-/// ה-PageView ומאבדת את ה-State של הכרטיסיות. לכן ההסתרה היא רוחב מונפש ל-0.
+/// עמודת כרטיסיות קבועה מעל התוכן; ריחוף אינו משנה את המקום השמור לצדה.
 class ReadingTabsSidePanel extends StatefulWidget {
   final bool show;
+  final Widget child;
 
-  const ReadingTabsSidePanel({super.key, required this.show});
+  const ReadingTabsSidePanel({
+    super.key,
+    required this.show,
+    required this.child,
+  });
 
   @override
   State<ReadingTabsSidePanel> createState() => _ReadingTabsSidePanelState();
 }
 
 class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
-  /// הרוחב בזמן גרירה בלבד — האירוע ל-Bloc נשלח רק בסופה, כדי לא לשמור
-  /// בהגדרות בכל תזוזת מצביע.
-  ///
-  /// [ValueNotifier] ולא שדה שנקרא ב-build: שני אירועי תזוזה באותו פריים קוראים
-  /// את הערך המעודכן, אחרת הדלתא הראשונה נמחקת והעמודה מפגרת אחרי הסמן.
+  /// ערך חי מונע אובדן דלתאות באותו פריים; ההגדרה נשמרת רק בסיום גרירה.
   final ValueNotifier<double?> _draggingWidth = ValueNotifier(null);
-
-  /// לא בונים את תוכן העמודה לפני שהוצגה לראשונה.
+  final Set<int> _pressedPointers = {};
+  Timer? _hoverTimer;
+  bool _hovered = false;
+  bool _hoverExpanded = false;
   bool _everShown = false;
 
   @override
@@ -49,12 +52,36 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
   void didUpdateWidget(ReadingTabsSidePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.show && !_everShown) _everShown = true;
+    if (!widget.show) {
+      _hoverTimer?.cancel();
+      _hovered = false;
+      _hoverExpanded = false;
+      _pressedPointers.clear();
+    }
   }
 
   @override
   void dispose() {
+    _hoverTimer?.cancel();
     _draggingWidth.dispose();
     super.dispose();
+  }
+
+  void _updateHover() {
+    _hoverTimer?.cancel();
+    if (!mounted || !widget.show || _pressedPointers.isNotEmpty) return;
+    final expand =
+        _hovered &&
+        context.read<SettingsBloc>().state.readingTabsColumnCollapsed;
+    if (_hoverExpanded == expand) return;
+    _hoverTimer = Timer(AppTokens.animNormal, () {
+      if (mounted) setState(() => _hoverExpanded = expand);
+    });
+  }
+
+  void _onPointerReleased(PointerEvent event) {
+    _pressedPointers.remove(event.pointer);
+    _updateHover();
   }
 
   void _onDragStart(double current) => _draggingWidth.value = current;
@@ -89,27 +116,101 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
 
     return ValueListenableBuilder<double?>(
       valueListenable: _draggingWidth,
-      builder: (context, dragging, _) {
-        final width = collapsed
-            ? kCollapsedTabsColumnWidth
-            : (dragging ?? savedWidth);
+      child: widget.child,
+      builder: (context, dragging, child) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final expandedWidth = (dragging ?? savedWidth).clamp(
+              0.0,
+              constraints.maxWidth,
+            );
+            final floating = collapsed && _hoverExpanded;
+            final visuallyCollapsed = collapsed && !floating;
+            final width = visuallyCollapsed
+                ? kCollapsedTabsColumnWidth
+                : expandedWidth;
+            final reservedWidth = collapsed
+                ? kCollapsedTabsColumnWidth
+                : expandedWidth;
+            final duration = dragging == null
+                ? AppTokens.animPanelSlide
+                : Duration.zero;
 
-        return AnimatedContainer(
-          // בזמן גרירת הידית הרוחב עוקב אחרי הסמן מיידית; ההנפשה שמורה
-          // להצגה/הסתרה ולכיווץ.
-          duration: dragging == null ? AppTokens.animPanelSlide : Duration.zero,
-          curve: Curves.easeInOut,
-          width: widget.show ? width : 0,
-          child: ClipRect(
-            child: OverflowBox(
-              minWidth: 0,
-              maxWidth: width,
-              alignment: AlignmentDirectional.centerStart,
-              child: _everShown
-                  ? _buildContent(context, width: width, collapsed: collapsed)
-                  : const SizedBox.shrink(),
-            ),
-          ),
+            return Stack(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AnimatedContainer(
+                      duration: duration,
+                      curve: Curves.easeInOut,
+                      width: widget.show ? reservedWidth : 0,
+                    ),
+                    Expanded(child: child!),
+                  ],
+                ),
+                // העמודה והתוכן נשארים באותם סלוטים גם בהסתרה ובנעיצה.
+                PositionedDirectional(
+                  start: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    ignoring: !widget.show,
+                    child: ExcludeFocus(
+                      excluding: !widget.show,
+                      child: ExcludeSemantics(
+                        excluding: !widget.show,
+                        child: MouseRegion(
+                          onEnter: (event) {
+                            if (event.kind != PointerDeviceKind.mouse) return;
+                            _hovered = true;
+                            _updateHover();
+                          },
+                          onExit: (event) {
+                            if (event.kind != PointerDeviceKind.mouse) return;
+                            _hovered = false;
+                            _updateHover();
+                          },
+                          child: Listener(
+                            onPointerDown: (event) {
+                              _pressedPointers.add(event.pointer);
+                              _hoverTimer?.cancel();
+                            },
+                            onPointerUp: _onPointerReleased,
+                            onPointerCancel: _onPointerReleased,
+                            child: AnimatedContainer(
+                              duration: duration,
+                              curve: Curves.easeInOut,
+                              width: widget.show ? width : 0,
+                              child: Material(
+                                color: AppSurfaces.panelBackground(context),
+                                elevation: floating ? AppTokens.elevation2 : 0,
+                                child: ClipRect(
+                                  child: OverflowBox(
+                                    minWidth: width,
+                                    maxWidth: width,
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: _everShown
+                                        ? _buildContent(
+                                            context,
+                                            width: width,
+                                            collapsed: visuallyCollapsed,
+                                            savedCollapsed: collapsed,
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -119,6 +220,7 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
     BuildContext context, {
     required double width,
     required bool collapsed,
+    required bool savedCollapsed,
   }) {
     return SizedBox(
       width: width,
@@ -129,8 +231,12 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
           children: [
             Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildHeader(context, collapsed: collapsed),
+                  _buildHeader(
+                    context,
+                    collapsed: savedCollapsed,
+                  ),
                   const Divider(height: 1),
                   Expanded(
                     child: KeyedSubtree(
@@ -144,10 +250,7 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
                 ],
               ),
             ),
-            // ידית שינוי הרוחב יושבת בקצה הפנימי (שמאל ב-RTL). במצב מכווץ
-            // הרוחב קבוע, ולכן הידית אינה נבנית כלל — אחרת היא גוזלת מרוחב
-            // העמודה הצרה ומזיזה את האייקונים מהמרכז.
-            if (!collapsed)
+            if (!savedCollapsed)
               ResizableDragHandle(
                 isVertical: true,
                 showDivider: true,
@@ -161,9 +264,10 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
     );
   }
 
-  /// שורת הכפתורים שבראש העמודה. במצב מכווץ אין מקום לשני כפתורים זה לצד זה,
-  /// ולכן הם נערמים זה מעל זה — וחיפוש הכרטיסיות נשאר נגיש.
-  Widget _buildHeader(BuildContext context, {required bool collapsed}) {
+  Widget _buildHeader(
+    BuildContext context, {
+    required bool collapsed,
+  }) {
     return ListenableBuilder(
       listenable: PluginNewTabPageRegistry.instance,
       builder: (context, _) {
@@ -185,7 +289,15 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
         if (collapsed) {
           return Column(
             mainAxisSize: MainAxisSize.min,
-            children: [for (final button in buttons) Center(child: button)],
+            crossAxisAlignment: CrossAxisAlignment.start,
+            // הכפתורים נשארים במקומם בריחוף, וכך גם הכרטיסיה שמתחת לסמן.
+            children: [
+              for (final button in buttons)
+                SizedBox(
+                  width: kCollapsedTabsColumnWidth,
+                  child: Center(child: button),
+                ),
+            ],
           );
         }
         return SizedBox(
@@ -211,9 +323,16 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
             ? FluentIcons.panel_left_24_regular
             : FluentIcons.panel_right_24_regular,
       ),
-      onPressed: () => context.read<SettingsBloc>().add(
-        UpdateReadingTabsColumnCollapsed(!collapsed),
-      ),
+      onPressed: () {
+        if (!collapsed) {
+          _hoverTimer?.cancel();
+          _hovered = false;
+          setState(() => _hoverExpanded = false);
+        }
+        context.read<SettingsBloc>().add(
+          UpdateReadingTabsColumnCollapsed(!collapsed),
+        );
+      },
     );
   }
 }
