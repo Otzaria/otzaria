@@ -30,6 +30,7 @@ Future<void> _pump(
   List<Category> subCategories = const [],
   List<Book> books = const [],
   VoidCallback? onOpen,
+  ValueChanged<Category>? onOpenSubCategory,
   bool alreadyOpen = false,
   double width = 400,
   double height = 600,
@@ -66,6 +67,7 @@ Future<void> _pump(
                 subCategories: subCategories,
                 books: books,
                 onOpen: alreadyOpen ? null : (onOpen ?? () {}),
+                onOpenSubCategory: onOpenSubCategory ?? (_) {},
               ),
             ),
           ),
@@ -119,24 +121,27 @@ void main() {
     expect(find.text('ספרי תורת החסידות'), findsOneWidget);
   });
 
-  testWidgets('שורות התוכן אינן מנווטות; רק "פתח תיקייה" פותח', (
-    tester,
-  ) async {
+  testWidgets('תת-תיקייה נפתחת בלחיצה, ספר לא; "פתח תיקייה" פותח את הכותרת '
+      '(issue #1983)', (tester) async {
     var opened = 0;
+    final chabad = _category('חב״ד');
+    final openedSubs = <Category>[];
     await _pump(
       tester,
       category: _category('חסידות'),
-      subCategories: [_category('חב״ד')],
+      subCategories: [chabad],
       books: [TextBook(title: 'תניא')],
       onOpen: () => opened++,
+      onOpenSubCategory: openedSubs.add,
     );
 
-    for (final title in ['חב״ד', 'תניא']) {
+    for (final title in ['תניא', 'חב״ד']) {
       await tester.tap(find.text(title));
-      await tester.pumpAndSettle();
-      expect(opened, 0);
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
     }
+    expect(openedSubs, [same(chabad)]);
+    expect(opened, 0);
 
     await tester.tap(find.text('פתח תיקייה'));
     await tester.pump(const Duration(milliseconds: 500));
@@ -168,28 +173,30 @@ void main() {
     expect(tester.getRect(find.text('ספר אחד')).right, cardRect.right);
   });
 
-  testWidgets('לחיצה כפולה על שורת תוכן פותחת את תיקיית האב בלבד', (
-    tester,
-  ) async {
+  testWidgets('לחיצה כפולה על ספר או על הכותרת פותחת את התיקייה, ועל '
+      'תת-תיקייה נכנסת אליה פעם אחת (issue #1983)', (tester) async {
     var opened = 0;
+    final meforshim = _category('מפרשים');
+    final openedSubs = <Category>[];
     await _pump(
       tester,
       category: _category('תורה'),
-      subCategories: [_category('מפרשים')],
+      subCategories: [meforshim],
       books: [TextBook(title: 'בראשית')],
       onOpen: () => opened++,
+      onOpenSubCategory: openedSubs.add,
     );
-    for (final title in ['מפרשים', 'בראשית']) {
+    for (final title in ['בראשית', 'תורה', 'מפרשים']) {
       await tester.tap(find.text(title));
       await tester.pump(const Duration(milliseconds: 80));
       await tester.tap(find.text(title));
       await tester.pumpAndSettle();
     }
     expect(opened, 2);
-    for (final tile in tester.widgetList<NavTreeTile>(
-      find.byType(NavTreeTile),
-    )) {
-      expect(tile.onTap, isNull);
+    expect(openedSubs, [same(meforshim)]);
+    final tiles = tester.widgetList<NavTreeTile>(find.byType(NavTreeTile));
+    expect(tiles.map((tile) => tile.onTap != null), [true, false]);
+    for (final tile in tiles) {
       expect(tile.onToggleExpand, isNull);
       expect(tile.hasChildren, isFalse);
     }

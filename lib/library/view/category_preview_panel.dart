@@ -9,7 +9,7 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// תצוגה מקדימה של תיקייה בספרייה: שם, נתיב, תיאור (אם קיים), מונים ורשימת
-/// התוכן לקריאה בלבד — הניווט עצמו נשאר בספרייה.
+/// התוכן. לחיצה על תת-תיקייה נכנסת אליה.
 class CategoryPreviewPanel extends StatelessWidget {
   final Category category;
 
@@ -22,6 +22,7 @@ class CategoryPreviewPanel extends StatelessWidget {
 
   /// null = התיקייה כבר פתוחה בספרייה, ואין לאן להיכנס.
   final VoidCallback? onOpen;
+  final ValueChanged<Category> onOpenSubCategory;
 
   const CategoryPreviewPanel({
     super.key,
@@ -30,6 +31,7 @@ class CategoryPreviewPanel extends StatelessWidget {
     required this.subCategories,
     required this.books,
     this.onOpen,
+    required this.onOpenSubCategory,
   });
 
   @override
@@ -102,10 +104,17 @@ class CategoryPreviewPanel extends StatelessWidget {
 
   Widget _contentRow(int index) {
     if (index < subCategories.length) {
-      return NavTreeTile(
-        title: subCategories[index].title,
-        level: 0,
-        fontWeight: FontWeight.w600,
+      void open() => onOpenSubCategory(subCategories[index]);
+      // בלי לחיצה כפולה כאן, הלחיצה השנייה פותחת את התיקייה שבכותרת
+      // או נוחתת על השורה שמופיעה במקום זו אחרי הכניסה.
+      return GestureDetector(
+        onDoubleTap: open,
+        child: NavTreeTile(
+          title: subCategories[index].title,
+          level: 0,
+          fontWeight: FontWeight.w600,
+          onTap: open,
+        ),
       );
     }
     final book = books[index - subCategories.length];
