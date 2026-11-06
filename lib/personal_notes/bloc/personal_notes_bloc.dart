@@ -277,6 +277,14 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     CancelCreatingPersonalNote event,
     Emitter<PersonalNotesState> emit,
   ) {
+    // השלמת כתיבה ישנה אינה מבטלת יצירה חדשה שכבר ממתינה בתור האירועים.
+    if ((event.requestToken != null &&
+            event.requestToken != state.newNoteRequestToken) ||
+        (event.bookId != null && event.bookId != state.newNoteBookId) ||
+        (event.lineNumber != null &&
+            event.lineNumber != state.newNoteLineNumber)) {
+      return;
+    }
     emit(state.copyWith(clearNewNoteData: true));
   }
 

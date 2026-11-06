@@ -43,6 +43,7 @@ Future<quill.QuillController> _open(
       surface == _Surface.inline
           ? InlineNoteEditor(
               bookId: 'list-backspace-test',
+              draftLineNumber: 1,
               initialContent: content,
               initialFormat: PersonalNoteContentFormat.quillDelta,
               linkableNotes: const [],
@@ -57,7 +58,8 @@ Future<quill.QuillController> _open(
                     textDirection: TextDirection.rtl,
                     child: PersonalNoteEditorDialog(
                       initialContent: content,
-                      initialContentFormat: PersonalNoteContentFormat.quillDelta,
+                      initialContentFormat:
+                          PersonalNoteContentFormat.quillDelta,
                     ),
                   ),
                 ),
@@ -70,7 +72,9 @@ Future<quill.QuillController> _open(
     await tester.tap(find.text('פתח'));
   }
   await tester.pumpAndSettle();
-  final editor = tester.widget<quill.QuillEditor>(find.byType(quill.QuillEditor));
+  final editor = tester.widget<quill.QuillEditor>(
+    find.byType(quill.QuillEditor),
+  );
   editor.focusNode.requestFocus();
   await tester.pumpAndSettle();
   return editor.controller;
@@ -89,8 +93,10 @@ List<Map<String, dynamic>> _list(String kind, {String second = ''}) => [
   },
 ];
 
-Map<String, dynamic> _lineAttributes(quill.QuillController controller, int at) =>
-    controller.document.queryChild(at).node!.toDelta().last.attributes ?? {};
+Map<String, dynamic> _lineAttributes(
+  quill.QuillController controller,
+  int at,
+) => controller.document.queryChild(at).node!.toDelta().last.attributes ?? {};
 
 Future<void> _select(
   WidgetTester tester,
@@ -131,16 +137,34 @@ Future<void> _close(WidgetTester tester) async {
   expect(tester.takeException(), isNull);
 }
 
+void _testOnWindows(String description, WidgetTesterCallback callback) {
+  testWidgets(description, (tester) async {
+    final previousPlatform = debugDefaultTargetPlatformOverride;
+    final previousErrorHandler = FlutterError.onError!;
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    FlutterError.onError = (details) {
+      // takeException below keeps the assertion strict; retain its original stack.
+      debugPrintSynchronously('List keyboard error: ${details.exceptionAsString()}');
+      debugPrintSynchronously(details.stack.toString());
+      previousErrorHandler(details);
+    };
+    try {
+      await callback(tester);
+    } finally {
+      FlutterError.onError = previousErrorHandler;
+      debugDefaultTargetPlatformOverride = previousPlatform;
+    }
+  });
+}
+
 void main() {
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
   });
-  tearDown(() => debugDefaultTargetPlatformOverride = null);
 
   for (final surface in _Surface.values) {
     for (final kind in ['bullet', 'ordered']) {
-      testWidgets('Backspace אחרי Enter יוצא מרשימת $kind ב-${surface.name}', (
+      _testOnWindows('Backspace אחרי Enter יוצא מרשימת $kind ב-${surface.name}', (
         tester,
       ) async {
         final controller = await _open(tester, [
@@ -181,7 +205,7 @@ void main() {
   }
 
   for (final kind in ['bullet', 'ordered']) {
-    testWidgets('Backspace ברשימת $kind מקוננת מוריד רמה ושומר עיצוב', (
+    _testOnWindows('Backspace ברשימת $kind מקוננת מוריד רמה ושומר עיצוב', (
       tester,
     ) async {
       final controller = await _open(tester, [
@@ -232,7 +256,7 @@ void main() {
     });
   }
 
-  testWidgets('פריט שאינו ריק שומר את מחיקת הטקסט הרגילה', (tester) async {
+  _testOnWindows('פריט שאינו ריק שומר את מחיקת הטקסט הרגילה', (tester) async {
     final controller = await _open(tester, _list('bullet', second: 'שני'));
     await _select(tester, controller, const TextSelection.collapsed(offset: 7));
     await _press(tester, LogicalKeyboardKey.backspace);
@@ -242,7 +266,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('Backspace בתחילת פריט שאינו ריק עדיין ממזג שורות', (
+  _testOnWindows('Backspace בתחילת פריט שאינו ריק עדיין ממזג שורות', (
     tester,
   ) async {
     final controller = await _open(tester, _list('bullet', second: 'שני'));
@@ -254,7 +278,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('בחירה שמתחילה בפריט ריק נמחקת כטקסט', (tester) async {
+  _testOnWindows('בחירה שמתחילה בפריט ריק נמחקת כטקסט', (tester) async {
     final controller = await _open(tester, _list('bullet'));
     await _select(
       tester,
@@ -268,7 +292,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('Delete קדימה בפריט ריק ממשיך למחוק קדימה', (tester) async {
+  _testOnWindows('Delete קדימה בפריט ריק ממשיך למחוק קדימה', (tester) async {
     final controller = await _open(tester, [
       ..._list('bullet'),
       {'insert': 'אחרון'},
@@ -291,11 +315,17 @@ void main() {
     LogicalKeyboardKey.metaLeft,
     LogicalKeyboardKey.shiftLeft,
   ]) {
-    testWidgets('${modifier.keyLabel}+Backspace אינו הופך פריט לפסקה', (
+    _testOnWindows('${modifier.keyLabel}+Backspace אינו הופך פריט לפסקה', (
       tester,
     ) async {
       final controller = await _open(tester, _list('bullet'));
-      await _select(tester, controller, const TextSelection.collapsed(offset: 6));
+      await _select(
+        tester,
+        controller,
+        const TextSelection.collapsed(offset: 6),
+      );
+      final before = controller.document.toDelta();
+      final selection = controller.selection;
       await tester.sendKeyDownEvent(modifier);
       await _press(tester, LogicalKeyboardKey.backspace);
       await tester.sendKeyUpEvent(modifier);
@@ -303,11 +333,54 @@ void main() {
         _lineAttributes(controller, controller.selection.start)['list'],
         'bullet',
       );
+      if (modifier == LogicalKeyboardKey.altLeft) {
+        expect(controller.document.toDelta(), before);
+        expect(controller.selection, selection);
+      }
       await _close(tester);
     });
   }
 
-  testWidgets('פסקה ריקה אחרי רשימה עדיין נמחקת בלי לרשת רשימה', (
+  _testOnWindows('Alt+Backspace בפריט הראשון עדיין מסיר רשימה', (tester) async {
+    final controller = await _open(tester, [
+      {
+        'insert': '\n',
+        'attributes': {
+          'list': 'bullet',
+          'indent': 2,
+          'align': 'right',
+          'direction': 'rtl',
+        },
+      },
+    ]);
+    await _select(tester, controller, const TextSelection.collapsed(offset: 0));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    expect(controller.document.toDelta().toJson(), [
+      {'insert': '\n'},
+    ]);
+    expect(controller.selection, const TextSelection.collapsed(offset: 0));
+    await _close(tester);
+  });
+
+  _testOnWindows('Alt+Backspace חוזר בפסקה ריקה אינו משנה תוכן', (tester) async {
+    final controller = await _open(tester, [
+      {'insert': '\n'},
+    ]);
+    await _select(tester, controller, const TextSelection.collapsed(offset: 0));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    expect(controller.document.toDelta().toJson(), [
+      {'insert': '\n'},
+    ]);
+    expect(controller.selection, const TextSelection.collapsed(offset: 0));
+    await _close(tester);
+  });
+
+  _testOnWindows('פסקה ריקה אחרי רשימה עדיין נמחקת בלי לרשת רשימה', (
     tester,
   ) async {
     final controller = await _open(tester, [
@@ -325,7 +398,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('יציאה מרשימה נשמרת ב-undo וב-redo', (tester) async {
+  _testOnWindows('יציאה מרשימה נשמרת ב-undo וב-redo', (tester) async {
     final controller = await _open(tester, _list('bullet'));
     await _select(tester, controller, const TextSelection.collapsed(offset: 6));
     final before = controller.document.toDelta();
@@ -342,7 +415,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('Backspace בפריט הראשון שומר יישור וכיווניות', (tester) async {
+  _testOnWindows('Backspace בפריט הראשון שומר יישור וכיווניות', (tester) async {
     final controller = await _open(tester, [
       {
         'insert': '\n',
@@ -363,7 +436,7 @@ void main() {
     await _close(tester);
   });
 
-  testWidgets('מצב קריאה בלבד אינו משנה פריט ריק', (tester) async {
+  _testOnWindows('מצב קריאה בלבד אינו משנה פריט ריק', (tester) async {
     final owner = buildPersonalNoteEditorController(
       initialContent: jsonEncode(_list('bullet')),
       initialFormat: PersonalNoteContentFormat.quillDelta,
