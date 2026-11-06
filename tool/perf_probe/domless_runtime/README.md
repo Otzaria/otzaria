@@ -106,13 +106,20 @@
 
 ```bash
 python3 -m unittest discover -s tool/perf_probe/domless_runtime -p prepare_test.py -v
-python3 tool/perf_probe/domless_runtime/prepare.py --cache /tmp/otzaria-domless
+git clone --no-checkout https://github.com/Otzaria/otzaria-plugins-store.git /tmp/otzaria-store-source
+git -C /tmp/otzaria-store-source -c core.autocrlf=false checkout --detach 33a3b218b81ac6f51393a243e6002ddd04c9c2b8
+python3 tool/perf_probe/domless_runtime/prepare.py --cache /tmp/otzaria-domless \
+  --plugin-source /tmp/otzaria-store-source
 OTZARIA_DOMLESS_CACHE=/tmp/otzaria-domless OTZARIA_DOMLESS_MEASURE=1 \
   flutter test --no-pub --reporter expanded \
   test/tool/perf_probe/domless_runtime_test.dart
 ```
 
-`--engine-archive` ו־`--plugin-archive` מאפשרים להשתמש בהורדה מקומית; גם במסלול זה ה־hash נבדק. הארכיון המקובע של החנות ניתן להורדה ב־[URL הגרסה](https://otzaria.org/api/plugins/6a01cd9954ae49eaed8dab2a@2.12.0/download). מקורות/בינאריים אינם נשמרים ב־git. לא נמצא קובץ רישיון בארכיוני התוספים שנבדקו, ולכן הכלי מוריד אותם לניסוי מקומי ואינו מפיץ עותק שלהם כחלק מה־PR.
+`--plugin-source` צורך checkout מקומי של ה־commit הרשמי הקבוע. הכלי דורש התאמת HEAD, אותם SHA-256 של שלושת הקבצים המבוקרים, ומניפסט בעל id וגרסה תואמים. מקור חלקי, קובץ חסר או שינוי bytes נדחים לפני יצירת ה־fixture. שלושת הקבצים אומתו byte-for-byte מול הארכיון המקורי שכבר הורד ואומת; גם קובצי ה־checkout וגם Git blobs התאימו. CI מבצע checkout מפורש של אותו repository ו־SHA, עם שלושת הקבצים בלבד ובלי המרת CRLF, ואינו פונה לשירות הורדת התוספים.
+
+`--engine-archive` ו־`--plugin-archive` ממשיכים לאפשר שימוש בארכיון מקומי; במסלול זה נשמר אימות ה־SHA-256 של הארכיון המלא ושל כל קובץ מבוקר. בלי `--plugin-source` או `--plugin-archive` נשאר מסלול ההורדה מ־[URL הגרסה](https://otzaria.org/api/plugins/6a01cd9954ae49eaed8dab2a@2.12.0/download), שתלוי בזמינות שירות ההפצה. אין שינוי בגרסת החנות `2.12.0` או בקוד שעליו רצות הבדיקות. מקורות/ארכיונים/בינאריים אינם נשמרים ב־git של האפליקציה. לא נמצא קובץ רישיון בארכיון או במאגר התוסף; הכלי צורך את המקור הרשמי בנפרד ואינו מפיץ עותק או מייחס לו רישיון שלא הוצהר.
+
+ה־fixture מתעד `provenance` עם סוג המקור וטביעות הקבצים שאומתו. במסלול checkout נרשמים repository ו־commit, ו־`archiveSha256` נשאר null משום שהארכיון המלא לא נבדק במסלול זה. `auditedArchiveSha256` מזהה את דגימת הארכיון המקורית שאליה הושוו הקבצים. במסלול archive נרשמת גם טביעת הארכיון שאומת בפועל. תוצאות המדידה וטביעות הקלט ההיסטוריות שבהמשך נשמרות כפי שנמדדו; שינוי מקור ההכנה אינו מדידת ביצועים חדשה.
 
 קובצי JSON ו־JS נקראים ונכתבים ב־UTF-8 במפורש, בלי תלות ב־locale של Python. בדיקות ההכנה משתמשות בארכיונים קטנים שנוצרו לבדיקה, משביתות UTF-8 mode ומוודאות שארכיון פגום או hash שגוי של קובץ נדחים; רק שלב הקומפילציה מוחלף בהן. בניית הניסוי והרצת התוסף משתמשות בנפרד בארכיונים האמיתיים וב־hashes המקובעים.
 

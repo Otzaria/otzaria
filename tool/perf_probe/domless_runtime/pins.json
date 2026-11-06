@@ -11,6 +11,10 @@
     "version": "2.12.0",
     "url": "https://otzaria.org/api/plugins/6a01cd9954ae49eaed8dab2a@2.12.0/download",
     "sha256": "2701902bd81baf006b9d73d00f8e125de5a9abdd251ea42e6b6fee52542b8945",
+    "source": {
+      "repository": "Otzaria/otzaria-plugins-store",
+      "commit": "33a3b218b81ac6f51393a243e6002ddd04c9c2b8"
+    },
     "files": {
       "background.html": "0110c549b0350222c63c098843c9b6debdcd61cebd57d91b11874f07426fc975",
       "manifest.json": "05bc7e14bd5d90975488a9e588297081b61cc5f1bc212b7364c060f21d3eb086",

@@ -82,7 +82,7 @@ void main() {
       );
       expect(_nativeEnvironment, isNotEmpty);
     }
-    final pins = fixture['archiveSha256'];
+    final pins = fixture['auditedArchiveSha256'] ?? fixture['archiveSha256'];
     expect(
       pins,
       '2701902bd81baf006b9d73d00f8e125de5a9abdd251ea42e6b6fee52542b8945',
