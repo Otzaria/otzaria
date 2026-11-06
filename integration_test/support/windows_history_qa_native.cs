@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 
 namespace WinVQa {
@@ -16,6 +17,20 @@ namespace WinVQa {
         public int x, y, hitTest;
         public long windowAtPoint;
         public bool verified;
+    }
+    public sealed class CaretKeyProof {
+        public uint virtualKey, scan, flags, roundTripVirtualKey;
+    }
+    public sealed class ClipboardFormatProof {
+        public uint format, tymed;
+        public int aspect, index;
+        public string name, tymedName;
+    }
+    public sealed class ClipboardFormatsProof {
+        public uint sequenceBefore, sequenceAfter;
+        public string apartmentState, nativeError, oleError;
+        public bool nativeComplete, oleComplete;
+        public ClipboardFormatProof[] nativeFormats, oleFormats;
     }
     public static class Native {
         [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
@@ -62,6 +77,13 @@ namespace WinVQa {
         [DllImport("user32.dll")] static extern bool CloseClipboard();
         [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetClipboardData(uint format, IntPtr memory);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterClipboardFormat(string name);
+        [DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+        [DllImport("user32.dll", SetLastError = true)] static extern uint EnumClipboardFormats(uint format);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClipboardFormatName(uint format, StringBuilder name, int count);
+        [DllImport("kernel32.dll", EntryPoint = "SetLastError")] static extern void ClearLastError(uint error);
+        [DllImport("ole32.dll")] static extern int OleInitialize(IntPtr reserved);
+        [DllImport("ole32.dll")] static extern void OleUninitialize();
+        [DllImport("ole32.dll", PreserveSig = true)] static extern int OleGetClipboard(out IDataObject data);
         [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr GlobalAlloc(uint flags, UIntPtr bytes);
         [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr GlobalLock(IntPtr memory);
         [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr memory);
@@ -146,10 +168,17 @@ namespace WinVQa {
             Input down = new Input(), up = new Input(); down.data.mouse.flags = 2; up.data.mouse.flags = 4;
             try { Send(new[] { down, up }); } finally { Send(new[] { up }); }
         }
-        public static void PrepareCaretEnd(IntPtr window, uint expectedPid) {
+        public static CaretKeyProof PrepareCaretEnd(IntPtr window, uint expectedPid) {
+            var down = PhysicalKey(0x23, false); var up = PhysicalKey(0x23, true);
+            // VK_END maps to the shared keypad scan; the navigation key is extended.
+            down.data.keyboard.flags |= 1; up.data.keyboard.flags |= 1;
+            uint roundTrip = MapVirtualKeyEx(0xE000u | down.data.keyboard.scan, 3, GetKeyboardLayout(0));
+            if (roundTrip != 0x23) throw new Exception("The extended caret key did not map back to End");
             RequireFlutter(window, expectedPid);
             if (GetForegroundWindow() != window) throw new Exception("Flutter must own the foreground before preparing its caret");
-            Send(new[] { PhysicalKey(0x23, false), PhysicalKey(0x23, true) });
+            Send(new[] { down, up });
+            return new CaretKeyProof { virtualKey = 0x23, scan = down.data.keyboard.scan,
+                flags = down.data.keyboard.flags, roundTripVirtualKey = roundTrip };
         }
         static Input Key(ushort key, bool up) {
             Input input = new Input { type = 1 };
@@ -168,6 +197,75 @@ namespace WinVQa {
             input.data.keyboard.scan = (ushort)(scan & 0xFF);
             input.data.keyboard.flags = (up ? 2u : 0u) | ((scan & 0xFF00) == 0xE000 ? 1u : 0u);
             return input;
+        }
+        static string ClipboardFormatName(uint format) {
+            switch (format) {
+                case 1: return "CF_TEXT";
+                case 2: return "CF_BITMAP";
+                case 8: return "CF_DIB";
+                case 13: return "CF_UNICODETEXT";
+                case 15: return "CF_HDROP";
+                case 17: return "CF_DIBV5";
+            }
+            var name = new StringBuilder(256);
+            return GetClipboardFormatName(format, name, name.Capacity) > 0 ? name.ToString() : "CF_" + format;
+        }
+        public static ClipboardFormatsProof ObserveClipboardFormats() {
+            var result = new ClipboardFormatsProof {
+                sequenceBefore = GetClipboardSequenceNumber(),
+                apartmentState = System.Threading.Thread.CurrentThread.GetApartmentState().ToString()
+            };
+            if (result.apartmentState != "STA") throw new Exception("Clipboard format observation requires STA");
+            var native = new List<ClipboardFormatProof>(); var ole = new List<ClipboardFormatProof>();
+            bool opened = false;
+            try {
+                for (int attempt = 0; attempt < 3 && !opened; attempt++) {
+                    opened = OpenClipboard(IntPtr.Zero);
+                    if (!opened && attempt < 2) System.Threading.Thread.Sleep(20);
+                }
+                if (!opened) throw new Win32Exception(Marshal.GetLastWin32Error());
+                uint current = 0;
+                for (int count = 0; count < 128; count++) {
+                    ClearLastError(0); current = EnumClipboardFormats(current);
+                    if (current == 0) {
+                        int error = Marshal.GetLastWin32Error();
+                        if (error != 0) throw new Win32Exception(error);
+                        result.nativeComplete = true; break;
+                    }
+                    native.Add(new ClipboardFormatProof { format = current, name = ClipboardFormatName(current) });
+                }
+            } catch (Exception error) { result.nativeError = error.ToString(); }
+            finally { if (opened) CloseClipboard(); }
+            IDataObject data = null; IEnumFORMATETC enumerator = null; bool initialized = false;
+            try {
+                int initializedResult = OleInitialize(IntPtr.Zero);
+                if (initializedResult < 0) Marshal.ThrowExceptionForHR(initializedResult);
+                initialized = true;
+                int readResult = OleGetClipboard(out data);
+                if (readResult < 0) Marshal.ThrowExceptionForHR(readResult);
+                enumerator = data.EnumFormatEtc(DATADIR.DATADIR_GET);
+                var formats = new FORMATETC[1]; var fetched = new int[1];
+                for (int count = 0; count < 128; count++) {
+                    int next = enumerator.Next(1, formats, fetched);
+                    if (next < 0) Marshal.ThrowExceptionForHR(next);
+                    if (fetched[0] == 0) { result.oleComplete = true; break; }
+                    var format = formats[0];
+                    try {
+                        uint id = unchecked((ushort)format.cfFormat);
+                        ole.Add(new ClipboardFormatProof { format = id, name = ClipboardFormatName(id),
+                            tymed = (uint)format.tymed, tymedName = format.tymed.ToString(),
+                            aspect = (int)format.dwAspect, index = format.lindex });
+                    } finally { if (format.ptd != IntPtr.Zero) Marshal.FreeCoTaskMem(format.ptd); }
+                }
+            } catch (Exception error) { result.oleError = error.ToString(); }
+            finally {
+                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (data != null) Marshal.ReleaseComObject(data);
+                if (initialized) OleUninitialize();
+            }
+            result.nativeFormats = native.ToArray(); result.oleFormats = ole.ToArray();
+            result.sequenceAfter = GetClipboardSequenceNumber();
+            return result;
         }
         public static void OpenHistory(IntPtr expectedWindow, uint expectedPid) {
             var inputs = new[] { PhysicalKey(0x5B, false), PhysicalKey(0x56, false), PhysicalKey(0x56, true), PhysicalKey(0x5B, true) };

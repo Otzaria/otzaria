@@ -18,6 +18,21 @@ if ($Action -ceq 'history-state') {
     Write-Output ($state | ConvertTo-Json -Compress)
     exit 0
 }
+if ($Action -ceq 'format-metadata') {
+    Import-Module -Name (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -Force -ErrorAction Stop
+    $observation = [ordered]@{
+        utc = [DateTime]::UtcNow.ToString('o'); available = $false; error = $null
+        processId = $PID; apartmentState = [string][Threading.Thread]::CurrentThread.GetApartmentState()
+        inputSent = $false; clipboardWritePerformed = $false; dataReadPerformed = $false; formats = $null
+    }
+    try {
+        Add-Type -Path (Join-Path $Root 'native.dll')
+        $observation.formats = [WinVQa.Native]::ObserveClipboardFormats()
+        $observation.available = $observation.formats.nativeComplete -and $observation.formats.oleComplete
+    } catch { $observation.error = $_.Exception.ToString() }
+    Write-Output ($observation | ConvertTo-Json -Compress -Depth 8)
+    exit 0
+}
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -Path (Join-Path $Root 'native.dll')

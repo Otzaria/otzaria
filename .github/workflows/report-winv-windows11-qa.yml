@@ -186,6 +186,26 @@ jobs:
           @{ workflowHead = $env:REPORT_QA_WORKFLOW_HEAD; path = $script; sha256 = (Get-FileHash $script).Hash } |
             ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/windows11-harness-source.json"
           & "./$script"
+      - name: Verify the focused fixture receives End rather than keypad input
+        if: always()
+        shell: pwsh
+        run: |
+          $path = "$env:REPORT_QA_ARTIFACT_ROOT/run/flutter-summary.json"
+          if (!(Test-Path $path)) { throw 'No Flutter summary is available to verify the fixture caret.' }
+          $summary = Get-Content $path -Raw | ConvertFrom-Json
+          $rows = @($summary.cases | Where-Object { $_.textFieldFocus } | ForEach-Object {
+            $sent = @($_.controller.caretPreparations | Where-Object { $_.inputSent })
+            $observed = @($_.keyEvents | Where-Object {
+              $_.type -ceq 'KeyDownEvent' -and !$_.synthesized -and $_.physical -ceq '0x7004d' -and $_.logicalName -ceq 'End'
+            })
+            @{ case = $_.case; nativeRequests = $sent; actualFlutterEndEvents = $observed;
+              passed = $sent.Count -gt 0 -and $sent.Count -eq $observed.Count }
+          })
+          @{ cases = $rows; allPassed = $rows.Count -eq 5 -and @($rows | Where-Object { !$_.passed }).Count -eq 0 } |
+            ConvertTo-Json -Depth 16 | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/caret-delivery.json"
+          if ($rows.Count -ne 5 -or @($rows | Where-Object { !$_.passed }).Count -gt 0) {
+            throw 'A focused fixture did not receive every preparation as a real Flutter End key.'
+          }
       - name: Upload actual Windows 11 screenshots, traces and process identity
         if: always()
         uses: actions/upload-artifact@v7.0.2

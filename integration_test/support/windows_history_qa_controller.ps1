@@ -15,7 +15,7 @@ $result = [ordered]@{
   outcome = 'starting'; historyWindowIdentified = $false; enableButtonInvoked = $false
   clipboardBeforeSelection = $null; clipboardAfterSelection = $null
   historyOpeningMechanism = 'SendInput Win+V with mapped scan codes; completion only through actual history selection'
-  actions = @(); focusChecks = @(); historyStateSamples = @(); historyClosures = @(); caretPreparations = @(); error = $null
+  actions = @(); focusChecks = @(); historyStateSamples = @(); historyClosures = @(); caretPreparations = @(); clipboardFormatSamples = @(); error = $null
 }
 $script:deadline = [DateTime]::UtcNow.AddSeconds(70)
 $script:clipboardCall = 0
@@ -86,6 +86,19 @@ function Read-HistoryState([string]$Stage) {
     $result.historyStateSamples += $sample
     Save-Json $result 'result.json'
     return $sample
+}
+function Read-ClipboardFormats([string]$Stage) {
+    $sample = [ordered]@{ stage = $Stage; available = $false; observation = $null; error = $null }
+    try {
+        $reading = (Invoke-Clipboard 'format-metadata') | ConvertFrom-Json
+        if ($reading.apartmentState -cne 'STA' -or $reading.inputSent -or $reading.clipboardWritePerformed -or $reading.dataReadPerformed) {
+            throw 'Clipboard format metadata was not a read-only STA observation.'
+        }
+        $sample.observation = $reading
+        $sample.available = $reading.available
+    } catch { $sample.error = $_.Exception.ToString() }
+    $result.clipboardFormatSamples += $sample
+    Save-Json $result 'result.json'
 }
 function Assert-Time {
     if ([DateTime]::UtcNow -ge $script:deadline) { throw 'Controller deadline exceeded' }
@@ -258,7 +271,7 @@ function Prepare-FocusedCaret([string]$Stage) {
     $caret = [ordered]@{ stage = $Stage; case = $case; mechanism = 'Mapped native End after the field has focus'; foregroundBefore = [WinVQa.Native]::GetForegroundWindow().ToInt64(); inputSent = $false }
     $result.caretPreparations += $caret
     Save-Json $result 'result.json'
-    [WinVQa.Native]::PrepareCaretEnd([IntPtr][long]$config.window, [uint32]$config.processId)
+    $caret.key = [WinVQa.Native]::PrepareCaretEnd([IntPtr][long]$config.window, [uint32]$config.processId)
     $caret.inputSent = $true
     Start-Sleep -Milliseconds 150
     $caret.foregroundAfter = [WinVQa.Native]::GetForegroundWindow().ToInt64()
@@ -423,7 +436,7 @@ if ($ValidateShellVerifier) {
     exit 0
 }
 try {
-    Save-Json @{ os = [Environment]::OSVersion.VersionString; imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; flutterProcess = $config.processId; flutterWindow = $config.window; payload = $config.payload; sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD } 'environment.json'
+    Save-Json @{ os = [Environment]::OSVersion.VersionString; imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; flutterProcess = $config.processId; flutterWindow = $config.window; payload = $config.payload; sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD; flutterTestEnvironmentPresent = [Environment]::GetEnvironmentVariables().Contains('FLUTTER_TEST') } 'environment.json'
     Initialize-ShellVerifier
     Focus-Flutter
     try {
@@ -551,6 +564,7 @@ try {
         if ((Clipboard-Label) -ne 'B') { throw 'Current clipboard must still be B immediately before choosing older A' }
         $expected = if ($config.payload -eq 'text') { $config.fixtureA } else { '<image-row>' }
         Activate-Node $candidate.tree $candidate.index 'Select older fixture A through the actual Windows history UI' $expected
+        if ($config.payload -eq 'image') { Read-ClipboardFormats 'after-history-click-before-image-read' }
         $limit = [DateTime]::UtcNow.AddSeconds(5)
         do {
             Start-Sleep -Milliseconds 100
@@ -560,6 +574,7 @@ try {
         $result.outcome = if ($result.historySelectionVerified) { 'real-history-selected-A-after-B' } else { 'history-selection-did-not-select-A' }
         # Post-paste evidence must not activate a Shell accessibility provider.
         [void](Snapshot '05-after-real-history-selection' $false)
+        if ($config.payload -eq 'image') { Read-ClipboardFormats 'after-image-label-verification' }
     }
     $result.probeCompleted = $true
     Save-Json $result 'result.json'
