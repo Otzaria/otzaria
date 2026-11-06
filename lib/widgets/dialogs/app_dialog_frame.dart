@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 
 /// [Dialog] עם [AppDialogHeader] — אייקון בתחילת הכותרת, איקס סגירה בסופה וקו
 /// חוצץ מתחתיה — ואחריה [child] ושורת [actions] אופציונלית. לדיאלוגים שאינם
@@ -14,6 +15,7 @@ class AppDialogFrame extends StatelessWidget {
     required this.title,
     required this.child,
     this.icon,
+    this.titleMaxLines,
     this.subtitle,
     this.trailing,
     this.tone = AppDialogHeaderTone.primary,
@@ -21,6 +23,7 @@ class AppDialogFrame extends StatelessWidget {
     this.width = 560,
     this.height,
     this.padding = const EdgeInsets.all(AppTokens.spaceMD),
+    this.scrollable = false,
     this.insetPadding = const EdgeInsets.all(AppTokens.spaceMD),
     this.backgroundColor,
     this.closeEnabled = true,
@@ -29,6 +32,10 @@ class AppDialogFrame extends StatelessWidget {
   final String title;
   final Widget child;
   final IconData? icon;
+
+  /// מגביל כותרת ארוכה בלי להקטין את הכתב; הטקסט המלא מוצג ברמז.
+  final int? titleMaxLines;
+
   final String? subtitle;
   final Widget? trailing;
   final AppDialogHeaderTone tone;
@@ -43,6 +50,10 @@ class AppDialogFrame extends StatelessWidget {
   final double? height;
 
   final EdgeInsetsGeometry padding;
+
+  /// עוטף את [child] בגלילה עם פס גלוי. false כשהתוכן גולל בעצמו.
+  final bool scrollable;
+
   final EdgeInsets insetPadding;
   final Color? backgroundColor;
   final bool closeEnabled;
@@ -50,7 +61,13 @@ class AppDialogFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fixedHeight = height != null;
-    final body = Padding(padding: padding, child: child);
+    final body = scrollable
+        ? PanelScrollableContent(
+            thumbVisibility: true,
+            padding: padding,
+            child: child,
+          )
+        : Padding(padding: padding, child: child);
     final content = Column(
       mainAxisSize: fixedHeight ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -58,6 +75,7 @@ class AppDialogFrame extends StatelessWidget {
         AppDialogHeader(
           icon: icon,
           title: title,
+          titleMaxLines: titleMaxLines,
           subtitle: subtitle,
           trailing: trailing,
           tone: tone,
