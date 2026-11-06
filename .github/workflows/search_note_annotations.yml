@@ -36,7 +36,7 @@ jobs:
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       # Replace only with the independently reviewed engine notes commit.
-      NOTE_ENGINE_COMMIT: bbc1b3b630398ac40100c50ca6ad9a780fe0c29a
+      NOTE_ENGINE_COMMIT: f0235013e0ffc6a0e1f263d9a4767620fb4d016b
       LEGACY_ENGINE_SHA256: 1101a8048ca9076d0e8714c68ae3f9a44b82d2c2fe2075a8c8eb13e9a938cd8b
 
     steps:
@@ -63,6 +63,31 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Save source dependency manifests
+        id: manifests
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- pubspec.yaml pubspec.lock
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          if Path('pubspec_overrides.yaml').exists():
+              raise SystemExit('The compatibility check requires no pre-existing pubspec override')
+          backup = Path(os.environ['RUNNER_TEMP']) / 'note-annotations-manifests'
+          backup.mkdir()
+          digests = {}
+          for name in ['pubspec.yaml', 'pubspec.lock']:
+              data = Path(name).read_bytes()
+              (backup / name).write_bytes(data)
+              digests[name] = hashlib.sha256(data).hexdigest()
+          evidence = Path('build/note-annotations')
+          evidence.mkdir(parents=True, exist_ok=True)
+          (evidence / 'original-manifests.json').write_text(json.dumps(digests, indent=2) + '\n')
+          PY
+
       - name: Resolve locked app dependencies and generated catalogs
         run: |
           set -euo pipefail
@@ -70,7 +95,7 @@ jobs:
           dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
 
-      - name: Verify engine revision and unchanged Dart bridge
+      - name: Verify engine revision and the locked legacy package
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -85,7 +110,7 @@ jobs:
           expected = os.environ['NOTE_ENGINE_COMMIT']
           if not re.fullmatch(r'[0-9a-f]{40}', expected):
               raise SystemExit('The candidate engine must be pinned to a full reviewed commit SHA')
-          engine = Path('.note-annotation-engine')
+          engine = Path('.note-annotation-engine').resolve()
           actual = subprocess.check_output(['git', '-C', str(engine), 'rev-parse', 'HEAD'], text=True).strip()
           if actual != expected:
               raise SystemExit(f'Engine revision mismatch: {actual} != {expected}')
@@ -93,21 +118,44 @@ jobs:
           config = json.loads(config_path.read_text())
           package = next(p for p in config['packages'] if p['name'] == 'otzaria_search_engine')
           uri = urljoin(config_path.parent.as_uri() + '/', package['rootUri'])
-          package_root = Path(unquote(urlparse(uri).path))
-          bridges = list((engine / 'lib/src/rust').rglob('*.dart'))
-          if not bridges:
-              raise SystemExit('No generated Dart bridge files found')
-          for candidate in bridges:
-              relative = candidate.relative_to(engine)
-              if candidate.read_bytes() != (package_root / relative).read_bytes():
-                  raise SystemExit(f'Candidate and locked app bridge differ: {relative}')
+          parsed = urlparse(uri)
+          if parsed.scheme != 'file':
+              raise SystemExit('The resolved legacy package must have a local file URI')
+          package_root = Path(unquote(parsed.path)).resolve(strict=True)
+          version = re.search(r'^version:\s*(\S+)\s*$', (package_root / 'pubspec.yaml').read_text(), re.M)
+          if version is None or version.group(1) != '7.0.1' or package_root == engine:
+              raise SystemExit('The legacy phase requires the locked, hosted engine package 7.0.1')
+          lock = Path('pubspec.lock').read_text()
+          entry = re.search(r'^  otzaria_search_engine:\n(.*?)(?=^  \S|\Z)', lock, re.M | re.S)
+          if entry is None or not re.search(r'^    source: hosted$', entry.group(1), re.M):
+              raise SystemExit('The legacy engine must resolve from the hosted lockfile entry')
+          if not re.search(r'^    version: "7\.0\.1"$', entry.group(1), re.M):
+              raise SystemExit('The legacy lockfile version must be exactly 7.0.1')
+          bridges = sorted((package_root / 'lib/src/rust').rglob('*.dart'))
+          if len(bridges) != 8:
+              raise SystemExit(f'Unexpected legacy bridge file count: {len(bridges)}')
+          bridge_hash = re.search(r'int get rustContentHash => (-?\d+);',
+                                 (package_root / 'lib/src/rust/frb_generated.dart').read_text())
+          if bridge_hash is None or int(bridge_hash.group(1)) != -1026649565:
+              raise SystemExit('The legacy Dart bridge does not match package 7.0.1')
           evidence = Path('build/note-annotations')
-          evidence.mkdir(parents=True, exist_ok=True)
+          original = json.loads((evidence / 'original-manifests.json').read_text())
+          for name, digest in original.items():
+              if hashlib.sha256(Path(name).read_bytes()).hexdigest() != digest:
+                  raise SystemExit(f'The locked legacy resolution changed {name}')
+          backup = Path(os.environ['RUNNER_TEMP']) / 'note-annotations-manifests'
+          (backup / 'package_config.json').write_bytes(config_path.read_bytes())
           provenance = {
               'engine_commit': actual,
+              'engine_tree': subprocess.check_output(['git', '-C', str(engine), 'rev-parse', 'HEAD^{tree}'], text=True).strip(),
               'app_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-              'pubspec_lock_sha256': hashlib.sha256(Path('pubspec.lock').read_bytes()).hexdigest(),
-              'bridge_files_compared': len(bridges),
+              'original_manifests_sha256': original,
+              'pubspec_lock_sha256': original['pubspec.lock'],
+              'legacy_package_version': version.group(1),
+              'legacy_package_root': str(package_root),
+              'legacy_package_config_sha256': hashlib.sha256(config_path.read_bytes()).hexdigest(),
+              'legacy_bridge_sha256': {str(p.relative_to(package_root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in bridges},
+              'legacy_rust_content_hash': int(bridge_hash.group(1)),
               'legacy_release': 'precompiled_1040c89b1c5fdf1ee19ca1cb00468d4c',
               'legacy_sha256': os.environ['LEGACY_ENGINE_SHA256'],
           }
@@ -116,7 +164,7 @@ jobs:
           rustc -Vv > build/note-annotations/rust-toolchain.txt
           cargo -V >> build/note-annotations/rust-toolchain.txt
 
-      # This fixed 7.0.1 binary remains the legacy control after pubspec is updated.
+      # This control fails closed if the locked package is upgraded from 7.0.1.
       - name: Download and verify legacy engine
         run: |
           set -euo pipefail
@@ -173,6 +221,89 @@ jobs:
             test/semantic_search/semantic_results_screen_test.dart \
             test/text_book/view/text_book_search_engine_route_test.dart
 
+      - name: Resolve and verify the candidate package from the reviewed checkout
+        run: |
+          set -euo pipefail
+          # Preserve the app's existing dependency overrides; add only this path override.
+          cat > "$RUNNER_TEMP/note-annotations-create-override.dart" <<'DART'
+          import 'dart:convert';
+          import 'dart:io';
+          import 'package:yaml/yaml.dart';
+
+          void main() {
+            final source = loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
+            final overrides = Map<String, dynamic>.from(
+              source['dependency_overrides'] as Map? ?? <String, dynamic>{},
+            );
+            if (overrides.containsKey('otzaria_search_engine')) {
+              throw StateError('The source already overrides the search engine');
+            }
+            final target = File('pubspec_overrides.yaml');
+            if (target.existsSync()) {
+              throw StateError('Refusing to replace an existing pubspec override');
+            }
+            overrides['otzaria_search_engine'] = {'path': '.note-annotation-engine'};
+            target.writeAsStringSync(
+              const JsonEncoder.withIndent('  ').convert({'dependency_overrides': overrides}) + '\n',
+            );
+          }
+          DART
+          dart --packages=.dart_tool/package_config.json "$RUNNER_TEMP/note-annotations-create-override.dart"
+          flutter pub get
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+          from urllib.parse import unquote, urljoin, urlparse
+
+          engine = Path('.note-annotation-engine').resolve(strict=True)
+          actual = subprocess.check_output(['git', '-C', str(engine), 'rev-parse', 'HEAD'], text=True).strip()
+          if actual != os.environ['NOTE_ENGINE_COMMIT']:
+              raise SystemExit('The candidate package checkout changed')
+          subprocess.run(['git', '-C', str(engine), 'diff', '--exit-code', 'HEAD'], check=True)
+          config_path = Path('.dart_tool/package_config.json').resolve()
+          config = json.loads(config_path.read_text())
+          package = next(p for p in config['packages'] if p['name'] == 'otzaria_search_engine')
+          uri = urlparse(urljoin(config_path.parent.as_uri() + '/', package['rootUri']))
+          if uri.scheme != 'file' or Path(unquote(uri.path)).resolve(strict=True) != engine:
+              raise SystemExit('package_config does not resolve the candidate to the exact engine checkout')
+          bridges = sorted((engine / 'lib/src/rust').rglob('*.dart'))
+          if len(bridges) != 8:
+              raise SystemExit(f'Unexpected candidate bridge file count: {len(bridges)}')
+          for candidate in bridges:
+              relative = candidate.relative_to(engine).as_posix()
+              committed = subprocess.check_output(['git', '-C', str(engine), 'show', f'HEAD:{relative}'])
+              if candidate.read_bytes() != committed:
+                  raise SystemExit(f'Candidate bridge differs from the pinned commit: {relative}')
+          dart_hash = re.search(r'int get rustContentHash => (-?\d+);',
+                                (engine / 'lib/src/rust/frb_generated.dart').read_text())
+          rust_hash = re.search(r'FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = (-?\d+);',
+                                (engine / 'rust/src/frb_generated.rs').read_text())
+          if dart_hash is None or rust_hash is None or dart_hash.group(1) != rust_hash.group(1):
+              raise SystemExit('The candidate Dart and Rust bridge hashes disagree')
+          version = re.search(r'^version:\s*(\S+)\s*$', (engine / 'pubspec.yaml').read_text(), re.M)
+          if version is None:
+              raise SystemExit('The candidate package version is missing')
+          evidence = Path('build/note-annotations/provenance.json')
+          provenance = json.loads(evidence.read_text())
+          if hashlib.sha256(Path('pubspec.yaml').read_bytes()).hexdigest() != provenance['original_manifests_sha256']['pubspec.yaml']:
+              raise SystemExit('The candidate override changed the source pubspec')
+          provenance.update(
+              candidate_package_source='CI-only path override',
+              candidate_package_version=version.group(1),
+              candidate_package_root=str(engine),
+              candidate_package_config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
+              candidate_resolved_lock_sha256=hashlib.sha256(Path('pubspec.lock').read_bytes()).hexdigest(),
+              candidate_override_sha256=hashlib.sha256(Path('pubspec_overrides.yaml').read_bytes()).hexdigest(),
+              candidate_bridge_sha256={str(p.relative_to(engine)): hashlib.sha256(p.read_bytes()).hexdigest() for p in bridges},
+              candidate_rust_content_hash=int(dart_hash.group(1)),
+          )
+          evidence.write_text(json.dumps(provenance, indent=2) + '\n')
+          PY
+
       - name: Test candidate native contract in a fresh process
         env:
           OTZARIA_EXPECT_NOTE_ANNOTATIONS: '1'
@@ -190,6 +321,40 @@ jobs:
             test/semantic_search/semantic_results_screen_test.dart \
             test/text_book/view/text_book_search_engine_route_test.dart
 
+      - name: Restore source manifests even after a failed candidate run
+        if: always() && steps.manifests.outcome == 'success'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          backup = Path(os.environ['RUNNER_TEMP']) / 'note-annotations-manifests'
+          evidence = Path('build/note-annotations')
+          original = json.loads((evidence / 'original-manifests.json').read_text())
+          source_unchanged = Path('pubspec.yaml').read_bytes() == (backup / 'pubspec.yaml').read_bytes()
+          current_lock = Path('pubspec.lock')
+          candidate_lock_digest = hashlib.sha256(current_lock.read_bytes()).hexdigest() if current_lock.exists() else None
+          for name in original:
+              Path(name).write_bytes((backup / name).read_bytes())
+          Path('pubspec_overrides.yaml').unlink(missing_ok=True)
+          if (backup / 'package_config.json').exists():
+              Path('.dart_tool/package_config.json').write_bytes((backup / 'package_config.json').read_bytes())
+          restored = {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in original}
+          result = {
+              'source_pubspec_was_unchanged': source_unchanged,
+              'lock_sha256_before_restore': candidate_lock_digest,
+              'restored_manifests_sha256': restored,
+              'override_removed': not Path('pubspec_overrides.yaml').exists(),
+          }
+          (evidence / 'restoration.json').write_text(json.dumps(result, indent=2) + '\n')
+          if restored != original or not source_unchanged:
+              raise SystemExit('The source dependency manifests were unexpectedly changed')
+          PY
+          git diff --exit-code -- pubspec.yaml pubspec.lock
+
       - name: Require all suites and zero skipped tests in both modes
         run: |
           set -euo pipefail
@@ -200,10 +365,14 @@ jobs:
           from pathlib import Path
 
           expected = {
-              'snippet_note_annotations_test.dart', 'snippet_note_annotations_engine_test.dart',
-              'snippet_builder_test.dart', 'snippet_builder_highlight_terms_fast_path_test.dart',
-              'tantivy_search_results_test.dart', 'semantic_mode_gate_test.dart',
-              'semantic_results_screen_test.dart', 'text_book_search_engine_route_test.dart',
+              'snippet_note_annotations_test.dart': 26,
+              'snippet_note_annotations_engine_test.dart': 4,
+              'snippet_builder_test.dart': 27,
+              'snippet_builder_highlight_terms_fast_path_test.dart': 3,
+              'tantivy_search_results_test.dart': 25,
+              'semantic_mode_gate_test.dart': 15,
+              'semantic_results_screen_test.dart': 28,
+              'text_book_search_engine_route_test.dart': 41,
           }
           summaries = []
           for mode in ['legacy', 'candidate']:
@@ -211,15 +380,19 @@ jobs:
               suites = {e['suite']['id']: Path(e['suite']['path']).name for e in events if e['type'] == 'suite'}
               tests = {e['test']['id']: e['test'] for e in events if e['type'] == 'testStart'}
               done = [e for e in events if e['type'] == 'testDone' and not e.get('hidden', False)]
-              if not any(e['type'] == 'done' and e.get('success') for e in events):
+              endings = [e for e in events if e['type'] == 'done']
+              if len(endings) != 1 or not endings[0].get('success'):
                   raise SystemExit(f'{mode}: no successful completed run')
-              if any(e.get('skipped', False) or e.get('result') != 'success' for e in done):
-                  raise SystemExit(f'{mode}: failed or skipped visible tests')
+              if any(e['type'] == 'error' for e in events):
+                  raise SystemExit(f'{mode}: unexpected error event')
+              if any(e.get('skipped', False) or e.get('result') != 'success'
+                     for e in events if e['type'] == 'testDone'):
+                  raise SystemExit(f'{mode}: failed or skipped tests')
+              if len(done) != 169 or len({e['testID'] for e in done}) != 169:
+                  raise SystemExit(f'{mode}: expected 169 distinct completed tests')
               counts = Counter(suites[tests[e['testID']]['suiteID']] for e in done)
-              if set(counts) != expected:
+              if dict(counts) != expected:
                   raise SystemExit(f'{mode}: unexpected test suite coverage: {dict(counts)}')
-              if counts['snippet_note_annotations_test.dart'] < 26 or counts['snippet_note_annotations_engine_test.dart'] < 4:
-                  raise SystemExit(f'{mode}: missing note contract cases')
               summaries.append({'mode': mode, 'passed': len(done), 'skipped': 0, 'suites': dict(counts)})
           Path('build/note-annotations/summary.json').write_text(json.dumps(summaries, indent=2) + '\n')
           print(json.dumps(summaries, indent=2))
