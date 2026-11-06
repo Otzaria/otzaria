@@ -43,6 +43,153 @@ void main() {
   });
 
   group('EmptyLibraryBloc', () {
+    for (final backupState in ['none', 'orphaned', 'committed']) {
+      test(
+        'redownload preserves existing Talmud content (backup: $backupState)',
+        () async {
+          await Settings.init(cacheProvider: _MemoryCacheProvider());
+          final target = await Directory.systemTemp.createTemp(
+            'talmud-preserve-',
+          );
+          await File(
+            path.join(target.path, 'seforim.db'),
+          ).writeAsString('old db');
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            target.path,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            '',
+          );
+          final talmud = path.join(
+            target.path,
+            DatabaseConstants.talmudBavliFolderName,
+          );
+          for (final name in [
+            'הערות.pdf',
+            'תוספות/שלי.pdf',
+            'תוספות/משותף.pdf',
+          ]) {
+            final file = File(path.join(talmud, name));
+            await file.parent.create(recursive: true);
+            await file.writeAsString('user content');
+          }
+          if (backupState == 'orphaned') {
+            await Directory(talmud).rename('$talmud.replaced');
+          } else if (backupState == 'committed') {
+            final backup = Directory('$talmud.replaced');
+            await backup.create();
+            await File(
+              path.join(backup.path, 'הערות.pdf'),
+            ).writeAsString('user content');
+            await File(
+              path.join(backup.path, 'משותף.pdf'),
+            ).writeAsString('old release');
+          }
+          final bloc = EmptyLibraryBloc(
+            verifyDatabase: verifyFixtureDatabase,
+            httpClient: fakeLibraryReleaseClient(() => 'new db'),
+            defaultLibraryPathOverride: target.path,
+            extractCompressedDatabase: copyAsExtracted,
+            extractTarArchive:
+                (_, output, _, {required maxOutputBytes, isCancelled}) async {
+                  final replacement = File(
+                    path.join(
+                      output,
+                      DatabaseConstants.talmudBavliFolderName,
+                      'תוספות',
+                      'משותף.pdf',
+                    ),
+                  );
+                  await replacement.parent.create(recursive: true);
+                  await replacement.writeAsString('release content');
+                },
+          );
+          addTearDown(bloc.close);
+          final finished = bloc.stream
+              .where(
+                (s) =>
+                    s is EmptyLibraryDirectorySelected ||
+                    s is EmptyLibraryError,
+              )
+              .first;
+          bloc.add(DownloadLibraryRequested());
+          expect(
+            await finished.timeout(const Duration(seconds: 10)),
+            isA<EmptyLibraryDirectorySelected>(),
+          );
+          expect(
+            await File(path.join(target.path, 'seforim.db')).readAsString(),
+            'new db',
+          );
+          expect(
+            await File(path.join(talmud, 'הערות.pdf')).readAsString(),
+            'user content',
+          );
+          expect(
+            await File(path.join(talmud, 'תוספות', 'שלי.pdf')).readAsString(),
+            'user content',
+          );
+          expect(
+            await File(path.join(talmud, 'תוספות', 'משותף.pdf')).readAsString(),
+            'release content',
+          );
+          expect(await Directory('$talmud.replaced').exists(), isFalse);
+        },
+      );
+    }
+
+    test(
+      'redownload output limit leaves existing Talmud content intact',
+      () async {
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        final target = await Directory.systemTemp.createTemp('talmud-limit-');
+        final db = File(path.join(target.path, 'seforim.db'));
+        await db.writeAsString('old db');
+        final talmud = path.join(
+          target.path,
+          DatabaseConstants.talmudBavliFolderName,
+        );
+        final userFile = File(path.join(talmud, 'הערות.pdf'));
+        await userFile.parent.create();
+        await userFile.writeAsBytes(List.filled(128, 7));
+        final bloc = EmptyLibraryBloc(
+          verifyDatabase: verifyFixtureDatabase,
+          httpClient: fakeLibraryReleaseClient(() => 'new db'),
+          defaultLibraryPathOverride: target.path,
+          extractCompressedDatabase: copyAsExtracted,
+          extractTarArchive: ignoreTarArchive,
+          maxExtractedBytes: 64,
+        );
+        addTearDown(bloc.close);
+        final finished = bloc.stream
+            .where(
+              (s) =>
+                  s is EmptyLibraryDirectorySelected || s is EmptyLibraryError,
+            )
+            .first;
+        bloc.add(DownloadLibraryRequested());
+        expect(
+          await finished.timeout(const Duration(seconds: 10)),
+          isA<EmptyLibraryError>(),
+        );
+        expect(await userFile.readAsBytes(), List.filled(128, 7));
+        expect(await db.readAsString(), 'old db');
+        expect(await Directory('$talmud.replaced').exists(), isFalse);
+        expect(
+          await target.list().any(
+            (e) => path.basename(e.path).startsWith('.talmud-extract-'),
+          ),
+          isFalse,
+        );
+      },
+    );
+
     test('UseLibraryInPlaceRequested שומר את הנתיב בלי להעתיק דבר', () async {
       DbReadWorker.corruptDatabaseDetected.value = true;
       addTearDown(() => DbReadWorker.corruptDatabaseDetected.value = false);
@@ -3382,5 +3529,13 @@ class _MemoryCacheProvider extends CacheProvider {
   @override
   Future<void> setString(String key, String? value) async {
     _values[key] = value;
+  }
+}
+
+Future<void> _eventually(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) fail('התנאי לא התקיים תוך 5 שניות');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }

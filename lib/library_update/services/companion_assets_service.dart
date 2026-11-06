@@ -363,12 +363,20 @@ class CompanionAssetsService {
             'Talmud archive is missing its directory',
           );
         }
-        await _preserveSubdirectories(
-          Directory(targetDir),
-          extracted,
-          cancelled,
-          onDownloadProgress,
-        );
+        final previous = Directory(targetDir);
+        if (await previous.exists()) {
+          await preserveTalmudEntries(
+            previous
+                .list(followLinks: false)
+                .where(
+                  (entry) => entry is Directory || entry is Link,
+                ),
+            extracted,
+            maxOutputBytes: maxExtractedBytes,
+            isCancelled: cancelled,
+            onProgress: onDownloadProgress,
+          );
+        }
         await File(
           p.join(extracted.path, talmudVersionFileName),
         ).writeAsString(release.sha256 ?? release.tag, flush: true);
@@ -405,18 +413,19 @@ class CompanionAssetsService {
     }
   }
 
-  Future<void> _preserveSubdirectories(
-    Directory previous,
-    Directory staged,
-    bool Function() cancelled,
+  /// משמר פריטים חסרים ב-staging לפני החלפה, במגבלת הפלט וביטול בין נתחים.
+  static Future<void> preserveTalmudEntries(
+    Stream<FileSystemEntity> entries,
+    Directory staged, {
+    required int maxOutputBytes,
+    required bool Function() isCancelled,
     void Function(int received, int? total)? onProgress,
-  ) async {
+  }) async {
     void checkCancelled() {
-      if (cancelled()) throw const PatchDownloadCancelled();
+      if (isCancelled()) throw const PatchDownloadCancelled();
     }
 
     checkCancelled();
-    if (!await previous.exists()) return;
     var stagedBytes = 0;
     await for (final entry in staged.list(
       recursive: true,
@@ -425,8 +434,8 @@ class CompanionAssetsService {
       checkCancelled();
       if (entry is File) {
         final size = await entry.length();
-        if (size > maxExtractedBytes - stagedBytes) {
-          throw ZstdOutputLimitExceeded(maxExtractedBytes);
+        if (size > maxOutputBytes - stagedBytes) {
+          throw ZstdOutputLimitExceeded(maxOutputBytes);
         }
         stagedBytes += size;
       }
@@ -450,8 +459,8 @@ class CompanionAssetsService {
       } else if (destinationType == FileSystemEntityType.notFound) {
         if (source is File) {
           final expected = await source.length();
-          if (expected > maxExtractedBytes - stagedBytes) {
-            throw ZstdOutputLimitExceeded(maxExtractedBytes);
+          if (expected > maxOutputBytes - stagedBytes) {
+            throw ZstdOutputLimitExceeded(maxOutputBytes);
           }
           checkCancelled();
           final output = await File(destination).open(mode: FileMode.writeOnly);
@@ -462,8 +471,8 @@ class CompanionAssetsService {
               if (bytes.length > expected - read) {
                 throw StateError('קובץ קיים השתנה בזמן ההעתקה');
               }
-              if (bytes.length > maxExtractedBytes - stagedBytes) {
-                throw ZstdOutputLimitExceeded(maxExtractedBytes);
+              if (bytes.length > maxOutputBytes - stagedBytes) {
+                throw ZstdOutputLimitExceeded(maxOutputBytes);
               }
               await output.writeFrom(bytes);
               read += bytes.length;
@@ -487,13 +496,10 @@ class CompanionAssetsService {
       checkCancelled();
     }
 
-    // Direct files belong to the release; subdirectories may hold user content.
-    // Copy missing entries after extraction, so the archive never follows old links.
-    await for (final entry in previous.list(followLinks: false)) {
+    // משלימים רק לאחר החילוץ, כדי שהארכיון לא יעקוב אחרי קישורים קיימים.
+    await for (final entry in entries) {
       checkCancelled();
-      if (entry is Directory || entry is Link) {
-        await preserve(entry, p.join(staged.path, p.basename(entry.path)));
-      }
+      await preserve(entry, p.join(staged.path, p.basename(entry.path)));
     }
   }
 

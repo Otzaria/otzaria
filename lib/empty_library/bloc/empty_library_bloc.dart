@@ -1981,6 +1981,14 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         }
       }
       final hadPrevious = await target.exists();
+      if (hadPrevious) {
+        await CompanionAssetsService.preserveTalmudEntries(
+          target.list(followLinks: false),
+          Directory(path.join(staging.path, name)),
+          maxOutputBytes: maxExtractedBytes,
+          isCancelled: () => _isDownloadCancelled,
+        );
+      }
       _checkDownloadCancelled();
       if (hadPrevious) target.renameSync(previous.path);
       try {
