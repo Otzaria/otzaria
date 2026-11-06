@@ -16,7 +16,9 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
+import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -217,6 +219,39 @@ class _FakeController extends PlatformInAppWebViewController {
   Completer<dynamic>? bootGate;
   Completer<void>? fontStarted;
   Completer<void>? bootStarted;
+  InAppWebViewSettings? nativeSettings;
+  int settingsReads = 0;
+  final settingsWrites = <InAppWebViewSettings>[];
+
+  @override
+  Future<InAppWebViewSettings?> getSettings() async {
+    settingsReads++;
+    // Widget tests מדמים Android גם ב-Linux; העותק שומר enums של WebKit.
+    return nativeSettings == null
+        ? null
+        : InAppWebViewSettings.fromMap(
+            nativeSettings!.toMap(enumMethod: EnumMethod.value),
+            enumMethod: EnumMethod.value,
+          );
+  }
+
+  @override
+  Future<void> setSettings({required InAppWebViewSettings settings}) async {
+    nativeSettings = InAppWebViewSettings.fromMap(
+      settings.toMap(enumMethod: EnumMethod.value),
+      enumMethod: EnumMethod.value,
+    )!;
+    settingsWrites.add(nativeSettings!);
+  }
+
+  @override
+  void addJavaScriptHandler({
+    required String handlerName,
+    required Function callback,
+  }) {}
+
+  @override
+  dynamic getViewId() => params.id;
 
   List<String> get boots => scripts
       .where((source) => source.contains('return window.Otzaria._boot('))
@@ -437,6 +472,78 @@ Future<void> _reload() =>
 
 void main() {
   setUp(() => Settings.init(cacheProvider: MemorySettingsCache()));
+
+  testWidgets(
+    'foreground applies log-only changes across creation and stops listening on disposal',
+    (tester) async {
+      final diagnostics = DeveloperDiagnostics.instance..resetForTesting();
+      final directory = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('foreground-console-'),
+      ))!;
+      diagnostics.outputPath = '${directory.path}/diagnostics.jsonl';
+      PluginWebViewHost.debugVerboseConsoleOverride = false;
+      late _FakeController native;
+      try {
+        final io = _EntryFileSpy('/install/')
+          ..entrypointResults.add(Future.value(true));
+        await _run(tester, io, (platform) async {
+          final view = platform.views.last;
+          final initial = view.initialSettings!;
+          expect(initial.consoleMessageLevels, [
+            ConsoleMessageLevel.WARNING,
+            ConsoleMessageLevel.ERROR,
+          ]);
+          expect(
+            initial.contentBlockers,
+            pluginNetworkUsesContentBlockers ? isNotEmpty : isEmpty,
+          );
+          native = platform.controller..nativeSettings = initial;
+          await tester.runAsync(() async {
+            diagnostics.initFromLaunch(const [
+              '--dev-diagnostics=log',
+            ], environment: const {});
+            await diagnostics.snapshot();
+          });
+          expect(diagnostics.panelVisible.value, isFalse);
+          view.onWebViewCreated!(
+            InAppWebViewController.fromPlatform(platform: native),
+          );
+          await tester.pump();
+          expect(native.nativeSettings!.consoleMessageLevels, isNull);
+          expect(
+            native.nativeSettings!.contentBlockers!.map((rule) => rule.toMap()),
+            initial.contentBlockers!.map((rule) => rule.toMap()),
+          );
+          expect(
+            native.nativeSettings!.allowUniversalAccessFromFileURLs,
+            isFalse,
+          );
+          await tester.runAsync(() async {
+            diagnostics.toggle();
+            await diagnostics.snapshot();
+          });
+          await tester.pump();
+          expect(native.nativeSettings!.consoleMessageLevels, [
+            ConsoleMessageLevel.WARNING,
+            ConsoleMessageLevel.ERROR,
+          ]);
+        });
+        final readsAfterDisposal = native.settingsReads;
+        await tester.runAsync(() async {
+          diagnostics.initFromLaunch(const [
+            '--dev-diagnostics=log',
+          ], environment: const {});
+          await diagnostics.snapshot();
+        });
+        await tester.pump();
+        expect(native.settingsReads, readsAfterDisposal);
+      } finally {
+        diagnostics.resetForTesting();
+        PluginWebViewHost.debugVerboseConsoleOverride = null;
+        await tester.runAsync(() => directory.delete(recursive: true));
+      }
+    },
+  );
 
   testWidgets('קובץ כניסה חסר נבדק פעם אחת ואסינכרונית (#3380)', (
     tester,

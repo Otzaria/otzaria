@@ -90,12 +90,42 @@ void main() {
     expect(identical(diagnostics.webViewProcessLister, lister), isTrue);
   });
 
-  test('an empty native list remains ambiguous with the pinned contract', () {
-    final snapshot = pluginWebViewProcessSnapshot([]);
-    expect(snapshot.collection.status, ProcessCollectionStatus.unavailable);
-    expect(snapshot.collection.reason, 'empty_process_list_ambiguous');
-    expect(snapshot.processes, isEmpty);
-  });
+  test(
+    'an empty native list is collected under the pinned strict contract',
+    () {
+      final snapshot = pluginWebViewProcessSnapshot([]);
+      expect(snapshot.collection.status, ProcessCollectionStatus.collected);
+      expect(snapshot.collection.reason, isNull);
+      expect(snapshot.collection.partial, isNull);
+      expect(snapshot.processes, isEmpty);
+    },
+  );
+
+  test(
+    'successful empty enumeration preserves host and unknown engine memory',
+    () async {
+      final environment = _Environment(() async => []);
+      final sample = await sampleWindowsProcessTree(
+        webViewProcesses: () => collectPluginWebViewProcesses(environment),
+        readBytes: (ids) async => [
+          for (final id in ids) id == pid ? 20 << 20 : null,
+        ],
+      );
+
+      expect(sample.hostPrivMb, 20);
+      expect(
+        sample.webviewCollection.status,
+        ProcessCollectionStatus.collected,
+      );
+      expect(sample.webviewCollection.partial, isNull);
+      expect(sample.observedProcessCount, 0);
+      expect(sample.measuredProcessCount, 0);
+      expect(sample.unavailableProcessCount, 0);
+      expect(sample.webviewPrivMb, isNull);
+      expect(sample.memoryCoverage, ProcessMemoryCoverage.unavailable);
+      expect(sample.toJson()['engineComplete'], isNull);
+    },
+  );
 
   test('a missing environment is unavailable without creating one', () async {
     final snapshot = await collectPluginWebViewProcesses(null);

@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - dev
+      - 'y-ploni/webview-*'
     paths:
       - ".github/workflows/engine_sqlite_integration.yml"
       - "integration_test/external_line_text_test.dart"

@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - dev
+      - 'y-ploni/webview-*'
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:

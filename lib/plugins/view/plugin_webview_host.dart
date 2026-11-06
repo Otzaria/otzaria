@@ -40,6 +40,7 @@ import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_webview_diagnostics.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
+import 'package:otzaria/plugins/services/plugin_webview_settings_updater.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/utils/plugin_dev_tools_mode.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
@@ -110,6 +111,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   static const _fileServerDenialLogInterval = Duration(minutes: 1);
 
   @visibleForTesting
+  // מדמה את מתג DevTools גם בבניית debug; איסוף אבחון עדיין פותח את הקונסול.
   static bool? debugVerboseConsoleOverride;
 
   InstalledPlugin get plugin;
@@ -121,7 +123,40 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   /// ה-context לדיאלוגים שהתוסף מבקש, או null כשאין דרך להציגם.
   BuildContext? get dialogContext;
 
-  InAppWebViewController? webViewController;
+  InAppWebViewController? _webViewController;
+  late final _settingsUpdater = PluginWebViewSettingsUpdater(
+    onError: (error) => debugPrint(
+      '$logTag [${plugin.pluginId}] WebView settings update: $error',
+    ),
+  );
+
+  InAppWebViewController? get webViewController => _webViewController;
+
+  set webViewController(InAppWebViewController? controller) {
+    _webViewController = controller;
+    if (controller == null || !mounted) {
+      _settingsUpdater.detach();
+      return;
+    }
+    unawaited(
+      _settingsUpdater.attach(
+        controller,
+        consoleMessageLevels: pluginConsoleMessageLevels,
+        contentBlockers: pluginContentBlockers,
+      ),
+    );
+  }
+
+  bool get _verboseConsole =>
+      (debugVerboseConsoleOverride ?? PluginDevToolsMode.enabled) ||
+      DeveloperDiagnostics.instance.isCollecting;
+
+  List<ConsoleMessageLevel>? get pluginConsoleMessageLevels =>
+      _verboseConsole ? null : pluginWarningAndErrorConsoleLevels;
+
+  void _syncConsoleMessageLevels() => unawaited(
+    _settingsUpdater.setConsoleMessageLevels(pluginConsoleMessageLevels),
+  );
 
   /// האם [controller] שהגיע ב-callback שייך ל-WebView הנוכחי. כל callback
   /// מקבל עטיפה חדשה, ולכן משווים את המימוש שמתחתיה.
@@ -139,7 +174,6 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   Future<PluginNetworkPolicy>? _networkPolicy;
   StreamSubscription<String?>? _networkPolicyChanges;
   List<ContentBlocker>? _contentBlockers;
-  bool _contentBlockersPushPending = false;
 
   /// מדיניות הרשת העדכנית של התוסף; מחושבת מחדש אחרי כל שינוי בה.
   Future<PluginNetworkPolicy> get networkPolicy => _networkPolicy ??=
@@ -371,6 +405,9 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
         unawaited(_refreshContentBlockers());
       }
     });
+    DeveloperDiagnostics.instance.collectionState.addListener(
+      _syncConsoleMessageLevels,
+    );
     unawaited(_refreshContentBlockers());
   }
 
@@ -413,38 +450,20 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
 
   Future<void> _refreshContentBlockers() async {
     if (!pluginNetworkUsesContentBlockers) return;
+    final policy = networkPolicy;
     final rules = buildPluginContentBlockers(
       pluginId: plugin.pluginId,
-      policy: await networkPolicy,
+      policy: await policy,
       fileServerPort: await PluginFileServer.instance.ensurePort(),
       devServerOrigin: plugin.isLocalhostDev ? plugin.devRootPath : null,
     );
-    if (!mounted) return;
+    if (!mounted || !identical(policy, _networkPolicy)) return;
     if (_contentBlockers == null) {
       setState(() => _contentBlockers = rules);
       return;
     }
     _contentBlockers = rules;
-    _contentBlockersPushPending = true;
-    await _pushContentBlockers();
-  }
-
-  /// ה-WebView כבר נוצר עם החוקים הקודמים, ולכן מעדכנים אותו במקום.
-  Future<void> _pushContentBlockers() async {
-    final controller = webViewController;
-    final rules = _contentBlockers;
-    if (controller == null || rules == null || !_contentBlockersPushPending) {
-      return;
-    }
-    _contentBlockersPushPending = false;
-    try {
-      final settings = await controller.getSettings();
-      if (settings == null) return;
-      settings.contentBlockers = rules;
-      await controller.setSettings(settings: settings);
-    } catch (e) {
-      debugPrint('$logTag [${plugin.pluginId}] content blockers update: $e');
-    }
+    await _settingsUpdater.setContentBlockers(rules);
   }
 
   /// ה-context אחרי אימות סיסמת "מצב בטוח", או null.
@@ -465,6 +484,11 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
     void Function()? afterAdapter,
     void Function()? onOwnerClosed,
   }) {
+    DeveloperDiagnostics.instance.collectionState.removeListener(
+      _syncConsoleMessageLevels,
+    );
+    _settingsUpdater.dispose();
+    _webViewController = null;
     _confirmationDialog.dispose();
     _findRefRepository.dispose();
     unawaited(_networkPolicyChanges?.cancel());
@@ -526,13 +550,13 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
         viewId: View.of(context).viewId,
       );
       bridge.register(controller);
-      unawaited(_pushContentBlockers());
       if (plugin.isLocalhostDev) {
         unawaited(loadPluginDevServer(controller, entrypoint));
       }
       onAttached?.call();
       return true;
     } catch (e) {
+      webViewController = null;
       PluginRuntimeDispatcher.instance.unregisterController(
         plugin.pluginId,
         instanceId: instanceId,
@@ -795,10 +819,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
     final important =
         level == ConsoleMessageLevel.ERROR ||
         level == ConsoleMessageLevel.WARNING;
-    if (!important &&
-        !(debugVerboseConsoleOverride ??
-            (PluginDevToolsMode.enabled ||
-                DeveloperDiagnostics.instance.isCollecting))) {
+    if (!important && !_verboseConsole) {
       return;
     }
     try {

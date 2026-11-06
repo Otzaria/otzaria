@@ -231,6 +231,39 @@ void main() {
     });
 
     test(
+      'collection state notifies only on log-only start, stop and reset',
+      () async {
+        final changes = <bool>[];
+        void onChange() {
+          expect(diagnostics.collectionState.value, diagnostics.isCollecting);
+          changes.add(diagnostics.collectionState.value);
+        }
+
+        diagnostics.collectionState.addListener(onChange);
+        addTearDown(() => diagnostics.collectionState.removeListener(onChange));
+
+        diagnostics.initFromLaunch(const [
+          '--dev-diagnostics=log',
+        ], environment: const {});
+        expect(diagnostics.panelVisible.value, isFalse);
+        diagnostics.debugTick();
+        diagnostics.debugTick();
+        diagnostics.initFromLaunch(const [
+          '--dev-diagnostics=log',
+        ], environment: const {});
+        expect(changes, [true]);
+        diagnostics.toggle();
+        expect(changes, [true, false]);
+        diagnostics.toggle();
+        expect(changes, [true, false, true]);
+        await diagnostics.snapshot();
+        diagnostics.resetForTesting();
+        diagnostics.resetForTesting();
+        expect(changes, [true, false, true, false]);
+      },
+    );
+
+    test(
       'launch diagnostics records OS enrichment once without restarting',
       () async {
         var osVersion = 'raw kernel';
@@ -388,6 +421,10 @@ void main() {
     });
 
     test('failed output is retained for one explicit snapshot retry', () async {
+      final changes = <bool>[];
+      void onChange() => changes.add(diagnostics.collectionState.value);
+      diagnostics.collectionState.addListener(onChange);
+      addTearDown(() => diagnostics.collectionState.removeListener(onChange));
       final blocked = File('${output.parent.path}/blocked')
         ..writeAsStringSync('not a directory');
       diagnostics.outputPath = '${blocked.path}/out.jsonl';
@@ -395,9 +432,11 @@ void main() {
       expect(await diagnostics.snapshot(), isNull);
       expect(diagnostics.isCollecting, isFalse);
       expect(diagnostics.panelVisible.value, isFalse);
+      expect(changes, [true, false]);
       expect(errorLog, isEmpty);
       await blocked.delete();
       expect(await diagnostics.snapshot(), diagnostics.outputPath);
+      expect(changes, [true, false]);
       final restored = File(diagnostics.outputPath)
           .readAsLinesSync()
           .map((line) => jsonDecode(line) as Map<String, dynamic>)

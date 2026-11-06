@@ -8,6 +8,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -18,9 +19,11 @@ import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
+import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/view/plugin_background_host.dart';
+import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
@@ -185,6 +188,8 @@ class _BootController extends PlatformInAppWebViewController {
 
   final bootResults = <Completer<Object?>>[];
   Completer<void>? nextBootStarted;
+  InAppWebViewSettings? nativeSettings;
+  int settingsReads = 0;
 
   @override
   Future<dynamic> evaluateJavascript({
@@ -206,7 +211,24 @@ class _BootController extends PlatformInAppWebViewController {
   }) {}
 
   @override
-  Future<InAppWebViewSettings?> getSettings() async => null;
+  Future<InAppWebViewSettings?> getSettings() async {
+    settingsReads++;
+    // Widget tests מדמים Android גם ב-Linux; העותק שומר enums של WebKit.
+    return nativeSettings == null
+        ? null
+        : InAppWebViewSettings.fromMap(
+            nativeSettings!.toMap(enumMethod: EnumMethod.value),
+            enumMethod: EnumMethod.value,
+          );
+  }
+
+  @override
+  Future<void> setSettings({required InAppWebViewSettings settings}) async {
+    nativeSettings = InAppWebViewSettings.fromMap(
+      settings.toMap(enumMethod: EnumMethod.value),
+      enumMethod: EnumMethod.value,
+    )!;
+  }
 
   @override
   dynamic getViewId() => params.id;
@@ -791,6 +813,141 @@ void main() {
         }
       },
     );
+
+    for (final initiallyCollecting in [false, true]) {
+      testWidgets(
+        'background keeps native policy current when log-only starts ${initiallyCollecting ? "before" : "after"} creation',
+        (tester) async {
+          final previousPlatform = InAppWebViewPlatform.instance;
+          InAppWebViewPlatform.instance = _BootPlatform();
+          final diagnostics = DeveloperDiagnostics.instance..resetForTesting();
+          diagnostics.outputPath = '${tempDir.path}/diagnostics.jsonl';
+          PluginWebViewHost.debugVerboseConsoleOverride = false;
+          final plugin = _plugin(
+            permissions: const [pluginRunOnStartupPermission],
+          );
+          final io = _EntryFileSpy('/install/')
+            ..initialResult = Future.value(true);
+          final lazy = PluginLazyActivationService.instance;
+          final native = _BootController('console-policy');
+          lazy.syncPlugin(
+            plugin.pluginId,
+            broadcastTopics: const {},
+            scheduleStartup: false,
+          );
+          await tester.runAsync(
+            () => PluginRegistryRepository().setPermission(
+              plugin.pluginId,
+              pluginRunOnStartupPermission,
+              true,
+            ),
+          );
+          try {
+            if (Platform.isWindows) {
+              WebViewEnvironmentHolder.debugOverrideInitialize(null);
+              await tester.runAsync(
+                () => WebViewEnvironmentHolder.initialize(
+                  dataFolderChecked: true,
+                ),
+              );
+            }
+            if (initiallyCollecting) {
+              await tester.runAsync(() async {
+                diagnostics.initFromLaunch(const [
+                  '--dev-diagnostics=log',
+                ], environment: const {});
+                await diagnostics.snapshot();
+              });
+            }
+            await IOOverrides.runWithIOOverrides(() async {
+              bloc.testEmit(PluginSystemLoaded([plugin]));
+              await pumpHost(tester);
+              lazy.queueTargetedEvent(plugin.pluginId, 'click', {'n': 1});
+              await tester.pumpAndSettle();
+              await tester.runAsync(PluginFileServer.instance.ensurePort);
+              await tester.pumpAndSettle();
+              final params = tester
+                  .widget<InAppWebView>(
+                    find.byType(InAppWebView, skipOffstage: false),
+                  )
+                  .platform
+                  .params;
+              final initial = params.initialSettings!;
+              expect(
+                initial.consoleMessageLevels,
+                initiallyCollecting
+                    ? isNull
+                    : [ConsoleMessageLevel.WARNING, ConsoleMessageLevel.ERROR],
+              );
+              expect(
+                initial.contentBlockers,
+                pluginNetworkUsesContentBlockers ? isNotEmpty : isEmpty,
+              );
+              native.nativeSettings = initial;
+              params.onWebViewCreated!(
+                InAppWebViewController.fromPlatform(platform: native),
+              );
+              await tester.pump();
+              if (!initiallyCollecting) {
+                await tester.runAsync(() async {
+                  diagnostics.initFromLaunch(const [
+                    '--dev-diagnostics=log',
+                  ], environment: const {});
+                  await diagnostics.snapshot();
+                });
+                await tester.pump();
+              }
+              expect(diagnostics.panelVisible.value, isFalse);
+              expect(native.nativeSettings!.consoleMessageLevels, isNull);
+              await tester.runAsync(() async {
+                diagnostics.toggle();
+                await diagnostics.snapshot();
+              });
+              await tester.pump();
+              expect(native.nativeSettings!.consoleMessageLevels, [
+                ConsoleMessageLevel.WARNING,
+                ConsoleMessageLevel.ERROR,
+              ]);
+              expect(
+                native.nativeSettings!.contentBlockers!.map(
+                  (rule) => rule.toMap(),
+                ),
+                initial.contentBlockers!.map((rule) => rule.toMap()),
+              );
+              expect(
+                native.nativeSettings!.allowUniversalAccessFromFileURLs,
+                isFalse,
+              );
+              await tester.pumpWidget(const SizedBox());
+              await tester.pumpAndSettle();
+              final readsAfterDisposal = native.settingsReads;
+              await tester.runAsync(() async {
+                diagnostics.initFromLaunch(const [
+                  '--dev-diagnostics=log',
+                ], environment: const {});
+                await diagnostics.snapshot();
+              });
+              await tester.pump();
+              expect(native.settingsReads, readsAfterDisposal);
+            }, io);
+          } finally {
+            diagnostics.resetForTesting();
+            PluginWebViewHost.debugVerboseConsoleOverride = null;
+            await tester.pumpWidget(const SizedBox());
+            await tester.pumpAndSettle();
+            lazy.removePlugin(plugin.pluginId);
+            if (Platform.isWindows) {
+              await tester.runAsync(
+                WebViewEnvironmentHolder.disposeForAppRestart,
+              );
+            }
+            if (previousPlatform != null) {
+              InAppWebViewPlatform.instance = previousPlatform;
+            }
+          }
+        },
+      );
+    }
 
     for (final crash in [false, true]) {
       testWidgets(

@@ -50,6 +50,7 @@ import 'package:otzaria/plugins/view/plugin_load_generation.dart';
 import 'package:otzaria/plugins/view/widgets/plugin_webview_focus_restorer.dart';
 import 'package:otzaria/plugins/services/plugin_download_handler.dart';
 import 'package:otzaria/plugins/services/plugin_webview_permission_gate.dart';
+import 'package:otzaria/plugins/services/plugin_webview_settings_updater.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -81,9 +82,12 @@ bool shouldHandleCreationFailure({
 InAppWebViewSettings buildPluginTabWebViewSettings({
   required bool isDevelopment,
   List<ContentBlocker> contentBlockers = const [],
+  List<ConsoleMessageLevel>? consoleMessageLevels =
+      pluginWarningAndErrorConsoleLevels,
 }) {
   return InAppWebViewSettings(
     contentBlockers: contentBlockers,
+    consoleMessageLevels: consoleMessageLevels,
     allowFileAccessFromFileURLs: false,
     allowUniversalAccessFromFileURLs: false,
     useShouldOverrideUrlLoading: true,
@@ -737,6 +741,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       initialSettings: buildPluginTabWebViewSettings(
         isDevelopment: widget.plugin.isDevelopment,
         contentBlockers: contentBlockers,
+        consoleMessageLevels: pluginConsoleMessageLevels,
       ),
       gestureRecognizers: pluginTabWebViewGestureRecognizers(
         isTouchPlatform: Platform.isAndroid || Platform.isIOS,

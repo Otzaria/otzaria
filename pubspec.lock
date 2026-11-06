@@ -527,8 +527,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "6.2.0-beta.3"
@@ -536,8 +536,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_android
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -553,8 +553,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_ios
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -562,8 +562,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_linux
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.1.0-beta.1"
@@ -571,8 +571,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_macos
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -580,8 +580,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_platform_interface
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.4.0-beta.3"
@@ -589,8 +589,8 @@ packages:
     dependency: transitive
     description:
       path: flutter_inappwebview_web
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -598,8 +598,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_windows
-      ref: "f2e47b497cac4026857baf52232b6b920e98412a"
-      resolved-ref: "f2e47b497cac4026857baf52232b6b920e98412a"
+      ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
+      resolved-ref: "8f67ffd0f4bf850a0c183a8745ec3c607ba2c742"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.7.0-beta.3"
