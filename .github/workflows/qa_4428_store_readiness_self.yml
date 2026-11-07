@@ -1,0 +1,41 @@
+name: Implementation check 4428 Store document readiness
+on:
+  push:
+    branches: [y-ploni/qa-4428-store-readiness-self-20261107-a]
+permissions:
+  contents: read
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DART_SUPPRESS_ANALYTICS: 'true'
+jobs:
+  implementation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Native build dependencies used by existing Flutter tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libclang-dev libgtk-3-dev ninja-build pkg-config
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Exact candidate formatter, full analyze and focused regressions
+        env:
+          ANDROID_STORE_SELF_OUTPUT: ${{ runner.temp }}/4428-store-readiness-self
+        run: python3 .github/qa/4428/store_readiness_self.py
+      - name: Preserve original source snapshots, formatted bytes and every command stream
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: implementation-4428-store-readiness
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/4428-store-readiness-self/**
