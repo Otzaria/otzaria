@@ -1,0 +1,180 @@
+name: QA 4425 native hide and owned cleanup controls
+on:
+  push:
+    branches: ['y-ploni/qa-4425-native-hide-fast-20261107-a']
+permissions:
+  contents: read
+jobs:
+  fast:
+    name: Fast real process controls (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+          - platform: macos
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact source and preserve all tracked bytes before controls
+        id: bind
+        env:
+          QA_SNAPSHOT: ${{ runner.temp }}/qa-4425-source-before.json
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          source = "de019fc88b93a6ec58dd80d6ab40cd26fd5c06e1"
+          tree = "765928640680a128e48690dff500a86911a8aeaa"
+          root = pathlib.Path.cwd()
+          def git(*args):
+              return subprocess.check_output(["git", *args]).decode().strip()
+          assert git("rev-parse", "HEAD^") == source
+          for revision, parents in [("HEAD", [source]), (source, ["3b9c05140f722d31fe1fb7312e9722db646335a5"])]:
+              raw = git("cat-file", "-p", revision).split("\n\n", 1)[0].splitlines()
+              assert [line[7:] for line in raw if line.startswith("parent ")] == parents
+              identity = git("show", "-s", "--format=%an%x00%ae%x00%cn%x00%ce", revision).split("\0")
+              assert identity == ["Y-Ploni", "7353755@gmail.com", "Y-Ploni", "7353755@gmail.com"]
+          assert git("rev-parse", source + "^{tree}") == tree
+          assert not git("status", "--porcelain=v1", "--untracked-files=all")
+          manifest = [[".github/workflows/apple-plugin-activity.yml","9ec09629f9db04e4ce974c181033c3d2a1becf14","dc08561260f17d941af5fb99cfe172f3e36ed5a60be9a96299f7ac58f9d939d2",6594,"100644"],["integration_test/apple_plugin_activity_probe_test.dart","12539d1e150832b2ae2971181612caba13d8b5f8","44b0be6b97633b8526ce192eef75578ebb8bed6941276f9009bd548699cbe643",30720,"100644"],["ios/Runner.xcodeproj/project.pbxproj","b5f0f0c700d3933e762d38c3d706b2ce3af9d82a","cba33ded34fa00b8f1aacfc0da74126aac3085256c2e44ce06fed7ec5c81374f",31892,"100644"],["ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme","c3fedb29c990d9c5a66b9f4ffb198b0ca3ce2ce5","9fbce429f56243561dd437a527136c9f9ed77165e3b271b923faf236cfcd0484",4717,"100644"],["lib/core/window_listener.dart","25b13d9b31afead65b3f0ad17e7d9f7cca7167b3","5f8680dc146863e76e73522be736133606871d0eb14d1ac8019d1a9102722800",33230,"100644"],["pubspec.lock","61f0e395ef0f048f47f46094a20cfa421a5e0178","fe731ab5452aba50c3311555016e18b868a4749dbcd5e19b86970a2981cb389c",66487,"100644"],["pubspec.yaml","cf796836f78f63e1cea0ce2cdbaa7dca9140246f","72e41248f6afdf7831079a1c117e27a68f82f6dbfa8d87e3fed840ed772dd7d1",13609,"100644"],["test/core/window_listener_native_visibility_test.dart","a6394e2c03a45c5a31462a5c1c4790382ed4297c","307d75acb0d29a208f85278a2341c4ebcbaac26c3995b3a085dc8a561bb12bab",3648,"100644"],["tool/perf_probe/apple_plugin_activity/AppleQuietControl.swift","c20567565beba70d97f672a0434a8456b021fda0","633d866d38943ab76581f5dd4a34c85876b8029fb94f89872e2acd06249e057f",7225,"100644"],["tool/perf_probe/apple_plugin_activity/README.md","6356f39386a52b7c721bfba5442a47056ace0cda","d2106da0d8d3b18545a34dd0d69139fc5d8675a09b245edb00b52ea51078dd0c",36945,"100644"],["tool/perf_probe/apple_plugin_activity/mac_application.swift","be9acc8964ca2f8bd2478b4677b6fc06ceed0f05","8961aeebc55cadcf2ef74d50888cde2638fff66c128559af52d0b30c835b938e",11105,"100644"],["tool/perf_probe/apple_plugin_activity/mac_launch_fixture.swift","6ee7c7f170a58ac81bc970c4d1ab0ce7ed94c0a7","a623fc9da165e928446b4d466f234a747bf93e1d9b8a0200d8833d67319d0303",4493,"100644"],["tool/perf_probe/apple_plugin_activity/mac_process_control.c","51b1610b1fcc85d15933cd927e543ff0b4786718","0c6cec86cca15bffc10df277ae5b536beba50aeaf6a650f8d2974f0f467d0dec",892,"100644"],["tool/perf_probe/apple_plugin_activity/mac_process_control.h","d3d9d6086493f665d09f947d27d62ee9f9f665cc","1f6a9cc7593d0f1b114758670ebfbee06883e74d2c300161daa18072170000d9",481,"100644"],["tool/perf_probe/apple_plugin_activity/run.py","c8f2cf420610c17d3c1c5f28bf23fdd562394791","7200fd9013891c3e2c7daab715a7ab17e22778c69a4431b0117434061e876dab",60511,"100644"],["tool/perf_probe/apple_plugin_activity/test_cleanup_boundaries.py","afa4b01aabe568ef820e3819c915ea214bf17a63","314902daf107bc214f4620a992671b654a5f87978a79461706122638507b3851",17691,"100644"],["tool/perf_probe/apple_plugin_activity/test_cleanup_permissions.py","dabca892ebb9adbe7934cd00889e92d22958aeb6","635776c77d74ac1ce63b3b0cd8e6ad90b46b82e03db576fb5b408e74f32ce560",11628,"100644"],["tool/perf_probe/apple_plugin_activity/test_lifetime.py","766d0a4adc06acc1f73d7c69dffc38352e194099","d3edb7de439cdb32536a4c7ffbe64e6c7f2752448f415ba20b9a566a0a6e22ab",21343,"100644"],["tool/perf_probe/apple_plugin_activity/test_macos_controller.py","0f63966d86d891cd89d5cfbd7c317e99b49a1420","71292b71e8e6fd1ea8051b2805414c630239b33b76d267874468b2e161c52781",19043,"100644"],["tool/perf_probe/apple_plugin_activity/test_runner.py","f1e9d6b20fcb53baee84531a4c56e85bbc5039d5","a2227a5e181e1de3f9229e2b82ee74d5405de0e6cf5240b26de70392e4343125",23550,"100644"]]
+          for name, blob, digest, size, mode in manifest:
+              data = (root / name).read_bytes()
+              assert len(data) == size and hashlib.sha256(data).hexdigest() == digest, name
+              assert hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() == blob, name
+              assert git("ls-files", "-s", "--", name).split()[0] == mode, name
+          entries = []
+          for raw in subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"):
+              if not raw:
+                  continue
+              name = os.fsdecode(raw)
+              path = root / name
+              data = os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes()
+              entries.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                              "mode": path.lstat().st_mode, "symlink": path.is_symlink()})
+          assert len(entries) == 4200, len(entries)
+          snapshot = {"head": git("rev-parse", "HEAD"), "indexTree": git("write-tree"),
+                      "status": git("status", "--porcelain=v1", "--untracked-files=all"), "files": entries}
+          pathlib.Path(os.environ["QA_SNAPSHOT"]).write_text(json.dumps(snapshot, sort_keys=True), encoding="utf-8")
+          print(json.dumps({"source": source, "sourceTree": tree, "verifiedManifestFiles": len(manifest),
+                            "verifiedManifestBytes": sum(item[3] for item in manifest),
+                            "trackedFilesBefore": len(entries)}))
+          PY
+      - name: Reproduce the original five independent controls on Linux
+        if: matrix.platform == 'linux'
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4425-independent
+        run: python3 tool/perf_probe/qa_4425_lifetime_controls.py
+      - name: Bind the exact controller source on macOS
+        if: matrix.platform == 'macos'
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4425-native-binding
+        run: python3 -c "import runpy; runpy.run_path('tool/perf_probe/qa_4425_lifetime_controls.py')"
+      - name: Run the complete real-process and native AppKit suite
+        if: always() && steps.bind.outcome == 'success'
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/qa-4425-appkit-controls
+          APPLE_CLEANUP_CONTROL_OUTPUT: ${{ runner.temp }}/qa-4425-cleanup-controls
+          QA_SUITE_DIR: ${{ runner.temp }}/qa-4425-suite
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, platform, sys, time, unittest
+          out = pathlib.Path(os.environ["QA_SUITE_DIR"])
+          out.mkdir(parents=True, exist_ok=False)
+          suite = unittest.defaultTestLoader.discover("tool/perf_probe/apple_plugin_activity", pattern="test_*.py")
+          def test_ids(node):
+              if isinstance(node, unittest.TestSuite):
+                  return [name for child in node for name in test_ids(child)]
+              return [node.id()]
+          discovered = test_ids(suite)
+          started = time.monotonic()
+          with (out / "unittest.log").open("w", encoding="utf-8") as log:
+              result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
+          expected_skips = 0 if sys.platform == "darwin" else 7
+          coverage = len(discovered) == 74 and result.testsRun == 74 and len(result.skipped) == expected_skips
+          summary = {"platform": sys.platform, "host": platform.platform(), "source": "de019fc88b93a6ec58dd80d6ab40cd26fd5c06e1",
+                     "discovered": discovered, "testsRun": result.testsRun,
+                     "executed": result.testsRun - len(result.skipped), "expectedCoverageSatisfied": coverage,
+                     "skipped": [{"test": str(test), "reason": reason} for test, reason in result.skipped],
+                     "failures": [{"test": str(test), "traceback": trace} for test, trace in result.failures],
+                     "errors": [{"test": str(test), "traceback": trace} for test, trace in result.errors],
+                     "elapsedSeconds": time.monotonic() - started,
+                     "status": "PASSED" if result.wasSuccessful() and coverage else "FAILED",
+                     "scope": "Process cleanup and owned AppKit fixtures only; actual Otzaria acceptance remains separate"}
+          (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+          print("BEGIN_QA4425_DARWIN_FAST_SUITE", flush=True)
+          print(json.dumps(summary), flush=True)
+          print("END_QA4425_DARWIN_FAST_SUITE", flush=True)
+          print((out / "unittest.log").read_text(), flush=True)
+          sys.exit(0 if result.wasSuccessful() and coverage else 1)
+          PY
+      - name: Print retained native compiler diagnostics without rerunning commands
+        if: always()
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/qa-4425-appkit-controls
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path(os.environ["APPLE_HELPER_CONTROL_OUTPUT"])
+          records = []
+          if root.exists():
+              for path in sorted(root.glob("compile-*")):
+                  if path.is_file() and path.name.endswith((".json", ".stdout.log", ".stderr.log")):
+                      data = path.read_bytes()
+                      records.append({"path": path.name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                                      "text": data.decode("utf-8", "replace")})
+          print("BEGIN_QA4425_NATIVE_COMPILER_EVIDENCE", flush=True)
+          print(json.dumps(records), flush=True)
+          print("END_QA4425_NATIVE_COMPILER_EVIDENCE", flush=True)
+          PY
+      - name: Verify every tracked source and index byte remained unchanged
+        if: always()
+        env:
+          QA_SNAPSHOT: ${{ runner.temp }}/qa-4425-source-before.json
+          QA_AFTER: ${{ runner.temp }}/qa-4425-source-after.json
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          def git(*args):
+              return subprocess.check_output(["git", *args]).decode().strip()
+          entries = []
+          for raw in subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"):
+              if not raw:
+                  continue
+              name = os.fsdecode(raw)
+              path = root / name
+              data = os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes()
+              entries.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                              "mode": path.lstat().st_mode, "symlink": path.is_symlink()})
+          after = {"head": git("rev-parse", "HEAD"), "indexTree": git("write-tree"),
+                   "status": git("status", "--porcelain=v1", "--untracked-files=all"), "files": entries}
+          pathlib.Path(os.environ["QA_AFTER"]).write_text(json.dumps(after, sort_keys=True), encoding="utf-8")
+          before = json.loads(pathlib.Path(os.environ["QA_SNAPSHOT"]).read_text())
+          assert before == after, "Source or index changed; preserve both snapshots"
+          print(json.dumps({"source": "de019fc88b93a6ec58dd80d6ab40cd26fd5c06e1", "trackedFilesUnchanged": len(entries),
+                            "sourceAndIndexUnchanged": True}))
+          PY
+      - name: Preserve all controls, transcripts and before/after source snapshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-darwin-fast-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/qa-4425-independent
+            ${{ runner.temp }}/qa-4425-native-binding
+            ${{ runner.temp }}/qa-4425-suite
+            ${{ runner.temp }}/qa-4425-source-*.json
+            ${{ runner.temp }}/qa-4425-appkit-controls/*.json
+            ${{ runner.temp }}/qa-4425-appkit-controls/*.log
+            ${{ runner.temp }}/qa-4425-appkit-controls/*.swift
+            ${{ runner.temp }}/qa-4425-cleanup-controls/*.json
+          if-no-files-found: error
+          retention-days: 14
