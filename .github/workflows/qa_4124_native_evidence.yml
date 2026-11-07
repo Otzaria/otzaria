@@ -1,0 +1,37 @@
+name: QA 4124 retained native evidence
+
+on:
+  push:
+    branches: ['y-ploni/qa-4124-native-evidence-20261107-a']
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: qa-4124-native-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify retained native artifacts and source identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_OUTPUT: ${{ runner.temp }}/qa-4124-native-evidence
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 tool/perf_probe/qa_4124_native_evidence.py
+      - name: Preserve raw artifacts and independent receipts
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4124-native-evidence
+          path: ${{ runner.temp }}/qa-4124-native-evidence
+          if-no-files-found: error
+          retention-days: 14
