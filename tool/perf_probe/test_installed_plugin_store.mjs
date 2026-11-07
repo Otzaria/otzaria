@@ -68,7 +68,7 @@ async function store({ acknowledge = true } = {}) {
   const context = {
     TextEncoder, Event: class { constructor(type) { this.type = type; } },
     navigator: { userAgent: 'Controlled Store source contract, not native WebView evidence' },
-    document: { getElementById: element, addEventListener() {}, hidden: false },
+    document: { readyState: 'complete', URL: 'file:///pinned-store/index.html', getElementById: element, addEventListener() {}, hidden: false },
     localStorage: { getItem() { return null; }, setItem() {} },
     requestAnimationFrame: callback => { frames.push(callback); return frames.length; },
     setTimeout: (callback, delay) => { const id = ++timerId; timers.set(id, { callback, due: now + delay }); return id; },
@@ -168,7 +168,7 @@ test('clamped geometry is reported as observed rather than as the requested scro
 test('an absent pinned render state is observable and cannot be treated as ready', () => {
   const element = { value: '', checked: false, children: [{}], scrollTop: 0 };
   const context = {
-    document: { getElementById: () => element }, getComputedStyle: () => ({ display: 'none' }),
+    document: { readyState: 'complete', URL: 'file:///pinned-store/index.html', getElementById: () => element }, getComputedStyle: () => ({ display: 'none' }),
     navigator: { userAgent: 'no Store script' }, Otzaria: { _booted: true },
   };
   context.window = context;
@@ -184,4 +184,73 @@ test('render readiness does not invent an acknowledged restore snapshot', async 
   assert.equal(value.read().ready, true);
   value.scroll(); await value.advance(150);
   assert.equal(value.snapshots.length, 0);
+});
+
+function documentRead({ readyState = 'complete', missing = [], booted = true, styleError = false,
+  children = [{}], display = 'none', pending = null } = {}) {
+  const element = { value: '', checked: false, children, scrollTop: 0 };
+  const context = {
+    document: { readyState, URL: 'file:///pinned-store/index.html',
+      getElementById: id => missing.includes(id) ? null : element },
+    navigator: { userAgent: 'Controlled incomplete document, not native WebView evidence' },
+    getComputedStyle: () => {
+      if (styleError) throw new Error('controlled computed-style failure');
+      return { display };
+    },
+    Otzaria: { _booted: booted }, pendingScroll: pending, renderSeq: 1,
+  };
+  context.window = context;
+  return { context, observed: JSON.parse(vm.runInNewContext(read, context)) };
+}
+
+test('a loading or partially parsed Store document is observed without dereferencing absent elements', () => {
+  const required = ['search', 'grid', 'loading', 'status-filter', 'sort-select', 'hide-installed', 'app-content'];
+  const loading = documentRead({ readyState: 'loading', missing: required }).observed;
+  assert.equal(loading.ready, false);
+  assert.equal(loading.rendering.pendingScroll, 'documentLoading');
+  assert.equal(loading.document.readyState, 'loading');
+  assert.equal(loading.document.url, 'file:///pinned-store/index.html');
+  assert.deepEqual(loading.missingElements, required);
+  assert.equal(loading.view, null);
+  assert.equal(loading.error, undefined);
+  for (const id of required) {
+    const partial = documentRead({ readyState: 'interactive', missing: [id] }).observed;
+    assert.equal(partial.ready, false, id);
+    assert.deepEqual(partial.missingElements, [id]);
+    assert.equal(partial.view, null);
+    assert.equal(partial.error, undefined);
+  }
+});
+
+test('an unfinished Store script is not read through its temporal dead zone while the document loads', () => {
+  const { context } = documentRead({ readyState: 'loading' });
+  delete context.pendingScroll;
+  delete context.renderSeq;
+  const code = 'const observed = ' + read + '; let pendingScroll = null; let renderSeq = 1; observed;';
+  const observed = JSON.parse(vm.runInNewContext(code, context));
+  assert.equal(observed.ready, false);
+  assert.equal(observed.rendering.pendingScroll, 'documentLoading');
+  assert.equal(observed.rendering.sequence, null);
+  assert.equal(observed.error, undefined);
+});
+
+test('loaded Store readiness still requires grid, loading indicator and settled rendering', () => {
+  for (const readyState of ['interactive', 'complete']) {
+    assert.equal(documentRead({ readyState }).observed.ready, true);
+  }
+  for (const options of [{ children: [] }, { display: 'block' }, { pending: 0 }, { readyState: 'unavailable' }]) {
+    assert.equal(documentRead(options).observed.ready, false);
+  }
+  const unbooted = documentRead({ booted: false }).observed;
+  assert.equal(unbooted.sdkBooted, false);
+  assert.equal(unbooted.ready, true, 'The separate Dart SDK and accepted-snapshot gates remain necessary.');
+});
+
+test('unexpected JavaScript read errors return their original cause and document metadata', () => {
+  const observed = documentRead({ styleError: true }).observed;
+  assert.match(observed.error, /controlled computed-style failure/);
+  assert.match(observed.stack, /controlled computed-style failure/);
+  assert.equal(observed.document.readyState, 'complete');
+  assert.equal(observed.document.url, 'file:///pinned-store/index.html');
+  assert.equal(observed.ready, undefined, 'A JavaScript failure is not an ordinary not-ready response.');
 });

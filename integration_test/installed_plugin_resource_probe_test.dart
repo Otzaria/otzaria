@@ -212,10 +212,15 @@ void main() {
       }
       Directory? temporary;
       if (dataPath.isEmpty || outputPath.isEmpty || sourcePath.isEmpty) {
-        final canonicalTemp = await Directory.systemTemp.resolveSymbolicLinks();
-        temporary = await Directory(
-          canonicalTemp,
-        ).createTemp('otzaria-installed-probe-');
+        if (Platform.isAndroid) {
+          temporary = await createInstalledAndroidProbeRoot();
+        } else {
+          final canonicalTemp = await Directory.systemTemp
+              .resolveSymbolicLinks();
+          temporary = await Directory(
+            canonicalTemp,
+          ).createTemp('otzaria-installed-probe-');
+        }
       }
       final root = Directory(
         dataPath.isEmpty ? p.join(temporary!.path, 'data') : dataPath,
@@ -1438,37 +1443,37 @@ class _Scenario {
   Future<Map<String, Object?>> storeRead(ToolTab tab) async {
     final token = '${report['runId']}-store-document-${commands++}';
     final value = await evaluate(controller(tab)!, '''JSON.stringify((() => {
-      if (!window.__installedProbeDocumentToken) window.__installedProbeDocumentToken = ${jsonEncode(token)};
-      const byId = id => document.getElementById(id);
-      const pending = typeof pendingScroll === 'undefined' ? 'unavailable' : pendingScroll;
-      return {documentToken:window.__installedProbeDocumentToken,
-        sdkBooted:!!(window.Otzaria && Otzaria._booted), userAgent:navigator.userAgent,
-        ready:!!byId('search') && !!byId('grid') && byId('grid').children.length > 0 && getComputedStyle(byId('loading')).display === 'none' && pending === null,
-        rendering:{pendingScroll:pending, sequence:typeof renderSeq === 'number' ? renderSeq : null},
-        view:byId('search') ? {search:byId('search').value, status:byId('status-filter').value,
-          sort:byId('sort-select').value, hideInstalled:byId('hide-installed').checked,
-          scrollTop:byId('app-content').scrollTop} : null};
+      const documentState = {readyState:document.readyState, url:document.URL};
+      try {
+        if (!window.__installedProbeDocumentToken) window.__installedProbeDocumentToken = ${jsonEncode(token)};
+        const byId = id => document.getElementById(id);
+        const required = ['search', 'grid', 'loading', 'status-filter', 'sort-select', 'hide-installed', 'app-content'];
+        const missing = required.filter(id => !byId(id));
+        const loaded = document.readyState === 'interactive' || document.readyState === 'complete';
+        const pending = !loaded ? 'documentLoading' : typeof pendingScroll === 'undefined' ? 'unavailable' : pendingScroll;
+        return {documentToken:window.__installedProbeDocumentToken,
+          sdkBooted:!!(window.Otzaria && Otzaria._booted), userAgent:navigator.userAgent,
+          document:documentState, missingElements:missing,
+          ready:loaded && missing.length === 0 && byId('grid').children.length > 0 && getComputedStyle(byId('loading')).display === 'none' && pending === null,
+          rendering:{pendingScroll:pending, sequence:loaded && typeof renderSeq === 'number' ? renderSeq : null},
+          view:missing.length === 0 ? {search:byId('search').value, status:byId('status-filter').value,
+            sort:byId('sort-select').value, hideInstalled:byId('hide-installed').checked,
+            scrollTop:byId('app-content').scrollTop} : null};
+      } catch (error) {
+        return {error:String(error), stack:String(error && error.stack || ''), document:documentState};
+      }
     })())''');
-    return Map<String, Object?>.from(jsonDecode(value as String) as Map);
+    final observed = decodeInstalledStoreSnapshot(value);
+    phaseRecord('storeRestore')['lastReadiness'] = observed;
+    return observed;
   }
 
-  Future<Map<String, Object?>> storeReady(ToolTab tab) async {
-    final elapsed = Stopwatch()..start();
-    while (true) {
-      final value = await storeRead(tab);
-      if (value['sdkBooted'] == true &&
-          value['ready'] == true &&
-          restoreStore.has(key(tab))) {
-        return value;
-      }
-      if (elapsed.elapsed >= _deadline) {
-        throw TimeoutException(
-          'Unmodified store SDK, catalog and first accepted snapshot: $value',
-        );
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-  }
+  Future<Map<String, Object?>> storeReady(ToolTab tab) =>
+      waitForInstalledStoreReady(
+        read: () => storeRead(tab),
+        hasRestoreState: () => restoreStore.has(key(tab)),
+        timeout: _deadline,
+      );
 
   Future<void> storeScenario() async {
     final tab = await open(id: installedStoreId, store: true);

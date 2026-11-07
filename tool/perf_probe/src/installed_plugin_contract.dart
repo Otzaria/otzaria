@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 const installedPluginPlatforms = [
   'windows',
   'macos',
@@ -24,6 +27,76 @@ const installedPluginRequiredPhases = [
   'close',
   'closedIdle',
 ];
+
+Map<String, Object?> decodeInstalledStoreSnapshot(Object? reply) {
+  final value = reply is String ? jsonDecode(reply) : reply;
+  // A created WebView can return no result while its document is loading.
+  if (value == null) {
+    return {'evaluation': 'unavailable', 'sdkBooted': false, 'ready': false};
+  }
+  if (value is! Map || value.keys.any((key) => key is! String)) {
+    throw FormatException('Store read did not return a JSON object: $value');
+  }
+  final snapshot = Map<String, Object?>.from(value);
+  if (snapshot['error'] != null) {
+    throw StateError('Store JavaScript read failed: $snapshot');
+  }
+  final document = snapshot['document'];
+  final rendering = snapshot['rendering'];
+  final missing = snapshot['missingElements'];
+  if (snapshot['sdkBooted'] is! bool ||
+      snapshot['ready'] is! bool ||
+      snapshot['documentToken'] is! String ||
+      (snapshot['documentToken'] as String).isEmpty ||
+      snapshot['userAgent'] is! String ||
+      document is! Map ||
+      document['readyState'] is! String ||
+      document['url'] is! String ||
+      rendering is! Map ||
+      !rendering.containsKey('pendingScroll') ||
+      missing is! List ||
+      missing.any((id) => id is! String)) {
+    throw FormatException('Malformed Store readiness snapshot: $snapshot');
+  }
+  final view = snapshot['view'];
+  if (snapshot['ready'] == true &&
+      (!{'interactive', 'complete'}.contains(document['readyState']) ||
+          missing.isNotEmpty ||
+          rendering['pendingScroll'] != null ||
+          view is! Map ||
+          view['search'] is! String ||
+          view['status'] is! String ||
+          view['sort'] is! String ||
+          view['hideInstalled'] is! bool ||
+          view['scrollTop'] is! num ||
+          !(view['scrollTop'] as num).isFinite)) {
+    throw FormatException('Incomplete ready Store snapshot: $snapshot');
+  }
+  return snapshot;
+}
+
+Future<Map<String, Object?>> waitForInstalledStoreReady({
+  required Future<Map<String, Object?>> Function() read,
+  required bool Function() hasRestoreState,
+  required Duration timeout,
+}) async {
+  final elapsed = Stopwatch()..start();
+  while (true) {
+    final value = await read();
+    if (value['sdkBooted'] == true &&
+        value['ready'] == true &&
+        hasRestoreState()) {
+      return value;
+    }
+    if (elapsed.elapsed >= timeout) {
+      throw TimeoutException(
+        'Unmodified store SDK, catalog and first accepted snapshot: $value',
+        timeout,
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+}
 
 List<String> installedRestoreErrors(Map<String, Object?> proof) {
   final errors = <String>[];

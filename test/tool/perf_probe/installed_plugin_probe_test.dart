@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -71,8 +72,186 @@ Map<String, Object?> completeReport() => {
   'policyRestored': true,
 };
 
+Map<String, Object?> storeSnapshot() => {
+  'documentToken': 'store-document',
+  'sdkBooted': true,
+  'userAgent': 'controlled-readiness-test',
+  'document': {
+    'readyState': 'complete',
+    'url': 'file:///pinned-store/index.html',
+  },
+  'missingElements': <String>[],
+  'ready': true,
+  'rendering': {'pendingScroll': null, 'sequence': 1},
+  'view': {
+    'search': 'Fixture',
+    'status': 'beta',
+    'sort': 'updated',
+    'hideInstalled': true,
+    'scrollTop': 420,
+  },
+};
+
 void main() {
   final preparedSource = Platform.environment['INSTALLED_PROBE_STORE_SOURCE'];
+  group('bounded Store document readiness', () {
+    test('decodes the real JSON string and already decoded map shapes', () {
+      final expected = storeSnapshot();
+      expect(decodeInstalledStoreSnapshot(jsonEncode(expected)), expected);
+      expect(decodeInstalledStoreSnapshot(expected), expected);
+    });
+
+    test('waits through absent results, DOM, SDK and restore acknowledgement', () async {
+      final ready = storeSnapshot();
+      final replies = <Object?>[
+        null,
+        'null',
+        jsonEncode({...ready, 'ready': false}),
+        jsonEncode({...ready, 'sdkBooted': false}),
+        jsonEncode(ready),
+        jsonEncode(ready),
+      ];
+      var reads = 0;
+      var acknowledgementChecks = 0;
+      final result = await waitForInstalledStoreReady(
+        read: () async => decodeInstalledStoreSnapshot(replies[reads++]),
+        hasRestoreState: () => ++acknowledgementChecks == 2,
+        timeout: const Duration(seconds: 5),
+      );
+      expect(result, ready);
+      expect(reads, 6);
+      expect(acknowledgementChecks, 2);
+    });
+
+    test('absent or incomplete evidence reaches the existing bounded timeout', () async {
+      final ready = storeSnapshot();
+      for (final reply in <Object?>[
+        null,
+        'null',
+        {...ready, 'ready': false},
+        {...ready, 'sdkBooted': false},
+        ready,
+      ]) {
+        var reads = 0;
+        await expectLater(
+          waitForInstalledStoreReady(
+            read: () async {
+              reads++;
+              return decodeInstalledStoreSnapshot(reply);
+            },
+            hasRestoreState: () => false,
+            timeout: Duration.zero,
+          ),
+          throwsA(isA<TimeoutException>().having(
+            (error) => error.message,
+            'last observation',
+            contains('first accepted snapshot'),
+          )),
+        );
+        expect(reads, 1);
+      }
+    });
+
+    test('null has an explicit unavailable observation and cannot claim readiness', () {
+      for (final reply in [null, 'null']) {
+        expect(decodeInstalledStoreSnapshot(reply), {
+          'evaluation': 'unavailable',
+          'sdkBooted': false,
+          'ready': false,
+        });
+      }
+    });
+
+    test('malformed nonnull replies fail instead of becoming retryable emptiness', () {
+      for (final reply in <Object?>[
+        '',
+        '{',
+        '{}',
+        '[]',
+        '"not an object"',
+        true,
+        1,
+        <Object?>[],
+        <Object?, Object?>{1: 'wrong key'},
+        {'ready': true},
+        {...storeSnapshot(), 'ready': 'true'},
+        {...storeSnapshot(), 'sdkBooted': 1},
+        {...storeSnapshot(), 'documentToken': ''},
+        {...storeSnapshot(), 'document': null},
+        {...storeSnapshot(), 'rendering': <String, Object?>{}},
+        {...storeSnapshot(), 'missingElements': <Object?>[null]},
+      ]) {
+        expect(() => decodeInstalledStoreSnapshot(reply), throwsFormatException);
+      }
+    });
+
+    test('a claimed ready response still needs loaded DOM, settled render and view', () {
+      final ready = storeSnapshot();
+      for (final changed in <Map<String, Object?>>[
+        {'document': {'readyState': 'loading', 'url': 'file:///pinned-store/index.html'}},
+        {'missingElements': ['loading']},
+        {'rendering': {'pendingScroll': 0}},
+        {'rendering': {'pendingScroll': 'unavailable'}},
+        {'view': null},
+        {'view': {...(ready['view'] as Map<String, Object?>), 'scrollTop': double.nan}},
+        {'view': {...(ready['view'] as Map<String, Object?>), 'search': null}},
+        {'view': {...(ready['view'] as Map<String, Object?>), 'status': null}},
+        {'view': {...(ready['view'] as Map<String, Object?>), 'sort': null}},
+        {'view': {...(ready['view'] as Map<String, Object?>), 'hideInstalled': null}},
+      ]) {
+        expect(
+          () => decodeInstalledStoreSnapshot({...ready, ...changed}),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('reported JavaScript errors preserve document metadata and fail without retry', () async {
+      var reads = 0;
+      await expectLater(
+        waitForInstalledStoreReady(
+          read: () async {
+            reads++;
+            return decodeInstalledStoreSnapshot(jsonEncode({
+              'error': 'ReferenceError: controlled read failure',
+              'stack': 'controlled-script:7',
+              'document': {'readyState': 'complete', 'url': 'file:///pinned-store/index.html'},
+            }));
+          },
+          hasRestoreState: () => true,
+          timeout: const Duration(seconds: 45),
+        ),
+        throwsA(isA<StateError>().having(
+          (error) => error.message,
+          'original JavaScript failure',
+          allOf(
+            contains('ReferenceError: controlled read failure'),
+            contains('controlled-script:7'),
+            contains('file:///pinned-store/index.html'),
+          ),
+        )),
+      );
+      expect(reads, 1);
+    });
+
+    test('native evaluation failures remain the original failure', () async {
+      final failure = StateError('controlled native evaluation failure');
+      var reads = 0;
+      await expectLater(
+        waitForInstalledStoreReady(
+          read: () async {
+            reads++;
+            throw failure;
+          },
+          hasRestoreState: () => true,
+          timeout: const Duration(seconds: 45),
+        ),
+        throwsA(same(failure)),
+      );
+      expect(reads, 1);
+    });
+  });
+
   group('restoration evidence contract', () {
     test(
       'accepts observed identity changes and the four complete scenarios',
