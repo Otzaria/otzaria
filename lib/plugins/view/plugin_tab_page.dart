@@ -17,6 +17,7 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_fonts.dart';
+import 'package:otzaria/plugins/services/plugin_font_bootstrap.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_process_recovery.dart';
 import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
@@ -712,6 +713,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         mounted &&
         identical(_webViewKey, webViewKey) &&
         identical(_crashGuardOwner, crashGuardOwner);
+    bool currentFontLoad(InAppWebViewController controller) =>
+        currentAttempt() &&
+        (!pluginMacFontSchemeEnabled || isCurrentWebView(controller));
 
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -736,6 +740,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             url: request.url,
             pluginId: widget.plugin.pluginId,
             rootPath: widget.plugin.resolvedRootPath,
+            fontLease: currentAttempt() && isCurrentWebView(controller)
+                ? pluginFontSchemeLease
+                : null,
             contentSecurityPolicy: await pluginContentSecurityPolicy(),
           ),
       initialSettings: buildPluginTabWebViewSettings(
@@ -752,6 +759,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           source: pluginSdkStubScript,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
+        if (pluginMacFontSchemeEnabled)
+          UserScript(
+            source: pluginFontDocumentMarkerJs,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          ),
         buildPluginDropGuardScript(),
         buildPluginWebRtcBlockScript(),
         buildPluginLinkifyScript(auto: widget.plugin.manifest.autoLinkify),
@@ -810,14 +822,18 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       shouldInterceptRequest: (controller, request) =>
           interceptPluginRequest(request),
       onLoadStart: (controller, url) {
-        if (currentAttempt()) _loadGeneration.invalidate();
+        if (currentFontLoad(controller)) {
+          _loadGeneration.invalidate();
+          releasePluginFontDocument(controller);
+        }
       },
       onLoadStop: (controller, url) async {
-        if (!currentAttempt()) return;
+        if (!currentFontLoad(controller)) return;
         final viewId = View.of(context).viewId;
         final generation = _loadGeneration.begin();
         bool stale() =>
-            !currentAttempt() || !_loadGeneration.isCurrent(generation);
+            !currentFontLoad(controller) ||
+            !_loadGeneration.isCurrent(generation);
         // טעינה מחדש של הדף מאפסת את מצב ה-JS, ואיתו את הדגל שהוא הרים.
         PluginUnsavedChangesRegistry.instance.removeInstance((
           pluginId: widget.plugin.pluginId,
@@ -831,7 +847,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           // לוכד theme לפני ה-await (context חייב להישמר synchronously)
           final theme = buildThemePayload(context);
 
-          final fontFaceCss = await buildPluginFontFaceCss();
+          final fontLease = beginPluginFontDocument(controller, url);
+          final fontFaceCss = fontLease == null
+              ? await buildPluginFontFaceCss()
+              : null;
           if (stale()) return;
 
           // Use cached PackageInfo — avoids async gap crossing a dispose
@@ -842,41 +861,60 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           final permissions = await pluginRegistryRepository
               .getGrantedPermissionNames(widget.plugin.pluginId);
           if (stale()) return;
-          // הגופנים נרשמים, וגופני ברירת המחדל נטענים, לפני ה-boot: תוסף מודד
-          // טקסט מתוך plugin.ready. ה-boot חייב להישאר סינכרוני (ה-Dispatcher).
-          final fontsInstalled = await installPluginFonts(
-            controller,
-            css: fontFaceCss,
-            targets: pluginFontLoadTargets(theme),
-          );
-          // דף שנטען מחדש בזמן ההמתנה מקבל boot מהזרימה שלו בלבד.
-          if (stale()) return;
-          final fallbackCss = fontsInstalled
-              ? null
-              : await buildPluginFontFaceCss(embedded: true);
-          if (stale()) return;
-          // Real SDK — injected after load, calls _boot() which re-plays queued
-          // Otzaria.on() calls and then fires plugin.boot
-          final booted = await controller.evaluateJavascript(
-            source: pluginBootScript(
-              runMode: 'foreground',
-              packageInfo: packageInfo,
-              permissions: permissions,
+          PluginFontBootstrapResult? fontPreparation;
+          String? fallbackCss;
+          if (fontLease != null) {
+            fontPreparation = await preparePluginFontExperiment(
+              controller,
+              lease: fontLease,
               theme: theme,
-              reader: switch (widget.readerTab) {
-                final tab? => PluginTextReaderRegistry.bookPayload(tab),
-                null => null,
-              },
-              restore: PluginRuntimeDispatcher.instance.takeBootRestore(
-                widget.plugin.pluginId,
-                instanceId: widget.instanceId,
-                firstBoot: !_bootedOnce,
-              ),
-              fontFaceJson: fallbackCss == null
-                  ? null
-                  : pluginFontFaceJson(fallbackCss),
+              isCurrent: () =>
+                  !stale() && identical(pluginFontSchemeLease, fontLease),
+            );
+            if (!fontPreparation.ready && !stale()) {
+              debugPrint(
+                'Plugin [${widget.plugin.pluginId}] font experiment: '
+                '${fontPreparation.outcome['reason']}',
+              );
+            }
+          } else {
+            final fontsInstalled = await installPluginFonts(
+              controller,
+              css: fontFaceCss!,
+              targets: pluginFontLoadTargets(theme),
+            );
+            if (stale()) return;
+            fallbackCss = fontsInstalled
+                ? null
+                : await buildPluginFontFaceCss(embedded: true);
+          }
+          if (stale()) return;
+          final bootSource = pluginBootScript(
+            runMode: 'foreground',
+            packageInfo: packageInfo,
+            permissions: permissions,
+            theme: theme,
+            reader: switch (widget.readerTab) {
+              final tab? => PluginTextReaderRegistry.bookPayload(tab),
+              null => null,
+            },
+            restore: PluginRuntimeDispatcher.instance.takeBootRestore(
+              widget.plugin.pluginId,
+              instanceId: widget.instanceId,
+              firstBoot: !_bootedOnce,
             ),
+            fontFaceJson: fallbackCss == null
+                ? null
+                : pluginFontFaceJson(fallbackCss),
           );
+          final booted = fontPreparation == null
+              ? await controller.evaluateJavascript(source: bootSource)
+              : (await fontPreparation.evaluateBoot(
+                  controller,
+                  source: bootSource,
+                  isCurrent: () =>
+                      !stale() && identical(pluginFontSchemeLease, fontLease),
+                )).eventOptions;
           if (stale()) return;
           await adapter.applyBootEventOptions(
             booted,
