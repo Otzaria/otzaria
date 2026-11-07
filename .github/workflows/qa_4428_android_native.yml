@@ -1,0 +1,85 @@
+name: QA 4428 actual Android repaired desktop status contract
+on:
+  push:
+    branches: ['y-ploni/qa-4428-status-contract-native-20261107-a']
+permissions:
+  contents: read
+concurrency:
+  group: qa-4428-status-contract-native-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DART_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  android:
+    name: Actual installed plugins / Android emulator / debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Free hosted runner space for the emulator and native engine
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+      - name: Bind exact source and SDK before strict resolution
+        run: |
+          python3 tool/perf_probe/qa_4428_native_snapshot.py bind
+          flutter pub get --enforce-lockfile > "$RUNNER_TEMP/qa-4428-native-snapshots/qa-strict-pub.log" 2>&1
+          python3 tool/perf_probe/qa_4428_native_snapshot.py resolved
+      - name: Full analysis on exact native candidate
+        run: flutter analyze --no-pub > "$RUNNER_TEMP/qa-4428-native-snapshots/qa-full-analyze.log" 2>&1
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Snapshot immediately before native emulator app
+        run: python3 tool/perf_probe/qa_4428_native_snapshot.py before-native
+      - name: Run real app hosts, Home/resume, protected states and store restoration
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: >-
+            python3 tool/perf_probe/run_installed_plugin_android.py
+            --device emulator-5554 --quiet-ms 1500
+            --output build/installed-plugin-android
+      - name: Preserve source, SDK and all Git dependencies after native execution
+        if: always()
+        run: python3 tool/perf_probe/qa_4428_native_snapshot.py after
+      - name: Retain full evidence and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-android-emulator-debug
+          path: build/installed-plugin-android
+          if-no-files-found: warn
+      - name: Retain exact immutable source and dependency snapshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4428-native-source-snapshots
+          path: ${{ runner.temp }}/qa-4428-native-snapshots
+          if-no-files-found: error
