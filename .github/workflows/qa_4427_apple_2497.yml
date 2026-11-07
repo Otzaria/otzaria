@@ -1,0 +1,28 @@
+name: QA 4427 additive Apple 2497 merge proof
+on:
+  push:
+    branches: ['y-ploni/qa-4427-apple-2497-20261107']
+permissions:
+  contents: read
+jobs:
+  exact-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source and actual Apple merge
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4427-apple-2497
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/qa/4427/qa_apple_2497_merge.py
+      - name: Retain complete and partial merge evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4427-apple-2497
+          path: ${{ runner.temp }}/qa-4427-apple-2497
+          if-no-files-found: error
+          retention-days: 14
