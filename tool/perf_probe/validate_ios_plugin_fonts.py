@@ -50,6 +50,13 @@ def positive_int(value):
     return type(value) is int and value > 0
 
 
+def javascript_integer(value, *, minimum=0, maximum=2 ** 53 - 1):
+    # WKWebView can bridge a JavaScript Number to a JSON float. Validate its
+    # value, without coercing strings/bools or weakening Dart integer fields.
+    return (type(value) in (int, float) and minimum <= value <= maximum and
+            math.isfinite(value) and value == math.trunc(value))
+
+
 def positive(value):
     return type(value) in (int, float) and math.isfinite(value) and value > 0
 
@@ -58,17 +65,21 @@ def validate_rendering_trace(view, identity):
     trace = view['rendering']['renderingProgress']
     require(trace['documentId'] == identity['documentId'] and trace['owner'] == identity['owner'], 'rendering trace belongs to another document')
     require(type(view['renderingRequestedAtEpochMilliseconds']) is int and
+            javascript_integer(trace['startedAtEpochMilliseconds'], minimum=1) and
             trace['startedAtEpochMilliseconds'] >= view['renderingRequestedAtEpochMilliseconds'], 'native dispatch trace absent')
     expected = [('started', None)]
     for key in SPECS:
         expected += [(phase, key) for phase in ('font-load-started', 'font-load-completed', 'canvas-started', 'canvas-completed')]
     expected += [(phase, None) for phase in ('frames-requested', 'frame-1', 'frame-2', 'fallback-started', 'fallback-completed', 'completed')]
     events = trace['events']
-    require(trace['phase'] == 'completed' and trace['droppedEvents'] == 0 and
+    require(trace['phase'] == 'completed' and javascript_integer(trace['droppedEvents'], maximum=0) and
             [(e['phase'], e['fontKey']) for e in events] == expected, 'font/canvas/native frames incomplete')
     times = [e['elapsedMilliseconds'] for e in events]
     require(all(type(t) in (int, float) and math.isfinite(t) and t >= 0 for t in times) and
-            times == sorted(times) and all(e['visibilityState'] == 'visible' for e in events), 'hidden or invalid rendering trace')
+            times == sorted(times) and
+            type(trace['elapsedMilliseconds']) in (int, float) and
+            math.isfinite(trace['elapsedMilliseconds']) and trace['elapsedMilliseconds'] == times[-1] and
+            all(e['visibilityState'] == 'visible' for e in events), 'hidden or invalid rendering trace')
 
 
 def validate_png(png):
@@ -202,12 +213,13 @@ def validate(envelope):
                     decisions = [e for e in view['events'] if e['event'] == 'navigation-decision']
                     require(decisions and {e['url'] for e in decisions} == allowed_urls and
                             all(e['isForMainFrame'] is True and e['policy'] == 'allow' for e in decisions), 'navigation gate missing or broadened')
-                    require('origin' in diagnostics and isinstance(diagnostics['violations'], list), 'origin/CSP observations absent')
+                    require('origin' in diagnostics and isinstance(diagnostics['violations'], list) and
+                            javascript_integer(diagnostics['droppedViolations']), 'origin/CSP observations absent')
                     for event in view['events']:
                         if event['event'] == 'scheme-response':
                             require(event['accessControlAllowOrigin'] is None, 'unexpected ACAO response')
                     prep, rendering = view['preparation'], view['rendering']
-                    require(view['bootAcknowledged'] is True and type(rendering['bootCount']) is int and rendering['bootCount'] == 1 and
+                    require(view['bootAcknowledged'] is True and javascript_integer(rendering['bootCount'], minimum=1, maximum=1) and
                             rendering['bootTheme'] == report['theme'] and rendering['visible'] is True, 'SDK boot/theme/visibility failed')
                     require(all(positive_int(n) for n in (view['bootJavascriptUtf8Bytes'], prep['javascriptUtf8Bytes'],
                             prep['argumentJsonUtf8Bytes'])), 'submitted payload evidence missing')
@@ -238,15 +250,18 @@ def validate(envelope):
                     require(len(rendering['samples']) == 4 and set(samples) == set(SPECS), 'typography coverage missing')
                     for key, sample in samples.items():
                         require((sample['family'], sample['weight']) == SPECS[key], 'selected family/weight changed')
-                        require(positive(sample['width']) and type(sample['inkPixels']) is int and sample['inkPixels'] > 0 and
+                        require(positive(sample['width']) and javascript_integer(sample['inkPixels'], minimum=1, maximum=650 * 80) and
                                 re.fullmatch(r'[0-9a-f]{1,8}', sample['pixelHash']) and
                                 sample['loadedFaces'] and all(f['status'] == 'loaded' and f['family'].strip("\"'") == sample['family'] for f in sample['loadedFaces']), 'empty/fallback FontFace or rendering')
                     require(any(f['weight'] == '700' for f in samples['bundled-bold']['loadedFaces']), 'bold face missing')
                     require(any(f['weight'] == '100 900' for f in samples['variable-bold']['loadedFaces']), 'variable axis missing')
                     require(samples['bundled-regular']['pixelHash'] != samples['bundled-bold']['pixelHash'] and
                             samples['variable-light']['pixelHash'] != samples['variable-bold']['pixelHash'], 'weights rendered identically')
-                    require(any(s['pixelHash'] != rendering['fallbackControl']['pixelHash'] for s in samples.values()), 'only generic font rendered')
-                    require(positive(rendering['viewport']['width']) and positive(rendering['viewport']['height']) and rendering['userAgent'], 'viewport/WebKit identity missing')
+                    fallback = rendering['fallbackControl']
+                    require(positive(fallback['width']) and javascript_integer(fallback['inkPixels'], minimum=1, maximum=650 * 80) and
+                            re.fullmatch(r'[0-9a-f]{1,8}', fallback['pixelHash']), 'generic rendering control missing')
+                    require(any(s['pixelHash'] != fallback['pixelHash'] for s in samples.values()), 'only generic font rendered')
+                    require(all(positive(rendering['viewport'][key]) for key in ('width', 'height', 'dpr')) and rendering['userAgent'], 'viewport/WebKit identity missing')
                     require(view.get('screenshot'), 'screenshot missing')
                 nav = case['navigation']
                 last = next(v for v in views if v['index'] == count - 1)
@@ -255,7 +270,7 @@ def validate(envelope):
                         nav['oldDocumentId'] == last['documentIdentity']['documentId'] and
                         nav['newDocument']['documentId'] and nav['newDocument']['documentId'] != nav['oldDocumentId'] and
                         nav['requestedUrl'] == nav['observedUrl'] == last['policyDiagnostics']['href'][:-5] + '-navigation.html' and nav['oldLeaseInactive'] is True and
-                        type(nav['newDocument']['bootCount']) is int and nav['newDocument']['bootCount'] == 0 and nav['newDocument']['staleEffect'] is False and
+                        javascript_integer(nav['newDocument']['bootCount'], maximum=0) and nav['newDocument']['staleEffect'] is False and
                         nav['rejectedBoot'] == {'booted': False, 'reason': 'stale-document'}, 'stale boot/navigation was not rejected')
                 if count > 1 and scenario == 'normal':
                     peer, fresh = case['peerClose'], case['freshOwnedFontAfterClosingFirst']
