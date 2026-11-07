@@ -45,10 +45,6 @@ jobs:
       CI: 'true'
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
       DART_SUPPRESS_ANALYTICS: 'true'
-      INSTALLED_PROBE_DATA: ${{ runner.temp }}/installed-plugin-probe/data
-      INSTALLED_PROBE_OUTPUT: ${{ runner.temp }}/installed-plugin-probe/device
-      INSTALLED_PROBE_REPORTS: ${{ runner.temp }}/installed-plugin-probe/host
-      INSTALLED_PROBE_STORE_SOURCE: ${{ runner.temp }}/installed-plugin-source
       INSTALLED_PROBE_MACHINE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.runner }}-${{ matrix.platform }}
       FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '0'
     defaults:
@@ -56,6 +52,14 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Set probe paths on the runner
+        run: |
+          @(
+            "INSTALLED_PROBE_DATA=$env:RUNNER_TEMP/installed-plugin-probe/data"
+            "INSTALLED_PROBE_OUTPUT=$env:RUNNER_TEMP/installed-plugin-probe/device"
+            "INSTALLED_PROBE_REPORTS=$env:RUNNER_TEMP/installed-plugin-probe/host"
+            "INSTALLED_PROBE_STORE_SOURCE=$env:RUNNER_TEMP/installed-plugin-source"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
