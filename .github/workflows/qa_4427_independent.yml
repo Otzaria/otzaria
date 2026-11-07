@@ -1,0 +1,83 @@
+name: QA 4427 independent source and evidence
+
+on:
+  push:
+    branches: ['y-ploni/qa-4427-independent-20261107-a']
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: qa-4427-independent-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-failure-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read exact five-view native source failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_FONT_OUTPUT: ${{ runner.temp }}/qa-4427-native-failure
+        run: python3 .github/qa/4427/qa_native_fonts.py --native-failure-diagnostic
+      - name: Preserve original failed native evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4427-native-failure
+          path: ${{ runner.temp }}/qa-4427-native-failure
+          if-no-files-found: error
+          retention-days: 14
+  independent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUNBUFFERED: '1'
+      BOT: 'true'
+      CI: 'true'
+      CARGO_BUILD_JOBS: '2'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native dependency prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Validate QA harness syntax
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          ast.parse(Path('.github/qa/4427/qa_native_fonts.py').read_text())
+          PY
+      - name: Independent exact-source controls, original hook and immutable native replay
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_FONT_OUTPUT: ${{ runner.temp }}/qa-4427-independent
+        run: python3 .github/qa/4427/qa_native_fonts.py
+      - name: Preserve all independent evidence and original artifact bytes
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4427-independent
+          path: ${{ runner.temp }}/qa-4427-independent
+          if-no-files-found: error
+          retention-days: 14
