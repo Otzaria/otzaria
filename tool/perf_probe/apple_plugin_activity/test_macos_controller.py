@@ -19,15 +19,17 @@ SPEC.loader.exec_module(runner)
 @contextmanager
 def native_result(directory, label, **details):
     report = {"status": "running", "scope": "Owned AppKit helper control, not an Otzaria quiet measurement", **details}
+    failures = runner.Failures(report)
     try:
         yield report
     except BaseException as error:
-        report.update(status="failed", error=str(error), errorType=type(error).__name__)
-        raise
+        failures.add("native control", error)
+        report["errorType"] = type(error).__name__
     else:
         report["status"] = "passed"
     finally:
-        runner.save(directory / f"{label}.json", report)
+        failures.attempt("native control receipt", lambda: runner.save(directory / f"{label}.json", report))
+        failures.raise_if_any()
 
 
 class NativeEvidenceTests(unittest.TestCase):
@@ -77,7 +79,7 @@ class NativeMacIdentityTests(unittest.TestCase):
         runner.save(cls.directory / "environment.json", {
             "platform": platform.platform(), "python": sys.version,
             "controllerScope": "Owned fixture processes only; all controls are outside app quiet intervals",
-            "productionControllerExplicitlyInitializesAppKit": False,
+            "productionControllerUsesNSApplicationRun": True,
         })
         runner.recorded_output(cls.directory, "swift-version", ["xcrun", "swiftc", "--version"], 30)
         source = cls.directory / "direct_application.swift"
@@ -95,22 +97,10 @@ class NativeMacIdentityTests(unittest.TestCase):
             ["xcrun", "swiftc", str(source), "-o", str(cls.executable)], 120)
         runner.recorded_output(cls.directory, "compile-controller",
             ["xcrun", "swiftc", str(runner.HERE / "mac_application.swift"), "-o", str(cls.helper)], 120)
-        original = (runner.HERE / "mac_application.swift").read_text()
-        imports = "import AppKit\nimport Foundation\n"
-        assert original.startswith(imports)
-        addition = "\nlet diagnosticApplication = NSApplication.shared\n"
-        initialized = imports + addition + original[len(imports):]
-        initialized_source = cls.directory / "initialized_controller.swift"
-        initialized_source.write_text(initialized)
-        cls.initialized_helper = cls.directory / "mac-application-initialized"
-        runner.save(cls.directory / "initialized-variant.json", {
-            "difference": addition.strip(),
-            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-            "diagnosticSHA256": hashlib.sha256(initialized.encode()).hexdigest(),
-            "scope": "Separate diagnostic binary; never selected as an actual-app fallback or retry",
-        })
-        runner.recorded_output(cls.directory, "compile-initialized-controller",
-            ["xcrun", "swiftc", str(initialized_source), "-o", str(cls.initialized_helper)], 120)
+        cls.launcher = cls.directory / "launch-services-fixture"
+        runner.recorded_output(cls.directory, "compile-launch-services-fixture",
+            ["xcrun", "swiftc", "-target", f"{platform.machine()}-apple-macos11.0",
+             str(runner.HERE / "mac_launch_fixture.swift"), "-o", str(cls.launcher)], 120)
         cls.launch_count = 0
 
     def wait_for_evidence(self, path, process):
@@ -146,27 +136,57 @@ class NativeMacIdentityTests(unittest.TestCase):
     def test_direct_execution_retains_public_application_identity(self):
         self.exercise_controller(self.helper, "direct-execution")
 
-    def test_initialized_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.initialized_helper, "initialized-execution", initialized=True)
+    def test_same_fixture_through_launch_services(self):
+        self.exercise_controller(self.helper, "launch-services-execution", launch_services=True)
 
-    def exercise_controller(self, helper, label, initialized=False):
+    def start_launch_services(self):
+        type(self).launch_count += 1
+        index = type(self).launch_count
+        ready = self.directory / f"ready-{index}.json"
+        receipt = self.directory / f"launch-services-{index}.json"
+        log = (self.directory / f"launch-services-{index}.log").open("w")
+        process = subprocess.Popen([str(self.launcher), str(self.executable.parents[2]), str(ready), str(receipt)],
+            stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        self.addCleanup(log.close)
+        def close():
+            failures = runner.Failures({})
+            failures.attempt("close LaunchServices ownership pipe", process.stdin.close)
+            code = failures.attempt("wait LaunchServices owned cleanup", lambda: process.wait(timeout=12))
+            failures.attempt("stop LaunchServices helper", lambda: runner.stop_owned(process))
+            if code != 0:
+                failures.add("LaunchServices cleanup", RuntimeError(f"Owned fixture cleanup exit: {code}"))
+            failures.raise_if_any()
+        self.addCleanup(close)
+        launch = self.wait_for_evidence(receipt, process)
+        self.assertEqual(launch["stage"], "launched")
+        self.assertTrue(launch["controllerEventLoopRunning"])
+        startup = self.wait_for_evidence(ready, process)
+        self.assertEqual(startup["pid"], launch["pid"])
+        self.assertEqual(launch["executable"], str(self.executable))
+        return startup, launch
+
+    def exercise_controller(self, helper, label, launch_services=False):
         with native_result(self.directory, label,
-                           launchMethod="Popen of the executable; no open/LaunchServices launch",
-                           diagnosticInitialization=initialized) as report:
-            app, report["startup"], _ = self.start_owned_app()
-            controller = runner.MacApplicationSession(helper, app.pid, self.directory, label)
+                           launchMethod="NSWorkspace.openApplication" if launch_services else "direct executable") as report:
+            if launch_services:
+                report["startup"], report["launchServices"] = self.start_launch_services()
+            else:
+                _, report["startup"], _ = self.start_owned_app()
+            target_pid = report["startup"]["pid"]
+            controller = runner.MacApplicationSession(helper, target_pid, self.directory, label)
             self.addCleanup(controller.close)
             before = report["before"] = controller.request("info")
             time.sleep(0.2)
             after = report["after"] = controller.request("info")
             self.assertFalse(after["isHidden"])
             self.assertTrue(after["isActive"])
-            if initialized:
-                self.assertTrue(after["applicationState"]["controllerAppKitInitialized"])
+            self.assertTrue(after["applicationState"]["controllerEventLoopRunning"])
+            if launch_services:
+                self.assertIsNotNone(after["launchMs"])
             hidden = report["hidden"] = controller.request("hide")
             resumed = report["resumed"] = controller.request("activate")
             for value in [before, after, hidden, resumed]:
-                self.assertEqual(value["pid"], app.pid)
+                self.assertEqual(value["pid"], target_pid)
                 self.assertTrue(value["sameApplication"])
                 self.assertEqual(value["identityMethod"], "NSRunningApplication.isEqual")
                 self.assertEqual(value["sessionToken"], before["sessionToken"])
@@ -174,6 +194,7 @@ class NativeMacIdentityTests(unittest.TestCase):
                 self.assertEqual(value["executable"], str(self.executable))
                 self.assertEqual(value["applicationState"]["activationPolicy"], 0)
                 self.assertFalse(value["applicationState"]["isTerminated"])
+            self.assertTrue(hidden["returnValue"])
             self.assertTrue(hidden["isHidden"])
             self.assertFalse(resumed["isHidden"])
             self.assertTrue(resumed["isActive"])

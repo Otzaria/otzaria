@@ -16,6 +16,10 @@ on:
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'lib/app_scope/external_activation_service.dart'
       - 'test/app_scope/external_activation_service_test.dart'
+      - 'lib/core/window_listener.dart'
+      - 'test/core/window_listener_native_visibility_test.dart'
+      - 'ios/Runner.xcodeproj/project.pbxproj'
+      - 'ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme'
       - 'lib/plugins/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -49,13 +53,14 @@ jobs:
           node --test tool/perf_probe/apple_plugin_activity/test_fixture.mjs
           python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
           ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
-          flutter test --no-pub \
+          flutter test --no-pub --concurrency=1 \
             test/tool/perf_probe/apple_plugin_activity_contract_test.dart \
             test/tool/perf_probe/perf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
             test/app_scope/external_activation_service_test.dart \
             test/core/external_activation_channel_test.dart \
-            test/core/external_activation_queue_test.dart
+            test/core/external_activation_queue_test.dart \
+            test/core/window_listener_native_visibility_test.dart
 
   actual-app:
     name: Actual app (${{ matrix.platform }} ${{ matrix.mode }})
@@ -81,8 +86,10 @@ jobs:
         if: matrix.platform == 'ios'
         run: rustup target add aarch64-apple-ios-sim x86_64-apple-ios
       - name: Resolve exact dependencies
+        id: resolve
         run: flutter pub get --enforce-lockfile
       - name: Select actual runtime
+        id: runtime
         env:
           PROBE_PLATFORM: ${{ matrix.platform }}
         run: |
@@ -115,6 +122,7 @@ jobs:
           APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/apple-helper-controls
         run: python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_macos_controller.py' -v
       - name: Run installed app hosts and quiet OS transitions
+        if: always() && steps.resolve.outcome == 'success' && steps.runtime.outcome == 'success'
         run: >-
           python3 tool/perf_probe/apple_plugin_activity/run.py
           --platform '${{ matrix.platform }}' --mode '${{ matrix.mode }}'

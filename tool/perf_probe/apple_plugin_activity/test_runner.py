@@ -124,14 +124,17 @@ class ProtocolTests(unittest.TestCase):
     def test_ios_controller_also_stops_polling_for_non_home_quiet_windows(self):
         self.coordinator.target = "ios"
         body = {**self.body, "platform": "ios"}
-        response, _ = self.coordinator.request("arm", body, 1000)
-        job = self.coordinator.jobs[response["jobId"]]
+        identity = {"runId": "run-A", "controllerPid": 99, "controllerBootToken": "control-A"}
+        self.coordinator.physical = True
+        reply, _ = self.coordinator.request("control-ready", identity, 1000)
+        identity.update(reply)
+        job = {**body, "jobId": "fresh-job", "deadlineMonotonic": runner.time.monotonic() + 16}
         self.coordinator.control_job = job
-        command, _ = self.coordinator.request("control", {}, 1001)
+        command, _ = self.coordinator.request("control", identity, 1001)
         self.assertEqual(command["action"], "quiet")
-        self.assertEqual(command["jobId"], response["jobId"])
+        self.assertEqual(command["jobId"], "fresh-job")
         self.assertIsNone(self.coordinator.control_job)
-        self.assertGreaterEqual(response["waitMs"], command["remainingMs"])
+        self.assertGreater(command["remainingMs"], 0)
 
     def test_mac_controller_is_idle_during_the_unchanged_quiet_interval(self):
         for action in ['quiet', 'macAppHide']:
@@ -146,6 +149,7 @@ class ProtocolTests(unittest.TestCase):
                 response, work = self.coordinator.request('arm', {**self.body, 'action': action}, 1000)
                 with patch.object(runner, 'MacApplicationSession', return_value=controller), \
                      patch.object(runner.time, 'sleep', side_effect=sleeping), \
+                     patch.object(self.coordinator.stop_event, 'wait', side_effect=lambda seconds: sleeping(seconds) or False), \
                      patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
                      patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
                     work()
@@ -169,6 +173,7 @@ class ProtocolTests(unittest.TestCase):
         controller.close.side_effect = closing
         with patch.object(runner, 'MacApplicationSession', return_value=controller), \
              patch.object(runner.time, 'sleep'), \
+             patch.object(self.coordinator.stop_event, 'wait', return_value=False), \
              patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
              patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
             work()
@@ -232,7 +237,7 @@ class SetupEvidenceTests(unittest.TestCase):
             self.assertEqual(timeout, 120)
             Path(command[-2]).mkdir()
         with patch.object(runner, 'recorded_output', side_effect=generation):
-            control = runner.prepare_control(self.directory, 'http://localhost:1234', 'nonce')
+            control = runner.prepare_control(self.directory, 'http://localhost:1234', 'nonce', 'run-A')
         config = (control / 'ControlConfig.swift').read_text()
         self.assertIn('http://localhost:1234', config)
         self.assertIn('com.mendelg.otzaria', config)
@@ -277,7 +282,8 @@ for line in sys.stdin:
  result={"pid":int(sys.argv[1]),"controllerPid":os.getpid(),"sequence":command["sequence"],
          "action":command["action"],"sameApplication":True,"identityMethod":"NSRunningApplication.isEqual",
          "sessionToken":"held-session","executable":"/fixture/App","launchMs":None,
-         "launchDateAvailability":"unavailable"}
+         "launchDateAvailability":"unavailable","applicationState":{"controllerEventLoopRunning":True},
+         "returnValue":True,"isHidden":command["action"]=="hide","isActive":command["action"]!="hide"}
  ''' + modification + '''
  print(json.dumps(result),flush=True)
 ''')
@@ -300,7 +306,9 @@ for line in sys.stdin:
                              'result["identityMethod"]="pid-only"', 'result["pid"]=43',
                              'result["controllerPid"]=43', 'result["sequence"]+=1',
                              'result["action"]="wrong"', 'result["sessionToken"]=""',
-                             'result["executable"]="relative"', 'result=[]']:
+                             'result["executable"]="relative"', 'result=[]',
+                             'result["applicationState"]["controllerEventLoopRunning"]=False',
+                             'result.pop("applicationState")']:
             with self.subTest(modification=modification):
                 controller = self.controller(modification)
                 with self.assertRaises(ValueError): controller.request('info')
@@ -344,7 +352,7 @@ class PinTests(unittest.TestCase):
                   if 'url: "https://github.com/Otzaria/flutter_inappwebview"' in section]
         self.assertEqual(len(native), 8)
         for section in native:
-            self.assertIn(f'resolved-ref: "{runner.NATIVE_PIN}"', section)
+            self.assertIn('resolved-ref: "124bb8e63f345ffd0b0f2ea7190c24b19e69897d"', section)
         self.assertNotIn("c709de98711cf34350c48df4c75e24d0879d5876", (runner.REPO / "pubspec.yaml").read_text())
 
 
