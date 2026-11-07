@@ -125,17 +125,6 @@ void main() {
     await Hive.openBox<dynamic>(HiveCache.keyName, bytes: Uint8List(0));
     cache = _DraftCache();
     await Settings.init(cacheProvider: cache);
-    await drafts.saveDraft(
-      bookId: _bookId,
-      categoryId: _categoryId,
-      lineNumber: _lineNumber,
-      draft: PersonalNoteDraft(
-        content: 'טיוטה מקורית',
-        contentPlain: 'טיוטה מקורית',
-        contentFormat: PersonalNoteContentFormat.plain,
-        updatedAt: DateTime.utc(2026),
-      ),
-    );
   });
 
   tearDown(Hive.close);
@@ -147,7 +136,23 @@ void main() {
       ValueNotifier<bool> visible,
     })
   >
-  open(WidgetTester tester, {bool adaptivePane = false}) async {
+  open(
+    WidgetTester tester, {
+    bool adaptivePane = false,
+    PdfNoteAnchor? pdfAnchor,
+  }) async {
+    await drafts.saveDraft(
+      bookId: _bookId,
+      categoryId: _categoryId,
+      lineNumber: _lineNumber,
+      draft: PersonalNoteDraft(
+        content: 'טיוטה מקורית',
+        contentPlain: 'טיוטה מקורית',
+        contentFormat: PersonalNoteContentFormat.plain,
+        updatedAt: DateTime.utc(2026),
+        pdfAnchor: pdfAnchor,
+      ),
+    );
     final repository = _PendingRepository();
     // הרשמת זרמי BLoC באזור הזמן של testWidgets, לא ב-setUp.
     final bloc = _NotesBloc(repository: repository);
@@ -211,6 +216,8 @@ void main() {
                               final sidebar = PersonalNotesSidebar(
                                 bookId: _bookId,
                                 categoryId: _categoryId,
+                                isPdf: pdfAnchor != null,
+                                pdfDocumentId: pdfAnchor?.documentId,
                                 repository: repository,
                                 onNavigateToLine: (_, {note}) {},
                               );
@@ -261,11 +268,13 @@ void main() {
     await tester.pump();
   }
 
-  Future<PersonalNoteDraft?> readDraft() => drafts.loadDraft(
-    bookId: _bookId,
-    categoryId: _categoryId,
-    lineNumber: _lineNumber,
-  );
+  Future<PersonalNoteDraft?> readDraft({PdfNoteAnchor? pdfAnchor}) =>
+      drafts.loadDraft(
+        bookId: _bookId,
+        categoryId: _categoryId,
+        lineNumber: _lineNumber,
+        pdfAnchor: pdfAnchor,
+      );
 
   Iterable<dynamic> draftKeys() =>
       Hive.box<dynamic>(HiveCache.keyName).keys.where(
@@ -602,5 +611,301 @@ void main() {
     expect(host.repository.notes, hasLength(1));
     expect(await readDraft(), isNull);
     expect(tester.takeException(), isNull);
+  });
+
+  group('creation session', () {
+    for (final pdfAnchor in <PdfNoteAnchor?>[
+      null,
+      const PdfNoteAnchor(
+        pageNumber: _lineNumber,
+        x: .2,
+        y: .7,
+        documentId: 'user|draft-navigation-pdf',
+      ),
+    ]) {
+      testWidgets(
+        'repeated ${pdfAnchor == null ? 'text' : 'PDF'} request during save closes the saved editor',
+        (tester) async {
+          final host = await open(tester, pdfAnchor: pdfAnchor);
+          await replace(tester, 'תוכן שנערך לפני השמירה');
+          final originalController = controller(tester);
+          final token = host.bloc.state.newNoteRequestToken;
+          final pending = host.repository.pendingCreate = Completer<void>();
+          await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+          await tester.pump();
+          expect(host.repository.creates, 1);
+          expect(originalController.readOnly, isTrue);
+
+          host.bloc.add(
+            StartCreatingPersonalNote(
+              bookId: _bookId,
+              lineNumber: _lineNumber,
+              initialContent: 'בקשה חוזרת עם תוכן ישן',
+              pdfAnchor: pdfAnchor == null
+                  ? null
+                  : PdfNoteAnchor(
+                      pageNumber: pdfAnchor.pageNumber,
+                      x: pdfAnchor.x,
+                      y: pdfAnchor.y,
+                      documentId: pdfAnchor.documentId,
+                    ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(host.bloc.state.newNoteRequestToken, greaterThan(token));
+          expect(identical(controller(tester), originalController), isTrue);
+          expect(
+            controller(tester).document.toPlainText().trim(),
+            'תוכן שנערך לפני השמירה',
+          );
+
+          pending.complete();
+          await tester.pumpAndSettle();
+
+          expect(host.repository.notes, hasLength(1));
+          expect(
+            host.repository.notes.single.contentPlain,
+            'תוכן שנערך לפני השמירה',
+          );
+          expect(host.repository.notes.single.pdfAnchor, pdfAnchor);
+          expect(host.bloc.state.isCreatingNewNote, isFalse);
+          expect(find.byType(InlineNoteEditor), findsNothing);
+          expect(await readDraft(pdfAnchor: pdfAnchor), isNull);
+          expect(draftKeys(), isEmpty);
+          UiSnack.hide();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('queued same-location request closes the saved editor', (
+      tester,
+    ) async {
+      final host = await open(tester);
+      final pending = host.repository.pendingCreate = Completer<void>();
+      await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+      await tester.pump();
+      expect(host.repository.creates, 1);
+      host.bloc.beforeCancel = () => host.bloc.add(
+        const StartCreatingPersonalNote(
+          bookId: _bookId,
+          lineNumber: _lineNumber,
+          initialContent: 'בקשה חוזרת שהמתינה בתור',
+        ),
+      );
+
+      pending.complete();
+      await tester.pumpAndSettle();
+
+      expect(host.repository.notes, hasLength(1));
+      expect(host.bloc.state.isCreatingNewNote, isFalse);
+      expect(find.byType(InlineNoteEditor), findsNothing);
+      expect(await readDraft(), isNull);
+      expect(draftKeys(), isEmpty);
+      UiSnack.hide();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final processRequest in [false, true]) {
+      testWidgets(
+        'save before rebuild ${processRequest ? 'after' : 'before'} the repeated request reaches the bloc',
+        (tester) async {
+          final host = await open(tester);
+          final originalController = controller(tester);
+          final token = host.bloc.state.newNoteRequestToken;
+          final save = tester
+              .widget<ActionButton>(
+                find.widgetWithText(ActionButton, 'שמור'),
+              )
+              .onPressed!;
+          final pending = host.repository.pendingCreate = Completer<void>();
+          host.bloc.add(
+            const StartCreatingPersonalNote(
+              bookId: _bookId,
+              lineNumber: _lineNumber,
+              initialContent: 'בקשה חוזרת לפני הבנייה',
+            ),
+          );
+          if (processRequest) await tester.idle();
+          expect(
+            host.bloc.state.newNoteRequestToken,
+            processRequest ? greaterThan(token) : token,
+          );
+          expect(identical(controller(tester), originalController), isTrue);
+
+          // מפעילים את הכפתור הקיים בלי לבנות מחדש את ה-callback שלו.
+          save();
+          await tester.pump();
+          expect(host.repository.creates, 1);
+          pending.complete();
+          await tester.pumpAndSettle();
+
+          expect(host.repository.notes, hasLength(1));
+          expect(host.repository.notes.single.contentPlain, 'טיוטה מקורית');
+          expect(host.bloc.state.isCreatingNewNote, isFalse);
+          expect(find.byType(InlineNoteEditor), findsNothing);
+          expect(await readDraft(), isNull);
+          UiSnack.hide();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    for (final typeBeforeClosing in [false, true]) {
+      testWidgets(
+        'cancel and restart in one frame preserves ${typeBeforeClosing ? 'typing before debounce' : 'new initial content'} after the old save',
+        (tester) async {
+          final host = await open(tester);
+          final originalController = controller(tester);
+          final pending = host.repository.pendingCreate = Completer<void>();
+          await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+          await tester.pump();
+          expect(host.repository.creates, 1);
+
+          // בקשת יצירה משחזרת initialContent משירות הטיוטות.
+          await drafts.saveDraft(
+            bookId: _bookId,
+            categoryId: _categoryId,
+            lineNumber: _lineNumber,
+            draft: PersonalNoteDraft(
+              content: 'תוכן של יצירה חדשה',
+              contentPlain: 'תוכן של יצירה חדשה',
+              contentFormat: PersonalNoteContentFormat.plain,
+              updatedAt: DateTime.utc(2026, 1, 2),
+            ),
+          );
+          host.bloc.add(const CancelCreatingPersonalNote());
+          host.bloc.add(
+            const StartCreatingPersonalNote(
+              bookId: _bookId,
+              lineNumber: _lineNumber,
+              initialContent: 'תוכן של יצירה חדשה',
+            ),
+          );
+          await tester.pump();
+          final newController = controller(tester);
+          expect(identical(newController, originalController), isFalse);
+          expect(newController.readOnly, isFalse);
+          expect(
+            newController.document.toPlainText().trim(),
+            'תוכן של יצירה חדשה',
+          );
+
+          final expectedDraft = typeBeforeClosing
+              ? 'תוכן חדש שטרם עבר השהיה'
+              : 'תוכן של יצירה חדשה';
+          if (typeBeforeClosing) {
+            newController.replaceText(
+              0,
+              newController.document.length - 1,
+              expectedDraft,
+              TextSelection.collapsed(offset: expectedDraft.length),
+            );
+          }
+          pending.complete();
+          await tester.pump();
+          await tester.idle();
+          expect(host.repository.notes, hasLength(1));
+          expect(host.repository.notes.single.contentPlain, 'טיוטה מקורית');
+          expect(host.bloc.state.isCreatingNewNote, isTrue);
+          expect(identical(controller(tester), newController), isTrue);
+          expect(newController.readOnly, isFalse);
+          expect(
+            tester
+                .widget<ActionButton>(find.widgetWithText(ActionButton, 'שמור'))
+                .onPressed,
+            isNotNull,
+          );
+
+          host.visible.value = false;
+          await tester.pump();
+          await tester.idle();
+
+          expect((await readDraft())?.contentPlain, expectedDraft);
+          expect(draftKeys(), hasLength(1));
+          // חושפים את הטיוטה שנכתבה, בלי להישען על תוכן בקשת היצירה הקודמת.
+          host.bloc.add(const CancelCreatingPersonalNote());
+          await tester.pump();
+          host.visible.value = true;
+          await tester.pumpAndSettle();
+          expect(controller(tester).readOnly, isFalse);
+          expect(
+            controller(tester).document.toPlainText().trim(),
+            expectedDraft,
+          );
+          await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+          await tester.pumpAndSettle();
+
+          expect(host.repository.notes.map((note) => note.contentPlain), [
+            'טיוטה מקורית',
+            expectedDraft,
+          ]);
+          expect(host.bloc.state.isCreatingNewNote, isFalse);
+          expect(find.byType(InlineNoteEditor), findsNothing);
+          expect(await readDraft(), isNull);
+          UiSnack.hide();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('repeated request keeps a failed save editable for retry', (
+      tester,
+    ) async {
+      final host = await open(tester);
+      await replace(tester, 'תוכן לניסיון חוזר');
+      final originalController = controller(tester);
+      final pending = host.repository.pendingCreate = Completer<void>();
+      await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+      await tester.pump();
+      host.bloc.add(
+        const StartCreatingPersonalNote(
+          bookId: _bookId,
+          lineNumber: _lineNumber,
+          initialContent: 'בקשה חוזרת בזמן שמירה',
+        ),
+      );
+      await tester.pump();
+      pending.completeError(StateError('storage unavailable'));
+      await tester.pumpAndSettle();
+
+      expect(host.repository.notes, isEmpty);
+      expect(host.bloc.state.isCreatingNewNote, isTrue);
+      expect(identical(controller(tester), originalController), isTrue);
+      expect(originalController.readOnly, isFalse);
+      expect((await readDraft())?.contentPlain, 'תוכן לניסיון חוזר');
+      expect(
+        tester
+            .widget<ActionButton>(find.widgetWithText(ActionButton, 'שמור'))
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<ActionButton>(find.widgetWithText(ActionButton, 'ביטול'))
+            .onPressed,
+        isNotNull,
+      );
+
+      host.repository.pendingCreate = null;
+      UiSnack.hide();
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ActionButton, 'שמור'));
+      await tester.pumpAndSettle();
+
+      expect(host.repository.creates, 2);
+      expect(host.repository.notes, hasLength(1));
+      expect(host.repository.notes.single.contentPlain, 'תוכן לניסיון חוזר');
+      expect(host.bloc.state.isCreatingNewNote, isFalse);
+      expect(find.byType(InlineNoteEditor), findsNothing);
+      expect(await readDraft(), isNull);
+      UiSnack.hide();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
   });
 }

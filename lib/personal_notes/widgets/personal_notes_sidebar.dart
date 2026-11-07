@@ -730,6 +730,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         key: ValueKey((
           widget.bookId,
           widget.categoryId,
+          state.newNoteSessionToken,
           state.newNoteLineNumber,
           state.newNotePdfAnchor,
         )),
@@ -749,7 +750,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
           if (!bloc.isClosed) {
             bloc.add(
               CancelCreatingPersonalNote(
-                requestToken: state.newNoteRequestToken,
+                sessionToken: state.newNoteSessionToken,
                 bookId: state.newNoteBookId,
                 lineNumber: state.newNoteLineNumber,
               ),

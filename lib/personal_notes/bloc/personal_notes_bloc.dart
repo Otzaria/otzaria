@@ -251,10 +251,18 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     StartCreatingPersonalNote event,
     Emitter<PersonalNotesState> emit,
   ) {
+    final isSameSession =
+        state.isCreatingNewNote &&
+        state.newNoteBookId == event.bookId &&
+        state.newNoteLineNumber == event.lineNumber &&
+        state.newNotePdfAnchor == event.pdfAnchor;
     emit(
       state.copyWith(
         isCreatingNewNote: true,
         newNoteRequestToken: state.newNoteRequestToken + 1,
+        newNoteSessionToken: isSameSession
+            ? state.newNoteSessionToken
+            : state.newNoteSessionToken + 1,
         clearExpandRequest: true,
         clearNewNoteSourceSelection: true,
         clearNewNotePdfAnchor: true,
@@ -278,8 +286,8 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     Emitter<PersonalNotesState> emit,
   ) {
     // השלמת כתיבה ישנה אינה מבטלת יצירה חדשה שכבר ממתינה בתור האירועים.
-    if ((event.requestToken != null &&
-            event.requestToken != state.newNoteRequestToken) ||
+    if ((event.sessionToken != null &&
+            event.sessionToken != state.newNoteSessionToken) ||
         (event.bookId != null && event.bookId != state.newNoteBookId) ||
         (event.lineNumber != null &&
             event.lineNumber != state.newNoteLineNumber)) {

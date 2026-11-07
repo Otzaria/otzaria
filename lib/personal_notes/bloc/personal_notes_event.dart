@@ -181,18 +181,18 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
 }
 
 class CancelCreatingPersonalNote extends PersonalNotesEvent {
-  final int? requestToken;
+  final int? sessionToken;
   final String? bookId;
   final int? lineNumber;
 
   const CancelCreatingPersonalNote({
-    this.requestToken,
+    this.sessionToken,
     this.bookId,
     this.lineNumber,
   });
 
   @override
-  List<Object?> get props => [requestToken, bookId, lineNumber];
+  List<Object?> get props => [sessionToken, bookId, lineNumber];
 }
 
 class UpdateSearchQuery extends PersonalNotesEvent {
