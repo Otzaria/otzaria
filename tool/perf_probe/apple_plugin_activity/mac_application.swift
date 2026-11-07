@@ -21,22 +21,37 @@ guard let app = NSRunningApplication(processIdentifier: pid) else {
 guard let executable = app.executableURL else {
     fail("executable", "No public executable URL for PID \(pid)")
 }
+let controllerApplication = NSApplication.shared
+let initialControllerPolicy = controllerApplication.activationPolicy()
+let controllerPolicyChangeAccepted = controllerApplication.setActivationPolicy(.prohibited)
+// A controller that is already prohibited can decline an unnecessary change.
+// The effective policy and inactive state, rather than a transition, are required.
+guard controllerApplication.activationPolicy() == .prohibited,
+      !controllerApplication.isActive else {
+    fail("controller", "Unable to initialize the non-activating AppKit controller", 1, [
+        "initialActivationPolicy": initialControllerPolicy.rawValue,
+        "policyChangeAccepted": controllerPolicyChangeAccepted,
+        "activationPolicy": controllerApplication.activationPolicy().rawValue,
+        "isActive": controllerApplication.isActive
+    ])
+}
 let sessionToken = UUID().uuidString
 var expectedSequence = 1
 
 func applicationState() -> [String: Any] {
-    let controllerInitializedBeforeSnapshot = NSApp != nil
     var result: [String: Any] = [
         "activationPolicy": app.activationPolicy.rawValue,
         "isFinishedLaunching": app.isFinishedLaunching, "isTerminated": app.isTerminated,
         "isHidden": app.isHidden, "isActive": app.isActive,
         "bundleIdentifier": app.bundleIdentifier ?? "unavailable",
         "bundleURL": app.bundleURL?.path ?? "unavailable",
-        "controllerAppKitInitializedBeforeSnapshot": controllerInitializedBeforeSnapshot,
         "controllerAppKitInitialized": NSApp != nil
     ]
     if let controllerApplication = NSApp {
+        result["controllerInitialActivationPolicy"] = initialControllerPolicy.rawValue
+        result["controllerPolicyChangeAccepted"] = controllerPolicyChangeAccepted
         result["controllerActivationPolicy"] = controllerApplication.activationPolicy().rawValue
+        result["controllerIsActive"] = controllerApplication.isActive
         result["controllerEventLoopRunning"] = controllerApplication.isRunning
     }
     return result
@@ -56,9 +71,15 @@ func verifyIdentity() {
     guard currentExecutable == executable else { fail("identity", "The executable URL changed") }
 }
 
-// Keep this object alive across quiet. readLine blocks without a run loop,
-// app query or IPC until the host's existing quiet interval has ended.
-while let line = readLine() {
+// readLine runs on a background thread. AppKit's main loop remains live,
+// with no target query, command or scheduled probe timer between requests.
+func handle(_ line: String, completed: @escaping () -> Void) {
+    guard controllerApplication.isRunning else { fail("controller", "The AppKit event loop is stopped") }
+    guard controllerApplication.activationPolicy() == .prohibited,
+          !controllerApplication.isActive else {
+        fail("controller", "The AppKit controller is no longer non-activating", 1,
+             ["applicationState": applicationState()])
+    }
     guard let data = line.data(using: .utf8),
           let value = try? JSONSerialization.jsonObject(with: data),
           let command = value as? [String: Any],
@@ -67,11 +88,14 @@ while let line = readLine() {
           ["info", "hide", "activate"].contains(action) else {
         fail("command", "Invalid command or sequence", 64)
     }
-    RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.001))
     verifyIdentity()
     let beforeAction = applicationState()
+    let deadline = ProcessInfo.processInfo.systemUptime + 5
+    var accepted: Any = NSNull()
     if action == "hide" {
-        guard app.hide() else {
+        let hidden = app.hide()
+        accepted = hidden
+        guard hidden else {
             fail("hide", "The application refused hide", 2, [
                 "pid": pid, "controllerPid": ProcessInfo.processInfo.processIdentifier,
                 "sessionToken": sessionToken, "sequence": sequence, "returnValue": false,
@@ -80,38 +104,63 @@ while let line = readLine() {
         }
     } else if action == "activate" {
         _ = app.unhide()
-        guard app.activate(options: [.activateIgnoringOtherApps]) else {
-            fail("activate", "The application refused activation", 3)
+        let activated = app.activate(options: [.activateIgnoringOtherApps])
+        accepted = activated
+        guard activated else { fail("activate", "The application refused activation", 3) }
+    }
+    func acknowledge() {
+        verifyIdentity()
+        guard action == "info" || ProcessInfo.processInfo.systemUptime <= deadline else {
+            fail("acknowledgement", "The native action exceeded its five-second bound", 5,
+                 ["beforeAction": beforeAction, "applicationState": applicationState()])
+        }
+        let acknowledged = action == "info" || (action == "hide" && app.isHidden) ||
+            (action == "activate" && app.isActive && !app.isHidden)
+        if !acknowledged {
+            guard ProcessInfo.processInfo.systemUptime < deadline else {
+                fail("acknowledgement", "The application did not acknowledge \(action)", 5,
+                     ["beforeAction": beforeAction, "applicationState": applicationState()])
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.025, execute: acknowledge)
+            return
+        }
+        let launchDate = app.launchDate
+        var launchMs: Any = NSNull()
+        if let launchDate = launchDate { launchMs = launchDate.timeIntervalSince1970 * 1000 }
+        let observation: [String: Any] = [
+            "pid": pid, "controllerPid": ProcessInfo.processInfo.processIdentifier,
+            "sessionToken": sessionToken, "sequence": sequence, "action": action, "returnValue": accepted,
+            "sameApplication": true, "identityMethod": "NSRunningApplication.isEqual",
+            "launchMs": launchMs,
+            "launchDateAvailability": launchDate == nil ? "unavailable" : "available",
+            "executable": executable.path, "isHidden": app.isHidden, "isActive": app.isActive,
+            "beforeAction": beforeAction, "applicationState": applicationState(),
+            "observedAtMs": Date().timeIntervalSince1970 * 1000,
+            "source": "NSRunningApplication public API"
+        ]
+        let result = try! JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])
+        print(String(decoding: result, as: UTF8.self))
+        fflush(stdout)
+        expectedSequence += 1
+        completed()
+    }
+    acknowledge()
+}
+
+let launchObserver = NotificationCenter.default.addObserver(
+    forName: NSApplication.didFinishLaunchingNotification, object: controllerApplication, queue: nil
+) { _ in
+    DispatchQueue.main.async {
+        guard controllerApplication.isRunning else { fail("controller", "No running AppKit event loop") }
+        DispatchQueue.global(qos: .userInitiated).async {
+            while let line = readLine() {
+                let finished = DispatchSemaphore(value: 0)
+                DispatchQueue.main.async { handle(line) { finished.signal() } }
+                finished.wait()
+            }
+            DispatchQueue.main.async { controllerApplication.terminate(nil) }
         }
     }
-    let deadline = ProcessInfo.processInfo.systemUptime + 5
-    while action != "info" && ProcessInfo.processInfo.systemUptime < deadline {
-        if action == "hide" && app.isHidden { break }
-        if action == "activate" && app.isActive && !app.isHidden { break }
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.025))
-    }
-    verifyIdentity()
-    guard action != "hide" || app.isHidden,
-          action != "activate" || (app.isActive && !app.isHidden) else {
-        fail("acknowledgement", "The application did not acknowledge \(action)", 5,
-             ["beforeAction": beforeAction, "applicationState": applicationState()])
-    }
-    let launchDate = app.launchDate
-    var launchMs: Any = NSNull()
-    if let launchDate = launchDate { launchMs = launchDate.timeIntervalSince1970 * 1000 }
-    let observation: [String: Any] = [
-        "pid": pid, "controllerPid": ProcessInfo.processInfo.processIdentifier,
-        "sessionToken": sessionToken, "sequence": sequence, "action": action,
-        "sameApplication": true, "identityMethod": "NSRunningApplication.isEqual",
-        "launchMs": launchMs,
-        "launchDateAvailability": launchDate == nil ? "unavailable" : "available",
-        "executable": executable.path, "isHidden": app.isHidden, "isActive": app.isActive,
-        "beforeAction": beforeAction, "applicationState": applicationState(),
-        "observedAtMs": Date().timeIntervalSince1970 * 1000,
-        "source": "NSRunningApplication public API"
-    ]
-    let result = try JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])
-    print(String(decoding: result, as: UTF8.self))
-    fflush(stdout)
-    expectedSequence += 1
 }
+controllerApplication.run()
+withExtendedLifetime(launchObserver) {}
