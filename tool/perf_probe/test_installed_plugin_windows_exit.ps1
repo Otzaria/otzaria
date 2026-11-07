@@ -1,7 +1,9 @@
 #Requires -Version 7.0
+param([string]$NativeControlReportPath)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_control.psm1') -Force
 $script:assertions = 0
 function Assert-Equal($Expected, $Actual, [string]$Message) {
     $script:assertions++
@@ -170,46 +172,12 @@ try {
     Assert-Equal $true $log.Contains('owned stderr') 'Driver stderr is retained'
 
     if ($IsWindows) {
-        $foreignId = 'foreign-test-' + [guid]::NewGuid().ToString('N')
-        $timer = [Timers.Timer]::new(60000)
-        Register-ObjectEvent -InputObject $timer -EventName Elapsed -SourceIdentifier $foreignId | Out-Null
-        New-Event -SourceIdentifier $foreignId | Out-Null
-        $nativeTrace = Start-InstalledPluginExitTrace -ProcessName 'pwsh.exe'
-        $child = [Diagnostics.Process]::new()
-        try {
-            Assert-Equal 'armed' $nativeTrace.availability 'Both actual CIM subscriptions are ready before the controlled child starts'
-            $controlPath = Join-Path $temporary 'native-control.ps1'
-            @'
-$microseconds = [long](([datetime]::UtcNow.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
-@{ pid = $PID; runId = "$PID-$microseconds"; platform = 'windows'; buildMode = 'profile' } |
-    ConvertTo-Json | Set-Content -LiteralPath $args[0] -Encoding utf8
-exit 37
-'@ | Set-Content -LiteralPath $controlPath -Encoding utf8
-            $controlReport = Join-Path $temporary 'control-report.json'
-            $child.StartInfo = [Diagnostics.ProcessStartInfo]::new($executable)
-            $child.StartInfo.UseShellExecute = $false
-            foreach ($argument in @('-NoLogo', '-NoProfile', '-File', $controlPath, $controlReport)) { $child.StartInfo.ArgumentList.Add($argument) }
-            Assert-Equal $true $child.Start() 'The native control owns its child process'
-            Assert-Equal $true $child.WaitForExit(15000) 'The native control child is bounded'
-            Assert-Equal 37 $child.ExitCode 'The native control exits with the requested status'
-            Stop-InstalledPluginExitTrace $nativeTrace
-            $observed = Get-InstalledPluginExitEvidence $nativeTrace (Get-Content -LiteralPath $controlReport -Raw | ConvertFrom-Json -AsHashtable)
-            Assert-Equal 'collected' $observed.availability 'Real Windows process start and stop events identify the controlled child'
-            Assert-Equal 37 $observed.exitStatus 'The kernel-reported exit status matches the child exit status'
-            Assert-Equal 1 (@(Get-EventSubscriber -SourceIdentifier $foreignId)).Count 'Observer cleanup preserves foreign subscriptions'
-            Assert-Equal 1 (@(Get-Event -SourceIdentifier $foreignId)).Count 'Observer cleanup preserves foreign queued events'
-            foreach ($source in $nativeTrace.subscriptions.Values) {
-                Assert-Equal 0 (@(Get-EventSubscriber -SourceIdentifier $source -ErrorAction SilentlyContinue)).Count 'Owned native subscriptions are removed'
-            }
-            Write-Host 'Native Windows event control: passed'
-        } finally {
-            if ($nativeTrace.availability -eq 'armed') { Stop-InstalledPluginExitTrace $nativeTrace }
-            try { if ($child.Id -and -not $child.HasExited) { $child.Kill($true); [void]$child.WaitForExit(2000) } } catch { }
-            $child.Dispose()
-            Unregister-Event -SourceIdentifier $foreignId -ErrorAction SilentlyContinue
-            Get-Event -SourceIdentifier $foreignId -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue
-            $timer.Dispose()
+        if (-not $NativeControlReportPath) {
+            $NativeControlReportPath = Join-Path ([IO.Path]::GetTempPath()) ('installed-native-control-' + [guid]::NewGuid().ToString('N') + '.json')
         }
+        $native = Invoke-InstalledPluginExitControl -Directory $temporary -ReportPath $NativeControlReportPath
+        Assert-Equal 'passed' $native.status 'The real Windows process control completed'
+        Write-Host "Native Windows event control: passed; evidence: $NativeControlReportPath"
     } else {
         $missingProvider = Start-InstalledPluginExitTrace
         Stop-InstalledPluginExitTrace $missingProvider

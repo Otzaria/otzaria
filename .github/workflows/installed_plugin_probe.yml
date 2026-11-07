@@ -15,6 +15,8 @@ on:
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
+      - 'lib/core/window_listener.dart'
+      - 'test/core/window_listener_native_visibility_test.dart'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/installed_plugin_probe.yml'
@@ -87,14 +89,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate fixture and negative evidence contracts
         run: |
-          node --test tool/perf_probe/test_installed_plugin_fixture.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
+          node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate passive Windows process exit evidence
         if: matrix.platform == 'windows'
         run: |
-          & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
+          & ./tool/perf_probe/test_installed_plugin_windows_control.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-control-report-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run actual installed plugin hosts and dispatcher
         run: |
