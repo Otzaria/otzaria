@@ -73,6 +73,46 @@ Map<String, Object?> completeReport() => {
 
 void main() {
   final preparedSource = Platform.environment['INSTALLED_PROBE_STORE_SOURCE'];
+  group('document snapshot decoding', () {
+    for (final raw in [null, 'null']) {
+      test('a pending ${raw.runtimeType} reply cannot claim readiness', () {
+        final value = decodeInstalledPluginSnapshot(raw);
+        expect(value, isEmpty);
+        expect(value['ready'], isNot(true));
+        expect(value['sdkBooted'], isNot(true));
+        expect(value['documentToken'], isNull);
+      });
+    }
+    test('native maps and JSON preserve the observed document and view', () {
+      const snapshot = <String, Object?>{
+        'documentToken': 'new-store-document',
+        'sdkBooted': true,
+        'ready': true,
+        'view': {'search': 'Fixture', 'scrollTop': 420},
+      };
+      expect(decodeInstalledPluginSnapshot(snapshot), snapshot);
+      expect(decodeInstalledPluginSnapshot(jsonEncode(snapshot)), snapshot);
+    });
+    test('malformed non-null data remains a failure', () {
+      for (final raw in [
+        '{broken',
+        '[]',
+        'true',
+        '7',
+        '"ready"',
+        <Object?>[],
+        false,
+        7,
+        <Object, Object?>{1: 'invalid key'},
+      ]) {
+        expect(
+          () => decodeInstalledPluginSnapshot(raw),
+          throwsA(anyOf(isA<FormatException>(), isA<TypeError>())),
+          reason: 'Non-object snapshot: $raw',
+        );
+      }
+    });
+  });
   group('restoration evidence contract', () {
     test(
       'accepts observed identity changes and the four complete scenarios',

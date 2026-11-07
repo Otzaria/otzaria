@@ -1,3 +1,12 @@
+import 'dart:convert';
+
+/// ערך null מה־WebView אינו תצפית מוכנות של מסמך התוסף.
+Map<String, Object?> decodeInstalledPluginSnapshot(Object? value) {
+  final decoded = value is String ? jsonDecode(value) : value;
+  if (decoded == null) return {};
+  return Map<String, Object?>.from(decoded as Map);
+}
+
 const installedPluginPlatforms = [
   'windows',
   'macos',

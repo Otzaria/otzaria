@@ -744,9 +744,7 @@ class _Scenario {
       target,
       'JSON.stringify(window.installedPluginProbe ? window.installedPluginProbe.read() : null)',
     );
-    final state = value is String ? jsonDecode(value) : value;
-    if (state == null) return {};
-    final result = Map<String, Object?>.from(state as Map);
+    final result = decodeInstalledPluginSnapshot(value);
     if (result['error'] != null) {
       throw StateError('Controlled plugin JS error: ${result['error']}');
     }
@@ -1355,7 +1353,7 @@ class _Scenario {
           sort:byId('sort-select').value, hideInstalled:byId('hide-installed').checked,
           scrollTop:byId('app-content').scrollTop} : null};
     })())''');
-    return Map<String, Object?>.from(jsonDecode(value as String) as Map);
+    return decodeInstalledPluginSnapshot(value);
   }
 
   Future<Map<String, Object?>> storeReady(ToolTab tab) async {
