@@ -168,6 +168,34 @@ void main() {
     });
 
     test(
+      'blob conversion preserves protected app reports and backup version',
+      () async {
+        final current = {
+          'reportId': 'current',
+          'schema': 2,
+          'attachments': {'errorLog': 'exact payload'},
+        };
+        final manifest = <String, dynamic>{
+          'version': '3.0',
+          'reportQueues': {
+            'app_reports_queue': {
+              'pending': [],
+              'pendingV2': [current],
+              'sent': [],
+            },
+          },
+          'plugins': [],
+        };
+        await BackupMaintenance.convertManifestToRefs(manifest, store);
+        await BackupMaintenance.convertManifestToRefs(manifest, store);
+        expect(manifest['version'], '3.0');
+        final queue = manifest['reportQueues']['app_reports_queue'];
+        expect(queue['pending'], isEmpty);
+        expect(queue['pendingV2'], [current]);
+      },
+    );
+
+    test(
       'convertManifestToRefs מחליף base64 בהפניות ומשאיר הפניות קיימות',
       () async {
         final content = utf8.encode('קובץ תוסף');

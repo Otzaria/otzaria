@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
@@ -7,7 +8,9 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -32,6 +35,10 @@ void main() {
 
   setUp(() async {
     await Settings.setValue<String>(
+      SettingsRepository.keySettingsLanguage,
+      'he',
+    );
+    await Settings.setValue<String>(
       SettingsRepository.keyErrorReportSenderEmail,
       '',
     );
@@ -44,30 +51,44 @@ void main() {
     WidgetTester tester, {
     FakeAppReportService? withService,
     FakeAppReportCollector? collector,
+    SettingsLanguage language = SettingsLanguage.hebrew,
+    WidgetBuilder Function(BuildContext, WidgetBuilder)? dialogBuilder,
   }) async {
     service = withService ?? FakeAppReportService();
     popped = null;
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: navigatorKey,
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Builder(
-            builder: (context) => Center(
-              child: TextButton(
-                onPressed: () async {
-                  popped = await showAppReportDialog(
-                    context,
-                    createBloc: () => AppReportBloc(
-                      trigger: AppReportTrigger.manual,
-                      service: service,
-                      collector: collector ?? FakeAppReportCollector(),
-                      redactor: AppReportRedactor(environment: const {}),
-                      appVersion: '0.9.98',
-                    ),
-                  );
-                },
-                child: const Text('open'),
+        locale: const Locale('he', 'IL'),
+        supportedLocales: const [Locale('he', 'IL')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: SettingsTextScope(
+          language: language,
+          child: Directionality(
+            textDirection: language.textDirection,
+            child: Builder(
+              builder: (context) => Center(
+                child: TextButton(
+                  key: const ValueKey('report-opener'),
+                  onPressed: () async {
+                    popped = await showAppReportDialog(
+                      context,
+                      dialogBuilder: dialogBuilder,
+                      createBloc: () => AppReportBloc(
+                        trigger: AppReportTrigger.manual,
+                        service: service,
+                        collector: collector ?? FakeAppReportCollector(),
+                        redactor: AppReportRedactor(environment: const {}),
+                        appVersion: '0.9.98',
+                      ),
+                    );
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
@@ -103,6 +124,60 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
   }
+
+  testSnack('settings entry keeps English text menus inside the Hebrew app', (
+    tester,
+  ) async {
+    await pumpDialog(
+      tester,
+      language: SettingsLanguage.english,
+      dialogBuilder: settingsDialogBuilder,
+    );
+    final reportContext = tester.element(find.byType(AppReportDialog));
+    expect(Localizations.localeOf(reportContext).languageCode, 'en');
+    expect(MaterialLocalizations.of(reportContext).copyButtonLabel, 'Copy');
+    final opener = tester.element(
+      find.byKey(const ValueKey('report-opener'), skipOffstage: false),
+    );
+    expect(Localizations.localeOf(opener), const Locale('he', 'IL'));
+    for (final label in [
+      'Report type',
+      'Title',
+      'What happened?',
+      'Steps to reproduce',
+      '(optional)',
+      'Email address for replies',
+      PluginFileDropService.isSupported
+          ? 'Paste, drop, or click to choose an image'
+          : 'Paste or click to choose an image',
+      'Included with this report',
+    ]) {
+      final translated = find.text(label);
+      expect(translated, findsOneWidget);
+      await tester.ensureVisible(translated);
+      await tester.pumpAndSettle();
+      expect(translated.hitTestable(), findsOneWidget);
+    }
+    final title = find.byKey(const ValueKey('app-report-title'));
+    await tester.ensureVisible(title);
+    await tester.enterText(title, 'טקסט בעברית נשמר בדיוק');
+    final field = tester.widget<EditableText>(
+      find.descendant(of: title, matching: find.byType(EditableText)),
+    );
+    expect(field.controller.text, 'טקסט בעברית נשמר בדיוק');
+    final discard = find.byKey(const ValueKey('app-report-discard'));
+    expect(
+      find.descendant(of: discard, matching: find.text('Discard draft')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(discard);
+    await tester.tap(discard);
+    await tester.pumpAndSettle();
+    expect(find.byType(AppReportDialog), findsNothing);
+    expect(service.sent, isEmpty);
+    expect(service.queued, isEmpty);
+    expect(service.draft, isNull);
+  });
 
   testSnack('הטופס מוצג עם ארבעת הסוגים והמייל השמור', (tester) async {
     await Settings.setValue<String>(
@@ -178,11 +253,12 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('app-report-discard-draft')));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(service.draft, isNull);
     expect(find.text('הטופס נטען מטיוטה שמורה'), findsNothing);
     expect(find.text('תיאור שמור'), findsNothing);
-    expect(find.text('me@x.com'), findsOneWidget);
+    expect(find.byType(AppReportDialog), findsNothing);
   });
 
   testSnack('ביטול תיבות הסימון משמיט את הצרופות מהדיווח', (tester) async {
@@ -234,20 +310,38 @@ void main() {
     expect(find.text(ReportMessages.appReportMerged(7)), findsOneWidget);
   });
 
-  testSnack('נשמר בתור — הודעת queued', (tester) async {
-    await pumpDialog(
+  for (final scenario in [
+    (
+      schema: 1,
+      message: 'הדיווח נשמר בתור לשליחה. ניתן לנהל או לייצא אותו בהגדרות.',
+    ),
+    (schema: 2, message: ReportMessages.extendedReportQueued),
+  ]) {
+    testSnack('נשמר בתור — הודעת queued עבור schema ${scenario.schema}', (
       tester,
-      withService: FakeAppReportService(
-        respond: (r) => AppReportDeliveryResult(
-          status: AppReportDeliveryStatus.queued,
-          report: r,
+    ) async {
+      await pumpDialog(
+        tester,
+        withService: FakeAppReportService(
+          respond: (r) => AppReportDeliveryResult(
+            status: AppReportDeliveryStatus.queued,
+            report: r.copyWith(schema: scenario.schema),
+          ),
         ),
-      ),
-    );
-    await fill(tester);
-    await send(tester);
-    expect(find.text(ReportMessages.appReportQueued), findsOneWidget);
-  });
+      );
+      await fill(tester);
+      await send(tester);
+      expect(find.byType(AppReportDialog), findsNothing);
+      expect(popped, isNotNull);
+      expect(popped!.status, AppReportDeliveryStatus.queued);
+      expect(service.sent.single.schema, AppReport.schemaVersion);
+      expect(
+        popped!.report.toJson(),
+        service.sent.single.copyWith(schema: scenario.schema).toJson(),
+      );
+      expect(find.text(scenario.message), findsOneWidget);
+    });
+  }
 
   testSnack('נדחה בשרת — הודעת שגיאה עם השדה', (tester) async {
     await pumpDialog(
@@ -264,14 +358,16 @@ void main() {
     await fill(tester);
     await send(tester);
     expect(
-      find.text(ReportMessages.appReportRejected('title')),
+      find.text(
+        'השליחה לא הושלמה. התוכן נשאר בטיוטה וניתן לערוך אותו או לשמור בתור.',
+      ),
       findsOneWidget,
     );
   });
 
-  testSnack('ביטול סוגר בלי לשלוח', (tester) async {
+  testSnack('עזיבה זמנית של טופס ריק סוגרת בלי לייצר טיוטה', (tester) async {
     await pumpDialog(tester);
-    await tester.tap(find.text('ביטול'));
+    await tester.tap(find.byKey(const ValueKey('app-report-save-draft')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(AppReportDialog), findsNothing);

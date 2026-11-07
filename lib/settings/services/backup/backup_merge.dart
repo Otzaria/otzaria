@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:otzaria/bookmarks/utils/search_history_key.dart';
 import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/settings/services/backup/backup_report_format.dart';
 
 /// מיזוג מניפסטים של גיבוי לארכיון מתגלגל — איחוד לפי זהות פריט.
 ///
@@ -151,6 +152,7 @@ class BackupMerge {
     );
     if (plugins != null) result['plugins'] = plugins;
 
+    setReportAwareBackupVersion(result);
     return result;
   }
 

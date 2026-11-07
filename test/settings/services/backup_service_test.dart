@@ -108,6 +108,7 @@ void main() {
               await File(result.path).readAsString(),
             )
             as Map<String, dynamic>;
+    expect(backupJson['version'], '2.0');
     final shamorZachor = backupJson['shamorZachor'] as Map<String, dynamic>;
 
     expect(shamorZachor['sz:future_key'], ['a', 'b']);

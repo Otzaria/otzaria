@@ -45,6 +45,7 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
+import 'package:otzaria/settings/services/backup/backup_report_format.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_steps.dart';
@@ -198,6 +199,8 @@ class BackupService {
       if (skippedSections.isNotEmpty) {
         backupData['partial_sections'] = skippedSections;
       }
+
+      setReportAwareBackupVersion(backupData);
 
       // Write backup file
       final file = File(backupPath);
@@ -783,7 +786,13 @@ class BackupService {
     final queues = <String, dynamic>{};
     for (final queue in _reportQueues) {
       queues[queue.section] = {
-        'pending': await _storedReports(store, queue.pendingKind),
+        'pending': await _storedReports(
+          store,
+          queue.pendingKind,
+          additionalKind: queue.section == AppReportService.queueBoxName
+              ? AppReportService.currentPendingKind
+              : null,
+        ),
         'sent': await _storedReports(store, queue.sentKind),
         'sentTotal': await SentReportsCounter(boxName: queue.section).read(),
       };
@@ -793,8 +802,12 @@ class BackupService {
 
   static Future<List<Map<String, dynamic>>> _storedReports(
     PendingReportStore store,
-    String kind,
-  ) async => (await store.listByKind(kind)).map((r) => r.payload).toList();
+    String kind, {
+    String? additionalKind,
+  }) async => (await store.listByKind(
+    kind,
+    additionalKind: additionalKind,
+  )).map((r) => r.payload).toList();
 
   /// המרת רשימת דיווחים מ-Hive/JSON לרשימת מפות עם מפתחות מחרוזת.
   static List<Map<String, dynamic>> _reportList(Object? raw) {
@@ -865,7 +878,7 @@ class BackupService {
 
     // Validate backup version
     final version = backupData['version'] as String?;
-    if (version != '1.0' && version != '2.0') {
+    if (version != '1.0' && version != '2.0' && version != '3.0') {
       throw Exception('גרסת גיבוי לא נתמכת');
     }
 
@@ -1090,11 +1103,28 @@ class BackupService {
       }
       final sentIds = sent.map(_reportId).whereType<String>().toSet();
       final pending = _mergeReports(
-        await _storedReports(store, queue.pendingKind),
-        _reportList(backedUp['pending']),
+        await _storedReports(
+          store,
+          queue.pendingKind,
+          additionalKind: queue.section == AppReportService.queueBoxName
+              ? AppReportService.currentPendingKind
+              : null,
+        ),
+        [
+          ..._reportList(backedUp['pending']),
+          if (queue.section == AppReportService.queueBoxName)
+            ..._reportList(backedUp[appReportsBackupPendingV2]),
+        ],
       ).where((report) => !sentIds.contains(_reportId(report))).toList();
 
-      await _replaceReports(store, queue.pendingKind, pending);
+      await _replaceReports(
+        store,
+        queue.pendingKind,
+        pending,
+        additionalKind: queue.section == AppReportService.queueBoxName
+            ? AppReportService.currentPendingKind
+            : null,
+      );
       await _replaceReports(store, queue.sentKind, sent);
       // המונה אינו ניתן למיזוג לפי מזהה; הגדול מבין השניים הוא הקירוב הטוב.
       final backedUpTotal = _sentTotal(backedUp['sentTotal']);
@@ -1108,13 +1138,17 @@ class BackupService {
   static Future<void> _replaceReports(
     PendingReportStore store,
     String kind,
-    List<Map<String, dynamic>> reports,
-  ) async {
-    await store.deleteAllOfKind(kind);
+    List<Map<String, dynamic>> reports, {
+    String? additionalKind,
+  }) async {
+    await store.deleteAllOfKind(kind, additionalKind: additionalKind);
     final oldestFirst = [...reports]
       ..sort((a, b) => _reportTime(a).compareTo(_reportTime(b)));
     for (final report in oldestFirst) {
-      await store.add(kind, report);
+      final destination = additionalKind != null && (report['schema'] ?? 1) != 1
+          ? additionalKind
+          : kind;
+      await store.add(destination, report);
     }
   }
 

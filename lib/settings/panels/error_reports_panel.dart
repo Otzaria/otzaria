@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
+import 'package:otzaria/reports/view_scope.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
@@ -185,14 +187,14 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     await reportService.saveSenderEmail(email);
     if (!mounted) return;
     setState(() {});
-    UiSnack.showSuccess(ReportMessages.senderEmailSaved);
+    UiSnack.showSuccess(context.settingsText(ReportMessages.senderEmailSaved));
   }
 
   Future<void> _clearSenderEmail() async {
     await DirectErrorReportService().clearSenderEmail();
     if (!mounted) return;
     setState(() {});
-    UiSnack.show(ReportMessages.senderEmailCleared);
+    UiSnack.show(context.settingsText(ReportMessages.senderEmailCleared));
   }
 
   Future<void> _flushPendingReports() {
@@ -217,7 +219,12 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     } catch (e) {
       debugPrint('Failed to send pending direct report: $e');
       if (mounted) {
-        UiSnack.showError(ReportMessages.sendError(e));
+        UiSnack.showError(
+          context.settingsText(
+            'שגיאה בשליחת הדיווח: {error}',
+            args: {'error': e},
+          ),
+        );
       }
       return;
     } finally {
@@ -232,20 +239,20 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     if (!mounted) return;
     if (result.isSent) {
       if (result.isDuplicate || result.correctionNotSupported) {
-        UiSnack.show(result.message);
+        UiSnack.show(reportFeedbackText(context, result.message));
       } else {
         await ErrorReportHelper.showDirectReportDetailsDialog(
           context,
-          title: ReportMessages.sentSuccessTitle,
+          title: context.settingsText(ReportMessages.sentSuccessTitle),
           report: report,
         );
       }
       if (!mounted) return;
       setState(() {});
     } else if (result.isQueued) {
-      UiSnack.show(result.message);
+      UiSnack.show(reportFeedbackText(context, result.message));
     } else {
-      UiSnack.showError(result.message);
+      UiSnack.showError(reportFeedbackText(context, result.message));
     }
   }
 
@@ -268,7 +275,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     if (!mounted) return;
     setState(() {});
     widget.onPendingReportsChanged?.call();
-    UiSnack.show(ReportMessages.markedAsSent);
+    UiSnack.show(context.settingsText(ReportMessages.markedAsSent));
   }
 
   Future<void> _editPendingReport(DirectErrorReport report) async {
@@ -289,32 +296,42 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
       hasUnsavedChanges: hasChanges,
-      customContent: SizedBox(
-        width: 560,
-        child: _PendingReportEditFields(
-          initialValues: editValues,
-          correction: report.correction,
-          onChanged: (values) {
-            editValues = values;
-            final draft = values.correctionDraft;
-            hasChanges.value =
-                values.selectedText != report.selectedText ||
-                values.errorDetails != report.errorDetails ||
-                values.contextText != report.contextText ||
-                (draft != null && draft.correction != report.correction);
-          },
+      customContent: wrapWithReportScope(
+        context,
+        SizedBox(
+          width: 560,
+          child: _PendingReportEditFields(
+            initialValues: editValues,
+            correction: report.correction,
+            onChanged: (values) {
+              editValues = values;
+              final draft = values.correctionDraft;
+              hasChanges.value =
+                  values.selectedText != report.selectedText ||
+                  values.errorDetails != report.errorDetails ||
+                  values.contextText != report.contextText ||
+                  (draft != null && draft.correction != report.correction);
+            },
+          ),
         ),
       ),
     );
     hasChanges.dispose();
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
       final draft = editValues.correctionDraft;
+      if (draft == null && editValues.errorDetails.trim().isEmpty) {
+        UiSnack.showError(context.settingsText(ReportMessages.detailsRequired));
+        return;
+      }
       if (draft != null &&
           (!draft.isValid ||
               (!draft.hasProposal && editValues.errorDetails.trim().isEmpty))) {
         UiSnack.showError(
-          draft.error ?? ReportMessages.proposalNeedsDetailsOrChange,
+          reportFeedbackText(
+            context,
+            draft.error ?? ReportMessages.proposalNeedsDetailsOrChange,
+          ),
         );
         return;
       }
@@ -328,7 +345,7 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
       );
       if (!mounted) return;
       setState(() {});
-      UiSnack.showSuccess(ReportMessages.reportUpdated);
+      UiSnack.showSuccess(context.settingsText(ReportMessages.reportUpdated));
     }
   }
 
@@ -353,14 +370,14 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     if (!mounted) return;
     setState(() {});
     widget.onPendingReportsChanged?.call();
-    UiSnack.show(ReportMessages.removedFromQueue);
+    UiSnack.show(context.settingsText(ReportMessages.removedFromQueue));
   }
 
   Future<void> _deleteSentReport(DirectErrorReport report) async {
     await DirectErrorReportService().deleteSentReport(report.id);
     if (!mounted) return;
     setState(() {});
-    UiSnack.show(ReportMessages.deletedFromHistory);
+    UiSnack.show(context.settingsText(ReportMessages.deletedFromHistory));
   }
 
   Future<void> _clearSentReports() => clearSentReports(
@@ -541,60 +558,65 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
         ),
       );
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        RtlTextField(
-          controller: _selectedTextController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 5,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('הטקסט שנבחר'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
+    return SingleChildScrollView(
+      key: const ValueKey('book-report-edit-scroll'),
+      // Floating labels extend above an outlined field's border.
+      padding: const EdgeInsets.only(top: AppTokens.spaceSM),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Directionality(
+            textDirection: reportContentDirection(_selectedTextController.text),
+            child: RtlTextField(
+              key: const ValueKey('book-report-edit-selection'),
+              controller: _selectedTextController,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              minLines: 1,
+              maxLines: 5,
+              onChanged: (_) => _notifyChanged(),
+              decoration: InputDecoration(
+                labelText: context.settingsText('הטקסט שנבחר'),
+                isDense: true,
+                contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        RtlTextField(
-          controller: _detailsController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 6,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('פירוט הטעות'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
+          const SizedBox(height: 12),
+          RtlTextField(
+            key: const ValueKey('book-report-edit-details'),
+            controller: _detailsController,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            minLines: 1,
+            maxLines: 6,
+            onChanged: (_) => _notifyChanged(),
+            decoration: InputDecoration(
+              labelText: context.settingsText('פירוט הטעות'),
+              isDense: true,
+              contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        RtlTextField(
-          controller: _contextController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 6,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('הקשר'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
+          const SizedBox(height: 12),
+          Directionality(
+            textDirection: reportContentDirection(_contextController.text),
+            child: RtlTextField(
+              key: const ValueKey('book-report-edit-context'),
+              controller: _contextController,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              minLines: 1,
+              maxLines: 6,
+              onChanged: (_) => _notifyChanged(),
+              decoration: InputDecoration(
+                labelText: context.settingsText('הקשר'),
+                isDense: true,
+                contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

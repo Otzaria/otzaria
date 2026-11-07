@@ -14,6 +14,7 @@ import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/settings/dialogs/reports_management_dialog.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/app_reports_panel.dart';
 import 'package:otzaria/settings/panels/error_reports_panel.dart';
 import 'package:otzaria/settings/panels/plugin_reports_panel.dart';
@@ -21,6 +22,8 @@ import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+
+import '../../reports/reporting_test_pump.dart' show reportIo;
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
@@ -81,6 +84,24 @@ class _MemoryCacheProvider extends CacheProvider {
   @override
   Future<void> setString(String key, String? value) async =>
       _values[key] = value;
+}
+
+// Panel reads can enqueue real database writes even in an otherwise read-only
+// test. Drain them in the same FakeAsync zone that created them, before the
+// following test changes the database path. addTearDown runs too late for this.
+void _reportWidgets(
+  String description,
+  WidgetTesterCallback body, {
+  Timeout? timeout,
+}) {
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await reportIo(tester, UserStateDatabase.instance.flushWrites);
+    }
+  }, timeout: timeout ?? const Timeout(Duration(minutes: 1)));
 }
 
 void main() {
@@ -153,7 +174,8 @@ void main() {
         ).toJson(),
       ),
     };
-    await tester.runAsync(
+    await reportIo(
+      tester,
       () => PendingReportStore.instance.add(kind, {...payload, ...extra}),
     );
   }
@@ -165,7 +187,11 @@ void main() {
     await settleReports(tester);
   }
 
-  Future<void> pumpDialog(WidgetTester tester, ReportsTab tab) async {
+  Future<void> pumpDialog(
+    WidgetTester tester,
+    ReportsTab tab, {
+    SettingsLanguage language = SettingsLanguage.hebrew,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final bloc = _FakeSettingsBloc();
@@ -175,14 +201,20 @@ void main() {
         value: bloc,
         child: MaterialApp(
           locale: const Locale('he', 'IL'),
-          home: Scaffold(body: ReportsManagementDialog(initialTab: tab)),
+          home: SettingsTextScope(
+            language: language,
+            child: Directionality(
+              textDirection: language.textDirection,
+              child: Scaffold(body: ReportsManagementDialog(initialTab: tab)),
+            ),
+          ),
         ),
       ),
     );
     await settleReports(tester);
   }
 
-  testWidgets('opens on the requested tab, with one panel per tab', (
+  _reportWidgets('opens on the requested tab, with one panel per tab', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -199,6 +231,63 @@ void main() {
     expect(find.byType(ErrorReportsPanel), findsOneWidget);
   });
 
+  _reportWidgets(
+    'free book editing keeps English scope and scrolls in a low window',
+    (
+      tester,
+    ) async {
+      final selected = 'מקור ארוך בשורה נפרדת\n' * 10;
+      await addReport(
+        tester,
+        ReportsTab.books,
+        extra: {
+          'selectedText': selected,
+          'errorDetails': 'פרטי הטעות בשורה נפרדת\n' * 10,
+          'contextText': 'הקשר בשורה נפרדת\n' * 10,
+        },
+      );
+      await pumpDialog(
+        tester,
+        ReportsTab.books,
+        language: SettingsLanguage.english,
+      );
+      await tapVisible(tester, 'Manage saved reports');
+      await tapVisible(tester, 'Edit');
+      await tester.binding.setSurfaceSize(const Size(1100, 360));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Edit a Saved Report'), findsOneWidget);
+      expect(find.text('The Selected Text'), findsOneWidget);
+      expect(find.text('What needs to be corrected?'), findsOneWidget);
+      expect(find.text('Context'), findsOneWidget);
+      final scroll = find.byKey(const ValueKey('book-report-edit-scroll'));
+      expect(scroll, findsOneWidget);
+      final state = tester.state<ScrollableState>(
+        find.descendant(of: scroll, matching: find.byType(Scrollable)).first,
+      );
+      expect(state.position.maxScrollExtent, greaterThan(0));
+      final contextField = find.byKey(
+        const ValueKey('book-report-edit-context'),
+      );
+      await tester.ensureVisible(contextField);
+      await tester.enterText(contextField, 'הקשר המעודכן נשמר במדויק');
+      await tester.pump();
+      final save = find.text('Save');
+      expect(save.hitTestable(), findsOneWidget);
+      await tester.tap(save);
+      await settleReports(tester);
+      final reports = await reportIo(
+        tester,
+        () => DirectErrorReportService().getPendingReports(),
+      );
+      expect(reports.single.selectedText, selected.trim());
+      expect(reports.single.contextText, 'הקשר המעודכן נשמר במדויק');
+      expect(tester.takeException(), isNull);
+    },
+    timeout: const Timeout(Duration(minutes: 1)),
+  );
+
   for (final tab in ReportsTab.values) {
     final label = switch (tab) {
       ReportsTab.books => 'טעויות בספרים',
@@ -210,7 +299,7 @@ void main() {
       'clear',
       if (tab != ReportsTab.plugins) 'mark',
     ]) {
-      testWidgets(
+      _reportWidgets(
         '$action ${tab.name} updates the tab badge without switching tabs',
         (tester) async {
           await addReport(tester, tab);
@@ -228,8 +317,8 @@ void main() {
               await tapVisible(tester, 'סמן כנשלח');
               await tapVisible(tester, 'סמן כנשלח');
           }
-          final counts = await tester.runAsync(() => ReportCounts.load());
-          expect(counts!.pendingOf(tab), 0);
+          final counts = await reportIo(tester, ReportCounts.load);
+          expect(counts.pendingOf(tab), 0);
           expect(counts.sent, action == 'mark' ? 1 : 0);
           expect(find.text('$label (1)'), findsNothing);
           expect(find.text(label), findsOneWidget);
@@ -246,7 +335,7 @@ void main() {
     }
   }
 
-  testWidgets('returning from the app report form refreshes its tab badge', (
+  _reportWidgets('returning from the app report form refreshes its tab badge', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -256,9 +345,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(AppReportDialog), findsOneWidget);
     await addReport(tester, ReportsTab.app);
-    final report = (await tester.runAsync(
+    final report = (await reportIo(
+      tester,
       () => AppReportService().getPendingReports(),
-    ))!.single;
+    )).single;
     Navigator.of(tester.element(find.byType(AppReportDialog))).pop(
       AppReportDeliveryResult(
         status: AppReportDeliveryStatus.queued,
@@ -270,20 +360,23 @@ void main() {
     expect(find.text('יש כרגע 1 דיווחים שמורים בתור'), findsOneWidget);
   });
 
-  testWidgets('cancelling the app report form leaves the tab counters alone', (
-    tester,
-  ) async {
-    await pumpDialog(tester, ReportsTab.app);
-    final tabBar = tester.widget<TabBar>(find.byType(TabBar));
-    await tester.tap(find.byKey(const ValueKey('app-reports-open-dialog')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    Navigator.of(tester.element(find.byType(AppReportDialog))).pop();
-    await settleReports(tester);
-    expect(tester.widget<TabBar>(find.byType(TabBar)), same(tabBar));
-  });
+  _reportWidgets(
+    'cancelling the app report form leaves the tab counters alone',
+    (
+      tester,
+    ) async {
+      await pumpDialog(tester, ReportsTab.app);
+      final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+      await tester.tap(find.byKey(const ValueKey('app-reports-open-dialog')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      Navigator.of(tester.element(find.byType(AppReportDialog))).pop();
+      await settleReports(tester);
+      expect(tester.widget<TabBar>(find.byType(TabBar)), same(tabBar));
+    },
+  );
 
-  testWidgets('closing the reports while the app form is open is safe', (
+  _reportWidgets('closing the reports while the app form is open is safe', (
     tester,
   ) async {
     await pumpDialog(tester, ReportsTab.app);
@@ -295,7 +388,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sent book search opens books despite a pending app report', (
+  _reportWidgets('sent book search opens books despite a pending app report', (
     tester,
   ) async {
     await addReport(tester, ReportsTab.books, sent: true);
@@ -319,7 +412,8 @@ void main() {
     final entry = SystemSettingsTab.searchEntries.singleWhere(
       (entry) => entry.id == 'system.reports.sent',
     );
-    await tester.runAsync(
+    await reportIo(
+      tester,
       () => SettingsSearchRegistry.instance.scrollAndHighlight(
         entry.cardId!,
         section: entry.expandSection,
@@ -336,7 +430,7 @@ void main() {
   });
 
   for (final tab in ReportsTab.values) {
-    testWidgets('${tab.name}: a report carried by Otzaria Updates says so', (
+    _reportWidgets('${tab.name}: a report carried by Otzaria Updates says so', (
       tester,
     ) async {
       await addReport(
@@ -370,7 +464,7 @@ void main() {
       expect(find.text('פרטי דיווח שנשלח'), findsNothing);
     });
 
-    testWidgets('${tab.name}: a report Otzaria sent has no carried status', (
+    _reportWidgets('${tab.name}: a report Otzaria sent has no carried status', (
       tester,
     ) async {
       await addReport(tester, tab, sent: true);

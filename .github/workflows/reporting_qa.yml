@@ -1,0 +1,225 @@
+name: Reporting QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/reporting_qa.yml'
+      - 'lib/app_report/**'
+      - 'lib/core/messages/report_messages.dart'
+      - 'lib/core/pre_close_registry.dart'
+      - 'lib/core/user_state/**'
+      - 'lib/reports/**'
+      - 'lib/settings/l10n/**'
+      - 'lib/settings/panels/*report*'
+      - 'lib/settings/services/backup_service.dart'
+      - 'lib/settings/services/backup/**'
+      - 'lib/text_book/**'
+      - 'lib/widgets/dialogs/error_report_sender_email_dialog.dart'
+      - 'lib/widgets/misc/phone_report_tab.dart'
+      - 'lib/widgets/misc/reporting_numbers_widget.dart'
+      - 'lib/services/*report*'
+      - 'packages/otzaria_report_contract/**'
+      - 'packages/super_native_extensions/**'
+      - 'tool/verify_super_native_extensions.py'
+      - 'tool/tests/test_verify_super_native_extensions.py'
+      - 'test/reports/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reporting-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reporting-qa:
+    name: Reporting forms, storage and visual QA (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      REPORT_QA_OUTPUT_DIR: build/report-forms-qa
+      REPORT_QA_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+
+    steps:
+      - name: Checkout the reviewed head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Cache native build hook output
+        uses: actions/cache@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      - name: Prepare evidence directory
+        run: mkdir -p build/report-forms-qa build/reporting_qa
+
+      - name: Verify the vendored clipboard source against its pinned Pub archive
+        run: |
+          python3 tool/verify_super_native_extensions.py
+          python3 -m unittest discover -s tool/tests -p test_verify_super_native_extensions.py
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile 2>&1 | tee build/reporting_qa/dependencies.log
+
+      - name: Generate and verify the translation catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart run tool/generate_settings_l10n.dart 2>&1 | tee build/reporting_qa/catalog.log
+          git diff --exit-code -- lib/settings/l10n/settings_catalogs.g.dart
+
+      - name: Run reporting tests serially
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            --file-reporter json:build/reporting_qa/test-results.json \
+            test/reports \
+            test/app_report/app_report_service_test.dart \
+            test/app_report/app_report_image_sources_test.dart \
+            test/app_report/view/app_report_dialog_test.dart \
+            test/app_report/view/app_report_edit_fields_test.dart \
+            test/app_report/view/app_report_images_section_test.dart \
+            test/core/user_state/window_session_and_reports_store_test.dart \
+            test/core/otzaria_capabilities_test.dart \
+            test/services/direct_error_report_service_test.dart \
+            test/plugins/services/plugin_report_service_test.dart \
+            test/settings/dialogs/reports_management_dialog_test.dart \
+            test/settings/services/backup_service_test.dart \
+            test/unit/settings/backup/backup_merge_test.dart \
+            test/unit/settings/backup/backup_store_test.dart \
+            test/settings/l10n \
+            test/widgets/text/rtl_text_field_context_menu_test.dart \
+            test/widgets/text/rtl_text_field_editing_test.dart \
+            test/widgets/app_selection_area_test.dart \
+            test/widgets/text/app_selection_migrations_test.dart \
+            test/text_book/view/combined_view/combined_view_note_entry_test.dart \
+            test/text_book/view/text_correction_html_contract_test.dart \
+            test/text_book/view/text_correction_editor_test.dart \
+            test/text_book/utils/book_note_report_test.dart \
+            test/text_book/view/note_error_report_test.dart \
+            test/text_book/view/error_report_dialog_test.dart \
+            2>&1 | tee build/reporting_qa/tests.log
+
+      - name: Verify lossless requests against the actual legacy website
+        if: always()
+        shell: bash
+        env:
+          REPORT_QA_WEBSITE_SHA: dc76f65232de89762505f3db71395530318fb04f
+        run: |
+          set -euo pipefail
+          test -s build/reporting_qa/compat-payloads.json
+          legacy_website="$(mktemp -d "$RUNNER_TEMP/reporting-website.XXXXXX")"
+          trap 'rm -rf "$legacy_website"' EXIT
+          git init --quiet "$legacy_website"
+          git -C "$legacy_website" fetch --no-tags --depth=1 \
+            https://github.com/Otzaria/Otzaria_Website.git "$REPORT_QA_WEBSITE_SHA"
+          git -C "$legacy_website" checkout --detach FETCH_HEAD
+          node test/reports/fixtures/legacy_website_validator_gate.mjs \
+            "$legacy_website/src/lib/app-reports/validation.js" \
+            build/reporting_qa/compat-payloads.json \
+            2>&1 | tee build/reporting_qa/legacy-website-gate.log
+
+      - name: Verify real collection with the released v0.28.0 updater
+        if: always()
+        shell: bash
+        env:
+          REPORT_QA_UPDATER_SHA: 34e2e856155a78d27d13d0b78d981778c0c81c60
+          REPORT_QA_COMPAT_FIXTURES: ${{ github.workspace }}/build/reporting_qa
+        run: |
+          set -euo pipefail
+          test -s "$REPORT_QA_COMPAT_FIXTURES/compat-user-state.db"
+          test -s "$REPORT_QA_COMPAT_FIXTURES/compat-capabilities.json"
+          legacy_updater="$(mktemp -d "$RUNNER_TEMP/reporting-updater.XXXXXX")"
+          trap 'rm -rf "$legacy_updater"' EXIT
+          git init --quiet "$legacy_updater"
+          git -C "$legacy_updater" fetch --no-tags --depth=1 \
+            https://github.com/Otzaria/Otzaria_Offline_update.git "$REPORT_QA_UPDATER_SHA"
+          git -C "$legacy_updater" checkout --detach FETCH_HEAD
+          cp test/reports/fixtures/legacy_offline_collector_gate.dart.fixture \
+            "$legacy_updater/error_reports_manager/test/compat_legacy_collector_test.dart"
+          cd "$legacy_updater/error_reports_manager"
+          dart pub get --enforce-lockfile 2>&1 | tee "$REPORT_QA_COMPAT_FIXTURES/legacy-updater-dependencies.log"
+          dart format --output=none --set-exit-if-changed test/compat_legacy_collector_test.dart
+          dart analyze test/compat_legacy_collector_test.dart
+          dart test --reporter expanded test/compat_legacy_collector_test.dart \
+            2>&1 | tee "$REPORT_QA_COMPAT_FIXTURES/legacy-updater-gate.log"
+
+      - name: Verify backup protection with the actual legacy client
+        if: always()
+        shell: bash
+        env:
+          REPORT_QA_LEGACY_SHA: bc398e6908004901cf8d38bbd5ed2dae1feb3a62
+          REPORT_QA_BACKUP_FIXTURE: ${{ github.workspace }}/build/reporting_qa/app-report-backup-schema2.json
+          REPORT_QA_LEGACY_BACKUP_FIXTURE: ${{ github.workspace }}/build/reporting_qa/app-report-backup-legacy-only.json
+        run: |
+          set -euo pipefail
+          mkdir -p build/reporting_qa
+          test -s "$REPORT_QA_BACKUP_FIXTURE"
+          test -s "$REPORT_QA_LEGACY_BACKUP_FIXTURE"
+          git fetch --no-tags --depth=1 origin "$REPORT_QA_LEGACY_SHA"
+          legacy_root="$(mktemp -d "$RUNNER_TEMP/reporting-legacy.XXXXXX")"
+          git worktree add --detach "$legacy_root" "$REPORT_QA_LEGACY_SHA"
+          trap 'git -C "$GITHUB_WORKSPACE" worktree remove --force "$legacy_root"' EXIT
+          mkdir -p "$legacy_root/test/reports"
+          cp test/reports/fixtures/legacy_backup_gate.dart "$legacy_root/test/reports/qa_legacy_backup_gate_test.dart"
+          cd "$legacy_root"
+          flutter pub get --enforce-lockfile 2>&1 | tee "$GITHUB_WORKSPACE/build/reporting_qa/legacy-dependencies.log"
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/reports/qa_legacy_backup_gate_test.dart \
+            2>&1 | tee "$GITHUB_WORKSPACE/build/reporting_qa/legacy-backup-gate.log"
+
+      - name: Check changed Dart formatting and save the patch
+        if: always()
+        shell: bash
+        env:
+          REPORT_QA_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/reporting_qa
+          if [ -n "$REPORT_QA_BASE_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$REPORT_QA_BASE_SHA"
+            base_ref="$REPORT_QA_BASE_SHA"
+          else
+            git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
+            base_ref="$(git rev-parse HEAD^)"
+          fi
+          # Keep the verified upstream Dart byte-for-byte; only the Windows Rust reader is patched.
+          mapfile -d '' changed < <(git diff --name-only -z --diff-filter=ACMRT "$base_ref" HEAD -- '*.dart' ':!packages/super_native_extensions/**')
+          format_status=0
+          if [ "${#changed[@]}" -gt 0 ]; then
+            dart format "${changed[@]}" 2>&1 | tee build/reporting_qa/format.log || format_status=$?
+          fi
+          git diff --binary > build/reporting_qa/format.patch
+          git diff --exit-code
+          exit "$format_status"
+
+      - name: Upload rendered widgets and test evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: reporting-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            build/report-forms-qa/**
+            build/reporting_qa/**
+          if-no-files-found: warn
+          retention-days: 14

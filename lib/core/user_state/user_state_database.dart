@@ -16,7 +16,7 @@ class UserStateDatabase {
 
   static final UserStateDatabase instance = UserStateDatabase._();
 
-  /// גרסת הסכמה — מקודמים ב-[_migrateSchema] בכל שינוי.
+  /// טבלאות הטיוטה נפרדות ואינן משנות את החוזה שקוראי התור מכירים.
   static const int _schemaVersion = 1;
 
   /// כתיבה ב-isolate הנוכחי: FakeAsync של `testWidgets` אינו מקבל את התשובה
@@ -109,6 +109,25 @@ class UserStateDatabase {
     db.execute(
       'CREATE INDEX IF NOT EXISTS pending_reports_kind ON pending_reports(kind)',
     );
+    // Drafts deliberately have no row in pending_reports. The offline updater
+    // and report exporters only read the explicit outgoing queues.
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS report_drafts (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        revision INTEGER NOT NULL
+      )
+    ''');
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS report_draft_attachments (
+        draft_id TEXT PRIMARY KEY REFERENCES report_drafts(id) ON DELETE CASCADE,
+        payload_json TEXT NOT NULL
+      )
+    ''');
   }
 
   void _migrateSchema(Database db) {

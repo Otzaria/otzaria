@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
@@ -189,11 +191,16 @@ void main() {
       WidgetTester tester, {
       TextCorrection? template,
       String selectedText = 'אֱלֹהִ֑ים',
+      SettingsLanguage language = SettingsLanguage.hebrew,
       Future<String?> Function(ReportedErrorData)? validate,
     }) async {
       final submissions = <(ErrorReportAction, ReportedErrorData)>[];
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) => SettingsTextScope(
+            language: language,
+            child: child!,
+          ),
           home: Scaffold(
             body: RegularReportTab(
               selectedText: selectedText,
@@ -271,8 +278,22 @@ void main() {
       await pumpTab(tester);
 
       expect(find.text(ReportMessages.proposalIdentical), findsOneWidget);
-      expect(find.text('שמור לשליחה מאוחרת'), findsNothing);
-      expect(find.text('שלח ישירות לאוצריא'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שמור לשליחה מאוחרת'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שלח ישירות לאוצריא'),
+            )
+            .onPressed,
+        isNull,
+      );
     });
 
     testWidgets('[T3] "מחיקת הקטע" שולח ""; אין אפשרות "ללא הצעה"', (
@@ -303,7 +324,61 @@ void main() {
         find.text(ReportMessages.proposalTooLong(TextCorrection.maxTextLength)),
         findsOneWidget,
       );
-      expect(find.text('שמור לשליחה מאוחרת'), findsNothing);
+      expect(
+        tester
+            .widget<ActionButton>(
+              find.widgetWithText(ActionButton, 'שמור לשליחה מאוחרת'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(tester.widget<TextField>(proposalField()).controller!.text, long);
+    });
+
+    testWidgets('English validation blocks unchanged and oversized proposals', (
+      tester,
+    ) async {
+      final submissions = await pumpTab(
+        tester,
+        language: SettingsLanguage.english,
+      );
+      void expectDeliveryBlocked() {
+        for (final label in [
+          'Save for later sending',
+          'Send directly to Otzaria',
+        ]) {
+          expect(
+            tester
+                .widget<ActionButton>(find.widgetWithText(ActionButton, label))
+                .onPressed,
+            isNull,
+          );
+        }
+        expect(submissions, isEmpty);
+      }
+
+      expect(
+        find.text(
+          'The proposal is identical to the original. Change the text or '
+          'select Delete passage. If you have no correction, choose '
+          'Free-text report.',
+        ),
+        findsOneWidget,
+      );
+      expectDeliveryBlocked();
+
+      final long = 'א' * (TextCorrection.maxTextLength + 1);
+      await tester.enterText(proposalField(), long);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The proposal is too long (over 20000 characters). Shorten it; '
+          'it will not be truncated.',
+        ),
+        findsOneWidget,
+      );
+      expectDeliveryBlocked();
       expect(tester.widget<TextField>(proposalField()).controller!.text, long);
     });
 
