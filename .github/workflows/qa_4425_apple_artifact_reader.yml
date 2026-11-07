@@ -1,0 +1,42 @@
+name: QA 4425 source and first iOS raw artifact inspection
+on:
+  push:
+    branches: [y-ploni/qa-4425-native-hide-artifacts-20261107-a]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: source
+            artifact: '{"label":"source","kind":"source","run":42338084023,"job":128299450179,"conclusion":"success","id":13560592648,"name":"qa-4425-source-hook-1d886268b23a6bdd26373df4da7a58b278d495b2","bytes":4483953,"sha256":"372dd999e5e82966e5662f0dd04cd5c0920bde1f2d3a68d3c3ed66c4b31f94e7","head":"1d886268b23a6bdd26373df4da7a58b278d495b2"}'
+          - label: merge
+            artifact: '{"label":"merge","kind":"merge","run":42338084023,"job":128299450193,"conclusion":"success","id":13560218165,"name":"qa-4425-merge-1d886268b23a6bdd26373df4da7a58b278d495b2","bytes":3224751,"sha256":"c789c74b139d219186cbd247bfc30a3fc5d15a6f9256643ec1491e4ebce3530b","head":"1d886268b23a6bdd26373df4da7a58b278d495b2"}'
+          - label: ios-first
+            artifact: '{"label":"ios-first","kind":"native","run":42338152188,"job":128299653217,"conclusion":"failure","id":13560442856,"name":"qa-4425-actual-apple-ios-debug","bytes":5434017,"sha256":"35dab76745482386a54848b8d243ee8526df62b48f11e811f5c3596d86e73b3d","head":"8e519ebe54d79814cb2cec76a2c72735d139b6c4"}'
+    name: Read immutable ${{ matrix.label }} artifact
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind archive, inspect raw data and full source snapshots
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_ARTIFACT: ${{ matrix.artifact }}
+        run: python3 tool/perf_probe/qa_4425_apple_artifact_reader.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-4425-raw-artifact-inspection-${{ matrix.label }}
+          path: |
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/*.json
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/verified-evidence.zip
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/retained-data
+          if-no-files-found: error
+          retention-days: 14
