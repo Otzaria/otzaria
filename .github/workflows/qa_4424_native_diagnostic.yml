@@ -1,0 +1,31 @@
+name: QA 4424 independent native evidence review
+on:
+  push:
+    branches: [qa/y-ploni-4424-command-resolution-native-review-20261107]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Independently verify immutable native and auxiliary artifacts
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-native-review
+        run: python tool/perf_probe/qa_4424_native_diagnostic.py
+      - name: Preserve original ZIPs and every independent receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-4424-native-independent-review-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4424-native-review
+          if-no-files-found: error
