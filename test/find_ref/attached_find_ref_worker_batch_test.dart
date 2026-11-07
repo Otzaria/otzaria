@@ -30,6 +30,30 @@ AttachedDbJob<int> _gated(int value, SendPort events) => (repository) async {
   }
 };
 
+const _resetPing = 'ping-after-reset';
+const _workerExited = 'worker-exited';
+const _cleanupCompleted = 'synchronous-cleanup-completed';
+
+AttachedDbJob<int> _holdSynchronousCleanup(
+  SendPort events,
+  String releasePath,
+) => (_) async {
+  try {
+    return 1;
+  } finally {
+    final release = File(releasePath);
+    events.send(Isolate.current.controlPort);
+    // A synchronous cleanup cannot consume an ordinary release-port message.
+    while (!release.existsSync()) {}
+    events.send(_cleanupCompleted);
+  }
+};
+
+Future<int> _bookCount(SeforimRepository repository) async {
+  final database = await repository.database.database;
+  return database.select('SELECT COUNT(*) FROM book').first.columnAt(0) as int;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final worker = AttachedFindRefWorker.instance;
@@ -46,7 +70,7 @@ void main() {
 
   setUp(() async {
     await QueryLoader.initialize();
-    worker.reset();
+    await worker.reset();
     directory = await Directory.systemTemp.createTemp('attached_worker_batch');
     path = SeforimFixtureDb.create(directory, SeforimFixtureVariant.full);
     timeouts = (
@@ -56,7 +80,7 @@ void main() {
   });
 
   tearDown(() async {
-    worker.reset();
+    await worker.reset();
     for (final value in scopes) {
       worker.releaseSearchScope(value);
     }
@@ -228,6 +252,75 @@ void main() {
       }
     });
   }
+
+  test('reset אינו קוטע cleanup סינכרוני ומבטל את הקריאה הממתינה', () async {
+    final release = File('${directory.path}/release');
+    final events = ReceivePort();
+    final started = Completer<Isolate>();
+    final firstControlResponse = Completer<String>();
+    final exited = Completer<void>();
+    final observed = <String>[];
+    final subscription = events.listen((message) {
+      if (message is SendPort) {
+        observed.add('synchronous-cleanup-started');
+        started.complete(Isolate(message));
+        return;
+      }
+      final event = message as String;
+      observed.add(event);
+      if ((event == _resetPing || event == _workerExited) &&
+          !firstControlResponse.isCompleted) {
+        firstControlResponse.complete(event);
+      }
+      if (event == _workerExited) exited.complete();
+    });
+    addTearDown(() async {
+      release.createSync();
+      await worker.reset();
+      await subscription.cancel();
+      events.close();
+    });
+    final active = worker.run(
+      path,
+      immutable: false,
+      version: 'v',
+      job: _holdSynchronousCleanup(events.sendPort, release.path),
+    );
+    final cancelled = expectLater(active, throwsA(isA<StateError>()));
+    final isolate = await started.future;
+    // One response port preserves the order of cleanup, ping, and real exit.
+    isolate.addOnExitListener(events.sendPort, response: _workerExited);
+    final closing = worker.reset();
+    isolate.ping(
+      events.sendPort,
+      response: _resetPing,
+      priority: Isolate.immediate,
+    );
+    try {
+      expect(
+        await firstControlResponse.future,
+        _resetPing,
+        reason: 'reset must defer exit until the synchronous cleanup returns',
+      );
+    } finally {
+      // Release even when immediate kill makes the assertion fail.
+      release.createSync();
+      await closing;
+      await exited.future;
+      await cancelled;
+      printOnFailure('Worker reset event order: $observed');
+    }
+    expect(observed, [
+      'synchronous-cleanup-started',
+      _resetPing,
+      _cleanupCompleted,
+      _workerExited,
+    ]);
+    expect(
+      await worker.run(path, immutable: false, version: 'v', job: _bookCount),
+      greaterThan(0),
+    );
+  });
 
   test('reset בזמן spawn משחרר את הבקשה ואפשר לפתוח שוב', () async {
     final pending = worker.run(path, immutable: false, version: 'v', job: _one);

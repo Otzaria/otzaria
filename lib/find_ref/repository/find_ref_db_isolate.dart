@@ -539,8 +539,7 @@ class FindRefDbIsolate {
       );
       return false;
     } catch (e) {
-      // kill של isolate אינו מריץ finalizers, ולכן ה-handle הנייטיבי עשוי
-      // לשרוד את נפילת ה-worker עד סוף התהליך.
+      // ללא אישור מה-worker אין ודאות שה-handle כבר שוחרר.
       debugPrint(
         '[FindRef isolate] suspend failed ($e) — DB handle may still be open',
       );
@@ -699,7 +698,8 @@ class FindRefDbIsolate {
     _receivePort.close();
     _errorPort.close();
     _exitPort.close();
-    _isolate?.kill(priority: Isolate.immediate);
+    // ניתוק ה-finalizer של SQLite חייב להסתיים לפני עצירת ה-isolate.
+    _isolate?.kill(priority: Isolate.beforeNextEvent);
     if (identical(_instance, this)) _instance = null;
   }
 

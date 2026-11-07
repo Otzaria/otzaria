@@ -939,7 +939,8 @@ Future<Map<String, dynamic>> _runDatabaseQueryWorker(
   final result = completer.future.whenComplete(() {
     disposed = true;
     timeoutTimer.cancel();
-    isolate?.kill(priority: Isolate.immediate);
+    // ניתוק ה-finalizer של SQLite חייב להסתיים לפני עצירת ה-isolate.
+    isolate?.kill(priority: Isolate.beforeNextEvent);
     responsePort.close();
     errorPort.close();
   });
@@ -955,7 +956,7 @@ Future<Map<String, dynamic>> _runDatabaseQueryWorker(
       spawn.then<void>(
         (worker) {
           isolate = worker;
-          if (disposed) worker.kill(priority: Isolate.immediate);
+          if (disposed) worker.kill(priority: Isolate.beforeNextEvent);
         },
         onError: (Object error, StackTrace stackTrace) {
           if (!completer.isCompleted) {
