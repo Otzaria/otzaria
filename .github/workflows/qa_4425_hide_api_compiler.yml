@@ -1,0 +1,30 @@
+name: QA 4425 retained native API compiler diagnostics
+on:
+  push:
+    branches: ['y-ploni/qa-4425-hide-api-compiler-20261107-g']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Read exact immutable compiler artifact
+        env:
+          DIAGNOSTIC_TOKEN: ${{ github.token }}
+          QA_API_COMPILER_OUTPUT: ${{ runner.temp }}/qa-4425-hide-api-compiler
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/qa/4425/read_hide_api_compiler.py
+      - name: Preserve original archive and exact compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-hide-api-compiler-evidence
+          path: ${{ runner.temp }}/qa-4425-hide-api-compiler
+          if-no-files-found: error
+          retention-days: 14
