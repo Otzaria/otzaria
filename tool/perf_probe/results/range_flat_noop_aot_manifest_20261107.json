@@ -1,0 +1,433 @@
+{
+  "git_head_at_summary": "600746312571c0c617c2188c56045a489f3ca03b",
+  "probe_source_sha256": "cf41109dfe0f0d1d080609cb7c7ba331344ab34ac68808707b1b1241ffe29ac2",
+  "chunked_list_sha256": "2e4c219b24cca46edf48b05fc155b58eae465d06e51903342235f6a41a7bce91",
+  "executable_sha256": "4f1d52b8b94bb0f62113e7ab2d647c0d6268bdfbd1ce71be365334511e487233",
+  "mode": "AOT",
+  "sample_count_per_case": 31,
+  "operations_per_sample": {
+    "2000": 8,
+    "50000": 1,
+    "1000000": 1
+  },
+  "all_results_from_one_executable": true,
+  "results": [
+    {
+      "file": "range_flat_noop_shared_aot_forward_20261107.jsonl",
+      "sha256": "7837cbeffe9b212115999f57d1d709064fe8817eca25c464e5b9fe4911207cf6",
+      "case_order": "forward",
+      "distinct_equal_strings": false
+    },
+    {
+      "file": "range_flat_noop_shared_aot_reverse_20261107.jsonl",
+      "sha256": "5b78ef0427569ecb59c741d185cf2caae9f2e582e31b6dae6f4e34c5bdbe1107",
+      "case_order": "reverse",
+      "distinct_equal_strings": false
+    },
+    {
+      "file": "range_flat_noop_distinct_aot_forward_20261107.jsonl",
+      "sha256": "63b05e9ddc42ad60464274f201b31ce6f9336a9336767f329eac933cd483c6ed",
+      "case_order": "forward",
+      "distinct_equal_strings": true
+    },
+    {
+      "file": "range_flat_noop_distinct_aot_reverse_20261107.jsonl",
+      "sha256": "3903c30ac98a84e9f5deda75f03910d4d02b0188e12ac61d6185d44376dbf294",
+      "case_order": "reverse",
+      "distinct_equal_strings": true
+    }
+  ],
+  "verified_case_records": 48,
+  "verified_aggregate_fields": 192,
+  "scope": "in-memory list work for repeated identical 640-line ranges after fully loaded flat content; excludes layout, rendering, notes scanning, range tracking, state construction and I/O; strings preallocated",
+  "summary": [
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 2000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 18.511,
+      "p95_us": 44.415375
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 74.9755,
+      "p95_us": 106.486875
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.393,
+      "p95_us": 14.004375
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 6.06775,
+      "p95_us": 9.8495
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 50000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 557.571,
+      "p95_us": 1277.963
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 1708.348,
+      "p95_us": 1903.094
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.288,
+      "p95_us": 6.76
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 5.328,
+      "p95_us": 6.529
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 11701.895,
+      "p95_us": 14499.688
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 33954.868,
+      "p95_us": 37114.814
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.268,
+      "p95_us": 5.358
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 6.029,
+      "p95_us": 11.848
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 6.076375,
+      "p95_us": 8.8155
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.264,
+      "p95_us": 10.5055
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 80.590125,
+      "p95_us": 109.441375
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 12.6775,
+      "p95_us": 19.02425
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 5.989,
+      "p95_us": 6.129
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.589,
+      "p95_us": 5.749
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 1751.071,
+      "p95_us": 4575.793
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 521.749,
+      "p95_us": 1496.445
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 5.658,
+      "p95_us": 6.029
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 5.308,
+      "p95_us": 5.338
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 34111.298,
+      "p95_us": 38803.154
+    },
+    {
+      "distinct_equal_strings": false,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 11824.399,
+      "p95_us": 15820.258
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 2000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 59.826875,
+      "p95_us": 82.4315
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 139.43425,
+      "p95_us": 172.566875
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 33.665875,
+      "p95_us": 37.547875
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 2000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 35.829125,
+      "p95_us": 39.8275
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 50000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 882.46,
+      "p95_us": 2099.814
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 1901.883,
+      "p95_us": 2290.755
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 17.806,
+      "p95_us": 19.559
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 50000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 18.247,
+      "p95_us": 41.962
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 15003.71,
+      "p95_us": 24913.855
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 39017.603,
+      "p95_us": 54632.96
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 16.404,
+      "p95_us": 16.584
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "forward",
+      "lines": 1000000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 16.774,
+      "p95_us": 45.327
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 18.27575,
+      "p95_us": 21.661875
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 17.27675,
+      "p95_us": 19.075625
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 90.25675,
+      "p95_us": 111.008625
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 2000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 23.929,
+      "p95_us": 32.015875
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 18.177,
+      "p95_us": 18.277
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 17.596,
+      "p95_us": 18.337
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 2520.494,
+      "p95_us": 2749.632
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 50000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 749.314,
+      "p95_us": 1320.296
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_existing_full_noop_1x640",
+      "p50_us": 16.705,
+      "p95_us": 17.166
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_preflight_1x640",
+      "p50_us": 16.445,
+      "p95_us": 35.772
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "paged_from_flat_full_noop_without_preflight_1x640",
+      "p50_us": 35649.407,
+      "p95_us": 53256.223
+    },
+    {
+      "distinct_equal_strings": true,
+      "order": "reverse",
+      "lines": 1000000,
+      "case": "flat_from_flat_full_noop_1x640",
+      "p50_us": 14662.022,
+      "p95_us": 18898.021
+    }
+  ],
+  "probe_source_path": "tool/perf_probe/range_snapshot_probe.dart",
+  "chunked_list_source_path": "lib/text_book/models/chunked_list.dart",
+  "git_head_note": "Probe source changes were uncommitted during measurement; the source SHA256 identifies the measured contents.",
+  "logical_contract_verification": "Three repeated applications per case before timing preserve snapshot identity, revision and equal content/flags; distinct-string fixtures also verify incoming strings are not identical to source strings."
+}
