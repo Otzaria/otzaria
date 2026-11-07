@@ -8,9 +8,12 @@ import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/reports/view_scope.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -273,8 +276,12 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
 
   Future<void> _openIssue(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !await launchUrl(uri)) {
-      UiSnack.showError(ReportMessages.appReportCannotOpenIssue);
+    final opened = uri != null && await launchUrl(uri);
+    if (!mounted) return;
+    if (!opened) {
+      UiSnack.showError(
+        context.settingsText(ReportMessages.appReportCannotOpenIssue),
+      );
     }
   }
 
@@ -292,14 +299,23 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     try {
       result = await _service.submitPendingReport(report);
     } catch (e) {
-      if (mounted) UiSnack.showError(ReportMessages.sendError(e));
+      if (mounted) {
+        UiSnack.showError(
+          context.settingsText(
+            'שגיאה בשליחת הדיווח: {error}',
+            args: {'error': e},
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _sendingReportId = null);
         widget.onPendingReportsChanged?.call();
       }
     }
-    if (result != null) showAppReportResultSnack(result);
+    if (result != null && mounted) {
+      showAppReportResultSnack(result, context: context);
+    }
   }
 
   Future<void> _editPending(AppReport report) async {
@@ -314,38 +330,46 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      customContent: SingleChildScrollView(
-        child: SizedBox(
-          width: 560,
-          child: AppReportEditFields(
-            report: report,
-            typeLabel: (type) => _typeLabel(context, type),
-            onChanged: (value) {
-              edited = value;
-              hasChanges.value =
-                  value.type != report.type ||
-                  value.title != report.title ||
-                  value.description != report.description ||
-                  value.stepsToReproduce != report.stepsToReproduce ||
-                  value.reporterEmail != report.reporterEmail ||
-                  !listEquals(value.images, report.images);
-            },
+      customContent: wrapWithReportScope(
+        context,
+        PanelScrollableContent(
+          key: const ValueKey('app-report-edit-scroll'),
+          thumbVisibility: true,
+          child: SizedBox(
+            width: 560,
+            child: AppReportEditFields(
+              report: report,
+              typeLabel: (type) => _typeLabel(context, type),
+              onChanged: (value) {
+                edited = value;
+                hasChanges.value =
+                    value.type != report.type ||
+                    value.title != report.title ||
+                    value.description != report.description ||
+                    value.stepsToReproduce != report.stepsToReproduce ||
+                    value.reporterEmail != report.reporterEmail ||
+                    !listEquals(value.images, report.images);
+              },
+            ),
           ),
         ),
       ),
       hasUnsavedChanges: hasChanges,
     );
     hasChanges.dispose();
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     // טקסט שהוקלד בעריכה עובר אותה הסתרה כמו בטופס המקורי.
-    final redacted = edited.redactedWith(AppReportRedactor.fromPlatform());
+    final redacted = edited
+        .redactedWith(AppReportRedactor.fromPlatform())
+        .forEditedTransport();
     final invalidField = redacted.validate();
     if (invalidField != null) {
       UiSnack.showError(
         appReportInvalidFieldMessage(
           invalidField,
           emailEmpty: redacted.reporterEmail.trim().isEmpty,
+          context: context,
         ),
       );
       return;
@@ -354,7 +378,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     await _service.updatePendingReport(redacted);
     if (!mounted) return;
     setState(() {});
-    UiSnack.showSuccess(ReportMessages.reportUpdated);
+    UiSnack.showSuccess(context.settingsText(ReportMessages.reportUpdated));
   }
 
   Future<void> _deletePending(AppReport report) async {
@@ -362,7 +386,7 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     if (!mounted) return;
     setState(() {});
     widget.onPendingReportsChanged?.call();
-    UiSnack.show(ReportMessages.removedFromQueue);
+    UiSnack.show(context.settingsText(ReportMessages.removedFromQueue));
   }
 
   Future<void> _markPendingAsSent(AppReport report) async {
@@ -382,14 +406,14 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     if (!mounted) return;
     setState(() {});
     widget.onPendingReportsChanged?.call();
-    UiSnack.show(ReportMessages.markedAsSent);
+    UiSnack.show(context.settingsText(ReportMessages.markedAsSent));
   }
 
   Future<void> _deleteSent(AppReport report) async {
     await _service.deleteSentReport(report.reportId);
     if (!mounted) return;
     setState(() {});
-    UiSnack.show(ReportMessages.deletedFromHistory);
+    UiSnack.show(context.settingsText(ReportMessages.deletedFromHistory));
   }
 
   Future<void> _clearPending() => clearPendingReports(
@@ -436,7 +460,11 @@ class AppReportEditFields extends StatefulWidget {
 }
 
 class _AppReportEditFieldsState extends State<AppReportEditFields> {
+  late final AppReport _editingReport = widget.report.forEditedTransport();
   late AppReportType _type = widget.report.type;
+  late final int _otherAttachmentBytes = widget.report
+      .copyWith(schema: AppReport.schemaVersion)
+      .otherAttachmentBytes;
   late final _title = TextEditingController(text: widget.report.title);
   late final _description = TextEditingController(
     text: widget.report.description,
@@ -457,7 +485,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
   }
 
   void _notifyChanged() => widget.onChanged(
-    widget.report.copyWith(
+    _editingReport.copyWith(
       type: _type,
       title: _title.text,
       description: _description.text,
@@ -491,6 +519,8 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           controller: _title,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('כותרת'),
             isDense: true,
           ),
@@ -502,9 +532,11 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('תיאור'),
             alignLabelWithHint: true,
             isDense: true,
@@ -517,9 +549,11 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.multiline,
           textInputAction: TextInputAction.newline,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: context.settingsText('שלבים לשחזור (לא חובה)'),
             alignLabelWithHint: true,
             isDense: true,
@@ -532,6 +566,8 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           keyboardType: TextInputType.emailAddress,
           onChanged: (_) => _notifyChanged(),
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: emailRequired
                 ? context.settingsText('דואר אלקטרוני')
                 : context.settingsText('דואר אלקטרוני (לא חובה)'),
@@ -540,6 +576,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
         ),
         const SizedBox(height: 12),
         AppReportImagesSection(
+          otherAttachmentBytes: _otherAttachmentBytes,
           images: _images,
           onChanged: (images) {
             setState(() => _images = List.unmodifiable(images));

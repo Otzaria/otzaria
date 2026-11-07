@@ -57,6 +57,7 @@ void main() {
     final first = jsonDecode(file.readAsStringSync()) as Map;
     expect(first['writtenAt'], isA<String>());
     expect(first['appVersion'], '0.9.98.2');
+    expect(first['reportsQueueFormat'], 1);
 
     expect(
       await OtzariaCapabilities.writeIfChanged(root.path, content()),

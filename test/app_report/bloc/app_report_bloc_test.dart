@@ -406,6 +406,7 @@ void main() {
       },
       skip: 3,
       expect: () => [
+        isA<AppReportEditing>().having((s) => s.isSending, 'saving', true),
         isA<AppReportEditing>().having((s) => s.draftSaved, 'saved', true),
       ],
       verify: (_) {
@@ -416,7 +417,7 @@ void main() {
     );
 
     blocTest<AppReportBloc, AppReportState>(
-      'מחיקת הטיוטה מנקה את הטופס ושומרת את המייל',
+      'השלכת הטיוטה מסיימת את הטופס בלי שליחה',
       setUp: () => service = FakeAppReportService(draft: draft),
       build: () => build(service: service),
       act: (bloc) async {
@@ -425,11 +426,13 @@ void main() {
       },
       skip: 1,
       expect: () => [
+        isA<AppReportEditing>().having((s) => s.isSending, 'discarding', true),
         isA<AppReportEditing>()
+            .having((s) => s.draftDiscarded, 'discarded', true)
             .having((s) => s.hasDraft, 'hasDraft', false)
             .having((s) => s.title, 'title', '')
             .having((s) => s.images, 'images', isEmpty)
-            .having((s) => s.email, 'email', 'draft@x.com'),
+            .having((s) => s.email, 'email', ''),
       ],
       verify: (_) => expect(service.draft, isNull),
     );
@@ -463,7 +466,12 @@ void main() {
         await _openForm(bloc);
         bloc.add(const AppReportSubmitted());
       },
-      verify: (_) => expect(service.draft, draft),
+      verify: (_) {
+        expect(service.draft!.title, draft.title);
+        expect(service.draft!.description, draft.description);
+        expect(service.draft!.images, draft.images);
+        expect(service.draft!.reportId, isNotEmpty);
+      },
     );
   });
 }

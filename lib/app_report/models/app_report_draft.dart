@@ -12,6 +12,13 @@ class AppReportDraft extends Equatable {
     this.includeDiagnostics = true,
     this.includeErrorLog = true,
     this.images = const [],
+    this.diagnostics,
+    this.errorLog,
+    this.reportId,
+    this.trigger = AppReportTrigger.manual,
+    this.signature,
+    this.minidump,
+    this.includeMinidump = true,
   });
 
   final AppReportType type;
@@ -22,8 +29,19 @@ class AppReportDraft extends Equatable {
   final bool includeDiagnostics;
   final bool includeErrorLog;
   final List<AppReportImage> images;
+  final Map<String, dynamic>? diagnostics;
+  final String? errorLog;
+  final String? reportId;
+  final AppReportTrigger trigger;
+  final CrashSignature? signature;
+  final AppReportMinidump? minidump;
+  final bool includeMinidump;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool includeAttachments = true}) => {
+    'reportId': reportId,
+    'trigger': trigger.name,
+    'signature': signature?.toJson(),
+    'includeMinidump': includeMinidump,
     'type': type.name,
     'title': title,
     'description': description,
@@ -31,7 +49,14 @@ class AppReportDraft extends Equatable {
     'email': email,
     'includeDiagnostics': includeDiagnostics,
     'includeErrorLog': includeErrorLog,
+    if (includeAttachments) ...attachmentsJson(),
+  };
+
+  Map<String, dynamic> attachmentsJson() => {
     'images': [for (final image in images) image.toJson()],
+    'diagnostics': diagnostics,
+    'errorLog': errorLog,
+    'minidump': minidump?.toJson(),
   };
 
   /// `null` לרשומה פגומה.
@@ -42,12 +67,25 @@ class AppReportDraft extends Equatable {
     if (type == null) return null;
     return AppReportDraft(
       type: type,
+      reportId: json['reportId'] as String?,
+      trigger:
+          AppReportTrigger.values
+              .where((t) => t.name == json['trigger'])
+              .firstOrNull ??
+          AppReportTrigger.manual,
+      signature: CrashSignature.fromJson(json['signature']),
+      minidump: AppReportMinidump.fromJson(json['minidump']),
+      includeMinidump: json['includeMinidump'] as bool? ?? true,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
       steps: json['steps'] as String? ?? '',
       email: json['email'] as String? ?? '',
       includeDiagnostics: json['includeDiagnostics'] as bool? ?? true,
       includeErrorLog: json['includeErrorLog'] as bool? ?? true,
+      diagnostics: json['diagnostics'] is Map
+          ? Map<String, dynamic>.from(json['diagnostics'] as Map)
+          : null,
+      errorLog: json['errorLog'] as String?,
       images: [
         if (json['images'] case final List<dynamic> images)
           for (final image in images.map(AppReportImage.fromJson)) ?image,
@@ -57,6 +95,11 @@ class AppReportDraft extends Equatable {
 
   @override
   List<Object?> get props => [
+    reportId,
+    trigger,
+    signature,
+    minidump,
+    includeMinidump,
     type,
     title,
     description,
@@ -65,5 +108,7 @@ class AppReportDraft extends Equatable {
     includeDiagnostics,
     includeErrorLog,
     images,
+    diagnostics,
+    errorLog,
   ];
 }

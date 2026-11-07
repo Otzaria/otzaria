@@ -442,10 +442,27 @@ jobs:
       # The Git-pinned engine may not have precompiled release assets yet.
       - name: Install Rust for native source fallback
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Test splash timeline
         shell: pwsh
         run: native/splash/test/run_splash_timeline_test.ps1
+
+      - name: Test native keyboard scan codes
+        shell: pwsh
+        timeout-minutes: 3
+        run: test/windows/run_shift_key_normalizer_test.ps1
+
+      - name: Test the native Windows clipboard bitmap reader
+        shell: pwsh
+        timeout-minutes: 10
+        working-directory: packages/super_native_extensions/rust
+        run: |
+          rustfmt --edition 2021 --check src/win32/reader.rs src/win32/image_conversion.rs src/win32/bitmap_reader_tests.rs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked bitmap_reader_tests -- --test-threads=1 --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
       # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית
@@ -457,6 +474,30 @@ jobs:
       # יחידה. רץ על הבנייה הנייטיבית שלמעלה, ולכן מוסיף רק קומפילציה וריצה.
       - name: Engine SQLite integration test (Windows)
         run: flutter test integration_test/external_line_text_test.dart -d windows --timeout 5m
+
+      - name: Native report clipboard and keyboard (Windows)
+        shell: pwsh
+        env:
+          CI: 'true'
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+          REPORT_QA_COMMIT: ${{ github.sha }}
+          REPORT_QA_REVIEWED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPORT_QA_NATIVE_OUTPUT: ${{ github.workspace }}/build/reporting_qa/native-clipboard.json
+        run: |
+          New-Item -ItemType Directory -Force build/reporting_qa | Out-Null
+          flutter test integration_test/report_clipboard_windows_test.dart -d windows --timeout 2m 2>&1 |
+            Tee-Object -FilePath build/reporting_qa/native-clipboard.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload native clipboard evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-native-report-clipboard
+          path: |
+            build/reporting_qa/native-clipboard.*
+            build/reporting_qa/native-keyboard.log
+          if-no-files-found: warn
 
       # ריבוי תצוגות באפליקציה המלאה. `flutter drive` ולא integration_test: ה-binding
       # של הבדיקות מחזיר engineId=1, ובלי בעלים אמיתי לא נפתחים חלונות Dart.

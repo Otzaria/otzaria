@@ -73,7 +73,7 @@ void main() {
       diagnostics: {'x': 1},
       errorLog: 'log',
     ).toApiPayload();
-    expect(payload['schema'], 1);
+    expect(payload['schema'], 2);
     expect(payload['trigger'], 'auto_crash');
     expect(payload['type'], 'crash');
     expect(payload.containsKey('reporterEmail'), isFalse);
@@ -103,26 +103,28 @@ void main() {
     );
   });
 
-  test('גוף גדול מדי: הלוג מקוצר מההתחלה והגוף נכנס בגבול', () {
+  test('schema1: גוף גדול מדי מקוצר לפי המדיניות הישנה', () {
     // לוכסן הפוך מוכפל ב-JSON, ולכן לוג בגבולו + אבחון בגבולו חורגים מהגוף.
     final bigLog = '${r'\' * 300000}NEWEST';
     final bigDiagnostics = {'blob': 'x' * 290000};
     final payload = _report(
       diagnostics: bigDiagnostics,
       errorLog: bigLog,
-    ).toApiPayload();
+    ).copyWith(schema: 1).toApiPayload();
     final size = utf8.encode(jsonEncode(payload)).length;
     expect(size, lessThanOrEqualTo(AppReport.maxBodyBytes));
     final log = (payload['attachments'] as Map)['errorLog'] as String;
     expect(log.endsWith('NEWEST'), isTrue);
     expect(
       utf8.encode(log).length,
-      lessThanOrEqualTo(AppReport.maxErrorLogBytes),
+      lessThanOrEqualTo(AppReport.legacyMaxErrorLogBytes),
     );
   });
 
-  test('אבחון מעל 300KB מוחלף בסימון', () {
-    final payload = _report(diagnostics: {'blob': 'x' * 310000}).toApiPayload();
+  test('schema1: אבחון מעל 300KB מוחלף בסימון', () {
+    final payload = _report(
+      diagnostics: {'blob': 'x' * 310000},
+    ).copyWith(schema: 1).toApiPayload();
     expect(
       (payload['attachments'] as Map)['diagnostics'],
       containsPair('truncated', true),

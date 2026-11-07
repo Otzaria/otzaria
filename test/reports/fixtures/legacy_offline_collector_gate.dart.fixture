@@ -1,0 +1,268 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:error_reports_manager/error_reports_manager.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
+import 'package:test/test.dart';
+
+// Run this fixture inside the unmodified v0.28.0 error_reports_manager package.
+// REPORT_QA_COMPAT_FIXTURES points to artifacts produced by the current client.
+void main() {
+  late Directory fixtures;
+  late Map<String, dynamic> manifest;
+  late Map<String, dynamic> bodies;
+  late Map<String, dynamic> protectedBodies;
+  late int queueFormat;
+  late Directory temp;
+
+  setUpAll(() {
+    final fixturePath = Platform.environment['REPORT_QA_COMPAT_FIXTURES'];
+    if (fixturePath == null || fixturePath.isEmpty) {
+      throw StateError('REPORT_QA_COMPAT_FIXTURES is required');
+    }
+    fixtures = Directory(fixturePath);
+    manifest = _readJson(p.join(fixtures.path, 'compat-payloads.json'));
+    bodies = Map<String, dynamic>.from(manifest['bodies'] as Map);
+    protectedBodies = Map<String, dynamic>.from(
+      manifest['extendedPayloads'] as Map,
+    );
+    final capabilities = _readJson(
+      p.join(fixtures.path, 'compat-capabilities.json'),
+    );
+    queueFormat = capabilities['reportsQueueFormat'] as int;
+    expect(queueFormat, 1, reason: 'Use the marker written by the client.');
+    expect(
+      _readVersion(p.join(fixtures.path, 'compat-user-state.db')),
+      1,
+      reason: 'The actual client fixture must be readable by v0.28.0.',
+    );
+    expect((manifest['draftIds'] as List).toSet(), {
+      'draft-app-local',
+      'draft-book-local',
+    });
+    expect(
+      protectedBodies.keys,
+      unorderedEquals([
+        manifest['extendedReportId'],
+        manifest['protectedDumpReportId'],
+      ]),
+    );
+  });
+
+  setUp(() {
+    temp = Directory.systemTemp.createTempSync('legacy_offline_collector_');
+  });
+
+  tearDown(() async {
+    await temp.delete(recursive: true);
+  });
+
+  String copyDatabase() {
+    final target = p.join(temp.path, 'user_state.db');
+    File(p.join(fixtures.path, 'compat-user-state.db')).copySync(target);
+    return target;
+  }
+
+  DirectoryReportOutbox outbox() => DirectoryReportOutbox(
+        DirectoryReportOutbox.dirIn(p.join(temp.path, 'drive')),
+      );
+
+  UserStateReportQueue queue(String path, {int? format}) =>
+      UserStateReportQueue(
+        path,
+        reportsQueueFormat: format ?? queueFormat,
+        clock: () => DateTime.utc(2026, 11, 6),
+      );
+
+  for (final hasMarker in [true, false]) {
+    test(
+      'released collector writes lossless bodies with marker=$hasMarker',
+      () async {
+        final path = copyDatabase();
+        final store = outbox();
+        final collector = hasMarker
+            ? queue(path)
+            : UserStateReportQueue(path,
+                clock: () => DateTime.utc(2026, 11, 6));
+        final expectedIds = bodies.keys.toList()..sort();
+        expect(expectedIds.where((id) => id.startsWith('app-')), hasLength(2));
+        expect(
+            expectedIds.where((id) => id.startsWith('plugin-')), hasLength(1));
+        expect(expectedIds, hasLength(4));
+        final draftsBefore = _drafts(path);
+        expect(
+          (draftsBefore['report_drafts'] as List).map(
+            (row) => (row as Map)['id'],
+          ),
+          unorderedEquals(manifest['draftIds'] as List),
+        );
+        final protectedBefore = {
+          for (final id in protectedBodies.keys) id: _pendingReport(path, id),
+        };
+        for (final entry in protectedBefore.entries) {
+          expect(entry.value, hasLength(1));
+          expect(
+            jsonDecode(entry.value.single['payload_json'] as String),
+            protectedBodies[entry.key],
+            reason: entry.key,
+          );
+        }
+
+        expect(await collector.countSendable(), expectedIds.length);
+        final result = await collector.collectTo(store);
+        expect(result.error, isNull);
+        expect(result.collected, expectedIds.length);
+        final reports = await store.list();
+        expect(
+          reports.map((report) => report.reportId),
+          unorderedEquals(expectedIds),
+        );
+
+        var imagesSeen = 0;
+        var minidumpsSeen = 0;
+        for (final report in reports) {
+          expect(await File(report.filePath).exists(), isTrue);
+          final disk = _readJson(report.filePath);
+          final expected = bodies[report.reportId];
+          expect(disk['body'], expected, reason: report.reportId);
+          final request = jsonDecode(
+            utf8.decode(await store.requestBody(report)),
+          );
+          expect(request, expected, reason: report.reportId);
+          for (final id in manifest['draftIds'] as List) {
+            expect(jsonEncode(request), isNot(contains(id as String)));
+          }
+          final attachments = (request as Map)['attachments'];
+          if (attachments is! Map) continue;
+          final expectedAttachments = (expected as Map)['attachments'] as Map;
+          final images = attachments['images'];
+          if (images is List) {
+            final expectedImages = expectedAttachments['images'] as List;
+            imagesSeen += images.length;
+            for (var index = 0; index < images.length; index++) {
+              expect(
+                base64Decode((images[index] as Map)['data'] as String),
+                base64Decode((expectedImages[index] as Map)['data'] as String),
+              );
+            }
+          }
+          final dump = attachments['minidump'];
+          if (dump is Map) {
+            minidumpsSeen++;
+            expect(
+              base64Decode(dump['data'] as String),
+              base64Decode(
+                (expectedAttachments['minidump'] as Map)['data'] as String,
+              ),
+            );
+          }
+        }
+        expect(imagesSeen, greaterThan(0));
+        expect(minidumpsSeen, greaterThan(0));
+        expect(_drafts(path), draftsBefore);
+        for (final entry in protectedBefore.entries) {
+          expect(_pendingReport(path, entry.key), entry.value);
+        }
+        expect(await collector.countSendable(), 0);
+        expect((await collector.collectTo(store)).collected, 0);
+        expect(
+          (await store.list()).map((report) => report.reportId),
+          unorderedEquals(expectedIds),
+        );
+      },
+    );
+  }
+
+  test(
+    'released collector leaves an existing schema 2 database untouched',
+    () async {
+      final path = copyDatabase();
+      final db = sqlite3.open(path);
+      try {
+        db.execute('PRAGMA user_version = 2');
+      } finally {
+        db.close();
+      }
+      final before = _databaseDigest(path);
+      final store = outbox();
+      final collector = queue(path);
+      expect(await collector.countSendable(), 0);
+      expect((await collector.collectTo(store)).collected, 0);
+      expect(await store.list(), isEmpty);
+      expect(_readVersion(path), 2);
+      expect(_databaseDigest(path), before);
+    },
+  );
+
+  test(
+    'released collector refuses an unsupported marker without changing data',
+    () async {
+      final path = copyDatabase();
+      final before = _databaseDigest(path);
+      final store = outbox();
+      final collector = queue(path, format: 2);
+      expect(await collector.countSendable(), 0);
+      expect((await collector.collectTo(store)).collected, 0);
+      expect(await store.list(), isEmpty);
+      expect(_databaseDigest(path), before);
+    },
+  );
+}
+
+Map<String, dynamic> _readJson(String path) =>
+    jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
+
+int _readVersion(String path) {
+  final db = sqlite3.open(path, mode: OpenMode.readOnly);
+  try {
+    return db.select('PRAGMA user_version').single.values.single as int;
+  } finally {
+    db.close();
+  }
+}
+
+Map<String, Object?> _drafts(String path) {
+  final db = sqlite3.open(path, mode: OpenMode.readOnly);
+  try {
+    return {
+      for (final table in ['report_drafts', 'report_draft_attachments'])
+        table: db
+            .select('SELECT * FROM $table ORDER BY rowid')
+            .map((row) => Map<String, Object?>.from(row))
+            .toList(),
+      'legacyDrafts': db
+          .select(
+            "SELECT * FROM pending_reports WHERE kind LIKE '%/draft%' "
+            'ORDER BY id',
+          )
+          .map((row) => Map<String, Object?>.from(row))
+          .toList(),
+    };
+  } finally {
+    db.close();
+  }
+}
+
+List<Map<String, Object?>> _pendingReport(String path, String id) {
+  final db = sqlite3.open(path, mode: OpenMode.readOnly);
+  try {
+    return db
+        .select(
+          "SELECT * FROM pending_reports WHERE kind LIKE '%/pending%' "
+          'ORDER BY id',
+        )
+        .where((row) {
+          final report = jsonDecode(row['payload_json'] as String) as Map;
+          return (report['reportId'] ?? report['id']) == id;
+        })
+        .map((row) => Map<String, Object?>.from(row))
+        .toList();
+  } finally {
+    db.close();
+  }
+}
+
+String _databaseDigest(String path) =>
+    sha256.convert(File(path).readAsBytesSync()).toString();

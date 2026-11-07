@@ -1,3 +1,6 @@
+// Based on dudua99's real-database regression tests in PR #4285
+// (95be20b7e99b0e9d51f215547a12c9bf97f1c16a). The draft lifecycle
+// assertions below cover their integration with the reporting forms.
 import 'dart:async';
 import 'dart:io';
 
@@ -8,6 +11,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -17,6 +22,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/reports/bloc/book_report_draft_cubit.dart';
+import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -43,6 +50,8 @@ import '../../test_helpers/memory_cache_provider.dart';
 
 const _title = 'חברותא על ברכות';
 const _inlineTitle = 'חברותא על שבת';
+const _ambiguousInlineTitle = 'חברותא על עירובין';
+const _punctuationInlineTitle = 'חברותא על פסחים';
 const _lines = ['<h2>פרק ראשון</h2>', 'גוף החברותא על המשנה הראשונה'];
 const _noteSelection = 'הגירסה בכתב יד';
 const _noteBody = 'הערת העורך על $_noteSelection';
@@ -56,6 +65,18 @@ const _inlineLines = [
   'גוף החברותא<sup class="footnote-marker">א</sup><i class="footnote">$_noteBody</i>',
 ];
 
+const _ambiguousInlineLines = [
+  '<h2>פרק ראשון</h2>',
+  'גוף החברותא עם $_noteSelection'
+      '<sup class="footnote-marker">א</sup><i class="footnote">$_noteBody</i>',
+];
+
+const _punctuationInlineLines = [
+  '<h2>פרק ראשון</h2>',
+  'גוף אב גד <sup class="footnote-marker">1</sup>'
+      '<i class="footnote">אב-גד</i>',
+];
+
 /// דיווח מהערה נשען על השורה הגולמית שב-seforim.db: רק מול מסד אמיתי נבנית
 /// הצעת תיקון, וממנו היא נבנתה בטעות לשורת האב (issue #3509).
 void main() {
@@ -67,6 +88,14 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('note-error-report-');
     await Settings.init(cacheProvider: MemoryCacheProvider());
     AppPaths.debugOverrideDataRootPath(path.join(tempDir.path, 'data'));
+    UserStateDatabase.instance.overridePath(
+      path.join(tempDir.path, 'user_state.db'),
+    );
+    await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
+    await Settings.setValue<String>(
+      SettingsRepository.keySettingsLanguage,
+      'he',
+    );
     await UserBooksDatabaseHolder.instance.close();
     await Settings.setValue<String>(
       SettingsRepository.keyDbEffectivePath,
@@ -80,6 +109,7 @@ void main() {
     await SqliteDataProvider.instance.dispose();
     DbReadWorker.disposeForTesting();
     await UserBooksDatabaseHolder.instance.close();
+    UserStateDatabase.instance.close();
     AppPaths.debugOverrideDataRootPath(null);
     try {
       await tempDir.delete(recursive: true);
@@ -97,16 +127,53 @@ void main() {
     return tester.widget<TabbedReportDialog>(find.byType(TabbedReportDialog));
   }
 
+  Future<void> waitForReportExit(
+    WidgetTester tester,
+    BookReportDraftCubit? draft,
+  ) async {
+    for (var i = 0; i < 200; i++) {
+      if (find.byType(TabbedReportDialog).evaluate().isEmpty &&
+          (draft == null || draft.isClosed)) {
+        break;
+      }
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump(_tick);
+    }
+    expect(find.byType(TabbedReportDialog), findsNothing);
+    if (draft != null) expect(draft.isClosed, isTrue);
+  }
+
   Future<void> closeDialog(WidgetTester tester) async {
-    Navigator.of(tester.element(find.byType(TabbedReportDialog))).pop();
-    await tester.pumpAndSettle();
+    final dialog = tester.widget<TabbedReportDialog>(
+      find.byType(TabbedReportDialog),
+    );
+    final leave = find.byKey(const ValueKey('book-report-save-draft'));
+    await tester.ensureVisible(leave);
+    await tester.tap(leave);
+    await waitForReportExit(tester, dialog.draft);
+  }
+
+  void noteTest(String description, WidgetTesterCallback body) {
+    testWidgets(description, (tester) async {
+      try {
+        await body(tester);
+      } finally {
+        if (find.byType(TabbedReportDialog).evaluate().isNotEmpty) {
+          await closeDialog(tester);
+        }
+        UiSnack.hide();
+        await tester.pump(const Duration(seconds: 7));
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    }, timeout: const Timeout(Duration(minutes: 1)));
   }
 
   /// סימון טקסט בהערה בחלונית המפרשים ודיווח מתפריט ההקשר שלה.
   Future<TabbedReportDialog> reportFromNotesPanel(
     WidgetTester tester,
-    TextBookLoaded state,
-  ) async {
+    TextBookLoaded state, {
+    String selection = _noteSelection,
+  }) async {
     await _pumpWithBlocs(
       tester,
       state,
@@ -116,12 +183,12 @@ void main() {
         showSearch: false,
       ),
     );
-    final note = find.textContaining(_noteSelection, findRichText: true).first;
+    final note = find.textContaining(selection, findRichText: true).first;
     tester
         .widget<SelectionArea>(
           find.ancestor(of: note, matching: find.byType(SelectionArea)).first,
         )
-        .onSelectionChanged!(const SelectedContent(plainText: _noteSelection));
+        .onSelectionChanged!(SelectedContent(plainText: selection));
     await tester.pump();
     tester
         .widget<AppContextMenuRegion>(
@@ -138,8 +205,9 @@ void main() {
   /// דיווח מתפריט ההקשר של ההערה בטור ההערות של צורת הדף.
   Future<TabbedReportDialog> reportFromNotesColumn(
     WidgetTester tester,
-    TextBookLoaded state,
-  ) async {
+    TextBookLoaded state, {
+    String? selection,
+  }) async {
     final column = buildPageShapeNotesColumn(state.content, state.bookNotes);
     await _pumpWithBlocs(
       tester,
@@ -153,9 +221,22 @@ void main() {
         sourceIndexForIndex: (index) => column.links[index].index1 - 1,
       ),
     );
+    if (selection != null) {
+      tester
+          .widget<SelectableRegion>(
+            find.descendant(
+              of: find.byType(SimpleTextViewer),
+              matching: find.byType(SelectableRegion),
+            ),
+          )
+          .onSelectionChanged!(SelectedContent(plainText: selection));
+      await tester.pumpAndSettle();
+    }
     final gesture = await tester.startGesture(
       tester.getCenter(
-        find.textContaining(_noteSelection, findRichText: true).first,
+        find
+            .textContaining(selection ?? _noteSelection, findRichText: true)
+            .first,
       ),
       kind: PointerDeviceKind.mouse,
       buttons: kSecondaryMouseButton,
@@ -167,7 +248,7 @@ void main() {
     return openedDialog(tester);
   }
 
-  testWidgets(
+  noteTest(
     'הערה במפרשים: דיווח חופשי עם גוף ההערה, ולשורת הספר הצעת תיקון (issue #3509)',
     (tester) async {
       final launcher = _RecordingUrlLauncher();
@@ -179,6 +260,11 @@ void main() {
       expect(dialog.correctionTemplate, isNull);
       expect(dialog.selectedText, _noteSelection);
       expect(dialog.currentLineNumber, 2);
+      expect(dialog.draft!.target['reportNote'], contains(_noteBody));
+      expect(
+        dialog.draft!.target['contextText'],
+        isNot(contains('גוף החברותא')),
+      );
 
       await tester.enterText(
         find.byKey(const ValueKey('report-details-field')),
@@ -195,7 +281,13 @@ void main() {
       expect(body, contains('מספר שורה: 2'));
       expect(body, contains(_noteBody));
       expect(body, isNot(contains('גוף החברותא')));
-      await tester.pumpAndSettle();
+      await waitForReportExit(tester, dialog.draft);
+      final retained = await tester.runAsync(
+        () => ReportDraftStore.instance.read(dialog.draft!.id),
+      );
+      expect(retained, isNotNull);
+      expect(retained!.payload['target'], dialog.draft!.target);
+      expect((retained.payload['form'] as Map)['details'], 'טעות בהערה');
 
       unawaited(
         ErrorReportHelper.showErrorReportDialog(
@@ -213,27 +305,89 @@ void main() {
     },
   );
 
-  testWidgets(
+  noteTest(
     'צורת הדף, טור ההערות: דיווח על הערה הוא דיווח חופשי על גוף ההערה (issue #3509)',
     (tester) async {
       final dialog = await reportFromNotesColumn(tester, _state);
       expect(dialog.correctionTemplate, isNull);
       expect(dialog.selectedText, endsWith(_noteBody));
+      expect(dialog.selectedText, isNot(contains('<sup')));
       expect(dialog.currentLineNumber, 2);
+      expect(dialog.draft!.target['reportNote'], contains(_noteBody));
     },
   );
 
-  testWidgets(
+  noteTest(
     'הערת inline שבתוך השורה: הדיווח עליה נשאר הצעת תיקון לשורה (issue #3509)',
     (tester) async {
       final panel = await reportFromNotesPanel(tester, _inlineState);
       expect(panel.correctionTemplate?.originalLine, _inlineLines[1]);
       expect(panel.correctionTemplate?.hasSelection, isTrue);
+      expect(panel.draft!.target['reportNote'], isNull);
       await closeDialog(tester);
 
       final column = await reportFromNotesColumn(tester, _inlineState);
       expect(column.correctionTemplate?.originalLine, _inlineLines[1]);
       expect(column.currentLineNumber, 2);
+      expect(column.draft!.target['reportNote'], isNull);
+    },
+  );
+
+  noteTest(
+    'inline text repeated in the parent cannot create a parent-row correction',
+    (tester) async {
+      final panel = await reportFromNotesPanel(tester, _ambiguousInlineState);
+      expect(panel.correctionTemplate, isNull);
+      expect(panel.selectedText, _noteSelection);
+      expect(panel.draft!.target['reportNote'], contains(_noteBody));
+      expect(
+        panel.draft!.target['contextText'],
+        isNot(contains('גוף החברותא')),
+      );
+      await closeDialog(tester);
+
+      final column = await reportFromNotesColumn(
+        tester,
+        _ambiguousInlineState,
+        selection: _noteSelection,
+      );
+      expect(column.correctionTemplate, isNull);
+      expect(column.selectedText, _noteSelection);
+      expect(column.draft!.target['reportNote'], contains(_noteBody));
+      expect(
+        column.draft!.target['contextText'],
+        isNot(contains('גוף החברותא')),
+      );
+    },
+  );
+
+  noteTest(
+    'hidden punctuation cannot turn a note selection into a unique parent match',
+    (tester) async {
+      final state = _punctuationInlineState.copyWith(
+        removePunctuation: true,
+        commentaryRemovePunctuationOverride: true,
+      );
+      final panel = await reportFromNotesPanel(
+        tester,
+        state,
+        selection: 'אב גד',
+      );
+      expect(panel.correctionTemplate, isNull);
+      expect(panel.selectedText, 'אב גד');
+      expect(panel.draft!.target['reportNote'], contains('אב-גד'));
+      expect(panel.draft!.target['contextText'], isNot(contains('גוף אב גד')));
+      await closeDialog(tester);
+
+      final column = await reportFromNotesColumn(
+        tester,
+        state,
+        selection: 'אב גד',
+      );
+      expect(column.correctionTemplate, isNull);
+      expect(column.selectedText, 'אב גד');
+      expect(column.draft!.target['reportNote'], contains('אב-גד'));
+      expect(column.draft!.target['contextText'], isNot(contains('גוף אב גד')));
     },
   );
 }
@@ -265,6 +419,17 @@ TextBookLoaded _bookState(
 
 final _state = _bookState(_title, _lines, _notes);
 final _inlineState = _bookState(_inlineTitle, _inlineLines, BookNotes.empty);
+final _ambiguousInlineState = _bookState(
+  _ambiguousInlineTitle,
+  _ambiguousInlineLines,
+  BookNotes.empty,
+);
+
+final _punctuationInlineState = _bookState(
+  _punctuationInlineTitle,
+  _punctuationInlineLines,
+  BookNotes.empty,
+);
 
 Future<void> _pumpWithBlocs(
   WidgetTester tester,
@@ -306,6 +471,8 @@ Future<String> _seedLibrary(Directory dir) async {
     for (final (id, title, lines) in [
       (1, _title, _lines),
       (2, _inlineTitle, _inlineLines),
+      (3, _ambiguousInlineTitle, _ambiguousInlineLines),
+      (4, _punctuationInlineTitle, _punctuationInlineLines),
     ]) {
       db.execute(
         'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '

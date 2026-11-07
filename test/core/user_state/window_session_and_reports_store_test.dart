@@ -49,6 +49,95 @@ void main() {
   });
 
   group('PendingReportStore', () {
+    test(
+      'ID lookups preserve scalar types and can address app report IDs',
+      () async {
+        final store = PendingReportStore(database: db);
+        final stringId = await store.add('app', {
+          'reportId': 'one',
+          'id': 'book-identity',
+          'value': '1',
+        });
+        final intId = await store.add('app', {'value': 1});
+        final doubleId = await store.add('app', {'value': 1.0});
+        final boolId = await store.add('app', {'value': true});
+        final nullId = await store.add('app', {'value': null});
+        final missingId = await store.add('app', {'unrelated': 'value'});
+        await store.add('different-kind', {'reportId': 'one', 'value': '1'});
+        await store.add('app', {
+          'value': [1],
+        });
+        await store.add('app', {
+          'value': {'n': 1},
+        });
+
+        expect(await store.idsWhere('app', 'value', '1'), [stringId]);
+        expect(await store.idsWhere('app', 'value', 1), [intId, doubleId]);
+        expect(await store.idsWhere('app', 'value', true), [boolId]);
+        expect(await store.idsWhere('app', 'value', null), [nullId, missingId]);
+        expect(await store.idsWhere('app', 'value', [1]), isEmpty);
+        expect(await store.findByPayloadId('app', 'one'), isNull);
+        final app = await store.findByPayloadId(
+          'app',
+          'one',
+          idField: 'reportId',
+        );
+        expect(app!.id, stringId);
+        final book = await store.findByPayloadId('app', 'book-identity');
+        expect(book!.id, stringId);
+      },
+    );
+
+    test(
+      'bounded queue IDs and progress survive reopen and row deletion',
+      () async {
+        final store = PendingReportStore(database: db);
+        final ids = <int>[];
+        for (var i = 0; i < 25; i++) {
+          ids.add(await store.add('app', {'reportId': 'r$i'}));
+        }
+        await store.add('other', {'reportId': 'separate'});
+        expect(await store.readFlushCursor('app'), 0);
+        expect(
+          await store.listRowIds('app', afterId: 0, limit: 20),
+          ids.take(20),
+        );
+        await store.writeFlushCursor('app', ids[19]);
+        await store.deleteIds([ids[19], ids[21]]);
+
+        final secondDb = UserStateDatabase.openAt(
+          '${tmp.path}${Platform.pathSeparator}user_state.db',
+        );
+        addTearDown(secondDb.close);
+        final reopened = PendingReportStore(database: secondDb);
+        final cursor = await reopened.readFlushCursor('app');
+        expect(cursor, ids[19]);
+        expect(await reopened.readFlushCursor('other'), 0);
+        expect(
+          await reopened.listRowIds('app', afterId: cursor, limit: 20),
+          [ids[20], ids[22], ids[23], ids[24]],
+        );
+        expect(
+          await reopened.stringFieldForRow('app', ids[22], 'reportId'),
+          'r22',
+        );
+        expect(
+          (await reopened.findByRowId('app', ids[22]))!.payload['reportId'],
+          'r22',
+        );
+        expect(await reopened.findByRowId('other', ids[22]), isNull);
+        expect(
+          await reopened.listRowIds('app', afterId: ids.last, limit: 20),
+          isEmpty,
+        );
+        await reopened.deleteAllOfKind('app');
+        expect(
+          await reopened.listRowIds('app', afterId: 0, limit: 20),
+          isEmpty,
+        );
+      },
+    );
+
     test('שליפה לפי מזהה מחזירה רק את הרשומה הראשונה מהסוג הנכון', () async {
       final store = PendingReportStore(database: db);
       await store.add('plugins/pending', {'id': 'same', 'text': 'סוג אחר'});

@@ -13,6 +13,7 @@
 
 #include "flutter_window.h"
 #include "jump_list_manager.h"
+#include "shift_key_normalizer.h"
 #include "splash_window.h"
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
@@ -484,6 +485,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
+    NormalizeFlutterKeyboardMessage(msg);
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
