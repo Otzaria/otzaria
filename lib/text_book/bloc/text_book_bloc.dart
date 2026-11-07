@@ -2188,6 +2188,38 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _ensureLoadedContentTrackingBook(currentState.book);
     _supportsContentRangeLoading = true;
 
+    void markAllRanges() {
+      for (final range in applicable) {
+        _markLoadedContentRange(
+          currentState.book,
+          range.startLine,
+          range.startLine + range.lines.length - 1,
+          totalLines: range.totalLines,
+        );
+      }
+    }
+
+    // תוכן מלא עשוי עדיין להיות רשימה רגילה. ב-no-op אין snapshot חדש,
+    // ולכן המרה לפני בדיקת הטווח הייתה חוזרת על כל הספר בכל אירוע זהה.
+    if ((currentState.content is! ChunkedList<String> ||
+            _loadedContentFlags is! ChunkedList<bool>) &&
+        _loadedContentFlags.length >= currentState.content.length &&
+        applicable.every((range) {
+          final end = range.startLine + range.lines.length;
+          if (end > currentState.content.length) return false;
+          for (var index = max(0, range.startLine); index < end; index++) {
+            if (!_loadedContentFlags[index] ||
+                currentState.content[index] !=
+                    range.lines[index - range.startLine]) {
+              return false;
+            }
+          }
+          return true;
+        })) {
+      markAllRanges();
+      return;
+    }
+
     final nextContent = ChunkedList<String>.from(
       currentState.content,
       defaultValue: '',
@@ -2222,17 +2254,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           first - range.startLine,
         );
         nextLoadedFlags.fillRange(first, targetLength, true);
-      }
-    }
-
-    void markAllRanges() {
-      for (final range in applicable) {
-        _markLoadedContentRange(
-          currentState.book,
-          range.startLine,
-          range.startLine + range.lines.length - 1,
-          totalLines: range.totalLines,
-        );
       }
     }
 

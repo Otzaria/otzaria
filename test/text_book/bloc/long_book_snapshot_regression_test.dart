@@ -1,6 +1,7 @@
 // ignore_for_file: invalid_use_of_protected_member
 
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,171 @@ void main() {
 
     await bloc.dispatch(event);
     expect(bloc.state, same(loaded));
+  });
+
+  test('טווחים זהים אחרי תוכן מלא בודקים רק את שורות הטווח', () async {
+    const lineCount = 16384;
+    final book = _book();
+    final bloc = _bloc(book);
+    final values = List.generate(
+      lineCount,
+      (line) => line == 0 || line == lineCount - 2 ? '' : 'שׁוּרָה $line',
+    );
+    final source = _ReadCountingLines(values);
+    bloc.emit(_loaded(book, const []));
+    await bloc.dispatch(
+      ApplyFullBookContent(bookTitle: book.title, content: source),
+    );
+    final full = bloc.state as TextBookLoaded;
+    expect(full.content, same(source));
+    expect(full.isContentLineLoaded(0), isTrue);
+    expect(full.isContentLineLoaded(lineCount - 2), isTrue);
+    final tail = values.sublist(lineCount - 640);
+    final requests = <({TextBookEvent event, int checkedLines})>[
+      (
+        event: ApplyBookContentRange(
+          bookTitle: book.title,
+          startLine: lineCount - 640,
+          totalLines: lineCount,
+          lines: tail,
+        ),
+        checkedLines: 640,
+      ),
+      (
+        event: ApplyBookContentRanges(
+          bookTitle: book.title,
+          ranges: [
+            (
+              startLine: -2,
+              totalLines: lineCount,
+              lines: ['נחתך', 'נחתך', ...values.take(3)],
+            ),
+            (
+              startLine: lineCount - 640,
+              totalLines: lineCount,
+              lines: tail,
+            ),
+          ],
+        ),
+        checkedLines: 643,
+      ),
+      (
+        event: ApplyBookContentRange(
+          bookTitle: book.title,
+          startLine: -5,
+          totalLines: lineCount,
+          lines: const ['מחוץ לספר', 'מחוץ לספר'],
+        ),
+        checkedLines: 0,
+      ),
+    ];
+
+    for (var repetition = 0; repetition < 3; repetition++) {
+      for (final request in requests) {
+        source.reads = 0;
+        await bloc.dispatch(request.event);
+        expect(source.reads, lessThanOrEqualTo(request.checkedLines));
+        final after = bloc.state as TextBookLoaded;
+        expect(after, same(full));
+        expect(after.content, same(source));
+        expect(after.loadedLineFlags, same(full.loadedLineFlags));
+        expect(after.contentVersion, full.contentVersion);
+        expect(after.contentChanges, same(full.contentChanges));
+      }
+    }
+
+    // גם טווח זהה מאשר תמיכה בטעינת טווחים לצורך פינוי טאב מוסתר.
+    await bloc.dispatch(const SetTabVisibility(false));
+    final hidden = bloc.state as TextBookLoaded;
+    expect(hidden.content.length, lineCount);
+    expect(hidden.isContentLineLoaded(lineCount - 2), isFalse);
+    expect(hidden.content[lineCount - 1], isEmpty);
+    expect(full.content[lineCount - 1], values.last);
+  });
+
+  for (final extendsBook in [false, true]) {
+    test('טווח אחרי תוכן מלא מחיל שינוי אמיתי (הארכה=$extendsBook)', () async {
+      final book = _book();
+      final bloc = _bloc(book);
+      final source = List.generate(2048, (line) => 'שׁוּרָה $line');
+      bloc.emit(_loaded(book, const []));
+      await bloc.dispatch(
+        ApplyFullBookContent(bookTitle: book.title, content: source),
+      );
+      final full = bloc.state as TextBookLoaded;
+      final start = source.length - 1;
+      final lines = extendsBook ? [source.last, ''] : ['תוכן שהשתנה'];
+
+      await bloc.dispatch(
+        ApplyBookContentRange(
+          bookTitle: book.title,
+          startLine: start,
+          totalLines: start + lines.length,
+          lines: lines,
+        ),
+      );
+      final updated = bloc.state as TextBookLoaded;
+      expect(updated.content.length, start + lines.length);
+      expect(updated.content.sublist(start), lines);
+      expect(updated.loadedLineFlags!.length, updated.content.length);
+      expect(updated.isContentLineLoaded(updated.content.length - 1), isTrue);
+      expect(updated.contentVersion, full.contentVersion + 1);
+      expect(updated.contentChanges?.fromVersion, full.contentVersion);
+      expect(updated.contentChanges?.ranges, [
+        (first: start, last: start + lines.length - 1),
+      ]);
+      expect(full.content, same(source));
+      expect(full.content.length, 2048);
+      expect(full.content.last, 'שׁוּרָה 2047');
+    });
+  }
+
+  test('תוכן זהה ללא דגלים טעונים עדיין מפרסם טעינת שורה ריקה', () async {
+    final book = _book();
+    final bloc = _bloc(book);
+    bloc.emit(_loaded(book, const ['א', '', 'ג']));
+    final before = bloc.state as TextBookLoaded;
+
+    await bloc.dispatch(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: 1,
+        totalLines: 3,
+        lines: const [''],
+      ),
+    );
+    final updated = bloc.state as TextBookLoaded;
+    expect(updated.content, ['א', '', 'ג']);
+    expect(updated.loadedLineFlags, [false, true, false]);
+    expect(updated.isContentLineLoaded(1), isTrue);
+    expect(updated.contentVersion, before.contentVersion + 1);
+    expect(before.loadedLineFlags, isNull);
+  });
+
+  test('טווחים שמשנים ואז משחזרים תוכן מלא שומרים על עדכון revision', () async {
+    final book = _book();
+    final bloc = _bloc(book);
+    const source = ['א', '', 'ג'];
+    bloc.emit(_loaded(book, const []));
+    await bloc.dispatch(
+      ApplyFullBookContent(bookTitle: book.title, content: source),
+    );
+    final full = bloc.state as TextBookLoaded;
+
+    await bloc.dispatch(
+      ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: const [
+          (startLine: 1, totalLines: 3, lines: ['תוכן זמני']),
+          (startLine: 1, totalLines: 3, lines: ['']),
+        ],
+      ),
+    );
+    final updated = bloc.state as TextBookLoaded;
+    expect(updated.content, source);
+    expect(updated.contentVersion, full.contentVersion + 1);
+    expect(updated.contentChanges?.fromVersion, full.contentVersion);
+    expect(full.content, same(source));
   });
 
   test('טווחים מחוץ לגבולות שומרים offset ומרחיבים אינדקסים לוגיים', () async {
@@ -474,6 +640,29 @@ TextBookLoaded _loaded(TextBook book, List<String> content) => TextBookLoaded(
   pinLeftPane: false,
   searchText: '',
 );
+
+class _ReadCountingLines extends ListBase<String> {
+  _ReadCountingLines(this._values);
+
+  final List<String> _values;
+  int reads = 0;
+
+  @override
+  int get length => _values.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('Read-only source');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return _values[index];
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('Read-only source');
+}
 
 class _ObservedBloc extends TextBookBloc {
   _ObservedBloc({
