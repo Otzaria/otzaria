@@ -2,192 +2,315 @@
 param([string]$NativeControlReportPath)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_control.psm1') -Force
+if (-not ('InstalledPluginProbe.LifetimeObserverControls' -as [type])) {
+    Add-Type -Path @((Join-Path $PSScriptRoot 'installed_plugin_windows_lifetime.cs'),
+        (Join-Path $PSScriptRoot 'test_installed_plugin_windows_lifetime.cs'))
+}
+$exitModulePath = Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1'
+$controlModulePath = Join-Path $PSScriptRoot 'installed_plugin_windows_control.psm1'
+Import-Module $exitModulePath -Force
 $script:assertions = 0
 function Assert-Equal($Expected, $Actual, [string]$Message) {
     $script:assertions++
     if ($Expected -cne $Actual) { throw "$Message; expected=$Expected actual=$Actual" }
 }
-$armed = ([datetime]'2026-11-06T18:00:00Z').ToUniversalTime()
-$boot = $armed.AddSeconds(2)
-$micros = [long](($boot.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
-function New-Report {
-    return @{ pid = 42; runId = "42-$micros"; platform = 'windows'; buildMode = 'profile'; status = 'passed'; errors = @(); testFailures = @() }
-}
+$script:armed = [datetime]::Parse('2026-11-07T00:00:00Z').ToUniversalTime()
+$script:created = $script:armed.AddSeconds(1).ToFileTimeUtc()
 function New-Trace {
+    $bootstrap = $script:armed.AddSeconds(2)
+    $micros = [long](($bootstrap.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
     return @{
-        processName = 'otzaria.exe'; availability = 'collected'; armedAtUtc = $armed; finishedAtUtc = $armed.AddSeconds(4)
-        truncated = $false; errors = @(); events = @(
-            @{ kind = 'Start'; processName = 'otzaria.exe'; processId = 42; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(1) },
-            @{ kind = 'Stop'; processName = 'otzaria.exe'; processId = 42; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(3); exitStatus = [uint32]3221225477 }
-        )
+        availability = 'collected'; errors = @(); campaignId = ('a' * 32); runId = "42-$micros"
+        armedAtUtc = $script:armed; bootstrapUtc = $bootstrap; acknowledgedAtUtc = $bootstrap.AddMilliseconds(1)
+        finishedAtUtc = $script:armed.AddSeconds(4); processName = 'otzaria.exe'
+        bootstrapQuiescent = $true; identityVerified = $true
+        identity = @{ pid = 42; creationFileTime = $script:created.ToString(); executable = 'C:\probe\otzaria.exe' }
+        exitStatus = [uint32]0; exitFileTime = $script:armed.AddSeconds(3).ToFileTimeUtc().ToString(); waitResult = 0
+        cleanup = @{ handleAcquired = $true; handleClosed = $true; listenerStopped = $true; channelClosed = $true; bootstrapTaskCompleted = $true }
     }
 }
-$trace = New-Trace
-$report = New-Report
-$evidence = Get-InstalledPluginExitEvidence $trace $report
-Assert-Equal 'collected' $evidence.availability 'A matching native process pair is collected'
-Assert-Equal ([uint32]3221225477) $evidence.exitStatus 'The unsigned native exit status is retained'
-Assert-Equal '0xC0000005' $evidence.exitStatusHex 'An NTSTATUS remains identifiable'
-Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $null @{ availability = 'unavailable' }) 'Driver failure remains exact when all diagnostics fail'
-Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $report $evidence) 'Native evidence cannot turn a failing driver green'
-Assert-Equal 1 (Get-InstalledPluginRunExitCode $null $report $evidence) 'A missing driver result cannot pass'
-Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $null $evidence) 'Driver success without a device report cannot pass'
-Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report @{ availability = 'unavailable' }) 'Missing process evidence cannot pass'
-Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $evidence) 'A native exception status fails even if the driver and device report passed'
-foreach ($status in @('running', 'failed', 'notRun')) {
-    $report = New-Report; $report.status = $status
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $evidence) "A $status device report cannot pass"
+function New-Report($Trace) {
+    return @{
+        pid = 42; runId = $Trace.runId; platform = 'windows'; buildMode = 'profile'
+        status = 'passed'; errors = @(); testFailures = @()
+        windowsLifetime = @{
+            version = 1; kind = 'ready'; campaignId = $Trace.campaignId; pid = 42; runId = $Trace.runId
+            creationFileTime = $Trace.identity.creationFileTime; executable = $Trace.identity.executable
+            acknowledgedAtUtc = $Trace.acknowledgedAtUtc; bootstrapQuiescent = $true
+        }
+    }
 }
-foreach ($key in @('errors', 'testFailures')) {
-    $report = New-Report; $report[$key] = @('actual failure')
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $evidence) "$key remain fatal"
-    $report.Remove($key)
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $evidence) "Missing $key is not empty evidence"
+function Assert-RejectedEvidence([string]$Label, [scriptblock]$Change) {
+    $trace = New-Trace; $report = New-Report $trace
+    & $Change $trace $report
+    $evidence = Get-InstalledPluginExitEvidence -Trace $trace -Report $report
+    Assert-Equal 'unavailable' $evidence.availability $Label
+    Assert-Equal $true (-not [string]::IsNullOrWhiteSpace($evidence.reason)) "$Label retains its failure reason"
 }
-foreach ($change in @(
-    { param($t, $r) $t.events = @() },
-    { param($t, $r) $t.events = @($t.events[0]) },
-    { param($t, $r) $t.events = @($t.events[1]) },
-    { param($t, $r) $t.events += $t.events[0].Clone() },
-    { param($t, $r) $t.events += $t.events[1].Clone() },
-    { param($t, $r) $t.events[1].parentProcessId = 8 },
-    { param($t, $r) $t.events[1].sessionId = 2 },
-    { param($t, $r) $t.events[1].utc = $armed.AddMilliseconds(500) },
-    { param($t, $r) $t.events[1].processId = 99 },
-    { param($t, $r) $t.events[1].processName = 'unrelated.exe' },
-    { param($t, $r) $t.events[1].exitStatus = $null },
-    { param($t, $r) $t.events[1].exitStatus = 1.5 },
-    { param($t, $r) $t.truncated = $true },
-    { param($t, $r) $t.errors = @('permission denied') },
-    { param($t, $r) $t.availability = 'unavailable' },
-    { param($t, $r) $r.pid = 99 },
-    { param($t, $r) $r.pid = 42.5 },
-    { param($t, $r) $r.platform = 'linux' },
-    { param($t, $r) $r.buildMode = 'debug' },
-    { param($t, $r) $r.runId = '42-invalid' },
-    { param($t, $r) $t.armedAtUtc = $boot.AddSeconds(1) },
-    { param($t, $r) $t.finishedAtUtc = $boot.AddSeconds(-1) },
-    {
-        param($t, $r)
-        $t.events[1].exitStatus = 0
-        $ended = $t.events[1].Clone()
-        $ended.utc = $armed.AddMilliseconds(1500)
-        $ended.exitStatus = [uint32]3221225477
-        $t.events += $ended
-    },
-    {
-        param($t, $r)
-        $t.events[1].exitStatus = 0
-        $conflict = $t.events[1].Clone()
-        $conflict.parentProcessId = 8
-        $conflict.exitStatus = [uint32]3221225477
-        $t.events += $conflict
-    },
-    {
-        param($t, $r)
-        $t.events[1].exitStatus = 0
-        $conflict = $t.events[1].Clone()
-        $conflict.sessionId = 2
-        $conflict.exitStatus = [uint32]3221225477
-        $t.events += $conflict
-    },
-    {
-        param($t, $r)
-        $t.events[1].exitStatus = 0
-        $ended = $t.events[1].Clone()
-        $ended.utc = $armed.AddMilliseconds(1500)
-        $next = $t.events[0].Clone()
-        $next.utc = $armed.AddMilliseconds(1750)
-        $t.events += @($ended, $next)
-    },
-    { param($t, $r) $next = $t.events[0].Clone(); $next.utc = $armed.AddSeconds(3.5); $t.events += $next }
-)) {
-    $trace = New-Trace; $report = New-Report; & $change $trace $report
-    $rejected = Get-InstalledPluginExitEvidence $trace $report
-    Assert-Equal 'unavailable' $rejected.availability "Missing, foreign, reused or invalid evidence: $change"
-    Assert-Equal $null $rejected.exitStatus 'Unavailable exit evidence has no synthetic zero'
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $rejected) 'Rejected lifetime evidence cannot pass the wrapper'
-}
-foreach ($end in @($boot.AddTicks(-1), $boot)) {
-    $trace = New-Trace
-    $trace.events[1].utc = $end
-    $trace.events[1].exitStatus = 0
-    $rejected = Get-InstalledPluginExitEvidence $trace (New-Report)
-    Assert-Equal 'unavailable' $rejected.availability 'A lifetime ending before or exactly at bootstrap cannot contain that bootstrap'
-    Assert-Equal $null $rejected.exitStatus 'An ended lifetime cannot supply a later app exit status'
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) $rejected) 'An ended lifetime cannot pass the wrapper'
-}
-$trace = New-Trace; $trace.events[1].exitStatus = 0
-$trace.events[1].utc = $boot.AddTicks(1)
-$justAfter = Get-InstalledPluginExitEvidence $trace (New-Report)
-Assert-Equal 'collected' $justAfter.availability 'A unique lifetime that ends strictly after bootstrap remains observable'
-Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $justAfter) 'The first timestamp after bootstrap is inside the accepted boundary'
-$trace = New-Trace; $trace.events[1].exitStatus = 0
-$zero = Get-InstalledPluginExitEvidence $trace (New-Report)
-Assert-Equal 0 $zero.exitStatus 'An actually observed zero remains zero'
-Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $zero) 'Driver, report and observed normal native exit can pass'
-$trace.events[1].exitStatus = [uint32]::MaxValue
-$teardown = Get-InstalledPluginExitEvidence $trace (New-Report)
-Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $teardown) 'The pinned Dart Windows kill status is compatible with completed driver teardown'
-Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) $teardown @{ events = @(@{ exceptionCode = 'c0000005' }) }) 'A matching Application Error still fails an otherwise completed run'
-foreach ($status in @(1, 37, [uint32]2147483648)) {
-    $trace.events[1].exitStatus = $status
-    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) (Get-InstalledPluginExitEvidence $trace (New-Report))) 'Other native exit statuses do not become success'
-}
-$trace.events += @{ kind = 'Start'; processName = 'otzaria.exe'; processId = 99; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(1) }
-Assert-Equal 'collected' (Get-InstalledPluginExitEvidence $trace (New-Report)).availability 'An unrelated process cannot steal the observed app identity'
-
-function New-ApplicationEvent([int]$AppPid = 42, [datetime]$Created = $armed.AddMilliseconds(900), [string]$AppName = 'otzaria.exe') {
-    $createdHex = '0x{0:x}' -f $Created.ToFileTimeUtc()
-    $processHex = '0x{0:x}' -f $AppPid
+function New-ApplicationEvent {
+    param([uint32]$ProcessNumber = 42, [long]$Creation = $script:created,
+        [string]$Executable = 'C:\probe\otzaria.exe',
+        [datetime]$Utc = $script:armed.AddSeconds(3))
+    $pidText = '0x{0:x}' -f $ProcessNumber
+    $creationText = '0x{0:x}' -f $Creation
+    $pathText = [Security.SecurityElement]::Escape($Executable)
+    $timeText = $Utc.ToUniversalTime().ToString('o')
     return @"
 <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
-<System><Provider Name="Application Error"/><EventID>1000</EventID><Execution ProcessID="42"/><TimeCreated SystemTime="$($armed.AddSeconds(3).ToString('o'))"/></System>
-<EventData><Data Name="AppName">$AppName</Data><Data Name="ProcessId">$processHex</Data><Data Name="ProcessCreationTime">$createdHex</Data>
-<Data Name="AppPath">C:\probe\otzaria.exe</Data><Data Name="ModuleName">flutter_windows.dll</Data><Data Name="ExceptionCode">c0000005</Data></EventData></Event>
+<System><Provider Name="Application Error"/><EventID>1000</EventID><TimeCreated SystemTime="$timeText"/></System>
+<EventData><Data Name="AppName">otzaria.exe</Data><Data Name="AppPath">$pathText</Data>
+<Data Name="ProcessId">$pidText</Data><Data Name="ProcessCreationTime">$creationText</Data>
+<Data Name="ExceptionCode">c0000005</Data><Data Name="ModuleName">native.dll</Data>
+<Data Name="ModulePath">C:\probe\native.dll</Data><Data Name="FaultingOffset">0</Data>
+<Data Name="IntegratorReportId">controlled-report</Data></EventData></Event>
 "@
 }
-$xml = [xml]('<Events>' + (New-ApplicationEvent) + (New-ApplicationEvent -AppPid 99) +
-    (New-ApplicationEvent -Created $armed.AddSeconds(-1)) + (New-ApplicationEvent -Created $boot.AddSeconds(1)) +
-    (New-ApplicationEvent -AppName 'foreign.exe') + '</Events>')
-$events = @(Select-InstalledPluginApplicationErrors -Events $xml -Identity $evidence -ArmedAtUtc $armed -FinishedAtUtc $armed.AddSeconds(4))
-Assert-Equal 1 $events.Count 'Application Error requires app PID, name, lifetime and report time, not the event writer PID'
-Assert-Equal 'flutter_windows.dll' $events[0].moduleName 'The faulting module is preserved'
-Assert-Equal 'c0000005' $events[0].exceptionCode 'The native exception code is preserved'
-Assert-Equal 0 (@(Select-InstalledPluginApplicationErrors -Events $xml -Identity @{ processId = $null; bootstrapUtc = $null } `
-    -ArmedAtUtc $armed -FinishedAtUtc $armed.AddSeconds(4))).Count 'Unidentified app processes cannot claim event log records'
-
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('installed-exit-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary | Out-Null
 try {
-    $executable = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
-    $logPath = Join-Path $temporary 'driver.log'
-    $code = Invoke-InstalledPluginLoggedCommand -Command $executable -LogPath $logPath `
-        -Arguments @('-NoLogo', '-NoProfile', '-Command', "[Console]::Out.WriteLine('owned stdout'); [Console]::Error.WriteLine('owned stderr'); exit 37")
-    Assert-Equal 37 $code 'The actual child exit code survives merged output capture'
-    $log = Get-Content -LiteralPath $logPath -Raw
-    Assert-Equal $true $log.Contains('owned stdout') 'Driver stdout is retained'
-    Assert-Equal $true $log.Contains('owned stderr') 'Driver stderr is retained'
+    $protocol = [InstalledPluginProbe.LifetimeObserverControls]::Run() | ConvertFrom-Json -AsHashtable
+    Assert-Equal 29 $protocol.outcomes.Count 'All controlled native protocol cases ran'
+    Assert-Equal $true ($protocol.assertions -ge 200) 'Protocol controls execute their detailed assertions'
+    Write-Host ($protocol | ConvertTo-Json -Depth 10 -Compress)
+
+    $trace = New-Trace; $report = New-Report $trace
+    $evidence = Get-InstalledPluginExitEvidence $trace $report
+    Assert-Equal 'collected' $evidence.availability 'Exact acknowledged lifetime is accepted'
+    Assert-Equal 42 $evidence.processId 'Native PID is retained'
+    Assert-Equal $script:created.ToString() $evidence.creationFileTime 'Native FILETIME is retained exactly'
+    Assert-Equal '0x00000000' $evidence.exitStatusHex 'Native exit zero stays explicit'
+    $trace.exitStatus = [uint32]3221225477
+    $unsigned = Get-InstalledPluginExitEvidence $trace $report
+    Assert-Equal ([uint32]3221225477) $unsigned.exitStatus 'NTSTATUS is preserved unsigned'
+    Assert-Equal '0xC0000005' $unsigned.exitStatusHex 'NTSTATUS hexadecimal representation is preserved'
+
+    Assert-RejectedEvidence 'Missing native observation fails' { param($t, $r) $t.availability = 'unavailable' }
+    Assert-RejectedEvidence 'Native errors fail' { param($t, $r) $t.errors = @('native query failed') }
+    Assert-RejectedEvidence 'Unverified identity fails' { param($t, $r) $t.identityVerified = $false }
+    Assert-RejectedEvidence 'Unfinished bootstrap fails' { param($t, $r) $t.bootstrapQuiescent = $false }
+    Assert-RejectedEvidence 'A native wait timeout fails' { param($t, $r) $t.waitResult = 258 }
+    foreach ($field in @('handleAcquired', 'handleClosed', 'listenerStopped', 'channelClosed', 'bootstrapTaskCompleted')) {
+        $trace = New-Trace; $report = New-Report $trace; $trace.cleanup[$field] = $false
+        Assert-Equal 'unavailable' (Get-InstalledPluginExitEvidence $trace $report).availability "Missing cleanup $field fails"
+    }
+    Assert-RejectedEvidence 'Foreign platform fails' { param($t, $r) $r.platform = 'linux' }
+    Assert-RejectedEvidence 'A non-profile report fails' { param($t, $r) $r.buildMode = 'debug' }
+    foreach ($invalidPid in @(0, -1, 42.5, '42', [long]4294967296)) {
+        $trace = New-Trace; $report = New-Report $trace; $report.pid = $invalidPid
+        Assert-Equal 'unavailable' (Get-InstalledPluginExitEvidence $trace $report).availability 'Invalid report PID fails'
+    }
+    Assert-RejectedEvidence 'Foreign report PID fails' { param($t, $r) $r.pid = 43 }
+    Assert-RejectedEvidence 'Foreign report run fails' { param($t, $r) $r.runId = '43-1794010000000000' }
+    Assert-RejectedEvidence 'Missing acknowledgement fails' { param($t, $r) $r.Remove('windowsLifetime') }
+    Assert-RejectedEvidence 'Foreign campaign fails' { param($t, $r) $r.windowsLifetime.campaignId = 'b' * 32 }
+    Assert-RejectedEvidence 'Foreign acknowledgement run fails' { param($t, $r) $r.windowsLifetime.runId = '43-1794010000000000' }
+    Assert-RejectedEvidence 'Foreign acknowledgement PID fails' { param($t, $r) $r.windowsLifetime.pid = 43 }
+    Assert-RejectedEvidence 'One native creation tick matters' { param($t, $r) $r.windowsLifetime.creationFileTime = ([long]$t.identity.creationFileTime + 1).ToString() }
+    Assert-RejectedEvidence 'Foreign executable fails' { param($t, $r) $r.windowsLifetime.executable = 'C:\foreign\otzaria.exe' }
+    Assert-RejectedEvidence 'Unfinished acknowledgement fails' { param($t, $r) $r.windowsLifetime.bootstrapQuiescent = $false }
+    Assert-RejectedEvidence 'Foreign acknowledgement instant fails' { param($t, $r) $r.windowsLifetime.acknowledgedAtUtc = $t.acknowledgedAtUtc.AddTicks(1) }
+    foreach ($invalidExit in @($null, '0', -1, [long]4294967296)) {
+        $trace = New-Trace; $report = New-Report $trace; $trace.exitStatus = $invalidExit
+        Assert-Equal 'unavailable' (Get-InstalledPluginExitEvidence $trace $report).availability 'An unobserved or invalid native exit cannot pass'
+    }
+    Assert-Equal 'unavailable' (Get-InstalledPluginExitEvidence $null $null).availability 'Missing trace and report fail'
+    $trace = New-Trace; $report = New-Report $trace
+    Assert-Equal 'unavailable' (Get-InstalledPluginExitEvidence $trace $null).availability 'Missing final report fails native acceptance'
+
+    $crashes = @{ availability = 'collected'; truncated = $false; events = @() }
+    foreach ($acceptedExit in @([uint32]0, [uint32]::MaxValue)) {
+        $trace = New-Trace; $trace.exitStatus = $acceptedExit; $report = New-Report $trace
+        $evidence = Get-InstalledPluginExitEvidence $trace $report
+        Assert-Equal 0 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes) 'Only complete passing evidence accepts normal or Dart termination'
+    }
+    foreach ($rejectedExit in @(37, 259, [uint32]3221225477)) {
+        $trace = New-Trace; $trace.exitStatus = $rejectedExit; $report = New-Report $trace
+        $evidence = Get-InstalledPluginExitEvidence $trace $report
+        Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes) 'Unexpected native statuses cannot pass'
+    }
+    $trace = New-Trace; $report = New-Report $trace; $evidence = Get-InstalledPluginExitEvidence $trace $report
+    Assert-Equal 37 (Get-InstalledPluginRunExitCode -DriverExitCode 37 -Report $null -ExitEvidence @{ availability = 'unavailable' } -DiagnosticErrors @('later error')) 'The original driver exit takes precedence over diagnostic failures'
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode $null -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes) 'Missing driver exit fails'
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $null -ExitEvidence $evidence -ApplicationErrors $crashes) 'Missing framework report fails'
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes -DiagnosticErrors @('raw I/O failed')) 'Diagnostic errors cannot be hidden by successful native exit'
+    foreach ($field in @('errors', 'testFailures')) {
+        foreach ($value in @('missing', 'not-array', 'nonempty')) {
+            $report = New-Report $trace
+            if ($value -eq 'missing') { $report.Remove($field) }
+            elseif ($value -eq 'not-array') { $report[$field] = 'none' }
+            else { $report[$field] = @('framework failure') }
+            Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes) 'Framework completion requires explicit empty error and test failure arrays'
+        }
+    }
+    $report = New-Report $trace; $report.status = 'running'
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $crashes) 'An unfinished framework report cannot pass'
+    $report = New-Report $trace
+    foreach ($badCrashQuery in @(
+        @{ availability = 'unavailable'; truncated = $false; events = @() },
+        @{ availability = 'collected'; truncated = $true; events = @() },
+        @{ availability = 'collected'; truncated = $false; events = @(@{ exceptionCode = 'c0000005' }) },
+        @{ availability = 'collected'; truncated = $false; events = 'none' })) {
+        Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence -ApplicationErrors $badCrashQuery) 'Missing, truncated or correlated crash evidence fails'
+    }
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode -DriverExitCode 0 -Report $report -ExitEvidence $evidence) 'Crash query evidence is required'
+
+    $events = @(
+        (New-ApplicationEvent),
+        (New-ApplicationEvent -ProcessNumber 43),
+        (New-ApplicationEvent -Creation ($script:created + 1)),
+        (New-ApplicationEvent -Creation ($script:created - 1)),
+        (New-ApplicationEvent -Executable 'C:\foreign\otzaria.exe'),
+        (New-ApplicationEvent -Utc $script:armed.AddSeconds(1)),
+        (New-ApplicationEvent -Utc $script:armed.AddSeconds(5)),
+        ((New-ApplicationEvent).Replace('Application Error', 'Foreign Provider'))
+    )
+    $xml = [xml]('<Events>' + ($events -join '') + '</Events>')
+    $selected = @(Select-InstalledPluginApplicationErrors -Events $xml -Identity $evidence -ArmedAtUtc $trace.armedAtUtc -FinishedAtUtc $trace.finishedAtUtc)
+    Assert-Equal 1 $selected.Count 'Only the exact PID, executable, native creation and bounded event time correlate'
+    Assert-Equal 'c0000005' $selected[0].exceptionCode 'Correlated exception details remain available'
+    Assert-Equal $script:created $selected[0].processCreatedUtc.ToFileTimeUtc() 'Crash correlation preserves all native creation ticks'
+    $trace.availability = 'unavailable'; $trace.errors = @('exit observation failed')
+    $partialIdentity = Get-InstalledPluginExitEvidence $trace $null
+    Assert-Equal 'unavailable' $partialIdentity.availability 'Partial identity never pretends to prove exit'
+    Assert-Equal 42 $partialIdentity.processId 'Verified startup identity survives a missing final report'
+    Assert-Equal $script:created.ToString() $partialIdentity.creationFileTime 'Partial crash correlation retains native creation'
+    $partialEvents = @(Select-InstalledPluginApplicationErrors -Events $xml -Identity $partialIdentity -ArmedAtUtc $trace.armedAtUtc -FinishedAtUtc $trace.finishedAtUtc)
+    Assert-Equal 1 $partialEvents.Count 'Missing final report does not erase a verifiable correlated crash'
+    if (-not $IsWindows) {
+        $unavailable = Read-InstalledPluginApplicationErrors -Trace $trace -Identity $partialIdentity
+        Assert-Equal 'unavailable' $unavailable.availability 'A missing Windows event provider is unavailable, never an empty success'
+    }
+
+    $pwsh = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+    $childScript = Join-Path $temporary 'logged-child.ps1'
+    [IO.File]::WriteAllText($childScript, @'
+[IO.File]::WriteAllText($args[0], 'owned child started')
+[Console]::Out.WriteLine('stdout-first')
+[Console]::Error.WriteLine('stderr-middle')
+[Console]::Out.WriteLine('stdout-last')
+exit 37
+'@)
+    $marker = Join-Path $temporary 'logged-child-started.txt'
+    $log = Join-Path $temporary 'native.log'
+    $logged = Invoke-InstalledPluginLoggedCommand -Command $pwsh -Arguments @('-NoLogo', '-NoProfile', '-File', $childScript, $marker) -LogPath $log
+    Assert-Equal 37 $logged.exitCode 'The actual native child exit is retained'
+    Assert-Equal $null $logged.error 'Successful raw logging has no diagnostic error'
+    $rawLog = [IO.File]::ReadAllText($log)
+    foreach ($line in @('stdout-first', 'stderr-middle', 'stdout-last')) {
+        Assert-Equal $true $rawLog.Contains($line) 'Both native output streams are preserved'
+    }
+    Remove-Item -LiteralPath $marker
+    $collision = Invoke-InstalledPluginLoggedCommand -Command $pwsh -Arguments @('-NoLogo', '-NoProfile', '-File', $childScript, $marker) -LogPath $log
+    Assert-Equal $null $collision.exitCode 'A raw log collision prevents launch'
+    Assert-Equal $true ($null -ne $collision.error) 'A raw log collision remains explicit'
+    Assert-Equal $false (Test-Path -LiteralPath $marker) 'A colliding raw log cannot launch the child'
+    Assert-Equal $rawLog ([IO.File]::ReadAllText($log)) 'Earlier raw logs are immutable'
+
+    foreach ($mode in @('writer-error', 'console-error')) {
+        $module = Import-Module $exitModulePath -Force -PassThru
+        try {
+            & $module {
+                param($Mode)
+                if ($Mode -eq 'writer-error') {
+                    function script:New-InstalledPluginLogWriter {
+                        param([IO.Stream]$Stream)
+                        return [InstalledPluginProbe.ControlledLogWriter]::new($Stream)
+                    }
+                } else {
+                    function script:Write-Host { param($Object) throw 'controlled console output failure' }
+                }
+            } $mode
+            $failureLog = Join-Path $temporary "$mode.log"
+            $result = Invoke-InstalledPluginLoggedCommand -Command $pwsh -Arguments @('-NoLogo', '-NoProfile', '-File', $childScript, $marker) -LogPath $failureLog
+            Assert-Equal 37 $result.exitCode 'Diagnostic failures do not interrupt draining or replace actual child exit'
+            Assert-Equal $true $result.error.Contains($(if ($mode -eq 'writer-error') { 'controlled raw writer failure' } else { 'controlled console output failure' })) 'The first output failure remains explicit'
+            if ($mode -eq 'console-error') {
+                Assert-Equal $true ([IO.File]::ReadAllText($failureLog)).Contains('stdout-last') 'Raw log continues after console output failure'
+            }
+        } finally { Remove-Module $module }
+    }
+    Import-Module $exitModulePath -Force
 
     if ($IsWindows) {
-        if (-not $NativeControlReportPath) {
-            $NativeControlReportPath = Join-Path ([IO.Path]::GetTempPath()) ('installed-native-control-' + [guid]::NewGuid().ToString('N') + '.json')
+        $firstBin = Join-Path $temporary 'command path first'
+        $secondBin = Join-Path $temporary 'command path second'
+        New-Item -ItemType Directory -Path $firstBin, $secondBin | Out-Null
+        $commandName = 'installed-probe-command-' + [guid]::NewGuid().ToString('N')
+        $firstCommand = Join-Path $firstBin ($commandName + '.bat')
+        $secondCommand = Join-Path $secondBin ($commandName + '.cmd')
+        $batch = @(
+            '@echo off'
+            'echo selected=__SELECTED__'
+            'echo argument-one=[%~1]'
+            'echo argument-two=[%~2]'
+            '1>&2 echo stderr=__SELECTED__'
+            'echo completed=__SELECTED__'
+            'exit /b __EXIT__'
+        ) -join "`r`n"
+        [IO.File]::WriteAllText($firstCommand, $batch.Replace('__SELECTED__', 'first').Replace('__EXIT__', '37') + "`r`n", [Text.Encoding]::ASCII)
+        [IO.File]::WriteAllText($secondCommand, $batch.Replace('__SELECTED__', 'second').Replace('__EXIT__', '23') + "`r`n", [Text.Encoding]::ASCII)
+        $resolutionCases = @(
+            @{ name = 'first-path'; leading = $firstBin; following = $secondBin; lookup = $firstCommand;
+                command = $commandName; selected = 'first'; other = 'second'; exitCode = 37 },
+            @{ name = 'reversed-path'; leading = $secondBin; following = $firstBin; lookup = $secondCommand;
+                command = $commandName; selected = 'second'; other = 'first'; exitCode = 23 },
+            @{ name = 'explicit-path'; leading = $secondBin; following = $firstBin; lookup = $secondCommand;
+                command = $firstCommand; selected = 'first'; other = 'second'; exitCode = 37 }
+        )
+        $savedResolutionPath = $env:PATH
+        try {
+            foreach ($resolutionCase in $resolutionCases) {
+                $env:PATH = @($resolutionCase.leading, $resolutionCase.following, $savedResolutionPath) -join [IO.Path]::PathSeparator
+                $candidates = @(Get-Command $commandName -CommandType Application -ErrorAction Stop)
+                Assert-Equal $true ($candidates.Count -ge 2) 'The real Windows fixture discovers multiple application candidates'
+                Assert-Equal $true ($candidates.Path -contains $firstCommand) 'The batch application participates in native discovery'
+                Assert-Equal $true ($candidates.Path -contains $secondCommand) 'The competing command application participates in native discovery'
+                Assert-Equal $resolutionCase.lookup $candidates[0].Path 'Native discovery follows the current PATH order'
+                $resolutionLog = Join-Path $temporary ($resolutionCase.name + '.log')
+                $resolved = Invoke-InstalledPluginLoggedCommand -Command $resolutionCase.command -LogPath $resolutionLog `
+                    -Arguments @('first argument with spaces', 'second value with spaces')
+                Assert-Equal $resolutionCase.exitCode $resolved.exitCode 'Exactly the selected native command returns its real exit status'
+                Assert-Equal $null $resolved.error 'Multiple native candidates do not become one command name'
+                Assert-Equal $false $resolved.logTruncated 'The native command output is complete'
+                $resolutionLines = [IO.File]::ReadAllLines($resolutionLog)
+                foreach ($expectedLine in @(
+                    ('selected=' + $resolutionCase.selected),
+                    'argument-one=[first argument with spaces]',
+                    'argument-two=[second value with spaces]',
+                    ('stderr=' + $resolutionCase.selected),
+                    ('completed=' + $resolutionCase.selected))) {
+                    Assert-Equal $true ($resolutionLines -ccontains $expectedLine) 'Spaced arguments and both native streams are preserved'
+                }
+                Assert-Equal $false ($resolutionLines -ccontains ('selected=' + $resolutionCase.other)) 'A competing application is not executed'
+                Write-Host "PASS native command resolution: $($resolutionCase.name); exit $($resolved.exitCode)"
+            }
+        } finally { $env:PATH = $savedResolutionPath }
+
+        $nativeDirectory = Join-Path $temporary 'native-child'
+        New-Item -ItemType Directory -Path $nativeDirectory | Out-Null
+        if ([string]::IsNullOrWhiteSpace($NativeControlReportPath)) {
+            $NativeControlReportPath = Join-Path $temporary 'native-exit-control.json'
         }
-        $native = Invoke-InstalledPluginExitControl -Directory $temporary -ReportPath $NativeControlReportPath
-        Assert-Equal 'passed' $native.status 'The real Windows process control completed'
-        Write-Host "Native Windows event control: passed; evidence: $NativeControlReportPath"
+        Import-Module $controlModulePath -Force
+        $native = Invoke-InstalledPluginExitControl -Directory $nativeDirectory -ReportPath $NativeControlReportPath
+        Assert-Equal 'passed' $native.status 'Real Windows owned child control passed'
+        Assert-Equal 37 $native.child.exitCode 'The owned native child actually exited 37'
+        Assert-Equal 'InstalledPluginProbe.WindowsProcessFactory' $native.trace.nativeAdapter 'The native gate uses the production Windows adapter'
+        Assert-Equal 'collected' $native.observation.availability 'The exact retained native handle proves exit'
+        Assert-Equal 37 $native.observation.exitStatus 'Retained native exit matches the real child exit'
+        Assert-Equal $native.child.pid $native.observation.processId 'Native evidence belongs to the owned child'
+        Assert-Equal $true $native.trace.cleanup.handleClosed 'The actual native handle closes before evidence acceptance'
+        Assert-Equal $true $native.cleanup.childExited 'No owned child remains after the native gate'
+        Assert-Equal $true $native.cleanup.observerDisposed 'The real native observer is disposed'
+        Assert-Equal 0 $native.cleanup.errors.Count 'Native cleanup has no diagnostic failures'
+        Write-Host "PASS real Windows retained lifetime: exit 37; receipt $NativeControlReportPath"
     } else {
-        $missingProvider = Start-InstalledPluginExitTrace
-        Stop-InstalledPluginExitTrace $missingProvider
-        Assert-Equal 'unavailable' $missingProvider.availability 'An unavailable native provider remains unavailable'
-        Assert-Equal $true ($missingProvider.errors.Count -gt 0) 'Observer initialization failure retains its reason'
-        $missingQuery = Read-InstalledPluginApplicationErrors -Trace (New-Trace) -Identity $evidence
-        Assert-Equal 'unavailable' $missingQuery.availability 'A missing event log tool is not a successful empty query'
-        Assert-Equal 0 $missingQuery.events.Count 'No event log records are invented'
-        Write-Host 'Native Windows event control: notRun (requires Windows CIM provider)'
+        Write-Host 'NOT_RUN real Windows retained lifetime: this host is not Windows.'
     }
-} finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
-Write-Host "Passed $script:assertions Windows exit evidence assertions."
+} finally {
+    Get-Module installed_plugin_windows_control | Remove-Module
+    Get-Module installed_plugin_windows_exit | Remove-Module
+    Remove-Item -LiteralPath $temporary -Recurse -Force
+}
+Write-Host "Passed $script:assertions exit contract assertions plus $($protocol.assertions) C# protocol assertions."
 exit 0
