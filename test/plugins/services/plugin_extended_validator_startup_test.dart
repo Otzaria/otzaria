@@ -59,6 +59,47 @@ void main() {
     } catch (_) {}
   });
 
+  test('bookTypes requires the planned host version', () {
+    final report = _run(
+      tempDir,
+      _manifest(
+        minAppVersion: '0.9.98.3',
+        startup: {
+          'toolbarItems': [
+            {
+              'id': 'word',
+              'title': 'עריכה',
+              'icon': 'document_edit_24_regular',
+              'bookTypes': ['docx', 'docm'],
+            },
+          ],
+        },
+      ),
+    );
+    expect(report.errors, contains(contains('bookTypes')));
+    expect(report.errors, contains(contains('0.9.99')));
+  });
+
+  test('bookTypes is valid on a startup item at the planned host version', () {
+    final report = _run(
+      tempDir,
+      _manifest(
+        minAppVersion: '0.9.99',
+        startup: {
+          'toolbarItems': [
+            {
+              'id': 'word',
+              'title': 'עריכה',
+              'icon': 'document_edit_24_regular',
+              'bookTypes': ['docx', 'docm'],
+            },
+          ],
+        },
+      ),
+    );
+    expect(report.errors, isEmpty);
+  });
+
   Map<String, dynamic> validStartup() => {
     'toolbarItems': [
       {'id': 'b1', 'title': 'כפתור', 'icon': 'apps_24_regular'},

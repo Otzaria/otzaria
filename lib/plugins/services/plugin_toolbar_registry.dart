@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
@@ -100,6 +101,24 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       defaults: const ['reader-text', 'reader-pdf'],
       supported: const {'reader-text', 'reader-pdf'},
     );
+
+    final rawBookTypes = json['bookTypes'];
+    if (rawBookTypes != null &&
+        (isChild ||
+            rawBookTypes is! List ||
+            rawBookTypes.isEmpty ||
+            rawBookTypes.any(
+              (value) => !PluginBookIdentity.supportedTypes.contains(value),
+            ) ||
+            rawBookTypes.toSet().length != rawBookTypes.length)) {
+      throw const PluginToolbarException(
+        'error.invalid_params',
+        'bookTypes requires unique supported book types on a top-level item',
+      );
+    }
+    final bookTypes = rawBookTypes == null
+        ? null
+        : List<String>.unmodifiable(rawBookTypes as List);
 
     final icon = optionalSafeText(json['icon'], maxLength: 100);
     if (!isChild && (icon == null || icon.isEmpty)) {
@@ -209,6 +228,7 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       title: title,
       icon: icon,
       contexts: contexts,
+      bookTypes: bookTypes,
       onClickEvent: optionalEventName(json['onClickEvent']),
       children: children,
       openPlugin: json['openPlugin'] == true,

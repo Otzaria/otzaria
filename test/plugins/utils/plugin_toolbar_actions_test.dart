@@ -1,3 +1,4 @@
+import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,116 @@ import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 void main() {
+  test(
+    'bookTypes is pane-local for primary, overflow and collapsed primary',
+    () {
+      final registry = PluginToolbarRegistry.forTesting();
+      addTearDown(registry.dispose);
+      for (final placement in ['primary', 'overflow']) {
+        registry.registerPayload('word', {
+          'id': placement,
+          'title': placement,
+          'icon': 'document_edit_24_regular',
+          'contexts': ['reader-text'],
+          'bookTypes': ['docx', 'docm'],
+          'placement': placement,
+        });
+      }
+      final records = registry.getAll();
+      for (final bookType in ['docx', 'text', 'docm', 'pdf', null, 'docx']) {
+        final visible = bookType == 'docx' || bookType == 'docm';
+        final context = bookType == 'pdf' ? 'reader-pdf' : 'reader-text';
+        expect(
+          buildPluginToolbarActions(
+            records: records,
+            context: context,
+            bookType: bookType,
+            compact: false,
+            locationPayload: () async => {},
+          ),
+          hasLength(visible ? 1 : 0),
+          reason: 'primary $bookType',
+        );
+        expect(
+          buildOrderedPluginOverflowActions(
+            records: records,
+            context: context,
+            bookType: bookType,
+            compact: false,
+            locationPayload: () async => {},
+          ),
+          hasLength(visible ? 1 : 0),
+          reason: 'overflow $bookType',
+        );
+        expect(
+          buildPluginToolbarActions(
+            records: records,
+            context: context,
+            bookType: bookType,
+            placement: 'overflow',
+            compact: true,
+            locationPayload: () async => {},
+          ),
+          hasLength(visible ? 1 : 0),
+          reason: 'collapsed $bookType',
+        );
+      }
+    },
+  );
+
+  for (final kind in ['menu', 'split']) {
+    test('bookTypes restricts the entire $kind including its children', () {
+      final item = PluginToolbarItem(
+        id: 'parent',
+        type: kind,
+        title: 'parent',
+        bookTypes: const ['docx'],
+        children: const [PluginToolbarItem(id: 'child', title: 'child')],
+      );
+      final shown = buildPluginToolbarActions(
+        records: [('word', item)],
+        context: 'reader-text',
+        bookType: 'docx',
+        compact: false,
+        locationPayload: () async => {},
+      );
+      expect(shown.single.submenuItems, isNotEmpty);
+      expect(
+        buildPluginToolbarActions(
+          records: [('word', item)],
+          context: 'reader-text',
+          bookType: 'text',
+          compact: false,
+          locationPayload: () async => {},
+        ),
+        isEmpty,
+      );
+    });
+  }
+
+  test('unrestricted controls retain visibility without a book type', () {
+    const records = [('other', PluginToolbarItem(id: 'all', title: 'all'))];
+    expect(
+      buildPluginToolbarActions(
+        records: records,
+        context: 'reader-text',
+        compact: false,
+        locationPayload: () async => {},
+      ),
+      hasLength(1),
+    );
+    expect(
+      buildPluginToolbarActions(
+        records: records,
+        context: 'reader-pdf',
+        bookType: 'pdf',
+        compact: false,
+        locationPayload: () async => {},
+      ),
+      hasLength(1),
+    );
+  });
+
   Future<Map<String, dynamic>> emptyLocation() async => const {};
 
   test('builds a simple button with tooltip, icon, and BarButton widget', () {

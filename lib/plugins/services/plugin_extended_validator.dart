@@ -947,6 +947,14 @@ class PluginExtendedValidator {
         startup.toolbarItems,
         errors,
       );
+      if (startup.toolbarItems.any((item) => item['bookTypes'] != null)) {
+        _requireMinVersion(
+          manifest,
+          '0.9.99',
+          'bookTypes בפקדי הסרגל',
+          errors,
+        );
+      }
       final registry = PluginToolbarRegistry.detached();
       for (final item in startup.toolbarItems.where(
         (item) => !DeclarativeToolbarTemplateCompiler.isDeclarative(item),

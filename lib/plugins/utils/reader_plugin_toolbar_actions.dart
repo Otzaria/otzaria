@@ -3,6 +3,9 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -22,6 +25,7 @@ List<ActionButtonData> buildReaderPluginActions(
   ];
   if (records.isEmpty) return const [];
   return buildPluginToolbarActions(
+    bookType: _readerBookType(tab),
     records: records,
     viewId: View.of(context).viewId,
     windowKeys: AppWindowKeys.of(context),
@@ -48,6 +52,7 @@ List<(int, ActionButtonData)> buildReaderPluginOverflowActions(
   ];
   if (records.isEmpty) return const [];
   return buildOrderedPluginOverflowActions(
+    bookType: _readerBookType(tab),
     records: records,
     viewId: View.of(context).viewId,
     windowKeys: AppWindowKeys.of(context),
@@ -68,3 +73,9 @@ Listenable readerPluginToolbarListenable(BuildContext context) =>
       PluginToolbarRegistry.instance,
       context.read<PluginSystemBloc?>()?.toolbarRegistry,
     ]);
+
+String? _readerBookType(OpenedTab tab) => switch (tab) {
+  TextBookTab(:final book) => PluginBookIdentity.typeOf(book),
+  PdfBookTab(:final book) => PluginBookIdentity.typeOf(book),
+  _ => null,
+};

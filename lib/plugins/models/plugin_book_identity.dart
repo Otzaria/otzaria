@@ -12,6 +12,14 @@ typedef PluginBookIdentityKey = ({
 
 /// זהות ספר קנונית עבור ה-Plugin SDK.
 class PluginBookIdentity {
+  static final Set<String> supportedTypes = Set.unmodifiable({
+    'text',
+    'pdf',
+    'external',
+    for (final format in DocumentFormat.values)
+      if (format.isDocumentBook) format.extension,
+  });
+
   static int? parseId(Object? rawId) => switch (rawId) {
     int value => value,
     num value when value == value.toInt() => value.toInt(),

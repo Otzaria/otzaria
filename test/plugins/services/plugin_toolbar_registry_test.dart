@@ -3,6 +3,66 @@ import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 
 void main() {
+  test('bookTypes survives dynamic registration, update and serialization', () {
+    final registry = PluginToolbarRegistry.forTesting();
+    addTearDown(registry.dispose);
+    registry.registerPayload('word', {
+      'id': 'edit',
+      'title': 'עריכה',
+      'icon': 'document_edit_24_regular',
+      'bookTypes': ['docx', 'docm'],
+    });
+    expect(registry.getAll().single.$2.toJson()['bookTypes'], ['docx', 'docm']);
+    registry.update('word', 'edit', {'title': 'כותרת אחרת'});
+    expect(registry.getAll().single.$2.bookTypes, ['docx', 'docm']);
+    registry.update('word', 'edit', {
+      'bookTypes': ['pdf'],
+    });
+    expect(registry.getAll().single.$2.bookTypes, ['pdf']);
+    registry.update('word', 'edit', {'bookTypes': null});
+    expect(registry.getAll().single.$2.toJson(), isNot(contains('bookTypes')));
+  });
+
+  test('bookTypes rejects invalid lists and child-only restrictions', () {
+    final registry = PluginToolbarRegistry.forTesting();
+    addTearDown(registry.dispose);
+    for (final invalid in [
+      [],
+      ['docx', 'docx'],
+      ['DOCX'],
+      ['unknown'],
+      [1],
+      'docx',
+    ]) {
+      expect(
+        () => registry.registerPayload('word', {
+          'id': 'edit',
+          'title': 'עריכה',
+          'icon': 'document_edit_24_regular',
+          'bookTypes': invalid,
+        }),
+        throwsA(isA<PluginToolbarException>()),
+        reason: '$invalid',
+      );
+    }
+    expect(
+      () => registry.registerPayload('word', {
+        'id': 'edit',
+        'type': 'menu',
+        'title': 'עריכה',
+        'icon': 'document_edit_24_regular',
+        'children': [
+          {
+            'id': 'child',
+            'title': 'ילד',
+            'bookTypes': ['docx'],
+          },
+        ],
+      }),
+      throwsA(isA<PluginToolbarException>()),
+    );
+  });
+
   group('PluginToolbarRegistry', () {
     late PluginToolbarRegistry registry;
 
@@ -428,7 +488,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
-          'icon': 'bookmark_24_regular',
+            'icon': 'bookmark_24_regular',
             'newTab': true,
           }),
           throwsA(isA<PluginToolbarException>()),
@@ -440,7 +500,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
-          'icon': 'bookmark_24_regular',
+            'icon': 'bookmark_24_regular',
             'openPlugin': true,
             'newTab': 'yes',
           }),

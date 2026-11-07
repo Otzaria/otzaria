@@ -52,6 +52,10 @@ void main() {
     // placement ו-order מהתבנית מגיעים עד הפריט שנרשם בפועל.
     expect(items.last.placement, 'overflow');
     expect(items.last.order, 55);
+    expect(
+      items.every((item) => item.bookTypes?.join(',') == 'docx,docm'),
+      isTrue,
+    );
     expect(items.first.placement, 'primary');
     expect(items.first.order, PluginToolbarItem.defaultOrder);
   });
@@ -224,6 +228,7 @@ void main() {
     runner.completeNext(_outputs());
     await shown;
     final item = toolbar.getAll().single.$2;
+    expect(item.bookTypes, ['docx', 'docm']);
     expect(item.openPlugin, isTrue);
     expect(item.hostAction, isNull);
     expect(item.type, 'button');
@@ -328,6 +333,7 @@ List<Map<String, dynamic>> _templateJson() => [
   {
     'id': 'open-default',
     'type': 'button',
+    'bookTypes': ['docx', 'docm'],
     'title': 'פתח במהדורת ברירת המחדל',
     'icon': 'book_24_regular',
     'binding': {
@@ -344,6 +350,7 @@ List<Map<String, dynamic>> _templateJson() => [
   {
     'id': 'open-editions',
     'type': 'menu',
+    'bookTypes': ['docx', 'docm'],
     'title': 'פתח מהדורה אחרת',
     'icon': 'book_24_regular',
     'placement': 'overflow',

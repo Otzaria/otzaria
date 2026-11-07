@@ -1,3 +1,4 @@
+import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -240,6 +241,49 @@ void main() {
       libraryBooksRegistry: libraryBooks,
     );
   });
+
+  test(
+    'pane filtering survives startup plus a dynamic fallback without startup permission',
+    () async {
+      final payload = <String, dynamic>{
+        'id': 'word',
+        'title': 'עריכה',
+        'icon': 'document_edit_24_regular',
+        'contexts': ['reader-text'],
+        'bookTypes': ['docx', 'docm'],
+        'openPlugin': true,
+      };
+      final plugin = _plugin(
+        startup: {
+          'toolbarItems': [payload],
+        },
+      );
+      repo.grantedByPlugin['p1'] = {
+        'app.startup_contributions',
+        'reader.toolbar',
+      };
+      await service.sync([plugin], repo);
+      expect(toolbar.getAll().single.$2.bookTypes, ['docx', 'docm']);
+      toolbar.registerPayload('p1', payload, instanceId: 'live');
+      repo.grantedByPlugin['p1'] = {'reader.toolbar'};
+      await service.sync([plugin], repo);
+      final records = toolbar.getAll();
+      expect(records, hasLength(1));
+      expect(records.single.$2.openPlugin, isTrue);
+      for (final type in ['docx', 'text', 'docm', 'pdf']) {
+        expect(
+          buildPluginToolbarActions(
+            records: records,
+            context: type == 'pdf' ? 'reader-pdf' : 'reader-text',
+            bookType: type,
+            compact: false,
+            locationPayload: () async => {},
+          ),
+          hasLength(type == 'docx' || type == 'docm' ? 1 : 0),
+        );
+      }
+    },
+  );
 
   test('מקור הרשאות חלופי מוגבל לסנכרון שבו הועבר', () async {
     final plugin = _plugin(startup: _fullStartup());

@@ -21,6 +21,7 @@ typedef PluginHostActionDispatcher =
 List<ActionButtonData> buildPluginToolbarActions({
   required List<(String pluginId, PluginToolbarItem item)> records,
   required String context,
+  String? bookType,
   required bool compact,
   required Future<Map<String, dynamic>> Function() locationPayload,
   String placement = 'primary',
@@ -32,7 +33,8 @@ List<ActionButtonData> buildPluginToolbarActions({
   final runtime = dispatcher ?? PluginRuntimeDispatcher.instance;
   return [
     for (final record in records)
-      if (record.$2.contexts.contains(context) &&
+      if ((record.$2.bookTypes?.contains(bookType) ?? true) &&
+          record.$2.contexts.contains(context) &&
           record.$2.placement == placement)
         _buildAction(
           pluginId: record.$1,
@@ -54,6 +56,7 @@ List<ActionButtonData> buildPluginToolbarActions({
 List<(int order, ActionButtonData action)> buildOrderedPluginOverflowActions({
   required List<(String pluginId, PluginToolbarItem item)> records,
   required String context,
+  String? bookType,
   required bool compact,
   required Future<Map<String, dynamic>> Function() locationPayload,
   PluginRuntimeDispatcher? dispatcher,
@@ -64,7 +67,8 @@ List<(int order, ActionButtonData action)> buildOrderedPluginOverflowActions({
   final runtime = dispatcher ?? PluginRuntimeDispatcher.instance;
   return [
     for (final record in records)
-      if (record.$2.contexts.contains(context) &&
+      if ((record.$2.bookTypes?.contains(bookType) ?? true) &&
+          record.$2.contexts.contains(context) &&
           record.$2.placement == 'overflow')
         (
           record.$2.order,

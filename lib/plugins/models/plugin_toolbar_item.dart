@@ -14,6 +14,9 @@ class PluginToolbarItem implements PluginRegistryItem {
   final String title;
   final String? icon;
   final List<String> contexts;
+
+  /// סוגי הספרים של החלונית שבה הפקד מוצג; null אינו מסנן.
+  final List<String>? bookTypes;
   final String? onClickEvent;
   @override
   final List<PluginToolbarItem> children;
@@ -53,6 +56,7 @@ class PluginToolbarItem implements PluginRegistryItem {
     required this.title,
     this.icon,
     this.contexts = const ['reader-text', 'reader-pdf'],
+    this.bookTypes,
     this.onClickEvent,
     this.children = const [],
     this.openPlugin = false,
@@ -71,6 +75,7 @@ class PluginToolbarItem implements PluginRegistryItem {
     'title': title,
     if (icon != null) 'icon': icon,
     'contexts': contexts,
+    if (bookTypes != null) 'bookTypes': bookTypes,
     if (onClickEvent != null) 'onClickEvent': onClickEvent,
     if (children.isNotEmpty)
       'children': children.map((child) => child.toJson()).toList(),

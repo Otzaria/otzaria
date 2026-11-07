@@ -202,7 +202,10 @@ export type BookType =
   | 'wbk'
   | 'xml'
   | 'rtf'
-  | 'odt';
+  | 'odt'
+  | 'html'
+  | 'htm'
+  | 'xhtml';
 
 export interface BookMeta {
   id?: number | null;
@@ -1395,6 +1398,8 @@ export interface TextSourceMap {
 
 export interface GetSectionTextMapArgs extends RawDivineNamesOption {
   bookId: string;
+  /** Stable identity; takes precedence over the book title. */
+  bookUid?: string;
   sectionIndex: number;
   layer?: 'source' | 'rendered' | 'both';
   includeWords?: boolean;
@@ -1659,6 +1664,10 @@ export interface ToolbarItem {
   /** One or more reader contexts. Children inherit this when omitted; an
    * explicit child value must be a subset of its parent's contexts. */
   contexts?: ToolbarContext[];
+  /** Top-level only. Filter by this reader pane's book type, independently of
+   * focus or other panes. Omit for all types. Non-empty, unique canonical types.
+   * Planned for 0.9.99; applies to startup contributions and dynamic calls. */
+  bookTypes?: BookType[];
   /** Custom event dispatched only to the owning plugin. */
   onClickEvent?: string;
   /** Children (`type: 'menu'` or `'split'`, up to 20 buttons, no nesting). */
