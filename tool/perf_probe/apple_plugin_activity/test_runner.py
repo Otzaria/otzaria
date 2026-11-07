@@ -44,6 +44,124 @@ class CpuTests(unittest.TestCase):
             runner.cpu_envelope(before, {**after, "cpuSeconds": 0.1})
 
 
+class ClockBoundsTests(unittest.TestCase):
+    @staticmethod
+    def clock(request=1000, reply=1020, received=1005, replied=1010):
+        return {"requestMs": request, "replyMs": reply,
+                "serverReceivedMs": received, "serverReplyMs": replied}
+
+    def test_frozen_ios_controller_exchange(self):
+        clock = self.clock(1794027541265.5881, 1794027541294.35,
+                           1794027541289.541, 1794027541289.606)
+        lower, upper = runner.controller_clock_bounds(clock)
+        self.assertAlmostEqual(lower, -6.744140625)
+        self.assertAlmostEqual(upper, 25.952880859375)
+        self.assertAlmostEqual(upper - lower, 32.697021484375)
+
+    def test_server_processing_does_not_increase_network_uncertainty(self):
+        for offset in (-100000, 0, 100000):
+            for outward in (10, 90):
+                for processing in (0, 500, 5000):
+                    with self.subTest(offset=offset, outward=outward, processing=processing):
+                        lower, upper = runner.controller_clock_bounds(self.clock(
+                            1000, 1100 + processing, 1000 + outward + offset,
+                            1000 + outward + processing + offset))
+                        self.assertEqual((lower, upper),
+                                         (offset - (100 - outward) - 2, offset + outward + 2))
+                        self.assertEqual(upper - lower, 104)
+                        self.assertLessEqual(lower, offset)
+                        self.assertGreaterEqual(upper, offset)
+
+    def test_fractional_sample_envelopes_contain_extreme_rounding_errors(self):
+        offset = 125.5
+        # True client send/receive are 1000.1/1000.9; host receives/replies
+        # at 1125.7/1126.3. Exercise both signs of each 1ms envelope.
+        for request_error in (-0.999, 0.999):
+            for reply_error in (-0.999, 0.999):
+                for received_error in (-0.999, 0.999):
+                    for replied_error in (-0.999, 0.999):
+                        clock = self.clock(1000.1 + request_error, 1000.9 + reply_error,
+                                           1125.7 + received_error, 1126.3 + replied_error)
+                        if clock["replyMs"] < clock["requestMs"] or clock["serverReplyMs"] < clock["serverReceivedMs"]:
+                            with self.assertRaisesRegex(ValueError, "ordering"):
+                                runner.controller_clock_bounds(clock)
+                        else:
+                            lower, upper = runner.controller_clock_bounds(clock)
+                            self.assertLessEqual(lower, offset)
+                            self.assertGreaterEqual(upper, offset)
+
+    def test_impossible_causality_and_backwards_exchange_are_rejected(self):
+        for changed in ({"replyMs": 999}, {"serverReceivedMs": 1011},
+                        {"serverReplyMs": 1030}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                runner.controller_clock_bounds({**self.clock(), **changed})
+        self.assertEqual(runner.controller_clock_bounds(self.clock(replied=1029)), (7, 7))
+        with self.assertRaisesRegex(ValueError, "bounds"):
+            runner.controller_clock_bounds(self.clock(replied=1029.001))
+
+    def test_nonfinite_or_nonnumeric_samples_cannot_create_bounds(self):
+        for key in self.clock():
+            for invalid in (float("nan"), float("inf"), -float("inf"), True, "1000"):
+                with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
+                    runner.controller_clock_bounds({**self.clock(), key: invalid})
+
+
+class IOSClockWindowTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+
+    def run_control(self, changed=None):
+        coordinator = runner.Coordinator(self.directory, "run-A", "nonce", "ios", 6, physical=True)
+        control = {"status": "passed", "controlClock": ClockBoundsTests.clock(),
+                   "deviceQuietStartMs": 2000, "deviceQuietEndMs": 10000, "quietElapsedMs": 8000}
+        control.update(changed or {})
+        job = {"phase": "visible", "action": "quiet", "seconds": 6, "hostPid": 42,
+               "status": "running", "iosControl": control,
+               "completionDeadlineMonotonic": runner.time.monotonic() + 30}
+        with patch.object(runner.time, "sleep"), \
+             patch.object(coordinator.control_result, "wait", return_value=True):
+            coordinator.run_job(job)
+        report = json.loads((self.directory / "driver-visible.json").read_text())
+        self.assertEqual(report["status"], job["status"])
+        return job, coordinator
+
+    def test_quiet_window_is_inside_both_fractional_boundary_envelopes(self):
+        job, coordinator = self.run_control()
+        self.assertEqual(job["status"], "passed")
+        self.assertFalse(coordinator.background_failures)
+        self.assertEqual(job["quietStartMs"], 2008)
+        self.assertEqual(job["quietEndMs"], 9987)
+        self.assertEqual(job["quietElapsedMs"], 8000)
+        self.assertEqual(job["controlClockUncertaintyMs"], 19)
+        self.assertEqual(job["controlTimestampMarginMs"], 1)
+        for offset in (-12, 7):
+            for error in (-0.999, 0.999):
+                self.assertGreaterEqual(job["quietStartMs"], 2000 + error + offset)
+                self.assertLessEqual(job["quietEndMs"], 10000 + error + offset)
+
+    def test_failed_clock_or_boundary_cannot_publish_success(self):
+        cases = [
+            {"controlClock": ClockBoundsTests.clock(replied=1030)},
+            {"controlClock": ClockBoundsTests.clock(reply=999)},
+            {"deviceQuietStartMs": 1019},
+            {"deviceQuietEndMs": 2000},
+            {"quietElapsedMs": 0},
+            {"deviceQuietEndMs": 2001},
+        ]
+        for key in ("deviceQuietStartMs", "deviceQuietEndMs", "quietElapsedMs"):
+            for invalid in (float("nan"), float("inf"), -float("inf")):
+                cases.append({key: invalid})
+        for changed in cases:
+            with self.subTest(changed=changed):
+                job, coordinator = self.run_control(changed)
+                self.assertEqual(job["status"], "failed")
+                self.assertEqual(job["firstError"]["stage"], "quiet job")
+                self.assertEqual(len(coordinator.background_failures), 1)
+
+
+
 class ProtocolTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -124,14 +242,17 @@ class ProtocolTests(unittest.TestCase):
     def test_ios_controller_also_stops_polling_for_non_home_quiet_windows(self):
         self.coordinator.target = "ios"
         body = {**self.body, "platform": "ios"}
-        response, _ = self.coordinator.request("arm", body, 1000)
-        job = self.coordinator.jobs[response["jobId"]]
+        identity = {"runId": "run-A", "controllerPid": 99, "controllerBootToken": "control-A"}
+        self.coordinator.physical = True
+        reply, _ = self.coordinator.request("control-ready", identity, 1000)
+        identity.update(reply)
+        job = {**body, "jobId": "fresh-job", "deadlineMonotonic": runner.time.monotonic() + 16}
         self.coordinator.control_job = job
-        command, _ = self.coordinator.request("control", {}, 1001)
+        command, _ = self.coordinator.request("control", identity, 1001)
         self.assertEqual(command["action"], "quiet")
-        self.assertEqual(command["jobId"], response["jobId"])
+        self.assertEqual(command["jobId"], "fresh-job")
         self.assertIsNone(self.coordinator.control_job)
-        self.assertGreaterEqual(response["waitMs"], command["remainingMs"])
+        self.assertGreater(command["remainingMs"], 0)
 
     def test_mac_controller_is_idle_during_the_unchanged_quiet_interval(self):
         for action in ['quiet', 'macAppHide']:
@@ -146,6 +267,7 @@ class ProtocolTests(unittest.TestCase):
                 response, work = self.coordinator.request('arm', {**self.body, 'action': action}, 1000)
                 with patch.object(runner, 'MacApplicationSession', return_value=controller), \
                      patch.object(runner.time, 'sleep', side_effect=sleeping), \
+                     patch.object(self.coordinator.stop_event, 'wait', side_effect=lambda seconds: sleeping(seconds) or False), \
                      patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
                      patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
                     work()
@@ -169,6 +291,7 @@ class ProtocolTests(unittest.TestCase):
         controller.close.side_effect = closing
         with patch.object(runner, 'MacApplicationSession', return_value=controller), \
              patch.object(runner.time, 'sleep'), \
+             patch.object(self.coordinator.stop_event, 'wait', return_value=False), \
              patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
              patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}):
             work()
@@ -232,7 +355,7 @@ class SetupEvidenceTests(unittest.TestCase):
             self.assertEqual(timeout, 120)
             Path(command[-2]).mkdir()
         with patch.object(runner, 'recorded_output', side_effect=generation):
-            control = runner.prepare_control(self.directory, 'http://localhost:1234', 'nonce')
+            control = runner.prepare_control(self.directory, 'http://localhost:1234', 'nonce', 'run-A')
         config = (control / 'ControlConfig.swift').read_text()
         self.assertIn('http://localhost:1234', config)
         self.assertIn('com.mendelg.otzaria', config)
@@ -260,7 +383,12 @@ class MacTransportTests(unittest.TestCase):
         process = subprocess.Popen([str(helper), '42'], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, start_new_session=True)
         self.addCleanup(runner.stop_owned, process)
-        with patch.object(runner.subprocess, 'Popen', return_value=process), \
+        real_popen = subprocess.Popen
+        def spawn(command, *args, **kwargs):
+            if command == [str(helper), '42']:
+                return process
+            return real_popen(command, *args, **kwargs)
+        with patch.object(runner.subprocess, 'Popen', side_effect=spawn), \
              patch.object(runner, 'save', side_effect=[None, OSError('receipt write failed'), None]):
             with self.assertRaisesRegex(OSError, 'receipt write failed'):
                 runner.MacApplicationSession(helper, 42, self.directory, 'write-failed')
@@ -277,7 +405,16 @@ for line in sys.stdin:
  result={"pid":int(sys.argv[1]),"controllerPid":os.getpid(),"sequence":command["sequence"],
          "action":command["action"],"sameApplication":True,"identityMethod":"NSRunningApplication.isEqual",
          "sessionToken":"held-session","executable":"/fixture/App","launchMs":None,
-         "launchDateAvailability":"unavailable"}
+         "launchDateAvailability":"unavailable",
+         "applicationState":{"controllerEventLoopRunning":True,"controllerActivationPolicy":2,
+                             "controllerIsActive":False,"processSerialHigh":0,"processSerialLow":42,
+                             "processSerialLookupStatus":0},
+         "processIdentity":{"pid":int(sys.argv[1]),"pidLookupStatus":0,"serialLookupStatus":0,
+                            "serialComparisonStatus":0,"sameProcess":True,"high":0,"low":42},
+         "nativeActionAPI":{"info":"NSRunningApplication identity","hide":"ApplicationServices.ShowHideProcess",
+                            "activate":"NSRunningApplication.unhide+activate"}[command["action"]],
+         "nativeActionStatus":0 if command["action"]=="hide" else None,
+         "returnValue":True,"isHidden":command["action"]=="hide","isActive":command["action"]!="hide"}
  ''' + modification + '''
  print(json.dumps(result),flush=True)
 ''')
@@ -294,16 +431,45 @@ for line in sys.stdin:
         self.assertEqual(first['controllerPid'], last['controllerPid'])
         self.assertEqual(first['sessionToken'], last['sessionToken'])
         self.assertEqual(last['sequence'], 2)
+        hidden = controller.request('hide')
+        resumed = controller.request('activate')
+        self.assertEqual(hidden['nativeActionStatus'], 0)
+        self.assertTrue(hidden['isHidden'])
+        self.assertTrue(resumed['isActive'])
+        self.assertEqual(first['processIdentity'], resumed['processIdentity'])
 
     def test_false_or_missing_public_identity_proof_is_rejected(self):
         for modification in ['result["sameApplication"]=False', 'result.pop("sameApplication")',
                              'result["identityMethod"]="pid-only"', 'result["pid"]=43',
                              'result["controllerPid"]=43', 'result["sequence"]+=1',
                              'result["action"]="wrong"', 'result["sessionToken"]=""',
-                             'result["executable"]="relative"', 'result=[]']:
+                             'result["executable"]="relative"', 'result=[]',
+                             'result["applicationState"]["controllerEventLoopRunning"]=False',
+                             'result["applicationState"]["controllerIsActive"]=True',
+                             'result["applicationState"]["controllerActivationPolicy"]=1',
+                             'result["applicationState"]["processSerialLow"]=43',
+                             'result["applicationState"]["processSerialLookupStatus"]=-50',
+                             'result["processIdentity"]["pid"]=43',
+                             'result["processIdentity"]["pidLookupStatus"]=-50',
+                             'result["processIdentity"]["serialLookupStatus"]=False',
+                             'result["processIdentity"]["serialComparisonStatus"]=-50',
+                             'result["processIdentity"]["sameProcess"]=False',
+                             'result["processIdentity"]["low"]=0',
+                             'result["processIdentity"]["high"]=-1',
+                             'result.pop("processIdentity")', 'result.pop("nativeActionStatus")',
+                             'result.pop("applicationState")']:
             with self.subTest(modification=modification):
                 controller = self.controller(modification)
                 with self.assertRaises(ValueError): controller.request('info')
+
+        for modification in ['result["nativeActionStatus"]=-50', 'result["nativeActionStatus"]=False',
+                             'result["nativeActionStatus"]=None', 'result.pop("nativeActionStatus")',
+                             'result["nativeActionAPI"]="NSRunningApplication.hide"',
+                             'result["returnValue"]=False', 'result["isHidden"]=False']:
+            with self.subTest(hideModification=modification):
+                controller = self.controller(modification)
+                with self.assertRaises(ValueError):
+                    controller.request('hide')
 
     def test_session_or_executable_cannot_change_between_boundaries(self):
         for field in ['sessionToken', 'executable']:
@@ -311,6 +477,10 @@ for line in sys.stdin:
                 controller = self.controller(f'if command["sequence"]==2: result["{field}"]="/replacement"')
                 controller.request('info')
                 with self.assertRaises(ValueError): controller.request('info')
+        controller = self.controller('if command["sequence"]==2: result["processIdentity"]["low"]=43;result["applicationState"]["processSerialLow"]=43')
+        controller.request('info')
+        with self.assertRaises(ValueError):
+            controller.request('info')
 
     def test_controller_error_retains_stderr_and_partial_command(self):
         controller = self.controller('print("identity: application terminated",file=sys.stderr,flush=True);sys.exit(1)')
@@ -344,7 +514,7 @@ class PinTests(unittest.TestCase):
                   if 'url: "https://github.com/Otzaria/flutter_inappwebview"' in section]
         self.assertEqual(len(native), 8)
         for section in native:
-            self.assertIn(f'resolved-ref: "{runner.NATIVE_PIN}"', section)
+            self.assertIn('resolved-ref: "124bb8e63f345ffd0b0f2ea7190c24b19e69897d"', section)
         self.assertNotIn("c709de98711cf34350c48df4c75e24d0879d5876", (runner.REPO / "pubspec.yaml").read_text())
 
 

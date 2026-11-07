@@ -70,22 +70,41 @@ Map<String, Object?> analyzeAppleQuietWindow({
   final elapsed = (driver['quietElapsedMs'] as num).toDouble();
   final received = (driver['armReceivedMs'] as num).toDouble();
   final replied = (driver['armReplyMs'] as num).toDouble();
-  if (end <= start ||
+  if (![
+        start,
+        end,
+        elapsed,
+        received,
+        replied,
+      ].every((value) => value.isFinite) ||
+      end <= start ||
       elapsed <= 0 ||
       armEndMs < armStartMs ||
       received > replied ||
       replied > start) {
     throw StateError('Invalid quiet/coordination boundaries');
   }
-  // A request/reply exchange bounds the difference between the device's wall
-  // clock and the external driver's wall clock. No clock sync is assumed.
-  final offsetMin = received - armEndMs;
-  final offsetMax = replied - armStartMs;
+  const integerTimestampBinMs = 1.0;
+  const fractionalTimestampMarginMs = 1.0;
+  // Causality removes server processing time from the uncertainty interval.
+  // Widen for the client's floored milliseconds and fractional host samples.
+  final offsetMin =
+      replied - armEndMs - integerTimestampBinMs - fractionalTimestampMarginMs;
+  final offsetMax = received - armStartMs + fractionalTimestampMarginMs;
   final uncertainty = offsetMax - offsetMin;
-  if (uncertainty < 0) throw StateError('Invalid clock-offset interval');
+  if (!uncertainty.isFinite || uncertainty < 0) {
+    throw StateError('Invalid clock-offset interval');
+  }
   const edgeGuardMs = 1000.0;
   final first = before['readAt'] as Map;
   final last = after['readAt'] as Map;
+  if (![first, last].every(
+    (anchor) => ['wallMs', 'monoMs'].every(
+      (key) => (anchor[key] as num).isFinite,
+    ),
+  )) {
+    throw StateError('Invalid page clock anchor');
+  }
   final wallDelta = (last['wallMs'] as num) - (first['wallMs'] as num);
   final monoDelta = (last['monoMs'] as num) - (first['monoMs'] as num);
   const clockToleranceMs = 250.0;
@@ -93,7 +112,9 @@ Map<String, Object?> analyzeAppleQuietWindow({
       (end - start - elapsed).abs() <= 250 &&
       (wallDelta - monoDelta).abs() <= clockToleranceMs &&
       uncertainty <= 1000;
-  if (stableClock && (last['wallMs'] as num) + offsetMax < end) {
+  if (stableClock &&
+      (last['wallMs'] as num) + integerTimestampBinMs + offsetMax <
+          end - fractionalTimestampMarginMs) {
     throw StateError(
       'The page was read before the external quiet interval ended',
     );
@@ -134,13 +155,14 @@ Map<String, Object?> analyzeAppleQuietWindow({
         if (drift > clockToleranceMs) stableClock = false;
       }
       final earliest = wall + offsetMin;
-      final latest = wall + offsetMax;
-      if (earliest > start + edgeGuardMs && latest < end - edgeGuardMs) {
+      final latest = wall + integerTimestampBinMs + offsetMax;
+      if (earliest > start + fractionalTimestampMarginMs + edgeGuardMs &&
+          latest < end - fractionalTimestampMarginMs - edgeGuardMs) {
         inside++;
         provenTimes.add(wall);
-      } else if (earliest >= end) {
+      } else if (earliest >= end + fractionalTimestampMarginMs) {
         afterEnd++;
-      } else if (latest >= start) {
+      } else if (latest >= start - fractionalTimestampMarginMs) {
         boundary++;
       }
     }
@@ -188,12 +210,15 @@ Map<String, Object?> analyzeAppleQuietWindow({
     'clockStable': stableClock,
     'deviceToDriverOffsetMs': {'min': offsetMin, 'max': offsetMax},
     'clockUncertaintyMs': uncertainty,
+    'integerTimestampBinMs': integerTimestampBinMs,
+    'fractionalTimestampMarginMs': fractionalTimestampMarginMs,
     'edgeGuardMs': edgeGuardMs,
     'clockToleranceMs': clockToleranceMs,
     'maxCallbackClockDriftMs': maxCallbackClockDriftMs,
     'deviceWallMinusMonotonicDeltaMs': wallDelta - monoDelta,
     'driverWallMinusMonotonicDeltaMs': end - start - elapsed,
-    'lateReadAfterQuietMs': (last['wallMs'] as num) + offsetMin - end,
+    'lateReadAfterQuietMs':
+        (last['wallMs'] as num) + offsetMin - end - fractionalTimestampMarginMs,
     'streams': streams,
     'engineSuspension':
         'unavailable: public metadata is not a suspension query',
