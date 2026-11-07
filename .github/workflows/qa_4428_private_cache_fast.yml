@@ -1,0 +1,46 @@
+name: QA 4428 private cache fast controls
+
+on:
+  push:
+    branches:
+      - 'y-ploni/qa-4428-private-cache-fast-20261107-a'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-4428-private-cache-fast
+  cancel-in-progress: false
+
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DART_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  fast:
+    name: Exact SDK formatter and Android private cache controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native test hook prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Run independent fast QA without rewriting source
+        run: python3 .github/qa/4428/private_cache_fast.py
+      - name: Retain complete logs, canonical formatter bytes and snapshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4428-private-cache-fast
+          path: ${{ runner.temp }}/qa-4428-private-cache-fast
+          if-no-files-found: error
