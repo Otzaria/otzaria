@@ -303,6 +303,21 @@ def capture_sources(commands, environment, *, after=False):
     require(environment['sourceStatus' + suffix] == environment['flutterSourceStatus' + suffix] == '', 'App or Flutter checkout is modified')
 
 
+def retain_source_diff(commands, environment):
+    if environment.get('cancelled'):
+        return
+    if not environment.get('sourceStatusAfter'):
+        return
+    # The source gate has already recorded its failure. Diagnostic I/O must not
+    # replace that failure or prevent Podfile.lock retention and owned shutdown.
+    label = 'source-diffAfter'
+    commands.run(label, ['git', 'diff', '--no-ext-diff', '--no-textconv', '--binary',
+                         environment['sourceCommit'], '--'])
+    path = commands.output / (label + '.log')
+    environment['sourceDiffAfter'] = {'baseCommit': environment['sourceCommit'],
+                                      'file': path.name, 'sha256': sha256(path)}
+
+
 def run_probe(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--instances', type=int, choices=(1, 5, 10), required=True)
@@ -392,6 +407,11 @@ def run_probe(argv=None):
                 capture_sources(commands, environment, after=True)
         except (Exception, KeyboardInterrupt) as cleanup:
             failures.add('sources-after', cleanup, cleanup=True)
+        try:
+            if environment.get('sourceCommit'):
+                retain_source_diff(commands, environment)
+        except (Exception, KeyboardInterrupt) as cleanup:
+            failures.add('source-diff', cleanup, cleanup=True)
         try:
             pods = ROOT / 'ios/Podfile.lock'
             if pods.exists():

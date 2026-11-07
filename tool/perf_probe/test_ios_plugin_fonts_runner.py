@@ -16,7 +16,7 @@ import unittest
 from unittest.mock import patch
 
 import run_ios_plugin_fonts as runner
-from run_ios_plugin_fonts import Commands, ROOT, lock_pin, main, retain_committed_lock, select_simulator
+from run_ios_plugin_fonts import Commands, ROOT, lock_pin, main, retain_committed_lock, retain_source_diff, select_simulator
 from validate_ios_plugin_fonts import WEBVIEW_PACKAGES
 
 
@@ -49,6 +49,48 @@ class RunnerTests(unittest.TestCase):
                 'commit', '-q', '-m', 'Synthetic different HEAD')
             with self.assertRaisesRegex(ValueError, 'selected source commit'):
                 retain_committed_lock(Commands(output), commit, lock)
+
+
+    def test_source_diff_retains_staged_and_unstaged_changes_without_reverting_them(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repository, output = Path(temp, 'repo'), Path(temp, 'output')
+            repository.mkdir()
+            output.mkdir()
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=repository, stderr=subprocess.STDOUT).decode().strip()
+            git('init', '-q')
+            staged, working = repository / 'project.pbxproj', repository / 'Runner.xcscheme'
+            staged.write_text('original project\n')
+            working.write_text('original scheme\n')
+            git('add', '.')
+            git('-c', 'user.name=Y-PLONI', '-c', 'user.email=7353755@gmail.com',
+                'commit', '-q', '-m', 'Synthetic source diff baseline')
+            commit = git('rev-parse', 'HEAD')
+            commands = Commands(output)
+            environment = {'sourceCommit': commit, 'sourceCommitAfter': commit, 'sourceStatusAfter': ''}
+            retain_source_diff(commands, environment)
+            self.assertEqual(commands.records, [])
+            staged.write_text('staged project migration\n')
+            git('add', 'project.pbxproj')
+            working.write_text('unstaged scheme migration\n')
+            environment['sourceStatusAfter'] = git('status', '--porcelain')
+            status = environment['sourceStatusAfter']
+            class RepositoryCommands(Commands):
+                def run(self, label, command, timeout=120, **kwargs):
+                    return super().run(label, command, timeout, cwd=repository, **kwargs)
+            commands = RepositoryCommands(output)
+            retain_source_diff(commands, environment)
+            diagnostic = environment['sourceDiffAfter']
+            raw = (output / diagnostic['file']).read_bytes()
+            self.assertIn(b'+staged project migration', raw)
+            self.assertIn(b'+unstaged scheme migration', raw)
+            self.assertEqual(diagnostic['sha256'], hashlib.sha256(raw).hexdigest())
+            self.assertEqual(diagnostic['baseCommit'], commit)
+            self.assertEqual(git('status', '--porcelain'), status)
+            self.assertEqual(git('rev-parse', 'HEAD'), commit)
+            self.assertEqual(staged.read_text(), 'staged project migration\n')
+            self.assertEqual(working.read_text(), 'unstaged scheme migration\n')
+            self.assertTrue(commands.records[0]['groupDrained'])
 
     def test_lock_parser_reads_the_actual_pinned_dependencies(self):
         text = (ROOT / 'pubspec.lock').read_text()
@@ -376,7 +418,7 @@ if label == 'flutter-drive':
     report.write_text('{}')
     for flag, name in [('driveReceiptFault', 'commands.json'), ('podFault', 'Podfile.lock'),
                        ('environmentFault', 'environment.json'), ('comparisonFault', 'comparison.json'),
-                       ('shutdownLogFault', 'simulator-shutdown.log')]:
+                       ('shutdownLogFault', 'simulator-shutdown.log'), ('sourceDiffLogFault', 'source-diffAfter.log')]:
         if scenario.get(flag):
             block(name)
     if scenario.get('driveTimeout'):
@@ -412,6 +454,9 @@ if label == 'flutter-drive':
                 if not after:
                     environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64)
                 commands.run('source-after' if after else 'source-before', ['controlled source'])
+                if after and scenario.get('sourceChange'):
+                    environment['sourceStatusAfter'] = ' M ios/Runner.xcodeproj/project.pbxproj'
+                    raise ValueError('App or Flutter checkout is modified')
 
             actual_write, actual_open = runner.write_json, Path.open
 
@@ -500,6 +545,9 @@ if label == 'flutter-drive':
                 self.assertFalse(environment['simulatorOwnership']['owned'])
                 self.assertNotIn('simulator-boot', labels)
                 self.assertNotIn('simulator-shutdown', labels)
+            if 'sourceDiffAfter' in environment:
+                diagnostic = environment['sourceDiffAfter']
+                self.assertEqual(diagnostic['sha256'], hashlib.sha256((output / diagnostic['file']).read_bytes()).hexdigest())
             evidence = {'scenario': scenario, 'exit': code, 'environment': environment, 'comparison': comparison,
                         'records': records, 'children': children, 'state': state, 'stdout': stdout.getvalue(),
                         'stderr': stderr.getvalue(), 'allOwnedGroupsDrained': True, 'nativeExecution': False,
@@ -510,6 +558,37 @@ if label == 'flutter-drive':
                 shutil.copytree(directory, destination)
                 (destination / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n')
             return evidence
+
+
+    def test_dirty_source_retains_diff_and_stays_rejected(self):
+        result = self.exercise(sourceChange=True)
+        self.assertEqual(result['environment']['primaryFailure']['step'], 'sources-after')
+        self.assertIn('checkout is modified', result['environment']['error'])
+        self.assertIn('sourceDiffAfter', result['environment'])
+        self.assertEqual(result['validatorCalls'], 0)
+        self.assertTrue(result['environment']['simulatorOwnership']['released'])
+
+    def test_source_diff_io_failure_preserves_primary_failure_and_owned_shutdown(self):
+        for fault in ({'readFault': 'source-diffAfter'}, {'closeFault': 'source-diffAfter'},
+                      {'sourceDiffLogFault': True}):
+            with self.subTest(fault=fault):
+                result = self.exercise(sourceChange=True, driveExit=23, **fault)
+                environment = result['environment']
+                self.assertEqual(environment['primaryFailure']['step'], 'driver')
+                self.assertEqual(environment['drive']['returncode'], 23)
+                self.assertEqual([entry['step'] for entry in environment['secondaryErrors']],
+                                 ['sources-after', 'source-diff'])
+                self.assertTrue(environment['simulatorOwnership']['released'])
+                self.assertEqual(result['validatorCalls'], 0)
+
+    def test_source_diff_failure_cannot_replace_source_failure_or_stop_pod_capture(self):
+        result = self.exercise(sourceChange=True, readFault='source-diffAfter')
+        environment = result['environment']
+        self.assertEqual(environment['primaryFailure']['step'], 'sources-after')
+        self.assertIn('checkout is modified', environment['error'])
+        self.assertEqual(environment['secondaryErrors'][0]['step'], 'source-diff')
+        self.assertIn('podfileLockSha256', environment)
+        self.assertTrue(environment['simulatorOwnership']['released'])
 
     def test_real_children_retain_driver_exit_and_successful_boot_ownership(self):
         for scenario in ({'driveExit': 23, 'driveReceiptFault': True}, {'bootReceiptFault': True},
