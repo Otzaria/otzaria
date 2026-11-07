@@ -409,6 +409,9 @@ class IndexingRepository {
       ? Future.value()
       : (_idle ??= Completer<void>()).future;
 
+  /// ריצות שטרם הסתיימו, גם בהכנה או בניקוז שאחרי ביטול.
+  static bool get hasActiveRuns => _activeRuns.isNotEmpty;
+
   void _runStarted() => _activeRuns.update(
     this,
     (count) => count + 1,
