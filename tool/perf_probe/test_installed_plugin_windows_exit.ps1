@@ -9,6 +9,88 @@ function Assert-Equal($Expected, $Actual, [string]$Message) {
     $script:assertions++
     if ($Expected -cne $Actual) { throw "$Message; expected=$Expected actual=$Actual" }
 }
+$parseErrors = $null; $tokens = $null
+$sourceAst = [Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1'), [ref]$tokens, [ref]$parseErrors)
+Assert-Equal 0 $parseErrors.Count 'The process observer source parses before its callback is exercised'
+$subscription = $sourceAst.Find({ param($node)
+    $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Register-CimIndicationEvent'
+}, $true)
+$actionIndex = 0
+while ($subscription.CommandElements[$actionIndex] -isnot [Management.Automation.Language.CommandParameterAst] -or
+    $subscription.CommandElements[$actionIndex].ParameterName -ne 'Action') { $actionIndex++ }
+$callback = $subscription.CommandElements[$actionIndex + 1].ScriptBlock.GetScriptBlock()
+function New-CallbackState {
+    return @{
+        records = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+        handles = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+        errors = [Collections.Concurrent.ConcurrentQueue[object]]::new(); jobs = @()
+        signal = 'controlled-provider-' + [guid]::NewGuid().ToString('N')
+    }
+}
+foreach ($kind in @('Start', 'Stop')) {
+    $providerException = [InvalidOperationException]::new("Controlled $kind provider failure")
+    $providerException | Add-Member -NotePropertyName NativeErrorCode -NotePropertyValue 'Failed'
+    $providerException | Add-Member -NotePropertyName StatusCode -NotePropertyValue 1
+    $providerException | Add-Member -NotePropertyName MessageId -NotePropertyValue 'HRESULT 0x80041001'
+    $state = New-CallbackState
+    $event = [pscustomobject]@{
+        MessageData = @{ state = $state; kind = $kind }
+        SourceEventArgs = [pscustomobject]@{ Exception = $providerException }
+    }
+    $beforeDelivery = [datetime]::UtcNow
+    & $callback
+    $failure = $state.errors.ToArray()[0]
+    $actualMessage = if ($failure -is [string]) { $failure } else { $failure.error.message }
+    Assert-Equal $providerException.Message $actualMessage 'Provider errors retain their original message instead of a missing ProcessName error'
+    Assert-Equal $kind $failure.kind 'Provider errors identify the failing subscription, not the event the host was waiting for'
+    Assert-Equal 'System.Management.Automation.PSCustomObject' $failure.eventArgsType 'The delivered argument type is retained'
+    Assert-Equal $providerException.GetType().FullName $failure.providerException.type 'The original provider exception type is retained'
+    Assert-Equal $providerException.HResult $failure.providerException.hresult 'The original provider HRESULT remains exact'
+    Assert-Equal 'HRESULT 0x80041001' $failure.providerException.messageId 'The native provider message ID is retained'
+    Assert-Equal 'Failed' $failure.providerException.nativeErrorCode 'The native provider error code is retained'
+    Assert-Equal 1 $failure.providerException.statusCode 'The native provider status code is retained'
+    Assert-Equal $true ($failure.receivedAtUtc -ge $beforeDelivery -and $failure.receivedAtUtc -le [datetime]::UtcNow) 'Receipt time does not substitute for native event time'
+    Assert-Equal 0 $state.records.Count 'An exception indication never becomes a native process event'
+    $failedTrace = @{
+        availability = 'armed'; subscriptions = @{}; errors = [Collections.Generic.List[string]]::new()
+        events = @(); eventErrors = @(); limitPerKind = 64; truncated = $false; finishedAtUtc = $null
+    }
+    & (Get-Module installed_plugin_windows_exit) { param($trace, $state) $script:traceStates.Add($trace, $state) } $failedTrace $state
+    Stop-InstalledPluginExitTrace $failedTrace
+    Assert-Equal 'unavailable' $failedTrace.availability 'A provider exception still invalidates native evidence'
+    Assert-Equal $providerException.Message $failedTrace.errors[0] 'The original provider message survives observer cleanup'
+    Assert-Equal $failure $failedTrace.eventErrors[0] 'Typed provider diagnostics survive observer cleanup'
+}
+foreach ($shape in @('valid-stop', 'missing-name', 'missing-event')) {
+    $state = New-CallbackState
+    $native = [pscustomobject]@{ ProcessName = 'otzaria.exe'; ProcessID = [uint32]42; ParentProcessID = [uint32]0
+        SessionID = [uint32]0; TIME_CREATED = [datetime]::UtcNow.ToFileTimeUtc(); ExitStatus = [uint32]::MaxValue }
+    if ($shape -eq 'missing-name') { $native.ProcessName = $null }
+    $event = [pscustomobject]@{ MessageData = @{ state = $state; kind = 'Stop' }
+        SourceEventArgs = [pscustomobject]@{ NewEvent = $(if ($shape -eq 'missing-event') { $null } else { $native }) } }
+    try {
+        & $callback
+        if ($shape -eq 'valid-stop') {
+            Assert-Equal 0 $state.errors.Count 'An ordinary native event is not mistaken for an exception indication'
+            Assert-Equal 1 $state.records.Count 'One native stop event produces one scalar record'
+            $native.ProcessName = 'changed.exe'; $native.ExitStatus = 37
+            Assert-Equal 'otzaria.exe' $state.records.ToArray()[0].processName 'The process payload is copied before its event lifetime ends'
+            Assert-Equal ([uint32]::MaxValue) $state.records.ToArray()[0].exitStatus 'The observed native exit status is copied without replacement'
+        } else {
+            Assert-Equal 0 $state.records.Count 'Missing native payload or name remains fatal'
+            $failure = $state.errors.ToArray()[0]
+            Assert-Equal $null $failure.providerException 'Malformed payload is distinguished from a provider exception'
+            if ($shape -eq 'missing-name') {
+                Assert-Equal 'Missing native process event field: ProcessName' $failure.error.message 'A genuinely missing name retains its own error'
+                Assert-Equal 42 $failure.nativeEvent.ProcessID 'Available identity fields are retained for diagnosis, not accepted as success'
+                Assert-Equal $null $failure.nativeEvent.ProcessName 'A missing name is never synthesized from the subscription filter'
+            } else {
+                Assert-Equal 'The native subscription delivered no process event.' $failure.error.message 'Absent payload is diagnosed independently'
+            }
+        }
+    } finally { Get-Event -SourceIdentifier $state.signal -ErrorAction SilentlyContinue | Remove-Event }
+}
 $armed = ([datetime]'2026-11-06T18:00:00Z').ToUniversalTime()
 $boot = $armed.AddSeconds(2)
 $micros = [long](($boot.Ticks - [datetime]::UnixEpoch.Ticks) / 10)

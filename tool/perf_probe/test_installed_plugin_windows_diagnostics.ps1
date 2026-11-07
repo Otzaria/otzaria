@@ -173,3 +173,4 @@ try {
     if ($IsWindows -and (Test-Path -LiteralPath $testRegistry)) { Remove-Item -LiteralPath $testRegistry -Recurse -Force }
     Remove-Item -LiteralPath $temporary -Recurse -Force
 }
+exit 0

@@ -9,13 +9,13 @@ function Start-InstalledPluginExitTrace {
         source = 'Win32_ProcessStartTrace / Win32_ProcessStopTrace with retained native process handle'
         processName = $ProcessName; availability = 'unavailable'
         armedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
-        subscriptions = @{}; events = @(); errors = [Collections.Generic.List[string]]::new()
+        subscriptions = @{}; events = @(); eventErrors = @(); errors = [Collections.Generic.List[string]]::new()
         limitPerKind = 64; truncated = $false
     }
     $state = @{
         records = [Collections.Concurrent.ConcurrentQueue[object]]::new()
         handles = [Collections.Concurrent.ConcurrentQueue[object]]::new()
-        errors = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+        errors = [Collections.Concurrent.ConcurrentQueue[object]]::new()
         jobs = [Collections.Generic.List[object]]::new()
         signal = 'installed-plugin-delivered-' + [guid]::NewGuid().ToString('N')
     }
@@ -30,8 +30,34 @@ function Start-InstalledPluginExitTrace {
                 -MessageData @{ state = $state; kind = $kind } -Action {
                     $state = $event.MessageData.state
                     $process = $null
+                    $delivery = @{
+                        kind = $event.MessageData.kind; receivedAtUtc = [datetime]::UtcNow
+                        eventArgsType = $null; providerException = $null; nativeEvent = @{}; error = $null
+                    }
                     try {
-                        $native = $event.SourceEventArgs.NewEvent
+                        $eventArgs = $event.SourceEventArgs
+                        if ($null -eq $eventArgs) { throw 'The native subscription delivered no event arguments.' }
+                        $delivery.eventArgsType = $eventArgs.GetType().FullName
+                        # CIM sends provider exceptions through the same callback as process events.
+                        $exceptionProperty = $eventArgs.PSObject.Properties['Exception']
+                        if ($null -ne $exceptionProperty -and $null -ne $exceptionProperty.Value) {
+                            $exception = $exceptionProperty.Value
+                            $delivery.providerException = @{
+                                type = $exception.GetType().FullName; message = $exception.Message; hresult = $exception.HResult
+                            }
+                            foreach ($name in @('NativeErrorCode', 'StatusCode', 'MessageId')) {
+                                $property = $exception.PSObject.Properties[$name]
+                                if ($null -ne $property) { $delivery.providerException[$name] = $property.Value }
+                            }
+                            throw $exception
+                        }
+                        $newEventProperty = $eventArgs.PSObject.Properties['NewEvent']
+                        if ($null -eq $newEventProperty -or $null -eq $newEventProperty.Value) { throw 'The native subscription delivered no process event.' }
+                        $native = $newEventProperty.Value
+                        foreach ($name in @('ProcessName', 'ProcessID', 'ParentProcessID', 'SessionID', 'TIME_CREATED', 'ExitStatus')) {
+                            $property = $native.PSObject.Properties[$name]
+                            $delivery.nativeEvent[$name] = if ($null -ne $property) { $property.Value } else { $null }
+                        }
                         foreach ($name in @('ProcessName', 'ProcessID', 'ParentProcessID', 'SessionID', 'TIME_CREATED')) {
                             if ($null -eq $native.$name) { throw "Missing native process event field: $name" }
                         }
@@ -62,7 +88,10 @@ function Start-InstalledPluginExitTrace {
                             } catch { $record.nativeIdentity.error = $_.Exception.Message }
                         }
                         $state.records.Enqueue($record)
-                    } catch { $state.errors.Enqueue($_.Exception.Message) }
+                    } catch {
+                        $delivery.error = @{ message = $_.Exception.Message; type = $_.Exception.GetType().FullName; hresult = $_.Exception.HResult }
+                        $state.errors.Enqueue($delivery)
+                    }
                     finally {
                         if ($null -ne $process) { $process.Dispose() }
                         New-Event -SourceIdentifier $state.signal | Out-Null
@@ -127,7 +156,10 @@ function Stop-InstalledPluginExitTrace {
             $held.identity.error = $_.Exception.Message
         } finally { $held.process.Dispose() }
     }
-    foreach ($errorMessage in $state.errors.ToArray()) { $Trace.errors.Add($errorMessage) }
+    $eventErrors = $state.errors.ToArray()
+    foreach ($failure in $eventErrors) { $Trace.errors.Add($failure.error.message) }
+    $Trace.eventErrors = @($eventErrors | Select-Object -First ($Trace.limitPerKind * 2))
+    if ($eventErrors.Count -gt $Trace.limitPerKind * 2) { $Trace.truncated = $true }
     $records = $state.records.ToArray()
     foreach ($kind in @('Start', 'Stop')) {
         $matching = @($records | Where-Object { $_.kind -eq $kind })
