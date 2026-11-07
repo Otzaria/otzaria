@@ -1,0 +1,40 @@
+name: QA 4425 both actual iOS attempt raw artifacts
+on:
+  push:
+    branches: [y-ploni/qa-4425-native-hide-artifacts-ios-20261107-d]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ios-first
+            artifact: '{"label":"ios-first","kind":"native","run":42338152188,"job":128299653217,"conclusion":"failure","id":13560442856,"name":"qa-4425-actual-apple-ios-debug","bytes":5434017,"sha256":"35dab76745482386a54848b8d243ee8526df62b48f11e811f5c3596d86e73b3d","head":"8e519ebe54d79814cb2cec76a2c72735d139b6c4"}'
+          - label: ios-retry-b
+            artifact: '{"label":"ios-retry-b","kind":"native","run":42339007822,"job":128302299468,"conclusion":"failure","id":13561790679,"name":"qa-4425-actual-apple-ios-debug-retry-b","bytes":5548261,"sha256":"0111fd51c32acf76c26d49847dd466803dcb521033028c465db0f6c36f6ca2da","head":"2b76cbf4e719be7e42e4e9d9e04358e3f5f1788e"}'
+    name: Read immutable ${{ matrix.label }} artifact
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind archive, inspect raw data and full source snapshots
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_ARTIFACT: ${{ matrix.artifact }}
+        run: python3 tool/perf_probe/qa_4425_apple_artifact_reader.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-4425-raw-artifact-inspection-${{ matrix.label }}
+          path: |
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/*.json
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/verified-evidence.zip
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/retained-data
+          if-no-files-found: error
+          retention-days: 14
