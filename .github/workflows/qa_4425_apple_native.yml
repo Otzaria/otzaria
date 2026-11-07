@@ -1,0 +1,220 @@
+name: QA 4425 actual Apple iOS unchanged-source metadata retry
+on:
+  push:
+    branches: [y-ploni/qa-4425-native-hide-ios-retry-20261107-b]
+permissions:
+  contents: read
+jobs:
+  actual-app:
+    name: Actual app (${{ matrix.platform }} ${{ matrix.mode }})
+    runs-on: macos-latest
+    timeout-minutes: 75
+    env:
+      CARGO_BUILD_JOBS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ios
+            mode: debug
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Native iOS Simulator source targets
+        if: matrix.platform == 'ios'
+        run: rustup target add aarch64-apple-ios-sim x86_64-apple-ios
+      - name: Bind exact source and snapshot application and SDK
+        id: bind
+        run: python3 tool/perf_probe/qa_4425_native_snapshot.py bind
+      - name: Resolve exact dependencies
+        id: resolve
+        run: flutter pub get --enforce-lockfile
+      - name: Verify all nineteen resolved Git dependencies and snapshot them
+        id: resolved
+        run: python3 tool/perf_probe/qa_4425_native_snapshot.py resolved
+      - name: Select actual runtime
+        id: runtime
+        env:
+          PROBE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          if [ "$PROBE_PLATFORM" = macos ]; then
+            echo 'APPLE_PROBE_DEVICE=macos' >> "$GITHUB_ENV"
+          else
+            ruby -e 'require "xcodeproj"'
+            xcrun simctl list devices available --json > "$RUNNER_TEMP/apple-devices.json"
+            python3 - <<'PY'
+          import json, os, subprocess, time
+          from pathlib import Path
+          data = json.loads(Path(os.environ['RUNNER_TEMP'], 'apple-devices.json').read_text())
+          candidates = [dict(d, runtime=runtime) for runtime, devices in data['devices'].items() if '.iOS-' in runtime
+                        for d in devices if d['name'].startswith('iPhone') and d.get('isAvailable', True)]
+          if not candidates:
+              raise SystemExit('No available iPhone simulator; do not substitute a fake background transition')
+          device = next((d for d in candidates if d['state'] == 'Booted'), candidates[0])
+          proof = Path(os.environ['RUNNER_TEMP']).resolve() / 'qa-4425-workflow-simulator.json'
+          record = {'scope': 'QA workflow setup only, separate from source run.py cleanup',
+                    'device': device, 'selectedAtMs': time.time() * 1000,
+                    'workflowRequestedBoot': device['state'] != 'Booted', 'bootCompleted': False}
+          proof.write_text(json.dumps(record, indent=2))
+          if device['state'] != 'Booted':
+              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True, timeout=120)
+          record['bootCompleted'] = True
+          proof.write_text(json.dumps(record, indent=2))
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True, timeout=300)
+          record['ready'] = True
+          proof.write_text(json.dumps(record, indent=2))
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('APPLE_PROBE_DEVICE=' + device['udid'] + '\n')
+          PY
+            open -a Simulator
+          fi
+      - name: Verify native identity and owned process cleanup on macOS
+        if: matrix.platform == 'macos'
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/apple-helper-controls
+          APPLE_CLEANUP_CONTROL_OUTPUT: ${{ runner.temp }}/apple-cleanup-controls
+        run: python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
+      - name: Verify source and dependencies immediately before native invocation
+        id: before_native
+        if: always() && steps.bind.outcome == 'success' && steps.resolve.outcome == 'success' && steps.resolved.outcome == 'success' && steps.runtime.outcome == 'success'
+        run: python3 tool/perf_probe/qa_4425_native_snapshot.py before-native
+      - name: Run installed app hosts and quiet OS transitions
+        id: native
+        if: always() && steps.before_native.outcome == 'success'
+        run: >-
+          python3 tool/perf_probe/apple_plugin_activity/run.py
+          --platform '${{ matrix.platform }}' --mode '${{ matrix.mode }}'
+          --device "$APPLE_PROBE_DEVICE" --seconds 12
+          --output '${{ runner.temp }}/apple-plugin-activity'
+      - name: Verify application, index, SDK and every Git dependency after native execution
+        if: always() && steps.bind.outcome == 'success'
+        run: python3 tool/perf_probe/qa_4425_native_snapshot.py after
+      - name: Retain final source reports before workflow-owned simulator cleanup
+        if: always()
+        env:
+          NATIVE_STEP_OUTCOME: ${{ steps.native.outcome }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]).resolve()
+          output = root / "apple-plugin-activity"
+          observation = {"scope": "Read-only process observation before workflow-owned simulator shutdown",
+                         "nativeStepOutcome": os.environ.get("NATIVE_STEP_OUTCOME"),
+                         "command": ["ps", "-axo", "pid,ppid,pgid,stat,comm"]}
+          process = subprocess.run(observation["command"], capture_output=True, text=True, timeout=30)
+          observation.update(exitCode=process.returncode, stdout=process.stdout, stderr=process.stderr)
+          (root / "qa-4425-processes-before-workflow-cleanup.json").write_text(json.dumps(observation, indent=2))
+          inventory = []
+          if output.exists():
+              for path in sorted(output.glob("*")):
+                  if not path.is_file() or path.suffix not in (".json", ".log"):
+                      continue
+                  data = path.read_bytes()
+                  row = {"path": path.name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+                  inventory.append(row)
+                  if path.name == "defines.json":
+                      continue
+                  if path.suffix == ".json":
+                      print("BEGIN_QA4425_ACTUAL_APP_JSON", flush=True)
+                      print(json.dumps({**row, "value": json.loads(data)}, ensure_ascii=False), flush=True)
+                      print("END_QA4425_ACTUAL_APP_JSON", flush=True)
+                  else:
+                      print("BEGIN_QA4425_ACTUAL_APP_LOG", flush=True)
+                      print(json.dumps({**row, "printedTailBytes": min(len(data), 200000),
+                                        "fullBytesRetainedInArtifact": True}), flush=True)
+                      print(data[-200000:].decode("utf-8", "replace"), flush=True)
+                      print("END_QA4425_ACTUAL_APP_LOG", flush=True)
+          (root / "qa-4425-native-output-inventory.json").write_text(json.dumps(inventory, indent=2))
+          print("BEGIN_QA4425_ACTUAL_APP_INVENTORY", flush=True)
+          print(json.dumps(inventory), flush=True)
+          print("END_QA4425_ACTUAL_APP_INVENTORY", flush=True)
+          PY
+      - name: Shut down only the simulator boot requested by this QA workflow
+        if: always() && matrix.platform == 'ios'
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, time, traceback
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]).resolve()
+          proof = root / "qa-4425-workflow-simulator.json"
+          output = root / "qa-4425-workflow-simulator-cleanup.json"
+          record = {"scope": "QA workflow-owned simulator only; this does not replace or validate run.py owned-process cleanup",
+                    "status": "not-needed", "startedAtMs": time.time() * 1000,
+                    "sourceEvidenceWasRetainedBeforeThisStep": True}
+          first = None
+          try:
+              if proof.exists():
+                  setup = json.loads(proof.read_text())
+                  record["setup"] = setup
+                  if setup["workflowRequestedBoot"] and setup["device"]["state"] != "Booted":
+                      udid = setup["device"]["udid"]
+                      before = subprocess.run(["xcrun", "simctl", "list", "devices", "--json"],
+                                              capture_output=True, text=True, timeout=30, check=True)
+                      devices = json.loads(before.stdout)["devices"]
+                      selected = [d for rows in devices.values() for d in rows if d["udid"] == udid]
+                      if len(selected) != 1:
+                          raise RuntimeError("Workflow-owned simulator identity is not unique")
+                      record["before"] = selected[0]
+                      if selected[0]["state"] != "Shutdown":
+                          command = ["xcrun", "simctl", "shutdown", udid]
+                          try:
+                              result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+                              record["shutdown"] = {"command": command, "exitCode": result.returncode,
+                                                    "stdout": result.stdout, "stderr": result.stderr}
+                              if result.returncode:
+                                  raise RuntimeError("Workflow-owned simulator shutdown failed")
+                          except subprocess.TimeoutExpired as error:
+                              record["shutdown"] = {"command": command, "timedOut": True,
+                                                    "stdout": str(error.stdout), "stderr": str(error.stderr)}
+                              raise
+                      after = subprocess.run(["xcrun", "simctl", "list", "devices", "--json"],
+                                             capture_output=True, text=True, timeout=30, check=True)
+                      found = [d for rows in json.loads(after.stdout)["devices"].values() for d in rows if d["udid"] == udid]
+                      record["after"] = found
+                      if len(found) != 1 or found[0]["state"] != "Shutdown":
+                          raise RuntimeError("Workflow-owned simulator did not acknowledge shutdown")
+                      record["status"] = "passed"
+                  else:
+                      record["reason"] = "The simulator was already booted; the workflow does not own its shutdown"
+          except BaseException as error:
+              first = error
+              record.update(status="failed", error=str(error), traceback=traceback.format_exc())
+          finally:
+              output.write_text(json.dumps(record, indent=2))
+              print("BEGIN_QA4425_WORKFLOW_SIMULATOR_CLEANUP", flush=True)
+              print(json.dumps(record), flush=True)
+              print("END_QA4425_WORKFLOW_SIMULATOR_CLEANUP", flush=True)
+          if first is not None:
+              raise first
+          PY
+      - name: Preserve completed and partial evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-actual-apple-${{ matrix.platform }}-${{ matrix.mode }}-retry-b
+          path: |
+            ${{ runner.temp }}/qa-4425-native-snapshots
+            ${{ runner.temp }}/qa-4425-*.json
+            ${{ runner.temp }}/apple-devices.json
+            ${{ runner.temp }}/apple-plugin-activity/*.json
+            ${{ runner.temp }}/apple-plugin-activity/*.log
+            ${{ runner.temp }}/apple-plugin-activity/control/*.swift
+            ${{ runner.temp }}/apple-plugin-activity/control/Control.xcodeproj
+            ${{ runner.temp }}/apple-plugin-activity/control.xcresult
+            ${{ runner.temp }}/apple-helper-controls/*.json
+            ${{ runner.temp }}/apple-helper-controls/*.log
+            ${{ runner.temp }}/apple-helper-controls/*.swift
+            ${{ runner.temp }}/apple-cleanup-controls/*.json
+          if-no-files-found: error
+          retention-days: 14
