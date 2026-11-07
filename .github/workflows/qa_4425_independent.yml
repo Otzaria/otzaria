@@ -1,0 +1,213 @@
+name: QA 4425 repaired cleanup and native diagnosis
+
+on:
+  push:
+    branches: ['y-ploni/qa-4425-cleanup-20261107-b']
+
+permissions:
+  contents: read
+
+jobs:
+  independent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Reproduce the original five independent lifetime controls
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4425-independent
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 tool/perf_probe/qa_4425_lifetime_controls.py
+      - name: Run all implementation process and error controls
+        if: always()
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/qa-4425-implementation"
+          python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v 2>&1 | tee "${{ runner.temp }}/qa-4425-implementation/unittest.log"
+      - name: Verify immutable tracked source
+        if: always()
+        run: |
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --exit-code
+      - name: Retain independent evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-repaired-lifetime-controls
+          path: |
+            ${{ runner.temp }}/qa-4425-independent
+            ${{ runner.temp }}/qa-4425-implementation
+          if-no-files-found: error
+          retention-days: 14
+
+  native-fixtures:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind exact repaired source before native fixtures
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4425-native-binding
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -c "import runpy; runpy.run_path('tool/perf_probe/qa_4425_lifetime_controls.py')"
+      - name: Run actual AppKit identity and controller fixtures
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/qa-4425-native-fixtures
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/qa-4425-native-log"
+          python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_macos_controller.py' -v 2>&1 | tee "${{ runner.temp }}/qa-4425-native-log/unittest.log"
+      - name: Verify immutable tracked source
+        if: always()
+        run: |
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --exit-code
+      - name: Retain native fixture evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-repaired-native-fixtures
+          path: |
+            ${{ runner.temp }}/qa-4425-native-fixtures/*.json
+            ${{ runner.temp }}/qa-4425-native-fixtures/*.log
+            ${{ runner.temp }}/qa-4425-native-fixtures/*.swift
+            ${{ runner.temp }}/qa-4425-native-log
+          if-no-files-found: error
+          retention-days: 14
+
+  prior-native-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Verify and diagnose prior native artifacts as data only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_DIAGNOSTIC_DIR: ${{ runner.temp }}/qa-4425-native-diagnostic
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, stat, urllib.parse, urllib.request, zipfile
+          from pathlib import Path, PurePosixPath
+          
+          OUT = Path(os.environ["QA_DIAGNOSTIC_DIR"])
+          OUT.mkdir(parents=True, exist_ok=False)
+          REPO = "Otzaria/otzaria"
+          HEAD = "38102dea87b13fc2cfa811eff78e66b75931a44c"
+          TREE = "8ddca7a01e0616c84bf9f02d711bac1a5828aa54"
+          RUN = 42324521699
+          CASES = [
+              ("macos", 13555193797, 39032, "4b9196a2b90f469c82414a1d7df9cfe510cd410e3b6a23984ddef22ab06a22b6"),
+              ("ios", 13555820979, 21201, "4bf7c17789533a25f88819c25ff937666a5f9fbab8fb4e68ab8686c03c1ec42d"),
+          ]
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  if urllib.parse.urlsplit(newurl).scheme != "https":
+                      raise RuntimeError("Artifact redirect is not HTTPS")
+                  result = super().redirect_request(req, fp, code, msg, headers, newurl)
+                  if result is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+                      result.remove_header("Authorization")
+                  return result
+          def read_api(suffix, binary=False):
+              request = urllib.request.Request("https://api.github.com/repos/" + REPO + suffix, headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+              with urllib.request.build_opener(SafeRedirect()).open(request, timeout=60) as response:
+                  raw = response.read(8 * 1024 * 1024 + 1)
+              assert len(raw) <= 8 * 1024 * 1024
+              return raw if binary else json.loads(raw)
+          def hashes(directory):
+              return {str(p.relative_to(directory)): sha(p.read_bytes()) for p in sorted(directory.rglob("*")) if p.is_file()}
+          commit = read_api("/git/commits/" + HEAD)
+          assert commit["tree"]["sha"] == TREE
+          assert [p["sha"] for p in commit["parents"]] == ["b122cb1abcccc2305df18ddf18ce1723d1124f30"]
+          results = []
+          for platform, artifact_id, size, expected in CASES:
+              metadata = read_api("/actions/artifacts/" + str(artifact_id))
+              assert metadata["size_in_bytes"] == size and metadata["digest"] == "sha256:" + expected
+              assert not metadata["expired"] and metadata["workflow_run"]["id"] == RUN
+              assert metadata["workflow_run"]["head_sha"] == HEAD
+              archive = read_api("/actions/artifacts/" + str(artifact_id) + "/zip", binary=True)
+              assert len(archive) == size and sha(archive) == expected
+              archive_path = OUT / (platform + ".zip")
+              archive_path.write_bytes(archive)
+              directory = OUT / platform
+              directory.mkdir()
+              names = set()
+              with zipfile.ZipFile(archive_path) as zipped:
+                  assert len(zipped.infolist()) < 2000
+                  assert sum(info.file_size for info in zipped.infolist()) < 64 * 1024 * 1024
+                  for info in zipped.infolist():
+                      path = PurePosixPath(info.filename)
+                      assert not path.is_absolute() and ".." not in path.parts and "\\" not in info.filename
+                      assert info.filename not in names and not stat.S_ISLNK(info.external_attr >> 16)
+                      names.add(info.filename)
+                      if info.is_dir():
+                          continue
+                      destination = directory.joinpath(*path.parts)
+                      destination.parent.mkdir(parents=True, exist_ok=True)
+                      destination.write_bytes(zipped.read(info))
+              before = hashes(directory)
+              selected = {}
+              environments = []
+              for file in sorted(directory.rglob("*")):
+                  if not file.is_file():
+                      continue
+                  name = str(file.relative_to(directory))
+                  data = file.read_bytes()
+                  if file.name == "environment.json":
+                      value = json.loads(data)
+                      if "commit" in value:
+                          assert value["commit"] == HEAD and value["tree"] == TREE
+                      keys = ["platform", "mode", "commit", "tree", "sourceStatus", "status", "firstError",
+                              "secondaryErrors", "error", "appExitCode", "appSourceAfter", "nativeFork",
+                              "device", "startedAtMs", "physicalDevice", "physicalDeviceAcceptance"]
+                      environments.append({"path": name, "sha256": sha(data),
+                                           "evidence": {k: value[k] for k in keys if k in value}})
+                  if file.name.endswith("controller.stderr.log") or (
+                      file.name.startswith("source-") and file.suffix in {".json", ".log"}
+                  ):
+                      assert len(data) <= 256 * 1024, name
+                      selected[name] = {"bytes": len(data), "sha256": sha(data),
+                                        "text": data.decode("utf-8", errors="replace")}
+                  elif file.name == "flutter-drive.log":
+                      selected[name] = {"bytes": len(data), "sha256": sha(data),
+                                        "tailText": data[-32768:].decode("utf-8", errors="replace"),
+                                        "tailOnly": len(data) > 32768}
+                  elif file.name.endswith("controller.json"):
+                      assert len(data) <= 256 * 1024, name
+                      selected[name] = {"bytes": len(data), "sha256": sha(data),
+                                        "evidence": json.loads(data)}
+              assert hashes(directory) == before
+              result = {"platform": platform, "artifactId": artifact_id, "zipBytes": size, "zipSha256": expected,
+                        "sourceCommit": HEAD, "sourceTree": TREE, "sourceCandidate": "b122cb1abcccc2305df18ddf18ce1723d1124f30",
+                        "unchangedExtractedFiles": len(before), "environments": environments, "selectedEvidence": selected,
+                        "scope": "Read-only diagnosis of failed prior candidate; no execution of artifact code, no acceptance"}
+              (OUT / (platform + "-file-hashes.json")).write_text(json.dumps(before, indent=2) + "\n")
+              (OUT / (platform + "-diagnostic.json")).write_text(json.dumps(result, indent=2) + "\n")
+              results.append(result)
+          (OUT / "summary.json").write_text(json.dumps(results, indent=2) + "\n")
+          print("BEGIN_QA4425_NATIVE_FAILURE_DIAGNOSTICS")
+          print(json.dumps(results, ensure_ascii=False))
+          print("END_QA4425_NATIVE_FAILURE_DIAGNOSTICS")
+          PY
+      - name: Retain immutable raw artifacts and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-prior-native-diagnostic
+          path: ${{ runner.temp }}/qa-4425-native-diagnostic
+          if-no-files-found: error
+          retention-days: 14
