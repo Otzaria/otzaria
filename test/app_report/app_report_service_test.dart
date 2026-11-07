@@ -746,6 +746,56 @@ void main() {
     expect((await service.getPendingReports()).single.description, 'אחר');
   });
 
+  test('עריכת דיווח ישן עם dump של 12 MiB נשמרת ונשלחת בלי אובדן', () async {
+    final bodies = <Map<String, dynamic>>[];
+    final service = build(
+      MockClient((request) async {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return _json(200, {'issueNumber': 42});
+      }),
+    );
+    final raw = Uint8List(12 * 1024 * 1024)
+      ..setRange(0, 4, ascii.encode('MDMP'));
+    final original = _report().copyWith(
+      schema: 1,
+      minidump: AppReportMinidump(
+        gzipBytes: Uint8List.fromList(gzip.encode(raw)),
+        fileName: 'legacy-crash.dmp',
+      ),
+    );
+    expect(original.validate(), isNull);
+    await store.add(AppReportService.legacyPendingKind, original.toJson());
+    final updated = (await service.updatePendingReport(
+      original.copyWith(title: 'כותרת מתוקנת'),
+    ))!;
+    expect(updated.schema, 1);
+    expect(updated.reportId, isNot(original.reportId));
+    expect(updated.minidump!.toJson(), original.minidump!.toJson());
+    await expectLater(
+      service.updatePendingReport(
+        updated.copyWith(
+          images: [
+            AppReportImage(
+              bytes: Uint8List(8 * 1024 * 1024),
+              fileName: 'new-image.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        ),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    final queued = (await service.getPendingReports()).single;
+    expect(queued.toJson(), updated.toJson());
+    final script = service.buildOfflineSendScript([
+      queued,
+    ], target: OfflineSendScriptTarget.unix);
+    expect(script.content, contains(jsonEncode(updated.toApiPayload())));
+    expect(await service.flushPendingReports(), 1);
+    expect(bodies.single, updated.toApiPayload());
+    expect((await service.getSentReports()).single.minidump, isNull);
+  });
+
   for (final bytes in [
     8 * 1024 * 1024,
     10 * 1024 * 1024,

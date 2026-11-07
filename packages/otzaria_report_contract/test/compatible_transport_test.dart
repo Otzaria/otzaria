@@ -141,6 +141,46 @@ void main() {
     },
   );
 
+  test(
+    'editing preserves only a valid legacy report when v2 cannot hold it',
+    () {
+      const mib = 1024 * 1024;
+      final legacy = report().copyWith(schema: 1, minidump: dump(12 * mib));
+      final edited = legacy
+          .copyWith(title: 'כותרת מתוקנת')
+          .forEditedTransport();
+      expect(edited.schema, 1);
+      expect(edited.validate(), isNull);
+      expect(edited.toJson(), legacy.toJson()..['title'] = 'כותרת מתוקנת');
+      expect(
+        edited.toApiPayload()['attachments'],
+        legacy.toApiPayload()['attachments'],
+      );
+
+      final expandedImage = report().copyWith(
+        schema: 1,
+        images: [image(10 * mib)],
+      );
+      expect(expandedImage.forEditedTransport().schema, 2);
+      expect(expandedImage.forEditedTransport().validate(), isNull);
+      final invalidLegacy = legacy.copyWith(images: [image(10 * mib)]);
+      expect(invalidLegacy.validate(), 'attachments.images');
+      expect(
+        invalidLegacy.forEditedTransport().validate(),
+        'attachments.minidump',
+      );
+      final current = legacy.copyWith(schema: 2);
+      expect(current.forEditedTransport().schema, 2);
+      expect(current.forEditedTransport().validate(), 'attachments.minidump');
+      final invalidCurrent = report().copyWith(images: [image(10 * mib + 1)]);
+      expect(invalidCurrent.forEditedTransport().schema, 2);
+      expect(
+        invalidCurrent.forEditedTransport().validate(),
+        'attachments.images',
+      );
+    },
+  );
+
   test('legacy selection cannot bypass the new dump or total limits', () {
     const mib = 1024 * 1024;
     final tooLarge = report().copyWith(minidump: dump(10 * mib + 1));

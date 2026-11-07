@@ -361,8 +361,8 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
 
     // טקסט שהוקלד בעריכה עובר אותה הסתרה כמו בטופס המקורי.
     final redacted = edited
-        .copyWith(schema: AppReport.schemaVersion)
-        .redactedWith(AppReportRedactor.fromPlatform());
+        .redactedWith(AppReportRedactor.fromPlatform())
+        .forEditedTransport();
     final invalidField = redacted.validate();
     if (invalidField != null) {
       UiSnack.showError(
@@ -460,6 +460,7 @@ class AppReportEditFields extends StatefulWidget {
 }
 
 class _AppReportEditFieldsState extends State<AppReportEditFields> {
+  late final AppReport _editingReport = widget.report.forEditedTransport();
   late AppReportType _type = widget.report.type;
   late final int _otherAttachmentBytes = widget.report
       .copyWith(schema: AppReport.schemaVersion)
@@ -484,8 +485,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
   }
 
   void _notifyChanged() => widget.onChanged(
-    widget.report.copyWith(
-      schema: AppReport.schemaVersion,
+    _editingReport.copyWith(
       type: _type,
       title: _title.text,
       description: _description.text,

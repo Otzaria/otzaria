@@ -232,6 +232,14 @@ class AppReport {
   /// גוף הבקשה לשרת; חיתוך צרופות נשמר רק לתאימות schema 1.
   Map<String, dynamic> toApiPayload() => _addImages(_textPayload());
 
+  /// מקדם עריכה לחוזה החדש, ושומר דיווח ישן תקין שאינו עומד במכסות החדשות.
+  AppReport forEditedTransport() {
+    final current = copyWith(schema: schemaVersion);
+    return schema == 1 && validate() == null && current.validate() != null
+        ? this
+        : current;
+  }
+
   /// משתמש בחוזה הישן רק כשהמקודד שלו שומר את כל תוכן הדיווח.
   AppReport forCompatibleTransport() {
     if (schema != schemaVersion || validate() != null) return this;

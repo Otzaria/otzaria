@@ -386,7 +386,7 @@ class AppReportService {
     );
     if (row == null) return null;
     final edited = await _compatibleQueue(
-      report.copyWith(schema: AppReport.schemaVersion),
+      report.forEditedTransport(),
     );
     final invalidField = edited.validate();
     if (invalidField != null) {

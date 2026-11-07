@@ -40,8 +40,7 @@ import 'package:otzaria/settings/panels/reports_card.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
-import 'package:otzaria/widgets/misc/phone_report_tab.dart';
-import 'package:otzaria/widgets/misc/reporting_numbers_widget.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
@@ -261,6 +260,14 @@ void main() {
 
   Future<void> capture(WidgetTester tester, String name) async {
     await tester.pumpAndSettle();
+    if (name.startsWith('book-report-low-')) {
+      final header = tester.getRect(find.byType(AppDialogHeader));
+      final viewport = tester.getRect(find.byKey(boundaryKey));
+      expect(header.top, greaterThanOrEqualTo(viewport.top));
+      expect(header.bottom, lessThanOrEqualTo(viewport.bottom));
+      expect(header.left, greaterThanOrEqualTo(viewport.left));
+      expect(header.right, lessThanOrEqualTo(viewport.right));
+    }
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(boundaryKey),
     );
@@ -399,10 +406,6 @@ void main() {
           tester,
           dialog: find.byType(TabbedReportDialog),
         );
-        await waitForBookReportMetadata(
-          tester,
-          dialog: find.byType(TabbedReportDialog),
-        );
         expect(find.byType(TabbedReportDialog), findsOneWidget);
         final details = find.byKey(const ValueKey('report-details-field'));
         await tester.ensureVisible(details);
@@ -461,10 +464,6 @@ void main() {
           );
         });
         await waitForReportDialog(
-          tester,
-          dialog: find.byType(TabbedReportDialog),
-        );
-        await waitForBookReportMetadata(
           tester,
           dialog: find.byType(TabbedReportDialog),
         );
@@ -765,6 +764,64 @@ void main() {
       await tester.pump(const Duration(seconds: 7));
     },
   );
+
+  visualTest('עריכת כותרת בתור שומרת dump ישן של 12 MiB', (tester) async {
+    final raw = Uint8List(12 * 1024 * 1024)
+      ..setRange(0, 4, ascii.encode('MDMP'));
+    final original = AppReport(
+      schema: 1,
+      reportId: 'legacy-dump-edit',
+      type: AppReportType.crash,
+      trigger: AppReportTrigger.crashPrompt,
+      title: 'קריסה',
+      appVersion: 'qa',
+      platform: 'windows',
+      createdAt: DateTime.utc(2026, 11, 5),
+      minidump: AppReportMinidump(
+        gzipBytes: Uint8List.fromList(gzip.encode(raw)),
+        fileName: 'legacy-crash.dmp',
+      ),
+    );
+    final service = AppReportService();
+    await tester.runAsync(() => service.queueReport(original));
+    await mount(
+      tester,
+      SettingsLanguage.hebrew,
+      Scaffold(
+        body: SingleChildScrollView(
+          child: AppReportsPanel(
+            isOfflineMode: true,
+            crashReportMode: AppCrashReportMode.ask,
+            onCrashReportModeChanged: (_) {},
+            service: service,
+          ),
+        ),
+      ),
+    );
+    await nativeWork(tester);
+    final queue = find.text('ניהול דיווחים שמורים');
+    await tester.ensureVisible(queue);
+    await tester.tap(queue);
+    await nativeWork(tester);
+    final edit = find.text('ערוך');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await nativeWork(tester);
+    await enter(tester, 'app-report-edit-title', 'קריסה מתוקנת');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppDialog),
+        matching: find.text('שמור'),
+      ),
+    );
+    await nativeWork(tester);
+    final saved = (await tester.runAsync(service.getPendingReports))!.single;
+    expect(saved.title, 'קריסה מתוקנת');
+    expect(saved.schema, 1);
+    expect(saved.minidump!.toJson(), original.minidump!.toJson());
+    expect(saved.validate(), isNull);
+    await clearSnack(tester);
+  });
 
   for (final language in [SettingsLanguage.hebrew, SettingsLanguage.english]) {
     visualTest(
@@ -1127,7 +1184,7 @@ void main() {
   );
 
   visualTest(
-    'telephone route remains reachable and clipboard success/failure are English',
+    'book reporting keeps drafts without the retired telephone route',
     (tester) async {
       final draft = BookReportDraftCubit(
         target: const {
@@ -1169,56 +1226,13 @@ void main() {
       );
       await tester.tap(find.text('open book report'));
       await nativeWork(tester);
-      final telephoneTab = find.widgetWithText(
-        Tab,
-        resolveSettingsText(
-          'דיווח דרך קו אוצריא',
-          language: SettingsLanguage.english,
-        ),
-      );
-      expect(telephoneTab, findsOneWidget);
-      await tester.tap(telephoneTab);
-      await nativeWork(tester);
-      expect(find.byType(PhoneReportTab), findsOneWidget);
-      expect(find.byType(ReportingNumbersWidget), findsOneWidget);
-      expect(find.text('(+972) 077-4636-198'), findsOneWidget);
-      String? copied;
-      var failCopy = false;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-            SystemChannels.platform,
-            (call) async {
-              if (call.method == 'Clipboard.setData') {
-                if (failCopy) {
-                  throw PlatformException(code: 'qa_clipboard_failure');
-                }
-                copied = (call.arguments as Map)['text'] as String;
-              }
-              return null;
-            },
-          );
-      final copy = find.byTooltip('Copy phone number');
-      await tester.ensureVisible(copy);
-      await tester.tap(copy);
-      await nativeWork(tester);
-      expect(copied, '(+972) 077-4636-198');
-      expect(find.textContaining('Copied to clipboard:'), findsOneWidget);
-      await clearSnack(tester);
-      failCopy = true;
-      await tester.tap(copy);
-      await nativeWork(tester);
-      final messages = tester
-          .widgetList<Text>(find.byType(Text))
-          .map((text) => text.data ?? '')
-          .where((text) => text.toLowerCase().contains('clipboard'))
-          .toList();
-      expect(messages, isNotEmpty);
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(RegularReportTab), findsOneWidget);
+      expect(find.textContaining('077-4636-198'), findsNothing);
       expect(
-        messages.any((text) => RegExp(r'[\u0590-\u05ff]').hasMatch(text)),
-        isFalse,
+        find.byKey(const ValueKey('book-report-save-draft')),
+        findsOneWidget,
       );
-      expect(find.text('שגיאה בהעתקה ללוח'), findsNothing);
-      await clearSnack(tester);
       Navigator.of(tester.element(find.byType(TabbedReportDialog))).pop();
       await tester.pumpAndSettle();
       await tester.runAsync(draft.close);

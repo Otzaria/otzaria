@@ -1589,14 +1589,14 @@ void main() {
       );
       await tester.tap(find.text('פתח'));
       await tester.pumpAndSettle();
-      return tester.getSize(find.byType(TabBarView)).height;
+      return tester.getSize(find.byType(RegularReportTab)).height;
     }
 
     ScrollPosition formScroll(WidgetTester tester) => tester
         .state<ScrollableState>(
           find
               .descendant(
-                of: find.byType(TabBarView),
+                of: find.byType(RegularReportTab),
                 matching: find.byWidgetPredicate(
                   (w) =>
                       w is Scrollable && w.axisDirection == AxisDirection.down,
@@ -1605,6 +1605,14 @@ void main() {
               .first,
         )
         .position;
+
+    testWidgets('אין לשונית דיווח דרך קו אוצריא (issue #3615)', (tester) async {
+      await dialogHeight(tester);
+
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.textContaining('קו אוצריא'), findsNothing);
+      expect(find.byType(RegularReportTab), findsOneWidget);
+    });
 
     testWidgets('טופס חופשי נשאר קצר ויציב, והשדות והפעולות נגישים בגלילה', (
       tester,
@@ -1618,13 +1626,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        tester.getSize(find.byType(TabBarView)).height,
+        tester.getSize(find.byType(RegularReportTab)).height,
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
-      // Precise selection adds instructions and a clear-selection control.
-      // The form keeps its compact height and scrolls that content while the
-      // action area stays outside the scrollable viewport.
+      // ההוראות נגללות בתוך הטופס הקצר; כפתורי הפעולה נשארים מחוץ לגלילה.
       final scroll = formScroll(tester);
       expect(scroll.maxScrollExtent, greaterThan(0));
       await tester.ensureVisible(

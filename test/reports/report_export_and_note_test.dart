@@ -294,10 +294,6 @@ void main() {
         tester,
         dialog: find.byType(TabbedReportDialog),
       );
-      await waitForBookReportMetadata(
-        tester,
-        dialog: find.byType(TabbedReportDialog),
-      );
       expect(find.byType(TabbedReportDialog), findsOneWidget);
       final dialog = tester.widget<TabbedReportDialog>(
         find.byType(TabbedReportDialog),

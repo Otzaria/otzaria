@@ -390,7 +390,6 @@ Future<void> _finishBookReport(
   TabbedReportDialog dialog,
 ) async {
   final report = find.byType(TabbedReportDialog);
-  await waitForBookReportMetadata(tester, dialog: report);
   final draft = dialog.draft!;
   final closed = draft.stream.drain<void>();
   final leave = find.byKey(const ValueKey('book-report-save-draft'));

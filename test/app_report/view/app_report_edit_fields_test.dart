@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -69,6 +71,28 @@ void main() {
     expect(changed.trigger, AppReportTrigger.manual);
     expect(changed.diagnostics, {'k': 'v'});
     expect(changed.errorLog, 'log');
+  });
+
+  testWidgets('עריכת כותרת שומרת dump תקין מהחוזה הישן', (tester) async {
+    final raw = Uint8List(12 * 1024 * 1024)
+      ..setRange(0, 4, ascii.encode('MDMP'));
+    final dump = AppReportMinidump(
+      gzipBytes: Uint8List.fromList(gzip.encode(raw)),
+      fileName: 'legacy-crash.dmp',
+    );
+    final original = report().copyWith(schema: 1, minidump: dump);
+    expect(original.validate(), isNull);
+    final changed = await pumpAndEdit(tester, original, () async {
+      await tester.enterText(
+        find.byKey(const ValueKey('app-report-edit-title')),
+        'כותרת חדשה',
+      );
+    });
+    expect(changed!.schema, 1);
+    expect(changed.validate(), isNull);
+    expect(changed.minidump!.toJson(), dump.toJson());
+    expect(changed.diagnostics, original.diagnostics);
+    expect(changed.errorLog, original.errorLog);
   });
 
   testWidgets('בדיווח ידני מחיקת המייל נכשלת בבדיקה; בקריסה מותרת', (

@@ -34,7 +34,6 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
-import 'package:otzaria/widgets/misc/phone_report_tab.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -1456,7 +1455,7 @@ String widgetHash(String bookTitle, String currentRef, String selectedText) {
   return normalized.hashCode.abs().toString();
 }
 
-/// Tabbed dialog for error reporting with regular and phone options
+/// טופס דיווח על טעות בספר.
 class TabbedReportDialog extends StatefulWidget {
   final String selectedText;
   final String? selectionSource;
@@ -1497,66 +1496,8 @@ const double _comfortableReportDialogHeight = 660;
 /// טופס בלי עורך תיקון קצר; הגובה קבוע כדי שלא ישתנה בזמן הקלדה.
 const double _freeTextReportDialogHeight = 560;
 
-class _TabbedReportDialogState extends State<TabbedReportDialog>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final DataCollectionService _dataService = DataCollectionService();
-
-  // Phone report data
-  String _libraryVersion = 'unknown';
-  int? _bookId;
-  bool _isLoadingData = true;
-  List<String> _dataErrors = [];
+class _TabbedReportDialogState extends State<TabbedReportDialog> {
   bool _leaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _loadPhoneReportData();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadPhoneReportData() async {
-    try {
-      final target = widget.draft?.target;
-      final source = target?['source'] as Map?;
-      final availability = source != null
-          ? <String, dynamic>{
-              'libraryVersion': target?['libraryVersion'],
-              'bookId': source['bookId'],
-              'errors': <String>[],
-            }
-          : await _dataService.checkDataAvailability(widget.bookTitle);
-
-      if (mounted) {
-        setState(() {
-          _libraryVersion = availability['libraryVersion'] ?? 'unknown';
-          _bookId = availability['bookId'];
-          _dataErrors = List<String>.from(availability['errors'] ?? []);
-          _isLoadingData = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading phone report data: $e');
-      if (mounted) {
-        setState(() {
-          _dataErrors = ['שגיאה בטעינת נתוני הדיווח'];
-          _isLoadingData = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1606,23 +1547,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildHeader(context),
-                  TabBar(
-                    controller: _tabController,
-                    splashBorderRadius: AppTokens.borderRadiusAll,
-                    tabs: [
-                      Tab(text: context.settingsText('שליחת דיווח')),
-                      Tab(text: context.settingsText('דיווח דרך קו אוצריא')),
-                    ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildRegularReportTab(),
-                        _buildPhoneReportTab(),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: _buildRegularReportTab()),
                 ],
               ),
             ),
@@ -1662,62 +1587,6 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
       validateBeforeSubmit: widget.validateBeforeSubmit,
       onActionSelected: (action, reportData) =>
           _leave(ReportDialogResult(action, reportData)),
-      onCancel: _leave,
-    );
-  }
-
-  Widget _buildPhoneReportTab() {
-    if (_isLoadingData) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(context.settingsText('טוען נתוני דיווח...')),
-          ],
-        ),
-      );
-    }
-
-    if (_dataErrors.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              context.settingsText('לא ניתן לטעון את נתוני הדיווח:'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            ..._dataErrors.map(
-              (error) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  context.settingsText(error),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            ActionButton.neutral(
-              onPressed: _leave,
-              text: context.settingsText('סגור'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return PhoneReportTab(
-      selectedText: widget.selectedText,
-      fontSize: widget.fontSize,
-      libraryVersion: _libraryVersion,
-      bookId: _bookId,
-      lineNumber: widget.currentLineNumber,
       onCancel: _leave,
     );
   }
