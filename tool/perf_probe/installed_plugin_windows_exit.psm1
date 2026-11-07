@@ -308,7 +308,9 @@ function Read-InstalledPluginApplicationErrors {
 function Invoke-InstalledPluginLoggedCommand {
     param([Parameter(Mandatory)][string]$Command, [string[]]$Arguments, [Parameter(Mandatory)][string]$LogPath)
     $PSNativeCommandUseErrorActionPreference = $false
-    $nativeCommand = Get-Command $Command -CommandType Application -ErrorAction Stop
+    # Windows Flutter exposes both flutter.bat and flutter. Keep the first
+    # application in normal resolution order, rather than invoking an array.
+    $nativeCommand = Get-Command $Command -CommandType Application -TotalCount 1 -ErrorAction Stop
     & $nativeCommand @Arguments 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
     if ($null -eq $LASTEXITCODE) { throw 'The driver did not return a native exit code.' }
     return [int]$LASTEXITCODE

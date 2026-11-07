@@ -267,6 +267,41 @@ try {
     Assert-Equal $true $log.Contains('owned stdout') 'Driver stdout is retained'
     Assert-Equal $true $log.Contains('owned stderr') 'Driver stderr is retained'
 
+    # Flutter on Windows provides both flutter.bat and flutter. Application
+    # discovery can return both; invoking the array joins their names together.
+    $lookup = Join-Path $temporary 'command lookup with spaces'
+    $firstDirectory = Join-Path $lookup 'first'
+    $secondDirectory = Join-Path $lookup 'second'
+    New-Item -ItemType Directory -Path $firstDirectory, $secondDirectory | Out-Null
+    $commandName = 'installed-probe-driver-' + [guid]::NewGuid().ToString('N')
+    if ($IsWindows) {
+        $firstPath = Join-Path $firstDirectory "$commandName.bat"
+        Set-Content -LiteralPath $firstPath -Encoding ascii -Value "@echo off`r`necho selected stdout`r`necho selected stderr 1>&2`r`nexit /b 37"
+        Set-Content -LiteralPath (Join-Path $firstDirectory $commandName) -Encoding ascii -Value '#!/bin/sh'
+    } else {
+        $firstPath = Join-Path $firstDirectory $commandName
+        $secondPath = Join-Path $secondDirectory $commandName
+        Set-Content -LiteralPath $firstPath -Encoding ascii -Value "#!/bin/sh`necho selected stdout`necho selected stderr >&2`nexit 37"
+        Set-Content -LiteralPath $secondPath -Encoding ascii -Value "#!/bin/sh`necho unselected driver`nexit 99"
+        $mode = [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute
+        [IO.File]::SetUnixFileMode($firstPath, $mode)
+        [IO.File]::SetUnixFileMode($secondPath, $mode)
+    }
+    $priorPath = $env:PATH
+    try {
+        $env:PATH = (@($firstDirectory, $secondDirectory, $priorPath) -join [IO.Path]::PathSeparator)
+        $matches = @(Get-Command $commandName -CommandType Application -ErrorAction Stop)
+        Assert-Equal 2 $matches.Count 'The fixture reproduces multiple native application matches'
+        Assert-Equal $firstPath $matches[0].Path 'The first match has ordinary PowerShell execution precedence'
+        $lookupLogPath = Join-Path $temporary 'lookup-driver.log'
+        $code = Invoke-InstalledPluginLoggedCommand -Command $commandName -LogPath $lookupLogPath
+        Assert-Equal 37 $code 'A bare command selects one application and preserves its native exit code'
+        $lookupLog = Get-Content -LiteralPath $lookupLogPath -Raw
+        Assert-Equal $true $lookupLog.Contains('selected stdout') 'Selected driver stdout is retained'
+        Assert-Equal $true $lookupLog.Contains('selected stderr') 'Selected driver stderr is retained'
+        Assert-Equal $false $lookupLog.Contains('unselected driver') 'Later application matches are not executed'
+    } finally { $env:PATH = $priorPath }
+
     if ($IsWindows) {
         if (-not $NativeControlReportPath) {
             $NativeControlReportPath = Join-Path ([IO.Path]::GetTempPath()) ('installed-native-control-' + [guid]::NewGuid().ToString('N') + '.json')
