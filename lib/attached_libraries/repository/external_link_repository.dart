@@ -569,9 +569,9 @@ class ExternalLinkRepository {
     control.value = on ? control.value | bit : control.value & ~bit;
   }
 
-  /// משהה את הבנייה בין מנות. ההשהיה מחזיקה את שרשרת הסנכרונים: [sync] ו-
-  /// [rebuild] אחרים ממתינים עד [resumeBuild] או [cancelBuild]. אין השפעה כשאין
-  /// בנייה.
+  /// משהה בנקודת הבקרה הקרובה, אחרי שמירת המנה שנצברה. ההשהיה מחזיקה את
+  /// שרשרת הסנכרונים: [sync] ו-[rebuild] אחרים ממתינים עד [resumeBuild] או
+  /// [cancelBuild]. אין השפעה כשאין בנייה.
   void pauseBuild() {
     if (_control == null) return;
     _setControlBit(_ctlPaused, true);
@@ -584,7 +584,7 @@ class ExternalLinkRepository {
     buildPaused.value = false;
   }
 
-  /// עוצר את הבנייה אחרי המנה הנוכחית ושומר את ההתקדמות. הסימון `!building`
+  /// עוצר את הבנייה בנקודת הבקרה הקרובה ושומר את ההתקדמות. הסימון `!building`
   /// נשאר, והמסד נחשב לא שלם ([incompleteSlugs]) עד [requestResume] (המשך) או
   /// [requestRebuild] (מאפס).
   void cancelBuild() {
@@ -1230,7 +1230,9 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
 
       final batch = <ResolvedExternalLink>[];
       var scannedInBatch = 0;
-      void flush() {
+      var batchStartedMs = clock.elapsedMilliseconds;
+      void flush([VoidCallback? releaseTargetReads]) {
+        releaseTargetReads?.call();
         if (batch.isNotEmpty) {
           _transaction(db, () => _insertRows(db, job.slug, batch));
         }
@@ -1238,6 +1240,7 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
         scannedInBatch = 0;
         report();
         _controlPoint(control, batchPauseMs);
+        batchStartedMs = clock.elapsedMilliseconds;
       }
 
       try {
@@ -1251,9 +1254,15 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
           targets: jobTargets,
           maxRows: maxRows - counts.before,
           resumeFrom: resumeFrom,
-          onScanned: () {
+          onScanned: (releaseTargetReads) {
             scanned++;
-            if (++scannedInBatch >= currentBatchSize()) flush();
+            // בקשת בקרה מקצרת מנה אחרי תקציב של 50ms, בין שורות בלבד.
+            // שאילתת SQLite שכבר התחילה אינה נקטעת.
+            if (++scannedInBatch >= currentBatchSize() ||
+                (control.value & (_ctlPaused | _ctlCancel) != 0 &&
+                    clock.elapsedMilliseconds - batchStartedMs >= 50)) {
+              flush(releaseTargetReads);
+            }
           },
           onRow: batch.add,
         );

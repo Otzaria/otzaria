@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +38,22 @@ import '../test_helpers/memory_cache_provider.dart';
 const _commentaryTitle = 'ספר א';
 const _baseTitle = 'ספר ב';
 const _laterEra = 'אחרונים';
+
+Future<void> _holdExclusiveWriter(String path, SendPort ready) =>
+    Isolate.run(() async {
+      final db = sqlite3.sqlite3.open(path);
+      final release = ReceivePort();
+      try {
+        db.execute('PRAGMA busy_timeout=5000');
+        db.execute('BEGIN EXCLUSIVE');
+        ready.send(release.sendPort);
+        await release.first;
+        db.execute('ROLLBACK');
+      } finally {
+        release.close();
+        db.close();
+      }
+    });
 
 ExternalLinkFixtureRow _row(
   int sourceLineIndex, {
@@ -1067,7 +1084,7 @@ void main() {
       addTearDown(() => links.onBuildStart = null);
     }
 
-    /// בונה את [slug] מחדש ועוצר אותו אחרי המנה הראשונה.
+    /// בונה את [slug] מחדש ועוצר בנקודת הבקרה הראשונה, גם אם המנה חלקית.
     Future<void> rebuildAndCancel(String slug) async {
       onNextBuild(links.cancelBuild);
       try {
@@ -1129,6 +1146,74 @@ void main() {
       } finally {
         links.cancelBuild();
         await done;
+      }
+    });
+
+    test('בזמן השהיה המסד הרשמי אינו נעול לכתיבה', () async {
+      smallBatches();
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      onNextBuild(links.pauseBuild);
+      final done = links.sync();
+      try {
+        await waitForProgress(library.slug, 1, done);
+        expect(indexRows(library.slug), 1);
+        final writer = sqlite3.sqlite3.open(officialPath);
+        try {
+          expect(
+            writer.select('PRAGMA journal_mode').first.values.first,
+            'delete',
+          );
+          // BEGIN EXCLUSIVE נכשל מיד כשחיבור אחר מחזיק נעילת קריאה.
+          writer.execute('BEGIN EXCLUSIVE');
+          writer.execute('ROLLBACK');
+        } finally {
+          writer.close();
+        }
+        links.resumeBuild();
+        expect(await done, {library.slug});
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
+    });
+
+    test('ביטול בזמן נעילת יעד אינו ממתין לכל המנה', () async {
+      smallBatches(batchSize: 10);
+      final library = await attach(
+        attachedDb(
+          'locked-target',
+          rows: [for (var i = 0; i < 30; i++) _row(i, targetLineIndex: 1)],
+        ),
+      );
+      await links.sync();
+      final ready = ReceivePort();
+      final writer = _holdExclusiveWriter(officialPath, ready.sendPort);
+      SendPort? release;
+      final scanned = <int>[];
+      void record() {
+        final progress = links.buildProgress.value[library.slug];
+        if (progress != null && progress.done > 0) scanned.add(progress.done);
+      }
+
+      links.buildProgress.addListener(record);
+      try {
+        release = await Future.any<SendPort>([
+          ready.first.then((message) => message as SendPort),
+          writer.then<SendPort>(
+            (_) => throw StateError('writer exited before acquiring the lock'),
+          ),
+        ]);
+        onNextBuild(links.cancelBuild);
+        await links.rebuild(library.slug);
+        expect(scanned, [1]);
+        expect(indexRows(library.slug), 0);
+        expect(links.incompleteSlugs.value, {library.slug});
+      } finally {
+        links.cancelBuild();
+        release?.send(null);
+        ready.close();
+        links.buildProgress.removeListener(record);
+        await writer;
       }
     });
 
@@ -1230,8 +1315,8 @@ void main() {
       expect(links.incompleteSlugs.value, isEmpty);
     });
 
-    /// שורה 0 עם שני קישורים ושורה 1 עם ארבעה: מנה של שלושה נחתכת באמצע
-    /// קישורי שורה 1, וכשנעצרת אחריה נשארים באינדקס שני קישורים של שורה 0.
+    /// שורה 0 עם שני קישורים ושורה 1 עם ארבעה: מנה של עד שלושה עשויה
+    /// להיחתך באמצע קישורי שורה. ההמשך קורא את השורה האחרונה כולה מחדש.
     List<ExternalLinkFixtureRow> fourPerLine() => [
       for (var target = 0; target < 2; target++)
         _row(0, targetLineIndex: target),
@@ -1267,7 +1352,7 @@ void main() {
       expect(metaSignature(library.slug), startsWith('!building:'));
       expect(links.buildProgress.value, isEmpty);
       expect(links.buildingSlugs.value, isEmpty);
-      expect(indexRows(library.slug), 3);
+      expect(indexRows(library.slug), inInclusiveRange(1, 3));
     });
 
     test(
@@ -1278,17 +1363,22 @@ void main() {
         final continuous = indexSnapshot(library.slug);
         expect(continuous, hasLength(6));
 
-        smallBatches(batchSize: 3);
-        await rebuildAndCancel(library.slug);
+        for (final batchSize in [1, 3]) {
+          smallBatches(batchSize: batchSize);
+          await rebuildAndCancel(library.slug);
+          final saved = indexRows(library.slug);
+          expect(saved, inInclusiveRange(1, batchSize));
 
-        final firstDone = await firstDoneDuring(library.slug, () async {
-          links.requestResume(library.slug);
-          await links.sync();
-        });
-        expect(firstDone, greaterThan(0));
-        expect(indexSnapshot(library.slug), continuous);
-        expect(links.incompleteSlugs.value, isEmpty);
-        expect(metaSignature(library.slug), isNot(startsWith('!')));
+          final firstDone = await firstDoneDuring(library.slug, () async {
+            links.requestResume(library.slug);
+            await links.sync();
+          });
+          // שורה 0 כוללת שני קישורים; חוזרים לתחילת השורה האחרונה שנשמרה.
+          expect(firstDone, saved <= 2 ? 0 : 2);
+          expect(indexSnapshot(library.slug), continuous);
+          expect(links.incompleteSlugs.value, isEmpty);
+          expect(metaSignature(library.slug), isNot(startsWith('!')));
+        }
       },
     );
 
@@ -1349,7 +1439,7 @@ void main() {
       final full = indexSnapshot(library.slug);
       smallBatches(batchSize: 3);
       await rebuildAndCancel(library.slug);
-      expect(indexRows(library.slug), lessThan(full.length));
+      expect(indexRows(library.slug), inInclusiveRange(1, 3));
       return (slug: library.slug, full: full);
     }
 
@@ -1364,7 +1454,8 @@ void main() {
 
     test('המשך אוטומטי: התקדמות מאז הניסיון הקודם ממשיכה', () async {
       final build = await interruptedBuild();
-      setBuildingMarker(build.slug, '\u0001auto=1');
+      final previousRows = indexRows(build.slug) - 1;
+      setBuildingMarker(build.slug, '\u0001auto=$previousRows');
 
       expect(await links.sync(autoResume: true), {build.slug});
       expect(indexSnapshot(build.slug), build.full);
@@ -1439,7 +1530,7 @@ void main() {
       await links.sync();
       expect(links.tooLargeSlugs.value, contains(library.slug));
       await rebuildAndCancel(library.slug);
-      expect(indexRows(library.slug), 1);
+      expect(indexRows(library.slug), inInclusiveRange(0, 1));
       expect(links.incompleteSlugs.value, {library.slug});
       links.requestResume(library.slug);
       await links.sync();
@@ -1472,7 +1563,7 @@ void main() {
       final first = links.sync();
       try {
         await waitForProgress(library.slug, 1, first);
-        expect(reported.last, 2);
+        expect(reported.last, inInclusiveRange(1, 2));
         expect(links.buildEconomy.value, isTrue);
       } finally {
         links.cancelBuild();

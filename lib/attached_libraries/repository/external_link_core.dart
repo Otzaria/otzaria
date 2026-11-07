@@ -55,10 +55,19 @@ String? _text(Object? value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
+bool _isTransientSqliteLock(Object error) =>
+    error is sqlite3.SqliteException &&
+    (error.resultCode == sqlite3.SqlError.SQLITE_BUSY ||
+        error.resultCode == sqlite3.SqlError.SQLITE_LOCKED);
+
 /// פותר יעדי `external_link` מול רשימת מסדי יעד. מחזיק את החיבורים פתוחים עד
 /// [close], כך שסדרת שורות נפתרת בלי לפתוח את אותו מסד שוב ושוב.
 class ExternalTargetResolver {
-  ExternalTargetResolver(this.targets, {this.excludeWireKey});
+  ExternalTargetResolver(
+    this.targets, {
+    this.excludeWireKey,
+    this.readHold = const Duration(milliseconds: 50),
+  });
 
   final List<ExternalTargetDb> targets;
 
@@ -67,6 +76,14 @@ class ExternalTargetResolver {
 
   final Map<String, (sqlite3.Database, DbCapabilities)?> _open = {};
   final Map<(String, String), List<(int, int?)>> _books = {};
+  final Map<(String, String), sqlite3.PreparedStatement> _statements = {};
+
+  /// תקרת השאילתות המוכנות שנשמרות — שאילתת ההפניה משתנה לפי ספרי הכותרת.
+  static const maxCachedStatements = 64;
+
+  /// מספר ההכנות של שאילתות פתרון — לוודא בבדיקות שהן אינן מוכנות לכל שורה.
+  @visibleForTesting
+  int preparedStatements = 0;
 
   /// ה-SQL האחרון של פתרון לפי הפניה — לוודא בבדיקות איזה נוסח נשלח בפועל.
   @visibleForTesting
@@ -96,14 +113,48 @@ class ExternalTargetResolver {
   }
 
   (sqlite3.Database, DbCapabilities)? _connection(ExternalTargetDb target) {
-    return _open.putIfAbsent(target.wireKey, () {
+    if (!_open.containsKey(target.wireKey)) {
+      sqlite3.Database? db;
       try {
-        final db = openReadOnlyTarget(target.target);
-        return (db, DbCapabilities.probe(db));
-      } catch (_) {
-        return null;
+        db = openReadOnlyTarget(target.target);
+        // קצר: כותב שממתין לנעילה מחזיק PENDING, ובו הקורא ממתין לו.
+        db.execute('PRAGMA busy_timeout=$targetBusyTimeoutMs');
+        _open[target.wireKey] = (db, DbCapabilities.probe(db));
+      } catch (e) {
+        db?.close();
+        // נעילה רגעית אינה נשמרת — השורה הבאה תנסה לפתוח שוב.
+        if (!_isTransientSqliteLock(e)) {
+          _open[target.wireKey] = null;
+        }
       }
-    });
+    }
+    final connection = _open[target.wireKey];
+    // שאילתה מחוץ לטרנזקציה נועלת את הקובץ ובודקת יומן — עשרות µs לכל אחת.
+    if (connection != null && connection.$1.autocommit) {
+      connection.$1.execute('BEGIN');
+      if (!_readClock.isRunning) {
+        _readClock
+          ..reset()
+          ..start();
+      }
+    }
+    return connection;
+  }
+
+  /// תקציב החזקת הקריאה שנבדק בין שורות פתרון; שאילתה בודדת עשויה לחרוג ממנו.
+  final Duration readHold;
+  final Stopwatch _readClock = Stopwatch();
+
+  static const targetBusyTimeoutMs = 300;
+
+  /// משחרר את נעילת הקריאה על מסדי היעד; חובה לפני המתנה ארוכה (השהיית בנייה).
+  void releaseReads() {
+    _readClock.stop();
+    for (final connection in _open.values) {
+      final db = connection?.$1;
+      if (db != null && !db.autocommit) db.execute('COMMIT');
+    }
+    _readClock.reset();
   }
 
   /// תקרת הכותרות שנשמרות בזיכרון — מסד עוין עם מיליוני יעדים שונים.
@@ -113,13 +164,16 @@ class ExternalTargetResolver {
     final key = (target.wireKey, title);
     final cached = _books[key];
     if (cached != null) return cached;
+    final books = _queryBooks(target, title);
+    // נעילה זמנית אינה נשמרת — אחרת הכותרת נשמטת עד סוף הבנייה.
+    if (books == null) return const [];
     if (_books.length >= maxCachedTitles) _books.clear();
-    return _books[key] = _queryBooks(target, title);
+    return _books[key] = books;
   }
 
-  List<(int, int?)> _queryBooks(ExternalTargetDb target, String title) {
+  List<(int, int?)>? _queryBooks(ExternalTargetDb target, String title) {
     final connection = _connection(target);
-    if (connection == null) return const [];
+    if (connection == null) return null;
     final (db, caps) = connection;
     if (!caps.hasBooks) return const [];
     final category = caps.hasBookCategories ? 'categoryId' : 'NULL';
@@ -133,10 +187,31 @@ class ExternalTargetResolver {
           if (_int(row['id']) != null)
             (row['id'] as int, _int(row['categoryId'])),
       ];
-    } catch (_) {
-      // מסד יעד פגום אינו מפיל את פתרון שאר הקישורים.
-      return const [];
+    } catch (e) {
+      // כשל קבוע נשמר כדי שמסד פגום לא יישאל מחדש לכל שורה.
+      return _isTransientSqliteLock(e) ? null : const [];
     }
+  }
+
+  /// הכנת השאילתה יקרה מהרצתה, ובבניית האינדקס אותה שאילתה חוזרת לכל שורה.
+  sqlite3.ResultSet _select(
+    ExternalTargetDb target,
+    sqlite3.Database db,
+    String sql,
+    List<Object?> parameters,
+  ) {
+    final key = (target.wireKey, sql);
+    var statement = _statements.remove(key);
+    if (statement == null) {
+      statement = db.prepare(sql);
+      preparedStatements++;
+      if (_statements.length >= maxCachedStatements) {
+        final oldest = _statements.keys.first;
+        _statements.remove(oldest)!.close();
+      }
+    }
+    _statements[key] = statement;
+    return statement.select(parameters);
   }
 
   /// המסד הראשון מבין המועמדים שיש בו ספר בשם [targetTitle].
@@ -162,6 +237,7 @@ class ExternalTargetResolver {
     required String? targetRef,
     required int? targetLineIndex,
   }) {
+    if (_readClock.elapsed >= readHold) releaseReads();
     // הספר נמצא במסד הראשון — לא ממשיכים למסד אחר גם אם השורה לא נפתרה.
     final target = bookDatabase(targetSource, targetTitle);
     if (target == null) return null;
@@ -193,6 +269,7 @@ class ExternalTargetResolver {
         caps.hasColumn('line', 'heRef') &&
         caps.hasColumn('line_ref', 'refKeyHash')) {
       final hit = _byRef(
+        target,
         db,
         books,
         targetTitle,
@@ -212,7 +289,9 @@ class ExternalTargetResolver {
     if (targetLineIndex != null && targetLineIndex >= 0 && caps.hasLines) {
       final (bookId, categoryId) = books.first;
       final heRef = caps.hasColumn('line', 'heRef') ? 'heRef' : 'NULL';
-      final rows = db.select(
+      final rows = _select(
+        target,
+        db,
         'SELECT $heRef AS heRef FROM line WHERE bookId = ? AND lineIndex = ? '
         'LIMIT 1',
         [bookId, targetLineIndex],
@@ -231,6 +310,7 @@ class ExternalTargetResolver {
   }
 
   (int, int?, int, String?)? _byRef(
+    ExternalTargetDb target,
     sqlite3.Database db,
     List<(int, int?)> books,
     String title,
@@ -243,7 +323,7 @@ class ExternalTargetResolver {
     final categoryByBook = {for (final (id, cat) in books) id: cat};
     final sql = refCandidatesSql(categoryByBook.keys, official: official);
     lastRefCandidatesSql = sql;
-    final rows = db.select(sql, [refKeyHash(key)]);
+    final rows = _select(target, db, sql, [refKeyHash(key)]);
     for (final row in rows) {
       final heRef = _text(row['heRef']);
       final bookId = _int(row['bookId']);
@@ -267,7 +347,12 @@ class ExternalTargetResolver {
     columns: 'lr.bookId, lr.lineIndex, l.heRef',
   );
 
+  /// sqlite3_close_v2 מגלגל אחורה את טרנזקציית הקריאה הפתוחה בעצמו.
   void close() {
+    for (final statement in _statements.values) {
+      statement.close();
+    }
+    _statements.clear();
     for (final connection in _open.values) {
       connection?.$1.close();
     }
@@ -288,7 +373,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
   (int, int)? resumeFrom,
   int maxRows = kMaxExternalLinkRows,
   void Function(ResolvedExternalLink row)? onRow,
-  void Function()? onScanned,
+  void Function(VoidCallback releaseTargetReads)? onScanned,
 }) {
   final db = openReadOnlyTarget(source);
   final resolver = ExternalTargetResolver(
@@ -350,7 +435,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
         if (resolved != null) {
           onRow != null ? onRow(resolved) : result.add(resolved);
         }
-        onScanned?.call();
+        onScanned?.call(resolver.releaseReads);
       }
     } finally {
       statement.close();
