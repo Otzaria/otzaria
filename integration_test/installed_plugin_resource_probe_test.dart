@@ -960,12 +960,22 @@ class _Scenario {
   }
 
   Future<void> run() async {
+    Future<void> setupStep(String name) async {
+      report['setupStep'] = name;
+      await checkpoint();
+    }
+
+    await setupStep('install $installedProbeId');
     await fixture.installControlled(installedProbeId);
     for (final suffix in ['no-snapshot', 'unsaved', 'busy', 'service']) {
+      await setupStep('install $installedProbeId.$suffix');
       await fixture.installControlled('$installedProbeId.$suffix');
     }
+    await setupStep('install pinned store');
     await fixture.installStore();
+    await setupStep('reload installed plugins');
     await reloadPlugins();
+    await setupStep('complete');
     late ToolTab first;
     await phase('firstOpen', () async {
       first = await open();

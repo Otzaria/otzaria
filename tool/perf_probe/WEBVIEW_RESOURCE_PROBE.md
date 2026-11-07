@@ -330,6 +330,45 @@ loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות
 אחרי כל שלב. artifacts כוללים דוח גולמי, לוגים, SHA של מקור החנות וגרסאות
 כלים; כשל בנייה או ניתוק מוקדם עשוי להשאיר רק חלק מהם.
 
+ב־Windows מפעיל `run_installed_plugin_windows.ps1` את אותה פקודת `flutter drive`
+לאחר רישום שני מאזינים פסיביים לאירועי התחלה וסיום של `otzaria.exe`.
+אין סריקת תהליכים, פנייה לאפליקציה או תשאול WebView בזמן חלונות השקט.
+בסיום נשמר `windows-native-exit.json`: זהות ה־PID וזמן ה־bootstrap מדוח
+המכשיר מותאמים לאירועי התהליך, להורה ול־session. נשמרים קוד היציאה
+הנייטיבי העשרוני וההקסדצימלי, בלי להסיק אם האפליקציה קרסה או שה־driver
+עצר אותה לאחר הבדיקה. PID ממוחזר, אירוע חסר או איסוף שנחתך נשארים
+`unavailable`; אין המרה לאפס.
+
+המאזינים מוגבלים ל־64 רשומות מכל סוג ועוד אירוע לזיהוי חיתוך. הניקוי
+מסיר רק את המנויים והתורים שנוצרו לריצה הזאת. לאחר חזרת ה־driver בלבד
+מתבצעת שאילתת `Application Error` מוגבלת ל־15 שניות ול־64 רשומות ועוד
+אירוע לזיהוי חיתוך. נשמרים רק אירועים שזהות התהליך ומועד יצירתו תואמים
+לריצה. היעדר אירוע אינו הוכחה שלא אירעה קריסה. פרטי המנגנון מתועדים ב־
+[Win32_ProcessStopTrace](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/krnlprov/win32-processstoptrace)
+וב־[wevtutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wevtutil).
+
+`run.log` כולל את פלט ה־driver ואת stderr; נשמרים גם עותק של הדוח החלקי
+ולוג השגיאות מתיקיית הנתונים המבודדת, כאשר הם קיימים. קוד כשל של ה־driver
+נשמר גם אם האבחון נכשל. יציאה מוצלחת של ה־driver דורשת גם דוח מכשיר סופי
+מוצלח ותצפית תהליך מזוהה. לפני התרחיש רצה ב־Windows בקרת ילד אמיתי שיוצא
+בקוד 37; בדיקות החוזה כוללות גם כשל איסוף, זהויות סותרות ושמירת stderr.
+במערכת אחרת בקרת Windows הנייטיבית מדווחת `notRun`.
+
+קוד נייטיבי שאינו 0 או `0xFFFFFFFF`, או אירוע `Application Error` תואם,
+מכשילים גם דוח שהושלם. `0xFFFFFFFF` מתקבל רק עם driver ודוח מוצלחים:
+`DesktopDevice.stopApp` ב־Flutter קורא ל־`Process.killPid`, וב־
+[Dart הנעול](https://github.com/dart-lang/sdk/blob/04bcd1036cdc799ac6564988f159ee454d42c822/runtime/bin/process_win.cc)
+הוא משתמש ב־`TerminateProcess(handle, -1)`. המספר הזה לבדו אינו מוכיח
+שה־driver גרם לסיום התהליך.
+
+ה־fixture המשותף משתמש ב־`synthetic-v2` ובסימון האתחול של מאגר ההגדרות,
+כמו התיקון ב־[#4417](https://github.com/Otzaria/otzaria/pull/4417).
+כך טעינת ההגדרות האמיתית שומרת על העדכונים והאינדקס הכבויים. ההכנה סוגרת
+את Hive ומשאירה את `Settings` לא מאותחל עד `main`; בדיקת הרגרסיה טוענת
+את מאגר ההגדרות האמיתי פעמיים. נתונים מוכנים מגרסה קודמת נדחים.
+`setupStep` נשמר לפני התקנת כל fixture ולפני טעינת רשימת התוספים, מחוץ
+לחלונות השקט, כדי להשאיר גבול התקדמות גם בניתוק מוקדם.
+
 ```powershell
 # Windows; ב־macOS החלף windows ב־macos. נדרש PowerShell לפקודות דוגמה אלה.
 $installedProbeRun = Join-Path ([IO.Path]::GetTempPath()) ('installed-plugin-' + [guid]::NewGuid())
