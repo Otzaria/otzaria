@@ -1,0 +1,75 @@
+name: Temporary pinned H1 artifact evidence audit
+
+on:
+  pull_request:
+    branches: [palmoni5/report-forms-qa-20261105]
+    paths:
+      - '.github/workflows/report-winv-artifact-audit.yml'
+      - 'tool/qa/report_winv_artifact_audit.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: report-winv-artifact-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  self_checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/workflows/report-winv-artifact-audit.yml
+            tool/qa/report_winv_artifact_audit.py
+          sparse-checkout-cone-mode: false
+      - name: Check identity, digest, redirect, ZIP and PNG gates
+        run: python3 tool/qa/report_winv_artifact_audit.py --self-test
+
+  evidence:
+    needs: self_checks
+    name: Evidence (${{ matrix.role }}, ${{ matrix.case }}, ${{ matrix.slot }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {role: server, case: none, slot: summary}
+          - {role: trace-on, case: none, slot: summary}
+          - {role: trace-off, case: none, slot: summary}
+          - {role: trace-on, case: text-focused, slot: before}
+          - {role: trace-on, case: text-focused, slot: after}
+          - {role: trace-on, case: text-unfocused, slot: before}
+          - {role: trace-on, case: text-unfocused, slot: after}
+          - {role: trace-on, case: image-focused, slot: before}
+          - {role: trace-on, case: image-focused, slot: after}
+          - {role: trace-on, case: image-unfocused, slot: before}
+          - {role: trace-on, case: image-unfocused, slot: after}
+          - {role: trace-off, case: text-focused, slot: before}
+          - {role: trace-off, case: text-focused, slot: after}
+          - {role: trace-off, case: text-unfocused, slot: before}
+          - {role: trace-off, case: text-unfocused, slot: after}
+          - {role: trace-off, case: image-focused, slot: before}
+          - {role: trace-off, case: image-focused, slot: after}
+          - {role: trace-off, case: image-unfocused, slot: before}
+          - {role: trace-off, case: image-unfocused, slot: after}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/workflows/report-winv-artifact-audit.yml
+            tool/qa/report_winv_artifact_audit.py
+          sparse-checkout-cone-mode: false
+      - name: Read only the exact source artifacts; do not decide H1 acceptance
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/qa/report_winv_artifact_audit.py --role '${{ matrix.role }}' --slot '${{ matrix.slot }}' --case '${{ matrix.case }}'
