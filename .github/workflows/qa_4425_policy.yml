@@ -1,0 +1,169 @@
+name: QA 4425 AppKit policy and owned process observations
+
+on:
+  push:
+    branches: ['y-ploni/qa-4425-policy-20261107-b']
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Observe public policy state and exact owned child group errors
+        env:
+          QA_POLICY_OUTPUT: ${{ runner.temp }}/qa-4425-policy-observation
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          import errno, hashlib, importlib.util, json, os, signal, subprocess, sys, time
+          from pathlib import Path
+          
+          sys.dont_write_bytecode = True
+          ROOT = Path.cwd()
+          OUT = Path(os.environ["QA_POLICY_OUTPUT"])
+          OUT.mkdir(parents=True, exist_ok=False)
+          SOURCE = "0aa78eb2ab4540a100ccb9f97f5b5a773e8412cd"
+          TREE = "6c7dee43f35eb0b18a0837787f48e2d332acf5bd"
+          def git(*args):
+              return subprocess.check_output(["git", *args], text=True).strip()
+          assert git("rev-parse", "HEAD^") == SOURCE
+          assert git("rev-parse", SOURCE + "^{tree}") == TREE
+          assert sorted(git("diff", "--name-only", SOURCE, "HEAD").splitlines()) == [
+              ".github/workflows/qa_4425_policy.yml", "tool/perf_probe/qa_4425_policy_observation.swift"]
+          assert not git("status", "--porcelain=v1", "--untracked-files=all")
+          swift = ROOT / "tool/perf_probe/qa_4425_policy_observation.swift"
+          assert hashlib.sha256(swift.read_bytes()).hexdigest() == "f6ebbbd3f8d0d2805c82f995eafee3c81cd34fad2c786eae41cdf314d0d166ce"
+          subject_path = ROOT / "tool/perf_probe/apple_plugin_activity/run.py"
+          assert hashlib.sha256(subject_path.read_bytes()).hexdigest() == "0bd7eaf98fe9f14d14b006121cf8ec8590ed123050845d01eb7367dfa77f16ba"
+          spec = importlib.util.spec_from_file_location("qa_owned_group_subject", subject_path)
+          subject = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(subject)
+          def write(name, value):
+              (OUT / name).write_text(json.dumps(value, indent=2) + "\n")
+          def error_record(error):
+              return {"type": type(error).__name__, "error": str(error), "errno": getattr(error, "errno", None),
+                      "details": getattr(error, "apple_quiet_errors", None)}
+          def owned_rows(pgid):
+              text = subprocess.check_output(["/bin/ps", "-A", "-o", "pid=", "-o", "pgid=", "-o", "stat="],
+                                             text=True, timeout=3)
+              rows = []
+              for line in text.splitlines():
+                  values = line.split()
+                  if len(values) != 3:
+                      raise ValueError("Malformed ps result")
+                  if int(values[1]) == pgid:
+                      rows.append({"pid": int(values[0]), "pgid": int(values[1]), "state": values[2]})
+              return rows
+          def observation(process, label):
+              rows = owned_rows(process.pid)
+              assert all(row["pid"] == process.pid for row in rows), "Unexpected process in isolated own-child group"
+              result = {"phase": label, "pid": process.pid, "processReturnCode": process.returncode, "ownedRows": rows}
+              try:
+                  result["getpgid"] = {"value": os.getpgid(process.pid)}
+              except OSError as error:
+                  result["getpgid"] = error_record(error)
+              try:
+                  os.killpg(process.pid, 0)
+                  result["killpgZero"] = {"returned": True}
+              except OSError as error:
+                  result["killpgZero"] = error_record(error)
+              return result
+          def cleanup(process):
+              result = {"pid": process.pid}
+              try:
+                  subject.stop_owned(process)
+                  result["subjectReturned"] = True
+              except BaseException as error:
+                  result["subjectError"] = error_record(error)
+              result["subjectReceipt"] = getattr(process, "apple_quiet_cleanup", None)
+              # Only this diagnostic's exact direct child may be signalled by fallback.
+              if process.poll() is None:
+                  assert os.getpgid(process.pid) == process.pid and process.pid != os.getpgrp()
+                  process.kill()
+                  process.wait(timeout=5)
+              result["remainingOwnedRows"] = owned_rows(process.pid)
+              assert not any(row["state"][0] not in {"Z", "X"} for row in result["remainingOwnedRows"])
+              result["leaderExit"] = process.returncode
+              return result
+          
+          version = subprocess.run(["xcrun", "swiftc", "--version"], text=True, capture_output=True, timeout=30)
+          write("swift-version.json", {"exitCode": version.returncode, "stdout": version.stdout, "stderr": version.stderr})
+          with (OUT / "compile.log").open("wb") as log:
+              compile_result = subprocess.run(["xcrun", "swiftc", str(swift), "-o", str(OUT / "policy-observer")],
+                                              stdout=log, stderr=subprocess.STDOUT, timeout=120)
+          assert compile_result.returncode == 0, "Swift policy observation did not compile"
+          policy_receipt = {}
+          with (OUT / "policy.stdout.log").open("wb") as stdout, (OUT / "policy.stderr.log").open("wb") as stderr:
+              process = subprocess.Popen([str(OUT / "policy-observer")], stdout=stdout, stderr=stderr,
+                                         start_new_session=True)
+              policy_receipt["pid"] = process.pid
+              try:
+                  policy_receipt["exitCode"] = process.wait(timeout=15)
+              except subprocess.TimeoutExpired as error:
+                  policy_receipt["waitError"] = error_record(error)
+              finally:
+                  policy_receipt["postWaitObservation"] = observation(process, "after-policy-wait")
+                  policy_receipt["cleanup"] = cleanup(process)
+          events = [json.loads(line) for line in (OUT / "policy.stdout.log").read_text().splitlines() if line]
+          assert all(event["pid"] == policy_receipt["pid"] for event in events)
+          policy_receipt["events"] = events
+          write("policy-observation.json", policy_receipt)
+          
+          groups = []
+          for index in range(4):
+              # The marker is written just before a real exit, so the first observation
+              # can include a zombie; the second is after our Popen.wait reaps it.
+              marker = OUT / ("child-" + str(index) + ".ready")
+              code = "import pathlib,sys;pathlib.Path(sys.argv[1]).write_text('ready');raise SystemExit(37)"
+              child = subprocess.Popen([sys.executable, "-c", code, str(marker)], start_new_session=True,
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              item = {"index": index, "pid": child.pid}
+              try:
+                  deadline = time.monotonic() + 5
+                  while not marker.exists():
+                      if time.monotonic() > deadline:
+                          raise TimeoutError("Owned child did not become ready")
+                      time.sleep(.01)
+                  time.sleep(.05)
+                  item["beforeWait"] = observation(child, "before-wait")
+                  item["exitCode"] = child.wait(timeout=5)
+                  item["afterWait"] = observation(child, "after-wait")
+                  item["cleanup"] = cleanup(child)
+              finally:
+                  if child.poll() is None:
+                      child.kill()
+                      child.wait(timeout=5)
+              groups.append(item)
+          write("owned-process-groups.json", groups)
+          assert not git("status", "--porcelain=v1", "--untracked-files=all")
+          callbacks = [event for event in events if event["stage"] == "event-loop-callback"]
+          complete = (policy_receipt.get("exitCode") == 0 and len(callbacks) == 1
+                      and callbacks[0]["mainThread"] is True and callbacks[0]["state"]["isRunning"] is True)
+          summary = {"source": SOURCE, "sourceTree": TREE, "qaHead": git("rev-parse", "HEAD"),
+                     "scope": "Observational own-process AppKit and Darwin diagnostic; no actual-app or quiet acceptance",
+                     "policyObservationComplete": complete, "policy": policy_receipt, "ownedGroups": groups,
+                     "sourceUnchanged": True, "explicitActivationCalls": False}
+          write("summary.json", summary)
+          print("BEGIN_QA4425_POLICY_OBSERVATION")
+          print(json.dumps(summary))
+          print("END_QA4425_POLICY_OBSERVATION")
+          raise SystemExit(0 if complete else 1)
+          PY
+      - name: Retain complete observations on success or failure
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-policy-and-owned-groups
+          path: |
+            ${{ runner.temp }}/qa-4425-policy-observation/*.json
+            ${{ runner.temp }}/qa-4425-policy-observation/*.log
+            ${{ runner.temp }}/qa-4425-policy-observation/*.ready
+          if-no-files-found: error
+          retention-days: 14
