@@ -1,0 +1,86 @@
+name: Read frozen clock implementation test failure
+on:
+  push:
+    branches: ['y-ploni/qa-4425-clock-failure-reader-20261107-a']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify and read the existing artifact without executing its files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          READER_OUT: ${{ runner.temp }}/clock-failure-reader
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json, os, pathlib, urllib.request, zipfile
+          repo = "Otzaria/otzaria"
+          run = 42343509824
+          artifact = 13562523334
+          expected_sha = "596458f367d57fe5ff225da83f5711dce7aa929af442246cb1971b16c67e4bde"
+          assert os.environ["GITHUB_REPOSITORY"] == repo
+          assert os.environ["GITHUB_REF"] == "refs/heads/y-ploni/qa-4425-clock-failure-reader-20261107-a"
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, message, headers, newurl):
+                  redirected = super().redirect_request(request, fp, code, message, headers, newurl)
+                  if redirected is not None:
+                      assert newurl.startswith("https://")
+                      redirected.remove_header("Authorization")
+                  return redirected
+          opener = urllib.request.build_opener(SafeRedirect())
+          def get(path):
+              request = urllib.request.Request("https://api.github.com/repos/" + repo + path,
+                  headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                           "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+              with opener.open(request, timeout=60) as response:
+                  value = response.read(2_000_001)
+              assert len(value) <= 2_000_000
+              return value
+          metadata = json.loads(get("/actions/artifacts/" + str(artifact)))
+          assert metadata["workflow_run"]["id"] == run
+          assert metadata["workflow_run"]["head_sha"] == "ce90a54e0a5153e777f60afc63747bd2065ace0e"
+          assert metadata["size_in_bytes"] == 669487
+          assert metadata["digest"] == "sha256:" + expected_sha
+          raw = get("/actions/artifacts/" + str(artifact) + "/zip")
+          assert len(raw) == 669487 and hashlib.sha256(raw).hexdigest() == expected_sha
+          out = pathlib.Path(os.environ["READER_OUT"])
+          out.mkdir(parents=True, exist_ok=False)
+          (out / "original-artifact.zip").write_bytes(raw)
+          archive = zipfile.ZipFile(io.BytesIO(raw))
+          names = archive.namelist()
+          records = []
+          wanted = ("isolated-contract-tests.stdout.log", "isolated-contract-tests.stderr.log",
+                    "isolated-contract-tests.json", "summary.json", "formatted-contract.dart",
+                    "formatted-apple_plugin_activity_contract_test.dart", "source-before.json", "source-after.json")
+          source_states = []
+          for leaf in wanted:
+              matches = [name for name in names if pathlib.PurePosixPath(name).name == leaf]
+              assert len(matches) == 1, matches
+              data = archive.read(matches[0])
+              record = {"path": matches[0], "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+              if leaf.startswith("source-"):
+                  source_states.append(json.loads(data))
+              elif not leaf.startswith("formatted-"):
+                  record["text"] = data.decode("utf-8")
+              records.append(record)
+              print("FROZEN_FAILURE_FILE " + json.dumps(record, ensure_ascii=False), flush=True)
+          assert len(source_states) == 2 and source_states[0] == source_states[1]
+          report = {"classification": "READ_ONLY_FROZEN_FAILED_IMPLEMENTATION_ARTIFACT",
+                    "source": "66d892b25ce610348b6a9aafb93f45e2447f117e",
+                    "sourceRun": run, "artifactId": artifact, "artifactSha256": expected_sha,
+                    "artifactBytes": len(raw), "codeFromArchiveExecuted": False,
+                    "sourceAcceptance": "NOT_PASSED", "sourceSnapshotEqual": True, "files": records}
+          (out / "reader-result.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+          print("FROZEN_FAILURE_READER " + json.dumps(report, ensure_ascii=False), flush=True)
+          PY
+      - name: Retain original archive and read-only evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: clock-4425-failure-reader
+          path: ${{ runner.temp }}/clock-failure-reader
+          if-no-files-found: error
+          retention-days: 14
