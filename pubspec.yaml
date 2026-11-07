@@ -159,6 +159,9 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
+  super_native_extensions:
+    path: packages/super_native_extensions
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
   # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ו-#2862 (טעינת ה-DLL
   # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
