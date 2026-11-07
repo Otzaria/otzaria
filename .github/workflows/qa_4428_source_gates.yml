@@ -1,0 +1,55 @@
+name: QA 4428 Android desktop status contract and merge gates
+on:
+  push:
+    branches: ['y-ploni/qa-4428-status-contract-fast-20261107-a']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  status-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Exact old-source reproduction, new host regressions and unchanged Dart evidence scope
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4428-status-fast
+          QA_GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/perf_probe/qa_4428_source_gates.py fast
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-4428-status-fast-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4428-status-fast
+          if-no-files-found: error
+  merge-proofs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fresh complete PR map and actual merge stage and hunk proofs
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4428-status-merge
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 tool/perf_probe/qa_4428_source_gates.py merge
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-4428-status-merge-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4428-status-merge
+          if-no-files-found: error
