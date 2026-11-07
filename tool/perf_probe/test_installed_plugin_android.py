@@ -51,7 +51,7 @@ def event(sequence, action, payload=None):
 
 def report_fixture(evidence):
     phases = [{"name": name, "status": "passed"} for name in probe.REQUIRED_PHASES]
-    phases.extend({"name": name, "status": "notRun"} for name in ("minimize", "hide"))
+    phases.extend({"name": name, "status": "unsupported"} for name in ("minimize", "hide"))
     background = next(phase for phase in phases if phase["name"] == "osBackground")
     background.update(before=dict(DOCUMENT), after=dict(DOCUMENT), lifecycleBeforeQuiet="paused", lifecycleAfterResume="resumed",
                       dispatcherBeforeQuiet="hidden", shownBeforeQuiet=False, discardCandidateBeforeQuiet=True,
@@ -171,6 +171,29 @@ class ReportTests(unittest.TestCase):
 
     def test_complete_controlled_report_is_accepted(self):
         self.assertEqual(self.validate()["status"], "passed")
+
+    def test_desktop_visibility_requires_explicit_unsupported_status(self):
+        for name in ("minimize", "hide"):
+            for status in ("notRun", "passed", "failed", None, True, 0, [], {}):
+                report = copy.deepcopy(self.report)
+                phase = next(value for value in report["phases"] if value["name"] == name)
+                phase["status"] = status
+                with self.subTest(name=name, status=status), self.assertRaisesRegex(
+                        ValueError, "Desktop visibility must be unsupported on Android"):
+                    self.validate(report)
+
+    def test_missing_desktop_visibility_phase_or_status_is_rejected(self):
+        for name in ("minimize", "hide"):
+            for missing in ("status", "phase"):
+                report = copy.deepcopy(self.report)
+                phase = next(value for value in report["phases"] if value["name"] == name)
+                if missing == "status":
+                    phase.pop("status")
+                else:
+                    report["phases"].remove(phase)
+                with self.subTest(name=name, missing=missing), self.assertRaisesRegex(
+                        ValueError, "Desktop visibility must be unsupported on Android"):
+                    self.validate(report)
 
     def test_old_android_not_run_report_cannot_pass_the_new_gate(self):
         original = copy.deepcopy(self.report)

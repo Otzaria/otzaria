@@ -212,10 +212,15 @@ void main() {
       }
       Directory? temporary;
       if (dataPath.isEmpty || outputPath.isEmpty || sourcePath.isEmpty) {
-        final canonicalTemp = await Directory.systemTemp.resolveSymbolicLinks();
-        temporary = await Directory(
-          canonicalTemp,
-        ).createTemp('otzaria-installed-probe-');
+        if (Platform.isAndroid) {
+          temporary = await createInstalledAndroidProbeRoot();
+        } else {
+          final canonicalTemp = await Directory.systemTemp
+              .resolveSymbolicLinks();
+          temporary = await Directory(
+            canonicalTemp,
+          ).createTemp('otzaria-installed-probe-');
+        }
       }
       final root = Directory(
         dataPath.isEmpty ? p.join(temporary!.path, 'data') : dataPath,
