@@ -1,0 +1,33 @@
+name: QA 4424 independent Windows lifetime
+on:
+  push:
+    branches:
+      - y-ploni/qa-4424-independent-20261107-a
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Keep exact committed source bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Fresh PowerShell, C sharp, native child and independent failure controls
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-independent
+        run: ./tool/perf_probe/qa_4424_independent.ps1
+      - name: Preserve all complete and partial QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-independent-windows
+          path: ${{ runner.temp }}/qa-4424-independent
+          if-no-files-found: error
+          retention-days: 14
