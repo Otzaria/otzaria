@@ -1,5 +1,6 @@
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/models/chunked_list.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
@@ -374,29 +375,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final keepEnd = window.endLine.clamp(0, content.length - 1);
 
     final flags = _loadedContentFlags;
-    var hasLoadedOutsideWindow = false;
-    for (var i = 0; i < content.length; i++) {
-      if (i >= keepStart && i <= keepEnd) {
-        continue;
-      }
-      if (content[i].isNotEmpty) {
-        hasLoadedOutsideWindow = true;
-        break;
-      }
-    }
-    if (!hasLoadedOutsideWindow) {
-      return;
-    }
-
-    final nextContent = List<String>.filled(content.length, '');
-    final nextFlags = List<bool>.filled(content.length, false);
+    final sourceContent = ChunkedList<String>.from(content, defaultValue: '');
+    final nextContent = sourceContent.retainRange(keepStart, keepEnd + 1);
+    final nextFlags = ChunkedList<bool>.from(flags, defaultValue: false).edit()
+      ..length = content.length
+      ..retainRange(keepStart, keepEnd + 1);
     for (var i = keepStart; i <= keepEnd; i++) {
-      nextContent[i] = content[i];
-      nextFlags[i] = i < flags.length ? flags[i] : content[i].isNotEmpty;
+      if (i >= flags.length) nextFlags[i] = content[i].isNotEmpty;
     }
+    if (identical(nextContent, sourceContent) && !nextFlags.changed) return;
 
     _loadedContentRanges = const [];
-    _setLoadedContentFlags(currentState.book, nextFlags);
+    _setLoadedContentFlags(currentState.book, nextFlags.build());
     _markLoadedContentRange(currentState.book, keepStart, keepEnd);
 
     emit(
@@ -837,6 +827,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     // במקביל לטעינת התוכן, כדי שה-UI יקבל את ההגבלה כבר במצב ה-Loaded.
     // גם בטעינה-מחדש: הספרייה עשויה להתעדכן בינתיים.
     final protectionFuture = _protectionLoader(book);
+    // ביטול עשוי להקדים את ה-await; בטעינה פעילה השגיאה עדיין נמסרת אליו.
+    protectionFuture.then<void>((_) {}, onError: (Object _) {});
     // ההערות מהמסד קובעות אם 'הערות' זמין כבר ב-emit הראשון. כשל בהן נכשל
     // את הטעינה (TextBookError) כשהן נדרשות למטה, ולא כשגיאה לא-מטופלת.
     final bookNotesFuture = _bookNotesLoader(book);
@@ -865,6 +857,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final tocFuture = requiresRenderedToc
           ? null
           : repository.getTableOfContents(book);
+      tocFuture?.then<void>((_) {}, onError: (Object _) {});
 
       List<String>? contentLines;
       List<bool>? loadedLineFlags;
@@ -873,7 +866,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         loadedLineFlags = _loadedContentFlags;
       } else if (requiresRenderedToc) {
         final content = await repository.getBookContent(book);
+        if (isClosed || emit.isDone) return;
         contentLines = await splitContentLines(content);
+        if (isClosed || emit.isDone) return;
         loadedLineFlags = List<bool>.filled(contentLines.length, true);
         _setLoadedContentFlags(book, loadedLineFlags);
         _markLoadedContentRange(
@@ -888,6 +883,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           startLine: visibleIndices.first - _initialContentLookBehindLines,
           endLine: visibleIndices.first + _initialContentLookAheadLines,
         );
+        if (isClosed || emit.isDone) return;
 
         if (initialRange != null) {
           contentLines = _contentWithAppliedRange(initialRange);
@@ -908,6 +904,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             fileType: book.fileType,
             preferSource: book.source,
           );
+          if (isClosed || emit.isDone) return;
 
           if (preview != null && preview.isNotEmpty) {
             final previewStartLine = (visibleIndices.first - 10).clamp(
@@ -932,7 +929,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       if (contentLines == null) {
         final content = await repository.getBookContent(book);
+        if (isClosed || emit.isDone) return;
         contentLines = await splitContentLines(content);
+        if (isClosed || emit.isDone) return;
         loadedLineFlags = List<bool>.filled(contentLines.length, true);
         _setLoadedContentFlags(book, loadedLineFlags);
         _markLoadedContentRange(
@@ -994,6 +993,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           );
       final supportsContinuousReading = await repository
           .supportsContinuousReadingMode(book);
+      if (isClosed || emit.isDone) return;
 
       // טעינה מחדש בשינוי גופן/ניקוד (preserveFlag) שומרת את בחירת המשתמש;
       // פתיחה ואיפוס הגדרות הספר — הגדרת הספר או ברירת המחדל.
@@ -1010,14 +1010,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           _supportsContentRangeLoading &&
           !(state is TextBookLoaded && event.preserveState) &&
           visibleIndices.isNotEmpty) {
-        await _loadInitialItemRange(
+        final initialItem = await _loadInitialItemRange(
           book,
           contentLines,
           loadedLineFlags,
           tableOfContents,
           visibleIndices.first,
         );
+        if (initialItem != null) {
+          contentLines = initialItem.content;
+          loadedLineFlags = initialItem.loadedLineFlags;
+        }
       }
+      if (isClosed || emit.isDone) return;
       const List<Link> emptyLinks = [];
       const List<Link> emptyVisibleLinks = [];
 
@@ -1041,12 +1046,27 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       );
       final protection = await protectionFuture;
       final bookNotes = await bookNotesFuture;
+      if (isClosed || emit.isDone) return;
+      final latestState = state;
+      final preservedContentState =
+          event.preserveState &&
+              latestState is TextBookLoaded &&
+              latestState.book.title == book.title
+          ? latestState
+          : null;
+      if (preservedContentState != null) {
+        contentLines = preservedContentState.content;
+        loadedLineFlags = preservedContentState.loadedLineFlags;
+      }
       TextBookLoaded loadedState = TextBookLoaded(
         book: book,
         protection: protection,
         bookNotes: bookNotes,
         content: contentLines,
-        contentVersion: contentLines.isEmpty ? 0 : 1,
+        contentVersion:
+            preservedContentState?.contentVersion ??
+            (contentLines.isEmpty ? 0 : 1),
+        contentChanges: preservedContentState?.contentChanges,
         links: emptyLinks,
         linksByLine: const {},
         availableCommentators: existingAvailableCommentators,
@@ -1118,11 +1138,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         pinpointHighlightText: pinpointHighlightText,
       );
 
-      // סריקה סינכרונית של ה-content שכבר בזיכרון לזיהוי הערות inline
-      // לפני ה-emit הראשון. מסלולי preview/range מקבלים הרחבה הדרגתית
-      // דרך ApplyBookContentRange / ApplyFullBookContent (ראה
-      // _withInlineNotesCommentator).
-      if (notes.hasInlineNotes(contentLines, dbNotes: bookNotes)) {
+      // אין הערות ב-placeholders; סורקים רק תוכן שנמצא בזיכרון.
+      if (notes.hasInlineNotes(
+        contentLines is ChunkedList<String>
+            ? contentLines.nonDefaultValues
+            : contentLines,
+        dbNotes: bookNotes,
+      )) {
         loadedState = _attachInlineNotesCommentator(loadedState);
       }
 
@@ -1151,6 +1173,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _enrichHeCategoriesInBackground(book);
       _loadDivineNamesInBackground(book);
     } catch (e, st) {
+      if (isClosed || emit.isDone) return;
       debugPrint('Error loading textbook: $e\n$st');
       if (state is TextBookInitial) {
         final initial = state as TextBookInitial;
@@ -2165,42 +2188,40 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _ensureLoadedContentTrackingBook(currentState.book);
     _supportsContentRangeLoading = true;
 
-    final nextContent = List<String>.of(currentState.content);
+    final nextContent = ChunkedList<String>.from(
+      currentState.content,
+      defaultValue: '',
+    ).edit();
     final hasTrackedFlags = identical(
       currentState.loadedLineFlags,
       _loadedContentFlags,
     );
-    final nextLoadedFlags = List<bool>.of(_loadedContentFlags);
-    var hasContentChanged = false;
-    var hasLoadedFlagsChanged = false;
+    final nextLoadedFlags = ChunkedList<bool>.from(
+      _loadedContentFlags,
+      defaultValue: false,
+    ).edit();
+    if (nextLoadedFlags.length < nextContent.length) {
+      nextLoadedFlags.length = nextContent.length;
+    }
 
     for (final range in applicable) {
       final targetLength = range.startLine + range.lines.length;
       if (nextContent.length < targetLength) {
-        hasContentChanged = true;
-        nextContent.addAll(
-          List<String>.filled(targetLength - nextContent.length, ''),
-        );
+        nextContent.length = targetLength;
       }
       if (nextLoadedFlags.length < targetLength) {
-        hasLoadedFlagsChanged = true;
-        nextLoadedFlags.addAll(
-          List<bool>.filled(targetLength - nextLoadedFlags.length, false),
-        );
+        nextLoadedFlags.length = targetLength;
       }
 
-      for (var offset = 0; offset < range.lines.length; offset++) {
-        final targetIndex = range.startLine + offset;
-        if (targetIndex >= 0 && targetIndex < nextContent.length) {
-          if (nextContent[targetIndex] != range.lines[offset]) {
-            hasContentChanged = true;
-          }
-          if (!nextLoadedFlags[targetIndex]) {
-            hasLoadedFlagsChanged = true;
-          }
-          nextContent[targetIndex] = range.lines[offset];
-          nextLoadedFlags[targetIndex] = true;
-        }
+      final first = max(0, range.startLine);
+      if (first < targetLength) {
+        nextContent.setRange(
+          first,
+          targetLength,
+          range.lines,
+          first - range.startLine,
+        );
+        nextLoadedFlags.fillRange(first, targetLength, true);
       }
     }
 
@@ -2215,18 +2236,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
     }
 
-    if (!hasContentChanged && !hasLoadedFlagsChanged) {
+    if (!nextContent.changed && !nextLoadedFlags.changed) {
       markAllRanges();
       return;
     }
 
-    _setLoadedContentFlags(currentState.book, nextLoadedFlags);
+    _setLoadedContentFlags(currentState.book, nextLoadedFlags.build());
     markAllRanges();
 
     emit(
       _withInlineNotesCommentator(
         currentState.copyWith(
-          content: nextContent,
+          content: nextContent.build(),
           contentVersion: currentState.contentVersion + 1,
           loadedLineFlags: _loadedContentFlags,
           contentChanges: ContentLineChanges(
@@ -2248,25 +2269,16 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           ),
         ),
         // סורקים הערות רק בטווחים החדשים, בלי לחזור על כל הספר.
-        scanOnly: [for (final range in applicable) ...range.lines],
+        scanOnly: applicable.expand((range) => range.lines),
       ),
     );
   }
 
-  /// בודק אם בתוכן העדכני יש הערות inline. אם כן ועדיין לא הוסף המפרש
-  /// הוירטואלי 'הערות' ל-availableCommentators - מוסיף אותו ובוחר אותו
-  /// אוטומטית רק אם המשתמש עדיין לא נגע ידנית בבחירת המפרשים.
-  ///
-  /// נדרש כי בעת `_loadCommentatorsInBackground` ה-content עלול להיות
-  /// חלון חלקי בלבד, וההערות יכולות להיות מחוץ לחלון. ההרחבה הבאה של
-  /// התוכן (ApplyBookContentRange / ApplyFullBookContent) חייבת לרענן.
-  ///
-  /// [scanOnly] - אם ניתן, סורקים רק את השורות האלו (אופטימיזציה: על
-  /// הרחבת טווח אנחנו מקבלים רק את השורות החדשות, אין סיבה לסרוק שוב
-  /// את כל ה-content).
+  /// מזהה הערות בטווחים חדשים בלי לסרוק שוב את כל הספר,
+  /// ושומר בחירה ידנית במפרשים גם כאשר מתגלות הערות נוספות.
   TextBookLoaded _withInlineNotesCommentator(
     TextBookLoaded state, {
-    List<String>? scanOnly,
+    Iterable<String>? scanOnly,
   }) {
     if (state.availableCommentators.contains(kNotesCommentatorTitle)) {
       return state;
@@ -2276,7 +2288,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (_inlineNotesFullScanDone) {
       return state;
     }
-    final linesToScan = scanOnly ?? state.content;
+    final content = state.content;
+    final linesToScan =
+        scanOnly ??
+        (content is ChunkedList<String> ? content.nonDefaultValues : content);
     if (!notes.hasInlineNotes(linesToScan)) {
       return state;
     }
@@ -2371,11 +2386,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     ]);
   }
 
-  // אורך הרשימה חייב להיות אורך הספר המלא (totalLines) ולא רק עד endLine,
-  // אחרת itemCount של הרשימה/פס-הגלילה קטן מדי בפתיחה באמצע הספר, ופס
-  // הגלילה מתחיל קרוב לתחתית ו"גולש" למקומו רק כשהתוכן המלא נטען ברקע.
-  // השורות שמעבר לחלון הטעון נשארות placeholders ריקים — בדיוק כמו השורות
-  // שלפני תחילת החלון.
+  // האורך הלוגי המלא שומר על מיקום פס הגלילה גם בפתיחה באמצע הספר.
   int _fullContentLength(BookContentRange range) =>
       range.totalLines > range.endLine + 1
       ? range.totalLines
@@ -2383,14 +2394,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   /// במצב רציף שורת הפתיחה מוצגת בתוך פסקה שלמה; טוענים את כל שורותיה לפני
   /// הציור הראשון, כדי שהקורא ייפתח בשורה עצמה ולא במקום שמור.
-  Future<void> _loadInitialItemRange(
+  Future<({List<String> content, List<bool> loadedLineFlags})?>
+  _loadInitialItemRange(
     TextBook book,
     List<String> content,
     List<bool> loadedLineFlags,
     List<TocEntry> tableOfContents,
     int line,
   ) async {
-    if (content.isEmpty || loadedLineFlags.length < content.length) return;
+    if (content.isEmpty || loadedLineFlags.length < content.length) return null;
     final layout = continuousReadingLayout(
       lineCount: content.length,
       tableOfContents: tableOfContents,
@@ -2398,7 +2410,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final item = layout.itemForLine(line);
     final first = layout.firstLineOf(item);
     final last = layout.lastLineOf(item);
-    if (!loadedLineFlags.sublist(first, last + 1).contains(false)) return;
+    if (!loadedLineFlags.getRange(first, last + 1).contains(false)) return null;
     // כישלון כאן אינו מכשיל את הפתיחה: הפסקה תיטען כמו כל פריט שלא נטען.
     final BookContentRange? range;
     try {
@@ -2413,44 +2425,63 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           '⚠️ TextBookBloc::loadInitialItemRange failed for ${book.title}: $e',
         );
       }
-      return;
+      return null;
     }
-    if (range == null) return;
-    for (var offset = 0; offset < range.lines.length; offset++) {
-      final target = range.startLine + offset;
-      if (target < 0 || target >= content.length) continue;
-      content[target] = range.lines[offset];
-      loadedLineFlags[target] = true;
+    if (range == null || isClosed) return null;
+    final nextContent = ChunkedList<String>.from(
+      content,
+      defaultValue: '',
+    ).edit();
+    final nextFlags = ChunkedList<bool>.from(
+      loadedLineFlags,
+      defaultValue: false,
+    ).edit();
+    final firstLoaded = max(0, range.startLine);
+    final endLoaded = min(content.length, range.startLine + range.lines.length);
+    if (firstLoaded < endLoaded) {
+      nextContent.setRange(
+        firstLoaded,
+        endLoaded,
+        range.lines,
+        firstLoaded - range.startLine,
+      );
+      nextFlags.fillRange(firstLoaded, endLoaded, true);
     }
-    _setLoadedContentFlags(book, loadedLineFlags);
+    final flags = nextFlags.build();
+    _setLoadedContentFlags(book, flags);
     _markLoadedContentRange(
       book,
       range.startLine,
       range.endLine,
       totalLines: range.totalLines,
     );
+    return (content: nextContent.build(), loadedLineFlags: flags);
   }
 
   List<String> _contentWithAppliedRange(BookContentRange range) {
-    final content = List<String>.filled(_fullContentLength(range), '');
-    for (var offset = 0; offset < range.lines.length; offset++) {
-      final targetIndex = range.startLine + offset;
-      if (targetIndex >= 0 && targetIndex < content.length) {
-        content[targetIndex] = range.lines[offset];
-      }
+    final content = ChunkedList<String>.filled(
+      _fullContentLength(range),
+      '',
+    ).edit();
+    final first = max(0, range.startLine);
+    final end = min(content.length, range.startLine + range.lines.length);
+    if (first < end) {
+      content.setRange(first, end, range.lines, first - range.startLine);
     }
-    return content;
+    return content.build();
   }
 
   List<bool> _loadedContentFlagsWithAppliedRange(BookContentRange range) {
-    final loadedFlags = List<bool>.filled(_fullContentLength(range), false);
-    for (var offset = 0; offset < range.lines.length; offset++) {
-      final targetIndex = range.startLine + offset;
-      if (targetIndex >= 0 && targetIndex < loadedFlags.length) {
-        loadedFlags[targetIndex] = true;
-      }
+    final loadedFlags = ChunkedList<bool>.filled(
+      _fullContentLength(range),
+      false,
+    ).edit();
+    final first = max(0, range.startLine);
+    final end = min(loadedFlags.length, range.startLine + range.lines.length);
+    if (first < end) {
+      loadedFlags.fillRange(first, end, true);
     }
-    return loadedFlags;
+    return loadedFlags.build();
   }
 
   List<bool> _buildPreviewLoadedLineFlags(
@@ -2484,7 +2515,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   void _setLoadedContentFlags(TextBook book, List<bool> loadedFlags) {
     _ensureLoadedContentTrackingBook(book);
-    _loadedContentFlags = List<bool>.unmodifiable(loadedFlags);
+    _loadedContentFlags = loadedFlags is ChunkedList<bool>
+        ? loadedFlags
+        : List<bool>.unmodifiable(loadedFlags);
   }
 
   void _markLoadedContentRange(
