@@ -1,0 +1,30 @@
+name: QA 4424 retained native failure diagnosis
+on:
+  push:
+    branches:
+      - y-ploni/qa-4424-native-diagnostic-20261107-b
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Read exact retained Windows artifact without executing its code
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-native-diagnostic
+        run: python3 tool/perf_probe/qa_4424_native_diagnostic.py
+      - name: Preserve exact input artifact and complete diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-native-diagnostic
+          path: ${{ runner.temp }}/qa-4424-native-diagnostic
+          if-no-files-found: error
+          retention-days: 14
