@@ -327,6 +327,8 @@ class DbReadWorker {
   static bool _suspendedForExternalWrite = false;
   static bool _closedUntilReopen = false;
   static final Set<Future<void>> _oneShotReads = {};
+  static Completer<bool>? _oneShotWaiter;
+  static Timer? _oneShotWaitTimer;
 
   /// חיבורים זמניים שרצים יחד (fallback, קטלוג ודורות); השאר בתור. שתיים
   /// ולא אחת: קריאת ספר שלם איטית לא תחסום לבדה טווח קטן.
@@ -350,6 +352,7 @@ class DbReadWorker {
   static Duration admissionTimeout = const Duration(seconds: 10);
 
   static const _maxBatchItems = 64;
+  static const _maxPendingLifecycleCommands = 4;
 
   /// בקשה שלא נענתה בזמן הזה מסמנת את ה-worker כתקוע; עד שיענה, הבקשות
   /// עוברות למסלול חלופי מחוץ ל-UI isolate.
@@ -380,7 +383,12 @@ class DbReadWorker {
       _fallbackQueue.isNotEmpty ||
       _batch.isNotEmpty ||
       _slots.any((slot) => slot.spawnFuture != null) ||
-      _runningWorkers.any((worker) => worker._pending.isNotEmpty);
+      _runningWorkers.any(
+        (worker) =>
+            worker._pending.isNotEmpty ||
+            worker._deferredLifecycle != null ||
+            worker._lifecycleRecovery != null,
+      );
 
   static Future<DbReadWorker> _instanceOrSpawn(_WorkerSlot slot) {
     final existing = slot.instance;
@@ -452,6 +460,11 @@ class DbReadWorker {
   final Completer<void> _readyCompleter = Completer<void>();
   final Map<int, Completer<Object?>> _pending = {};
   final Map<String, Future<Object?>> _maintenanceRequests = {};
+  // חזרה אחרי timeout אינה מצמידה listener נוסף לפקודה שעדיין חיה.
+  final _lifecycleWaits = Expando<Future<Object?>>();
+  int _pendingLifecycleCommands = 0;
+  _DeferredLifecycle? _deferredLifecycle;
+  Future<Object?>? _lifecycleRecovery;
   Isolate? _isolate;
   SendPort? _commandPort;
   int _nextId = 0;
@@ -520,12 +533,18 @@ class DbReadWorker {
     int generation,
   ) async {
     final service = await _instanceOrSpawn(slot);
-    if (_suspendedForExternalWrite ||
-        _closedUntilReopen ||
-        generation != _generation) {
-      throw const DbReadWorkerSuspended();
+    while (true) {
+      if (_suspendedForExternalWrite ||
+          _closedUntilReopen ||
+          generation != _generation) {
+        throw const DbReadWorkerSuspended();
+      }
+      final recovery =
+          service._deferredLifecycle?.completer.future ??
+          service._lifecycleRecovery;
+      if (recovery == null) return service._send(method, args);
+      await recovery;
     }
-    return service._send(method, args);
   }
 
   static final Set<String> _loggedFailures = {};
@@ -746,17 +765,30 @@ class DbReadWorker {
       return result;
     } finally {
       _oneShotReads.remove(tracked);
+      if (_oneShotReads.isEmpty) _finishOneShotWait(true);
     }
   }
 
-  static Future<bool> _waitForOneShotReads() async {
-    try {
-      await Future.wait(_oneShotReads).timeout(lifecycleCommandTimeout);
-      return true;
-    } on TimeoutException {
+  static Future<bool> _waitForOneShotReads() {
+    if (_oneShotReads.isEmpty) return Future.value(true);
+    // timeout אינו מצמיד ממתין חדש לקריאות החיות; ניסיון נוסף מקבל חלון חדש.
+    final existing = _oneShotWaiter;
+    if (existing != null) return existing.future;
+    final waiter = _oneShotWaiter = Completer<bool>();
+    _oneShotWaitTimer = Timer(lifecycleCommandTimeout, () {
+      if (!identical(_oneShotWaiter, waiter)) return;
       debugPrint('[DbReadWorker] fallback reads did not release DB in time');
-      return false;
-    }
+      _finishOneShotWait(false);
+    });
+    return waiter.future;
+  }
+
+  static void _finishOneShotWait(bool released) {
+    _oneShotWaitTimer?.cancel();
+    _oneShotWaitTimer = null;
+    final waiter = _oneShotWaiter;
+    _oneShotWaiter = null;
+    waiter?.complete(released);
   }
 
   static final List<_BatchItem> _batch = [];
@@ -876,7 +908,15 @@ class DbReadWorker {
     _failQueuedReads();
     final released = await Future.wait([
       for (final service in _runningWorkers)
-        service._lifecycle('suspend', const {}).then((value) => value == true),
+        service
+            ._lifecycle('suspend', const {})
+            .then(
+              (value) => value == true,
+              onError: (Object error) {
+                if (error is DbReadWorkerBusy) return false;
+                throw error;
+              },
+            ),
       _waitForOneShotReads(),
     ]);
     return released.every((value) => value);
@@ -899,8 +939,11 @@ class DbReadWorker {
     _failQueuedReads();
     final closings = <Future<Object?>>[];
     for (final service in _runningWorkers) {
+      final rejected = service._lifecycleQueueFull;
       final closing = service._send('close', const {});
-      if (!wait || service._stalled) {
+      if (wait && rejected) {
+        closings.add(closing);
+      } else if (!wait || service._stalled) {
         closing.ignore();
       } else {
         closings.add(service._awaitLifecycle(closing, 'close'));
@@ -996,7 +1039,10 @@ class DbReadWorker {
   Future<Object?> _lifecycle(String method, Map<String, Object?> args) =>
       _awaitLifecycle(_send(method, args), method);
 
-  Future<Object?> _awaitLifecycle(
+  Future<Object?> _awaitLifecycle(Future<Object?> request, String method) =>
+      _lifecycleWaits[request] ??= _waitForLifecycle(request, method);
+
+  Future<Object?> _waitForLifecycle(
     Future<Object?> request,
     String method,
   ) async {
@@ -1005,6 +1051,8 @@ class DbReadWorker {
     } on TimeoutException {
       request.ignore();
       debugPrint('[DbReadWorker] $method timed out — DB handle may be open');
+    } on DbReadWorkerBusy {
+      rethrow;
     } catch (e) {
       debugPrint('[DbReadWorker] $method failed: $e');
     }
@@ -1016,6 +1064,12 @@ class DbReadWorker {
   static int sentMessageCount = 0;
 
   Future<Object?> _send(String method, Map<String, Object?> args) {
+    if (_disposed) {
+      return Future.error(const DbReadWorkerUnavailable('disposed'));
+    }
+    if (const {'close', 'open', 'suspend', 'resume'}.contains(method)) {
+      return _sendLifecycle(method, args);
+    }
     if (method != 'shrinkMemory' && method != 'clearBookCache') {
       return _sendRequest(method, args);
     }
@@ -1028,6 +1082,76 @@ class DbReadWorker {
       }
     });
     return _maintenanceRequests[method] = run;
+  }
+
+  bool get _lifecycleQueueFull =>
+      _pendingLifecycleCommands >= _maxPendingLifecycleCommands ||
+      _deferredLifecycle != null ||
+      _lifecycleRecovery != null;
+
+  Future<Object?> _sendLifecycle(String method, Map<String, Object?> args) {
+    if (!_lifecycleQueueFull) return _sendLifecycleRequest(method, args);
+    final deferred = _deferredLifecycle ??= _DeferredLifecycle();
+    deferred.closed = _closedUntilReopen;
+    deferred.suspended = _suspendedForExternalWrite;
+    final mustClose = method == 'close' || method == 'suspend';
+    deferred.mustClose |= mustClose;
+    // מצב היעד יוחל אחרי התור, אבל אין אישור סגירה לפקודה שלא התקבלה.
+    if (mustClose) {
+      return Future.error(const DbReadWorkerBusy('lifecycle queue capacity'));
+    }
+    return deferred.completer.future;
+  }
+
+  Future<Object?> _sendLifecycleRequest(
+    String method,
+    Map<String, Object?> args,
+  ) {
+    _pendingLifecycleCommands++;
+    return _sendRequest(method, args).whenComplete(() {
+      _pendingLifecycleCommands--;
+      _flushDeferredLifecycle();
+    });
+  }
+
+  void _flushDeferredLifecycle() {
+    if (_disposed ||
+        _pendingLifecycleCommands != 0 ||
+        _lifecycleRecovery != null) {
+      return;
+    }
+    final deferred = _deferredLifecycle;
+    if (deferred == null) return;
+    _deferredLifecycle = null;
+    final recovery = deferred.completer.future;
+    _lifecycleRecovery = recovery;
+    unawaited(
+      _sendLifecycleRequest('lifecycleState', {
+            'closed': deferred.closed,
+            'suspended': deferred.suspended,
+            'mustClose': deferred.mustClose,
+          })
+          .then(
+            (result) {
+              if (result == true) {
+                deferred.completer.complete(result);
+              } else {
+                deferred.completer.completeError(
+                  const DbReadWorkerUnavailable('lifecycle recovery failed'),
+                );
+              }
+            },
+            onError: (Object error, StackTrace stack) {
+              deferred.completer.completeError(error, stack);
+            },
+          )
+          .whenComplete(() {
+            if (identical(_lifecycleRecovery, recovery)) {
+              _lifecycleRecovery = null;
+            }
+            _flushDeferredLifecycle();
+          }),
+    );
   }
 
   Future<Object?> _sendRequest(String method, Map<String, Object?> args) async {
@@ -1087,6 +1211,10 @@ class DbReadWorker {
     if (_disposed) return;
     _disposed = true;
     _failAllPending(const DbReadWorkerUnavailable('disposed'));
+    _deferredLifecycle?.completer.completeError(
+      const DbReadWorkerUnavailable('disposed'),
+    );
+    _deferredLifecycle = null;
     _messagesSub.cancel();
     _errorSub.cancel();
     _exitSub.cancel();
@@ -1121,6 +1249,17 @@ bool _isCorruptDatabaseError(String message) {
   final match = RegExp(r'SqliteException\((\d+)\)').firstMatch(message);
   final code = match == null ? null : int.parse(match.group(1)!);
   return code != null && const {11, 26}.contains(code & 0xFF);
+}
+
+class _DeferredLifecycle {
+  _DeferredLifecycle() {
+    completer.future.ignore();
+  }
+
+  bool closed = false;
+  bool suspended = false;
+  bool mustClose = false;
+  final completer = Completer<Object?>();
 }
 
 class _WorkerSlot {
@@ -1313,6 +1452,12 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'open':
         closed = false;
         return null;
+      case 'lifecycleState':
+        closed = args['closed'] as bool;
+        suspended = args['suspended'] as bool;
+        return args['mustClose'] == true || closed || suspended
+            ? closeConnection()
+            : true;
       case 'clearBookCache':
         resolvedBooks.clear();
         return null;
@@ -1440,14 +1585,21 @@ void _workerMain(_Bootstrap bootstrap) {
       'resume',
       'close',
       'open',
+      'lifecycleState',
       'clearBookCache',
       'shrinkMemory',
     }.contains(method)) {
-      if (method == 'suspend' || method == 'close') {
+      final state = method == 'lifecycleState' ? message['args'] as Map : null;
+      final suspend = method == 'suspend' || state?['suspended'] == true;
+      final close =
+          method == 'close' ||
+          state?['closed'] == true ||
+          state?['mustClose'] == true;
+      if (suspend || close) {
         // הדגל נקבע כבר כאן, כדי שגם פריטי batch שרץ כעת לא יתחילו שאילתה חדשה
         // ולא יפתחו מחדש את החיבור לפני שהפקודה עצמה מבוצעת.
-        if (method == 'suspend') suspended = true;
-        if (method == 'close') closed = true;
+        if (suspend) suspended = true;
+        if (close) closed = true;
         for (final queued in queue) {
           bootstrap.mainSendPort.send({'id': queued['id'], 'suspended': true});
         }

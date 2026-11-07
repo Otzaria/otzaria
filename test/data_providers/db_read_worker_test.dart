@@ -756,6 +756,309 @@ void main() {
     expect(await DbReadWorker.shrinkMemoryIfRunning(), isTrue);
   });
 
+  test(
+    'lifecycle admission stays bounded and recovers the latest state',
+    () async {
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+      DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
+      final before = DbReadWorker.sentMessageCount;
+      try {
+        for (var i = 0; i < 20; i++) {
+          await DbReadWorker.closeConnectionIfRunning(wait: false);
+          DbReadWorker.allowReopen();
+        }
+        expect(
+          DbReadWorker.sentMessageCount - before,
+          lessThanOrEqualTo(4),
+          reason:
+              'DB_LIFECYCLE_CONTROL_BOUND: a held worker must retain at most '
+              'four sent lifecycle commands.',
+        );
+        await expectLater(
+          DbReadWorker.closeConnectionIfRunning(),
+          throwsA(isA<DbReadWorkerBusy>()),
+        );
+        expect(await DbReadWorker.suspendForExternalWrite(), isFalse);
+        await DbReadWorker.resumeAfterExternalWrite();
+        DbReadWorker.allowReopen();
+        final reading = DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        });
+        full.release.send(null);
+        expect(await full.result, isA<DbReadWorkerSuspended>());
+        expect(await reading, List.generate(5, (i) => 'שורה $i').join('\n'));
+        expect(DbReadWorker.resourceUsage.pendingWorkerReads, 0);
+      } finally {
+        DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+        full.release.send(null);
+        await full.result;
+      }
+    },
+  );
+
+  test('repeated lifecycle recovery waits share their timeout', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    final full = await pausedBookRead(dbPath);
+    final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+    const controlTimeout = Duration(milliseconds: 37);
+    DbReadWorker.lifecycleCommandTimeout = controlTimeout;
+    final clock = FakeAsync();
+    final timerZone = clock.run((_) => Zone.current);
+    final waits = <Future<void>>[];
+    Future<void> resume() => runZoned(
+      DbReadWorker.resumeAfterExternalWrite,
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) =>
+            duration == controlTimeout
+            ? timerZone.createTimer(duration, callback)
+            : parent.createTimer(zone, duration, callback),
+      ),
+    );
+    try {
+      for (var i = 0; i < 4; i++) {
+        DbReadWorker.allowReopen();
+      }
+      for (var i = 0; i < 20; i++) {
+        waits.add(resume());
+      }
+      expect(clock.nonPeriodicTimerCount, 1);
+      clock.elapse(controlTimeout);
+      await Future.wait(waits);
+      waits.clear();
+      for (var i = 0; i < 20; i++) {
+        waits.add(resume());
+      }
+      await Future.wait(waits);
+      expect(clock.nonPeriodicTimerCount, 0);
+      full.release.send(null);
+      expect(await full.result, isA<TransferableBookContent>());
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }),
+        isNotNull,
+      );
+    } finally {
+      clock.elapse(controlTimeout);
+      DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+      full.release.send(null);
+      await Future.wait(waits);
+      await full.result;
+    }
+  });
+
+  test('fallback drain waits stay bounded and recover after timeout', () async {
+    final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+    const controlTimeout = Duration(milliseconds: 43);
+    DbReadWorker.lifecycleCommandTimeout = controlTimeout;
+    final clock = FakeAsync();
+    final timerZone = clock.run((_) => Zone.current);
+    final releases = List.generate(3, (_) => Completer<void>());
+    final reads = <Future<Object?>>[];
+    Future<void> startRead(int index) async {
+      reads.add(
+        DbReadWorker.trackTemporaryRead(
+          () => releases[index].future,
+        ).then<Object?>((_) => null, onError: (Object error) => error),
+      );
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    Future<bool> drain() => runZoned(
+      DbReadWorker.suspendForExternalWrite,
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) =>
+            duration == controlTimeout
+            ? timerZone.createTimer(duration, callback)
+            : parent.createTimer(zone, duration, callback),
+      ),
+    );
+    try {
+      await startRead(0);
+      final waiting = [for (var i = 0; i < 20; i++) drain()];
+      expect(clock.nonPeriodicTimerCount, 1);
+      clock.elapse(controlTimeout);
+      expect(await Future.wait(waiting), everyElement(isFalse));
+      expect(clock.nonPeriodicTimerCount, 0);
+
+      await DbReadWorker.resumeAfterExternalWrite();
+      await startRead(1);
+      DbReadWorker.disposeForTesting();
+      expect(DbReadWorker.resourceUsage.activeFallbackReads, 2);
+      releases[0].complete();
+      await reads[0];
+      expect(DbReadWorker.resourceUsage.activeFallbackReads, 1);
+      final waitingAgain = [for (var i = 0; i < 20; i++) drain()];
+      expect(clock.nonPeriodicTimerCount, 1);
+      var completed = false;
+      waitingAgain.first.then((_) => completed = true).ignore();
+      await Future<void>.delayed(Duration.zero);
+      expect(completed, isFalse);
+
+      releases[1].complete();
+      await reads[1];
+      expect(await Future.wait(waitingAgain), everyElement(isTrue));
+      expect(clock.nonPeriodicTimerCount, 0);
+      expect(DbReadWorker.resourceUsage.activeFallbackReads, 0);
+      await DbReadWorker.resumeAfterExternalWrite();
+      await startRead(2);
+      final recovered = drain();
+      expect(clock.nonPeriodicTimerCount, 1);
+      releases[2].complete();
+      await reads[2];
+      expect(await recovered, isTrue);
+      expect(clock.nonPeriodicTimerCount, 0);
+    } finally {
+      clock.elapse(controlTimeout);
+      DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+      for (final release in releases) {
+        if (!release.isCompleted) release.complete();
+      }
+      await Future.wait(reads);
+    }
+  });
+
+  test('lifecycle admission preserves close open close ordering', () async {
+    final dbPath = await seedDb('seforim', bigBookLines: 4097);
+    final full = await pausedBookRead(dbPath);
+    try {
+      await DbReadWorker.closeConnectionIfRunning(wait: false);
+      DbReadWorker.allowReopen();
+      final closing = DbReadWorker.closeConnectionIfRunning();
+      full.release.send(null);
+      await closing;
+      expect(await full.result, isA<DbReadWorkerSuspended>());
+      await expectLater(
+        DbReadWorker.cacheSizeForTesting(dbPath, books: true),
+        throwsA(isA<DbReadWorkerSuspended>()),
+      );
+      DbReadWorker.allowReopen();
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }),
+        List.generate(5, (i) => 'שורה $i').join('\n'),
+      );
+    } finally {
+      full.release.send(null);
+      await full.result;
+    }
+  });
+
+  test(
+    'lifecycle recovery waiters are released when the worker exits',
+    () async {
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      try {
+        for (var i = 0; i < 4; i++) {
+          await DbReadWorker.closeConnectionIfRunning(wait: false);
+          DbReadWorker.allowReopen();
+        }
+        final resuming = DbReadWorker.resumeAfterExternalWrite();
+        final reading = DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }).then<Object?>((value) => value, onError: (Object error) => error);
+        await Future<void>.delayed(Duration.zero);
+        DbReadWorker.disposeForTesting();
+        await resuming.timeout(const Duration(seconds: 1));
+        expect(await reading, isA<DbReadWorkerSuspended>());
+        expect(await full.result, isA<DbReadWorkerSuspended>());
+        expect(
+          await DbReadWorker.request('bookText', {
+            'dbPath': dbPath,
+            'bookId': 1,
+            'title': 'בראשית',
+          }),
+          List.generate(5, (i) => 'שורה $i').join('\n'),
+        );
+      } finally {
+        full.release.send(null);
+        await full.result;
+      }
+    },
+  );
+
+  test(
+    'overflow close open close leaves the worker connection closed',
+    () async {
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      try {
+        for (var i = 0; i < 4; i++) {
+          DbReadWorker.allowReopen();
+        }
+        await DbReadWorker.closeConnectionIfRunning(wait: false);
+        DbReadWorker.allowReopen();
+        await DbReadWorker.closeConnectionIfRunning(wait: false);
+        full.release.send(null);
+        expect(await full.result, isA<DbReadWorkerSuspended>());
+        for (var i = 0; i < 100 && DbReadWorker.hasPendingReads; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(DbReadWorker.hasPendingReads, isFalse);
+        await expectLater(
+          DbReadWorker.cacheSizeForTesting(dbPath, books: true),
+          throwsA(isA<DbReadWorkerSuspended>()),
+        );
+        DbReadWorker.allowReopen();
+        expect(
+          await DbReadWorker.request('bookText', {
+            'dbPath': dbPath,
+            'bookId': 1,
+            'title': 'בראשית',
+          }),
+          isNotNull,
+        );
+      } finally {
+        full.release.send(null);
+        await full.result;
+      }
+    },
+  );
+
+  test(
+    'overflow close open closes the old connection before recovery',
+    () async {
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      try {
+        for (var i = 0; i < 4; i++) {
+          DbReadWorker.allowReopen();
+        }
+        await DbReadWorker.closeConnectionIfRunning(wait: false);
+        DbReadWorker.allowReopen();
+        final resuming = DbReadWorker.resumeAfterExternalWrite();
+        full.release.send(null);
+        await resuming;
+        expect(await full.result, isA<DbReadWorkerSuspended>());
+        // רק open/resume התקבלו לפני ההצפה; ההתאוששות חייבת לסגור בעצמה.
+        expect(await DbReadWorker.shrinkMemoryIfRunning(), isFalse);
+        expect(
+          await DbReadWorker.request('bookText', {
+            'dbPath': dbPath,
+            'bookId': 1,
+            'title': 'בראשית',
+          }),
+          isNotNull,
+        );
+      } finally {
+        full.release.send(null);
+        await full.result;
+      }
+    },
+  );
+
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
     final dbPath = await seedDb('seforim');
     await DbReadWorker.batched('heRef', {
