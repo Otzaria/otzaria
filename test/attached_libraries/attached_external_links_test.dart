@@ -170,6 +170,25 @@ void main() {
     }
   }
 
+  Future<void> withLockedOfficial(Future<void> Function() action) async {
+    final ready = ReceivePort();
+    final writer = _holdExclusiveWriter(officialPath, ready.sendPort);
+    SendPort? release;
+    try {
+      release = await Future.any<SendPort>([
+        ready.first.then((message) => message as SendPort),
+        writer.then<SendPort>(
+          (_) => throw StateError('writer exited before acquiring the lock'),
+        ),
+      ]);
+      await action();
+    } finally {
+      release?.send(null);
+      ready.close();
+      await writer;
+    }
+  }
+
   /// שינוי תוכן הקובץ עם זמן שינוי חדש — כמו עדכון של המסד מבחוץ.
   void touch(String path) {
     final file = File(path);
@@ -698,6 +717,67 @@ void main() {
       expect(await window(5), isEmpty);
     });
 
+    test('נעילת יעד זמנית אינה נשמרת כתוצאת כיוון ישיר ריקה', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      Future<List<Link>> read() => links.linksInRange(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), hasLength(1));
+      expect(await read(), hasLength(1));
+    });
+
+    test('נעילת יעד זמנית אינה נשמרת כסיכום קישורים ריק', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      Future<int> read() async => (await links.targetsSummary(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+      )).targets.fold<int>(0, (sum, target) => sum + target.linkCount);
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), 1);
+    });
+
+    test('נעילת יעד זמנית אינה נשמרת כמפת מפרשים ריקה', () async {
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [
+            _row(0, targetLineIndex: 1, connectionType: 'COMMENTARY'),
+          ],
+        ),
+      );
+      await links.sync();
+      Future<Map<String, BookSource>> read() => links.commentatorSources(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(read(), throwsA(isA<sqlite3.SqliteException>()));
+      });
+      expect(await read(), {
+        SeforimFixtureIds.bereshitTitle: BookSource.official,
+      });
+    });
+
     test('מסד רשמי שלא היה זמין נקלט כשהוא נפתח', () async {
       final library = await attach(
         attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
@@ -891,6 +971,192 @@ void main() {
       expect(indexRows(library.slug), 5);
       expect(metaSignature(library.slug), isNot(startsWith('!')));
       expect(links.tooLargeSlugs.value, isEmpty);
+    });
+
+    test('נעילת יעד בשורה היחידה אינה מסיימת אינדקס ריק', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      final full = indexSnapshot(library.slug);
+      expect(full, hasLength(1));
+
+      await withLockedOfficial(() => links.rebuild(library.slug));
+      expect(links.incompleteSlugs.value, {library.slug});
+      expect(metaSignature(library.slug), startsWith('!building:'));
+      expect(indexRows(library.slug), 0);
+
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(metaSignature(library.slug), isNot(startsWith('!')));
+      expect(indexSnapshot(library.slug), full);
+    });
+
+    test('נעילת גרסת היעד אינה מוחקת אינדקס תקין או בוחרת מסד חלופי', () async {
+      final fallbackPath = attachedDb('fallback');
+      final fallback = sqlite3.sqlite3.open(fallbackPath);
+      try {
+        fallback.execute('UPDATE book SET title = ? WHERE id = ?', [
+          SeforimFixtureIds.bereshitTitle,
+          SeforimFixtureIds.bereshitId,
+        ]);
+      } finally {
+        fallback.close();
+      }
+      await attach(fallbackPath);
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [_row(0, targetSource: null, targetLineIndex: 1)],
+        ),
+      );
+      await links.sync();
+      final signature = metaSignature(library.slug);
+      final full = indexSnapshot(library.slug);
+      final reopened = ExternalLinkRepository(
+        registry: registry,
+        cacheDbPath: () async => cachePath(),
+        officialTarget: () => trustedDbTarget(officialPath),
+      );
+
+      await withLockedOfficial(() async {
+        await expectLater(
+          reopened.sync(),
+          throwsA(
+            isA<sqlite3.SqliteException>().having(
+              (e) => e.resultCode,
+              'resultCode',
+              sqlite3.SqlError.SQLITE_BUSY,
+            ),
+          ),
+        );
+        expect(metaSignature(library.slug), signature);
+        expect(indexSnapshot(library.slug), full);
+        await expectLater(
+          reopened.rebuild(library.slug),
+          throwsA(isA<sqlite3.SqliteException>()),
+        );
+        expect(metaSignature(library.slug), signature);
+        expect(indexSnapshot(library.slug), full);
+      });
+      expect(await reopened.sync(), isEmpty);
+      expect(indexSnapshot(library.slug), full);
+      final resolved = await reopened.linksInRange(
+        title: _commentaryTitle,
+        categoryId: null,
+        source: BookSource.attached(library.slug),
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(resolved.single.targetSource, BookSource.official);
+    });
+
+    for (final resume in [false, true]) {
+      test(
+        'בקשת ${resume ? 'המשך' : 'בנייה מחדש'} שנכשלת לפני תחילת הבנייה '
+        'מדווחת סיום ומאפשרת בקשה חוזרת',
+        () async {
+          final library = await attach(attachedDb('ext', rows: fiveRows()));
+          await links.sync();
+          final full = indexSnapshot(library.slug);
+          if (resume) {
+            final db = sqlite3.sqlite3.open(cachePath());
+            try {
+              db.execute('BEGIN');
+              db.execute(
+                "UPDATE attached_external_link_meta SET targetsSignature = "
+                "'!building:' || targetsSignature || ? WHERE sourceSlug = ?",
+                ['\u0001stop', library.slug],
+              );
+              db.execute(
+                'DELETE FROM attached_external_link_target WHERE sourceSlug = ?',
+                [library.slug],
+              );
+              db.execute('COMMIT');
+            } finally {
+              db.close();
+            }
+          }
+          final signature = metaSignature(library.slug);
+          final reopened = ExternalLinkRepository(
+            registry: registry,
+            cacheDbPath: () async => cachePath(),
+            officialTarget: () => trustedDbTarget(officialPath),
+          );
+          Future<void> requestAndWait() async {
+            final completed = Completer<void>();
+            void observe() {
+              if (reopened.buildingSlugs.value.isEmpty &&
+                  !completed.isCompleted) {
+                completed.complete();
+              }
+            }
+
+            reopened.buildingSlugs.addListener(observe);
+            try {
+              if (resume) {
+                reopened.requestResume(library.slug);
+              } else {
+                reopened.requestRebuild(library.slug);
+              }
+              await completed.future.timeout(const Duration(seconds: 5));
+            } finally {
+              reopened.buildingSlugs.removeListener(observe);
+            }
+          }
+
+          await withLockedOfficial(() async {
+            await requestAndWait();
+            expect(metaSignature(library.slug), signature);
+            expect(indexSnapshot(library.slug), full);
+          });
+          await requestAndWait();
+          expect(reopened.incompleteSlugs.value, isEmpty);
+          expect(metaSignature(library.slug), isNot(startsWith('!')));
+          expect(indexSnapshot(library.slug), full);
+        },
+      );
+    }
+
+    test('כשל נעילה אחרי רענון מניע סנכרון אוטומטי בשימוש הבא', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      await links.sync();
+      final previousSignature = metaSignature(library.slug);
+      final updated = sqlite3.sqlite3.open(officialPath);
+      try {
+        updated.execute(
+          "UPDATE schema_meta SET value = '2' WHERE key = 'db_version'",
+        );
+      } finally {
+        updated.close();
+      }
+      links.resetRuntime();
+      Future<int> targetCount() async => (await links.targetsSummary(
+        title: SeforimFixtureIds.bereshitTitle,
+        categoryId: null,
+        source: BookSource.official,
+      )).targets.length;
+
+      await withLockedOfficial(() async {
+        await expectLater(
+          targetCount(),
+          throwsA(isA<sqlite3.SqliteException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+      });
+      final deadline = Stopwatch()..start();
+      var count = await targetCount();
+      while (count == 0 && deadline.elapsed < const Duration(seconds: 5)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        count = await targetCount();
+      }
+      expect(count, 1);
+      expect(metaSignature(library.slug), isNot(previousSignature));
+      expect(metaSignature(library.slug), isNot(startsWith('!')));
+      expect(indexRows(library.slug), 1);
     });
 
     test('תקרה שנחצית אחרי שמנות נכתבו — הכל נמחק והמסד מסומן', () async {
@@ -1177,6 +1443,35 @@ void main() {
       }
     });
 
+    test('נעילת יעד אחרי מנה שמורה מתחדשת ללא אובדן או כפילות', () async {
+      smallBatches();
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      await links.sync();
+      final full = indexSnapshot(library.slug);
+      onNextBuild(links.pauseBuild);
+      final done = links.rebuild(library.slug);
+      try {
+        await waitForProgress(library.slug, 1, done);
+        expect(indexRows(library.slug), 1);
+        await withLockedOfficial(() async {
+          links.resumeBuild();
+          await done;
+        });
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
+      expect(links.incompleteSlugs.value, {library.slug});
+      expect(metaSignature(library.slug), startsWith('!building:'));
+      expect(indexRows(library.slug), 1);
+
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(indexSnapshot(library.slug), full);
+      expect(indexRows(library.slug), 5);
+    });
+
     test('ביטול בזמן נעילת יעד אינו ממתין לכל המנה', () async {
       smallBatches(batchSize: 10);
       final library = await attach(
@@ -1186,6 +1481,9 @@ void main() {
         ),
       );
       await links.sync();
+      final nextLibrary = await attach(
+        attachedDb('after-cancel', rows: [_row(0, targetLineIndex: 2)]),
+      );
       final ready = ReceivePort();
       final writer = _holdExclusiveWriter(officialPath, ready.sendPort);
       SendPort? release;
@@ -1205,9 +1503,12 @@ void main() {
         ]);
         onNextBuild(links.cancelBuild);
         await links.rebuild(library.slug);
-        expect(scanned, [1]);
+        expect(scanned, isEmpty);
         expect(indexRows(library.slug), 0);
         expect(links.incompleteSlugs.value, {library.slug});
+        expect(metaSignature(library.slug), endsWith('\u0001stop'));
+        expect(metaSignature(nextLibrary.slug), isNull);
+        expect(indexRows(nextLibrary.slug), 0);
       } finally {
         links.cancelBuild();
         release?.send(null);
@@ -1215,6 +1516,12 @@ void main() {
         links.buildProgress.removeListener(record);
         await writer;
       }
+      links.requestResume(library.slug);
+      await links.sync();
+      expect(links.incompleteSlugs.value, isEmpty);
+      expect(indexRows(library.slug), 30);
+      expect(indexSnapshot(library.slug).toSet(), hasLength(30));
+      expect(indexRows(nextLibrary.slug), 1);
     });
 
     test('עצירה בזמן השהיה מסיימת את הסנכרון ושומרת התקדמות', () async {

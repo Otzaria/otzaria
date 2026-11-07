@@ -257,6 +257,41 @@ void main() {
   });
 
   group('יעד קישור חיצוני (_byRef)', () {
+    test('רק BUSY ו-LOCKED, כולל קודים מורחבים, הם נעילה זמנית', () {
+      for (final code in [
+        sqlite3.SqlError.SQLITE_BUSY,
+        sqlite3.SqlExtendedError.SQLITE_BUSY_RECOVERY,
+        sqlite3.SqlExtendedError.SQLITE_BUSY_SNAPSHOT,
+        sqlite3.SqlExtendedError.SQLITE_BUSY_TIMEOUT,
+        sqlite3.SqlError.SQLITE_LOCKED,
+        sqlite3.SqlExtendedError.SQLITE_LOCKED_SHAREDCACHE,
+        sqlite3.SqlExtendedError.SQLITE_LOCKED_VTAB,
+      ]) {
+        expect(
+          isTransientExternalLinkLock(
+            sqlite3.SqliteException(extendedResultCode: code, message: 'lock'),
+          ),
+          isTrue,
+          reason: '$code',
+        );
+      }
+      for (final code in [
+        sqlite3.SqlError.SQLITE_ERROR,
+        sqlite3.SqlError.SQLITE_CORRUPT,
+        sqlite3.SqlError.SQLITE_CANTOPEN,
+        sqlite3.SqlError.SQLITE_IOERR,
+      ]) {
+        expect(
+          isTransientExternalLinkLock(
+            sqlite3.SqliteException(extendedResultCode: code, message: 'bad'),
+          ),
+          isFalse,
+          reason: '$code',
+        );
+      }
+      expect(isTransientExternalLinkLock(StateError('locked')), isFalse);
+    });
+
     String originalByRefSql(String ids) =>
         'SELECT lr.bookId, lr.lineIndex, l.heRef FROM line_ref lr '
         'JOIN line l ON l.bookId = lr.bookId AND l.lineIndex = lr.lineIndex '
@@ -374,6 +409,55 @@ void main() {
       }
     });
 
+    test('שורת מקור פגומה משחררת קריאה שחרגה מתקציב הזמן', () {
+      final sourcePath = path.join(tempDir.path, 'malformed_source.db');
+      final source = sqlite3.sqlite3.open(sourcePath);
+      try {
+        source.execute('''
+          CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT);
+          CREATE TABLE external_link (sourceBookId INTEGER,
+            sourceLineIndex INTEGER, targetTitle TEXT,
+            targetSource TEXT, targetLineIndex INTEGER);
+          INSERT INTO book VALUES (1, 'source');
+        ''');
+        for (final lineIndex in <Object>[0, 'invalid']) {
+          source.execute('INSERT INTO external_link VALUES (1, ?, ?, ?, ?)', [
+            lineIndex,
+            _title,
+            'official',
+            10,
+          ]);
+        }
+      } finally {
+        source.close();
+      }
+      final writer = sqlite3.sqlite3.open(refsPath);
+      try {
+        var scanned = 0;
+        final rows = readResolvedExternalLinks(
+          source: (path: sourcePath, untrusted: true, immutable: false),
+          sourceWireKey: 'd:source',
+          targets: [target('o', null, untrusted: false)],
+          onScanned: (_) {
+            if (++scanned == 1) {
+              expect(
+                () => writer.execute('BEGIN EXCLUSIVE'),
+                throwsA(predicate(isTransientExternalLinkLock)),
+              );
+              sleep(const Duration(milliseconds: 80));
+            } else {
+              writer.execute('BEGIN EXCLUSIVE');
+              writer.execute('ROLLBACK');
+            }
+          },
+        );
+        expect(scanned, 2);
+        expect(rows.single.targetLineIndex, 10);
+      } finally {
+        writer.close();
+      }
+    });
+
     test('כותב עם busy_timeout נכנס כשפתרון השורות איטי', () async {
       final resolver = ExternalTargetResolver([
         target('o', null, untrusted: false),
@@ -452,13 +536,15 @@ void main() {
         expect(resolver.bookDatabase('official', 'book 1'), isNotNull);
         resolver.releaseReads();
         writer.execute('BEGIN EXCLUSIVE');
-        final busy = resolver.resolve(
-          targetSource: 'official',
-          targetTitle: _title,
-          targetRef: _ref,
-          targetLineIndex: null,
+        expect(
+          () => resolver.resolve(
+            targetSource: 'official',
+            targetTitle: _title,
+            targetRef: _ref,
+            targetLineIndex: null,
+          ),
+          throwsA(predicate(isTransientExternalLinkLock)),
         );
-        expect(busy, isNull);
         writer.execute('ROLLBACK');
         resolver.releaseReads();
         final hit = resolver.resolve(
@@ -481,7 +567,10 @@ void main() {
       final writer = sqlite3.sqlite3.open(refsPath);
       try {
         writer.execute('BEGIN EXCLUSIVE');
-        expect(resolver.bookDatabase('official', _title), isNull);
+        expect(
+          () => resolver.bookDatabase('official', _title),
+          throwsA(predicate(isTransientExternalLinkLock)),
+        );
         writer.execute('ROLLBACK');
         final hit = resolver.resolve(
           targetSource: 'official',
@@ -493,6 +582,84 @@ void main() {
       } finally {
         writer.close();
         resolver.close();
+      }
+    });
+
+    test('נעילה ביעד הראשון אינה מעבירה את הקישור למסד אחר', () {
+      final otherPath = path.join(tempDir.path, 'other_target.db');
+      File(refsPath).copySync(otherPath);
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+        (
+          wireKey: 'd:other',
+          slug: 'other',
+          target: (path: otherPath, untrusted: true, immutable: false),
+          version: '1',
+        ),
+      ]);
+      final writer = sqlite3.sqlite3.open(refsPath);
+      try {
+        writer.execute('BEGIN EXCLUSIVE');
+        expect(
+          () => resolver.resolve(
+            targetSource: null,
+            targetTitle: _title,
+            targetRef: _ref,
+            targetLineIndex: null,
+          ),
+          throwsA(predicate(isTransientExternalLinkLock)),
+        );
+        writer.execute('ROLLBACK');
+        final hit = resolver.resolve(
+          targetSource: null,
+          targetTitle: _title,
+          targetRef: _ref,
+          targetLineIndex: null,
+        );
+        expect(hit?.target.wireKey, 'o');
+        expect(hit?.lineIndex, 11);
+      } finally {
+        resolver.close();
+        writer.close();
+      }
+    });
+
+    test('שאילתות מוכנות מתאוששות מ-BUSY וסגירה משחררת את הנעילה', () {
+      final resolver = ExternalTargetResolver([
+        target('o', null, untrusted: false),
+      ]);
+      final writer = sqlite3.sqlite3.open(refsPath);
+      int? resolve(bool byRef) => resolver
+          .resolve(
+            targetSource: 'official',
+            targetTitle: _title,
+            targetRef: byRef ? _ref : null,
+            targetLineIndex: byRef ? null : 10,
+          )
+          ?.lineIndex;
+      try {
+        expect(resolve(true), 11);
+        expect(resolve(false), 10);
+        expect(resolver.preparedStatements, 2);
+        resolver.releaseReads();
+        writer.execute('BEGIN EXCLUSIVE');
+        for (final byRef in [true, false]) {
+          expect(
+            () => resolve(byRef),
+            throwsA(predicate(isTransientExternalLinkLock)),
+          );
+          resolver.releaseReads();
+        }
+        writer.execute('ROLLBACK');
+        expect(resolve(true), 11);
+        expect(resolve(false), 10);
+        expect(resolver.preparedStatements, 2);
+        resolver.close();
+        writer.execute('BEGIN EXCLUSIVE');
+        writer.execute('ROLLBACK');
+      } finally {
+        resolver.close();
+        writer.close();
       }
     });
 
