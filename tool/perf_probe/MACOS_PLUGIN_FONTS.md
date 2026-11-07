@@ -65,6 +65,12 @@ Both modes use the experimental bounded pre-boot verifier. **The data control is
 not the unchanged legacy Apple bootstrap timing.** This isolates transport and
 readiness behavior without claiming an end-user speedup against production.
 
+Both modes use Flutter's `fullyLive` frame policy so asynchronous native resize
+and snapshot callbacks can receive frames between explicit test pumps. The
+[default `fadePointers` policy](https://api.flutter.dev/flutter/flutter_test/LiveTestWidgetsFlutterBindingFramePolicy.html)
+suppresses those ordinary framework-requested frames. This is a visible rendering
+probe, not an idle-CPU measurement. Every report records the selected policy.
+
 The probe uses the production tab settings builder, content-blocker builder,
 CSP builder, font owner, font bootstrap and SDK scripts in visible Flutter-hosted
 `InAppWebView` instances, not headless ones. It does not instantiate the full
@@ -121,6 +127,16 @@ faces, rendering differences, false CSP success, a reused app process, unsupport
 CPU reported as zero, a missing boot acknowledgement, and a claimed scheme success
 without returned font bytes. A cached survivor or zero fresh-request deltas also
 fails validation.
+
+Each case and view is recorded before mounting or waiting. Bounded lifecycle
+events retain controller creation, navigation, custom-scheme requests/responses,
+font preparation, guarded boot, rendering and screenshot progress. A native
+operation has a ten-second bound, in addition to the unchanged preparation and
+boot deadlines; the view batch retains its sixty-second overall deadline. The
+first failed view ends the batch and disposes its peers. A late response after
+timeout or disposal stays incomplete and cannot become a passing sample.
+Run, case, view and operation completion are all required by the validator.
+Window visibility alone does not establish canvas or typography success.
 
 ## Measurement boundaries and enablement
 

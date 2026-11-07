@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
@@ -21,6 +20,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 
 import '../test/helpers/memory_settings_cache.dart';
+import 'support/macos_font_probe.dart';
 import 'support/webview_probe_window.dart';
 
 const _mode = String.fromEnvironment(
@@ -74,7 +74,7 @@ return {samples: samples, fallbackControl: render('monospace', '400'),
 ''';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = initializeMacosFontProbeBinding();
   testWidgets(
     'macOS plugin font transport probe',
     (tester) async {
@@ -161,7 +161,9 @@ void main() {
               'No WKWebView process CPU sampler is available in this probe.',
         },
         'hardwareCompleteness':
-            'CI window and canvas rendering verified; physical display, GPU pipeline and WKWebView process topology are not measured.',
+            'Window readiness is recorded separately. Canvas rendering is checked only in completed cases; physical display, GPU pipeline and WKWebView process topology are not measured.',
+        'framePolicy': binding.framePolicy.name,
+        'status': 'running',
         'byteDefinitions': {
           'bootJavascriptUtf8Bytes':
               'UTF-8 bytes of the exact evaluateJavascript boot source submitted to the controller.',
@@ -209,6 +211,13 @@ window.addEventListener('plugin.ready', () => {
           _count,
           (_) => Completer<_ProbeResult>(),
         );
+        final progress = List.generate(_count, FontProbeViewProgress.new);
+        final entry = <String, Object?>{
+          'scenario': scenario,
+          'status': 'running',
+          'views': progress.map((p) => p.report).toList(),
+        };
+        cases.add(entry);
         Widget grid({bool closeFirst = false}) => MaterialApp(
           home: Scaffold(
             body: Wrap(
@@ -227,106 +236,126 @@ window.addEventListener('plugin.ready', () => {
                       specs: specs,
                       index: i,
                       completed: completed[i],
+                      progress: progress[i],
                     ),
                   ),
               ],
             ),
           ),
         );
-        await tester.pumpWidget(grid());
-        final results = await _pumpUntil(
-          tester,
-          Future.wait(completed.map((c) => c.future)),
-        );
-        final entry = <String, Object?>{
-          'scenario': scenario,
-          'views': results.map((r) => r.report).toList(),
-          'hostRssAfterBytes': ProcessInfo.currentRss,
-        };
-        cases.add(entry);
-        for (final result in results) {
-          final r = result.report;
-          expect(r['bootAcknowledged'], isTrue);
-          expect((r['rendering'] as Map)['bootCount'], 1);
-          expect((r['rendering'] as Map)['visible'], isTrue);
-          expect((r['rendering'] as Map)['bootTheme'], theme);
-          if (scenario == 'style-src-none') {
-            expect((r['preparation'] as Map)['ready'], isFalse);
-            expect(
-              ((r['preparation'] as Map)['outcome'] as Map)['reason'],
-              'style-blocked',
-            );
-          } else {
-            expect((r['preparation'] as Map)['ready'], isTrue);
-            final samples = (r['rendering'] as Map)['samples'] as List;
-            for (final sample in samples.cast<Map>()) {
-              expect(sample['inkPixels'], greaterThan(0));
-              expect(sample['loadedFaces'], isNotEmpty);
+        try {
+          final results = await pumpFontProbeUntil(
+            Future.wait(completed.map((c) => c.future), eagerError: true),
+            pumpFrame: tester.pump,
+            start: () => tester.pumpWidget(grid()),
+          );
+          entry['hostRssAfterBytes'] = ProcessInfo.currentRss;
+          for (final result in results) {
+            final r = result.report;
+            expect(r['bootAcknowledged'], isTrue);
+            expect((r['rendering'] as Map)['bootCount'], 1);
+            expect((r['rendering'] as Map)['visible'], isTrue);
+            expect((r['rendering'] as Map)['bootTheme'], theme);
+            if (scenario == 'style-src-none') {
+              expect((r['preparation'] as Map)['ready'], isFalse);
               expect(
-                (sample['loadedFaces'] as List).every(
-                  (f) => f['status'] == 'loaded',
+                ((r['preparation'] as Map)['outcome'] as Map)['reason'],
+                'style-blocked',
+              );
+            } else {
+              expect((r['preparation'] as Map)['ready'], isTrue);
+              final samples = (r['rendering'] as Map)['samples'] as List;
+              for (final sample in samples.cast<Map>()) {
+                expect(sample['inkPixels'], greaterThan(0));
+                expect(sample['loadedFaces'], isNotEmpty);
+                expect(
+                  (sample['loadedFaces'] as List).every(
+                    (f) => f['status'] == 'loaded',
+                  ),
+                  isTrue,
+                );
+              }
+              expect(
+                samples[2]['pixelHash'],
+                isNot(samples[3]['pixelHash']),
+                reason: 'separate bold face must render differently',
+              );
+              expect(
+                samples[4]['pixelHash'],
+                isNot(samples[5]['pixelHash']),
+                reason: 'variable wght axis must render differently',
+              );
+              expect(
+                samples.any(
+                  (s) =>
+                      s['pixelHash'] !=
+                      (r['rendering'] as Map)['fallbackControl']['pixelHash'],
                 ),
                 isTrue,
               );
+              if (scenario == 'font-src-data') {
+                expect((r['preparation'] as Map)['transport'], 'data');
+                if (_mode == 'scheme') {
+                  expect((r['preparation'] as Map)['schemeFailure'], isNotNull);
+                }
+              }
+              expect(r['screenshotBase64'], isNotEmpty);
             }
-            expect(
-              samples[2]['pixelHash'],
-              isNot(samples[3]['pixelHash']),
-              reason: 'separate bold face must render differently',
-            );
-            expect(
-              samples[4]['pixelHash'],
-              isNot(samples[5]['pixelHash']),
-              reason: 'variable wght axis must render differently',
-            );
-            expect(
-              samples.any(
-                (s) =>
-                    s['pixelHash'] !=
-                    (r['rendering'] as Map)['fallbackControl']['pixelHash'],
+          }
+          if (_count > 1 && scenario == 'normal') {
+            await tester.pumpWidget(grid(closeFirst: true));
+            expect(results.first.lease.isActive, isFalse);
+            expect(results.last.lease.isActive, isTrue);
+            final survivor = await progress.last.observe(
+              'survivor-font-load',
+              () => results.last.controller.callAsyncJavaScript(
+                functionBody:
+                    'return (await document.fonts.load(target)).map(f => f.status);',
+                arguments: {'target': '16px "${system.family}"'},
               ),
+            );
+            expect(survivor?.value, isNotEmpty);
+            expect(
+              (survivor!.value as List).every((s) => s == 'loaded'),
               isTrue,
             );
-            if (scenario == 'font-src-data') {
-              expect((r['preparation'] as Map)['transport'], 'data');
-              if (_mode == 'scheme') {
-                expect((r['preparation'] as Map)['schemeFailure'], isNotNull);
-              }
+            entry['survivorAfterClosingFirst'] = survivor.value;
+            if (_mode == 'scheme' &&
+                (results.last.report['preparation'] as Map)['transport'] ==
+                    'scheme') {
+              entry['freshSchemeAfterClosingFirst'] = await pumpFontProbeUntil(
+                progress.last.observe(
+                  'fresh-survivor-font-load',
+                  () => _loadFreshSurvivorFont(results.last),
+                ),
+                pumpFrame: tester.pump,
+              );
+            } else {
+              entry['freshSchemeAfterClosingFirst'] = {
+                'availability': 'not-run',
+                'reason': _mode == 'data'
+                    ? 'data-control'
+                    : 'normal-scheme-unavailable',
+              };
             }
-            expect(r['screenshotBase64'], isNotEmpty);
           }
-        }
-        if (_count > 1 && scenario == 'normal') {
-          await tester.pumpWidget(grid(closeFirst: true));
-          expect(results.first.lease.isActive, isFalse);
-          expect(results.last.lease.isActive, isTrue);
-          final survivor = await results.last.controller.callAsyncJavaScript(
-            functionBody:
-                'return (await document.fonts.load(target)).map(f => f.status);',
-            arguments: {'target': '16px "${system.family}"'},
-          );
-          expect(survivor?.value, isNotEmpty);
-          expect((survivor!.value as List).every((s) => s == 'loaded'), isTrue);
-          entry['survivorAfterClosingFirst'] = survivor.value;
-          if (_mode == 'scheme' &&
-              (results.last.report['preparation'] as Map)['transport'] ==
-                  'scheme') {
-            entry['freshSchemeAfterClosingFirst'] = await _pumpUntil(
-              tester,
-              _loadFreshSurvivorFont(results.last),
-            );
-          } else {
-            entry['freshSchemeAfterClosingFirst'] = {
-              'availability': 'not-run',
-              'reason': _mode == 'data'
-                  ? 'data-control'
-                  : 'normal-scheme-unavailable',
-            };
+          entry['status'] = 'passed';
+        } catch (error, stack) {
+          entry['status'] = 'failed';
+          entry['error'] = error.toString();
+          report['status'] = 'failed';
+          for (final item in progress) {
+            if (item.isActive && item.report['status'] != 'completed') {
+              item.fail(error, stack);
+            }
           }
+          rethrow;
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
         }
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
       }
+      report['status'] = 'passed';
     },
     skip: !Platform.isMacOS,
     timeout: const Timeout(Duration(minutes: 4)),
@@ -384,31 +413,6 @@ try {
   };
 }
 
-Future<T> _pumpUntil<T>(WidgetTester tester, Future<T> future) async {
-  T? value;
-  Object? error;
-  StackTrace? stack;
-  var done = false;
-  future.then(
-    (v) {
-      value = v;
-      done = true;
-    },
-    onError: (Object e, StackTrace s) {
-      error = e;
-      stack = s;
-      done = true;
-    },
-  );
-  final watch = Stopwatch()..start();
-  while (!done && watch.elapsed < const Duration(seconds: 60)) {
-    await tester.pump(const Duration(milliseconds: 100));
-  }
-  if (!done) throw TimeoutException('Font probe did not finish');
-  if (error != null) Error.throwWithStackTrace(error!, stack!);
-  return value as T;
-}
-
 class _ProbeResult {
   _ProbeResult(this.controller, this.lease, this.report);
   final InAppWebViewController controller;
@@ -426,6 +430,7 @@ class _FontProbeView extends StatefulWidget {
     required this.specs,
     required this.index,
     required this.completed,
+    required this.progress,
   });
   final String root;
   final String scenario;
@@ -434,18 +439,39 @@ class _FontProbeView extends StatefulWidget {
   final List<Map<String, String>> specs;
   final int index;
   final Completer<_ProbeResult> completed;
+  final FontProbeViewProgress progress;
   @override
   State<_FontProbeView> createState() => _FontProbeViewState();
 }
 
 class _FontProbeViewState extends State<_FontProbeView> {
-  final _clock = Stopwatch()..start();
   final _fontOwner = PluginFontSchemeOwner();
   bool _started = false;
+
+  bool get _current => mounted && widget.progress.isActive;
+
+  void _fail(Object error, StackTrace stack) {
+    widget.progress.fail(error, stack);
+    if (!widget.completed.isCompleted) {
+      widget.completed.completeError(error, stack);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.progress.mounted();
+  }
 
   @override
   void dispose() {
     _fontOwner.attach(null);
+    widget.progress.dispose();
+    if (!widget.completed.isCompleted) {
+      widget.completed.completeError(
+        StateError('Font probe view disposed before completion'),
+      );
+    }
     super.dispose();
   }
 
@@ -472,83 +498,149 @@ class _FontProbeViewState extends State<_FontProbeView> {
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
       ),
     ]),
-    onWebViewCreated: (controller) => _fontOwner.attach(controller.platform),
-    onLoadStart: (controller, url) =>
-        _fontOwner.release(controller: controller.platform),
-    onLoadResourceWithCustomScheme: (controller, request) => servePluginAsset(
-      url: request.url,
-      pluginId: _pluginId,
-      rootPath: widget.root,
-      fontLease: _fontOwner.lease,
-      contentSecurityPolicy: widget.csp,
-    ),
-    onLoadStop: (controller, url) async {
-      if (_started) return;
-      _started = true;
-      final lease = _fontOwner.begin(
-        controller: controller.platform,
-        origin: _origin,
-      )!;
+    onWebViewCreated: (controller) {
+      if (!_current) return;
+      widget.progress.record('controller-created', {
+        'nativeViewId': controller.getViewId(),
+      });
+      _fontOwner.attach(controller.platform);
+    },
+    onLoadStart: (controller, url) {
+      if (!_current) return;
+      widget.progress.record('load-start', {'url': url?.rawValue});
+      _fontOwner.release(controller: controller.platform);
+    },
+    onLoadResourceWithCustomScheme: (controller, request) async {
+      if (!_current) return null;
+      widget.progress.record('scheme-request', {'url': request.url.rawValue});
       try {
-        final loadedAt = _clock.elapsedMicroseconds;
-        final preparation = await preparePluginFontExperiment(
-          controller,
-          lease: lease,
-          theme: widget.theme,
-          isCurrent: () => mounted && identical(_fontOwner.lease, lease),
-          useScheme: _mode == 'scheme',
+        final response = await servePluginAsset(
+          url: request.url,
+          pluginId: _pluginId,
+          rootPath: widget.root,
+          fontLease: _fontOwner.lease,
+          contentSecurityPolicy: widget.csp,
         );
-        final readyAt = preparation.ready ? _clock.elapsedMicroseconds : null;
-        final boot = await preparation.evaluateBoot(
-          controller,
-          source: buildPluginBootScript(
-            nonceJson: jsonEncode('font-probe'),
-            payloadJson: jsonEncode({
-              'plugin': {'id': _pluginId},
-              'app': {'platform': 'macos', 'runMode': 'foreground'},
-              'theme': widget.theme,
-              'permissions': [],
-            }),
+        if (!_current) return null;
+        widget.progress.record('scheme-response', {
+          'url': request.url.rawValue,
+          'bytes': response?.data.length,
+          'contentType': response?.contentType,
+        });
+        return response;
+      } catch (error, stack) {
+        _fail(error, stack);
+        rethrow;
+      }
+    },
+    onReceivedError: (controller, request, error) {
+      if (!_current) return;
+      widget.progress.record('navigation-error', {
+        'url': request.url.rawValue,
+        'isForMainFrame': request.isForMainFrame,
+        'type': error.type.toNativeValue(),
+        'description': error.description,
+      });
+      if (request.isForMainFrame == true ||
+          request.url.rawValue == '$_origin/${widget.scenario}.html') {
+        _fail(StateError(error.description), StackTrace.current);
+      }
+    },
+    onWebContentProcessDidTerminate: (controller) {
+      if (!_current) return;
+      _fail(
+        StateError('WKWebView content process terminated'),
+        StackTrace.current,
+      );
+    },
+    onLoadStop: (controller, url) async {
+      if (!_current || _started) return;
+      _started = true;
+      final progress = widget.progress;
+      progress.record('load-stop', {'url': url?.rawValue});
+      try {
+        if (url?.rawValue != '$_origin/${widget.scenario}.html') {
+          throw StateError('Unexpected font probe document: $url');
+        }
+        final lease = _fontOwner.begin(
+          controller: controller.platform,
+          origin: _origin,
+        );
+        if (lease == null) {
+          throw StateError('Font probe controller is not attached');
+        }
+        final loadedAt = progress.elapsedMicroseconds;
+        final preparation = await progress.observe(
+          'font-preparation',
+          () => preparePluginFontExperiment(
+            controller,
+            lease: lease,
+            theme: widget.theme,
+            isCurrent: () => _current && identical(_fontOwner.lease, lease),
+            useScheme: _mode == 'scheme',
           ),
-          isCurrent: () => mounted && identical(_fontOwner.lease, lease),
         );
-        final schemeAtBoot = lease.responseBytes;
-        final rendering = await controller
-            .callAsyncJavaScript(
-              functionBody: widget.scenario == 'style-src-none'
-                  ? 'return {bootCount: window.fontProbeBootCount, bootTheme: window.fontProbeBootTheme, visible: document.visibilityState === "visible", samples: []};'
-                  : _measureJs,
-              arguments: {'specs': widget.specs},
-            )
-            .timeout(const Duration(seconds: 10));
+        progress.report.addAll({
+          'documentLoadMicroseconds': loadedAt,
+          'fontReadyFromViewCreationMicroseconds': preparation.ready
+              ? progress.elapsedMicroseconds
+              : null,
+          'preparation': preparation.toJson(),
+        });
+        final boot = await progress.observe(
+          'boot',
+          () => preparation.evaluateBoot(
+            controller,
+            source: buildPluginBootScript(
+              nonceJson: jsonEncode('font-probe'),
+              payloadJson: jsonEncode({
+                'plugin': {'id': _pluginId},
+                'app': {'platform': 'macos', 'runMode': 'foreground'},
+                'theme': widget.theme,
+                'permissions': [],
+              }),
+            ),
+            isCurrent: () => _current && identical(_fontOwner.lease, lease),
+          ),
+        );
+        progress.report.addAll({
+          'bootJavascriptUtf8Bytes': boot.javascriptUtf8Bytes,
+          'bootAcknowledged': true,
+          'schemeBytesAtBoot': lease.responseBytes,
+        });
+        final rendering = await progress.observe(
+          'rendering',
+          () => controller.callAsyncJavaScript(
+            functionBody: widget.scenario == 'style-src-none'
+                ? 'return {bootCount: window.fontProbeBootCount, bootTheme: window.fontProbeBootTheme, visible: document.visibilityState === "visible", samples: []};'
+                : _measureJs,
+            arguments: {'specs': widget.specs},
+          ),
+        );
         if (rendering?.error != null || rendering?.value is! Map) {
           throw StateError('Font rendering probe failed: ${rendering?.error}');
         }
+        progress.report.addAll({
+          'schemeResponseBytes': lease.responseBytes,
+          'schemeRequests': lease.requestCount,
+          'schemeResponses': lease.responseCount,
+          'rendering': Map<String, dynamic>.from(rendering!.value as Map),
+        });
         final screenshot = widget.scenario == 'style-src-none'
             ? null
-            : await controller.takeScreenshot();
+            : await progress.observe(
+                'screenshot',
+                () => controller.takeScreenshot(),
+              );
+        progress.report['screenshotBase64'] = screenshot == null
+            ? null
+            : base64Encode(screenshot);
+        progress.complete();
         widget.completed.complete(
-          _ProbeResult(controller, lease, {
-            'index': widget.index,
-            'documentLoadMicroseconds': loadedAt,
-            'fontReadyFromViewCreationMicroseconds': readyAt,
-            'preparation': preparation.toJson(),
-            'bootJavascriptUtf8Bytes': boot.javascriptUtf8Bytes,
-            'bootAcknowledged': true,
-            'schemeBytesAtBoot': schemeAtBoot,
-            'schemeResponseBytes': lease.responseBytes,
-            'schemeRequests': lease.requestCount,
-            'schemeResponses': lease.responseCount,
-            'rendering': Map<String, dynamic>.from(rendering!.value as Map),
-            'screenshotBase64': screenshot == null
-                ? null
-                : base64Encode(screenshot),
-          }),
+          _ProbeResult(controller, lease, progress.report),
         );
       } catch (error, stack) {
-        if (!widget.completed.isCompleted) {
-          widget.completed.completeError(error, stack);
-        }
+        _fail(error, stack);
       }
     },
   );
