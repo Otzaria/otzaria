@@ -182,7 +182,6 @@ class PdfBookTab extends OpenedTab {
     this.searchMode = SearchMode.exact,
     this.searchDistance = 0,
     this.matchPolicy = SearchMatchPolicy.standard,
-    this.pdfSearchCurrentMatchIndex,
     super.isPinned,
     super.dedupeKey,
     this.requiresStableLayout = false,
