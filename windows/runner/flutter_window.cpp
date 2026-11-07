@@ -18,6 +18,7 @@
 #include "drag_preview_window.h"
 #include "phantom_mouse_button_filter.h"
 #include "shift_key_normalizer.h"
+#include "report_history_qa_trace.h"
 #include "splash_window.h"
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
@@ -341,6 +342,7 @@ bool InstallDartViewHooks(HWND root) {
   if (!view) return false;
   InstallPhantomMouseButtonFilter(view);
   InstallShiftKeyNormalizer(view);
+  InstallReportHistoryQaTrace(view);
   return true;
 }
 
@@ -906,6 +908,7 @@ bool FlutterWindow::OnCreate() {
   InstallPhantomMouseButtonFilter(
       flutter_controller_->view()->GetNativeWindow());
   InstallShiftKeyNormalizer(flutter_controller_->view()->GetNativeWindow());
+  InstallReportHistoryQaTrace(flutter_controller_->view()->GetNativeWindow());
 
   // NOTE: the main window is intentionally NOT shown here. It stays hidden
   // until Dart reveals it (window_manager.show in presentMainWindow) once the

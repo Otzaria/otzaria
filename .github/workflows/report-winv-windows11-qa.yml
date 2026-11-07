@@ -1,0 +1,489 @@
+name: Temporary final native Flutter Windows 11 clipboard history QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [palmoni5/report-forms-qa-20261105]
+    paths:
+      - '.github/workflows/report-winv-windows11-qa.yml'
+      - 'integration_test/report_clipboard_history_windows_qa_test.dart'
+      - 'integration_test/support/windows_history_qa*'
+      - 'windows/runner/report_history_qa_trace.h'
+      - 'windows/runner/flutter_window.cpp'
+      - 'windows/runner/main.cpp'
+      - 'packages/super_native_extensions/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: report-winv-final-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    outputs:
+      bundle_ready: ${{ steps.resolve.outcome == 'success' && steps.source.outcome == 'success' && steps.analyze.outcome == 'success' && steps.rust.outcome == 'success' && steps.clipboard_helper.outcome == 'success' && steps.widget.outcome == 'success' && steps.native.outcome == 'success' && steps.server_integration.outcome == 'success' && steps.server_standalone.outcome == 'success' && steps.bundle.outcome == 'success' && steps.bundle_upload.outcome == 'success' }}
+      bundle_digest: ${{ steps.bundle_upload.outputs.artifact-digest }}
+      bundle_name: windows-flutter-history-bundle-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+      evidence_name: windows-flutter-history-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+    env:
+      UseMultiToolTask: 'true'
+      EnforceProcessCountAcrossBuilds: 'true'
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      REPORT_QA_SOURCE_HEAD: 8e02f5a89a509a983f46d8d35b624a22dc844a64
+      REPORT_QA_CRATE_HASH: 7a06d2e9d03615c0f9964b73eae03da8
+      REPORT_QA_CLIPBOARD_FORMATS: '0'
+      REPORT_QA_BASELINE_HEAD: 178e66e1a415bd75080e4edfb73bb1f47b78e80e
+      REPORT_QA_BASELINE_RUN: https://github.com/Otzaria/otzaria/actions/runs/42216180980
+      REPORT_QA_QA_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPORT_QA_HISTORY_OUTPUT: ${{ github.workspace }}/build/reporting_qa/history
+      REPORT_QA_HISTORY_TRACE: ${{ github.workspace }}/build/reporting_qa/history/raw-native.jsonl
+      REPORT_QA_HISTORY_CONTROLLER: ${{ github.workspace }}/integration_test/support/windows_history_qa_controller.ps1
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve dependencies and validate the native UI controller
+        id: resolve
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:REPORT_QA_HISTORY_OUTPUT | Out-Null
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($script in Get-ChildItem integration_test/support/windows_history_qa*.ps1) {
+            $tokens = $null; $errors = $null
+            [void][Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          }
+          Add-Type -Path integration_test/support/windows_history_qa_native.cs
+          & ./integration_test/support/windows_history_qa_server_prerequisite_test.ps1 -Output "$env:REPORT_QA_HISTORY_OUTPUT/server-classifier-tests.json"
+          @{ os = [Environment]::OSVersion.VersionString; imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD; baselineHead = $env:REPORT_QA_BASELINE_HEAD; baselineRun = $env:REPORT_QA_BASELINE_RUN } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_HISTORY_OUTPUT/runner.json"
+      - name: Verify that the QA overlay preserves the reviewed product
+        id: source
+        shell: pwsh
+        run: |
+          git fetch --no-tags --depth=1 origin $env:REPORT_QA_SOURCE_HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python integration_test/support/windows_history_qa_verify_source.py --product $env:REPORT_QA_SOURCE_HEAD --output "$env:REPORT_QA_HISTORY_OUTPUT/source-provenance.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise the native CF_BITMAP reader on Windows
+        id: rust
+        shell: pwsh
+        run: |
+          $env:CARGO_TARGET_DIR = Join-Path $env:GITHUB_WORKSPACE 'build/reporting_qa/bitmap-reader-tests'
+          Push-Location packages/super_native_extensions/rust
+          try {
+            cargo test --locked bitmap_reader_tests -- --test-threads=1 --nocapture 2>&1 |
+              Tee-Object -FilePath "$env:REPORT_QA_HISTORY_OUTPUT/bitmap-reader-tests.log"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $result = [regex]::Match((Get-Content "$env:REPORT_QA_HISTORY_OUTPUT/bitmap-reader-tests.log" -Raw), 'test result: ok\. (\d+) passed; 0 failed; 0 ignored;')
+            if (!$result.Success -or [int]$result.Groups[1].Value -ne 16) { throw 'The native bitmap-reader regression suite did not execute exactly sixteen passing tests.' }
+          } finally { Pop-Location; Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue }
+      - name: Validate the native clipboard helper after reader tests
+        id: clipboard_helper
+        shell: pwsh
+        run: |
+          $helperRoot = "$env:REPORT_QA_HISTORY_OUTPUT/clipboard-helper-smoke"
+          New-Item -ItemType Directory -Force $helperRoot | Out-Null
+          @{ payload = 'text'; fixtureA = 'OTZARIA-HISTORY-QA-A-helper-smoke'; fixtureB = 'OTZARIA-HISTORY-QA-B-helper-smoke' } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$helperRoot/case.json"
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -MTA -File integration_test/support/windows_history_qa_controller.ps1 -Root $helperRoot -ValidateClipboardHelper 2>&1 |
+            Tee-Object -FilePath "$helperRoot/controller.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $helperResult = Get-Content "$helperRoot/smoke-result.json" -Raw | ConvertFrom-Json
+          if (!$helperResult.helperValidated -or !$helperResult.failureExitCodeValidated -or $helperResult.historyTested -ne $false -or
+              $helperResult.nativeHelperSha256 -ne (Get-FileHash "$helperRoot/native.dll" -Algorithm SHA256).Hash.ToLowerInvariant()) {
+            throw 'The Windows PowerShell clipboard helper or SHA256 validation failed.'
+          }
+      - name: Analyze the actual Flutter history harness
+        id: analyze
+        run: flutter analyze integration_test/report_clipboard_history_windows_qa_test.dart
+      - name: Verify the candidate report clipboard widget suite
+        id: widget
+        shell: pwsh
+        run: |
+          flutter test test/app_report/view/app_report_images_section_test.dart --reporter expanded 2>&1 |
+            Tee-Object -FilePath "$env:REPORT_QA_HISTORY_OUTPUT/widget-candidate.log"
+          $code = $LASTEXITCODE
+          @{ sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD; exitCode = $code; baselineHead = $env:REPORT_QA_BASELINE_HEAD; baselineRun = $env:REPORT_QA_BASELINE_RUN } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_HISTORY_OUTPUT/widget-candidate.json"
+          exit $code
+      - name: Verify the native scan code contract on actual HWNDs
+        id: native
+        if: ${{ always() && steps.resolve.outcome == 'success' && steps.analyze.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          try {
+            ./test/windows/run_shift_key_normalizer_test.ps1
+          } finally {
+            if (Test-Path build/reporting_qa/native-keyboard.log) {
+              Copy-Item build/reporting_qa/native-keyboard.log "$env:REPORT_QA_HISTORY_OUTPUT/native-keyboard.log"
+            }
+          }
+      - name: Classify Server history availability and preserve the failing Flutter evidence
+        id: server_integration
+        if: ${{ always() && steps.resolve.outcome == 'success' && steps.analyze.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          flutter test integration_test/report_clipboard_history_windows_qa_test.dart -d windows --timeout 3m --reporter expanded 2>&1 |
+            Tee-Object -FilePath "$env:REPORT_QA_HISTORY_OUTPUT/flutter-test.log"
+          $code = $LASTEXITCODE
+          @{ exitCode = $code; expectedHistoryFailures = 4; historyTestsPassed = $false } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_HISTORY_OUTPUT/server-flutter-exit.json"
+          if ($code -ne 1) { throw "Expected the four missing-history assertions to fail with Flutter exit 1; observed $code." }
+          . ./integration_test/support/windows_history_qa_server_prerequisite.ps1
+          $path = "$env:REPORT_QA_HISTORY_OUTPUT/flutter-summary.json"
+          $summary = Get-Content $path -Raw | ConvertFrom-Json
+          $proof = Assert-ServerHistoryPrerequisite -Summary $summary -SourceHead $env:REPORT_QA_SOURCE_HEAD -QaHead $env:REPORT_QA_QA_HEAD `
+            -NativeTraceExpected $true -OperatingSystem (Get-CimInstance Win32_OperatingSystem)
+          $proof['summarySha256'] = (Get-FileHash $path -Algorithm SHA256).Hash
+          $proof | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 "$env:REPORT_QA_HISTORY_OUTPUT/server-prerequisite.json"
+          Write-Output 'Server prerequisite verified: 3 controls passed; 4 history tests failed solely because no history window was identified.'
+          exit 0
+      - name: Build the direct main entrypoint for standalone execution
+        id: standalone
+        if: ${{ always() && steps.resolve.outcome == 'success' && steps.analyze.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          # The flutter test listener requires a host; the direct main runs its own test suite.
+          flutter build windows --debug -t integration_test/report_clipboard_history_windows_qa_test.dart 2>&1 |
+            Tee-Object -FilePath "$env:REPORT_QA_HISTORY_OUTPUT/standalone-build.log"
+          exit $LASTEXITCODE
+      - name: Preserve the complete standalone x64 bundle and its loaded VC runtimes
+        id: bundle
+        if: ${{ always() && steps.standalone.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $sourceLibrary = 'build/windows/x64/plugins/super_native_extensions/cargokit_build/x86_64-pc-windows-msvc/debug/super_native_extensions.dll'
+          if (!(Test-Path $sourceLibrary)) { throw 'The clipboard DLL was not built in the native source output directory.' }
+          $crateHashes = @(Get-ChildItem 'build/windows/x64/plugins/super_native_extensions/cargokit_build/crate_hash' -File |
+            ForEach-Object { [IO.File]::ReadAllText($_.FullName).Trim() } | Sort-Object -Unique)
+          if ($crateHashes.Count -ne 1 -or $crateHashes[0] -cne $env:REPORT_QA_CRATE_HASH) {
+            throw 'Cargokit did not use the reviewed patched source hash.'
+          }
+          $debug = 'build/windows/x64/runner/Debug'
+          if (!(Test-Path "$debug/otzaria.exe")) {
+            throw 'The direct-main build did not produce an executable.'
+          }
+          $bundle = 'build/reporting_qa/flutter-history-x64'
+          New-Item -ItemType Directory -Force "$bundle/qa" | Out-Null
+          Copy-Item "$debug/*" $bundle -Recurse -Force
+          $runtimeRecord = Get-ChildItem $env:REPORT_QA_HISTORY_OUTPUT -Filter runtime-modules.json -Recurse |
+            ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json } |
+            Sort-Object { $_.loadedRuntimeModules.Count } -Descending | Select-Object -First 1
+          if ($null -eq $runtimeRecord -or $runtimeRecord.loadedRuntimeModules.Count -eq 0) {
+            throw 'No complete loaded VC runtime inventory was captured.'
+          }
+          foreach ($runtime in $runtimeRecord.loadedRuntimeModules) {
+            $runtimeFile = Join-Path "$env:REPORT_QA_HISTORY_OUTPUT/runtime-x64" $runtime.name
+            if ((Get-FileHash $runtimeFile -Algorithm SHA256).Hash -ne $runtime.sha256) {
+              throw "The captured VC runtime changed: $($runtime.name)"
+            }
+            Copy-Item $runtimeFile $bundle -Force
+          }
+          $runtimeRecord | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 "$bundle/runtime-manifest.json"
+          $sourceHash = (Get-FileHash $sourceLibrary -Algorithm SHA256).Hash
+          $bundleHash = (Get-FileHash "$bundle/super_native_extensions.dll" -Algorithm SHA256).Hash
+          if ($sourceHash -cne $bundleHash) { throw 'The packaged clipboard DLL differs from the compiled source artifact.' }
+          @{ sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD; crateHash = $crateHashes[0];
+            builtFromSource = $true; sourceLibrary = $sourceLibrary; sha256 = $bundleHash } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$bundle/native-clipboard-build.json"
+          Copy-Item "$bundle/native-clipboard-build.json" "$env:REPORT_QA_HISTORY_OUTPUT/native-clipboard-build.json"
+          Copy-Item "$env:REPORT_QA_HISTORY_OUTPUT/source-provenance.json" "$bundle/source-provenance.json"
+          Copy-Item integration_test/support/windows_history_qa* "$bundle/qa" -Force
+          Copy-Item integration_test/support/windows_history_qa_run_bundle.ps1 "$bundle/run.ps1" -Force
+          @{ sourceHead = $env:REPORT_QA_SOURCE_HEAD; qaHead = $env:REPORT_QA_QA_HEAD; baselineHead = $env:REPORT_QA_BASELINE_HEAD; baselineRun = $env:REPORT_QA_BASELINE_RUN; architecture = 'x64'; configuration = 'Debug'; entrypoint = 'integration_test/report_clipboard_history_windows_qa_test.dart'; requiresFlutterTestRunner = $false; completionFile = 'flutter-summary.json'; purpose = 'Temporary QA only'; traceCanBeDisabledWithoutRebuild = $true } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$bundle/qa-bundle.json"
+      - name: Verify the standalone Server prerequisite without native trace
+        id: server_standalone
+        if: ${{ always() && steps.bundle.outcome == 'success' }}
+        timeout-minutes: 14
+        shell: pwsh
+        run: |
+          & build/reporting_qa/flutter-history-x64/run.ps1 -OutputDirectory "$env:REPORT_QA_HISTORY_OUTPUT/standalone-no-trace" -ServerPrerequisite
+      - name: Summarize observed Windows and Flutter behavior
+        if: always()
+        shell: pwsh
+        run: |
+          '## Actual Flutter AppReportDialog and Windows history' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Native V controls are reported separately from real history selection. A missing Windows popup is not a passing history test.' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "The unchanged baseline is recorded separately at $env:REPORT_QA_BASELINE_RUN. Every gate in this run evaluates the candidate." | Add-Content $env:GITHUB_STEP_SUMMARY
+          Get-ChildItem $env:REPORT_QA_HISTORY_OUTPUT -Filter flutter.json -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            $result = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            "- $($_.DirectoryName): history selection=$($result.historySelectionVerified); report assertions=$($result.reportAssertionsPassed); control=$($result.negativeControl)" | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload real desktop screenshots, raw messages and Flutter events
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-flutter-history-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: build/reporting_qa/history/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload the reusable x64 QA bundle
+        id: bundle_upload
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-flutter-history-bundle-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: build/reporting_qa/flutter-history-x64/
+          if-no-files-found: error
+          retention-days: 7
+
+  history:
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.bundle_ready == 'true' }}
+    runs-on: windows-11-arm
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        native_trace: [true, false]
+    env:
+      REPORT_QA_WORKFLOW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPORT_QA_NATIVE_TRACE: ${{ matrix.native_trace }}
+      REPORT_QA_CLIPBOARD_FORMATS: '0'
+      REPORT_QA_AFTER_RUN: ${{ github.run_id }}
+      REPORT_QA_AFTER_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPORT_QA_PRODUCT_HEAD: 8e02f5a89a509a983f46d8d35b624a22dc844a64
+      REPORT_QA_CRATE_HASH: 7a06d2e9d03615c0f9964b73eae03da8
+      REPORT_QA_ARTIFACT_ROOT: ${{ github.workspace }}/windows11-evidence
+    steps:
+      - name: Check out the exact reviewed QA script
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record the real Windows host before any app launch
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:REPORT_QA_ARTIFACT_ROOT | Out-Null
+          $os = Get-CimInstance Win32_OperatingSystem
+          $process = Get-Process -Id $PID
+          $hostInfo = @{
+            caption = $os.Caption; version = $os.Version; buildNumber = $os.BuildNumber
+            productType = $os.ProductType; osArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+            controllerArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+            controllerProcess = $PID; sessionId = $process.SessionId; userInteractive = [Environment]::UserInteractive
+            imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; nativeTraceRequested = '${{ matrix.native_trace }}'
+            sourceRun = $env:REPORT_QA_AFTER_RUN; sourceQaHead = $env:REPORT_QA_AFTER_HEAD; productHead = $env:REPORT_QA_PRODUCT_HEAD
+          }
+          $hostInfo | ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/host.json"
+          if ($os.Caption -notmatch 'Windows\s+11' -or $os.ProductType -ne 1 -or $hostInfo.osArchitecture -ne 'Arm64') {
+            throw 'This QA requires an actual Windows 11 ARM host.'
+          }
+      - name: Download the exact Server evidence for the prerequisite gate
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: ${{ needs.build.outputs.evidence_name }}
+          path: server-evidence
+          github-token: ${{ github.token }}
+      - name: Require a working standalone entrypoint and missing Server history
+        id: prerequisite
+        shell: pwsh
+        run: |
+          . ./integration_test/support/windows_history_qa_server_prerequisite.ps1
+          $path = 'server-evidence/standalone-no-trace/flutter-summary.json'
+          $source = Get-Content $path -Raw | ConvertFrom-Json
+          $recorded = Get-Content 'server-evidence/standalone-no-trace/server-prerequisite.json' -Raw | ConvertFrom-Json
+          if ((Get-FileHash $path -Algorithm SHA256).Hash -cne $recorded.summarySha256) {
+            throw 'The standalone Server evidence differs from its verified prerequisite.'
+          }
+          $hostRecord = [pscustomobject]@{ Caption = $recorded.host.caption; ProductType = $recorded.host.productType }
+          $proof = Assert-ServerHistoryPrerequisite -Summary $source -SourceHead $env:REPORT_QA_PRODUCT_HEAD -QaHead $env:REPORT_QA_AFTER_HEAD `
+            -NativeTraceExpected $false -OperatingSystem $hostRecord
+          $proof | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/server-prerequisite.json"
+      - name: Download the two already observed privacy frames for read-only OCR checks
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: windows11-flutter-history-trace-*-42231302570
+          merge-multiple: false
+          path: privacy-ocr-fixtures
+          run-id: 42231302570
+          github-token: ${{ github.token }}
+      - name: Download the observed Location transition for read-only validation
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: windows11-flutter-history-trace-*-42233490986
+          merge-multiple: false
+          path: privacy-transition-fixtures
+          run-id: 42233490986
+          github-token: ${{ github.token }}
+      - name: Download the observed final privacy frames for read-only validation
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: windows11-flutter-history-trace-*-42234949689
+          merge-multiple: false
+          path: privacy-final-fixtures
+          run-id: 42234949689
+          github-token: ${{ github.token }}
+      - name: Download the observed changing privacy frame for read-only stability checks
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: windows11-flutter-history-trace-false-42253327097
+          path: privacy-stability-fixtures
+          run-id: 42253327097
+          github-token: ${{ github.token }}
+      - name: Download the reviewed complete x64 standalone bundle
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: ${{ needs.build.outputs.bundle_name }}
+          path: flutter-history-x64
+          github-token: ${{ github.token }}
+      - name: Verify the exact bundled helpers and source-built clipboard library
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'integration_test/support'
+          $bundle = (Resolve-Path flutter-history-x64).Path
+          $names = @('windows_history_qa_controller.ps1', 'windows_history_qa_native.cs', 'windows_history_qa_clipboard.ps1')
+          $native = Get-Content "$bundle/native-clipboard-build.json" -Raw | ConvertFrom-Json
+          if ($native.sourceHead -cne $env:REPORT_QA_PRODUCT_HEAD -or $native.qaHead -cne $env:REPORT_QA_AFTER_HEAD -or
+              $native.crateHash -cne $env:REPORT_QA_CRATE_HASH -or $native.builtFromSource -isnot [bool] -or !$native.builtFromSource -or
+              (Get-FileHash "$bundle/super_native_extensions.dll").Hash -cne $native.sha256) {
+            throw 'The bundle does not contain the reviewed source-built clipboard library.'
+          }
+          Copy-Item "$bundle/native-clipboard-build.json" "$env:REPORT_QA_ARTIFACT_ROOT/native-clipboard-build.json"
+          $exeBefore = (Get-FileHash "$bundle/otzaria.exe").Hash
+          $records = @()
+          New-Item -ItemType Directory "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides" | Out-Null
+          foreach ($name in $names) {
+            $target = Join-Path "$bundle/qa" $name
+            $normalized = [Text.Encoding]::UTF8.GetBytes(([IO.File]::ReadAllText($target) -replace "`r`n", "`n"))
+            $oldSourceHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($normalized)).ToLowerInvariant()
+            $reviewed = [Text.Encoding]::UTF8.GetBytes(([IO.File]::ReadAllText((Join-Path $source $name)) -replace "`r`n", "`n"))
+            $reviewedHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($reviewed)).ToLowerInvariant()
+            if ($oldSourceHash -cne $reviewedHash) { throw ('The bundle helper differs from the reviewed QA head: ' + $name) }
+            $before = (Get-FileHash $target).Hash
+            Copy-Item (Join-Path $source $name) "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides/$name"
+            $records += @{ name = $name; originalSha256 = $before; originalNormalizedSha256 = $oldSourceHash; installedSha256 = (Get-FileHash $target).Hash }
+          }
+          $tokens = $null; $errors = $null
+          [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $source 'windows_history_qa_controller.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | Format-List; throw 'The Shell observer failed PowerShell parsing.' }
+          Add-Type -Path (Join-Path $source 'windows_history_qa_native.cs')
+          $smokeRoot = Join-Path $env:REPORT_QA_ARTIFACT_ROOT 'shell-verifier-smoke'
+          New-Item -ItemType Directory $smokeRoot | Out-Null
+          '{}' | Set-Content -Encoding utf8 (Join-Path $smokeRoot 'case.json')
+          $child = New-Object Diagnostics.Process
+          $child.StartInfo.FileName = Join-Path $env:windir 'System32/WindowsPowerShell/v1.0/powershell.exe'
+          $child.StartInfo.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -MTA -File "' + (Join-Path "$bundle/qa" 'windows_history_qa_controller.ps1') + '" -Root "' + $smokeRoot + '" -ValidateShellVerifier'
+          $child.StartInfo.UseShellExecute = $false
+          $child.StartInfo.CreateNoWindow = $true
+          $child.StartInfo.RedirectStandardOutput = $true
+          $child.StartInfo.RedirectStandardError = $true
+          $childStarted = $false
+          try {
+            # .NET preserves the PS7 environment, like the intermediate Flutter process.
+            $childStarted = $child.Start()
+            if (!$childStarted) { throw 'The same-environment signature smoke did not start.' }
+            $stdout = $child.StandardOutput.ReadToEndAsync()
+            $stderr = $child.StandardError.ReadToEndAsync()
+            if (!$child.WaitForExit(60000)) { throw 'The same-environment signature smoke timed out.' }
+            if (!$stdout.Wait(1000) -or !$stderr.Wait(1000)) { throw 'The signature smoke streams did not finish.' }
+            [IO.File]::WriteAllText((Join-Path $smokeRoot 'stdout.log'), $stdout.Result)
+            [IO.File]::WriteAllText((Join-Path $smokeRoot 'stderr.log'), $stderr.Result)
+            @{ exitCode = $child.ExitCode; launcherPSVersion = [string]$PSVersionTable.PSVersion;
+              launcherModulePath = $env:PSModulePath; inputSent = $false } | ConvertTo-Json |
+              Set-Content -Encoding utf8 (Join-Path $smokeRoot 'process.json')
+            if ($child.ExitCode -ne 0) { throw 'The controller signature/history-state preflight failed; see shell-verifier-smoke evidence.' }
+            $proof = Get-Content (Join-Path $smokeRoot 'shell-verifier.json') -Raw | ConvertFrom-Json
+            if (!$proof.verifierReady -or $proof.inputSent -or $proof.psVersion -notlike '5.1.*') { throw 'The controller signature smoke did not prove the intended environment.' }
+          } finally {
+            if ($childStarted -and !$child.HasExited) { $child.Kill() }
+            $child.Dispose()
+          }
+          $exeAfter = (Get-FileHash "$bundle/otzaria.exe").Hash
+          if ($exeAfter -cne $exeBefore) { throw 'The Flutter executable changed while installing observation helpers.' }
+          @{ workflowHead = $env:REPORT_QA_WORKFLOW_HEAD; bundleHead = $env:REPORT_QA_AFTER_HEAD; productHead = $env:REPORT_QA_PRODUCT_HEAD;
+            executableSha256 = $exeAfter; helpers = $records; completionInputSimulated = $false;
+            negativeControl = 'V remains scan0; the optional Alt modifier uses the active keyboard layout'; clipboardDllSha256 = $native.sha256 } | ConvertTo-Json -Depth 10 |
+            Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/helper-overrides.json"
+      - name: Run actual Flutter history selection under Windows x64 emulation
+        timeout-minutes: 21
+        shell: pwsh
+        run: |
+          $script = 'integration_test/support/windows_history_qa_windows11.ps1'
+          @{ workflowHead = $env:REPORT_QA_WORKFLOW_HEAD; path = $script; sha256 = (Get-FileHash $script).Hash } |
+            ConvertTo-Json | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/windows11-harness-source.json"
+          & "./$script"
+      - name: Verify the focused fixture receives End rather than keypad input
+        if: always()
+        shell: pwsh
+        run: |
+          $path = "$env:REPORT_QA_ARTIFACT_ROOT/run/flutter-summary.json"
+          if (!(Test-Path $path)) { throw 'No Flutter summary is available to verify the fixture caret.' }
+          $summary = Get-Content $path -Raw | ConvertFrom-Json
+          $rows = @($summary.cases | Where-Object { $_.textFieldFocus } | ForEach-Object {
+            $sent = @($_.controller.caretPreparations | Where-Object { $_.inputSent })
+            $observed = @($_.keyEvents | Where-Object {
+              $_.type -ceq 'KeyDownEvent' -and !$_.synthesized -and $_.physical -ceq '0x7004d' -and $_.logicalName -ceq 'End'
+            })
+            @{ case = $_.case; nativeRequests = $sent; actualFlutterEndEvents = $observed;
+              passed = $sent.Count -gt 0 -and $sent.Count -eq $observed.Count }
+          })
+          @{ cases = $rows; allPassed = $rows.Count -eq 5 -and @($rows | Where-Object { !$_.passed }).Count -eq 0 } |
+            ConvertTo-Json -Depth 16 | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/caret-delivery.json"
+          if ($rows.Count -ne 5 -or @($rows | Where-Object { !$_.passed }).Count -gt 0) {
+            throw 'A focused fixture did not receive every preparation as a real Flutter End key.'
+          }
+      - name: Require acceptance without the clipboard format observer
+        if: always()
+        shell: pwsh
+        run: |
+          $path = "$env:REPORT_QA_ARTIFACT_ROOT/run/flutter-summary.json"
+          if (!(Test-Path $path)) { throw 'No Flutter summary is available for the acceptance observer gate.' }
+          $summary = Get-Content $path -Raw | ConvertFrom-Json
+          $rows = @($summary.cases | ForEach-Object {
+            $environmentPath = Join-Path "$env:REPORT_QA_ARTIFACT_ROOT/run" "$($_.case)/environment.json"
+            if (!(Test-Path $environmentPath)) { throw "Missing environment proof for $($_.case)." }
+            $environment = Get-Content $environmentPath -Raw | ConvertFrom-Json
+            $disabled = $environment.clipboardFormatObservationEnabled -is [bool] -and $environment.clipboardFormatObservationEnabled -ceq $false
+            $realContext = $environment.flutterTestEnvironmentPresent -is [bool] -and $environment.flutterTestEnvironmentPresent -ceq $false
+            $sampleCount = @($_.controller.clipboardFormatSamples).Count
+            @{ case = $_.case; observationDisabled = $disabled; flutterTestEnvironmentAbsent = $realContext;
+              formatSampleCount = $sampleCount; passed = $disabled -and $realContext -and $sampleCount -eq 0 }
+          })
+          $allPassed = $rows.Count -eq 7 -and @($rows | Where-Object { !$_.passed }).Count -eq 0
+          @{ cases = $rows; allPassed = $allPassed; inputSent = $false } |
+            ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/observer-disabled.json"
+          if (!$allPassed) { throw 'Acceptance requires all seven real Flutter cases without the clipboard format observer.' }
+      - name: Verify the actual Flutter process loaded the packaged clipboard library
+        if: always()
+        shell: pwsh
+        run: |
+          $expected = Get-Content "$env:REPORT_QA_ARTIFACT_ROOT/native-clipboard-build.json" -Raw | ConvertFrom-Json
+          $summary = Get-Content "$env:REPORT_QA_ARTIFACT_ROOT/run/flutter-summary.json" -Raw | ConvertFrom-Json
+          $rows = @($summary.cases | ForEach-Object {
+            $runtime = Get-Content (Join-Path "$env:REPORT_QA_ARTIFACT_ROOT/run" "$($_.case)/runtime-modules.json") -Raw | ConvertFrom-Json
+            $library = $runtime.nativeClipboard
+            $passed = $library.name -ceq 'super_native_extensions.dll' -and $library.sha256 -ieq $expected.sha256 -and
+              [IO.Path]::GetFullPath($library.loadedFrom) -ieq (Join-Path (Resolve-Path 'flutter-history-x64').Path 'super_native_extensions.dll')
+            @{ case = $_.case; library = $library; passed = $passed }
+          })
+          $allPassed = $rows.Count -eq 7 -and @($rows | Where-Object { !$_.passed }).Count -eq 0
+          @{ expected = $expected; cases = $rows; allPassed = $allPassed } | ConvertTo-Json -Depth 10 |
+            Set-Content -Encoding utf8 "$env:REPORT_QA_ARTIFACT_ROOT/loaded-clipboard-library.json"
+          if (!$allPassed) { throw 'Not every actual Flutter case loaded the packaged source-built clipboard library.' }
+      - name: Upload actual Windows 11 screenshots, traces and process identity
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows11-flutter-history-trace-${{ matrix.native_trace }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: windows11-evidence/
+          if-no-files-found: error
+          retention-days: 14
