@@ -33,18 +33,21 @@ Map<String, dynamic> snapshot({
 Map<String, Object?> analyze(
   Map<String, dynamic> after, {
   Map<String, dynamic>? before,
+  Map<String, dynamic>? driver,
+  int armStartMs = 1000,
+  int armEndMs = 1020,
 }) => analyzeAppleQuietWindow(
   before: before ?? snapshot(readWall: 900, readMono: 900),
   after: after,
-  driver: {
+  driver: driver ?? {
     'quietStartMs': 2000,
     'quietEndMs': 10000,
     'quietElapsedMs': 8000,
     'armReceivedMs': 1005,
     'armReplyMs': 1010,
   },
-  armStartMs: 1000,
-  armEndMs: 1020,
+  armStartMs: armStartMs,
+  armEndMs: armEndMs,
 );
 
 void main() {
@@ -217,9 +220,196 @@ void main() {
       expect(stream['callbacksInsideQuiet'], 1);
       expect(stream['callbacksAfterQuiet'], 1);
       expect(stream['callbacksAtUncertainEdges'], 2);
-      expect(report['deviceToDriverOffsetMs'], {'min': -15.0, 'max': 10.0});
+      expect(report['deviceToDriverOffsetMs'], {'min': -12.0, 'max': 6.0});
     },
   );
+
+
+  test('frozen iOS arm exchange excludes the measured server delay', () {
+    const send = 1794027539655;
+    final report = analyze(
+      snapshot(
+        callbacks: [send + 5000],
+        readWall: send + 30000,
+        readMono: send + 30000,
+      ),
+      before: snapshot(readWall: send - 1000, readMono: send - 1000),
+      armStartMs: send,
+      armEndMs: 1794027540303,
+      driver: {
+        'quietStartMs': send + 1000,
+        'quietEndMs': send + 21000,
+        'quietElapsedMs': 20000,
+        'armReceivedMs': 1794027539707.806,
+        'armReplyMs': 1794027540224.722,
+      },
+    );
+    final offset = report['deviceToDriverOffsetMs'] as Map;
+    expect(offset['min'], closeTo(-80.278076171875, 0.000001));
+    expect(offset['max'], closeTo(53.805908203125, 0.000001));
+    expect(report['clockUncertaintyMs'], closeTo(134.083984375, 0.000001));
+    expect(report['clockStable'], true);
+    expect(report['edgeGuardMs'], 1000);
+    expect(report['clockToleranceMs'], 250);
+    for (final stream in (report['streams'] as Map).values.cast<Map>()) {
+      expect(stream['classification'], 'callbacksObservedInsideQuiet');
+      expect(stream['callbacksInsideQuiet'], 1);
+    }
+  });
+
+  test('causal bounds preserve asymmetric latency and either offset sign', () {
+    for (final offset in [-100000, 0, 100000]) {
+      for (final outward in [10, 90]) {
+        for (final processing in [0, 500, 5000]) {
+          final report = analyze(
+            snapshot(callbacks: [15000], readWall: 22000, readMono: 22000),
+            armEndMs: 1100 + processing,
+            driver: {
+              'quietStartMs': 12000 + offset,
+              'quietEndMs': 20000 + offset,
+              'quietElapsedMs': 8000,
+              'armReceivedMs': 1000 + outward + offset,
+              'armReplyMs': 1000 + outward + processing + offset,
+            },
+          );
+          expect(report['deviceToDriverOffsetMs'], {
+            'min': offset - (100 - outward) - 2.0,
+            'max': offset + outward + 1.0,
+          });
+          expect(report['clockUncertaintyMs'], 103);
+          expect(report['clockStable'], true);
+          expect(
+            ((report['streams'] as Map)['interval'] as Map)['callbacksInsideQuiet'],
+            1,
+          );
+        }
+      }
+    }
+  });
+
+  test('integer client bins and fractional host margins retain possible offsets', () {
+    const offset = 125.5;
+    // Actual client send/receive are 1000.1/1000.9. Host samples at
+    // 1125.7/1126.3 are perturbed by opposite 0.999ms representation errors.
+    final report = analyze(
+      snapshot(callbacks: [4000]),
+      armEndMs: 1000,
+      driver: {
+        'quietStartMs': 2000 + offset,
+        'quietEndMs': 10000 + offset,
+        'quietElapsedMs': 8000,
+        'armReceivedMs': 1124.701,
+        'armReplyMs': 1127.299,
+      },
+    );
+    final bounds = report['deviceToDriverOffsetMs'] as Map;
+    expect(bounds['min'], closeTo(125.299, 0.000001));
+    expect(bounds['max'], closeTo(125.701, 0.000001));
+    expect(bounds['min'] as num, lessThanOrEqualTo(offset));
+    expect(bounds['max'] as num, greaterThanOrEqualTo(offset));
+    expect(report['clockStable'], true);
+    expect(report['integerTimestampBinMs'], 1);
+    expect(report['fractionalTimestampMarginMs'], 1);
+  });
+
+  test('callback millisecond bins remain outside both guarded edges', () {
+    final report = analyze(
+      snapshot(callbacks: [3013, 3014, 8991, 8992, 10012, 10013]),
+    );
+    for (final stream in (report['streams'] as Map).values.cast<Map>()) {
+      expect(stream['callbacksInsideQuiet'], 2);
+      expect(stream['callbacksAtUncertainEdges'], 3);
+      expect(stream['callbacksAfterQuiet'], 1);
+    }
+  });
+
+  test('late-read validation includes both timestamp envelopes', () {
+    expect(
+      analyze(snapshot(readWall: 9992, readMono: 9992))['clockStable'],
+      true,
+    );
+    expect(
+      () => analyze(snapshot(readWall: 9991, readMono: 9991)),
+      throwsStateError,
+    );
+  });
+
+  for (final width in [999, 1000, 1001]) {
+    test('the clock uncertainty threshold remains 1000ms ($width)', () {
+      final report = analyze(snapshot(callbacks: [4000]), armEndMs: width + 1002);
+      expect(report['clockUncertaintyMs'], width);
+      expect(report['clockStable'], width <= 1000);
+      for (final stream in (report['streams'] as Map).values.cast<Map>()) {
+        expect(
+          stream['classification'],
+          width <= 1000 ? 'callbacksObservedInsideQuiet' : 'clockUncertain',
+        );
+        expect(stream['callbacksInsideQuiet'], width <= 1000 ? 1 : null);
+      }
+    });
+  }
+
+  test('causally impossible exchanges and reversed boundaries are rejected', () {
+    final driver = <String, dynamic>{
+      'quietStartMs': 2000,
+      'quietEndMs': 10000,
+      'quietElapsedMs': 8000,
+      'armReceivedMs': 1005,
+      'armReplyMs': 1010,
+    };
+    for (final changed in [
+      {'armReplyMs': 1030},
+      {'armReceivedMs': 1011},
+      {'armReplyMs': 2001},
+      {'quietEndMs': 2000},
+      {'quietElapsedMs': 0},
+    ]) {
+      expect(
+        () => analyze(snapshot(), driver: {...driver, ...changed}),
+        throwsStateError,
+        reason: changed.toString(),
+      );
+    }
+    expect(
+      () => analyze(snapshot(), armEndMs: 999),
+      throwsStateError,
+    );
+    expect(
+      analyze(snapshot(), driver: {...driver, 'armReplyMs': 1028})['clockUncertaintyMs'],
+      0,
+    );
+    expect(
+      () => analyze(snapshot(), driver: {...driver, 'armReplyMs': 1028.001}),
+      throwsStateError,
+    );
+  });
+
+  test('nonfinite coordination times and page anchors cannot certify a window', () {
+    final driver = <String, dynamic>{
+      'quietStartMs': 2000,
+      'quietEndMs': 10000,
+      'quietElapsedMs': 8000,
+      'armReceivedMs': 1005,
+      'armReplyMs': 1010,
+    };
+    for (final invalid in [double.nan, double.infinity, double.negativeInfinity]) {
+      for (final key in driver.keys) {
+        expect(
+          () => analyze(snapshot(), driver: {...driver, key: invalid}),
+          throwsStateError,
+          reason: key,
+        );
+      }
+      for (final key in ['wallMs', 'monoMs']) {
+        final before = snapshot(readWall: 900, readMono: 900);
+        (before['readAt'] as Map)[key] = invalid;
+        expect(() => analyze(snapshot(), before: before), throwsStateError);
+        final after = snapshot();
+        (after['readAt'] as Map)[key] = invalid;
+        expect(() => analyze(after), throwsStateError);
+      }
+    }
+  });
 
   test(
     'no callback is an observation, never an engine-suspension assertion',
@@ -263,7 +453,7 @@ void main() {
       expect(report['clockStable'], false);
       expect(report['maxCallbackClockDriftMs'], 7000);
       expect(report['clockToleranceMs'], 250);
-      expect(report['clockUncertaintyMs'], 25);
+      expect(report['clockUncertaintyMs'], 18);
       for (final stream in (report['streams'] as Map).values.cast<Map>()) {
         expect(stream['classification'], 'clockUncertain');
         expect(stream['callbacksInsideQuiet'], null);
