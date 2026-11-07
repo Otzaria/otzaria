@@ -1,0 +1,1767 @@
+{
+  "artifactBytes": 15400499,
+  "artifactId": 13553799776,
+  "artifactName": "windows11-flutter-history-trace-false-42320691502-attempt-1",
+  "artifactSha256": "55cb8ebbb2fda1ee92c75785b7ba761721fb09f8f8b7d861e26f84a640ae0eb8",
+  "diagnosticOnly": true,
+  "h1Acceptance": "not-evaluated",
+  "missingAllowedJson": [],
+  "nativeBuildIdentityVerified": true,
+  "productHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+  "records": {
+    "activation.json": {
+      "bytes": 3829,
+      "fields": {
+        "workflowHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa"
+      },
+      "sha256": "645dd7db212b3672bafe8b44aa3b14147bbd4ae24c7920b193739730c40b3d4c"
+    },
+    "caret-delivery.json": {
+      "bytes": 7291,
+      "fields": {
+        "allPassed": true,
+        "cases": [
+          {
+            "actualFlutterEndEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              }
+            ],
+            "actualFlutterEndEventsCount": 1,
+            "case": "plain-v-focused",
+            "nativeRequests": [
+              {
+                "case": "plain-v-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "negative-control-before-input"
+              }
+            ],
+            "nativeRequestsCount": 1,
+            "passed": true
+          },
+          {
+            "actualFlutterEndEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              }
+            ],
+            "actualFlutterEndEventsCount": 1,
+            "case": "alt-v-focused",
+            "nativeRequests": [
+              {
+                "case": "alt-v-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "negative-control-before-input"
+              }
+            ],
+            "nativeRequestsCount": 1,
+            "passed": true
+          },
+          {
+            "actualFlutterEndEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              }
+            ],
+            "actualFlutterEndEventsCount": 1,
+            "case": "posted-v-focused",
+            "nativeRequests": [
+              {
+                "case": "posted-v-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "negative-control-before-input"
+              }
+            ],
+            "nativeRequestsCount": 1,
+            "passed": true
+          },
+          {
+            "actualFlutterEndEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              }
+            ],
+            "actualFlutterEndEventsCount": 3,
+            "case": "text-focused",
+            "nativeRequests": [
+              {
+                "case": "text-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "history-opening-0"
+              },
+              {
+                "case": "text-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "history-opening-1"
+              },
+              {
+                "case": "text-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "before-fixture-history-opening"
+              }
+            ],
+            "nativeRequestsCount": 3,
+            "passed": true
+          },
+          {
+            "actualFlutterEndEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              }
+            ],
+            "actualFlutterEndEventsCount": 2,
+            "case": "image-focused",
+            "nativeRequests": [
+              {
+                "case": "image-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "history-opening-0"
+              },
+              {
+                "case": "image-focused",
+                "foregroundAfter": 262820,
+                "foregroundBefore": 262820,
+                "inputSent": true,
+                "key": {
+                  "flags": 1,
+                  "virtualKey": 35
+                },
+                "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                "stage": "before-fixture-history-opening"
+              }
+            ],
+            "nativeRequestsCount": 2,
+            "passed": true
+          }
+        ],
+        "distinctCaseCount": 5,
+        "missingExpectedCases": [
+          "text-unfocused",
+          "image-unfocused"
+        ]
+      },
+      "sha256": "bf901f5be1486a19caf10cafe3eb956bff4eb5523f1f66c9b8c83fd6b7ef3daa"
+    },
+    "flutter-process.json": {
+      "bytes": 317,
+      "fields": {
+        "executableSha256": "F3437C839B63549C18540576A145A1B2CEFC4B9A59B8070A5CC74FBC3C1D3827",
+        "nativeMachine": "0xAA64",
+        "processMachine": "0x8664",
+        "wowMachine": "0x0000"
+      },
+      "sha256": "c034484ed5dfbc20c8aac3d655e903c1df6a79e96f6e7a5e7af5c35f2faa5c93"
+    },
+    "helper-overrides.json": {
+      "bytes": 1596,
+      "fields": {
+        "bundleHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "clipboardDllSha256": "CACB41404E57375F20CC99372C66AF001BE6E356D127726CBDEE6DEDDD4EE956",
+        "completionInputSimulated": false,
+        "executableSha256": "F3437C839B63549C18540576A145A1B2CEFC4B9A59B8070A5CC74FBC3C1D3827",
+        "negativeControlSha256": "f97b5f4dedb99a6529a91640f09cdf17184cd9d7b21a99fec038d0ceeaee1e0b",
+        "productHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+        "workflowHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa"
+      },
+      "sha256": "e57469decc3f0b9e702ddb07e56a28e86c348b803f58670c7dbb560d34c7baf3"
+    },
+    "host.json": {
+      "bytes": 541,
+      "fields": {
+        "buildNumber": "26200",
+        "caption": "Microsoft Windows 11 Enterprise",
+        "controllerArchitecture": "Arm64",
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "nativeTraceRequested": "false",
+        "osArchitecture": "Arm64",
+        "productHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+        "productType": 1,
+        "sourceQaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceRun": "42320691502",
+        "userInteractive": true,
+        "version": "10.0.26200"
+      },
+      "sha256": "09bbf82b5770b50153fd0c1a409c9dc2df1d71a747a2c007144a179a8a2163c2"
+    },
+    "launcher-exit.json": {
+      "bytes": 45,
+      "fields": {
+        "exitCode": 0
+      },
+      "sha256": "3d45eeb2c395ded92b699f8c78136937b2a049d4fdfca5fcc6837ba16f8cebb1"
+    },
+    "loaded-clipboard-library.json": {
+      "bytes": 2842,
+      "fields": {
+        "allPassed": true,
+        "cases": [
+          {
+            "case": "plain-v-focused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "alt-v-focused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "posted-v-focused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "text-focused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "text-unfocused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "image-focused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          },
+          {
+            "case": "image-unfocused",
+            "library": {
+              "name": "super_native_extensions.dll",
+              "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+            },
+            "passed": true
+          }
+        ],
+        "distinctCaseCount": 7,
+        "expected": {
+          "builtFromSource": true,
+          "crateHash": "7a06d2e9d03615c0f9964b73eae03da8",
+          "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+          "sha256": "CACB41404E57375F20CC99372C66AF001BE6E356D127726CBDEE6DEDDD4EE956",
+          "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+        },
+        "missingExpectedCases": []
+      },
+      "sha256": "ffc3e6962fe0c04be8f1fe5b51741303af71ddd807e4eadac4355cd87a368aad"
+    },
+    "native-clipboard-build.json": {
+      "bytes": 429,
+      "fields": {
+        "builtFromSource": true,
+        "crateHash": "7a06d2e9d03615c0f9964b73eae03da8",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sha256": "CACB41404E57375F20CC99372C66AF001BE6E356D127726CBDEE6DEDDD4EE956",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "c5d7db3a524ef9d890be9cba6b58cc410624444961bf42577086b2739815f1c5"
+    },
+    "observer-disabled.json": {
+      "bytes": 1343,
+      "fields": {
+        "allPassed": true,
+        "cases": [
+          {
+            "case": "plain-v-focused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "alt-v-focused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "posted-v-focused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "text-focused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "text-unfocused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "image-focused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          },
+          {
+            "case": "image-unfocused",
+            "flutterTestEnvironmentAbsent": true,
+            "formatSampleCount": 0,
+            "observationDisabled": true,
+            "passed": true
+          }
+        ],
+        "distinctCaseCount": 7,
+        "inputSent": false,
+        "missingExpectedCases": []
+      },
+      "sha256": "b23543ffb94ddf7863ba4d89a93c671f32bca51c92dffd05905b7cd41426cfd1"
+    },
+    "privacy-preparation.json": {
+      "bytes": 8558,
+      "fields": {
+        "completed": true,
+        "outcome": "privacy-screen-dismissed-through-ui"
+      },
+      "sha256": "fe9ccbc20945fde65c3eaee8496d97b971564e5df93d1386ef2fd6d35408f3d8"
+    },
+    "qa-bundle.json": {
+      "bytes": 569,
+      "fields": {
+        "architecture": "x64",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d1c1c99a78ad02c68961c9b7dd55503ff08485dcad3c5d4c14b92e3a088d64ea"
+    },
+    "run/alt-v-focused/environment.json": {
+      "bytes": 442,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "text",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d9bb23a8420b8efc14ed4e88cef7a5f9e76a79c655dbe3bf1cf94c2fd21f7092"
+    },
+    "run/alt-v-focused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/flutter-summary.json": {
+      "bytes": 61751,
+      "fields": {
+        "allTestsPassed": true,
+        "cases": [
+          {
+            "after": {
+              "imageBytes": [],
+              "imageCount": 0,
+              "title": "Title preserved: מקור v",
+              "titleCharacters": 23,
+              "titleIsKnownFixture": true,
+              "titleSha256": "b893df0768de9db9957e0bd855adae5cd4ca4e9fb234a0c78fa28ced424ecb04"
+            },
+            "before": {
+              "focused": true,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "plain-v-focused",
+            "controller": {
+              "caretPreparations": [
+                {
+                  "case": "plain-v-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "negative-control-before-input"
+                }
+              ],
+              "clipboardAfterSelection": null,
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "controlForegroundAfterInput": 262820,
+              "controlForegroundAtCompletion": 262820,
+              "controlForegroundBeforeInput": 262820,
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historySelectionVerified": false,
+              "historyWindowIdentified": false,
+              "nativeControlInputSent": true,
+              "outcome": "native-negative-control-sent-without-history-ui",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": false,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": "v",
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 4,
+            "negativeControl": true,
+            "payload": "text",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": true,
+            "unmappedVObserved": false
+          },
+          {
+            "after": {
+              "imageBytes": [],
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "before": {
+              "focused": true,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "alt-v-focused",
+            "controller": {
+              "caretPreparations": [
+                {
+                  "case": "alt-v-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "negative-control-before-input"
+                }
+              ],
+              "clipboardAfterSelection": null,
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "controlForegroundAfterInput": 262820,
+              "controlForegroundAtCompletion": 262820,
+              "controlForegroundBeforeInput": 262820,
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historySelectionVerified": false,
+              "historyWindowIdentified": false,
+              "nativeControlInputSent": true,
+              "outcome": "native-negative-control-sent-without-history-ui",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": false,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000104",
+                "logicalName": "Alt Left",
+                "physical": "0x700e2",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": "v",
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000104",
+                "logicalName": "Alt Left",
+                "physical": "0x700e2",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 6,
+            "negativeControl": true,
+            "payload": "text",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": true,
+            "unmappedVObserved": false
+          },
+          {
+            "after": {
+              "imageBytes": [],
+              "imageCount": 0,
+              "title": "Title preserved: מקור v",
+              "titleCharacters": 23,
+              "titleIsKnownFixture": true,
+              "titleSha256": "b893df0768de9db9957e0bd855adae5cd4ca4e9fb234a0c78fa28ced424ecb04"
+            },
+            "before": {
+              "focused": true,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "posted-v-focused",
+            "controller": {
+              "caretPreparations": [
+                {
+                  "case": "posted-v-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "negative-control-before-input"
+                }
+              ],
+              "clipboardAfterSelection": null,
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "controlForegroundAfterInput": 262820,
+              "controlForegroundAtCompletion": 262820,
+              "controlForegroundBeforeInput": 262820,
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historySelectionVerified": false,
+              "historyWindowIdentified": false,
+              "nativeControlInputSent": true,
+              "outcome": "native-negative-control-sent-without-history-ui",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": false,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 4,
+            "negativeControl": true,
+            "payload": "text",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": true,
+            "unmappedVObserved": false
+          },
+          {
+            "after": {
+              "imageBytes": [],
+              "imageCount": 0,
+              "title": "Title preserved: מקור OTZARIA-HISTORY-QA-A-text-focused",
+              "titleCharacters": 55,
+              "titleIsKnownFixture": true,
+              "titleSha256": "b4580b5d737169d16dba8dcc975b0ad5188f5a47ea9d7101b916abd7e8bc6df5"
+            },
+            "before": {
+              "focused": true,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "text-focused",
+            "controller": {
+              "caretPreparations": [
+                {
+                  "case": "text-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "history-opening-0"
+                },
+                {
+                  "case": "text-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "history-opening-1"
+                },
+                {
+                  "case": "text-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "before-fixture-history-opening"
+                }
+              ],
+              "clipboardAfterSelection": "A",
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "enableButtonInvoked": true,
+              "errorPresent": false,
+              "historyOpeningAttempts": 2,
+              "historySelectionVerified": true,
+              "historyWindowIdentified": true,
+              "outcome": "real-history-selected-A-after-B",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": true,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 16,
+            "negativeControl": false,
+            "payload": "text",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": true,
+            "vKeyDownDelivered": true
+          },
+          {
+            "after": {
+              "imageBytes": [],
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "before": {
+              "focused": false,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "text-unfocused",
+            "controller": {
+              "caretPreparations": [],
+              "clipboardAfterSelection": "A",
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historyOpeningAttempts": 1,
+              "historySelectionVerified": true,
+              "historyWindowIdentified": true,
+              "outcome": "real-history-selected-A-after-B",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": true,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 8,
+            "negativeControl": false,
+            "payload": "text",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": false,
+            "vKeyDownDelivered": true
+          },
+          {
+            "after": {
+              "imageBytes": [
+                105
+              ],
+              "imageCount": 1,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "before": {
+              "focused": true,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "image-focused",
+            "controller": {
+              "caretPreparations": [
+                {
+                  "case": "image-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "history-opening-0"
+                },
+                {
+                  "case": "image-focused",
+                  "foregroundAfter": 262820,
+                  "foregroundBefore": 262820,
+                  "inputSent": true,
+                  "key": {
+                    "flags": 1,
+                    "virtualKey": 35
+                  },
+                  "keySha256": "a35f273358dd0d5657309c41f338620352097838cd4e36638987d34786c25453",
+                  "stage": "before-fixture-history-opening"
+                }
+              ],
+              "clipboardAfterSelection": "A",
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historyOpeningAttempts": 1,
+              "historySelectionVerified": true,
+              "historyWindowIdentified": true,
+              "outcome": "real-history-selected-A-after-B",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": true,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x100000305",
+                "logicalName": "End",
+                "physical": "0x7004d",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 12,
+            "negativeControl": false,
+            "payload": "image",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": true,
+            "vKeyDownDelivered": true
+          },
+          {
+            "after": {
+              "imageBytes": [
+                105
+              ],
+              "imageCount": 1,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "before": {
+              "focused": false,
+              "imageCount": 0,
+              "title": "Title preserved: מקור ",
+              "titleCharacters": 22,
+              "titleIsKnownFixture": true,
+              "titleSha256": "996b31a590b6b8aa746afb1c16e8f879be2c837b244a114319ac43da42aa5f36"
+            },
+            "case": "image-unfocused",
+            "controller": {
+              "caretPreparations": [],
+              "clipboardAfterSelection": "A",
+              "clipboardBeforeSelection": "B",
+              "clipboardFormatSamples": [],
+              "enableButtonInvoked": false,
+              "errorPresent": false,
+              "historyOpeningAttempts": 1,
+              "historySelectionVerified": true,
+              "historyWindowIdentified": true,
+              "outcome": "real-history-selected-A-after-B",
+              "probeCompleted": true
+            },
+            "controllerExitCode": 0,
+            "flutterWindow": 262820,
+            "historySelectionVerified": true,
+            "inputBeforeCleanup": {
+              "flutterKeys": [],
+              "foreground": 262820,
+              "nativeAlt": false,
+              "nativeControl": false,
+              "nativeV": false,
+              "nativeWin": false
+            },
+            "keyEvents": [
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000106",
+                "logicalName": "Meta Left",
+                "physical": "0x700e3",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyDownEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": true,
+                "foreground": 262820,
+                "logical": "0x76",
+                "logicalName": "Key V",
+                "physical": "0x70019",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              },
+              {
+                "character": null,
+                "controlPressed": false,
+                "foreground": 262820,
+                "logical": "0x200000100",
+                "logicalName": "Control Left",
+                "physical": "0x700e0",
+                "synthesized": false,
+                "type": "KeyUpEvent"
+              }
+            ],
+            "keyEventsCount": 8,
+            "negativeControl": false,
+            "payload": "image",
+            "reportAssertionsPassed": true,
+            "textFieldFocus": false,
+            "vKeyDownDelivered": true
+          }
+        ],
+        "distinctCaseCount": 7,
+        "failedTestsCount": 0,
+        "failedTestsMethods": [],
+        "failedTestsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "failureDetailsCount": 0,
+        "failureDetailsMethods": [],
+        "failureDetailsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "missingExpectedCases": [],
+        "nativeTraceEnabled": false,
+        "osVersionSha256": "66267e5f4d91e353501d64248f4ea3b2f7d39a17f60b10ea664dd32f394f909d",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "renderer": "Real Flutter Windows AppReportDialog",
+        "reportedFailureDetailsCount": 0,
+        "reportedFailureDetailsMethods": [],
+        "reportedFailureDetailsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "f4de088841f99a5e0877864e9bfcbede071814045cf2428c1c72f9f6593d6ad2"
+    },
+    "run/image-focused/environment.json": {
+      "bytes": 443,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "image",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "42d4fc965e80d47d43b5c472024c6fd7d8d7bbbb0d1a453fe5dba1188d113a76"
+    },
+    "run/image-focused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/image-unfocused/environment.json": {
+      "bytes": 443,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "image",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "42d4fc965e80d47d43b5c472024c6fd7d8d7bbbb0d1a453fe5dba1188d113a76"
+    },
+    "run/image-unfocused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/plain-v-focused/environment.json": {
+      "bytes": 442,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "text",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d9bb23a8420b8efc14ed4e88cef7a5f9e76a79c655dbe3bf1cf94c2fd21f7092"
+    },
+    "run/plain-v-focused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/posted-v-focused/environment.json": {
+      "bytes": 442,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "text",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d9bb23a8420b8efc14ed4e88cef7a5f9e76a79c655dbe3bf1cf94c2fd21f7092"
+    },
+    "run/posted-v-focused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/text-focused/environment.json": {
+      "bytes": 442,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "text",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d9bb23a8420b8efc14ed4e88cef7a5f9e76a79c655dbe3bf1cf94c2fd21f7092"
+    },
+    "run/text-focused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "run/text-unfocused/environment.json": {
+      "bytes": 442,
+      "fields": {
+        "clipboardFormatObservationEnabled": false,
+        "flutterTestEnvironmentPresent": false,
+        "flutterWindow": 262820,
+        "imageOS": "win11-vs2026-arm64",
+        "imageVersion": "20261101.203.1",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "payload": "text",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "d9bb23a8420b8efc14ed4e88cef7a5f9e76a79c655dbe3bf1cf94c2fd21f7092"
+    },
+    "run/text-unfocused/runtime-modules.json": {
+      "bytes": 2369,
+      "fields": {
+        "architecture": "x64",
+        "nativeClipboard": {
+          "name": "super_native_extensions.dll",
+          "sha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+        }
+      },
+      "sha256": "ef14c009d79726ecb9e812a0c5fbc5c13879f7cd3b23ebb37c067f3e2d0a273f"
+    },
+    "server-prerequisite.json": {
+      "bytes": 705,
+      "fields": {
+        "failedTestsCount": 4,
+        "failedTestsMethods": [
+          "real Windows history selection in report: text-focused",
+          "real Windows history selection in report: text-unfocused",
+          "real Windows history selection in report: image-focused",
+          "real Windows history selection in report: image-unfocused"
+        ],
+        "failedTestsSha256": "6d27ce8e70a597307150bf55ce1ec1be8d63d13b470f4dc8ba569e93628a26fe",
+        "historyCasesPassed": 0,
+        "historyCasesUnsupported": 4,
+        "nativeTraceEnabled": false,
+        "outcome": "server-history-ui-unavailable",
+        "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+        "rawAllTestsPassed": false,
+        "reportCasesPassed": 3,
+        "sourceHead": "8e02f5a89a509a983f46d8d35b624a22dc844a64"
+      },
+      "sha256": "20a5eda2dc600a9e5d4b3b6e17c402260dec0fdcbe44a2d39860b4ae8411f43d"
+    },
+    "windows11-harness-source.json": {
+      "bytes": 221,
+      "fields": {
+        "sha256": "F63F0AB5F25923BEBBCE1E386CA6554BE37703F67B46B052644DB2483CB391E7",
+        "workflowHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa"
+      },
+      "sha256": "dd664b063cfe3ad2270b225af5321484359f0c1c7c339b66acf1aaf2e2af2e1f"
+    }
+  },
+  "requestedCase": null,
+  "role": "trace-off",
+  "runConclusion": "success",
+  "runStatus": "completed",
+  "sourceAttempt": 1,
+  "sourceHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+  "sourceRun": 42320691502
+}

@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "product": {
+    "head": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+    "tree": "f7acec410894ecbd0bafe6aa0654cd8fb3c2c87e",
+    "crateHash": "7a06d2e9d03615c0f9964b73eae03da8"
+  },
+  "nativeLibrarySha256": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956",
+  "source": {
+    "repository": "Otzaria/otzaria",
+    "run": 42320691502,
+    "attempt": 1,
+    "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+    "runUrl": "https://github.com/Otzaria/otzaria/actions/runs/42320691502"
+  },
+  "artifactReader": {
+    "head": "114a1eda2b44a3d360bcd52507a61ee96c0fe036",
+    "run": 42324776245,
+    "scope": "Read-only transport; does not decide product acceptance."
+  },
+  "host": {
+    "os": "Windows 11 Enterprise",
+    "version": "10.0.26200",
+    "architecture": "ARM64",
+    "appArchitecture": "x64 (emulated)",
+    "image": "win11-vs2026-arm64/20261101.203.1"
+  },
+  "artifacts": [
+    {
+      "role": "server",
+      "id": 13553254927,
+      "name": "windows-flutter-history-42320691502-attempt-1",
+      "bytes": 21649995,
+      "sha256": "588ae44aa51ac0a66706dd3fa3aafde7d795059666f409b1300bdfcb4b59a7b3",
+      "projectionFile": "server-projection.json"
+    },
+    {
+      "role": "trace-on",
+      "id": 13553229864,
+      "name": "windows11-flutter-history-trace-true-42320691502-attempt-1",
+      "bytes": 11997664,
+      "sha256": "9d16fb9fe8aa0ea4f3ed1cc6e6fe7b930747ee0e4cd7ab243fc1c839524f5517",
+      "projectionFile": "trace-on-projection.json"
+    },
+    {
+      "role": "trace-off",
+      "id": 13553799776,
+      "name": "windows11-flutter-history-trace-false-42320691502-attempt-1",
+      "bytes": 15400499,
+      "sha256": "55cb8ebbb2fda1ee92c75785b7ba761721fb09f8f8b7d861e26f84a640ae0eb8",
+      "projectionFile": "trace-off-projection.json"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "trace-off/image-focused-after.png",
+      "role": "trace-off",
+      "case": "image-focused",
+      "slot": "after",
+      "sourcePath": "run/image-focused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "95d7a40dab152774076c16a3d3052cc54c462bb23a55ffebe1e730cf1756c02f",
+      "bytes": 281346,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/image-focused-before.png",
+      "role": "trace-off",
+      "case": "image-focused",
+      "slot": "before",
+      "sourcePath": "run/image-focused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "f1705dbd92d39dcf9aaa5e20c9d80541dbe7d9974f0e78b627c8156c8172da6d",
+      "bytes": 282736,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/image-unfocused-after.png",
+      "role": "trace-off",
+      "case": "image-unfocused",
+      "slot": "after",
+      "sourcePath": "run/image-unfocused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "e6670e958837531138be17c7711ecd3393d69b7682df17e4a55e9bab0777ced7",
+      "bytes": 281851,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/image-unfocused-before.png",
+      "role": "trace-off",
+      "case": "image-unfocused",
+      "slot": "before",
+      "sourcePath": "run/image-unfocused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "f7313e636b1eda744fe7dad4f9a8187e77b9398d78336e8331dc6a1fee41c948",
+      "bytes": 279222,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/text-focused-after.png",
+      "role": "trace-off",
+      "case": "text-focused",
+      "slot": "after",
+      "sourcePath": "run/text-focused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "835a0fc783e6304b76ec06118b9f93fa04c321ffb7da73f8951980d4590f2b22",
+      "bytes": 286434,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/text-focused-before.png",
+      "role": "trace-off",
+      "case": "text-focused",
+      "slot": "before",
+      "sourcePath": "run/text-focused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "22cf2e84723cdd5e384df663d72a4ae6a3aa480609c36e22dee912beb8a78e23",
+      "bytes": 289644,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/text-unfocused-after.png",
+      "role": "trace-off",
+      "case": "text-unfocused",
+      "slot": "after",
+      "sourcePath": "run/text-unfocused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "9b57d9b5220a53311ba1c8d4f6bcb2ff1932f3179e9bf410d9e7e14f6550e12e",
+      "bytes": 282247,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-off/text-unfocused-before.png",
+      "role": "trace-off",
+      "case": "text-unfocused",
+      "slot": "before",
+      "sourcePath": "run/text-unfocused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553799776,
+      "sha256": "0ce30d68b4e9f66ab603306901a2a9865d0709d19f0e2951d701e58c367711b9",
+      "bytes": 284675,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/image-focused-after.png",
+      "role": "trace-on",
+      "case": "image-focused",
+      "slot": "after",
+      "sourcePath": "run/image-focused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "fbb3a458f6c12b7bd6ae6337f60359c84157d6f42d4c02c83f8690b78b38554b",
+      "bytes": 205803,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/image-focused-before.png",
+      "role": "trace-on",
+      "case": "image-focused",
+      "slot": "before",
+      "sourcePath": "run/image-focused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "cf3cc58544058cace37de155eed314b171976b21f310f6e6782252c234f8e8df",
+      "bytes": 207119,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/image-unfocused-after.png",
+      "role": "trace-on",
+      "case": "image-unfocused",
+      "slot": "after",
+      "sourcePath": "run/image-unfocused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "ef6d37e2744d37520929ab2198222273f6c4d49f58bc3f2646a3ce3c0cbd9d01",
+      "bytes": 207093,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/image-unfocused-before.png",
+      "role": "trace-on",
+      "case": "image-unfocused",
+      "slot": "before",
+      "sourcePath": "run/image-unfocused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "559444d1da050e085b64ee45d424d0f04abd1aaa02ec1ace3fc07ecaf114d921",
+      "bytes": 204496,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/text-focused-after.png",
+      "role": "trace-on",
+      "case": "text-focused",
+      "slot": "after",
+      "sourcePath": "run/text-focused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "40a6cb2fd5c94bf985e9d5850dad1069fd4b24d78d60281f45efcad4e15da818",
+      "bytes": 212149,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/text-focused-before.png",
+      "role": "trace-on",
+      "case": "text-focused",
+      "slot": "before",
+      "sourcePath": "run/text-focused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "8b688df621ecec0b07d954e697a47631550482a0c0922cd29aa6a6d2b56806c9",
+      "bytes": 215244,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/text-unfocused-after.png",
+      "role": "trace-on",
+      "case": "text-unfocused",
+      "slot": "after",
+      "sourcePath": "run/text-unfocused/05-after-real-history-selection.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "08411cbc869c6bdcb113351f13e27a84ee7496b12643525b7fccaa59117bd202",
+      "bytes": 207338,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    },
+    {
+      "file": "trace-on/text-unfocused-before.png",
+      "role": "trace-on",
+      "case": "text-unfocused",
+      "slot": "before",
+      "sourcePath": "run/text-unfocused/04-history-A-after-B-0.png",
+      "sourceArtifactId": 13553229864,
+      "sha256": "19e766e1c61fff58ffb2ba0bf2bad9c9d1f2d24cb5f04b94af9bf488e2191c5f",
+      "bytes": 209809,
+      "width": 1024,
+      "height": 768,
+      "pixelsEdited": false
+    }
+  ],
+  "results": [
+    {
+      "role": "trace-on",
+      "allChecksPassed": true,
+      "issues": [],
+      "cases": 7,
+      "historySelections": 4,
+      "product": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+      "qa": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+      "nativeSha": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+    },
+    {
+      "role": "trace-off",
+      "allChecksPassed": true,
+      "issues": [],
+      "cases": 7,
+      "historySelections": 4,
+      "product": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+      "qa": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+      "nativeSha": "cacb41404e57375f20cc99372c66af001be6e356d127726cbdee6deddd4ee956"
+    }
+  ],
+  "captureTiming": "Controller 'after' screenshots occur after the real history selection changes the clipboard to A, before Dart waits for asynchronous image decoding and asserts the final form state. They are not proof of an already rendered image attachment.",
+  "limits": [
+    "The standalone native Flutter AppReportDialog harness ran on a real Windows 11 ARM64 host with an x64 process.",
+    "Win+V was not run on Windows 10 or a separate native x64 Windows 11 machine.",
+    "Desktop captures are not low-window accessibility evidence. Separate Flutter widget screenshots cover that UI requirement.",
+    "JSON files are explicitly allowlisted projections. Their records include hashes and sizes of the complete original JSON files, retained in the source artifacts.",
+    "Counts overlap with other test suites and should not be added as unique tests."
+  ],
+  "independentReview": {
+    "approved": true,
+    "reviewer": "qa_final_harness_review",
+    "product": "8e02f5a89a509a983f46d8d35b624a22dc844a64",
+    "tree": "f7acec410894ecbd0bafe6aa0654cd8fb3c2c87e",
+    "qaHead": "c624f8ec9b8f7c8190e2433ccedbcbbeadf13caa",
+    "run": 42320691502,
+    "casesPerMode": 7,
+    "historySelections": 8,
+    "controls": 6,
+    "independentlyShaVerifiedAndViewedPngs": 16,
+    "substantiveFindings": [],
+    "scope": "Windows 11 Enterprise 10.0.26200 ARM64; x64 emulation; Debug native AppReportDialog integration entrypoint. Not a release package or separate Windows x64 host.",
+    "runtimeEvidenceChecks": {
+      "windows11": 169,
+      "server": 56
+    },
+    "note": "Independent QA reviewed exact source, runtime evidence, all 16 PNG byte hashes and all 16 images. These diagnostic checks are not counted as additional unique product tests."
+  }
+}
