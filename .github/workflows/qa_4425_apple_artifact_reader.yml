@@ -1,0 +1,38 @@
+name: QA 4425 actual Mac raw artifact inspection
+on:
+  push:
+    branches: [y-ploni/qa-4425-native-hide-artifacts-mac-20261107-b]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-profile
+            artifact: '{"label":"macos-profile","kind":"native","run":42338152188,"job":128299653040,"conclusion":"success","id":13561541433,"name":"qa-4425-actual-apple-macos-profile","bytes":5701944,"sha256":"5476a81afc32a79d41dc23238c3800b8b1a6f6c67379a503293c5253e8109c9f","head":"8e519ebe54d79814cb2cec76a2c72735d139b6c4"}'
+    name: Read immutable ${{ matrix.label }} artifact
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind archive, inspect raw data and full source snapshots
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_ARTIFACT: ${{ matrix.artifact }}
+        run: python3 tool/perf_probe/qa_4425_apple_artifact_reader.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-4425-raw-artifact-inspection-${{ matrix.label }}
+          path: |
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/*.json
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/verified-evidence.zip
+            ${{ runner.temp }}/qa-4425-artifact-${{ matrix.label }}/retained-data
+          if-no-files-found: error
+          retention-days: 14
