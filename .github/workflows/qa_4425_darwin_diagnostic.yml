@@ -1,0 +1,165 @@
+name: QA 4425 retained Darwin failure diagnosis
+on:
+  push:
+    branches: ['y-ploni/qa-4425-darwin-diagnostic-20261107-c']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact Mac artifact and inspect retained evidence as data
+        env:
+          QA_DIAGNOSTIC_DIR: ${{ runner.temp }}/qa-4425-darwin-diagnostic
+          QA_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json, os, pathlib, stat, subprocess, urllib.parse, urllib.request, zipfile
+          SOURCE = "2497e0dde51862129fd34569290118b475a05f32"
+          SOURCE_TREE = "fe1051a7754b5fcc07b8afbddeded3ebade447bd"
+          QA_HEAD = "f3c1470cc1e24860524b16df50e350643dccbf98"
+          QA_TREE = "4ffb7a27f5d80e86873f72531fd4dd5b46e294e0"
+          RUN = 42332346173
+          ARTIFACT = 13558420529
+          ZIP_BYTES = 490894
+          ZIP_SHA256 = "f03b655af278385d4fcc3312459f0dd270f52b8153c37450defe51bb03a0bb5c"
+          ROOT = pathlib.Path.cwd().resolve()
+          OUT = pathlib.Path(os.environ["QA_DIAGNOSTIC_DIR"]).resolve()
+          OUT.mkdir(parents=True, exist_ok=False)
+          TOKEN = os.environ.pop("QA_GITHUB_TOKEN", "")
+          os.environ.pop("GITHUB_TOKEN", None)
+          os.environ.pop("GH_TOKEN", None)
+          def digest(data):
+              return hashlib.sha256(data).hexdigest()
+          def git(*args):
+              return subprocess.check_output(["git", *args], cwd=ROOT).decode().strip()
+          def save(name, value):
+              (OUT / name).write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  if urllib.parse.urlsplit(newurl).scheme != "https":
+                      raise RuntimeError("Artifact redirect is not HTTPS")
+                  result = super().redirect_request(req, fp, code, msg, headers, newurl)
+                  if result is not None:
+                      for header in list(result.headers) + list(result.unredirected_hdrs):
+                          if header.lower() == "authorization":
+                              result.remove_header(header)
+                  return result
+          def api(suffix, limit=1024*1024):
+              if not suffix.startswith(("/actions/artifacts/", "/git/commits/")):
+                  raise RuntimeError("Unexpected read-only API path")
+              request = urllib.request.Request("https://api.github.com/repos/Otzaria/otzaria" + suffix, headers={
+                  "Authorization": "Bearer " + TOKEN, "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Otzaria-4425-independent-QA"})
+              with urllib.request.build_opener(SafeRedirect()).open(request, timeout=60) as response:
+                  data = response.read(limit + 1)
+              if len(data) > limit:
+                  raise RuntimeError("API response exceeded byte bound")
+              return data
+          def snapshot(root):
+              result = []
+              for path in sorted(root.rglob("*")):
+                  if path.is_symlink():
+                      raise RuntimeError("Unexpected extracted symlink")
+                  if path.is_file():
+                      data = path.read_bytes()
+                      result.append({"path": path.relative_to(root).as_posix(), "bytes": len(data), "sha256": digest(data)})
+              return result
+          assert git("rev-parse", "HEAD^") == SOURCE
+          assert git("rev-parse", SOURCE + "^{tree}") == SOURCE_TREE
+          assert git("diff", "--name-only", SOURCE, "HEAD") == ".github/workflows/qa_4425_darwin_diagnostic.yml"
+          assert not git("status", "--porcelain=v1", "--untracked-files=all")
+          commit = json.loads(api("/git/commits/" + QA_HEAD))
+          assert commit["tree"]["sha"] == QA_TREE and [item["sha"] for item in commit["parents"]] == [SOURCE]
+          metadata = json.loads(api("/actions/artifacts/" + str(ARTIFACT)))
+          assert metadata["id"] == ARTIFACT and metadata["size_in_bytes"] == ZIP_BYTES
+          assert metadata["digest"] == "sha256:" + ZIP_SHA256 and metadata["expired"] is False
+          assert metadata["workflow_run"]["id"] == RUN and metadata["workflow_run"]["head_sha"] == QA_HEAD
+          save("artifact-metadata.json", metadata)
+          raw = api("/actions/artifacts/" + str(ARTIFACT) + "/zip", ZIP_BYTES)
+          assert len(raw) == ZIP_BYTES and digest(raw) == ZIP_SHA256
+          (OUT / "original-macos-fast-artifact.zip").write_bytes(raw)
+          extracted = OUT / "macos-fast"
+          extracted.mkdir()
+          names = set()
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              entries = archive.infolist()
+              assert len(entries) <= 512 and sum(item.file_size for item in entries) <= 64*1024*1024
+              for item in entries:
+                  name = item.filename
+                  path = pathlib.PurePosixPath(name)
+                  if (not name or path.is_absolute() or ".." in path.parts or "\\" in name or ":" in name or
+                          name in names or stat.S_ISLNK(item.external_attr >> 16) or item.file_size > 16*1024*1024):
+                      raise RuntimeError("Unsafe or oversized artifact member")
+                  names.add(name)
+                  target = extracted.joinpath(*path.parts)
+                  assert target.resolve().is_relative_to(extracted)
+                  if item.is_dir():
+                      target.mkdir(parents=True, exist_ok=True)
+                      continue
+                  data = archive.read(item)
+                  assert len(data) == item.file_size
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with target.open("xb") as stream:
+                      stream.write(data)
+          before = snapshot(extracted)
+          save("extracted-files-before.json", before)
+          selected = []
+          for item in before:
+              path = extracted / item["path"]
+              include = (path.name in {"direct-execution.json", "launch-services-execution.json",
+                                      "self-hide.json", "terminated-identity.json"} or
+                         path.name.endswith("controller.stderr.log") or path.name.endswith("controller.json") or
+                         "qa-4425-cleanup-controls" in path.parts and path.suffix == ".json")
+              if not include:
+                  continue
+              data = path.read_bytes()
+              assert len(data) <= 256*1024
+              row = {**item, "text": data.decode("utf-8", "replace")}
+              if path.suffix == ".json":
+                  try:
+                      row["value"] = json.loads(data)
+                  except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                      row["parseError"] = str(error)
+              selected.append(row)
+          snapshots = {}
+          for name in ("qa-4425-source-before.json", "qa-4425-source-after.json"):
+              matches = list(extracted.rglob(name))
+              assert len(matches) == 1
+              snapshots[name] = json.loads(matches[0].read_text())
+          assert snapshots["qa-4425-source-before.json"] == snapshots["qa-4425-source-after.json"]
+          original_source = snapshots["qa-4425-source-before.json"]
+          assert original_source["head"] == QA_HEAD and original_source["indexTree"] == QA_TREE and not original_source["status"]
+          suite_paths = list(extracted.rglob("qa-4425-suite/summary.json"))
+          assert len(suite_paths) == 1
+          suite = json.loads(suite_paths[0].read_text())
+          assert suite["source"] == SOURCE and suite["platform"] == "darwin"
+          after = snapshot(extracted)
+          save("extracted-files-after.json", after)
+          assert before == after and not git("status", "--porcelain=v1", "--untracked-files=all")
+          summary = {"source": SOURCE, "sourceTree": SOURCE_TREE, "fastQaHead": QA_HEAD, "fastQaTree": QA_TREE,
+                     "runId": RUN, "artifactId": ARTIFACT, "archiveBytes": ZIP_BYTES, "archiveSha256": ZIP_SHA256,
+                     "unchangedExtractedFiles": len(before), "unchangedTrackedSourceFiles": len(original_source["files"]),
+                     "sourceAndIndexUnchanged": True, "artifactBytesUnchanged": True, "artifactCodeExecuted": False,
+                     "suite": {key: value for key, value in suite.items() if key != "discovered"}, "selectedEvidence": selected,
+                     "classification": "READ_ONLY_DIAGNOSIS_OF_FAILED_FAST_QA", "nativeApplicationAcceptance": "NOT_RUN"}
+          save("diagnostic-summary.json", summary)
+          print("BEGIN_QA4425_DARWIN_DIAGNOSTIC", flush=True)
+          print(json.dumps(summary, ensure_ascii=False), flush=True)
+          print("END_QA4425_DARWIN_DIAGNOSTIC", flush=True)
+          
+          PY
+      - name: Preserve original ZIP and complete read-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-darwin-failure-diagnostic
+          path: ${{ runner.temp }}/qa-4425-darwin-diagnostic
+          if-no-files-found: error
+          retention-days: 14
