@@ -1,0 +1,112 @@
+name: Installed plugin Android lifecycle
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/installed_plugin_probe_android.yml'
+      - 'android/**'
+      - 'integration_test/installed_plugin_resource_probe_test.dart'
+      - 'integration_test/support/installed_plugin_*.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'integration_test/support/webview_probe_*.dart'
+      - 'test/tool/perf_probe/installed_plugin*_test.dart'
+      - 'tool/perf_probe/*installed_plugin*'
+      - 'tool/perf_probe/INSTALLED_PLUGIN_ANDROID.md'
+      - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'lib/main.dart'
+      - 'lib/plugins/**'
+      - 'lib/core/diagnostics/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-plugin-android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DART_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  contracts:
+    name: Host negatives and push control contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate bounded host control and real SDK fixture
+        run: |
+          python3 -m unittest -v tool/perf_probe/test_installed_plugin_android.py
+          node --test tool/perf_probe/test_installed_plugin_fixture.mjs
+      - name: Verify sources, dependencies, analysis and original scenario contracts
+        env:
+          INSTALLED_PROBE_STORE_SOURCE: ${{ runner.temp }}/installed-android-store
+        run: |
+          python3 tool/perf_probe/prepare_installed_plugin_source.py --output "$INSTALLED_PROBE_STORE_SOURCE"
+          node --test tool/perf_probe/test_installed_plugin_store.mjs
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-pub
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/tool/perf_probe/installed_plugin_android_control_test.dart \
+            test/tool/perf_probe/installed_plugin_probe_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart
+
+  android:
+    name: Actual installed plugins / Android emulator / debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Free hosted runner space for the emulator and native engine
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run real app hosts, Home/resume, protected states and store restoration
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: >-
+            python3 tool/perf_probe/run_installed_plugin_android.py
+            --device emulator-5554 --quiet-ms 1500
+            --output build/installed-plugin-android
+      - name: Retain full evidence and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-android-emulator-debug
+          path: build/installed-plugin-android
+          if-no-files-found: warn
