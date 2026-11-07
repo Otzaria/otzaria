@@ -19,7 +19,10 @@ function New-Trace {
     return @{
         processName = 'otzaria.exe'; availability = 'collected'; armedAtUtc = $armed; finishedAtUtc = $armed.AddSeconds(4)
         truncated = $false; errors = @(); events = @(
-            @{ kind = 'Start'; processName = 'otzaria.exe'; processId = 42; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(1) },
+            @{ kind = 'Start'; processName = 'otzaria.exe'; processId = 42; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(1)
+                nativeIdentity = @{ availability = 'collected'; processId = 42; processName = 'otzaria.exe'; sessionId = 1
+                    createdAtUtc = $armed.AddSeconds(1); capturedAtUtc = $armed.AddMilliseconds(1500)
+                    exitedAtUtc = $armed.AddSeconds(3); exitStatus = [uint32]3221225477 } },
             @{ kind = 'Stop'; processName = 'otzaria.exe'; processId = 42; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(3); exitStatus = [uint32]3221225477 }
         )
     }
@@ -30,8 +33,37 @@ $evidence = Get-InstalledPluginExitEvidence $trace $report
 Assert-Equal 'collected' $evidence.availability 'A matching native process pair is collected'
 Assert-Equal ([uint32]3221225477) $evidence.exitStatus 'The unsigned native exit status is retained'
 Assert-Equal '0xC0000005' $evidence.exitStatusHex 'An NTSTATUS remains identifiable'
+$delayed = New-Trace
+$delayed.events[0].utc = $boot.AddMilliseconds(733)
+$delayed.events[0].nativeIdentity.capturedAtUtc = $boot.AddMilliseconds(740)
+$delayedEvidence = Get-InstalledPluginExitEvidence $delayed $report
+Assert-Equal 'collected' $delayedEvidence.availability 'A delayed CIM start notification is accepted only with the retained process creation identity'
+Assert-Equal $armed.AddSeconds(1) $delayedEvidence.processCreatedUtc 'Event generation time does not replace the actual native creation time'
+$earlyStop = New-Trace
+$earlyStop.events[1].utc = $boot.AddMilliseconds(900)
+Assert-Equal 'collected' (Get-InstalledPluginExitEvidence $earlyStop $report).availability 'Stop notification generation need not follow the retained handle final ExitTime'
+
+
 Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $null @{ availability = 'unavailable' }) 'Driver failure remains exact when all diagnostics fail'
 Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $report $evidence) 'Native evidence cannot turn a failing driver green'
+$receiptDirectory = Join-Path ([IO.Path]::GetTempPath()) ('installed-receipt-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $receiptDirectory | Out-Null
+try {
+    foreach ($driverCode in @(0, 37)) {
+        $receiptPath = Join-Path $receiptDirectory "$driverCode.json"
+        Assert-Equal $driverCode (Save-InstalledPluginRunReceipt -Receipt @{} -Path $receiptPath -ExitCode $driverCode) 'Saving a receipt preserves the actual driver exit'
+        $saved = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json -AsHashtable
+        Assert-Equal $driverCode $saved.stepExitCode 'The receipt records the actual exit code'
+        Assert-Equal $(if ($driverCode -eq 0) { 'passed' } else { 'failed' }) $saved.status 'Receipt status follows the exit code'
+        $missingParent = Join-Path $receiptDirectory 'absent/receipt.json'
+        Assert-Equal $(if ($driverCode -eq 0) { 1 } else { $driverCode }) `
+            (Save-InstalledPluginRunReceipt -Receipt @{} -Path $missingParent -ExitCode $driverCode) `
+            'A real filesystem write error fails success and preserves the first driver failure'
+        Assert-Equal $false (Test-Path -LiteralPath $missingParent) 'A failed write does not create successful evidence'
+    }
+} finally {
+    Remove-Item -LiteralPath $receiptDirectory -Recurse -Force
+}
 Assert-Equal 1 (Get-InstalledPluginRunExitCode $null $report $evidence) 'A missing driver result cannot pass'
 Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $null $evidence) 'Driver success without a device report cannot pass'
 Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report @{ availability = 'unavailable' }) 'Missing process evidence cannot pass'
@@ -47,6 +79,17 @@ foreach ($key in @('errors', 'testFailures')) {
     Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $evidence) "Missing $key is not empty evidence"
 }
 foreach ($change in @(
+    { param($t, $r) $t.events[0].Remove('nativeIdentity') },
+    { param($t, $r) $t.events[0].nativeIdentity.availability = 'captured' },
+    { param($t, $r) $t.events[0].nativeIdentity.createdAtUtc = $boot.AddTicks(1) },
+    { param($t, $r) $t.events[0].nativeIdentity.createdAtUtc = $armed.AddTicks(-1) },
+    { param($t, $r) $t.events[0].nativeIdentity.exitedAtUtc = $boot },
+    { param($t, $r) $t.events[0].nativeIdentity.capturedAtUtc = $armed.AddSeconds(4) },
+    { param($t, $r) $t.events[0].nativeIdentity.processId = 99 },
+    { param($t, $r) $t.events[0].nativeIdentity.sessionId = 2 },
+    { param($t, $r) $t.events[0].nativeIdentity.processName = 'foreign.exe' },
+    { param($t, $r) $t.events[0].nativeIdentity.exitStatus = $null },
+    { param($t, $r) $t.events[0].nativeIdentity.exitStatus = 0 },
     { param($t, $r) $t.events = @() },
     { param($t, $r) $t.events = @($t.events[0]) },
     { param($t, $r) $t.events = @($t.events[1]) },
@@ -120,26 +163,31 @@ foreach ($end in @($boot.AddTicks(-1), $boot)) {
     Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) $rejected) 'An ended lifetime cannot pass the wrapper'
 }
 $trace = New-Trace; $trace.events[1].exitStatus = 0
+$trace.events[0].nativeIdentity.exitStatus = 0
+$trace.events[0].nativeIdentity.exitedAtUtc = $boot.AddTicks(1)
 $trace.events[1].utc = $boot.AddTicks(1)
 $justAfter = Get-InstalledPluginExitEvidence $trace (New-Report)
 Assert-Equal 'collected' $justAfter.availability 'A unique lifetime that ends strictly after bootstrap remains observable'
 Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $justAfter) 'The first timestamp after bootstrap is inside the accepted boundary'
 $trace = New-Trace; $trace.events[1].exitStatus = 0
+$trace.events[0].nativeIdentity.exitStatus = 0
 $zero = Get-InstalledPluginExitEvidence $trace (New-Report)
 Assert-Equal 0 $zero.exitStatus 'An actually observed zero remains zero'
 Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $zero) 'Driver, report and observed normal native exit can pass'
 $trace.events[1].exitStatus = [uint32]::MaxValue
+$trace.events[0].nativeIdentity.exitStatus = [uint32]::MaxValue
 $teardown = Get-InstalledPluginExitEvidence $trace (New-Report)
 Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $teardown) 'The pinned Dart Windows kill status is compatible with completed driver teardown'
 Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) $teardown @{ events = @(@{ exceptionCode = 'c0000005' }) }) 'A matching Application Error still fails an otherwise completed run'
 foreach ($status in @(1, 37, [uint32]2147483648)) {
     $trace.events[1].exitStatus = $status
+    $trace.events[0].nativeIdentity.exitStatus = $status
     Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 (New-Report) (Get-InstalledPluginExitEvidence $trace (New-Report))) 'Other native exit statuses do not become success'
 }
 $trace.events += @{ kind = 'Start'; processName = 'otzaria.exe'; processId = 99; parentProcessId = 7; sessionId = 1; utc = $armed.AddSeconds(1) }
 Assert-Equal 'collected' (Get-InstalledPluginExitEvidence $trace (New-Report)).availability 'An unrelated process cannot steal the observed app identity'
 
-function New-ApplicationEvent([int]$AppPid = 42, [datetime]$Created = $armed.AddMilliseconds(900), [string]$AppName = 'otzaria.exe') {
+function New-ApplicationEvent([int]$AppPid = 42, [datetime]$Created = $armed.AddSeconds(1), [string]$AppName = 'otzaria.exe') {
     $createdHex = '0x{0:x}' -f $Created.ToFileTimeUtc()
     $processHex = '0x{0:x}' -f $AppPid
     return @"
@@ -150,7 +198,7 @@ function New-ApplicationEvent([int]$AppPid = 42, [datetime]$Created = $armed.Add
 "@
 }
 $xml = [xml]('<Events>' + (New-ApplicationEvent) + (New-ApplicationEvent -AppPid 99) +
-    (New-ApplicationEvent -Created $armed.AddSeconds(-1)) + (New-ApplicationEvent -Created $boot.AddSeconds(1)) +
+    (New-ApplicationEvent -Created $armed.AddMilliseconds(900)) + (New-ApplicationEvent -Created $armed.AddSeconds(-1)) + (New-ApplicationEvent -Created $boot.AddSeconds(1)) +
     (New-ApplicationEvent -AppName 'foreign.exe') + '</Events>')
 $events = @(Select-InstalledPluginApplicationErrors -Events $xml -Identity $evidence -ArmedAtUtc $armed -FinishedAtUtc $armed.AddSeconds(4))
 Assert-Equal 1 $events.Count 'Application Error requires app PID, name, lifetime and report time, not the event writer PID'

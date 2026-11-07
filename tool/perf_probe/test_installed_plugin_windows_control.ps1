@@ -22,6 +22,8 @@ try {
             $script:controlMode = $Mode
             $script:controlDirectory = $Directory
             $script:ownedTimers = @()
+            $script:childIdentity = $null
+            $script:controlProcessTimes = @{}
             function script:Start-InstalledPluginExitTrace {
                 param([string]$ProcessName)
                 $trace = @{
@@ -42,8 +44,23 @@ try {
                 }
                 return $trace
             }
+            function script:Read-InstalledPluginControlProcessTime {
+                param($Process, [string]$Property)
+                # The portable provider supplies identity times; real CIM verifies native times on Windows.
+                $script:controlProcessTimes[$Property] = [datetime]::UtcNow
+                return $script:controlProcessTimes[$Property]
+            }
+            function script:Wait-InstalledPluginProcessEvent {
+                param([hashtable]$Trace, [string]$Kind, [int]$ProcessId)
+                if ($Kind -ne 'Start') { throw 'The control must acknowledge startup before releasing the child.' }
+                $script:childIdentity = @{
+                    availability = 'captured'; processId = $ProcessId; processName = $Trace.processName; sessionId = 1
+                    createdAtUtc = $script:controlProcessTimes.StartTime; capturedAtUtc = [datetime]::UtcNow
+                    exitedAtUtc = $null; exitStatus = $null
+                }
+            }
             function script:Stop-InstalledPluginExitTrace {
-                param([hashtable]$Trace)
+                param([hashtable]$Trace, [Nullable[int]]$ProcessId)
                 if ($script:controlMode -eq 'throw-stop') { throw [IO.IOException]::new('controlled original stop failure') }
                 $reportPath = Join-Path $script:controlDirectory 'control-report.json'
                 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json -AsHashtable
@@ -52,9 +69,12 @@ try {
                     $report.runId = "$($report.pid)-$($report.runId.Split('-')[1])"
                     $report | ConvertTo-Json | Set-Content -LiteralPath $reportPath
                 }
+                $script:childIdentity.exitedAtUtc = $script:controlProcessTimes.ExitTime
+                $script:childIdentity.exitStatus = 37
+                $script:childIdentity.availability = 'collected'
                 $Trace.finishedAtUtc = [datetime]::UtcNow
                 $Trace.events = @(
-                    @{ kind = 'Start'; processName = $Trace.processName; processId = $report.pid; parentProcessId = $PID; sessionId = 1; utc = $Trace.armedAtUtc.AddTicks(1) },
+                    @{ kind = 'Start'; processName = $Trace.processName; processId = $report.pid; parentProcessId = $PID; sessionId = 1; utc = $script:childIdentity.capturedAtUtc; nativeIdentity = $script:childIdentity },
                     @{ kind = 'Stop'; processName = $Trace.processName; processId = $report.pid; parentProcessId = $PID; sessionId = 1; utc = $Trace.finishedAtUtc; exitStatus = [uint32]37 }
                 )
                 $Trace.availability = 'collected'

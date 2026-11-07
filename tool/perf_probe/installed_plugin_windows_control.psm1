@@ -34,6 +34,11 @@ function Save-InstalledPluginControlReport {
     [IO.File]::WriteAllText($Path, $json + "`n", [Text.UTF8Encoding]::new($false))
 }
 
+function Read-InstalledPluginControlProcessTime {
+    param([Diagnostics.Process]$Process, [ValidateSet('StartTime', 'ExitTime')][string]$Property)
+    return $Process.$Property.ToUniversalTime()
+}
+
 function Invoke-InstalledPluginExitControl {
     param([Parameter(Mandatory)][string]$Directory, [Parameter(Mandatory)][string]$ReportPath)
     $result = @{
@@ -42,7 +47,7 @@ function Invoke-InstalledPluginExitControl {
         powerShellVersion = $PSVersionTable.PSVersion.ToString()
         startedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
         trace = $null; observation = $null; childReport = $null; childReportRaw = $null
-        child = @{ pid = $null; started = $false; exited = $false; exitCode = $null; terminatedByControl = $false }
+        child = @{ pid = $null; started = $false; createdAtUtc = $null; exited = $false; exitedAtUtc = $null; exitCode = $null; terminatedByControl = $false }
         cleanup = @{ childExited = $false; subscriptionsRemaining = @(); eventsRemaining = @(); errors = @() }
     }
     $failure = $null
@@ -50,6 +55,7 @@ function Invoke-InstalledPluginExitControl {
     $foreignId = 'foreign-test-' + [guid]::NewGuid().ToString('N')
     $timer = [Timers.Timer]::new(60000)
     $controlReport = Join-Path $Directory 'control-report.json'
+    $releasePath = Join-Path $Directory ('release-' + [guid]::NewGuid().ToString('N'))
     try {
         Register-ObjectEvent -InputObject $timer -EventName Elapsed -SourceIdentifier $foreignId | Out-Null
         New-Event -SourceIdentifier $foreignId | Out-Null
@@ -60,22 +66,32 @@ function Invoke-InstalledPluginExitControl {
 $microseconds = [long](([datetime]::UtcNow.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
 @{ pid = $PID; runId = "$PID-$microseconds"; platform = 'windows'; buildMode = 'profile' } |
     ConvertTo-Json | Set-Content -LiteralPath $args[0] -Encoding utf8
+# The observer must retain this instance before it can exit, even on a fast host.
+$deadline = [Diagnostics.Stopwatch]::StartNew()
+while (-not [IO.File]::Exists($args[1])) {
+    if ($deadline.Elapsed.TotalSeconds -ge 20) { throw 'The native observer did not acknowledge this child.' }
+    Start-Sleep -Milliseconds 20
+}
 exit 37
 '@ | Set-Content -LiteralPath $controlPath -Encoding utf8
         $result.stage = 'child'
         $executable = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
         $child.StartInfo = [Diagnostics.ProcessStartInfo]::new($executable)
         $child.StartInfo.UseShellExecute = $false
-        foreach ($argument in @('-NoLogo', '-NoProfile', '-File', $controlPath, $controlReport)) { $child.StartInfo.ArgumentList.Add($argument) }
+        foreach ($argument in @('-NoLogo', '-NoProfile', '-File', $controlPath, $controlReport, $releasePath)) { $child.StartInfo.ArgumentList.Add($argument) }
         $result.child.started = $child.Start()
         if (-not $result.child.started) { throw 'The native control could not start its child process.' }
         $result.child.pid = $child.Id
+        $result.child.createdAtUtc = Read-InstalledPluginControlProcessTime -Process $child -Property StartTime
+        Wait-InstalledPluginProcessEvent -Trace $result.trace -Kind Start -ProcessId $child.Id
+        [IO.File]::WriteAllText($releasePath, 'observed')
         $result.child.exited = $child.WaitForExit(15000)
         if (-not $result.child.exited) { throw 'The native control child exceeded 15 seconds.' }
         $result.child.exitCode = $child.ExitCode
+        $result.child.exitedAtUtc = Read-InstalledPluginControlProcessTime -Process $child -Property ExitTime
         if ($child.ExitCode -ne 37) { throw "The native control child exited $($child.ExitCode), expected 37." }
         $result.stage = 'observe'
-        Stop-InstalledPluginExitTrace $result.trace
+        Stop-InstalledPluginExitTrace -Trace $result.trace -ProcessId $child.Id
         if ((Get-Item -LiteralPath $controlReport).Length -gt 16KB) { throw 'The native control child report exceeds 16 KiB.' }
         $result.childReportRaw = Get-Content -LiteralPath $controlReport -Raw
         $result.childReport = $result.childReportRaw | ConvertFrom-Json -AsHashtable
@@ -83,6 +99,10 @@ exit 37
         $result.observation = Get-InstalledPluginExitEvidence $result.trace $result.childReport
         if ($result.observation.availability -ne 'collected') {
             throw "Real Windows process start and stop events did not identify the controlled child: $($result.observation.reason)"
+        }
+        if ($result.observation.processCreatedUtc -ne $result.child.createdAtUtc -or
+            $result.observation.start.nativeIdentity.exitedAtUtc -ne $result.child.exitedAtUtc) {
+            throw 'The retained observer handle does not identify the owned child lifetime.'
         }
         if ($result.observation.exitStatus -ne 37) { throw "Kernel-reported child exit status was $($result.observation.exitStatus), expected 37." }
         $result.stage = 'verify-cleanup'

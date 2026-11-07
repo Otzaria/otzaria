@@ -1,22 +1,74 @@
 #Requires -Version 7.0
 Set-StrictMode -Version Latest
 
+$script:traceStates = [Runtime.CompilerServices.ConditionalWeakTable[hashtable, object]]::new()
+
 function Start-InstalledPluginExitTrace {
     param([ValidatePattern('^[A-Za-z0-9_.-]+\.exe$')][string]$ProcessName = 'otzaria.exe')
     $trace = @{
-        source = 'Win32_ProcessStartTrace / Win32_ProcessStopTrace'
+        source = 'Win32_ProcessStartTrace / Win32_ProcessStopTrace with retained native process handle'
         processName = $ProcessName; availability = 'unavailable'
         armedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
         subscriptions = @{}; events = @(); errors = [Collections.Generic.List[string]]::new()
         limitPerKind = 64; truncated = $false
     }
+    $state = @{
+        records = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+        handles = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+        errors = [Collections.Concurrent.ConcurrentQueue[string]]::new()
+        jobs = [Collections.Generic.List[object]]::new()
+        signal = 'installed-plugin-delivered-' + [guid]::NewGuid().ToString('N')
+    }
+    $script:traceStates.Add($trace, $state)
     try {
         foreach ($kind in @('Start', 'Stop')) {
             $source = 'installed-plugin-' + [guid]::NewGuid().ToString('N')
             $trace.subscriptions[$kind] = $source
-            Register-CimIndicationEvent -Namespace root/cimv2 `
+            $job = Register-CimIndicationEvent -Namespace root/cimv2 `
                 -Query "SELECT * FROM Win32_Process${kind}Trace WHERE ProcessName='$ProcessName'" `
-                -SourceIdentifier $source -OperationTimeoutSec 15 -MaxTriggerCount 65 -ErrorAction Stop | Out-Null
+                -SourceIdentifier $source -OperationTimeoutSec 15 -MaxTriggerCount 65 -ErrorAction Stop `
+                -MessageData @{ state = $state; kind = $kind } -Action {
+                    $state = $event.MessageData.state
+                    $process = $null
+                    try {
+                        $native = $event.SourceEventArgs.NewEvent
+                        foreach ($name in @('ProcessName', 'ProcessID', 'ParentProcessID', 'SessionID', 'TIME_CREATED')) {
+                            if ($null -eq $native.$name) { throw "Missing native process event field: $name" }
+                        }
+                        $record = @{
+                            kind = $event.MessageData.kind; processName = [string]$native.ProcessName
+                            processId = [uint32]$native.ProcessID; parentProcessId = [uint32]$native.ParentProcessID
+                            sessionId = [uint32]$native.SessionID
+                            utc = [datetime]::FromFileTimeUtc([long]$native.TIME_CREATED)
+                        }
+                        if ($record.kind -eq 'Stop') {
+                            if ($null -eq $native.ExitStatus) { throw 'A missing native exit status cannot be zero.' }
+                            $record.exitStatus = [uint32]$native.ExitStatus
+                        } else {
+                            $record.nativeIdentity = @{ availability = 'unavailable'; error = $null }
+                            try {
+                                $process = [Diagnostics.Process]::GetProcessById([int]$native.ProcessID)
+                                $null = $process.Handle
+                                if ($process.HasExited) { throw 'The process exited before its native handle was captured.' }
+                                $identity = @{
+                                    availability = 'captured'; processId = $process.Id
+                                    processName = $process.ProcessName + '.exe'; sessionId = $process.SessionId
+                                    createdAtUtc = $process.StartTime.ToUniversalTime(); capturedAtUtc = [datetime]::UtcNow
+                                    exitedAtUtc = $null; exitStatus = $null; error = $null
+                                }
+                                $record.nativeIdentity = $identity
+                                $state.handles.Enqueue(@{ process = $process; identity = $identity })
+                                $process = $null
+                            } catch { $record.nativeIdentity.error = $_.Exception.Message }
+                        }
+                        $state.records.Enqueue($record)
+                    } catch { $state.errors.Enqueue($_.Exception.Message) }
+                    finally {
+                        if ($null -ne $process) { $process.Dispose() }
+                        New-Event -SourceIdentifier $state.signal | Out-Null
+                    }
+                }
+            $state.jobs.Add($job)
             if (@(Get-EventSubscriber -SourceIdentifier $source -ErrorAction Stop).Count -ne 1) {
                 throw "The $kind process subscription was not ready."
             }
@@ -25,50 +77,67 @@ function Start-InstalledPluginExitTrace {
         $trace.availability = 'armed'
     } catch {
         $trace.errors.Add($_.Exception.Message)
-        foreach ($source in $trace.subscriptions.Values) {
-            Unregister-Event -SourceIdentifier $source -ErrorAction SilentlyContinue
-            Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue
-        }
+        Stop-InstalledPluginExitTrace $trace
     }
     return $trace
 }
 
+function Wait-InstalledPluginProcessEvent {
+    param([Parameter(Mandatory)][hashtable]$Trace, [ValidateSet('Start', 'Stop')][string]$Kind,
+        [Parameter(Mandatory)][int]$ProcessId, [int]$TimeoutSeconds = 15)
+    $state = $null
+    if (-not $script:traceStates.TryGetValue($Trace, [ref]$state)) { throw 'The process observer is not active.' }
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+        if (@($state.records.ToArray() | Where-Object { $_.kind -eq $Kind -and $_.processId -eq $ProcessId }).Count -gt 0) { return }
+        if (-not $state.errors.IsEmpty) { throw 'The process observer failed while waiting for delivery.' }
+        if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "No $Kind event was delivered for process $ProcessId within $TimeoutSeconds seconds." }
+        Wait-Event -SourceIdentifier $state.signal -Timeout 1 | Remove-Event -ErrorAction SilentlyContinue
+    }
+}
+
 function Stop-InstalledPluginExitTrace {
-    param([Parameter(Mandatory)][hashtable]$Trace)
-    # Delivery grace is after flutter drive has returned, outside measured windows.
-    if ($Trace.availability -eq 'armed') { Start-Sleep -Milliseconds 1000 }
-    foreach ($kind in $Trace.subscriptions.Keys) {
-        $source = $Trace.subscriptions[$kind]
+    param([Parameter(Mandatory)][hashtable]$Trace, [AllowNull()][Nullable[int]]$ProcessId = $null)
+    $state = $null
+    if (-not $script:traceStates.TryGetValue($Trace, [ref]$state)) { return }
+    if ($Trace.availability -eq 'armed' -and $null -ne $ProcessId) {
+        try { Wait-InstalledPluginProcessEvent -Trace $Trace -Kind Stop -ProcessId $ProcessId }
+        catch { $Trace.errors.Add($_.Exception.Message) }
+    }
+    foreach ($source in $Trace.subscriptions.Values) {
         try {
             Unregister-Event -SourceIdentifier $source -ErrorAction SilentlyContinue
             if (@(Get-EventSubscriber -SourceIdentifier $source -ErrorAction SilentlyContinue).Count -ne 0) {
                 throw 'An owned process subscription could not be removed.'
             }
-            $queued = @(Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue)
-            if ($queued.Count -gt $Trace.limitPerKind) { $Trace.truncated = $true }
-            foreach ($item in ($queued | Select-Object -First $Trace.limitPerKind)) {
-                $native = $item.SourceEventArgs.NewEvent
-                foreach ($name in @('ProcessName', 'ProcessID', 'ParentProcessID', 'SessionID', 'TIME_CREATED')) {
-                    if ($null -eq $native.$name) { throw "Missing native process event field: $name" }
-                }
-                $record = @{
-                    kind = $kind; processName = [string]$native.ProcessName
-                    processId = [uint32]$native.ProcessID; parentProcessId = [uint32]$native.ParentProcessID
-                    sessionId = [uint32]$native.SessionID
-                    utc = [datetime]::FromFileTimeUtc([long]$native.TIME_CREATED)
-                }
-                if ($kind -eq 'Stop') {
-                    if ($null -eq $native.ExitStatus) { throw 'A missing native exit status cannot be zero.' }
-                    $record.exitStatus = [uint32]$native.ExitStatus
-                }
-                $Trace.events += $record
-            }
-        } catch {
-            $Trace.errors.Add($_.Exception.Message)
-        } finally {
-            Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue
-        }
+        } catch { $Trace.errors.Add($_.Exception.Message) }
     }
+    foreach ($job in $state.jobs) {
+        try { Remove-Job -Job $job -Force -ErrorAction Stop }
+        catch { $Trace.errors.Add($_.Exception.Message) }
+    }
+    foreach ($held in $state.handles.ToArray()) {
+        try {
+            if (-not $held.process.HasExited) { throw 'The retained process handle is still alive after the driver returned.' }
+            $held.identity.exitedAtUtc = $held.process.ExitTime.ToUniversalTime()
+            $held.identity.exitStatus = [uint32]([long]$held.process.ExitCode -band 0xffffffffL)
+            $held.identity.availability = 'collected'
+        } catch {
+            $held.identity.availability = 'unavailable'
+            $held.identity.error = $_.Exception.Message
+        } finally { $held.process.Dispose() }
+    }
+    foreach ($errorMessage in $state.errors.ToArray()) { $Trace.errors.Add($errorMessage) }
+    $records = $state.records.ToArray()
+    foreach ($kind in @('Start', 'Stop')) {
+        $matching = @($records | Where-Object { $_.kind -eq $kind })
+        if ($matching.Count -gt $Trace.limitPerKind) { $Trace.truncated = $true }
+        $Trace.events += @($matching | Select-Object -First $Trace.limitPerKind)
+    }
+    foreach ($source in @($Trace.subscriptions.Values) + @($state.signal)) {
+        Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue
+    }
+    $null = $script:traceStates.Remove($Trace)
     $Trace.finishedAtUtc = [datetime]::UtcNow
     if ($Trace.availability -eq 'armed') { $Trace.availability = 'collected' }
     if ($Trace.errors.Count -gt 0 -or $Trace.truncated) { $Trace.availability = 'unavailable' }
@@ -78,7 +147,7 @@ function Get-InstalledPluginExitEvidence {
     param([Parameter(Mandatory)][hashtable]$Trace, [AllowNull()][System.Collections.IDictionary]$Report)
     $evidence = @{
         availability = 'unavailable'; reason = $null; processId = $null; runId = $null
-        bootstrapUtc = $null; start = $null; stop = $null; exitStatus = $null; exitStatusHex = $null
+        bootstrapUtc = $null; processCreatedUtc = $null; start = $null; stop = $null; exitStatus = $null; exitStatusHex = $null
         terminationCause = 'Not inferred: flutter drive can stop the app after the test.'
     }
     try {
@@ -97,28 +166,47 @@ function Get-InstalledPluginExitEvidence {
         if ($Trace.availability -ne 'collected' -or $Trace.truncated -or $Trace.errors.Count -gt 0) {
             throw 'Process observations are unavailable or incomplete.'
         }
-        $starts = @($Trace.events | Where-Object {
-            $_.kind -eq 'Start' -and $_.processId -eq $Report['pid'] -and
-            $_.processName -ieq $Trace.processName -and $_.utc -ge $Trace.armedAtUtc -and $_.utc -le $boot
-        })
-        if ($starts.Count -ne 1) { throw 'A unique process start before the reported bootstrap was not observed.' }
-        $evidence.start = $starts[0]
         $samePid = @($Trace.events | Where-Object {
             $_.processId -eq $Report['pid'] -and $_.processName -ieq $Trace.processName
         })
-        # Earlier or conflicting stops must not be filtered out of a PID's lifetime.
+        # Keep every same-PID event so an earlier stop or another lifetime cannot disappear.
+        $starts = @($samePid | Where-Object { $_.kind -eq 'Start' })
         $stops = @($samePid | Where-Object { $_.kind -eq 'Stop' })
-        if ($stops.Count -ne 1 -or @($samePid | Where-Object { $_.kind -eq 'Start' }).Count -ne 1) {
-            throw 'A unique matching stop was not observed, or the PID was reused.'
+        if ($starts.Count -ne 1 -or $stops.Count -ne 1) {
+            throw 'A unique matching stop and start were not observed, or the PID was reused.'
         }
-        if ($stops[0].utc -le $boot -or $stops[0].utc -gt $Trace.finishedAtUtc -or
+        $evidence.start = $starts[0]
+        # TIME_CREATED may follow bootstrap; the retained handle supplies the
+        # actual creation time and prevents substituting another process instance.
+        $identity = $starts[0].nativeIdentity
+        if ($null -eq $identity -or $identity.availability -ne 'collected' -or
+            $identity.processId -ne $Report['pid'] -or $identity.processName -ine $Trace.processName -or
+            $identity.sessionId -ne $starts[0].sessionId) {
+            throw 'A retained native process identity is required.'
+        }
+        if ($identity.createdAtUtc -isnot [datetime] -or $identity.capturedAtUtc -isnot [datetime] -or
+            $identity.exitedAtUtc -isnot [datetime] -or
+            $identity.createdAtUtc -lt $Trace.armedAtUtc -or $identity.createdAtUtc -gt $boot -or
+            $identity.capturedAtUtc -lt $identity.createdAtUtc -or $identity.capturedAtUtc -gt $identity.exitedAtUtc -or
+            $identity.exitedAtUtc -le $boot -or $identity.exitedAtUtc -gt $Trace.finishedAtUtc) {
+            throw 'The retained process lifetime must contain the reported bootstrap and stay inside this observer run.'
+        }
+        # The provider does not promise that stop event generation follows the
+        # final ExitTime field. Verify each inside the lifetime/run independently.
+        if ($starts[0].utc -lt $identity.createdAtUtc -or $starts[0].utc -gt $Trace.finishedAtUtc -or
+            $stops[0].utc -le $boot -or $stops[0].utc -lt $starts[0].utc -or
+            $stops[0].utc -gt $Trace.finishedAtUtc -or
             $stops[0].parentProcessId -ne $starts[0].parentProcessId -or $stops[0].sessionId -ne $starts[0].sessionId) {
-            throw 'The unique process stop must follow bootstrap and match the observed start identity.'
+            throw 'Process notifications must match the retained lifetime, parent and session.'
         }
-        if ($null -eq $stops[0].exitStatus -or
-            ($stops[0].exitStatus -isnot [int] -and $stops[0].exitStatus -isnot [long] -and $stops[0].exitStatus -isnot [uint32])) {
-            throw 'The native exit status must be an observed integer.'
+        foreach ($status in @($stops[0].exitStatus, $identity.exitStatus)) {
+            if ($null -eq $status -or ($status -isnot [int] -and $status -isnot [long] -and $status -isnot [uint32]) -or
+                $status -lt 0 -or $status -gt [uint32]::MaxValue) {
+                throw 'Both native exit statuses must be observed unsigned integers.'
+            }
         }
+        if ($stops[0].exitStatus -ne $identity.exitStatus) { throw 'The retained process and stop event exit statuses disagree.' }
+        $evidence.processCreatedUtc = $identity.createdAtUtc
         $evidence.stop = $stops[0]
         $evidence.exitStatus = [uint32]$stops[0].exitStatus
         $evidence.exitStatusHex = '0x{0:X8}' -f $evidence.exitStatus
@@ -151,6 +239,7 @@ function Select-InstalledPluginApplicationErrors {
             $created = [datetime]::FromFileTimeUtc([Convert]::ToInt64($data['ProcessCreationTime'].Replace('0x', ''), 16))
             $utc = [datetime]::Parse($system.SelectSingleNode('./*[local-name()="TimeCreated"]').GetAttribute('SystemTime')).ToUniversalTime()
             if ($processId -ne $Identity.processId -or $created -lt $ArmedAtUtc -or $created -gt $Identity.bootstrapUtc -or
+                ($null -ne $Identity.processCreatedUtc -and $created -ne $Identity.processCreatedUtc) -or
                 $utc -lt $Identity.bootstrapUtc -or $utc -gt $FinishedAtUtc) { continue }
             @{
                 provider = $provider; eventId = 1000; utc = $utc; processId = $processId; processCreatedUtc = $created
@@ -230,6 +319,19 @@ function Get-InstalledPluginRunExitCode {
     return 0
 }
 
-Export-ModuleMember -Function Start-InstalledPluginExitTrace, Stop-InstalledPluginExitTrace,
+function Save-InstalledPluginRunReceipt {
+    param([Parameter(Mandatory)][hashtable]$Receipt, [Parameter(Mandatory)][string]$Path, [int]$ExitCode)
+    $Receipt.status = if ($ExitCode -eq 0) { 'passed' } else { 'failed' }
+    $Receipt.stepExitCode = $ExitCode
+    try {
+        $Receipt | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $Path -Encoding utf8 -ErrorAction Stop
+    } catch {
+        if ($ExitCode -eq 0) { $ExitCode = 1 }
+        try { [Console]::Error.WriteLine("Native exit receipt write failed: $($_.Exception.Message)") } catch { }
+    }
+    return $ExitCode
+}
+
+Export-ModuleMember -Function Start-InstalledPluginExitTrace, Stop-InstalledPluginExitTrace, Wait-InstalledPluginProcessEvent,
     Get-InstalledPluginExitEvidence, Select-InstalledPluginApplicationErrors, Read-InstalledPluginApplicationErrors,
-    Invoke-InstalledPluginLoggedCommand, Get-InstalledPluginRunExitCode
+    Invoke-InstalledPluginLoggedCommand, Get-InstalledPluginRunExitCode, Save-InstalledPluginRunReceipt

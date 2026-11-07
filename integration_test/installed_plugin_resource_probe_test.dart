@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show FrameTiming, PlatformDispatcher;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
@@ -43,6 +43,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_catalog.dart';
+import 'support/installed_plugin_completion.dart';
 import 'support/installed_plugin_fixture.dart';
 import 'support/perf_recorder.dart';
 import 'support/webview_probe_metrics.dart';
@@ -118,27 +119,31 @@ void main() {
   binding.reportData = {'installedPluginProbe': report};
   File? reportFile;
   final finished = Completer<void>();
-  unawaited(
-    binding.allTestsPassed.future.then((passed) async {
-      await finished.future;
-      report['status'] = passed && (report['errors'] as List).isEmpty
-          ? 'passed'
-          : 'failed';
-      report['testFailures'] = [
-        for (final failure in binding.failureMethodsDetails) failure.details,
-      ];
-      (report['platformMatrix'] as Map)[Platform.operatingSystem] = {
-        'status': report['status'],
-        'runId': report['runId'],
-        'buildMode': perfBuildMode,
-        'physicalDeviceAcceptance': false,
-      };
+  registerInstalledPluginReportFinalizer(binding, (passed) async {
+    await finished.future.timeout(const Duration(seconds: 30));
+    report['status'] = passed && (report['errors'] as List).isEmpty
+        ? 'passed'
+        : 'failed';
+    report['testFailures'] = [
+      for (final failure in binding.failureMethodsDetails) failure.details,
+    ];
+    (report['platformMatrix'] as Map)[Platform.operatingSystem] = {
+      'status': report['status'],
+      'runId': report['runId'],
+      'buildMode': perfBuildMode,
+      'physicalDeviceAcceptance': false,
+    };
+    try {
       await reportFile?.writeAsString(
         const JsonEncoder.withIndent('  ').convert(report),
         flush: true,
       );
-    }),
-  );
+    } catch (error) {
+      report['status'] = 'failed';
+      (report['errors'] as List).add('Final report write failed: $error');
+      rethrow;
+    }
+  });
 
   testWidgets('installed plugins discard and restore through real app hosts', (
     tester,
@@ -151,6 +156,21 @@ void main() {
     final FlutterExceptionHandler? previousFlutterError = FlutterError.onError;
     final previousPlatformError = PlatformDispatcher.instance.onError;
     final errors = report['errors'] as List<String>;
+    Object? failure;
+    StackTrace? failureStack;
+    Future<void> cleanup(
+      String name,
+      FutureOr<void> Function() action,
+    ) async {
+      try {
+        await action();
+      } catch (error, stack) {
+        errors.add('$name failed: $error');
+        failure ??= error;
+        failureStack ??= stack;
+      }
+    }
+
     void captureErrors() {
       FlutterError.onError = (details) {
         errors.add(details.exceptionAsString());
@@ -343,20 +363,21 @@ void main() {
       }
     } catch (error, stack) {
       errors.add('$error\n$stack');
-      rethrow;
+      failure = error;
+      failureStack = stack;
     } finally {
-      try {
+      await cleanup('Owned fixture cleanup', () async {
         await scenario?.cleanup().timeout(const Duration(seconds: 20));
-      } catch (error) {
-        errors.add('Owned fixture cleanup failed: $error');
-      }
-      dispatcher.clock = oldClock;
-      dispatcher.discardLimitsOverride = oldLimits;
-      report['policyRestored'] =
-          identical(dispatcher.clock, oldClock) &&
-          identical(dispatcher.discardLimitsOverride, oldLimits);
-      scenario?.detach();
-      await catalog.stop();
+      });
+      await cleanup('Policy restoration', () {
+        dispatcher.clock = oldClock;
+        dispatcher.discardLimitsOverride = oldLimits;
+        report['policyRestored'] =
+            identical(dispatcher.clock, oldClock) &&
+            identical(dispatcher.discardLimitsOverride, oldLimits);
+      });
+      await cleanup('Frame observer cleanup', () => scenario?.detach());
+      await cleanup('Catalog cleanup', catalog.stop);
       report['catalogFixture'] = catalog.toJson();
       if (catalog.unexpectedBlockedRequests.isNotEmpty) {
         errors.add(
@@ -365,11 +386,16 @@ void main() {
       }
       FlutterError.onError = previousFlutterError;
       PlatformDispatcher.instance.onError = previousPlatformError;
-      await reportFile?.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(report),
-        flush: true,
-      );
+      await cleanup('Partial report write', () async {
+        await reportFile?.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(report),
+          flush: true,
+        );
+      });
       finished.complete();
+    }
+    if (failure != null) {
+      Error.throwWithStackTrace(failure!, failureStack!);
     }
     final contractErrors = installedReportErrors(report);
     report['status'] = contractErrors.isEmpty && errors.isEmpty
@@ -392,7 +418,8 @@ void main() {
 }
 
 class _Scenario {
-  _Scenario(this.tester, this.fixture, this.report, this.file, this.catalog);
+  _Scenario(this.tester, this.fixture, this.report, this.file, this.catalog)
+    : _frameTimings = InstalledPluginFrameTimings(SchedulerBinding.instance);
   final WidgetTester tester;
   final InstalledPluginFixture fixture;
   final Map<String, Object?> report;
@@ -400,7 +427,7 @@ class _Scenario {
   final InstalledProbeCatalog catalog;
   final dispatcher = PluginRuntimeDispatcher.instance;
   final restoreStore = PluginRestoreStateStore.instance;
-  final _frames = <FrameTiming>[];
+  final InstalledPluginFrameTimings _frameTimings;
   final _tabs = <ToolTab>[];
   late BuildContext context;
   late TabsBloc tabs;
@@ -408,7 +435,6 @@ class _Scenario {
   var jsCalls = 0;
   var nativeQueries = 0;
   var commands = 0;
-  var droppedFrames = 0;
   var _pendingBoundarySamples = 0;
   var _pendingNativeProcessLists = 0;
   var _attached = false;
@@ -433,23 +459,12 @@ class _Scenario {
       'maxLiveSuspended': defaults.maxLiveSuspended,
       'maxSuspendedAgeMs': defaults.maxSuspendedAge.inMilliseconds,
     };
-    SchedulerBinding.instance.addTimingsCallback(_timings);
     _attached = true;
   }
 
-  void _timings(List<FrameTiming> frames) {
-    for (final frame in frames) {
-      if (_frames.length < 20000) {
-        _frames.add(frame);
-      } else {
-        droppedFrames++;
-      }
-    }
-  }
-
   void detach() {
-    if (_attached) SchedulerBinding.instance.removeTimingsCallback(_timings);
-    report['droppedFlutterFrameTimings'] = droppedFrames;
+    _frameTimings.dispose();
+    report['droppedFlutterFrameTimings'] = _frameTimings.droppedFrames;
     report['probeBoundaryJsCalls'] = jsCalls;
     report['probeBoundaryNativeQueries'] = nativeQueries;
   }
@@ -501,20 +516,62 @@ class _Scenario {
       'startedUtc': DateTime.now().toUtc().toIso8601String(),
     });
     await checkpoint();
+    Object? failure;
+    StackTrace? failureStack;
+    void capture(Object error, StackTrace stack) {
+      record['status'] = 'failed';
+      if (failure == null) {
+        failure = error;
+        failureStack = stack;
+        record['error'] = error.toString();
+      } else {
+        (record.putIfAbsent('secondaryErrors', () => <String>[]) as List).add(
+          error.toString(),
+        );
+      }
+    }
+
     try {
       if (_attached) await boundary(name, 'before');
       await action();
       record['status'] = 'passed';
-    } catch (error) {
-      record.addAll({'status': 'failed', 'error': error.toString()});
-      rethrow;
-    } finally {
-      record['durationMs'] = elapsed.elapsedMicroseconds / 1000;
-      record['flutterFrames'] = frameMeasurements(
-        framesInWindow(_frames, startUs, DateTime.now().microsecondsSinceEpoch),
+    } catch (error, stack) {
+      capture(error, stack);
+    }
+    elapsed.stop();
+    final endUs = DateTime.now().microsecondsSinceEpoch;
+    final lastFrameNumber = PlatformDispatcher.instance.frameData.frameNumber;
+    record['durationMs'] = elapsed.elapsedMicroseconds / 1000;
+    record['endedUtc'] = DateTime.fromMicrosecondsSinceEpoch(
+      endUs,
+      isUtc: true,
+    ).toIso8601String();
+    try {
+      record['flutterFrames'] = await _frameTimings.finish(
+        startUs: startUs,
+        endUs: endUs,
+        lastFrameNumber: lastFrameNumber,
       );
+    } catch (error, stack) {
+      record['flutterFrames'] = {
+        'availability': 'unavailable',
+        'reason': error.toString(),
+        'lastFrameNumber': lastFrameNumber,
+      };
+      capture(error, stack);
+    }
+    try {
       if (_attached) await boundary(name, 'after');
+    } catch (error, stack) {
+      capture(error, stack);
+    }
+    try {
       await checkpoint();
+    } catch (error, stack) {
+      capture(error, stack);
+    }
+    if (failure != null) {
+      Error.throwWithStackTrace(failure!, failureStack!);
     }
   }
 

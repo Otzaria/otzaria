@@ -26,7 +26,7 @@ $receipt = @{
     driverExitCode = $null; driverError = $null; reportReadError = $null
     reportSha256 = $null; deviceStatus = $null; nativeExit = $null; applicationErrors = $null
     fixtureErrorLog = @{ availability = 'unavailable'; reason = 'Not collected yet.' }
-    observerContract = 'Passive kernel process events only during flutter drive; no app polling or quiet-window queries.'
+    observerContract = 'Kernel events and a retained process handle during flutter drive; no app polling or quiet-window queries.'
     successRequirements = 'Driver exit 0, final passing device report, identified native exit 0 or Dart teardown 0xFFFFFFFF, and no matching Application Error record.'
 }
 $report = $null
@@ -42,8 +42,6 @@ try {
     )
 } catch { $receipt.driverError = $_.Exception.Message }
 finally {
-    try { Stop-InstalledPluginExitTrace $trace }
-    catch { $trace.availability = 'unavailable'; $trace.errors.Add($_.Exception.Message) }
     try {
         $snapshotPath = Join-Path $output 'windows-device-report.json'
         Copy-Item -LiteralPath $reportPath -Destination $snapshotPath -ErrorAction Stop
@@ -53,6 +51,11 @@ finally {
         $report = $decoded
         $receipt.deviceStatus = $report['status']
     } catch { $receipt.reportReadError = $_.Exception.Message }
+    $observedPid = $null
+    if ($null -ne $report -and ($report['pid'] -is [int] -or $report['pid'] -is [long]) -and
+        $report['pid'] -gt 0 -and $report['pid'] -le [int]::MaxValue) { $observedPid = [int]$report['pid'] }
+    try { Stop-InstalledPluginExitTrace -Trace $trace -ProcessId $observedPid }
+    catch { $trace.availability = 'unavailable'; $trace.errors.Add($_.Exception.Message) }
     $receipt.nativeExit = Get-InstalledPluginExitEvidence -Trace $trace -Report $report
     $receipt.applicationErrors = Read-InstalledPluginApplicationErrors -Trace $trace -Identity $receipt.nativeExit
     try {
@@ -67,8 +70,6 @@ finally {
     } catch { $receipt.fixtureErrorLog.reason = $_.Exception.Message }
     $exitCode = Get-InstalledPluginRunExitCode -DriverExitCode $receipt.driverExitCode -Report $report `
         -ExitEvidence $receipt.nativeExit -ApplicationErrors $receipt.applicationErrors
-    $receipt.status = if ($exitCode -eq 0) { 'passed' } else { 'failed' }
-    $receipt.stepExitCode = $exitCode
-    $receipt | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+    $exitCode = Save-InstalledPluginRunReceipt -Receipt $receipt -Path $receiptPath -ExitCode $exitCode
 }
 exit $exitCode
