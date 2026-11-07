@@ -18,9 +18,12 @@ class _ControlledDatabase extends Fake implements PersonalNotesDatabase {
   final notes = <String, PersonalNote>{};
   bool failReads = true;
   bool failInsert = false;
+  bool failDelete = false;
+  bool failUpdate = false;
   int listReads = 0;
   int inserts = 0;
   int updates = 0;
+  int deletes = 0;
 
   @override
   Future<List<PersonalNote>> loadNotes(String bookId) async {
@@ -42,8 +45,16 @@ class _ControlledDatabase extends Fake implements PersonalNotesDatabase {
   @override
   Future<void> updateNote(PersonalNote note) async {
     updates++;
+    if (failUpdate) throw StateError('update failed');
     if (!notes.containsKey(note.id)) throw StateError('note no longer exists');
     notes[note.id] = note;
+  }
+
+  @override
+  Future<void> deleteNote(String noteId) async {
+    deletes++;
+    if (failDelete) throw StateError('delete failed');
+    notes.remove(noteId);
   }
 
   @override
@@ -65,7 +76,7 @@ class _DeleteBeforeUpdateDatabase extends Fake
 
   @override
   Future<void> updateNote(PersonalNote note) async {
-    // A real concurrent deletion after persistNote read the original record.
+    // A real concurrent deletion after the service read the original record.
     await delegate.deleteNote(note.id);
     await delegate.updateNote(note);
   }
@@ -252,6 +263,149 @@ void main() {
     },
   );
 
+  test('delete confirms a committed write without reading the list', () async {
+    final original = _note();
+    final retained = original.copyWith(id: 'retained-note');
+    final database = _ControlledDatabase()
+      ..notes[original.id] = original
+      ..notes[retained.id] = retained;
+    final service = PersonalNotesService(database: database);
+
+    await service.removeNote(noteId: original.id);
+
+    expect(database.deletes, 1);
+    expect(database.listReads, 0);
+    expect(database.notes.values, [retained]);
+    await expectLater(database.loadNotes(_bookId), throwsStateError);
+    expect(database.notes.values, [retained]);
+  });
+
+  test('a failed delete is not acknowledged', () async {
+    final original = _note();
+    final database = _ControlledDatabase()
+      ..notes[original.id] = original
+      ..failDelete = true;
+    final service = PersonalNotesService(database: database);
+
+    await expectLater(
+      service.removeNote(noteId: original.id),
+      throwsStateError,
+    );
+
+    expect(database.deletes, 1);
+    expect(database.listReads, 0);
+    expect(database.notes.values, [original]);
+  });
+
+  test(
+    'reposition confirms a committed write without reading the list',
+    () async {
+      final database = _ControlledDatabase();
+      final service = PersonalNotesService(database: database);
+      final original = await _create(service);
+      final retained = _note();
+      database.notes[retained.id] = retained;
+
+      final moved = await service.moveNote(
+        bookId: _bookId,
+        bookContent: _bookContent,
+        noteId: original.id,
+        lineNumber: 3,
+      );
+
+      expect(database.updates, 1);
+      expect(database.listReads, 0);
+      expect(database.notes[original.id], moved);
+      expect(database.notes[retained.id], retained);
+      expect(moved.lineNumber, 3);
+      expect(moved.status, PersonalNoteStatus.located);
+      expect(moved.anchorText, isNull);
+      expect(moved.createdAt, original.createdAt);
+      expect(moved.content, original.content);
+      await expectLater(database.loadNotes(_bookId), throwsStateError);
+      expect(database.notes[original.id], moved);
+    },
+  );
+
+  test('a failed reposition is not acknowledged', () async {
+    final original = _note();
+    final database = _ControlledDatabase()
+      ..notes[original.id] = original
+      ..failUpdate = true;
+    final service = PersonalNotesService(database: database);
+
+    await expectLater(
+      service.moveNote(
+        bookId: _bookId,
+        bookContent: _bookContent,
+        noteId: original.id,
+        lineNumber: 3,
+      ),
+      throwsStateError,
+    );
+
+    expect(database.updates, 1);
+    expect(database.listReads, 0);
+    expect(database.notes.values, [original]);
+  });
+
+  test('compatibility mutations still return refreshed lists', () async {
+    final original = _note();
+    final retained = original.copyWith(id: 'retained-note');
+    final database = _ControlledDatabase()
+      ..failReads = false
+      ..notes[original.id] = original
+      ..notes[retained.id] = retained;
+    final service = PersonalNotesService(database: database);
+
+    final moved = await service.repositionNote(
+      bookId: _bookId,
+      bookContent: _bookContent,
+      noteId: original.id,
+      lineNumber: 3,
+    );
+    expect(moved, hasLength(2));
+    expect(moved.singleWhere((note) => note.id == original.id).lineNumber, 3);
+    expect(moved, contains(retained));
+
+    final remaining = await service.deleteNote(
+      bookId: _bookId,
+      noteId: original.id,
+    );
+    expect(remaining, [retained]);
+    expect(database.listReads, 2);
+  });
+
+  for (final reposition in [false, true]) {
+    test(
+      'list-returning ${reposition ? "reposition" : "delete"} still reports a refresh failure',
+      () async {
+        final original = _note();
+        final database = _ControlledDatabase()..notes[original.id] = original;
+        final service = PersonalNotesService(database: database);
+
+        await expectLater(
+          reposition
+              ? service.repositionNote(
+                  bookId: _bookId,
+                  bookContent: _bookContent,
+                  noteId: original.id,
+                  lineNumber: 3,
+                )
+              : service.deleteNote(bookId: _bookId, noteId: original.id),
+          throwsStateError,
+        );
+
+        expect(database.listReads, 1);
+        if (reposition) {
+          expect(database.notes[original.id]!.lineNumber, 3);
+        } else {
+          expect(database.notes, isEmpty);
+        }
+      },
+    );
+  }
+
   group('real SQLite write confirmation', () {
     final database = PersonalNotesDatabase.instance;
     late Directory temporaryRoot;
@@ -311,6 +465,31 @@ void main() {
             noteId: note.id,
             content: 'תוכן ערוך',
             contentPlain: 'תוכן ערוך',
+          ),
+          throwsStateError,
+        );
+
+        expect(await database.getNote(note.id), isNull);
+        expect(database.revision.value, revisionBeforeDelete + 1);
+      },
+    );
+
+    test(
+      'reposition detects deletion between its initial read and UPDATE',
+      () async {
+        final note = _note();
+        await database.insertNote(note);
+        final revisionBeforeDelete = database.revision.value;
+        final service = PersonalNotesService(
+          database: _DeleteBeforeUpdateDatabase(database),
+        );
+
+        await expectLater(
+          service.moveNote(
+            bookId: note.bookId,
+            bookContent: _bookContent,
+            noteId: note.id,
+            lineNumber: 3,
           ),
           throwsStateError,
         );

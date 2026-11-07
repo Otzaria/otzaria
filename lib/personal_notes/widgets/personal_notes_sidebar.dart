@@ -260,24 +260,27 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     context.read<PersonalNotesBloc>().add(const CancelCreatingPersonalNote());
   }
 
-  Future<void> _saveNewNote(PersonalNoteEditorResult result) async {
-    final state = context.read<PersonalNotesBloc>().state;
-    final lineNumber = state.newNoteLineNumber;
-    if (lineNumber == null || state.newNoteBookId != widget.bookId) {
+  Future<void> _saveNewNote(
+    PersonalNoteEditorResult result,
+    PersonalNotesState request,
+  ) async {
+    final bookId = widget.bookId;
+    final lineNumber = request.newNoteLineNumber;
+    if (lineNumber == null || request.newNoteBookId != bookId) {
       throw StateError('מיקום ההערה אינו זמין');
     }
     await _notesRepository.createNote(
-      bookId: widget.bookId,
+      bookId: bookId,
       lineNumber: lineNumber,
       content: result.content,
       contentPlain: result.contentPlain,
       contentFormat: result.contentFormat,
-      selectedText: state.newNoteSelectedText?.trim(),
-      selectionColumn: state.newNoteSelectionColumn,
-      sourceSelectedText: state.newNoteSourceSelectedText,
-      sourceSelectionOffset: state.newNoteSourceSelectionOffset,
-      punctuationHidden: state.newNotePunctuationHidden,
-      pdfAnchor: state.newNotePdfAnchor,
+      selectedText: request.newNoteSelectedText?.trim(),
+      selectionColumn: request.newNoteSelectionColumn,
+      sourceSelectedText: request.newNoteSourceSelectedText,
+      sourceSelectionOffset: request.newNoteSourceSelectionOffset,
+      punctuationHidden: request.newNotePunctuationHidden,
+      pdfAnchor: request.newNotePdfAnchor,
       categoryId: widget.categoryId,
     );
   }
@@ -715,6 +718,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   }
 
   Widget _buildNewNoteEditor(BuildContext context, PersonalNotesState state) {
+    final bloc = context.read<PersonalNotesBloc>();
     return InlineNoteEditorCard(
       icon: FluentIcons.note_add_24_regular,
       title: state.newNoteReferenceText != null
@@ -726,6 +730,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         key: ValueKey((
           widget.bookId,
           widget.categoryId,
+          state.newNoteSessionToken,
           state.newNoteLineNumber,
           state.newNotePdfAnchor,
         )),
@@ -739,12 +744,17 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         pdfAnchor: state.newNotePdfAnchor,
         linkableNotes: [...state.locatedNotes, ...state.missingNotes],
         cancelRequest: _newNoteCancelRequest,
-        onSave: _saveNewNote,
+        onSave: (result) => _saveNewNote(result, state),
         onSaved: () {
-          final current = context.read<PersonalNotesBloc>().state;
-          if (current.newNoteRequestToken == state.newNoteRequestToken &&
-              current.newNoteBookId == widget.bookId) {
-            _cancelNewNote();
+          // ההשלמה שייכת לבקשה שנשמרה, גם אם הפאנל הוסר בזמן הכתיבה.
+          if (!bloc.isClosed) {
+            bloc.add(
+              CancelCreatingPersonalNote(
+                sessionToken: state.newNoteSessionToken,
+                bookId: state.newNoteBookId,
+                lineNumber: state.newNoteLineNumber,
+              ),
+            );
           }
         },
         onCancel: _cancelNewNote,
@@ -844,7 +854,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         categoryId: widget.categoryId,
       ),
     );
-    UiSnack.show(NotesMessages.noteAssignedToLine(selectedLineNumber));
   }
 
   Future<void> _reanchorNote(

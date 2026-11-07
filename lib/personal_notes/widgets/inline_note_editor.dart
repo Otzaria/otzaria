@@ -29,6 +29,8 @@ class InlineNoteEditor extends StatefulWidget {
   final String? draftNoteId;
   final List<PersonalNote> linkableNotes;
   final PersonalNoteSaveCallback onSave;
+
+  /// השלמה לוגית לאחר כתיבה וניקוי הטיוטה; עשויה להגיע אחרי הסרת העורך.
   final VoidCallback? onSaved;
   final VoidCallback onCancel;
   final ValueListenable<int>? cancelRequest;
@@ -58,11 +60,13 @@ class InlineNoteEditor extends StatefulWidget {
 class _InlineNoteEditorState extends State<InlineNoteEditor> {
   late final PersonalNoteEditorController _controller;
   late final PersonalNoteEditorResult _initialResult;
+  late PersonalNoteEditorResult _draftResult;
   late final StreamSubscription<quill.DocChange> _documentChanges;
   final GlobalKey<quill.EditorState> _editorKey = GlobalKey();
   final FocusNode _focusNode = FocusNode(debugLabel: 'InlineNoteEditor');
   final ScrollController _scrollController = ScrollController();
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
+  Object? _draftVersion;
   Timer? _draftSaveTimer;
   Timer? _focusRetryTimer;
   bool _isDone = false; // מונע שמירת טיוטה אחרי שמירה/ביטול
@@ -72,6 +76,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   @override
   void initState() {
     super.initState();
+    _draftVersion = _currentDraftVersion();
     _controller = buildPersonalNoteEditorController(
       initialContent: widget.initialContent.isNotEmpty
           ? widget.initialContent
@@ -80,6 +85,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
           ? widget.initialFormat
           : (widget.note?.contentFormat ?? PersonalNoteContentFormat.plain),
     );
+    _draftResult = _controller.buildResult();
     // _initialResult מייצג את המצב ה"נקי" לפני עריכה — לא תוכן הטיוטה.
     // כך _persistDraft לא ימחק את הטיוטה כשה-Quill מפעיל notifyListeners בהתחלה.
     final originalController = buildPersonalNoteEditorController(
@@ -145,6 +151,8 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   Future<void> _handleSave() async {
     if (_isDone || _isSaving || _isClosing) return;
     final result = _controller.buildResult();
+    final onSave = widget.onSave;
+    final onSaved = widget.onSaved;
     if (result.contentPlain.trim().isEmpty) {
       UiSnack.showError(NotesMessages.emptyNoteNotSaved);
       return;
@@ -155,7 +163,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
     });
     try {
       if (!await verifySaferModePassword(context) || !mounted) return;
-      await widget.onSave(result);
+      await onSave(result);
       _isDone = true;
       _draftSaveTimer?.cancel();
       var clearedDraft = true;
@@ -174,8 +182,8 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         } else {
           UiSnack.showWarning(NotesMessages.noteSavedDraftCleanupFailed);
         }
-        widget.onSaved?.call();
       }
+      onSaved?.call();
     } catch (error) {
       if (mounted) UiSnack.showError(TextBookMessages.noteSaveError(error));
     } finally {
@@ -209,12 +217,23 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   Future<void> _persistDraft() async {
     if (_isDone) return;
     final result = _controller.buildResult();
+    // עורך ששוחזר בזמן כתיבה עשוי להיסגר לאחר שהמקור כבר נשמר ונוקה.
+    // תוכן חדש שלא הספיק ל-debounce עדיין נשמר, אך צילום ישן אינו מוחזר.
+    if (!identical(_draftVersion, _currentDraftVersion()) &&
+        _matchesResult(_draftResult, result)) {
+      return;
+    }
     if (_matchesInitial(result) || result.contentPlain.trim().isEmpty) {
+      final clearedVersion = _draftVersion;
+      _draftResult = result;
       await _clearDraft();
+      if (identical(_draftVersion, clearedVersion)) {
+        if (_currentDraftVersion() == null) _draftVersion = null;
+      }
       return;
     }
 
-    await _draftService.saveDraft(
+    final write = _draftService.saveDraft(
       bookId: widget.bookId,
       categoryId: widget.categoryId,
       lineNumber: widget.draftLineNumber,
@@ -230,12 +249,22 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         pdfAnchor: widget.pdfAnchor ?? widget.note?.pdfAnchor,
       ),
     );
+    // saveDraft קובע את הגרסה לפני ה-await הראשון, גם כשכתיבת Hive ממתינה.
+    _draftVersion = _currentDraftVersion();
+    _draftResult = result;
+    await write;
   }
 
-  bool _matchesInitial(PersonalNoteEditorResult result) {
-    return _initialResult.content.trimRight() == result.content.trimRight() &&
-        _initialResult.contentPlain.trim() == result.contentPlain.trim() &&
-        _initialResult.contentFormat == result.contentFormat;
+  bool _matchesInitial(PersonalNoteEditorResult result) =>
+      _matchesResult(_initialResult, result);
+
+  bool _matchesResult(
+    PersonalNoteEditorResult first,
+    PersonalNoteEditorResult second,
+  ) {
+    return first.content.trimRight() == second.content.trimRight() &&
+        first.contentPlain.trim() == second.contentPlain.trim() &&
+        first.contentFormat == second.contentFormat;
   }
 
   Future<void> _clearDraft() {
@@ -245,8 +274,17 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       lineNumber: widget.draftLineNumber,
       noteId: widget.draftNoteId,
       pdfAnchor: widget.pdfAnchor ?? widget.note?.pdfAnchor,
+      expectedVersion: _draftVersion,
     );
   }
+
+  Object? _currentDraftVersion() => _draftService.draftVersion(
+    bookId: widget.bookId,
+    categoryId: widget.categoryId,
+    lineNumber: widget.draftLineNumber,
+    noteId: widget.draftNoteId,
+    pdfAnchor: widget.pdfAnchor ?? widget.note?.pdfAnchor,
+  );
 
   Future<void> _handleCancel() async {
     if (_isDone || _isSaving || _isClosing) return;

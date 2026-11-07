@@ -293,6 +293,9 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        final originalController = tester
+            .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+            .controller;
         controller(tester).jumpTo(index: 30);
         await tester.pumpAndSettle();
 
@@ -307,7 +310,24 @@ void main() {
         await tester.pumpAndSettle();
 
         expectVisible(tester, find.byType(InlineNoteEditor));
-        expect(controller(tester).scrollController!.offset, closeTo(0, 0.01));
+        final input = find.descendant(
+          of: find.byType(InlineNoteEditor),
+          matching: find.byType(quill.QuillEditor),
+        );
+        final editor = tester.widget<quill.QuillEditor>(input);
+        expect(identical(editor.controller, originalController), !cancelFirst);
+        if (cancelFirst) {
+          // יצירה חדשה מבקשת פוקוס וגוללת את הקלט לתצוגה גם בכרטיס גבוה.
+          final viewport = tester.getRect(
+            find.byType(ScrollablePositionedList),
+          );
+          final inputRect = tester.getRect(input);
+          expect(inputRect.top, greaterThanOrEqualTo(viewport.top - 1));
+          expect(inputRect.bottom, lessThanOrEqualTo(viewport.bottom + 1));
+          expect(editor.focusNode.hasFocus, isTrue);
+        } else {
+          expect(controller(tester).scrollController!.offset, closeTo(0, 0.01));
+        }
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },
