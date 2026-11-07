@@ -194,7 +194,8 @@ class AttachedFindRefWorker {
     if (isolate == null) return _closing;
     final exited = ReceivePort();
     isolate.addOnExitListener(exited.sendPort);
-    isolate.kill(priority: Isolate.immediate);
+    // SQLite משחרר handle לפני ניתוק ה-finalizer; מאפשרים לאירוע להסתיים.
+    isolate.kill(priority: Isolate.beforeNextEvent);
     final previousClosing = _closing;
     return _closing = Future.wait([
       previousClosing,
