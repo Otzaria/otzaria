@@ -44,6 +44,7 @@ import 'package:window_manager/window_manager.dart';
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_catalog.dart';
 import 'support/installed_plugin_fixture.dart';
+import 'support/installed_plugin_windows_lifetime.dart';
 import 'support/perf_recorder.dart';
 import 'support/webview_probe_metrics.dart';
 import 'support/webview_probe_window.dart';
@@ -239,6 +240,14 @@ void main() {
       await output.create(recursive: true);
       reportFile = File(p.join(output.path, 'installed-plugin-report.json'));
       final fixture = InstalledPluginFixture(root, source);
+      if (Platform.isWindows) {
+        report['windowsLifetime'] = await acknowledgeInstalledWindowsLifetime(
+          processId: pid,
+          runId: report['runId']! as String,
+          creationFileTime: installedWindowsCreationFileTime(),
+          environment: Platform.environment,
+        );
+      }
       await catalog.start();
       await fixture.prepare();
       report['fixtureSha256'] = fixture.identity;

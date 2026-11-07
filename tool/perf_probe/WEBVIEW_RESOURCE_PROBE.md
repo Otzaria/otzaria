@@ -341,47 +341,83 @@ loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות
 
 אירועי `show/hide` הגנריים של `window_manager` מעדכנים את נראות החלון
 ב־dispatcher, בלי להמתין לאירוע focus. מצב המיזעור, מסך הקריאה והחלונות
-האחרים נבדקים בנפרד. בדיקת ערוץ Flutter אינה מאמתת את מפיק האירועים
-הנייטיבי: ב־macOS הגרסה המקובעת עדיין אינה שולחת אירועי `hide/show`,
-ולכן קבלת מסלול ההסתרה שם חסומה עד תיקון התלות ואימות AppKit נפרד.
+האחרים נבדקים בנפרד. התלות מקובעת ל־
+`88a433a7be43ed0213da12b561bf0d8d070c6d68`, שנבדקה ב־
+[CI של AppKit](https://github.com/Otzaria/window_manager/actions/runs/42318101553):
+שמונה הצלחות של המועמד, שני כשלי מקור ישן צפויים ושלוש בקרות חיוביות.
+בדיקות התלות אינן מאמתות את hide/Store באפליקציית אוצריא עצמה; תרחיש
+האפליקציה עדיין נדרש על המקור וה־lock הנבדקים.
 
-ב־Windows מפעיל `run_installed_plugin_windows.ps1` את אותה פקודת `flutter drive`
-לאחר רישום שני מאזינים פסיביים לאירועי התחלה וסיום של `otzaria.exe`.
-אין סריקת תהליכים, פנייה לאפליקציה או תשאול WebView בזמן חלונות השקט.
-בסיום נשמר `windows-native-exit.json`: זהות ה־PID וזמן ה־bootstrap מדוח
-המכשיר מותאמים לאירועי התהליך, להורה ול־session. נשמרים קוד היציאה
-הנייטיבי העשרוני וההקסדצימלי, בלי להסיק אם האפליקציה קרסה או שה־driver
-עצר אותה לאחר הבדיקה. PID ממוחזר, אירוע חסר או איסוף שנחתך נשארים
-`unavailable`; אין המרה לאפס.
+ב־Windows מפעיל `run_installed_plugin_windows.ps1` את `flutter drive`
+דרך observer המחזיק handle נייטיבי של תהליך האפליקציה. לפני הכנת
+ה־fixture ו־`app.main`, רתמת Dart שולחת הודעת loopback יחידה עם campaign,
+סוד אקראי של 256 ביט, PID, runId ו־FILETIME של יצירת התהליך, הנקרא
+ב־`GetProcessTimes(GetCurrentProcess())`. האפליקציה ממתינה לאישור ול־EOF.
 
-המאזינים מוגבלים ל־64 רשומות מכל סוג ועוד אירוע לזיהוי חיתוך. הניקוי
-מסיר רק את המנויים והתורים שנוצרו לריצה הזאת. לאחר חזרת ה־driver בלבד
-מתבצעת שאילתת `Application Error` מוגבלת ל־15 שניות ול־64 רשומות ועוד
-אירוע לזיהוי חיתוך. נשמרים רק אירועים שזהות התהליך ומועד יצירתו תואמים
-לריצה. היעדר אירוע אינו הוכחה שלא אירעה קריסה. פרטי המנגנון מתועדים ב־
-[Win32_ProcessStopTrace](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/krnlprov/win32-processstoptrace)
-וב־[wevtutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wevtutil).
+המארח פותח פעם אחת handle עם `SYNCHRONIZE` ו־
+`PROCESS_QUERY_LIMITED_INFORMATION`, ומאמת באמצעותו את ה־PID, את זמן
+היצירה המדויק ואת נתיב קובץ ה־profile הצפוי. התהליך חייב להיות חי בזמן
+האישור. זמן היצירה חייב להיות בין arm לבין bootstrap. המאזין נסגר אחרי
+חיבור יחיד; החיבור וטיימר ה־bootstrap נסגרים לפני המשך התרחיש. בזמן
+חלונות השקט אין מנוי CIM, סריקת תהליכים, קריאת JS או פנייה לאפליקציה
+מטעם ה־observer.
 
-`run.log` כולל את פלט ה־driver ואת stderr; נשמרים גם עותק של הדוח החלקי
-ולוג השגיאות מתיקיית הנתונים המבודדת, כאשר הם קיימים. קוד כשל של ה־driver
-נשמר גם אם האבחון נכשל. יציאה מוצלחת של ה־driver דורשת גם דוח מכשיר סופי
-מוצלח ותצפית תהליך מזוהה. לפני התרחיש רצה ב־Windows בקרת ילד אמיתי שיוצא
-בקוד 37; בדיקות החוזה כוללות גם כשל איסוף, זהויות סותרות ושמירת stderr.
-במערכת אחרת בקרת Windows הנייטיבית מדווחת `notRun`.
+ההתחברות הראשונית מוגבלת ל־20 דקות כדי לכלול את הבנייה; החלפת ההודעות
+אחרי החיבור מוגבלת ל־15 שניות ול־4 KiB לכל הודעה. אחרי חזרת ה־driver
+בלבד, `WaitForSingleObject` ממתין עד עשר שניות לאותו handle. רק מצב
+signaled מאפשר קריאת `GetExitCodeProcess` וזמן הסיום הנייטיבי. נשמרים
+exit status ללא סימן והייצוג ההקסדצימלי. אין פתיחה מחדש לפי PID ואין
+הסקת יציאה מאירוע חסר. timeout או כשל API נשארים `unavailable`.
 
-הבקרה שומרת `native-exit-control.json` גם בכשל, לפני מחיקת תיקיית הילד:
-האירועים שנאספו, סיבת הדחייה, זהות הילד, דוח חלקי, קוד היציאה ותוצאות
-הניקוי. הדוח מוגבל ל־256 KiB; חריגה משמרת אבחון מקוצר ומפורש ומכשילה
-את הבקרה. כשל שמירה או ניקוי אינו מחליף כשל קודם. בדיקות ניידות מפעילות
-ילד PowerShell אמיתי עם אירועים מבוקרים, ואינן תחליף לבקרת CIM האמיתית
-ב־Windows. `unavailable` עדיין מכשיל, ואינו מזהה לבדו את סיבת כשל הספק.
+ביטול bootstrap ממתין עד חמש שניות לסיום המשימה. אם קריאה נייטיבית
+מתעכבת מעבר לכך, התוצאה נשארת כושלת והמשימה ממשיכה להיות אחראית
+לסגירת ה־handle שלה כשהיא מסתיימת. צילום הראיות מסונכרן עם עדכונים
+מאוחרים; ניקוי מאוחר אינו משדרג את התוצאה.
 
-קוד נייטיבי שאינו 0 או `0xFFFFFFFF`, או אירוע `Application Error` תואם,
-מכשילים גם דוח שהושלם. `0xFFFFFFFF` מתקבל רק עם driver ודוח מוצלחים:
-`DesktopDevice.stopApp` ב־Flutter קורא ל־`Process.killPid`, וב־
+הזהות מבוססת על
+[GetProcessTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes)
+ועל [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew).
+שמירת ה־handle מחזיקה את אובייקט התהליך גם אחרי יציאתו, בהתאם ל־
+[תיעוד סיום תהליך](https://learn.microsoft.com/en-us/windows/win32/procthread/terminating-a-process).
+[WaitForSingleObject](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject)
+ו־[GetExitCodeProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess)
+מגדירים את ההבחנה בין המתנה, יציאה וכשל API.
+`TIME_CREATED` של CIM מציין את יצירת האירוע; הוא אינו משמש כזמן
+היצירה הנייטיבי של התהליך.
+
+נשמרים receipt התחלתי וסופי נפרדים, עותק של דוח המכשיר וה־SHA256 שלו.
+אין דריסה של receipt או raw log קודמים. `run.log` שומר stdout ו־stderr
+עד 16 MiB; כשל כתיבה או console אינו עוצר את ניקוז הפלט ואינו מחליף
+את קוד היציאה של ה־driver. עותק דוח המכשיר מוגבל ל־16 MiB, ועותק לוג
+השגיאות ל־1 MiB; חריגה מכשילה במפורש. שמירת דוח סופי מוגבלת ל־256 KiB,
+וחיתוך מפורש נשאר כשל. אם השמירה נכשלת, נכתב ל־stderr fallback מוגבל
+עם הכשל הראשון, הזהות, תוצאת היציאה ותוצאות הניקוי.
+
+כל פעולת ניקוי מתייחסת רק למשאב שנרכש בידי הריצה. אבחון שנכשל אינו
+מונע ניסיון ניקוי עצמאי. הצלחה דורשת driver מוצלח, verdict סופי מוצלח
+של framework ללא `errors` או `testFailures`, commit זהה לזה שהתבקש,
+התאמה לאישור ה־bootstrap ותצפית יציאה תקינה. אין קבלת דוח חלקי.
+
+לאחר הריצה נבדקים אירועי `Application Error` עם
+[wevtutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wevtutil).
+השאילתה מוגבלת ל־15 שניות ול־64 רשומות ועוד אחת לזיהוי חיתוך. התאמה
+דורשת PID, נתיב ו־FILETIME יצירה זהים בדיוק. שאילתה חסרה או חתוכה
+מכשילה; שאילתה ריקה אינה הוכחה שלא אירעה קריסה. תהליך עזר שלא סיים
+מנוקה רק אם הוא נוצר בידי השאילתה הזאת.
+
+לפני האפליקציה מפעיל CI ילד PowerShell אמיתי דרך אותו observer. הילד
+ממתין לאישור ויוצא בקוד 37. הבקרה דורשת התאמת זהות, exit 37 וסגירת
+ה־handle; מנוי ואירוע זרים נשארים ללא שינוי. `nativeAdapter` חייב
+להיות `WindowsProcessFactory` בבקרה הנייטיבית. הכשל והאבחון החלקי
+נשמרים ב־`native-exit-control.json`; כשל בבקרה מונע הפעלת האפליקציה.
+בקרות עם `ControlledProcessFactory` מסומנות כמבוקרות ואינן ראיית Win32.
+
+קוד נייטיבי שאינו 0 או `0xFFFFFFFF`, או אירוע `Application Error`
+תואם, מכשילים גם דוח שהושלם. `0xFFFFFFFF` מתקבל רק לצד driver ודוח
+מוצלחים. `DesktopDevice.stopApp` קורא ל־`Process.killPid`, וב־
 [Dart הנעול](https://github.com/dart-lang/sdk/blob/04bcd1036cdc799ac6564988f159ee454d42c822/runtime/bin/process_win.cc)
-הוא משתמש ב־`TerminateProcess(handle, -1)`. המספר הזה לבדו אינו מוכיח
-שה־driver גרם לסיום התהליך.
+מימוש Windows משתמש ב־`TerminateProcess(handle, -1)`. המספר הזה לבדו
+אינו מוכיח מי גרם לסיום התהליך.
 
 ה־fixture המשותף משתמש ב־`synthetic-v2` ובסימון האתחול של מאגר ההגדרות,
 כמו התיקון ב־[#4417](https://github.com/Otzaria/otzaria/pull/4417).
@@ -392,7 +428,7 @@ loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות
 לחלונות השקט, כדי להשאיר גבול התקדמות גם בניתוק מוקדם.
 
 ```powershell
-# Windows; ב־macOS החלף windows ב־macos. נדרש PowerShell לפקודות דוגמה אלה.
+# Windows/macOS; נדרש PowerShell לפקודות דוגמה אלה.
 $installedProbeRun = Join-Path ([IO.Path]::GetTempPath()) ('installed-plugin-' + [guid]::NewGuid())
 $env:INSTALLED_PROBE_DATA = Join-Path $installedProbeRun 'data'
 $env:INSTALLED_PROBE_OUTPUT = Join-Path $installedProbeRun 'device'
@@ -401,12 +437,16 @@ $env:INSTALLED_PROBE_STORE_SOURCE = Join-Path $installedProbeRun 'source'
 $env:INSTALLED_PROBE_MACHINE_ID = 'local-machine-session-1'
 python tool/perf_probe/prepare_installed_plugin_source.py --output $env:INSTALLED_PROBE_STORE_SOURCE
 flutter pub get --enforce-lockfile
-flutter drive --profile -d windows --no-pub `
-  --driver=test_driver/installed_plugin_resource_probe.dart `
-  --target=integration_test/installed_plugin_resource_probe_test.dart `
-  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
-  --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" `
-  --dart-define=INSTALLED_PROBE_IDLE_MS=3000
+if ($IsWindows) {
+  & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit (git rev-parse HEAD) -FlutterVersion '3.47.7'
+} else {
+  flutter drive --profile -d macos --no-pub `
+    --driver=test_driver/installed_plugin_resource_probe.dart `
+    --target=integration_test/installed_plugin_resource_probe_test.dart `
+    --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
+    --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" `
+    --dart-define=INSTALLED_PROBE_IDLE_MS=3000
+}
 ```
 
 `INSTALLED_PROBE_IDLE_MS` חייב להיות בין 1,000 ל־60,000; ב־CI הוא 1,000.
