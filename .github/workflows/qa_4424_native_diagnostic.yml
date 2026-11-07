@@ -1,0 +1,135 @@
+name: QA 4424 retained native evidence and formatter export
+on:
+  push:
+    branches:
+      - y-ploni/qa-4424-native-diagnostic-20261107-c
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native:
+    name: Retained ${{ matrix.platform }} evidence
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Read exact native artifact without executing its code
+        env:
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-native-${{ matrix.platform }}
+        run: python3 tool/perf_probe/qa_4424_native_diagnostic.py '${{ matrix.platform }}'
+      - name: Preserve exact input artifact and complete diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-native-${{ matrix.platform }}-diagnostic
+          path: ${{ runner.temp }}/qa-4424-native-${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 14
+  formatter:
+    name: Exact non-mutating Dart formatter export
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - name: Export canonical formatter bytes with normal package configuration
+        env:
+          QA_FORMAT_DIR: ${{ runner.temp }}/qa-4424-formatter
+          CI: 'true'
+          FLUTTER_SUPPRESS_ANALYTICS: 'true'
+          DART_SUPPRESS_ANALYTICS: 'true'
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          out = pathlib.Path(os.environ["QA_FORMAT_DIR"])
+          out.mkdir(parents=True, exist_ok=False)
+          path = root / "test/tool/perf_probe/installed_plugin_windows_lifetime_test.dart"
+          source = "f4ac011f1b8c81d4a760eeeadfe037228fb944e3"
+          sha256 = lambda data: hashlib.sha256(data).hexdigest()
+          def command(args, label, timeout=300):
+              result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+              (out / (label + ".stdout")).write_bytes(result.stdout)
+              (out / (label + ".stderr")).write_bytes(result.stderr)
+              if result.returncode:
+                  raise RuntimeError(label + " failed with exit " + str(result.returncode))
+              return result.stdout
+          def git(*args):
+              return subprocess.check_output(["git", *args]).decode().strip()
+          def snapshot():
+              names = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+              entries = []
+              for raw in names:
+                  if not raw:
+                      continue
+                  name = os.fsdecode(raw)
+                  item = root / name
+                  data = os.fsencode(os.readlink(item)) if item.is_symlink() else item.read_bytes()
+                  entries.append({"path": name, "bytes": len(data), "sha256": sha256(data),
+                                  "mode": item.lstat().st_mode, "symlink": item.is_symlink()})
+              return {"head": git("rev-parse", "HEAD"), "indexTree": git("write-tree"),
+                      "status": git("status", "--porcelain=v1", "--untracked-files=all"), "files": entries}
+          if git("rev-parse", "HEAD^") != source:
+              raise RuntimeError("Formatter QA does not bind to f4ac")
+          before = snapshot()
+          (out / "source-before.json").write_text(json.dumps(before, ensure_ascii=False), encoding="utf-8")
+          original = path.read_bytes()
+          if len(original) != 6462 or sha256(original) != "de6b5d54e9839e8637b45e27fd48f338127eaaf0a7eac93f1952cb7eab413e15":
+              raise RuntimeError("Formatter input does not match the frozen candidate")
+          command(["flutter", "pub", "get", "--enforce-lockfile"], "strict-pub-get", 600)
+          version = json.loads(command(["flutter", "--version", "--machine"], "flutter-version"))
+          if version["frameworkRevision"] != "abaf9c523780a608bd46686fd5e53740a07077f8" or version["dartSdkVersion"] != "3.13.5":
+              raise RuntimeError("Wrong formatter SDK")
+          config = json.loads((root / ".dart_tool/package_config.json").read_text())
+          own = [item for item in config["packages"] if item["name"] == "otzaria"]
+          if len(own) != 1:
+              raise RuntimeError("Missing normal package language context")
+          args = ["dart", "format", "--output=show", "--summary=none", str(path)]
+          formatted = command(args, "canonical-formatter")
+          if not formatted or not formatted.startswith(b"import 'dart:async';") or formatted == original:
+              raise RuntimeError("Formatter did not emit the expected changed Dart source")
+          (out / "canonical_installed_plugin_windows_lifetime_test.dart").write_bytes(formatted)
+          after = snapshot()
+          (out / "source-after.json").write_text(json.dumps(after, ensure_ascii=False), encoding="utf-8")
+          if before != after or path.read_bytes() != original:
+              raise RuntimeError("Formatter export or strict pub changed app source/index")
+          summary = {"source": source, "qaHead": before["head"], "path": str(path.relative_to(root)),
+                     "inputBytes": len(original), "inputSha256": sha256(original),
+                     "formatterCommand": args, "dartVersion": version["dartSdkVersion"],
+                     "frameworkRevision": version["frameworkRevision"],
+                     "packageLanguageVersion": own[0]["languageVersion"],
+                     "outputBytes": len(formatted), "outputSha256": sha256(formatted),
+                     "outputGitBlob": hashlib.sha1(b"blob " + str(len(formatted)).encode() + b"\0" + formatted).hexdigest(),
+                     "outputBase64": base64.b64encode(formatted).decode(),
+                     "sourceAndIndexUnchanged": True, "trackedFiles": len(before["files"]),
+                     "implementationSourceModified": False, "hookExecuted": False,
+                     "purpose": "Exact formatter output for implementation review; not approval of a new source candidate"}
+          (out / "formatter-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+          print("BEGIN_QA4424_FORMATTER_EXPORT", flush=True)
+          print(json.dumps(summary), flush=True)
+          print("END_QA4424_FORMATTER_EXPORT", flush=True)
+          
+          PY
+      - name: Preserve original input binding, exact formatter bytes and source snapshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-canonical-formatter
+          path: ${{ runner.temp }}/qa-4424-formatter
+          if-no-files-found: error
+          retention-days: 14
