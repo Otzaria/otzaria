@@ -1,0 +1,34 @@
+name: QA 4428 exact Android artifact review
+on:
+  push:
+    branches:
+      - y-ploni/qa-4428-status-native-artifacts-20261107-a
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-artifact-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Decode exact original artifacts without executing their contents
+        env:
+          QA_4428_ARTIFACT_OUTPUT: ${{ runner.temp }}/qa-4428-native-artifact-review
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 tool/perf_probe/qa_4428_native_artifacts.py
+      - name: Preserve original ZIPs, raw evidence and independent diagnostic
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4428-android-artifact-review-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4428-native-artifact-review
+          if-no-files-found: error
