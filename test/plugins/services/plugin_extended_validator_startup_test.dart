@@ -1941,10 +1941,19 @@ void main() {
       expect(
         _run(tempDir, menu(['text'], '0.9.98.3')).errors,
         contains(
-          contains('contextMenuItems: bookTypes ו-bookSources נתמך החל מגרסה'),
+          contains(
+            'contextMenuItems: המסנן bookTypes/bookSources נתמך החל מגרסה',
+          ),
         ),
       );
       expect(_run(tempDir, menu(['word'], '0.9.99')).errors, isNotEmpty);
+      // null או [] אינם מסננים, ולכן אינם מחייבים גרסה.
+      for (final noFilter in [null, <String>[]]) {
+        expect(
+          _run(tempDir, menu(noFilter, '0.9.98.3')).errors,
+          isNot(contains(contains('bookTypes'))),
+        );
+      }
     });
 
     test('סוג לא מוכר — שגיאה חוסמת', () {

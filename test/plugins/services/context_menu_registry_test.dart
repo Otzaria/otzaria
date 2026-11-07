@@ -639,6 +639,30 @@ void main() {
         );
       });
 
+      test('findRootItem מחזיר את הפריט העליון, שמסנן גם את ילדיו', () {
+        registry.registerPayload('word', {
+          'id': 'menu',
+          'type': 'submenu',
+          'title': 'תפריט',
+          'bookTypes': ['docx'],
+          'children': [
+            {'id': 'export', 'title': 'ייצוא'},
+          ],
+        });
+        final root = registry.findRootItem('word', 'export');
+        expect(root?.id, 'menu');
+        expect(registry.findRootItem('word', 'menu')?.id, 'menu');
+        expect(registry.findRootItem('word', 'missing'), isNull);
+        expect(registry.findRootItem('other', 'export'), isNull);
+        // הילד עצמו אינו נושא מסנן — הבדיקה חייבת להיעשות על השורש.
+        expect(
+          registry.findItem('word', 'export')!.showsForBook(bookType: 'text'),
+          isTrue,
+        );
+        expect(root!.showsForBook(bookType: 'text'), isFalse);
+        expect(root.showsForBook(bookType: 'docx'), isTrue);
+      });
+
       test('ערך לא מוכר, או מסנן על ילד — נדחה', () {
         expect(
           () => registry.registerPayload('word', {
