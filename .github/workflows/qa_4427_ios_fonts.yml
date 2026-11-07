@@ -1,0 +1,135 @@
+name: QA 4427 iOS font candidate
+
+on:
+  push:
+    branches: ['y-ploni/qa-4427-fonts-20261107-a']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-4427-ios-fonts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind this QA checkout to the frozen source candidate
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          def git(*args): return subprocess.check_output(['git', *args], text=True).strip()
+          candidate = '5dcd64785d2154df33faf0def6f0f30c20f04c53'
+          expected_tree = '6e76b5c0c2f9f7549ea98f60a39e257315d7bd21'
+          changes = git('diff', '--name-only', candidate, 'HEAD').splitlines()
+          assert sorted(changes) == [".github/workflows/qa_4427_ios_fonts.yml",".github/workflows/qa_4427_macos_fonts.yml"], changes
+          assert git('rev-parse', candidate + '^{tree}') == expected_tree
+          assert git('rev-parse', 'HEAD^') == candidate
+          print(json.dumps({'qaHead': git('rev-parse', 'HEAD'), 'sourceCandidate': candidate, 'sourceTree': expected_tree, 'qaOnlyFiles': changes}))
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Native source fallback prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Resolve exact dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and verify failure, ownership and evidence controls
+        run: |
+          set -euo pipefail
+          flutter analyze --no-pub
+          node --test tool/perf_probe/test_macos_plugin_fonts.mjs tool/perf_probe/test_ios_plugin_fonts.mjs
+          python3 -m unittest discover -s tool/perf_probe -p 'test_ios_plugin_fonts*.py' -v
+          python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py -v
+          flutter test --no-pub --concurrency=1 \
+            test/tool/perf_probe/ios_font_probe_contract_test.dart \
+            test/tool/perf_probe/ios_font_probe_navigation_test.dart \
+            test/tool/perf_probe/macos_font_probe_navigation_test.dart \
+            test/tool/perf_probe/macos_font_probe_progress_test.dart \
+            test/tool/perf_probe/macos_font_probe_frames_test.dart \
+            test/plugins/services/plugin_font_bootstrap_test.dart \
+            test/plugins/services/plugin_font_scheme_test.dart
+
+  simulator:
+    name: Actual iOS Simulator debug (${{ matrix.instances }} views)
+    runs-on: macos-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        instances: [1, 5, 10]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind this QA checkout to the frozen source candidate
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          def git(*args): return subprocess.check_output(['git', *args], text=True).strip()
+          candidate = '5dcd64785d2154df33faf0def6f0f30c20f04c53'
+          expected_tree = '6e76b5c0c2f9f7549ea98f60a39e257315d7bd21'
+          changes = git('diff', '--name-only', candidate, 'HEAD').splitlines()
+          assert sorted(changes) == [".github/workflows/qa_4427_ios_fonts.yml",".github/workflows/qa_4427_macos_fonts.yml"], changes
+          assert git('rev-parse', candidate + '^{tree}') == expected_tree
+          assert git('rev-parse', 'HEAD^') == candidate
+          print(json.dumps({'qaHead': git('rev-parse', 'HEAD'), 'sourceCandidate': candidate, 'sourceTree': expected_tree, 'qaOnlyFiles': changes}))
+          PY
+      - name: Initialize retained evidence
+        run: |
+          set -euo pipefail
+          export IOS_FONT_PROBE_OUTPUT="$RUNNER_TEMP/ios-plugin-fonts"
+          mkdir -p "$IOS_FONT_PROBE_OUTPUT"
+          echo "IOS_FONT_PROBE_OUTPUT=$IOS_FONT_PROBE_OUTPUT" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path(os.environ['IOS_FONT_PROBE_OUTPUT'], 'workflow.json').write_text(json.dumps({
+              'githubSha': os.environ['GITHUB_SHA'], 'runId': os.environ['GITHUB_RUN_ID'],
+              'status': 'initialized', 'physicalProfile': 'NOT_RUN', 'physicalRelease': 'NOT_RUN',
+          }, indent=2) + '\n')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install matching Rust Simulator targets
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-ios-sim x86_64-apple-ios 2>&1 | tee "$IOS_FONT_PROBE_OUTPUT/rust-targets.log"
+      - name: Resolve exact dependencies
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile 2>&1 | tee "$IOS_FONT_PROBE_OUTPUT/pub-get.log"
+      - name: Validate native iOS project syntax
+        run: |
+          plutil -lint ios/Runner.xcodeproj/project.pbxproj
+          python3 -c "import xml.etree.ElementTree as E; E.parse('ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme')"
+      - name: Run all eighteen cases in actual visible WKWebViews
+        run: >-
+          python3 tool/perf_probe/run_ios_plugin_fonts.py
+          --instances '${{ matrix.instances }}' --output "$IOS_FONT_PROBE_OUTPUT"
+      - name: Retain complete and partial native evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ios-plugin-fonts-debug-${{ matrix.instances }}-views
+          path: ${{ runner.temp }}/ios-plugin-fonts
+          if-no-files-found: error
+          retention-days: 14
