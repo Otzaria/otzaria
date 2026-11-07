@@ -1,0 +1,28 @@
+name: QA 4424 read exact native debug-a evidence
+on:
+  push:
+    branches: [qa/y-ploni-4424-native-debug-a-evidence-20261107]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read retained native evidence without execution
+        env:
+          DIAGNOSTIC_TOKEN: ${{ github.token }}
+          QA_NATIVE_DEBUG_EVIDENCE_OUTPUT: ${{ runner.temp }}/native-debug-a-evidence
+        run: python3 .github/qa/4424/read_native_debug_a.py
+      - name: Preserve exact archive and decoded data
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-native-debug-a-evidence
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/native-debug-a-evidence/**
