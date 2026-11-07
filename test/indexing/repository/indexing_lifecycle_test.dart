@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/sqlite_memory_release.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
@@ -36,6 +38,76 @@ void main() {
     await drained;
 
     expect(idleBeforePreflightFinished, isFalse);
+  });
+
+  testWidgets('פינוי רקע ממתין לריצה בהכנה וגם אחרי ביטול', (tester) async {
+    final gate = Completer<void>();
+    final provider = _Provider();
+    final repository = _Repository(provider)..preflightGate = gate;
+    final run = repository.runIndexing(library(), onProgress: (_, _) {});
+    var idle = false;
+    final drained = IndexingRepository.whenIdle().then((_) => idle = true);
+    var releases = 0;
+    final observer = SqliteMemoryPressureObserver(
+      release: () async => releases++,
+      windowCount: () => 1,
+      now: tester.binding.clock.now,
+    );
+    try {
+      await repository.preflightEntered.future;
+      expect(provider.isIndexing.value, isFalse);
+      observer.didChangeAppLifecycleState(AppLifecycleState.hidden);
+      await tester.pump(const Duration(seconds: 5));
+      expect(releases, 0);
+      expect(idle, isFalse);
+
+      repository.cancelIndexing();
+      await tester.pump(const Duration(seconds: 2));
+      expect(provider.isIndexing.value, isFalse);
+      expect(releases, 0);
+      expect(idle, isFalse);
+
+      gate.complete();
+      await run;
+      await drained;
+      await tester.pump(const Duration(seconds: 2));
+      expect(releases, 1);
+      expect(idle, isTrue);
+    } finally {
+      observer.dispose();
+      if (!gate.isCompleted) gate.complete();
+      await run;
+      await drained;
+    }
+  });
+
+  testWidgets('לחץ זיכרון מפנה גם כשריצה שבוטלה עדיין חיה', (tester) async {
+    final gate = Completer<void>();
+    final provider = _Provider();
+    final repository = _Repository(provider)..preflightGate = gate;
+    final run = repository.runIndexing(library(), onProgress: (_, _) {});
+    var idle = false;
+    final drained = IndexingRepository.whenIdle().then((_) => idle = true);
+    var releases = 0;
+    final observer = SqliteMemoryPressureObserver(
+      release: () async => releases++,
+      windowCount: () => 1,
+      now: tester.binding.clock.now,
+    );
+    try {
+      await repository.preflightEntered.future;
+      repository.cancelIndexing();
+      observer.didHaveMemoryPressure();
+      await tester.pump(Duration.zero);
+      expect(provider.isIndexing.value, isFalse);
+      expect(releases, 1);
+      expect(idle, isFalse);
+    } finally {
+      observer.dispose();
+      if (!gate.isCompleted) gate.complete();
+      await run;
+      await drained;
+    }
   });
 
   test(
