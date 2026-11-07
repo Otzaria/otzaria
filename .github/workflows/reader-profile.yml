@@ -30,7 +30,7 @@ jobs:
       run:
         shell: pwsh
     env:
-      BASELINE_SHA: ${{ github.event.pull_request.base.sha }}
+      EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
       PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -40,7 +40,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
           git config --global core.autocrlf false
           if ($LASTEXITCODE -ne 0) { throw 'Could not preserve source line endings.' }
-          foreach ($revision in @($env:BASELINE_SHA, $env:CANDIDATE_SHA)) {
+          foreach ($revision in @($env:EVENT_BASE_SHA, $env:CANDIDATE_SHA)) {
             if ($revision -notmatch '^[0-9a-f]{40}$') { throw 'The event must pin both source SHAs.' }
           }
 
@@ -49,6 +49,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Pin the source base shared with the candidate
+        run: |
+          $sourceBase = (& git merge-base $env:EVENT_BASE_SHA $env:CANDIDATE_SHA | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceBase -notmatch '^[0-9a-f]{40}$' -or $sourceBase -eq $env:CANDIDATE_SHA) {
+            throw 'Cannot identify a distinct shared source base for this candidate.'
+          }
+          "BASELINE_SHA=$sourceBase" | Add-Content -LiteralPath $env:GITHUB_ENV
 
       - name: Validate runner and source-overlay contracts
         run: |
@@ -100,7 +108,8 @@ jobs:
           $report = Join-Path $root 'candidate/report.md'
           @(
             '## Reader profile comparison', '',
-            "Baseline source: $env:BASELINE_SHA", "Candidate source: $env:CANDIDATE_SHA", '',
+            "Pull-request event base: $env:EVENT_BASE_SHA",
+            "Shared baseline source: $env:BASELINE_SHA", "Candidate source: $env:CANDIDATE_SHA", '',
             'One Windows runner, Flutter 3.47.7/profile, identical committed measurement harness.',
             'Launch order: baseline, candidate, candidate, baseline. Each launch has 1 warmup and 2 measured repetitions.',
             'Books: 2,000 / 50,000 / 1,000,000 lines. Builds and fixture preparation are outside action timings.',

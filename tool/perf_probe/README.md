@@ -176,7 +176,7 @@ dart tool/perf_probe/analyze.dart C:\perf\candidate-cold `
 להשוואה על אותו מחשב Windows מתוך checkout נקי של המועמד:
 
 ```powershell
-$baselineSha = (git rev-parse origin/dev).Trim()
+$baselineSha = (git merge-base origin/dev HEAD).Trim()
 pwsh -File tool/perf_probe/run_reader_comparison.ps1 `
   -BaselineRef $baselineSha -CandidateRef (git rev-parse HEAD).Trim() `
   -Cycles 1 -Warmup 1 -Repetitions 2 -BookLines '2000,50000,1000000' `
@@ -225,7 +225,9 @@ latency לכל פעולה וצד אינן אומדן יציב של p95/p99, וה
 ה-workflow `Performance probe tools` שומר את בדיקות החוזה ואת תרחיש ה־WebView
 הקיימים. התרחיש המלא ב־Windows נשאר זמין ב־`workflow_dispatch`.
 `Reader profile comparison` נפרד ומופעל ב־PR רק בשינוי קובצי המדידה המפורטים
-ב־paths שלו. הוא נועל את SHA הבסיס והמועמד מתוך אירוע ה־PR, מריץ ABBA באותו
+ב־paths שלו. הוא נועל את המועמד מתוך אירוע ה־PR ואת הבסיס לאב המשותף של
+המועמד ובסיס האירוע. כך התקדמות `dev` בזמן הריצה אינה מכניסה להשוואה תיקונים
+שאינם חלק מהמועמד; שני מזהי הבסיס מתועדים. הוא מריץ ABBA באותו
 Windows runner ובאותו Flutter SDK, ומעלה גם תוצאות חלקיות, traces ולוגים.
 מחשבי GitHub hosted מקבלים מזהה שונה בכל run; אין השוואה אוטומטית בין
 מכונות אירוח שונות ואין סף ביצועים. בדיקות Dart של הדוח, ה־fixture וה־recorder

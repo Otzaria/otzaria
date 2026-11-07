@@ -122,7 +122,16 @@ try {
   Assert-ReaderEqual ((Get-Content -LiteralPath (Join-Path $merged 'samples.csv')) -join '|') 'launch_index,pid|0,100|1,100' 'one CSV header and original logical indices'
   Assert-ReaderEqual ((Get-Content -LiteralPath (Join-Path $merged 'phases.jsonl')) -join '|') '{"launchIndex":0}|{"launchIndex":1}' 'raw phase records preserved'
   Set-Content -LiteralPath (Join-Path $directories[1] 'samples.csv') -Value @('unexpected,header', '1,100')
-  Assert-ReaderThrows { Merge-ReaderObservations (Join-Path $root 'mismatch') $directories } 'incompatible CSV schemas'
+  try {
+    Merge-ReaderObservations (Join-Path $root 'mismatch') $directories
+    throw 'Expected incompatible CSV schemas to be rejected.'
+  } catch {
+    Assert-ReaderEqual $_.Exception.Message 'Process sample headers differ between launches.' 'CSV schema error preserved'
+  }
+  foreach ($path in @((Join-Path $directories[1] 'samples.csv'), (Join-Path $root 'mismatch/samples.csv'))) {
+    $exclusive = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $exclusive.Dispose()
+  }
 } finally {
   Remove-Item -LiteralPath $root -Recurse -Force
 }
