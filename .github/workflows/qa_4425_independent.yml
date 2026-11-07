@@ -1,0 +1,31 @@
+name: QA 4425 independent lifetime controls
+
+on:
+  push:
+    branches: ['y-ploni/qa-4425-independent-20261107-a']
+
+permissions:
+  contents: read
+
+jobs:
+  independent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Run new independent process, I/O and protocol controls
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4425-independent
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 tool/perf_probe/qa_4425_lifetime_controls.py
+      - name: Retain independent evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-independent-controls
+          path: ${{ runner.temp }}/qa-4425-independent
+          if-no-files-found: error
+          retention-days: 14
