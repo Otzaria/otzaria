@@ -1,0 +1,107 @@
+diff --git a/packages/super_native_extensions/rust/src/win32/bitmap_reader_ci_probe.rs b/packages/super_native_extensions/rust/src/win32/bitmap_reader_ci_probe.rs
+new file mode 100644
+index 0000000000..d607151383
+--- /dev/null
++++ b/packages/super_native_extensions/rust/src/win32/bitmap_reader_ci_probe.rs
+@@ -0,0 +1,90 @@
++use super::*;
++
++#[test]
++fn bitmap_ci_probe_dibv5_intent_and_file_offset() {
++    let _ole = OleApartment::new();
++    for intent in [0u32, 4] {
++        for offset in [0u32, 14 + size_of::<BITMAPV5HEADER>() as u32] {
++            let mut data = dib(&pattern(127), true);
++            data[108..112].copy_from_slice(&intent.to_le_bytes());
++            let result = thread::spawn(move || {
++                let _apartment = super::super::ComApartment::new()?;
++                let mut bmp = vec![0x42, 0x4d];
++                bmp.extend_from_slice(&((data.len() + 14) as u32).to_le_bytes());
++                bmp.extend_from_slice(&[0; 4]);
++                bmp.extend_from_slice(&offset.to_le_bytes());
++                bmp.extend_from_slice(&data);
++                let stream = unsafe { SHCreateMemStream(Some(&bmp)) }.unwrap();
++                super::super::convert_to_png(stream)
++            })
++            .join()
++            .unwrap();
++            match result {
++                Ok(png) => {
++                    let pixels = decode_png(&png);
++                    println!(
++                        "BITMAP_CI_DIBV5 intent={intent} offset={offset} hresult=0x00000000 bytes={} all_64_rgba_match={}",
++                        png.len(), pixels == pattern(127)
++                    );
++                    assert_eq!(pixels, pattern(127));
++                }
++                Err(error) => {
++                    println!(
++                        "BITMAP_CI_DIBV5 intent={intent} offset={offset} hresult=0x{:08X} message={error}",
++                        error.code().0 as u32
++                    );
++                    assert_ne!((intent, offset), (4, 138), "The valid V5 image must decode");
++                }
++            }
++        }
++    }
++}
++
++#[test]
++fn bitmap_ci_probe_old_proxy_and_owned_clipboard_restore() {
++    assert_eq!(
++        std::env::var("GITHUB_ACTIONS").as_deref(),
++        Ok("true"),
++        "This temporary probe changes the disposable CI clipboard"
++    );
++    let _ole = OleApartment::new();
++    struct ClearClipboard;
++    impl Drop for ClearClipboard {
++        fn drop(&mut self) {
++            unsafe { OleSetClipboard(None::<&IDataObject>) }.unwrap();
++        }
++    }
++    let _cleanup = ClearClipboard;
++    let original = unsafe { OleGetClipboard() }.unwrap();
++    let (reader_a, _) = BitmapDataObject::bitmap(MediumKind::CustomOwner, pattern(0)).into_reader();
++    let b: IDataObject = BitmapDataObject::bitmap(MediumKind::CustomOwner, vec![0; 64]).into();
++    unsafe { OleSetClipboard(&b) }.unwrap();
++    let global_b =
++        PlatformDataReader::new_with_data_object(unsafe { OleGetClipboard() }.unwrap(), None);
++    assert_eq!(
++        decode_png(&read(global_b, registered("PNG"))),
++        vec![0, 0, 0, 255].repeat(16)
++    );
++    assert_eq!(decode_png(&read(reader_a, registered("PNG"))), pattern(255));
++    println!("BITMAP_CI_CLIPBOARD actual_global_b_rgba=true snapshot_a_all_64_rgba=true");
++    match unsafe { OleSetClipboard(&original) } {
++        Ok(()) => println!("BITMAP_CI_CLIPBOARD old_proxy_restore=0x00000000"),
++        Err(error) => println!(
++            "BITMAP_CI_CLIPBOARD old_proxy_restore=0x{:08X} message={error}",
++            error.code().0 as u32
++        ),
++    }
++    unsafe { OleSetClipboard(None::<&IDataObject>) }.unwrap();
++    let c: IDataObject =
++        BitmapDataObject::bitmap(MediumKind::CustomOwner, vec![12, 34, 56, 0].repeat(16)).into();
++    unsafe { OleSetClipboard(&c) }.unwrap();
++    unsafe { OleSetClipboard(&b) }.unwrap();
++    unsafe { OleSetClipboard(&c) }.unwrap();
++    let restored =
++        PlatformDataReader::new_with_data_object(unsafe { OleGetClipboard() }.unwrap(), None);
++    assert_eq!(
++        decode_png(&read(restored, registered("PNG"))),
++        vec![12, 34, 56, 255].repeat(16)
++    );
++    println!("BITMAP_CI_CLIPBOARD owned_restore=0x00000000 restored_all_64_rgba=true");
++}
+diff --git a/packages/super_native_extensions/rust/src/win32/bitmap_reader_tests.rs b/packages/super_native_extensions/rust/src/win32/bitmap_reader_tests.rs
+index 14bd7756f6..f4ce1b56be 100644
+--- a/packages/super_native_extensions/rust/src/win32/bitmap_reader_tests.rs
++++ b/packages/super_native_extensions/rust/src/win32/bitmap_reader_tests.rs
+@@ -585,3 +585,6 @@ fn bitmap_advertisement_does_not_change_gif_or_unicode_text_bytes() {
+     );
+     assert_eq!(observations.releases.load(Ordering::SeqCst), 0);
+ }
++
++#[path = "bitmap_reader_ci_probe.rs"]
++mod ci_probe;

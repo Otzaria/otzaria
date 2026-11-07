@@ -1,0 +1,73 @@
+name: Temporary Windows bitmap fixture diagnosis
+
+on:
+  pull_request:
+    branches: [palmoni5/report-forms-qa-20261105]
+    paths:
+      - '.github/workflows/report-bitmap-native-probe.yml'
+      - 'tool/qa/report-bitmap-native-probe.patch'
+
+permissions:
+  contents: read
+
+jobs:
+  native-probe:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply only the independently reviewed test probe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/bitmap-fixture-probe | Out-Null
+          $root = 'packages/super_native_extensions/rust/src/win32'
+          $patch = 'tool/qa/report-bitmap-native-probe.patch'
+          $expected = @{
+            "$root/reader.rs" = '1d2f1aa2b2d6b33d2434623b1b57faa46f38437184594e2427250abefc5cb13c'
+            "$root/image_conversion.rs" = 'ec18dc7fff5f676eb8c9844e562a3f219ae20366ae5ab9702c3d6ad26aeb69e1'
+            "$root/bitmap_reader_tests.rs" = '3654a047032a6830921cd7c5daba0cc16c01644048db58f46e05656ae30ce9df'
+            $patch = '12278d129e5255d62b08d92f3db8513adb6bc719490b98abede596c563d21c06'
+          }
+          foreach ($path in $expected.Keys) {
+            $bytes = [Text.Encoding]::UTF8.GetBytes(([IO.File]::ReadAllText((Resolve-Path $path)) -replace "`r`n", "`n"))
+            $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+            if ($hash -cne $expected[$path]) { throw "Unexpected diagnostic input: $path" }
+          }
+          git apply --check $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git apply $patch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $changed = @(git diff --name-only)
+          if ($changed.Count -ne 1 -or $changed[0] -cne "$root/bitmap_reader_tests.rs") {
+            throw 'The probe modified product source beyond the test-module declaration.'
+          }
+          $os = Get-CimInstance Win32_OperatingSystem
+          @{ productHead = '06aac2ca93be274205acd392b0c94b26a6f235c9'; qaHead = '${{ github.event.pull_request.head.sha }}';
+            patchSha256 = $expected[$patch]; inputs = $expected; caption = $os.Caption; version = $os.Version;
+            architecture = $os.OSArchitecture; originalTestsChanged = $false; diagnosticOnly = $true } |
+            ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 build/bitmap-fixture-probe/source.json
+      - name: Run the two diagnostic probes on actual Windows
+        shell: pwsh
+        working-directory: packages/super_native_extensions/rust
+        run: |
+          rustfmt --edition 2021 --check src/win32/bitmap_reader_ci_probe.rs src/win32/bitmap_reader_tests.rs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $log = Join-Path $env:GITHUB_WORKSPACE 'build/bitmap-fixture-probe/native.log'
+          cargo test --locked bitmap_ci_probe -- --test-threads=1 --nocapture 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Content $log -Raw) -notmatch 'test result: ok\. 2 passed; 0 failed; 0 ignored;') {
+            throw 'Both diagnostic probes must execute; this is not a claim that the product suite passed.'
+          }
+      - name: Preserve the raw diagnosis
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: bitmap-fixture-probe-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: build/bitmap-fixture-probe/
+          if-no-files-found: error
+          retention-days: 14
