@@ -1,0 +1,148 @@
+name: QA 4424 owned Windows native exception diagnosis
+
+on:
+  push:
+    branches: [qa/y-ploni-4424-native-install-debug-20261107-b]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-4424-windows-native-debug-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed:
+    name: Actual app / ${{ matrix.platform }} / profile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      INSTALLED_PROBE_MACHINE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.runner }}-${{ matrix.platform }}
+      FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '0'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Record and select exact source checkout bytes
+        run: |
+          Write-Host 'INITIAL_GIT_CHECKOUT_POLICY'
+          git config --show-origin --get-regexp '^core\.(autocrlf|eol)$'
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global core.eol lf
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host 'FROZEN_GIT_CHECKOUT_POLICY'
+          git config --show-origin --get-regexp '^core\.(autocrlf|eol)$'
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compile owned-process diagnostic and prove fail-fast capture
+        run: |
+          & ./tool/perf_probe/qa_4424_native_debug.ps1 -Mode Build
+          exit $LASTEXITCODE
+      - name: Set probe paths on the runner
+        run: |
+          @(
+            "INSTALLED_PROBE_DATA=$env:RUNNER_TEMP/installed-plugin-probe/data"
+            "INSTALLED_PROBE_OUTPUT=$env:RUNNER_TEMP/installed-plugin-probe/device"
+            "INSTALLED_PROBE_REPORTS=$env:RUNNER_TEMP/installed-plugin-probe/host"
+            "INSTALLED_PROBE_STORE_SOURCE=$env:RUNNER_TEMP/installed-plugin-source"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.15'
+      - name: Bind exact candidate and snapshot source and SDK
+        run: |
+          python tool/perf_probe/qa_4424_native_snapshot.py bind
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @(Get-Command flutter -CommandType Application -ErrorAction Stop) | Select-Object Name, Path, CommandType | ConvertTo-Json -Depth 4 | Set-Content '${{ runner.temp }}/installed-plugin-probe/qa-snapshots/flutter-command-resolution.json'
+      - name: Record toolchain and prepare verified read-only source
+        run: |
+          New-Item -ItemType Directory -Force '${{ runner.temp }}/installed-plugin-probe' | Out-Null
+          flutter --version --machine | Set-Content '${{ runner.temp }}/installed-plugin-probe/flutter.json'
+          rustc --version | Set-Content '${{ runner.temp }}/installed-plugin-probe/rust.txt'
+          git rev-parse HEAD | Set-Content '${{ runner.temp }}/installed-plugin-probe/source-commit.txt'
+          python tool/perf_probe/prepare_installed_plugin_source.py --output "$env:INSTALLED_PROBE_STORE_SOURCE" 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/source.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Resolve exact dependencies and analyze
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pub-get.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter analyze --no-pub 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/analyze.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Snapshot exact resolved Git dependencies
+        run: |
+          python tool/perf_probe/qa_4424_native_snapshot.py resolved
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record unchanged-source prerequisite reuse
+        run: |
+          @{
+            classification = 'Scoped reuse for an unchanged-source diagnostic retry; these suites are NOT_RUN in this retry'
+            sourceCommit = '05e150d09758e0da45ca1877a4d650358f1aa17f'
+            sourceTree = 'e43bd8f0db6d1b2a107f767c18e3261a27e15837'
+            priorQaHead = '6bd82f1d9b0f2d1de3cc6c2b680dcd9e414d698a'
+            priorRun = 42339349730
+            priorJob = 128303356407
+            priorLogBytes = 274567
+            priorLogSha256 = '8c62facc13b76b53ef15f0ebe7df4d18b627fd19926b1c8e0ba25200917258dc'
+            priorArtifactId = 13561885776
+            priorArtifactSha256 = '33807d051bb4b801467adf28b95022b4d4ec14cae5001b3c546ebdcae79db406'
+            reusedPassedSuites = @('Node fixture and verified Store', 'Flutter fixture and negative contracts', '720 Windows native/control/runner/exit assertions')
+            reason = 'Only the isolated QA monitor lifetime and QA workflow differ; all sixteen source files and all Git dependencies are checked again byte for byte'
+            freshChecks = @('Exact Flutter SDK', 'Strict locked dependency resolution', 'Full Flutter analyze', 'Source/index/SDK/all 19 Git dependencies before and after', 'Native debugger fail-fast self-control', 'Verified Store input', 'Original actual-app command')
+            priorNativeApplication = 'FAILED; not reused as acceptance'
+            priorActualDebugger = 'FAILED: missing identity and summary; not reused'
+            applicationAcceptance = 'NOT_CLAIMED'
+          } | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $env:RUNNER_TEMP 'installed-plugin-probe/qa-snapshots/scoped-prerequisite-reuse.json')
+      - name: Snapshot immediately before native app commands
+        run: |
+          python tool/perf_probe/qa_4424_native_snapshot.py before-native
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run original installed plugin scenario with same-step owned debugger
+        run: |
+          & ./tool/perf_probe/qa_4424_native_debug.ps1 -Mode Run -Commit '${{ github.sha }}'
+          exit $LASTEXITCODE
+      - name: Preserve owned-process exception, stack and dump evidence
+        if: always()
+        run: |
+          & ./tool/perf_probe/qa_4424_native_debug.ps1 -Mode Finish
+          exit $LASTEXITCODE
+      - name: Preserve source, index, SDK and Git dependency state after native commands
+        if: always()
+        run: |
+          python tool/perf_probe/qa_4424_native_snapshot.py after
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve raw results and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-${{ matrix.platform }}-native-debug-profile
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/installed-plugin-probe/*.log
+            ${{ runner.temp }}/installed-plugin-probe/*.json
+            ${{ runner.temp }}/installed-plugin-probe/*.txt
+            ${{ runner.temp }}/installed-plugin-probe/device/**
+            ${{ runner.temp }}/installed-plugin-probe/host/**
+            ${{ runner.temp }}/installed-plugin-probe/qa-snapshots/**
+            ${{ runner.temp }}/installed-plugin-probe/native-debug/**
+            ${{ runner.temp }}/installed-plugin-source/source-provenance.json
