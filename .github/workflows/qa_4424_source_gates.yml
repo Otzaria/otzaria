@@ -1,0 +1,64 @@
+name: QA 4424 exact source hook and merge gates
+on:
+  push:
+    branches: [qa/y-ploni-4424-command-resolution-gates-20261107]
+permissions:
+  contents: read
+jobs:
+  source-hook:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install required native build tool
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Real original hook and source gates
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-source-hook
+        run: python tool/perf_probe/qa_4424_source_gates.py hook
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-4424-source-hook-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4424-source-hook
+          if-no-files-found: error
+  merge-proofs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fresh complete PR map and actual conflict content proofs
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-merge
+          QA_GITHUB_TOKEN: ${{ github.token }}
+        run: python tool/perf_probe/qa_4424_source_gates.py merge
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-4424-merge-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4424-merge
+          if-no-files-found: error
