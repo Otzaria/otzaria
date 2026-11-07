@@ -146,12 +146,46 @@ events retain controller creation, navigation, custom-scheme requests/responses,
 font preparation, guarded boot, rendering and screenshot progress. A native
 operation has a ten-second bound, in addition to the unchanged preparation and
 boot deadlines; the view batch retains its sixty-second overall deadline. The
-first failed view ends the batch and disposes its peers. A late response after
+first failed view ends the batch and fences its peers. A late response after
 timeout or disposal stays incomplete and cannot become a passing sample.
 Run, case, view, operation and cleanup completion are all required by the
 validator, together with explicit allowance of the expected document and
 observed widget disposal.
 Window visibility alone does not establish canvas or typography success.
+
+### Rendering failure diagnostics
+
+[Native run 42277391417](https://github.com/Otzaria/otzaria/actions/runs/42277391417)
+passed both transports and all three CSP cases with one and five views. With ten
+views, both transports failed the normal case's ten-second rendering operation
+after every view had completed font preparation and boot. Later CSP cases were
+not run. The one/five-view runners used macOS 26.7.2, while the ten-view runner
+used 26.6.2, so these runs do not isolate view count as the cause. The cause is
+unresolved; a late native reply near disposal does not prove completed rendering.
+The `Resize timed out` warning also appears in all four passing run logs.
+
+The unchanged rendering operation now keeps at most forty in-document timing
+events around each font load, canvas sample, and both animation-frame callbacks.
+It still waits for both frames and checks all six samples. There are no progress
+messages across the native channel or additional timers during the measurement.
+Successful results include the trace. Its timings start after font preparation
+and boot; the instrumentation does not extend the font-ready measurement.
+The Dart rendering dispatch and JavaScript entry also record wall-clock timestamps
+to help distinguish native queuing from time within the script. Stage durations
+use the document's monotonic performance clock.
+
+After a case fails, all view snapshots are requested concurrently before widget
+disposal, with a separate two-second bound per request. Each snapshot records the
+current stage, visibility, viewport and font states; Flutter widget bounds are
+also recorded when the request starts. The JavaScript checks the original
+document marker and boot owner before reading the trace. Snapshot JSON is capped
+at 16 KiB. A missing callback, stale document, native error or diagnostic timeout
+is retained explicitly. Snapshot errors never replace the original case error,
+and a late successful snapshot cannot repair a failed rendering operation.
+Snapshot timestamps describe capture after failure, not the exact timeout instant.
+The original ten-second operation, sixty-second batch and cleanup deadlines are
+unchanged. Linux contract tests exercise these diagnostic boundaries; the next
+macOS run is still required to locate the native stall.
 
 ## Measurement boundaries and enablement
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -9,6 +10,30 @@ IntegrationTestWidgetsFlutterBinding initializeMacosFontProbeBinding() {
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   return binding;
 }
+
+const fontProbeFailureSnapshotJs = r'''
+if (document.__otzariaFontDocumentId !== documentId || document.__otzariaFontBootAttempt !== owner) {
+  return JSON.stringify({availability: 'stale-document'});
+}
+var progress = window.__otzariaFontProbeRendering;
+var current = progress && progress.documentId === documentId && progress.owner === owner;
+return JSON.stringify({
+  availability: current ? 'captured' : 'trace-unavailable',
+  capturedAtEpochMilliseconds: Date.now(),
+  visibilityState: document.visibilityState, readyState: document.readyState,
+  viewport: {width: innerWidth, height: innerHeight, dpr: devicePixelRatio},
+  fontsStatus: document.fonts.status,
+  faces: Array.from(document.fonts).slice(0, 16).map(f => ({family: f.family, weight: f.weight, status: f.status})),
+  renderingProgress: current ? progress : null
+});
+''';
+
+String buildFontProbeFailureSnapshotScript({
+  required String? documentId,
+  required String owner,
+}) =>
+    '(function(documentId, owner) { $fontProbeFailureSnapshotJs })'
+    '(${jsonEncode(documentId)}, ${jsonEncode(owner)});';
 
 class FontProbeViewProgress {
   FontProbeViewProgress(int index)
@@ -23,6 +48,8 @@ class FontProbeViewProgress {
   final Map<String, Object?> report;
   final _clock = Stopwatch();
   final _disposal = Completer<void>();
+  Future<String?> Function()? _failureSnapshot;
+  Future<void>? _snapshotCapture;
 
   Future<void> get whenDisposed => _disposal.future;
   bool _disposed = false;
@@ -58,6 +85,53 @@ class FontProbeViewProgress {
       'elapsedMicroseconds': elapsedMicroseconds,
     };
     record('failed');
+  }
+
+  void registerFailureSnapshot(Future<String?> Function() snapshot) {
+    if (_disposed) throw StateError('Font probe view was disposed');
+    _failureSnapshot = snapshot;
+  }
+
+  Future<void> captureFailureSnapshot({
+    Duration timeout = const Duration(seconds: 2),
+  }) => _snapshotCapture ??= _captureFailureSnapshot(timeout);
+
+  Future<void> _captureFailureSnapshot(Duration timeout) async {
+    final read = _failureSnapshot;
+    final snapshot = <String, Object?>{
+      'status': 'pending',
+      'requestedMicroseconds': elapsedMicroseconds,
+      'requestedAtEpochMilliseconds': DateTime.now().millisecondsSinceEpoch,
+      'timeoutMilliseconds': timeout.inMilliseconds,
+    };
+    report['failureSnapshot'] = snapshot;
+    if (_disposed || read == null) {
+      snapshot['status'] = _disposed ? 'disposed' : 'not-registered';
+      return;
+    }
+    try {
+      final value = await Future<String?>.sync(read).timeout(timeout);
+      if (_disposed || !identical(read, _failureSnapshot)) {
+        snapshot['status'] = _disposed ? 'disposed' : 'replaced';
+        return;
+      }
+      if (value == null || utf8.encode(value).length > 16 * 1024) {
+        throw StateError('Font probe snapshot is missing or exceeds 16 KiB');
+      }
+      final decoded = jsonDecode(value);
+      if (decoded is! Map<String, dynamic>) {
+        throw StateError('Font probe snapshot is not an object');
+      }
+      snapshot['value'] = decoded;
+      snapshot['status'] = 'captured';
+    } on TimeoutException {
+      snapshot['status'] = 'timed-out';
+    } catch (error) {
+      snapshot['status'] = 'failed';
+      snapshot['error'] = _bounded(error.toString());
+    } finally {
+      snapshot['finishedMicroseconds'] = elapsedMicroseconds;
+    }
   }
 
   Future<T> observe<T>(
@@ -121,6 +195,7 @@ class FontProbeViewProgress {
 
   void dispose() {
     _disposed = true;
+    _failureSnapshot = null;
     report['disposed'] = true;
     for (final operation
         in report['operations']! as List<Map<String, Object?>>) {

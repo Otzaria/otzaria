@@ -147,6 +147,189 @@ void main() {
     expect(progress.report['droppedEvents'], 44);
   });
 
+  test(
+    'a failure snapshot is captured once without healing the failure',
+    () async {
+      final progress = FontProbeViewProgress(0)..mounted();
+      progress.fail(StateError('rendering timed out'), StackTrace.current);
+      final original = progress.report['failure'];
+      var reads = 0;
+      progress.registerFailureSnapshot(() async {
+        reads++;
+        return '{"renderingProgress":{"phase":"frame-1"}}';
+      });
+      await Future.wait([
+        progress.captureFailureSnapshot(),
+        progress.captureFailureSnapshot(),
+      ]);
+      final snapshot = progress.report['failureSnapshot'] as Map;
+      expect(reads, 1);
+      expect(snapshot['status'], 'captured');
+      expect(snapshot['value']['renderingProgress']['phase'], 'frame-1');
+      expect(progress.report['status'], 'failed');
+      expect(progress.report['failure'], same(original));
+      expect(progress.complete, throwsStateError);
+    },
+  );
+
+  test(
+    'snapshot timeout ignores a late response and preserves the error',
+    () async {
+      final progress = FontProbeViewProgress(0)..mounted();
+      progress.fail(StateError('rendering timed out'), StackTrace.current);
+      final original = progress.report['failure'];
+      final response = Completer<String?>();
+      progress.registerFailureSnapshot(() => response.future);
+      await progress.captureFailureSnapshot(
+        timeout: const Duration(milliseconds: 5),
+      );
+      final beforeLateResponse = jsonEncode(progress.report['failureSnapshot']);
+      response.complete('{"renderingProgress":{"phase":"completed"}}');
+      await pumpEventQueue();
+      expect(
+        jsonEncode(progress.report['failureSnapshot']),
+        beforeLateResponse,
+      );
+      expect(
+        (progress.report['failureSnapshot'] as Map)['status'],
+        'timed-out',
+      );
+      expect(progress.report['failure'], same(original));
+      expect(progress.report['status'], 'failed');
+    },
+  );
+
+  test('snapshot native errors remain secondary and bounded', () async {
+    for (final asynchronous in [false, true]) {
+      final progress = FontProbeViewProgress(0)..mounted();
+      progress.fail(StateError('original failure'), StackTrace.current);
+      final original = progress.report['failure'];
+      progress.registerFailureSnapshot(() {
+        final error = StateError('x' * 3000);
+        if (asynchronous) return Future.error(error);
+        throw error;
+      });
+      await progress.captureFailureSnapshot();
+      final snapshot = progress.report['failureSnapshot'] as Map;
+      expect(snapshot['status'], 'failed');
+      expect((snapshot['error'] as String).length, lessThan(2100));
+      expect(progress.report['failure'], same(original));
+    }
+  });
+
+  test('snapshot data must be a bounded UTF-8 JSON object', () async {
+    for (final value in [
+      null,
+      '[]',
+      'broken',
+      jsonEncode({'large': 'א' * 9000}),
+    ]) {
+      final progress = FontProbeViewProgress(0)..mounted();
+      progress.fail(StateError('original failure'), StackTrace.current);
+      final original = progress.report['failure'];
+      progress.registerFailureSnapshot(() async => value);
+      await progress.captureFailureSnapshot();
+      expect((progress.report['failureSnapshot'] as Map)['status'], 'failed');
+      expect((progress.report['failureSnapshot'] as Map)['value'], isNull);
+      expect(progress.report['failure'], same(original));
+    }
+  });
+
+  test(
+    'disposal fences snapshot dispatch and pending snapshot results',
+    () async {
+      final disposed = FontProbeViewProgress(0)..mounted();
+      var reads = 0;
+      disposed.registerFailureSnapshot(() async {
+        reads++;
+        return '{}';
+      });
+      disposed.dispose();
+      await disposed.captureFailureSnapshot();
+      expect(reads, 0);
+      expect((disposed.report['failureSnapshot'] as Map)['status'], 'disposed');
+      expect(
+        () => disposed.registerFailureSnapshot(() async => '{}'),
+        throwsStateError,
+      );
+
+      final pending = FontProbeViewProgress(1)..mounted();
+      final response = Completer<String?>();
+      pending.registerFailureSnapshot(() => response.future);
+      final capture = pending.captureFailureSnapshot();
+      pending.dispose();
+      response.complete('{"renderingProgress":{"phase":"completed"}}');
+      await capture;
+      expect((pending.report['failureSnapshot'] as Map)['status'], 'disposed');
+      expect((pending.report['failureSnapshot'] as Map)['value'], isNull);
+    },
+  );
+
+  test(
+    'unregistered views do not create a diagnostic native operation',
+    () async {
+      final progress = FontProbeViewProgress(0)..mounted();
+      await progress.captureFailureSnapshot();
+      expect(
+        (progress.report['failureSnapshot'] as Map)['status'],
+        'not-registered',
+      );
+      expect(progress.report['operations'], isEmpty);
+    },
+  );
+
+  test(
+    'a replacement snapshot callback fences an older pending result',
+    () async {
+      final progress = FontProbeViewProgress(0)..mounted();
+      final response = Completer<String?>();
+      progress.registerFailureSnapshot(() => response.future);
+      final capture = progress.captureFailureSnapshot();
+      progress.registerFailureSnapshot(() async => '{"owner":"new"}');
+      response.complete('{"owner":"old"}');
+      await capture;
+      final snapshot = progress.report['failureSnapshot'] as Map;
+      expect(snapshot['status'], 'replaced');
+      expect(snapshot['value'], isNull);
+    },
+  );
+
+  test(
+    'all ten snapshot requests can wait within one concurrent budget',
+    () async {
+      final responses = List.generate(10, (_) => Completer<String?>());
+      final views = List.generate(10, FontProbeViewProgress.new);
+      var reads = 0;
+      for (var i = 0; i < views.length; i++) {
+        views[i].mounted();
+        views[i].fail(StateError('batch failed'), StackTrace.current);
+        views[i].registerFailureSnapshot(() {
+          reads++;
+          return responses[i].future;
+        });
+      }
+      final capture = Future.wait(views.map((p) => p.captureFailureSnapshot()));
+      expect(reads, 10);
+      expect(
+        views.every(
+          (p) => (p.report['failureSnapshot'] as Map)['status'] == 'pending',
+        ),
+        isTrue,
+      );
+      for (final response in responses) {
+        response.complete('{}');
+      }
+      await capture;
+      expect(views.every((p) => p.report['status'] == 'failed'), isTrue);
+      expect(
+        views.every(
+          (p) => (p.report['failureSnapshot'] as Map)['status'] == 'captured',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   for (final failed in [false, true]) {
     test(
       'disposal completion preserves a ${failed ? 'failed' : 'completed'} observation',

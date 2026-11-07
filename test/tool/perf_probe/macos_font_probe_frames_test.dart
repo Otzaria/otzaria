@@ -51,9 +51,21 @@ void main() {
     await mounted.future.timeout(const Duration(seconds: 2));
     final nativeResult = Completer<void>();
     await expectLater(
-      nativeResult.future.timeout(const Duration(milliseconds: 20)),
+      progress.observe(
+        'rendering',
+        () => nativeResult.future,
+        timeout: const Duration(milliseconds: 20),
+      ),
       throwsA(isA<TimeoutException>()),
     );
+    progress.registerFailureSnapshot(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(progress.report['disposed'], isNull);
+      return '{"renderingProgress":{"phase":"frame-1"}}';
+    });
+    await progress.captureFailureSnapshot();
+    expect((progress.report['failureSnapshot'] as Map)['status'], 'captured');
+    expect(progress.report['status'], 'failed');
     TestAsyncUtils.guardSync();
     scene.value = const SizedBox.shrink();
     await progress.whenDisposed.timeout(const Duration(seconds: 2));

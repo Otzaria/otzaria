@@ -35,6 +35,19 @@ const _pluginId = 'font.probe';
 const _origin = 'otzaria-plugin://$_pluginId';
 
 const _measureJs = r'''
+var started = performance.now();
+var progress = window.__otzariaFontProbeRendering = {
+  documentId: document.__otzariaFontDocumentId, owner: document.__otzariaFontBootAttempt,
+  startedAtEpochMilliseconds: Date.now(), events: [], droppedEvents: 0
+};
+function mark(phase, key) {
+  progress.phase = phase;
+  progress.elapsedMilliseconds = performance.now() - started;
+  if (progress.events.length === 40) { progress.droppedEvents++; return; }
+  progress.events.push({phase: phase, fontKey: key || null,
+    elapsedMilliseconds: progress.elapsedMilliseconds, visibilityState: document.visibilityState});
+}
+mark('started');
 var samples = [];
 function render(family, weight) {
   var canvas = document.createElement('canvas');
@@ -55,17 +68,29 @@ function render(family, weight) {
 }
 for (var spec of specs) {
   var target = spec.weight + ' 28px "' + spec.family + '"';
+  mark('font-load-started', spec.key);
   var faces = await document.fonts.load(target, 'אבג ABC 012');
+  mark('font-load-completed', spec.key);
   var span = document.createElement('span');
   span.textContent = 'שלום עולם אבגדה ABC 012345';
   span.style.cssText = 'display:block;white-space:nowrap;font:' + spec.weight + ' 18px "' + spec.family + '"';
   document.body.appendChild(span);
+  mark('canvas-started', spec.key);
   samples.push({key: spec.key, family: spec.family, weight: spec.weight,
     loadedFaces: faces.map(f => ({family: f.family, weight: f.weight, status: f.status})),
     ...render(spec.family, spec.weight)});
+  mark('canvas-completed', spec.key);
 }
-await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-return {samples: samples, fallbackControl: render('monospace', '400'),
+mark('frames-requested');
+await new Promise(resolve => requestAnimationFrame(() => {
+  mark('frame-1');
+  requestAnimationFrame(() => { mark('frame-2'); resolve(); });
+}));
+mark('fallback-started');
+var fallback = render('monospace', '400');
+mark('fallback-completed');
+mark('completed');
+return {samples: samples, fallbackControl: fallback, renderingProgress: progress,
   visible: document.visibilityState === 'visible',
   bootCount: window.fontProbeBootCount, bootTheme: window.fontProbeBootTheme,
   readyFacesAtBoot: window.fontProbeReadyFacesAtBoot,
@@ -363,6 +388,7 @@ window.addEventListener('plugin.ready', () => {
           }
           caseError = error;
           caseStack = stack;
+          await Future.wait(progress.map((p) => p.captureFailureSnapshot()));
         } finally {
           scene.value = const SizedBox.shrink();
           try {
@@ -634,6 +660,30 @@ class _MacosFontProbeViewState extends State<MacosFontProbeView> {
               : null,
           'preparation': preparation.toJson(),
         });
+        progress.registerFailureSnapshot(() async {
+          if (!mounted ||
+              !identical(_fontOwner.lease, lease) ||
+              !lease.isActive) {
+            throw StateError('Font probe snapshot owner is no longer current');
+          }
+          final box = context.findRenderObject();
+          if (box is RenderBox && box.hasSize) {
+            final position = box.localToGlobal(Offset.zero);
+            progress.record('failure-widget-bounds', {
+              'x': position.dx,
+              'y': position.dy,
+              'width': box.size.width,
+              'height': box.size.height,
+            });
+          }
+          return await controller.evaluateJavascript(
+                source: buildFontProbeFailureSnapshotScript(
+                  documentId: preparation.documentId,
+                  owner: lease.id,
+                ),
+              )
+              as String?;
+        });
         final boot = await progress.observe(
           'boot',
           () => preparation.evaluateBoot(
@@ -655,6 +705,8 @@ class _MacosFontProbeViewState extends State<MacosFontProbeView> {
           'bootAcknowledged': true,
           'schemeBytesAtBoot': lease.responseBytes,
         });
+        progress.report['renderingRequestedAtEpochMilliseconds'] =
+            DateTime.now().millisecondsSinceEpoch;
         final rendering = await progress.observe(
           'rendering',
           () => controller.callAsyncJavaScript(
