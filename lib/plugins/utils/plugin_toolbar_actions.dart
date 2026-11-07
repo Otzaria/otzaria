@@ -18,12 +18,17 @@ typedef PluginHostActionDispatcher =
 /// [placement] — 'primary' לפקדים בשורה עצמה, 'overflow' לפקדים שהתוסף
 /// ביקש להציג רק בתפריט "עוד פעולות" (המסך מזרים אותם ל-alwaysInMenu).
 /// [locationPayload] — נפתר בזמן הלחיצה, כדי שהאירוע ישקף את המיקום העדכני.
+/// [bookType] / [bookSource] — זהות הספר של הסרגל הזה
+/// (`PluginBookIdentity.typeOf` / `sourceOf`). פקד עם `bookTypes` /
+/// `bookSources` מוצג רק כשהערך ברשימה; null מציג רק פקדים שאינם מסננים.
 List<ActionButtonData> buildPluginToolbarActions({
   required List<(String pluginId, PluginToolbarItem item)> records,
   required String context,
   required bool compact,
   required Future<Map<String, dynamic>> Function() locationPayload,
   String placement = 'primary',
+  String? bookType,
+  String? bookSource,
   PluginRuntimeDispatcher? dispatcher,
   int? viewId,
   AppWindowKeys? windowKeys,
@@ -33,7 +38,11 @@ List<ActionButtonData> buildPluginToolbarActions({
   return [
     for (final record in records)
       if (record.$2.contexts.contains(context) &&
-          record.$2.placement == placement)
+          record.$2.placement == placement &&
+          record.$2.showsForBook(
+            bookType: bookType,
+            bookSource: bookSource,
+          ))
         _buildAction(
           pluginId: record.$1,
           item: record.$2,
@@ -56,6 +65,8 @@ List<(int order, ActionButtonData action)> buildOrderedPluginOverflowActions({
   required String context,
   required bool compact,
   required Future<Map<String, dynamic>> Function() locationPayload,
+  String? bookType,
+  String? bookSource,
   PluginRuntimeDispatcher? dispatcher,
   int? viewId,
   AppWindowKeys? windowKeys,
@@ -65,7 +76,11 @@ List<(int order, ActionButtonData action)> buildOrderedPluginOverflowActions({
   return [
     for (final record in records)
       if (record.$2.contexts.contains(context) &&
-          record.$2.placement == 'overflow')
+          record.$2.placement == 'overflow' &&
+          record.$2.showsForBook(
+            bookType: bookType,
+            bookSource: bookSource,
+          ))
         (
           record.$2.order,
           _buildAction(

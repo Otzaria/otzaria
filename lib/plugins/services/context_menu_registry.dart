@@ -239,6 +239,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       );
     }
 
+    final bookFilters = parseBookFilters(json, isChild: depth > 0);
     return PluginContextMenuItem(
       id: id,
       type: type,
@@ -258,6 +259,8 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       separatorBefore: _parseSeparatorBefore(json['separatorBefore'], depth),
       declaredRawDivineNames: declaredRawDivineNames,
       rawDivineNames: rawDivineNames,
+      bookTypes: bookFilters.types,
+      bookSources: bookFilters.sources,
     );
   }
 

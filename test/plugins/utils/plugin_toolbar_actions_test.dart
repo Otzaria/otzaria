@@ -344,4 +344,76 @@ void main() {
       expect(navigated, [pid]);
     });
   });
+
+  test('bookTypes: כל סרגל מסנן לפי סוג הספר שלו, גם ב-overflow', () {
+    const wordOnly = PluginToolbarItem(
+      id: 'edit',
+      title: 'Edit in Word',
+      bookTypes: ['docx', 'docm'],
+    );
+    const everywhere = PluginToolbarItem(id: 'mark', title: 'Mark');
+    const wordOverflow = PluginToolbarItem(
+      id: 'export',
+      title: 'Export',
+      placement: 'overflow',
+      bookTypes: ['docx'],
+    );
+    const records = [
+      ('word', wordOnly),
+      ('marker', everywhere),
+      ('word', wordOverflow),
+    ];
+
+    List<String?> primaryFor(String? bookType) => buildPluginToolbarActions(
+      records: records,
+      context: 'reader-text',
+      compact: false,
+      locationPayload: emptyLocation,
+      bookType: bookType,
+    ).map((action) => action.tooltip).toList();
+
+    List<String?> overflowFor(String? bookType) =>
+        buildOrderedPluginOverflowActions(
+          records: records,
+          context: 'reader-text',
+          compact: false,
+          locationPayload: emptyLocation,
+          bookType: bookType,
+        ).map((entry) => entry.$2.tooltip).toList();
+
+    // שתי חלוניות של אותו טאב מפוצל: כל אחת מחליטה לפי הספר שלה.
+    expect(primaryFor('docx'), ['Edit in Word', 'Mark']);
+    expect(primaryFor('text'), ['Mark']);
+    expect(primaryFor('docm'), ['Edit in Word', 'Mark']);
+    expect(overflowFor('docx'), ['Export']);
+    expect(overflowFor('docm'), isEmpty);
+    // סרגל שאינו יודע את סוג הספר מציג רק פקדים שאינם מסננים.
+    expect(primaryFor(null), ['Mark']);
+    expect(overflowFor(null), isEmpty);
+  });
+
+  test('bookSources: כל סרגל מסנן גם לפי מקור הספר שלו', () {
+    const officialText = PluginToolbarItem(
+      id: 'official',
+      title: 'Official text',
+      bookTypes: ['text'],
+      bookSources: ['library'],
+    );
+    const anywhere = PluginToolbarItem(id: 'mark', title: 'Mark');
+
+    List<String?> toolbarFor(String? type, String? source) =>
+        buildPluginToolbarActions(
+          records: const [('a', officialText), ('b', anywhere)],
+          context: 'reader-text',
+          compact: false,
+          locationPayload: emptyLocation,
+          bookType: type,
+          bookSource: source,
+        ).map((action) => action.tooltip).toList();
+
+    expect(toolbarFor('text', 'library'), ['Official text', 'Mark']);
+    expect(toolbarFor('text', 'user'), ['Mark']);
+    expect(toolbarFor('docx', 'library'), ['Mark']);
+    expect(toolbarFor('text', null), ['Mark']);
+  });
 }

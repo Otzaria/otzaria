@@ -102,10 +102,14 @@ List<AppContextMenuEntry> buildPluginContextMenuEntries({
 }) {
   final runtime = dispatcher ?? PluginRuntimeDispatcher.instance;
   final selectedText = _selectedTextOf(selection);
+  // זהות הספר שב-payload — בדיוק מה שהתוסף יקבל בלחיצה.
+  final bookType = selection['type'] as String?;
+  final bookSource = selection['source'] as String?;
   final byPlugin = <String, List<PluginContextMenuItem>>{};
   for (final (pluginId, item) in records) {
     if (item.contexts.contains(context) &&
-        item.isVisibleForSelection(selectedText)) {
+        item.isVisibleForSelection(selectedText) &&
+        item.showsForBook(bookType: bookType, bookSource: bookSource)) {
       byPlugin.putIfAbsent(pluginId, () => []).add(item);
     }
   }

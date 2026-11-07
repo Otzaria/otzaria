@@ -82,6 +82,7 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
@@ -2896,7 +2897,12 @@ Future<void> _dispatchContextMenuShortcut({
   final contextName = state.showPageShapeView
       ? 'reader-page-shape-selection'
       : 'reader-selection';
-  if (!item.contexts.contains(contextName)) {
+  // קיצור עוקף את בונה התפריט, ולכן בודק כאן את אותו מסנן ספר.
+  if (!item.contexts.contains(contextName) ||
+      !item.showsForBook(
+        bookType: PluginBookIdentity.typeOf(state.book),
+        bookSource: PluginBookIdentity.sourceOf(state.book),
+      )) {
     UiSnack.showError(PluginMessages.contextMenuActionUnavailableHere);
     return;
   }

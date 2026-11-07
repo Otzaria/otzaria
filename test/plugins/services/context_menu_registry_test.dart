@@ -618,5 +618,60 @@ void main() {
         );
       });
     });
+
+    group('bookTypes ו-bookSources', () {
+      test('נשמרים, מנורמלים ועוברים הלוך-חזור בעדכון', () {
+        final item = registry.registerPayload('word', {
+          'id': 'send',
+          'title': 'שלח',
+          'bookTypes': ['DOCX', ' docm'],
+          'bookSources': ['user'],
+        });
+        expect(item.bookTypes, ['docx', 'docm']);
+        expect(item.bookSources, ['user']);
+        expect(item.toJson()['bookTypes'], ['docx', 'docm']);
+        final updated = registry.update('word', 'send', {'title': 'אחר'});
+        expect(updated.bookTypes, ['docx', 'docm']);
+        expect(updated.bookSources, ['user']);
+        expect(
+          registry.update('word', 'send', {'bookTypes': []}).bookTypes,
+          isEmpty,
+        );
+      });
+
+      test('ערך לא מוכר, או מסנן על ילד — נדחה', () {
+        expect(
+          () => registry.registerPayload('word', {
+            'id': 'send',
+            'title': 'שלח',
+            'bookTypes': ['word'],
+          }),
+          throwsA(isA<PluginContextMenuException>()),
+        );
+        expect(
+          () => registry.registerPayload('word', {
+            'id': 'send',
+            'title': 'שלח',
+            'bookSources': ['official'],
+          }),
+          throwsA(isA<PluginContextMenuException>()),
+        );
+        expect(
+          () => registry.registerPayload('word', {
+            'id': 'menu',
+            'type': 'submenu',
+            'title': 'תפריט',
+            'children': [
+              {
+                'id': 'child',
+                'title': 'ילד',
+                'bookTypes': ['pdf'],
+              },
+            ],
+          }),
+          throwsA(isA<PluginContextMenuException>()),
+        );
+      });
+    });
   });
 }

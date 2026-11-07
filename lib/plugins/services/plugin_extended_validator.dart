@@ -344,6 +344,9 @@ class PluginExtendedValidator {
   static const String _searchFilterLabelsMinVersion = '0.9.99';
   static const String _searchCompletedMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
+
+  /// `bookTypes`/`bookSources` בפקדי הסרגל ובפריטי תפריט ההקשר.
+  static const String _toolbarBookFiltersMinVersion = '0.9.99';
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
   static const String _storageReferenceMinVersion = '0.9.98';
@@ -976,6 +979,19 @@ class PluginExtendedValidator {
         startup.toolbarItems,
         errors,
       );
+      // אוצריא ישנה מתעלמת מ-bookTypes/bookSources ומציגה את הפקד על כל ספר —
+      // בדיוק מה שהשדות נועדו למנוע — ולכן ההצהרה מחייבת גרסה שמכבדת אותם.
+      if (startup.toolbarItems.any(
+        (item) =>
+            item.containsKey('bookTypes') || item.containsKey('bookSources'),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _toolbarBookFiltersMinVersion,
+          'toolbarItems: bookTypes ו-bookSources',
+          errors,
+        );
+      }
       final registry = PluginToolbarRegistry.detached();
       for (final item in startup.toolbarItems.where(
         (item) => !DeclarativeToolbarTemplateCompiler.isDeclarative(item),
@@ -1001,6 +1017,17 @@ class PluginExtendedValidator {
         startup.contextMenuItems,
         errors,
       );
+      if (startup.contextMenuItems.any(
+        (item) =>
+            item.containsKey('bookTypes') || item.containsKey('bookSources'),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _toolbarBookFiltersMinVersion,
+          'contextMenuItems: bookTypes ו-bookSources',
+          errors,
+        );
+      }
       final registry = ContextMenuRegistry.detached();
       for (final item in startup.contextMenuItems) {
         try {
