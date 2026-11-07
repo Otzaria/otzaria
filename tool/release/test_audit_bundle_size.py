@@ -9,6 +9,7 @@ import stat
 import warnings
 import zipfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import audit_bundle_size as audit
@@ -208,7 +209,7 @@ class BundleSizeTest(unittest.TestCase):
         self.assertEqual(report['symlinks'], [{'path': 'Framework/Current', 'target': None}])
 
     def test_zip_rejects_duplicate_and_ambiguous_paths(self):
-        for names in [('a', 'a'), ('a', './a'), ('../escape',), ('/absolute',), ('C:/drive',), ('a\\b',)]:
+        for names in [('a', 'a'), ('a', './a'), ('../escape',), ('/absolute',), ('C:/drive',)]:
             archive = self.parent / 'bad.zip'
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', UserWarning)
@@ -244,6 +245,41 @@ class BundleSizeTest(unittest.TestCase):
         self.assertEqual(source.read_bytes(), b'original')
         self.assertEqual(json.loads(output.read_text())['bundle_file_bytes'], 8)
         self.assertEqual(list(self.parent.glob('.size-audit-*.tmp')), [])
+
+    def test_zero_direntry_inode_uses_fresh_stat_for_hard_links(self):
+        first = self.write('one.dll', b'content')
+        second = self.bundle / 'two.dll'
+        try:
+            os.link(first, second)
+        except OSError as error:
+            self.skipTest(f'host does not permit hard links: {error}')
+        entries = []
+        for path in (first, second):
+            metadata = path.stat(follow_symlinks=False)
+            # Model the documented Windows DirEntry cache on every platform.
+            missing_identity = SimpleNamespace(st_mode=metadata.st_mode,
+                                               st_size=metadata.st_size,
+                                               st_ino=0, st_dev=0)
+            entry = SimpleNamespace(path=str(path),
+                                    stat=lambda follow_symlinks, value=missing_identity: value)
+            entries.append(entry)
+        with patch.object(audit.os, 'scandir', return_value=contextlib.nullcontext(entries)):
+            result = audit.inventory(self.bundle)
+        self.assertEqual(result['bundle_file_bytes'], 14)
+        self.assertEqual(result['unique_file_bytes'], 7)
+
+    def test_zip_raw_names_are_checked_before_host_normalization(self):
+        # Patch equal-length raw names in both ZIP headers. Constructing ZipInfo
+        # with a backslash on Windows normalizes it before writing the fixture.
+        for raw_name in (bytes((97, 92, 98)), bytes((97, 0, 98))):
+            archive = self.parent / 'raw-name.zip'
+            with zipfile.ZipFile(archive, 'w') as output:
+                output.writestr('a-b', b'data')
+            original = archive.read_bytes()
+            self.assertEqual(original.count(b'a-b'), 2)
+            archive.write_bytes(original.replace(b'a-b', raw_name))
+            with self.subTest(raw_name=raw_name), self.assertRaises(ValueError):
+                audit.zip_inventory(archive)
 
 
 if __name__ == '__main__':

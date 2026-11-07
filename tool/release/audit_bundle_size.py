@@ -72,9 +72,11 @@ def zip_inventory(archive: Path) -> dict:
     seen = set()
     with zipfile.ZipFile(archive) as package:
         for entry in package.infolist():
-            name = entry.filename
+            # orig_filename preserves separators and NULs before ZipInfo's
+            # host-specific normalization/truncation. Never accept an alias.
+            name = entry.orig_filename
             path = PurePosixPath(name)
-            if path.is_absolute() or '..' in path.parts or '\\' in name or ':' in name:
+            if path.is_absolute() or '..' in path.parts or '\\' in name or ':' in name or '\x00' in name:
                 raise ValueError(f'ambiguous archive path: {name}')
             if entry.is_dir():
                 continue
@@ -118,6 +120,12 @@ def inventory(root: Path, *, duplicates: bool = False) -> dict:
                 elif stat.S_ISDIR(metadata.st_mode):
                     pending.append(path)
                 elif stat.S_ISREG(metadata.st_mode):
+                    # Windows DirEntry.stat reports zero st_ino/st_dev; a fresh
+                    # lstat is needed to recognize hard links on that host.
+                    if not metadata.st_ino:
+                        metadata = path.stat(follow_symlinks=False)
+                        if not stat.S_ISREG(metadata.st_mode):
+                            raise ValueError(f'bundle changed during audit: {relative}')
                     # A zero inode is not a usable hard-link identity on all hosts.
                     identity = (metadata.st_dev, metadata.st_ino) if metadata.st_ino else relative
                     if identity not in seen_inodes:
