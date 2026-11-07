@@ -36,6 +36,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/models/chunked_list.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_notes_column.dart';
@@ -101,6 +102,29 @@ void main() {
     expect(
       [for (final link in column.links) (link.index1, link.index2)],
       [(1, 1), (1, 2), (8, 3)],
+    );
+  });
+
+  test('מקטעים שומרים על מיפוי הערות inline ומסד בגבול 256', () {
+    final editor = ChunkedList<String>.filled(1024, '').edit()
+      ..[255] = 'לפני הגבול <i class="footnote">הערה לפני הגבול</i>'
+      ..[256] = 'אחרי הגבול <i class="footnote">הערה אחרי הגבול</i>';
+    final dbNotes =
+        (BookNotesBuilder()
+              ..add(256, 0, null, 'הערת מסד בגבול')
+              ..add(700, 0, null, 'הערת מסד בשורה שלא נטענה'))
+            .build();
+
+    final column = buildPageShapeNotesColumn(editor.build(), dbNotes);
+
+    expect(column.content, hasLength(4));
+    expect(column.content[0], contains('הערה לפני הגבול'));
+    expect(column.content[1], contains('הערה אחרי הגבול'));
+    expect(column.content[2], contains('הערת מסד בגבול'));
+    expect(column.content[3], contains('הערת מסד בשורה שלא נטענה'));
+    expect(
+      [for (final link in column.links) (link.index1, link.index2)],
+      [(256, 1), (257, 2), (257, 3), (701, 4)],
     );
   });
 
