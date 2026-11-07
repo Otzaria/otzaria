@@ -1,0 +1,39 @@
+name: QA 4424 Windows command resolution fast
+on:
+  push:
+    branches: [qa/y-ploni-4424-command-resolution-fast-20261107-c]
+permissions:
+  contents: read
+jobs:
+  windows-controls:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Record and select exact source checkout bytes
+        run: |
+          Write-Host 'INITIAL_GIT_CHECKOUT_POLICY'
+          git config --show-origin --get-regexp '^core\.(autocrlf|eol)$'
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config --global core.eol lf
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host 'FROZEN_GIT_CHECKOUT_POLICY'
+          git config --show-origin --get-regexp '^core\.(autocrlf|eol)$'
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run frozen native suites and independent regressions
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-command-resolution-fast
+        run: ./tool/perf_probe/qa_4424_windows_fast.ps1
+      - name: Retain every QA log and receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-4424-command-resolution-fast-${{ github.sha }}
+          path: ${{ runner.temp }}/qa-4424-command-resolution-fast
+          if-no-files-found: error
