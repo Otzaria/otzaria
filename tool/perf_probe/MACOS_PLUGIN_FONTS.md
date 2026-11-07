@@ -66,10 +66,15 @@ not the unchanged legacy Apple bootstrap timing.** This isolates transport and
 readiness behavior without claiming an end-user speedup against production.
 
 Both modes use Flutter's `fullyLive` frame policy so asynchronous native resize
-and snapshot callbacks can receive frames between explicit test pumps. The
+and snapshot callbacks receive ordinary framework-requested frames. The
 [default `fadePointers` policy](https://api.flutter.dev/flutter/flutter_test/LiveTestWidgetsFlutterBindingFramePolicy.html)
 suppresses those ordinary framework-requested frames. This is a visible rendering
 probe, not an idle-CPU measurement. Every report records the selected policy.
+The visible scene is mounted once and updated through a `ValueNotifier`.
+The sixty-second deadline applies to native result futures, without wrapping
+`WidgetTester.pump` in a timeout: a timeout does not cancel the guarded pump.
+Closing a view waits for its widget-disposal notification. Cleanup has a separate
+ten-second bound; a cleanup failure is retained alongside the original case error.
 
 The probe uses the production tab settings builder, content-blocker builder,
 CSP builder, font owner, font bootstrap and SDK scripts in visible Flutter-hosted
@@ -79,6 +84,14 @@ and checks each document's visibility. All views fit within the requested
 1000x700 logical window. It uses a readable installed Hebrew system font chosen
 by the app's real system-font scanner, a bundled regular/bold pair and a bundled
 variable font. System-font discovery time is reported separately.
+
+The tab settings enable the native navigation-decision callback. The fixture
+answers it explicitly: only the exact current scenario's main document receives
+`ALLOW`; other navigation is cancelled and fails the case. Each decision is
+recorded. An omitted callback returns `null` through the pinned macOS Dart
+controller, which the native decoder maps to `CANCEL` before document loading.
+The unit regression exercises the fixture's actual widget parameters and the
+macOS package's Dart method channel; it does not instantiate WKWebView on Linux.
 
 Three cases run in each fresh process, in this order:
 
@@ -135,7 +148,9 @@ operation has a ten-second bound, in addition to the unchanged preparation and
 boot deadlines; the view batch retains its sixty-second overall deadline. The
 first failed view ends the batch and disposes its peers. A late response after
 timeout or disposal stays incomplete and cannot become a passing sample.
-Run, case, view and operation completion are all required by the validator.
+Run, case, view, operation and cleanup completion are all required by the
+validator, together with explicit allowance of the expected document and
+observed widget disposal.
 Window visibility alone does not establish canvas or typography success.
 
 ## Measurement boundaries and enablement

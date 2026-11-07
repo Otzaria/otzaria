@@ -23,14 +23,28 @@ void main() {
     });
   }
 
-  test('הגופנים נרשמים ונטענים לפני ה-boot, וה-boot נשאר סינכרוני', () {
+  test('שני מסלולי הגופנים מסתיימים לפני יצירת ה-boot ושליחתו', () {
     final source = File(
       'lib/plugins/view/plugin_tab_page.dart',
     ).readAsStringSync();
-    final install = source.indexOf('await installPluginFonts(');
-    final boot = source.indexOf('source: pluginBootScript(');
-    expect(install, greaterThan(0));
-    expect(install, lessThan(boot));
+    final boot = source.indexOf('final bootSource = pluginBootScript(');
+    expect(boot, greaterThan(0));
+    for (final preparation in [
+      'fontPreparation = await preparePluginFontExperiment(',
+      'final fontsInstalled = await installPluginFonts(',
+    ]) {
+      final prepare = source.indexOf(preparation);
+      expect(prepare, greaterThan(0), reason: preparation);
+      expect(prepare, lessThan(boot), reason: preparation);
+    }
+    final dispatch = RegExp(
+      r'final booted = fontPreparation == null\s+'
+      r'\? await controller\.evaluateJavascript\(source: bootSource\)\s+'
+      r': \(await fontPreparation\.evaluateBoot\(\s+'
+      r'controller,\s+source: bootSource,',
+    ).firstMatch(source);
+    expect(dispatch, isNotNull);
+    expect(dispatch!.start, greaterThan(boot));
   });
 
   test('שער הגופנים עונה בעצמו לפני החלטת שרת הקבצים', () {

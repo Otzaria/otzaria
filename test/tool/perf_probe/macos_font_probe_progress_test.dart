@@ -147,40 +147,29 @@ void main() {
     expect(progress.report['droppedEvents'], 44);
   });
 
-  test('start-time errors are observed before other views settle', () async {
-    final first = Completer<int>();
-    final blocked = Completer<int>();
-    var pumps = 0;
-    await expectLater(
-      pumpFontProbeUntil(
-        Future.wait([first.future, blocked.future], eagerError: true),
-        start: () async => first.completeError(StateError('navigation')),
-        pumpFrame: (_) async {
-          pumps++;
-          await Future<void>.delayed(Duration.zero);
-        },
-        timeout: const Duration(milliseconds: 100),
-      ),
-      throwsStateError,
+  for (final failed in [false, true]) {
+    test(
+      'disposal completion preserves a ${failed ? 'failed' : 'completed'} observation',
+      () async {
+        final progress = FontProbeViewProgress(0)..mounted();
+        if (failed) {
+          progress.fail(StateError('native failure'), StackTrace.current);
+        } else {
+          progress.complete();
+        }
+        var notified = false;
+        unawaited(progress.whenDisposed.then((_) => notified = true));
+        await pumpEventQueue();
+        expect(notified, isFalse);
+        progress.dispose();
+        await progress.whenDisposed;
+        expect(notified, isTrue);
+        expect(progress.isActive, isFalse);
+        expect(progress.report['disposed'], isTrue);
+        expect(progress.report['status'], failed ? 'failed' : 'completed');
+        progress.dispose();
+        await progress.whenDisposed;
+      },
     );
-    expect(blocked.isCompleted, isFalse);
-    expect(pumps, lessThan(2));
-    blocked.complete(2);
-  });
-
-  test('a stalled frame pump is bounded by the overall deadline', () async {
-    final pending = Completer<int>();
-    final frame = Completer<void>();
-    await expectLater(
-      pumpFontProbeUntil(
-        pending.future,
-        pumpFrame: (_) => frame.future,
-        timeout: const Duration(milliseconds: 5),
-      ),
-      throwsA(isA<TimeoutException>()),
-    );
-    frame.complete();
-    pending.complete(2);
-    await pumpEventQueue();
-  });
+  }
 }

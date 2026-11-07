@@ -43,10 +43,19 @@ def validate_pair(data, scheme):
         require(set(cases[mode]) == {'normal', 'font-src-data', 'style-src-none'}, 'CSP cases missing')
         for name, case in cases[mode].items():
             require(case.get('status') == 'passed', 'CSP case did not complete')
+            require(case.get('cleanupStatus') == 'completed' and not case.get('cleanupError'),
+                    'case cleanup did not complete')
             require(len(case['views']) == count, 'view count differs')
             require({v['index'] for v in case['views']} == set(range(count)), 'duplicate/missing view')
             for view in case['views']:
                 require(view.get('status') == 'completed', 'view observation did not complete')
+                require(view.get('disposed') is True, 'view disposal was not observed')
+                decisions = [event for event in view.get('events', [])
+                             if event.get('event') == 'navigation-decision']
+                require(decisions and all(event.get('policy') == 'allow'
+                        and event.get('isForMainFrame') is True
+                        and event.get('url') == f'otzaria-plugin://font.probe/{name}.html'
+                        for event in decisions), 'expected document navigation was not allowed')
                 operations = view.get('operations', [])
                 names = [operation.get('name') for operation in operations]
                 required = {'font-preparation', 'boot', 'rendering'}

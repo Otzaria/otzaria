@@ -121,11 +121,20 @@ void main() {
         {'key': 'variable-bold', 'family': 'Rubik', 'weight': '700'},
       ];
       final root = await Directory.systemTemp.createTemp('otzaria-font-probe-');
+      final scene = ValueNotifier<Widget>(const SizedBox.shrink());
       addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
+        scene.value = const SizedBox.shrink();
         await root.delete(recursive: true);
+        scene.dispose();
       });
-      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ValueListenableBuilder<Widget>(
+            valueListenable: scene,
+            builder: (context, child, _) => child,
+          ),
+        ),
+      );
       final window = await prepareWebViewProbeWindow(
         platform: Platform.operatingSystem,
         pumpFrame: () => tester.pump(),
@@ -209,46 +218,48 @@ window.addEventListener('plugin.ready', () => {
 ''');
         final completed = List.generate(
           _count,
-          (_) => Completer<_ProbeResult>(),
+          (_) => Completer<MacosFontProbeResult>(),
         );
         final progress = List.generate(_count, FontProbeViewProgress.new);
         final entry = <String, Object?>{
           'scenario': scenario,
           'status': 'running',
+          'cleanupStatus': 'pending',
           'views': progress.map((p) => p.report).toList(),
         };
         cases.add(entry);
-        Widget grid({bool closeFirst = false}) => MaterialApp(
-          home: Scaffold(
-            body: Wrap(
-              children: [
-                for (var i = closeFirst ? 1 : 0; i < _count; i++)
-                  SizedBox(
+        Widget grid({bool closeFirst = false}) => Scaffold(
+          body: Wrap(
+            children: [
+              for (var i = closeFirst ? 1 : 0; i < _count; i++)
+                SizedBox(
+                  key: ValueKey('$scenario-$i'),
+                  width: 320,
+                  height: 150,
+                  child: MacosFontProbeView(
                     key: ValueKey('$scenario-$i'),
-                    width: 320,
-                    height: 150,
-                    child: _FontProbeView(
-                      key: ValueKey('$scenario-$i'),
-                      root: root.path,
-                      scenario: scenario,
-                      csp: csp,
-                      theme: theme,
-                      specs: specs,
-                      index: i,
-                      completed: completed[i],
-                      progress: progress[i],
-                    ),
+                    root: root.path,
+                    scenario: scenario,
+                    csp: csp,
+                    theme: theme,
+                    specs: specs,
+                    index: i,
+                    completed: completed[i],
+                    progress: progress[i],
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
+        Object? caseError;
+        StackTrace? caseStack;
         try {
-          final results = await pumpFontProbeUntil(
-            Future.wait(completed.map((c) => c.future), eagerError: true),
-            pumpFrame: tester.pump,
-            start: () => tester.pumpWidget(grid()),
-          );
+          final batch = Future.wait(
+            completed.map((c) => c.future),
+            eagerError: true,
+          ).timeout(const Duration(seconds: 60));
+          scene.value = grid();
+          final results = await batch;
           entry['hostRssAfterBytes'] = ProcessInfo.currentRss;
           for (final result in results) {
             final r = result.report;
@@ -303,7 +314,10 @@ window.addEventListener('plugin.ready', () => {
             }
           }
           if (_count > 1 && scenario == 'normal') {
-            await tester.pumpWidget(grid(closeFirst: true));
+            scene.value = grid(closeFirst: true);
+            await progress.first.whenDisposed.timeout(
+              const Duration(seconds: 10),
+            );
             expect(results.first.lease.isActive, isFalse);
             expect(results.last.lease.isActive, isTrue);
             final survivor = await progress.last.observe(
@@ -323,13 +337,11 @@ window.addEventListener('plugin.ready', () => {
             if (_mode == 'scheme' &&
                 (results.last.report['preparation'] as Map)['transport'] ==
                     'scheme') {
-              entry['freshSchemeAfterClosingFirst'] = await pumpFontProbeUntil(
-                progress.last.observe(
-                  'fresh-survivor-font-load',
-                  () => _loadFreshSurvivorFont(results.last),
-                ),
-                pumpFrame: tester.pump,
-              );
+              entry['freshSchemeAfterClosingFirst'] = await progress.last
+                  .observe(
+                    'fresh-survivor-font-load',
+                    () => _loadFreshSurvivorFont(results.last),
+                  );
             } else {
               entry['freshSchemeAfterClosingFirst'] = {
                 'availability': 'not-run',
@@ -349,11 +361,25 @@ window.addEventListener('plugin.ready', () => {
               item.fail(error, stack);
             }
           }
-          rethrow;
+          caseError = error;
+          caseStack = stack;
         } finally {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await tester.pump();
+          scene.value = const SizedBox.shrink();
+          try {
+            await Future.wait(
+              progress.map((p) => p.whenDisposed),
+            ).timeout(const Duration(seconds: 10));
+            entry['cleanupStatus'] = 'completed';
+          } catch (error, stack) {
+            entry['cleanupStatus'] = 'failed';
+            entry['cleanupError'] = error.toString();
+            entry['status'] = 'failed';
+            report['status'] = 'failed';
+            caseError ??= error;
+            caseStack ??= stack;
+          }
         }
+        if (caseError != null) Error.throwWithStackTrace(caseError, caseStack!);
       }
       report['status'] = 'passed';
     },
@@ -363,7 +389,7 @@ window.addEventListener('plugin.ready', () => {
 }
 
 Future<Map<String, Object?>> _loadFreshSurvivorFont(
-  _ProbeResult survivor,
+  MacosFontProbeResult survivor,
 ) async {
   final lease = survivor.lease;
   final requests = lease.requestCount;
@@ -413,15 +439,15 @@ try {
   };
 }
 
-class _ProbeResult {
-  _ProbeResult(this.controller, this.lease, this.report);
+class MacosFontProbeResult {
+  MacosFontProbeResult(this.controller, this.lease, this.report);
   final InAppWebViewController controller;
   final PluginFontSchemeLease lease;
   final Map<String, Object?> report;
 }
 
-class _FontProbeView extends StatefulWidget {
-  const _FontProbeView({
+class MacosFontProbeView extends StatefulWidget {
+  const MacosFontProbeView({
     super.key,
     required this.root,
     required this.scenario,
@@ -438,13 +464,13 @@ class _FontProbeView extends StatefulWidget {
   final Map<String, dynamic> theme;
   final List<Map<String, String>> specs;
   final int index;
-  final Completer<_ProbeResult> completed;
+  final Completer<MacosFontProbeResult> completed;
   final FontProbeViewProgress progress;
   @override
-  State<_FontProbeView> createState() => _FontProbeViewState();
+  State<MacosFontProbeView> createState() => _MacosFontProbeViewState();
 }
 
-class _FontProbeViewState extends State<_FontProbeView> {
+class _MacosFontProbeViewState extends State<MacosFontProbeView> {
   final _fontOwner = PluginFontSchemeOwner();
   bool _started = false;
 
@@ -504,6 +530,27 @@ class _FontProbeViewState extends State<_FontProbeView> {
         'nativeViewId': controller.getViewId(),
       });
       _fontOwner.attach(controller.platform);
+    },
+    shouldOverrideUrlLoading: (controller, navigation) async {
+      if (!_current) return NavigationActionPolicy.CANCEL;
+      final url = navigation.request.url?.rawValue;
+      final allowed =
+          navigation.isForMainFrame &&
+          url == '$_origin/${widget.scenario}.html';
+      widget.progress.record('navigation-decision', {
+        'url': url,
+        'isForMainFrame': navigation.isForMainFrame,
+        'policy': allowed ? 'allow' : 'cancel',
+      });
+      if (!allowed) {
+        _fail(
+          StateError('Unexpected font probe navigation: $url'),
+          StackTrace.current,
+        );
+      }
+      return allowed
+          ? NavigationActionPolicy.ALLOW
+          : NavigationActionPolicy.CANCEL;
     },
     onLoadStart: (controller, url) {
       if (!_current) return;
@@ -637,7 +684,7 @@ class _FontProbeViewState extends State<_FontProbeView> {
             : base64Encode(screenshot);
         progress.complete();
         widget.completed.complete(
-          _ProbeResult(controller, lease, progress.report),
+          MacosFontProbeResult(controller, lease, progress.report),
         );
       } catch (error, stack) {
         _fail(error, stack);
