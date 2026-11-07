@@ -13,7 +13,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/helpers/seforim_fixture_db.dart';
 
-const perfFixtureVersion = 'synthetic-v1';
+const perfFixtureVersion = 'synthetic-v2';
 const perfBooks = <String, int>{
   'מדידה קצרה': 128,
   'מדידה בינונית': 4096,
@@ -33,9 +33,28 @@ String perfLine(int index) => index % 32 == 0
     : 'שורה $index: בדיקה ${index.isEven ? 'ירוקה' : 'כחולה'} של טקסט קבוע, '
           'גלילה וחיפוש עם מספרים 0123456789 ואותיות ABC.';
 
+Map<String, int> perfBooksWithLineCounts(String option) {
+  if (option.isEmpty) return perfBooks;
+  final counts = option
+      .split(',')
+      .map((part) => int.tryParse(part.trim()))
+      .toList();
+  if (counts.length != 3 ||
+      counts.any((count) => count == null || count < 1 || count > 1000000) ||
+      counts[0]! >= counts[1]! ||
+      counts[1]! >= counts[2]!) {
+    throw ArgumentError(
+      'PERF_BOOK_LINES requires three increasing sizes in 1..1000000.',
+    );
+  }
+  return Map<String, int>.fromIterables(perfBooks.keys, counts.cast<int>());
+}
+
 class PerfFixture {
-  PerfFixture(this.root);
+  PerfFixture(this.root, {Map<String, int> books = perfBooks})
+    : books = Map.unmodifiable(books);
   final Directory root;
+  final Map<String, int> books;
   String get libraryPath => p.join(root.path, 'library');
   String get dbPath => p.join(libraryPath, 'seforim.db');
   String get pluginPath => p.join(root.path, 'fixture-plugin');
@@ -54,7 +73,9 @@ class PerfFixture {
     if (await marker.exists()) {
       final existing =
           jsonDecode(await marker.readAsString()) as Map<String, dynamic>;
-      if (preparationOnly || existing['version'] != perfFixtureVersion) {
+      if (preparationOnly ||
+          existing['version'] != perfFixtureVersion ||
+          jsonEncode(existing['books'] ?? perfBooks) != jsonEncode(books)) {
         throw StateError(
           'Preparation requires a new directory; measured runs require a matching fixture.',
         );
@@ -74,7 +95,11 @@ class PerfFixture {
       await Directory(appDataPath).create(recursive: true);
       await _seedSettings();
       await marker.writeAsString(
-        jsonEncode({'version': perfFixtureVersion, 'fixtureId': id}),
+        jsonEncode({
+          'version': perfFixtureVersion,
+          'fixtureId': id,
+          'books': books,
+        }),
         flush: true,
       );
     }
@@ -124,7 +149,7 @@ class PerfFixture {
       );
       try {
         var bookId = 0, lineId = 0;
-        for (final entry in perfBooks.entries) {
+        for (final entry in books.entries) {
           bookId++;
           book.execute([bookId, entry.key, entry.value, bookId]);
           for (var index = 0; index < entry.value; index++) {
@@ -164,6 +189,7 @@ class PerfFixture {
     );
     try {
       await settings.putAll({
+        'settings_initialized': true,
         SettingsRepository.keyLibraryPath: libraryPath,
         SettingsRepository.keyLibraryFolderName: '',
         SettingsRepository.keyIndexPath: p.join(root.path, 'index'),

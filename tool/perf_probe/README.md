@@ -163,17 +163,74 @@ dart tool/perf_probe/analyze.dart C:\perf\candidate-cold `
 ה-baseline נוצר מהרצה אמיתית ונשמר מחוץ למקורות. אין במאגר baseline מספרי
 מומצא, ואין מספרי ביצועים אוניברסליים שאמורים להתאים לכל חומרה.
 
+## השוואת קורא ממוקדת
+
+`-ReaderOnly` ב־`run_perf_probe.ps1` בוחר פתיחה, גלילה, קפיצה וסגירה של ספרים, ללא אינדוקס,
+תוספים, עורך הערות או PDF. ‏`-BookLines '2000,50000,1000000'` קובע שלושה
+גדלים בסדר קצר/בינוני/ארוך. ללא הדגלים נשמר התרחיש המלא והגדלים הקיימים.
+הדגלים מועברים ל־`PERF_READER_ONLY` ול־`PERF_BOOK_LINES` של ה־probe.
+
+להשוואה על אותו מחשב Windows מתוך checkout נקי של המועמד:
+
+```powershell
+$baselineSha = (git rev-parse origin/dev).Trim()
+pwsh -File tool/perf_probe/run_reader_comparison.ps1 `
+  -BaselineRef $baselineSha -CandidateRef (git rev-parse HEAD).Trim() `
+  -Cycles 1 -Warmup 1 -Repetitions 2 -BookLines '2000,50000,1000000' `
+  -OutputDirectory C:\perf\reader-comparison
+```
+
+הכלי יוצר שני worktrees מבודדים. הוא מחיל על הבסיס רק רשימה מפורשת של
+קובצי harness מהמועמד, יוצר commit מקומי ומאמת שוויון blob ומצב קובץ,
+בלי להעביר אליו קוד מוצר מהמועמד. `provenance.json` והמניפסטים שומרים את
+SHAs של המקורות, commit המדידה ו־hash של רשימת ה־harness. שני העצים חייבים
+להישאר נקיים; אין עקיפה של שומרי ההשוואה במנתח.
+
+לאחר `pub get --enforce-lockfile` מוצלח מותר לשחזר את הבתים המקוריים של ה־lockfile
+רק אם כל ההבדל הוא מרכאות סביב SHA מלא ובלתי משתנה בשדות `ref`/`resolved-ref`.
+כל שינוי אחר, לרבות גרסה או SHA, מכשיל את ההרצה בלי שחזור. ה־hashes לפני
+הפתרון, אחריו ואחרי השחזור נשמרים; קוד או תלות שהשתנו אינם מוסתרים כשינוי עיצוב.
+
+שני הבינארים נבנים לפני המדידות ומיוצאים עם hashes מאומתים. סדר ההפעלות
+הוא בסיס–מועמד–מועמד–בסיס (ABBA); ברירת המחדל היא שתי הפעלות תהליך לכל
+צד, עם חימום אחד ושתי חזרות מדודות בכל הפעלה. `-Cycles 2` חוזר על הסדר
+הזה. בנייה והכנת fixtures אינן נכללות בזמני הפעולות. הנתונים וה־VM נפרדים
+לכל הפעלה; מטמוני מערכת ההפעלה אינם מרוקנים.
+
+`book.*.warmup_complete` מודד את יתרת טעינת התוכן אחרי פתיחה, גלילה וקפיצות,
+ואחרי עבודת recorder שביניהן (drain של פריימים, heap ו־trace). הוא אינו זמן
+החימום המלא מאז הפתיחה. סריקת readiness מתקדמת ואינה חוזרת לשורות שכבר
+אומתו כטעונות; הגבול שטרם נטען נבדק שוב ב־polling, ועלות התצפית נכללת.
+`steady_scroll`
+מודד גלילה לאחר מכן ודורש שלא תתרחש בקשת תוכן במהלכה; אין בכך הוכחה שכל
+עבודת layout או חישוב extent הסתיימה. מדדי latency,
+FrameTiming, ‏RSS ו־heap נשמרים בתשתית הקיימת. משכי בקשות התוכן נמדדים בגבול
+ה־repository, רק עבור `getBookContent`/`getBookContentRange`, כולל תור, DB,
+פענוח, IPC והשלמת Future. הם אינם זמן דיסק נטו ואינם כוללים metadata או קישורים.
+אירועי layout/paint שלמים שכלולים בחלון הפעולה נשמרים כאשר timeline
+של ה־VM זמין, בקובצי `reader_trace_*.json`. שכבות המדידה עשויות לחפוף ואין
+לחבר את משכיהן או לחסר אותם מהזמן הכולל. הם אינם זמן GPU או FPS של צג פיזי.
+מדד חסר נשאר חסר עם סיבה.
+נדרשים שלבי הקריאה והגלילה המלאים בשני הצדדים, ללא סף ביצועים. ארבע דגימות
+latency לכל פעולה וצד אינן אומדן יציב של p95/p99, והספרים הסינתטיים אינם
+תחליף לבדיקה בספר אמיתי. מגבלת חלונות native של ה־binding נשארת בתוקף.
+`launchDirectories` במניפסט המאוחד ממפה כל `launchIndex` לתיקיית ההפעלה
+המקורית, שבה נמצאים קובצי ה־trace; הרשומות הגולמיות אינן משוכתבות.
+
 ## CI ובדיקות
 
-ה-workflow `Performance probe tools` מריץ ב-PR רק בדיקות חוזה של PowerShell,
-ללא דגימת חומרה או ספי זמן. בדיקות Dart של הדוח, ה-fixture וה-recorder הן
-בדיקות תקינות רגילות. המדידה המלאה ב-Windows מופעלת רק ב-`workflow_dispatch`;
-היא מעלה גם תוצאות חלקיות כ-artifact ואינה required performance check.
-מחשבי GitHub hosted מקבלים מזהה שונה בכל run, כך שלא תוצג השוואה מטעה בין
-שתי מכונות אירוח שונות. עבור השוואת commits השתמש באותו מחשב מקומי.
+ה-workflow `Performance probe tools` שומר את בדיקות החוזה ואת תרחיש ה־WebView
+הקיימים. התרחיש המלא ב־Windows נשאר זמין ב־`workflow_dispatch`.
+`Reader profile comparison` נפרד ומופעל ב־PR רק בשינוי קובצי המדידה המפורטים
+ב־paths שלו. הוא נועל את SHA הבסיס והמועמד מתוך אירוע ה־PR, מריץ ABBA באותו
+Windows runner ובאותו Flutter SDK, ומעלה גם תוצאות חלקיות, traces ולוגים.
+מחשבי GitHub hosted מקבלים מזהה שונה בכל run; אין השוואה אוטומטית בין
+מכונות אירוח שונות ואין סף ביצועים. בדיקות Dart של הדוח, ה־fixture וה־recorder
+הן בדיקות תקינות רגילות.
 
 ```powershell
 pwsh -File tool/perf_probe/test_sample_resources.ps1
+pwsh -File tool/perf_probe/test_reader_comparison.ps1
 flutter test test/tool/perf_probe/
 flutter analyze --no-pub
 ```

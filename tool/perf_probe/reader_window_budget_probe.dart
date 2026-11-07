@@ -8,6 +8,7 @@ const _chunkLines = ChunkedList.chunkLength;
 const _referenceBytes = 8;
 const _budgetBytes = 1024 * 1024;
 const _viewportLines = 48;
+const _observedSizeLimit = 128;
 
 enum _Policy { symmetric, directional }
 
@@ -89,6 +90,18 @@ class _Reader {
   int evictedChunks = 0;
   int rejectedPrefetchBytes = 0;
   int rejectedPrefetchReads = 0;
+  int avoidedRejectedReads = 0;
+  final _observedChunkBytes = <int, int>{};
+
+  _Chunk read(int index) {
+    final chunk = source.read(index);
+    _observedChunkBytes.remove(index);
+    _observedChunkBytes[index] = chunk.estimatedBytes;
+    if (_observedChunkBytes.length > _observedSizeLimit) {
+      _observedChunkBytes.remove(_observedChunkBytes.keys.first);
+    }
+    return chunk;
+  }
 
   int get estimatedBytes =>
       chunks.values.fold(0, (sum, c) => sum + c.estimatedBytes);
@@ -112,7 +125,7 @@ class _Reader {
         chunk <= (end - 1) ~/ _chunkLines;
         chunk++
       )
-        chunk: chunks[chunk] ?? source.read(chunk),
+        chunk: chunks[chunk] ?? read(chunk),
     };
   }
 
@@ -247,7 +260,14 @@ class _Coordinator {
         )) {
           if (candidate < 0 || candidate * _chunkLines >= length) continue;
           final cached = reader.chunks[candidate];
-          final chunk = cached ?? reader.source.read(candidate);
+          final observedBytes = reader._observedChunkBytes[candidate];
+          if (cached == null &&
+              observedBytes != null &&
+              optionalBytes + observedBytes > optionalShare) {
+            reader.avoidedRejectedReads++;
+            break;
+          }
+          final chunk = cached ?? reader.read(candidate);
           if (optionalBytes + chunk.estimatedBytes > optionalShare) {
             if (cached == null) {
               reader.rejectedPrefetchBytes += chunk.estimatedBytes;
@@ -301,6 +321,8 @@ class _Coordinator {
       'evictedChunks': sum((r) => r.evictedChunks),
       'rejectedPrefetchReads': sum((r) => r.rejectedPrefetchReads),
       'rejectedPrefetchEstimatedBytes': sum((r) => r.rejectedPrefetchBytes),
+      'avoidedKnownOversizePrefetchReads': sum((r) => r.avoidedRejectedReads),
+      'observedChunkSizeEntries': sum((r) => r._observedChunkBytes.length),
       'logicalIndicesAndVisibleContentVerified': true,
     };
   }
@@ -350,7 +372,56 @@ _Coordinator _coordinator(
   _budgetBytes,
 );
 
+Map<String, Object> _verifyAdmissionRetry() {
+  const start = 16666;
+  final coordinator = _coordinator(50000, 8, _Policy.directional)..move(start);
+  final first = coordinator.summary();
+  _check(
+    coordinator.readers.every((reader) => reader.rejectedPrefetchReads == 1),
+    'Regression fixture must reject one unknown chunk per reader',
+  );
+  coordinator.move(start);
+  final repeated = coordinator.summary();
+  _check(
+    first['generatedReadChunks'] == repeated['generatedReadChunks'] &&
+        first['visibleLinesChecked'] == repeated['visibleLinesChecked'] &&
+        repeated['avoidedKnownOversizePrefetchReads'] == 8,
+    'Unchanged viewports retried a prefetch known not to fit',
+  );
+
+  final expanded = _Coordinator(
+    coordinator.readers,
+    _Policy.directional,
+    2 * _budgetBytes,
+  )..move(start);
+  final formerlyRejected = start ~/ _chunkLines + 1;
+  _check(
+    expanded.readers.every(
+      (reader) => reader.chunks.containsKey(formerlyRejected),
+    ),
+    'A previously rejected chunk stayed blocked after capacity increased',
+  );
+
+  final bounded = _Reader(_Source(50000, 0));
+  for (var chunk = 0; chunk <= _observedSizeLimit; chunk++) {
+    bounded.read(chunk);
+  }
+  _check(
+    bounded._observedChunkBytes.length == _observedSizeLimit &&
+        !bounded._observedChunkBytes.containsKey(0),
+    'Observed size metadata grew beyond its bound',
+  );
+  return {
+    'firstMove': first,
+    'unchangedViewport': repeated,
+    'expandedBudget': expanded.summary(),
+    'knownRejectedChunkAdmittedAfterBudgetIncrease': true,
+    'observedSizeCacheBoundVerified': true,
+  };
+}
+
 void main() {
+  final admissionRetry = _verifyAdmissionRetry();
   final full = [
     for (final lines in [2000, 50000, 1000000]) _fullSourceAccounting(lines),
   ];
@@ -454,7 +525,7 @@ void main() {
 
   stdout.writeln(
     const JsonEncoder.withIndent('  ').convert({
-      'schemaVersion': 2,
+      'schemaVersion': 3,
       'kind':
           'deterministic accounting and content-correctness experiment; not UI or heap benchmark',
       'assumptions': {
@@ -467,6 +538,7 @@ void main() {
         'excludedFromEstimate': [
           'object and string headers',
           'map capacity/entries',
+          'bounded observed-chunk-size metadata',
           'allocator/GC overhead',
           'old snapshots and incoming read buffers',
           'layout, rendering, native and repository caches',
@@ -482,7 +554,14 @@ void main() {
         'prefetch':
             'same maximum of four extra chunks: symmetric 2+2 or directional 3 ahead +1 behind',
         'admission':
-            'all visible chunks pinned; remaining estimated capacity shared equally; one candidate read can be rejected after its size is known',
+            'all visible chunks pinned; remaining estimated capacity shared equally; first unknown candidate can be read and rejected; previously observed sizes prevent an identical read when it still cannot fit',
+        'observedSizeCache': {
+          'maxEntriesPerReader': _observedSizeLimit,
+          'eviction': 'oldest read, refreshed only by an actual source read',
+          'sourceRevision':
+              'immutable generated source; production would need invalidation when source content changes',
+          'metadataBytesIncludedInBudget': false,
+        },
         'pinnedGranularity':
             'whole fetched 256-line chunks intersecting a contiguous viewport; this can retain more payload than the actual visible lines',
         'pinStress':
@@ -498,6 +577,7 @@ void main() {
       },
       'fullSourceAccounting': full,
       'cases': cases,
+      'admissionRetryRegression': admissionRetry,
       'pinnedOverflow': pinnedOverflow,
       'fullContentOperation': {
         'linesMaterializedOutsideViewportCache': sourceLines.length,
