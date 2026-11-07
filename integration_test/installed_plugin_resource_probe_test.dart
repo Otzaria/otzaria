@@ -325,6 +325,9 @@ void main() {
         report['window'] = await prepareWebViewProbeWindow(
           platform: Platform.operatingSystem,
           pumpFrame: () => tester.pump(),
+          // App startup already queued the Windows splash close. A second
+          // pending close would overwrite Flutter's next-frame callback.
+          closeNativeSplash: !Platform.isWindows,
         );
         final view = tester.view;
         report['viewport'] = {

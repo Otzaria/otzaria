@@ -119,6 +119,31 @@ void main() {
     );
   }
 
+  test('an app-owned splash close still requires native readiness', () async {
+    var observations = 0;
+    handleWindow = (call) async {
+      if (call.method == 'show') return null;
+      if (call.method == 'isVisible') return ++observations >= 2;
+      return defaultWindowHandler(call);
+    };
+    final state = await prepareWebViewProbeWindow(
+      platform: 'windows',
+      pumpFrame: pumpFrame,
+      closeNativeSplash: false,
+    );
+    expect(state['ready'], isTrue);
+    expect(state['visible'], isTrue);
+    expect(state['minimized'], isFalse);
+    expect((state['logicalBounds'] as Map)['width'], 1000);
+    expect((state['logicalBounds'] as Map)['height'], 700);
+    expect(observations, 2);
+    expect(events, isNot(contains('splash.close')));
+    expect(events.where((event) => event == 'show'), hasLength(1));
+    expect(events.where((event) => event == 'focus'), hasLength(1));
+    expect(events.indexOf('focus'), lessThan(events.indexOf('frame')));
+    expect(events.where((event) => event == 'frame'), hasLength(3));
+  });
+
   test('waits for delayed native visibility after the show reply', () async {
     var observations = 0;
     handleWindow = (call) async {
