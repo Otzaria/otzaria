@@ -4,9 +4,17 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 const installedAndroidPackage = 'org.otzaria.otzaria.installedprobe';
 const installedAndroidDirectory = 'installed-plugin-android';
+
+// Android's VM temp root can be code_cache; the host accepts only app cache.
+Future<Directory> createInstalledAndroidProbeRoot() async {
+  final cache = await getTemporaryDirectory();
+  final canonicalCache = await cache.resolveSymbolicLinks();
+  return Directory(canonicalCache).createTemp('otzaria-installed-probe-');
+}
 
 /// Push-only control keeps host ADB observations outside the quiet windows.
 class InstalledAndroidControl {
