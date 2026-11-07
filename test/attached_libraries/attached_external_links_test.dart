@@ -1132,6 +1132,34 @@ void main() {
       }
     });
 
+    test('בזמן השהיה המסד הרשמי אינו נעול לכתיבה', () async {
+      smallBatches();
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      onNextBuild(links.pauseBuild);
+      final done = links.sync();
+      try {
+        await waitForProgress(library.slug, 1, done);
+        expect(indexRows(library.slug), 1);
+        final writer = sqlite3.sqlite3.open(officialPath);
+        try {
+          expect(
+            writer.select('PRAGMA journal_mode').first.values.first,
+            'delete',
+          );
+          // BEGIN EXCLUSIVE נכשל מיד כשחיבור אחר מחזיק נעילת קריאה.
+          writer.execute('BEGIN EXCLUSIVE');
+          writer.execute('ROLLBACK');
+        } finally {
+          writer.close();
+        }
+        links.resumeBuild();
+        expect(await done, {library.slug});
+      } finally {
+        links.cancelBuild();
+        await done;
+      }
+    });
+
     test('עצירה בזמן השהיה מסיימת את הסנכרון ושומרת התקדמות', () async {
       smallBatches();
       final library = await attach(attachedDb('ext', rows: fiveRows()));

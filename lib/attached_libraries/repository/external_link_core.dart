@@ -67,6 +67,14 @@ class ExternalTargetResolver {
 
   final Map<String, (sqlite3.Database, DbCapabilities)?> _open = {};
   final Map<(String, String), List<(int, int?)>> _books = {};
+  final Map<(String, String), sqlite3.PreparedStatement> _statements = {};
+
+  /// תקרת השאילתות המוכנות שנשמרות — שאילתת ההפניה משתנה לפי ספרי הכותרת.
+  static const maxCachedStatements = 64;
+
+  /// מספר ההכנות של שאילתות פתרון — לוודא בבדיקות שהן אינן מוכנות לכל שורה.
+  @visibleForTesting
+  int preparedStatements = 0;
 
   /// ה-SQL האחרון של פתרון לפי הפניה — לוודא בבדיקות איזה נוסח נשלח בפועל.
   @visibleForTesting
@@ -96,7 +104,7 @@ class ExternalTargetResolver {
   }
 
   (sqlite3.Database, DbCapabilities)? _connection(ExternalTargetDb target) {
-    return _open.putIfAbsent(target.wireKey, () {
+    final connection = _open.putIfAbsent(target.wireKey, () {
       try {
         final db = openReadOnlyTarget(target.target);
         return (db, DbCapabilities.probe(db));
@@ -104,6 +112,24 @@ class ExternalTargetResolver {
         return null;
       }
     });
+    // שאילתה מחוץ לטרנזקציה נועלת את הקובץ ובודקת יומן — עשרות µs לכל אחת.
+    if (connection != null && connection.$1.autocommit) {
+      connection.$1.execute('BEGIN');
+    }
+    return connection;
+  }
+
+  /// פתרונות בין שחרורי נעילת הקריאה — כותב למסד יעד אינו ממתין יותר מזה.
+  static const resolvesPerReadTransaction = 1000;
+  int _resolvesInTransaction = 0;
+
+  /// משחרר את נעילת הקריאה על מסדי היעד; חובה לפני המתנה ארוכה (השהיית בנייה).
+  void releaseReads() {
+    _resolvesInTransaction = 0;
+    for (final connection in _open.values) {
+      final db = connection?.$1;
+      if (db != null && !db.autocommit) db.execute('COMMIT');
+    }
   }
 
   /// תקרת הכותרות שנשמרות בזיכרון — מסד עוין עם מיליוני יעדים שונים.
@@ -139,6 +165,27 @@ class ExternalTargetResolver {
     }
   }
 
+  /// הכנת השאילתה יקרה מהרצתה, ובבניית האינדקס אותה שאילתה חוזרת לכל שורה.
+  sqlite3.ResultSet _select(
+    ExternalTargetDb target,
+    sqlite3.Database db,
+    String sql,
+    List<Object?> parameters,
+  ) {
+    final key = (target.wireKey, sql);
+    var statement = _statements.remove(key);
+    if (statement == null) {
+      statement = db.prepare(sql);
+      preparedStatements++;
+      if (_statements.length >= maxCachedStatements) {
+        final oldest = _statements.keys.first;
+        _statements.remove(oldest)!.close();
+      }
+    }
+    _statements[key] = statement;
+    return statement.select(parameters);
+  }
+
   /// המסד הראשון מבין המועמדים שיש בו ספר בשם [targetTitle].
   ExternalTargetDb? bookDatabase(String? targetSource, String targetTitle) {
     for (final target in candidatesFor(targetSource)) {
@@ -162,6 +209,7 @@ class ExternalTargetResolver {
     required String? targetRef,
     required int? targetLineIndex,
   }) {
+    if (++_resolvesInTransaction > resolvesPerReadTransaction) releaseReads();
     // הספר נמצא במסד הראשון — לא ממשיכים למסד אחר גם אם השורה לא נפתרה.
     final target = bookDatabase(targetSource, targetTitle);
     if (target == null) return null;
@@ -193,6 +241,7 @@ class ExternalTargetResolver {
         caps.hasColumn('line', 'heRef') &&
         caps.hasColumn('line_ref', 'refKeyHash')) {
       final hit = _byRef(
+        target,
         db,
         books,
         targetTitle,
@@ -212,7 +261,9 @@ class ExternalTargetResolver {
     if (targetLineIndex != null && targetLineIndex >= 0 && caps.hasLines) {
       final (bookId, categoryId) = books.first;
       final heRef = caps.hasColumn('line', 'heRef') ? 'heRef' : 'NULL';
-      final rows = db.select(
+      final rows = _select(
+        target,
+        db,
         'SELECT $heRef AS heRef FROM line WHERE bookId = ? AND lineIndex = ? '
         'LIMIT 1',
         [bookId, targetLineIndex],
@@ -231,6 +282,7 @@ class ExternalTargetResolver {
   }
 
   (int, int?, int, String?)? _byRef(
+    ExternalTargetDb target,
     sqlite3.Database db,
     List<(int, int?)> books,
     String title,
@@ -243,7 +295,7 @@ class ExternalTargetResolver {
     final categoryByBook = {for (final (id, cat) in books) id: cat};
     final sql = refCandidatesSql(categoryByBook.keys, official: official);
     lastRefCandidatesSql = sql;
-    final rows = db.select(sql, [refKeyHash(key)]);
+    final rows = _select(target, db, sql, [refKeyHash(key)]);
     for (final row in rows) {
       final heRef = _text(row['heRef']);
       final bookId = _int(row['bookId']);
@@ -268,6 +320,11 @@ class ExternalTargetResolver {
   );
 
   void close() {
+    releaseReads();
+    for (final statement in _statements.values) {
+      statement.close();
+    }
+    _statements.clear();
     for (final connection in _open.values) {
       connection?.$1.close();
     }
@@ -288,7 +345,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
   (int, int)? resumeFrom,
   int maxRows = kMaxExternalLinkRows,
   void Function(ResolvedExternalLink row)? onRow,
-  void Function()? onScanned,
+  void Function(VoidCallback releaseTargetReads)? onScanned,
 }) {
   final db = openReadOnlyTarget(source);
   final resolver = ExternalTargetResolver(
@@ -350,7 +407,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
         if (resolved != null) {
           onRow != null ? onRow(resolved) : result.add(resolved);
         }
-        onScanned?.call();
+        onScanned?.call(resolver.releaseReads);
       }
     } finally {
       statement.close();
