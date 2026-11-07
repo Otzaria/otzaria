@@ -1,0 +1,137 @@
+{
+  "runId": 42417165121,
+  "jobId": 128537648451,
+  "artifactId": 13593284530,
+  "artifactName": "reader-profile-42417165121-1",
+  "archiveSha256": "57e22522679b08d634894502282837b9217309701d06bfd39d159e69c4c43d44",
+  "archiveSha256Verified": true,
+  "all352ZipMembersCrcVerified": true,
+  "baselineSourceCommit": "67b57a260d9a7c97381f6c68248f746bbb8c7f09",
+  "candidateSourceCommit": "600746312571c0c617c2188c56045a489f3ca03b",
+  "originalArtifactUnchanged": true,
+  "omitted": "256 reader timeline trace files plus build/launch duplicates; original aggregate phase rows preserve raw frame arrays, parsed pipeline intervals, repository request spans and SmartText counts.",
+  "heapValidity": {
+    "valid": false,
+    "reason": "Original PerfHeapSampler sums getMemoryUsage per isolate even when isolates share the same heap. Raw rows lack group IDs and cannot be repaired. All original heap counters retained solely for audit, not for claims."
+  },
+  "scope": "Four measured samples per book action and side; action warmups are excluded in reports. Windows hosted Hyper-V GPU; not physical display FPS. Long warmup pipeline timelines lack phase markers and are unavailable.",
+  "entries": [
+    {
+      "originalArtifactMember": "reader-profile/provenance.json",
+      "file": "provenance.json",
+      "originalBytes": 2416,
+      "originalSha256": "b9cc96bff8694fce78cd9fbce9fb7bbd83634fcd2a82225d7ad320c4f9ccfd79",
+      "storedBytes": 2416,
+      "storedSha256": "b9cc96bff8694fce78cd9fbce9fb7bbd83634fcd2a82225d7ad320c4f9ccfd79",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/manifest.json",
+      "file": "baseline/manifest.json",
+      "originalBytes": 23745,
+      "originalSha256": "9429457317fbed39a6b4cf161f2cd1cb03ffde75343f039c19b35377db17bbd7",
+      "storedBytes": 23745,
+      "storedSha256": "9429457317fbed39a6b4cf161f2cd1cb03ffde75343f039c19b35377db17bbd7",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/phases.jsonl",
+      "file": "baseline/phases.jsonl.gz",
+      "originalBytes": 4823407,
+      "originalSha256": "9fa74b4d74e1b41158d33759352a863ee336244f021f8c545ad3f48405fdaef3",
+      "storedBytes": 446646,
+      "storedSha256": "5eebd83c056a881ab2586f7b2f310b5c5b35b03129b3075a235b7eb9e3b93fd2",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/report.json",
+      "file": "baseline/report.json.gz",
+      "originalBytes": 387568,
+      "originalSha256": "b8cb9b6ac803e7a0add1727ea043ca513c3d3c18817da3a51c3df8fbeccbfad0",
+      "storedBytes": 36030,
+      "storedSha256": "2bffe3282131726ca7aefb5da4258471fcba374c8779d80a6eab5ca505f5246b",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/samples.csv",
+      "file": "baseline/samples.csv",
+      "originalBytes": 65383,
+      "originalSha256": "9c422073688a4e08951e05b8ba87dbefbc6af4049e0734b60f242ce9d66046a0",
+      "storedBytes": 65383,
+      "storedSha256": "9c422073688a4e08951e05b8ba87dbefbc6af4049e0734b60f242ce9d66046a0",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/manifest.json",
+      "file": "candidate/manifest.json",
+      "originalBytes": 23751,
+      "originalSha256": "2746996d21f7ac38661b5d46e6f8e7c270e3d088a55c390f82d8d58913f890aa",
+      "storedBytes": 23751,
+      "storedSha256": "2746996d21f7ac38661b5d46e6f8e7c270e3d088a55c390f82d8d58913f890aa",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/phases.jsonl",
+      "file": "candidate/phases.jsonl.gz",
+      "originalBytes": 4842000,
+      "originalSha256": "3f429076150826e7fe53b653d8b29449bfa3d78b97941e621203704f21b91e5e",
+      "storedBytes": 450931,
+      "storedSha256": "c523473321db68fbdce4a9e6de76e40edbb63cb799fb424da6028fb3a79eba4f",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/report.json",
+      "file": "candidate/report.json.gz",
+      "originalBytes": 517448,
+      "originalSha256": "a6b044cc0fdfdc8795bac8bdb4fd5a90bb9fbc5f002931577fde580a948aa503",
+      "storedBytes": 48239,
+      "storedSha256": "a159c984f8dde98ece10227625540dad08c2cd426e56dbb889b048a31c56467f",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/samples.csv",
+      "file": "candidate/samples.csv",
+      "originalBytes": 56767,
+      "originalSha256": "704a4b476ccf43e86fd4d0908b4b98c22050b7d348aa995e9df2b6aa3e46c2b9",
+      "storedBytes": 56767,
+      "storedSha256": "704a4b476ccf43e86fd4d0908b4b98c22050b7d348aa995e9df2b6aa3e46c2b9",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-00-baseline/launch-000/completion.json",
+      "file": "completion/step-00-baseline.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-01-candidate/launch-000/completion.json",
+      "file": "completion/step-01-candidate.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-02-candidate/launch-001/completion.json",
+      "file": "completion/step-02-candidate.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-03-baseline/launch-001/completion.json",
+      "file": "completion/step-03-baseline.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    }
+  ]
+}
