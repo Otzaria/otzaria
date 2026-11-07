@@ -176,7 +176,8 @@ try {
     buildMode = $Mode; cacheState = $CacheState; hardwareId = $HardwareId
     os = "windows-$($os.Version)-$($os.BuildNumber)"; flutterVersion = $sdk.frameworkRevision
     warmup = $Warmup; repetitions = $Repetitions; launchCount = $Launches; launchIndexOffset = $LaunchIndexOffset
-    sampling = @{ intervalMs = 500; treeRefreshMs = 2000; heap = ($Mode -ne 'release') }
+    sampling = @{ intervalMs = 500; treeRefreshMs = 2000; heap = ($Mode -ne 'release')
+      heapAggregation = 'unique-application-isolate-groups' }
     machine = @{ cpu = $cpu; gpu = $gpu; memoryBytes = $system.TotalPhysicalMemory }
     startedAtUtc = [DateTime]::UtcNow.ToString('o'); status = 'running'
     coldDefinition = 'fresh application data; OS file cache is not flushed'

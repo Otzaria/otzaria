@@ -1,0 +1,2 @@
+# Preserve the original Windows artifact bytes and their recorded SHA256.
+* -text whitespace=cr-at-eol

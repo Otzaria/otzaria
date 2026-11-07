@@ -22,7 +22,12 @@ Map<String, dynamic> metadata({Map<String, dynamic> changes = const {}}) => {
   'launchCount': 1,
   'viewport': {'width': 1200, 'height': 800, 'devicePixelRatio': 1},
   'settings': {'fontSize': 20, 'fontFamily': 'test-font'},
-  'sampling': {'intervalMs': 500, 'treeRefreshMs': 2000, 'heap': true},
+  'sampling': {
+    'intervalMs': 500,
+    'treeRefreshMs': 2000,
+    'heap': true,
+    'heapAggregation': 'unique-application-isolate-groups',
+  },
   ...changes,
 };
 
@@ -593,6 +598,51 @@ void main() {
       expect(difference['delta'], 1);
       expect(difference['deltaPercent'], isNull);
       expect(() => jsonEncode(comparison), returnsNormally);
+    });
+
+    test('ספירת heap ישנה לפי isolates אינה בת השוואה לספירה לפי קבוצות', () {
+      final legacy = report(
+        [phase()],
+        changes: {
+          'sampling': {'intervalMs': 500, 'treeRefreshMs': 2000, 'heap': true},
+        },
+      );
+      final current = report([phase()]);
+      for (final pair in [(legacy, current), (current, legacy)]) {
+        final comparison = compareProbeReports(pair.$1, pair.$2);
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:sampling'));
+        expect(comparison['scenarios'].single['status'], 'incompatible');
+        expect(comparison['scenarios'].single.containsKey('metrics'), isFalse);
+      }
+    });
+
+    test('שתי מדידות heap לפי קבוצות מאפשרות השוואת המדד', () {
+      Map<String, dynamic> withHeap(int usage) => report([
+        phase(
+          extra: {
+            'heapAfter': {
+              'heapUsage': usage,
+              'heapCapacity': 200,
+              'externalUsage': 0,
+              'isolateCount': 2,
+            },
+          },
+        ),
+      ]);
+      final comparison = compareProbeReports(withHeap(100), withHeap(80));
+      expect(comparison['comparable'], isTrue);
+      expect(comparison['reasons'], isEmpty);
+      expect(
+        comparison['scenarios'].single['metrics']['heap.after.heapUsage.p50'],
+        {
+          'baseline': 100.0,
+          'candidate': 80.0,
+          'available': true,
+          'delta': -20.0,
+          'deltaPercent': -20.0,
+        },
+      );
     });
 
     test(
