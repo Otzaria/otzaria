@@ -1,0 +1,53 @@
+name: QA 4427 canonical iOS source and native evidence
+on:
+  push:
+    branches: ['y-ploni/qa-4427-canonical-20261107-b']
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+jobs:
+  merges:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source and fresh merge results
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4427-canonical-merges
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/qa/4427/qa_canonical_fonts.py merges
+      - name: Retain complete and partial source and merge evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4427-canonical-merges
+          path: ${{ runner.temp }}/qa-4427-canonical-merges
+          if-no-files-found: error
+          retention-days: 14
+  native-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 3
+          persist-credentials: false
+      - name: Verify complete native artifacts without executing their contents
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4427-canonical-native
+          QA_GITHUB_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/qa/4427/qa_canonical_fonts.py artifacts
+      - name: Retain immutable native artifacts and independent receipts
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4427-canonical-native
+          path: ${{ runner.temp }}/qa-4427-canonical-native
+          if-no-files-found: error
+          retention-days: 14
