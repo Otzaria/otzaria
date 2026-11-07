@@ -24,6 +24,7 @@ if (flutterVersionName == null) {
 }
 
 def keystoreProperties = new Properties()
+def androidStartupProbe = providers.gradleProperty('otzariaStartupProbe').orNull == 'true'
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withReader('UTF-8') { reader ->
@@ -60,8 +61,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "org.otzaria.otzaria"
+        // The opt-in probe must never install over the user's application.
+        applicationId = androidStartupProbe ? "org.otzaria.otzaria.startupprobe" : "org.otzaria.otzaria"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdkVersion flutter.minSdkVersion

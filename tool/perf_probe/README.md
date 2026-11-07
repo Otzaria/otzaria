@@ -4,6 +4,9 @@
 ראו [WEBVIEW_RESOURCE_PROBE.md](WEBVIEW_RESOURCE_PROBE.md). הוא נפרד מתרחיש
 האפליקציה הכללי המתואר כאן ומסמן במפורש מדדים שאינם זמינים.
 
+למדידת החימום המוקדם של WebView ב־Android, ראו את
+[התרחיש הייעודי בהמשך](#android--חימום-מוקדם-ועלייה-במסלול-האפליקציה).
+
 הפקודה הראשית היא `run_perf_probe.ps1`. היא בונה את יעד האינטגרציה פעם אחת,
 מכינה ספרייה סינתטית בתהליך נפרד, ומריצה את האפליקציה בתהליכים חדשים עם
 נתונים מבודדים. הקוד נמצא ביעד הבדיקה בלבד: אין טיימרים, דוגמים או איסוף
@@ -199,3 +202,166 @@ flutter analyze --no-pub
 [FrameTiming](https://api.flutter.dev/flutter/dart-ui/FrameTiming-class.html),
 [batching של addTimingsCallback](https://api.flutter.dev/flutter/scheduler/SchedulerBinding/addTimingsCallback.html),
 [Windows PrivateMemorySize64](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.privatememorysize64).
+
+## Android — חימום מוקדם ועלייה במסלול האפליקציה
+
+`android_startup_probe.py` בונה APK אחד ומפעיל אותו שוב בתהליכים חדשים, עם
+תצורה שנמסרת ל־Dart באמצעות `dart_entrypoint_args`. נדרשים Python 3.11 ומעלה,
+Flutter בגרסת ה־CI, כלי הבנייה הרגילים ל־Android, Rust וה־target המתאים
+למכשיר, `adb` ו־`aapt2` מתוך Android SDK. למדידות משתמשים במכשיר פיזי
+וב־`profile`; `debug` באמולטור מיועד לבדיקת התרחיש בלבד.
+
+```sh
+# מתוך checkout נקי; הפלט חייב להיות בתיקייה חדשה או ריקה.
+python3 tool/perf_probe/android_startup_probe.py \
+  --device DEVICE_SERIAL --mode profile --repetitions 5 --observation-ms 5000 \
+  --output build/android-startup-profile
+
+# בדיקת חוזים באמולטור — אינה ראיית ביצועים של מכשיר פיזי.
+python3 tool/perf_probe/android_startup_probe.py \
+  --device emulator-5554 --mode debug --repetitions 2 --observation-ms 1000 \
+  --output build/android-startup-debug
+```
+
+הבנייה מקבלת את מאפיין Gradle הייעודי `otzariaStartupProbe=true`, בלי להוסיף
+flavor ובלי לשנות את פקודות הבנייה הרגילות. לפני התקנה, הכלי בודק ב־APK עצמו
+שה־application ID הוא בדיוק `org.otzaria.otzaria.startupprobe`, שה־Activity
+תואם ושהבנייה מאפשרת `run-as`. הוא מפעיל ועוצר רק חבילה קבועה זו; אין
+פרמטר לבחירת חבילת משתמש ואין `pm clear`. גם יעד ה־Dart בודק את זהות החבילה
+לפני כתיבה. `release` אינו מסלול נתמך כאן, משום שקריאת הדוחות נעשית דרך
+`run-as` בלי לשנות הרשאות של אפליקציה רגילה. נתוני התרחיש נשארים בתיקייה
+ייחודית בתוך החבילה הייעודית, כך שניתן לבדוק אותם גם לאחר כשל.
+
+### קלט, תרחישים וסדר הרצה
+
+ה־fixture מכין ספרייה סינתטית והגדרות offline בתהליך הכנה נפרד. הוא רושם
+תוסף מקומי והרשאותיו במסד התוספים **לפני** הקריאה ל־`app.main()` בתהליך
+הנמדד. הכנת הרישום ואימותו רצים ב־isolate קצר שסוגר Hive ו־SQLite, כדי לא
+לאתחל מראש את `Settings` של ה־isolate הראשי. המסד נפתח מחדש דרך נתיב
+האפליקציה הרגיל; אין רישום תוסף מאוחר
+שמפספס את בדיקת `hasEnabledPlugin`. לתוסף אירוע הפעלה ייעודי, ללא
+`app.startup`, ולכן תרחישי אי־פתיחה אינם יוצרים WebView ברקע. ה־fixture
+מסרב לנתיב לא מוכן, תוכן שהשתנה, תווית שימוש שגויה או symlink.
+
+הספרייה הסינתטית משתמשת ב־`synthetic-v2` ובסימון `settings_initialized`
+מהתיקון הציבורי של [#4417](https://github.com/Otzaria/otzaria/pull/4417).
+הסימון משמר את הגדרות המדידה בעת טעינת `SettingsRepository` האמיתית,
+לרבות ביטול עדכונים ואינדוקס אוטומטי. הכנת הקבצים אינה מאתחלת את
+`Settings` ב־isolate הראשי. נתונים מהגרסה הקודמת נדחים ומחייבים הכנה חדשה.
+
+| תרחיש | פעולה נמדדת |
+|---|---|
+| `noEnabled` | עלייה ללא תוסף פעיל, ללא פתיחת WebView; שער הזכאות האמיתי צריך לדלג על החימום |
+| `noOpen` | עלייה עם תוסף פעיל, ללא פתיחה; מאפשר השוואת עלות זיכרון host של חימום מוקדם |
+| `foreground` | פתיחת לשונית התוסף דרך `TabsBloc` ו־`PluginTabPage`, עד SDK אמיתי ושני callbacks של rAF |
+| `background` | מסירת אירוע ייעודי דרך ה־dispatcher וההפעלה העצלה, עד SDK אמיתי וקבלת `runId` של ההרצה |
+| `overlap` | בקשת פתיחה מיד כשנתיב החימום האמיתי נצפה; `notObserved` אם כבר הסתיים, בלי לעכב אותו מלאכותית |
+
+כל תרחיש רץ פעם עם `native` ופעם עם `bypass`, בסדר AB ואחריו BA לסירוגין.
+בשני המצבים פועלים `main.dart`, שער התוספים, ה־coordinator ומחסומי ההמתנה
+של המארח הקיימים. `native` עוטף את קריאת `WebViewEnvironment.prewarm`
+האמיתית לצורכי תיעוד; `bypass` משתמש בנקודת הבדיקה הקיימת לדילוג מתועד
+על הקריאה בלבד, ואינו מתואר כחימום מוצלח. אין שינוי ב־ProcessGlobalConfig,
+ב־AndroidX WebKit 1.14.0, בברירת המחדל של הגדרות Android, או ב־timeout של
+30 שניות. אין השהיה או ביטול של פעולת החימום כדי לייצר חפיפה.
+
+ההפעלה הראשונה של כל fixture מסומנת `prepared`, והבאות `reused`. אלו
+תוויות היסטוריית הנתונים המבודדים בלבד: אימות SHA-256 וקריאת רישום התוסף
+מחממים מטמון קבצים עוד לפני `app.main()`. מטמוני מערכת ההפעלה, ה־provider
+ונתוני WebView של החבילה הייעודית משותפים בין ההפעלות ואינם נמחקים.
+הפסקת התהליך הקודם, PID ו־boot ID נבדקים ונשמרים; תהליך חדש אינו דיסק או
+provider קרים. להכנה אין `app.main()` ואין קריאה לחימום מוקדם.
+
+### משמעות הדוח ומגבלות המדידה
+
+`StartupTimeline.revealMs` מתחיל בתוך `main` ומסתיים ב־reveal. הוא אינו כולל
+את כל הזמן מלפני Dart או עבודה אחרי reveal. `revealObservedAtUs` נמדד
+בנפרד מהקריאה ל־`app.main`, באמצעות polling; אין לאחד את שני השעונים.
+הדוח שומר גם את מצב reveal ברגע כניסת החימום, כדי לזהות מסלול fallback
+שהחל לפני reveal. `am start -W` נשמר כנתון Android נפרד ואינו מדד למוכנות
+התוסף. מדדי controller/SDK הם זמן עד **תצפית** במוכנות, עם polling של 16ms
+ופקודות JavaScript רק במהלך הפתיחה. בתרחישי אי־פתיחה אין polling ב־JS
+ונבדק שמספר מארחי foreground/background הוא אפס.
+
+לפני תחילת המדידה נפתח חיבור TCP יחיד דרך `adb reverse` עם פורט שהוקצה
+להרצה. אותו מספר פורט מפורש משמש ב־listener של המארח ובמכשיר, עם
+`--no-rebind`, כך שמפתח הבעלות תואם גם לרשימת ההרשאות של ADB. התנגשות
+בפורט גורמת לבחירת listener חדש, עד שמונה ניסיונות לפני הפעלת האפליקציה;
+מיפוי קיים נשאר שלם. הפורט המפורש מונע השארת מפתח `tcp:0`
+ב־[רשימת ההרשאות של ADB](https://android.googlesource.com/platform/packages/modules/adb/+/1cf2f017d312f73b3dc53bda85ef2610e35a80e9/transport.cpp).
+גרסת ADB נשמרת מראש ב־`adb-version.txt` ובקמפיין.
+בזמן המדידה המארח ממתין בחסימה; האפליקציה שולחת אות רק לאחר כתיבה
+אטומית של `ready.json` ושל `completion.json`, ואז המארח קורא את הדוח פעם
+אחת דרך `run-as`. האותות כוללים campaign/run/boot/PID; דוח זר, אות כפול,
+ניתוק מוקדם או חריגה מהזמן המוקצב מכשילים את ההרצה. אין תשאול קבצים
+ב־ADB בזמן המדידה. החיבור הסרק והפורט מוסרים בניקוי של כל הרצה.
+
+`campaign.json` שומר את הכשל הראשון ואת המחסנית שלו. כשלי איסוף logcat,
+עצירת התהליך או הסרת החיבור נשמרים בנפרד ב־`cleanupErrors`; הם מכשילים
+הרצה שהצליחה, אך אינם מחליפים כשל מדידה קודם.
+
+דגימות Flutter FrameTiming הן הפריימים שנמסרו בתוך החלון, עם מונה חיתוך;
+callbacks שמגיעים לאחר הגבול אינם נכללים. הן אינן זמני presentation של
+WebView. heartbeat של 100ms מודד את Dart isolate בלבד. ה־rAF של התוסף אינו
+input-to-photon. CPU native ותגובתיות thread ה־UI של Android מסומנים
+`notCollected`; כדי לאשר אותן נדרשת מדידה נוספת במכשיר, למשל trace מתאים
+ב־Perfetto. בדיקת יחידה, Node או אמולטור אינה מחליפה זאת.
+
+לאחר גבול המדידה האפליקציה נשארת חיה וממתינה לאישור ייחודי. בזמן זה הכלי
+שומר פלט גולמי של `adb shell dumpsys meminfo -d PID` ומחלץ `TOTAL PSS` רק
+כשכותרת הפלט תואמת ל־PID ולחבילה, וה־PID נותר חי. המדד הוא KiB של תהליך
+ה־host, עם זמני הדגימה וההשהיה מההשקה. אין שיוך ניחושי של renderer ואין
+טענת זיכרון כולל של המנוע. פלט חסר, עמום או זהות שהשתנתה נשמרים כ־`null`
+וסיבה; אפס אמיתי נשמר כאפס. הזיכרון יכול להשתנות בין הגבול לדגימת `adb`,
+ובפרט כשהחימום עדיין pending. אישור הדגימה נכתב ומפורסם באופן אטומי.
+
+רק **לאחר** המדידה ודגימת הזיכרון נקרא `dumpsys webviewupdate`. אין שאילתת
+provider, גרסת UA או feature של WebView לפני המדידה. הדוח שומר גרסת
+provider שנצפתה בסוף, fingerprint/ABI/SDK של המכשיר, viewport, גרסאות
+Flutter/Dart, commit ומצב העץ, hash של אותו APK, זהות קלט ופלט logcat של
+התהליך הנוכחי. אין מנגנון לשינוי provider או לכוונון ספי production.
+
+`campaign.json` כולל את הנתונים הגולמיים וזוגות ההשוואה. `comparableInputs`
+חסום כשמקור/חומרה/provider/קלט שונים או לא ידועים, העץ מלוכלך, התהליך
+אינו חדש, החימום התחיל לפני reveal, לא נצפתה הצלחה native עד סוף החלון,
+או שבתרחיש חפיפה לא נצפתה חפיפה. `hostPssComparableInputs` דורש בנוסף שתי
+דגימות host PSS זמינות. כשל provider, `timeout` או API חסר יכולים לשחרר את
+ה־coordinator כמתוכנן, אך נשמרים כתוצאות אלו וחוסמים הסקת תועלת מחימום.
+אין כאן סף זמן, baseline מספרי או אישור ביצועים אוטומטי;
+`physicalDeviceAcceptance` ו־`performanceAcceptance` נשארים `false`.
+
+כל שמונה חבילות ה־WebView נעולות לאותו commit של ה־fork, הכולל את
+[תיקון בעלות ה־GlobalKey ב־Android](https://github.com/Otzaria/flutter_inappwebview/pull/56)
+ואת [ממשק תצפיות Apple](https://github.com/Otzaria/flutter_inappwebview/pull/55).
+כך widget המעטפת וה־PlatformView הילד אינם נרשמים עם אותו GlobalKey,
+ותצורת החבילות נשארת אחידה בין הפלטפורמות. אימות האמולטור ב־workflow
+נדרש גם לאחר עדכון ה־pin; הצלחת בדיקות החבילה אינה תוצאת ביצועים של האפליקציה.
+
+### בדיקות ו־CI של Android
+
+```sh
+python3 -m unittest tool/perf_probe/test_android_startup_probe.py
+flutter test --concurrency=1 \
+  test/tool/perf_probe/android_startup_protocol_test.dart \
+  test/tool/perf_probe/android_startup_fixture_test.dart \
+  test/tool/perf_probe/perf_fixture_test.dart \
+  test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
+  test/plugins/view/webview_android_prewarm_test.dart \
+  test/plugins/view/webview_environment_holder_test.dart
+```
+
+בדיקות ה־fixture דורשות Node ובודקות גם את קוד JavaScript של התוסף עם
+ה־stub וה־SDK הקיימים. בדיקות חוזה נפרדות מאמתות unsupported/error/timeout
+ושחרור מחסומי המתנה; הן אינן תוצאות provider במכשיר. ה־workflow
+`Android WebView startup contracts` מריץ את חמשת התרחישים בבניית `debug`
+על אמולטור API 34 x86_64, בשני סבבי AB/BA, ושומר גם פלט חלקי כ־artifact.
+זהו אימות אינטגרציה של הנתיב האמיתי, ללא קבלה של טענות ביצועים במכשיר.
+
+מקורות: [Android: Optimize WebView startup](https://developer.android.com/develop/ui/views/layout/webapps/optimize-webview-startup),
+[WebViewStartUpConfig](https://developer.android.com/reference/androidx/webkit/WebViewStartUpConfig),
+[ניהול זיכרון WebView](https://developer.android.com/develop/ui/views/layout/webapps/manage-webview-memory),
+[מימוש החימום ב־fork הנעול](https://github.com/Otzaria/flutter_inappwebview/blob/ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8/flutter_inappwebview_android/android/src/main/java/com/pichillilorenzo/flutter_inappwebview_android/webview_environment/WebViewEnvironmentManager.java),
+[FlutterActivity: ארגומנטים ל־Dart](https://github.com/flutter/flutter/blob/3.47.7/engine/src/flutter/shell/platform/android/io/flutter/embedding/android/FlutterActivity.java),
+[Flutter Gradle: תצורת profile](https://github.com/flutter/flutter/blob/3.47.7/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
+דוגמאות Android העדכניות עשויות להשתמש ב־API חדש יותר; המדידה כאן משתמשת
+ב־API הנעול במאגר, עם `setShouldRunUiThreadStartUpTasks(false)`.
