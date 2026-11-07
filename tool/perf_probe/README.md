@@ -243,6 +243,12 @@ flavor ובלי לשנות את פקודות הבנייה הרגילות. לפנ
 `app.startup`, ולכן תרחישי אי־פתיחה אינם יוצרים WebView ברקע. ה־fixture
 מסרב לנתיב לא מוכן, תוכן שהשתנה, תווית שימוש שגויה או symlink.
 
+הספרייה הסינתטית משתמשת ב־`synthetic-v2` ובסימון `settings_initialized`
+מהתיקון הציבורי של [#4417](https://github.com/Otzaria/otzaria/pull/4417).
+הסימון משמר את הגדרות המדידה בעת טעינת `SettingsRepository` האמיתית,
+לרבות ביטול עדכונים ואינדוקס אוטומטי. הכנת הקבצים אינה מאתחלת את
+`Settings` ב־isolate הראשי. נתונים מהגרסה הקודמת נדחים ומחייבים הכנה חדשה.
+
 | תרחיש | פעולה נמדדת |
 |---|---|
 | `noEnabled` | עלייה ללא תוסף פעיל, ללא פתיחת WebView; שער הזכאות האמיתי צריך לדלג על החימום |
@@ -310,6 +316,13 @@ Flutter/Dart, commit ומצב העץ, hash של אותו APK, זהות קלט ו
 אין כאן סף זמן, baseline מספרי או אישור ביצועים אוטומטי;
 `physicalDeviceAcceptance` ו־`performanceAcceptance` נשארים `false`.
 
+כל שמונה חבילות ה־WebView נעולות לאותו commit של ה־fork, הכולל את
+[תיקון בעלות ה־GlobalKey ב־Android](https://github.com/Otzaria/flutter_inappwebview/pull/56)
+ואת [ממשק תצפיות Apple](https://github.com/Otzaria/flutter_inappwebview/pull/55).
+כך widget המעטפת וה־PlatformView הילד אינם נרשמים עם אותו GlobalKey,
+ותצורת החבילות נשארת אחידה בין הפלטפורמות. אימות האמולטור ב־workflow
+נדרש גם לאחר עדכון ה־pin; הצלחת בדיקות החבילה אינה תוצאת ביצועים של האפליקציה.
+
 ### בדיקות ו־CI של Android
 
 ```sh
@@ -317,6 +330,8 @@ python3 -m unittest tool/perf_probe/test_android_startup_probe.py
 flutter test --concurrency=1 \
   test/tool/perf_probe/android_startup_protocol_test.dart \
   test/tool/perf_probe/android_startup_fixture_test.dart \
+  test/tool/perf_probe/perf_fixture_test.dart \
+  test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
   test/plugins/view/webview_android_prewarm_test.dart \
   test/plugins/view/webview_environment_holder_test.dart
 ```
@@ -331,7 +346,7 @@ flutter test --concurrency=1 \
 מקורות: [Android: Optimize WebView startup](https://developer.android.com/develop/ui/views/layout/webapps/optimize-webview-startup),
 [WebViewStartUpConfig](https://developer.android.com/reference/androidx/webkit/WebViewStartUpConfig),
 [ניהול זיכרון WebView](https://developer.android.com/develop/ui/views/layout/webapps/manage-webview-memory),
-[מימוש החימום ב־fork הנעול](https://github.com/Otzaria/flutter_inappwebview/blob/c709de98711cf34350c48df4c75e24d0879d5876/flutter_inappwebview_android/android/src/main/java/com/pichillilorenzo/flutter_inappwebview_android/webview_environment/WebViewEnvironmentManager.java),
+[מימוש החימום ב־fork הנעול](https://github.com/Otzaria/flutter_inappwebview/blob/124bb8e63f345ffd0b0f2ea7190c24b19e69897d/flutter_inappwebview_android/android/src/main/java/com/pichillilorenzo/flutter_inappwebview_android/webview_environment/WebViewEnvironmentManager.java),
 [FlutterActivity: ארגומנטים ל־Dart](https://github.com/flutter/flutter/blob/3.47.7/engine/src/flutter/shell/platform/android/io/flutter/embedding/android/FlutterActivity.java),
 [Flutter Gradle: תצורת profile](https://github.com/flutter/flutter/blob/3.47.7/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
 דוגמאות Android העדכניות עשויות להשתמש ב־API חדש יותר; המדידה כאן משתמשת

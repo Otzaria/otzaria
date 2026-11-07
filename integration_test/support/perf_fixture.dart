@@ -13,7 +13,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/helpers/seforim_fixture_db.dart';
 
-const perfFixtureVersion = 'synthetic-v1';
+const perfFixtureVersion = 'synthetic-v2';
 const perfBooks = <String, int>{
   'מדידה קצרה': 128,
   'מדידה בינונית': 4096,
@@ -164,6 +164,7 @@ class PerfFixture {
     );
     try {
       await settings.putAll({
+        'settings_initialized': true,
         SettingsRepository.keyLibraryPath: libraryPath,
         SettingsRepository.keyLibraryFolderName: '',
         SettingsRepository.keyIndexPath: p.join(root.path, 'index'),
