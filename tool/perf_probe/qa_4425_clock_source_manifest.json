@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "classification": "IMPLEMENTATION_CANDIDATE_SELF_CHECK_PENDING_NEW_QA_REQUIRED",
+  "repository": "Otzaria/otzaria",
+  "pr": 4425,
+  "requiredSoleParent": "3b9c05140f722d31fe1fb7312e9722db646335a5",
+  "treeConstructionBase": {
+    "commit": "de019fc88b93a6ec58dd80d6ab40cd26fd5c06e1",
+    "tree": "765928640680a128e48690dff500a86911a8aeaa"
+  },
+  "expectedCandidateTree": "dcac8bf18d2cd7f489fa5b89d78de9f7b2a6a425",
+  "expectedNonTreeEntries": 4198,
+  "deltaFromDe019": [
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/contract.dart",
+      "mode": "100644",
+      "baseBlob": "72ee860815155f68cc5448da4838c518c8eff593",
+      "bytes": 9662,
+      "blob": "686f41066db684a14997bd707eca5e30cedb70f3",
+      "sha256": "20536fc760dcac5d90ba6541198f4cb8ee07598d9f275f6df3df5f3c22ed0ac0",
+      "readBackVerified": true
+    },
+    {
+      "path": "test/tool/perf_probe/apple_plugin_activity_contract_test.dart",
+      "mode": "100644",
+      "baseBlob": "645806a8b861ca2897d76824bbfc315bdfd7ba0e",
+      "bytes": 20074,
+      "blob": "f299d1dcb02b591ff34644960973bf908f739fb4",
+      "sha256": "71c6af239eac9a91af5ead3a39129f646dd28019333ff10beec7b958944c3cbd",
+      "readBackVerified": true
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/run.py",
+      "mode": "100644",
+      "baseBlob": "c8f2cf420610c17d3c1c5f28bf23fdd562394791",
+      "bytes": 61886,
+      "blob": "efce584b5e21011cc30a3763dcaf914fa5ae8b41",
+      "sha256": "8689ccd625de89931b10c64b452fc8f87793ba2d8cb49a6856ac671aca14af5e",
+      "readBackVerified": true
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_runner.py",
+      "mode": "100644",
+      "baseBlob": "f1e9d6b20fcb53baee84531a4c56e85bbc5039d5",
+      "bytes": 29993,
+      "blob": "7aaa1d8c619bbc9e2be3b9e732e7b43001039ad0",
+      "sha256": "30652486649a1731469e5e43ae74cff501e4af9ad7e6cb15ba6cf71693d514ce",
+      "readBackVerified": true
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/README.md",
+      "mode": "100644",
+      "baseBlob": "6356f39386a52b7c721bfba5442a47056ace0cda",
+      "bytes": 41034,
+      "blob": "f703b059d4eef0911b2d91e18916586f4ef5ca2f",
+      "sha256": "fb2ce3449a3eab4f0106b166b0237ac369fe39f194ee0def9ef3592eb4227a73",
+      "readBackVerified": true
+    }
+  ],
+  "fullManifest": {
+    "count": 22,
+    "bytes": 447447,
+    "files": [
+      {
+        "path": ".github/workflows/apple-plugin-activity.yml",
+        "mode": "100644",
+        "bytes": 6594,
+        "blob": "9ec09629f9db04e4ce974c181033c3d2a1becf14",
+        "sha256": "dc08561260f17d941af5fb99cfe172f3e36ed5a60be9a96299f7ac58f9d939d2",
+        "publicParentBlob": "030927dcfe5cb92b46a5a121d35b5aa957acbab7",
+        "sourceDe019Blob": "9ec09629f9db04e4ce974c181033c3d2a1becf14",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "integration_test/apple_plugin_activity_probe_test.dart",
+        "mode": "100644",
+        "bytes": 30720,
+        "blob": "12539d1e150832b2ae2971181612caba13d8b5f8",
+        "sha256": "44b0be6b97633b8526ce192eef75578ebb8bed6941276f9009bd548699cbe643",
+        "publicParentBlob": "fd956ea66c5c8cc0fecf0c47ab7334854750f445",
+        "sourceDe019Blob": "12539d1e150832b2ae2971181612caba13d8b5f8",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "ios/Runner.xcodeproj/project.pbxproj",
+        "mode": "100644",
+        "bytes": 31892,
+        "blob": "b5f0f0c700d3933e762d38c3d706b2ce3af9d82a",
+        "sha256": "cba33ded34fa00b8f1aacfc0da74126aac3085256c2e44ce06fed7ec5c81374f",
+        "publicParentBlob": "0cb2235c8ce23569aafd6f2357b8ee5a69931cd7",
+        "sourceDe019Blob": "b5f0f0c700d3933e762d38c3d706b2ce3af9d82a",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme",
+        "mode": "100644",
+        "bytes": 4717,
+        "blob": "c3fedb29c990d9c5a66b9f4ffb198b0ca3ce2ce5",
+        "sha256": "9fbce429f56243561dd437a527136c9f9ed77165e3b271b923faf236cfcd0484",
+        "publicParentBlob": "15cada4838e2f4cac66c351178305967e0887c1d",
+        "sourceDe019Blob": "c3fedb29c990d9c5a66b9f4ffb198b0ca3ce2ce5",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "lib/core/window_listener.dart",
+        "mode": "100644",
+        "bytes": 33230,
+        "blob": "25b13d9b31afead65b3f0ad17e7d9f7cca7167b3",
+        "sha256": "5f8680dc146863e76e73522be736133606871d0eb14d1ac8019d1a9102722800",
+        "publicParentBlob": "546110827f39e26e69921c0daa226609eefa509a",
+        "sourceDe019Blob": "25b13d9b31afead65b3f0ad17e7d9f7cca7167b3",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "pubspec.lock",
+        "mode": "100644",
+        "bytes": 66487,
+        "blob": "61f0e395ef0f048f47f46094a20cfa421a5e0178",
+        "sha256": "fe731ab5452aba50c3311555016e18b868a4749dbcd5e19b86970a2981cb389c",
+        "publicParentBlob": "5e175ffefe86620541f53dcf8172b9c0f412b2bd",
+        "sourceDe019Blob": "61f0e395ef0f048f47f46094a20cfa421a5e0178",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "pubspec.yaml",
+        "mode": "100644",
+        "bytes": 13609,
+        "blob": "cf796836f78f63e1cea0ce2cdbaa7dca9140246f",
+        "sha256": "72e41248f6afdf7831079a1c117e27a68f82f6dbfa8d87e3fed840ed772dd7d1",
+        "publicParentBlob": "332081188494a74e08c57595eb01ec882c0f97e3",
+        "sourceDe019Blob": "cf796836f78f63e1cea0ce2cdbaa7dca9140246f",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "test/core/window_listener_native_visibility_test.dart",
+        "mode": "100644",
+        "bytes": 3648,
+        "blob": "a6394e2c03a45c5a31462a5c1c4790382ed4297c",
+        "sha256": "307d75acb0d29a208f85278a2341c4ebcbaac26c3995b3a085dc8a561bb12bab",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "a6394e2c03a45c5a31462a5c1c4790382ed4297c",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "test/tool/perf_probe/apple_plugin_activity_contract_test.dart",
+        "mode": "100644",
+        "bytes": 20074,
+        "blob": "f299d1dcb02b591ff34644960973bf908f739fb4",
+        "sha256": "71c6af239eac9a91af5ead3a39129f646dd28019333ff10beec7b958944c3cbd",
+        "publicParentBlob": "645806a8b861ca2897d76824bbfc315bdfd7ba0e",
+        "sourceDe019Blob": "645806a8b861ca2897d76824bbfc315bdfd7ba0e",
+        "changedInThisRepair": true,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/AppleQuietControl.swift",
+        "mode": "100644",
+        "bytes": 7225,
+        "blob": "c20567565beba70d97f672a0434a8456b021fda0",
+        "sha256": "633d866d38943ab76581f5dd4a34c85876b8029fb94f89872e2acd06249e057f",
+        "publicParentBlob": "d8f8370bb94fa9f6b8d446a8a435cb29251dc063",
+        "sourceDe019Blob": "c20567565beba70d97f672a0434a8456b021fda0",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/README.md",
+        "mode": "100644",
+        "bytes": 41034,
+        "blob": "f703b059d4eef0911b2d91e18916586f4ef5ca2f",
+        "sha256": "fb2ce3449a3eab4f0106b166b0237ac369fe39f194ee0def9ef3592eb4227a73",
+        "publicParentBlob": "d659e20765cf804ec17904c73a779055cc6a6a82",
+        "sourceDe019Blob": "6356f39386a52b7c721bfba5442a47056ace0cda",
+        "changedInThisRepair": true,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/contract.dart",
+        "mode": "100644",
+        "bytes": 9662,
+        "blob": "686f41066db684a14997bd707eca5e30cedb70f3",
+        "sha256": "20536fc760dcac5d90ba6541198f4cb8ee07598d9f275f6df3df5f3c22ed0ac0",
+        "publicParentBlob": "72ee860815155f68cc5448da4838c518c8eff593",
+        "sourceDe019Blob": "72ee860815155f68cc5448da4838c518c8eff593",
+        "changedInThisRepair": true,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/mac_application.swift",
+        "mode": "100644",
+        "bytes": 11105,
+        "blob": "be9acc8964ca2f8bd2478b4677b6fc06ceed0f05",
+        "sha256": "8961aeebc55cadcf2ef74d50888cde2638fff66c128559af52d0b30c835b938e",
+        "publicParentBlob": "f0017bd0f4d2a3a1b9269f75e3a22aea68143c0c",
+        "sourceDe019Blob": "be9acc8964ca2f8bd2478b4677b6fc06ceed0f05",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/mac_launch_fixture.swift",
+        "mode": "100644",
+        "bytes": 4493,
+        "blob": "6ee7c7f170a58ac81bc970c4d1ab0ce7ed94c0a7",
+        "sha256": "a623fc9da165e928446b4d466f234a747bf93e1d9b8a0200d8833d67319d0303",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "6ee7c7f170a58ac81bc970c4d1ab0ce7ed94c0a7",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/mac_process_control.c",
+        "mode": "100644",
+        "bytes": 892,
+        "blob": "51b1610b1fcc85d15933cd927e543ff0b4786718",
+        "sha256": "0c6cec86cca15bffc10df277ae5b536beba50aeaf6a650f8d2974f0f467d0dec",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "51b1610b1fcc85d15933cd927e543ff0b4786718",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/mac_process_control.h",
+        "mode": "100644",
+        "bytes": 481,
+        "blob": "d3d9d6086493f665d09f947d27d62ee9f9f665cc",
+        "sha256": "1f6a9cc7593d0f1b114758670ebfbee06883e74d2c300161daa18072170000d9",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "d3d9d6086493f665d09f947d27d62ee9f9f665cc",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/run.py",
+        "mode": "100644",
+        "bytes": 61886,
+        "blob": "efce584b5e21011cc30a3763dcaf914fa5ae8b41",
+        "sha256": "8689ccd625de89931b10c64b452fc8f87793ba2d8cb49a6856ac671aca14af5e",
+        "publicParentBlob": "54f95af87d6d934fd5b2b7e88299f8b5ef81d59e",
+        "sourceDe019Blob": "c8f2cf420610c17d3c1c5f28bf23fdd562394791",
+        "changedInThisRepair": true,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/test_cleanup_boundaries.py",
+        "mode": "100644",
+        "bytes": 17691,
+        "blob": "afa4b01aabe568ef820e3819c915ea214bf17a63",
+        "sha256": "314902daf107bc214f4620a992671b654a5f87978a79461706122638507b3851",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "afa4b01aabe568ef820e3819c915ea214bf17a63",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/test_cleanup_permissions.py",
+        "mode": "100644",
+        "bytes": 11628,
+        "blob": "dabca892ebb9adbe7934cd00889e92d22958aeb6",
+        "sha256": "635776c77d74ac1ce63b3b0cd8e6ad90b46b82e03db576fb5b408e74f32ce560",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "dabca892ebb9adbe7934cd00889e92d22958aeb6",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/test_lifetime.py",
+        "mode": "100644",
+        "bytes": 21343,
+        "blob": "766d0a4adc06acc1f73d7c69dffc38352e194099",
+        "sha256": "d3edb7de439cdb32536a4c7ffbe64e6c7f2752448f415ba20b9a566a0a6e22ab",
+        "publicParentBlob": null,
+        "sourceDe019Blob": "766d0a4adc06acc1f73d7c69dffc38352e194099",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/test_macos_controller.py",
+        "mode": "100644",
+        "bytes": 19043,
+        "blob": "0f63966d86d891cd89d5cfbd7c317e99b49a1420",
+        "sha256": "71292b71e8e6fd1ea8051b2805414c630239b33b76d267874468b2e161c52781",
+        "publicParentBlob": "5a36cc9bcf8d24896da4f096d168b2da3dd07132",
+        "sourceDe019Blob": "0f63966d86d891cd89d5cfbd7c317e99b49a1420",
+        "changedInThisRepair": false,
+        "readBackVerified": true
+      },
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/test_runner.py",
+        "mode": "100644",
+        "bytes": 29993,
+        "blob": "7aaa1d8c619bbc9e2be3b9e732e7b43001039ad0",
+        "sha256": "30652486649a1731469e5e43ae74cff501e4af9ad7e6cb15ba6cf71693d514ce",
+        "publicParentBlob": "ee841fbfc4628ba27bd278412a29adc0799d48e6",
+        "sourceDe019Blob": "f1e9d6b20fcb53baee84531a4c56e85bbc5039d5",
+        "changedInThisRepair": true,
+        "readBackVerified": true
+      }
+    ]
+  },
+  "deltaFromPublicParent": [
+    {
+      "path": ".github/workflows/apple-plugin-activity.yml",
+      "oldBlob": "030927dcfe5cb92b46a5a121d35b5aa957acbab7",
+      "blob": "9ec09629f9db04e4ce974c181033c3d2a1becf14",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "integration_test/apple_plugin_activity_probe_test.dart",
+      "oldBlob": "fd956ea66c5c8cc0fecf0c47ab7334854750f445",
+      "blob": "12539d1e150832b2ae2971181612caba13d8b5f8",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "ios/Runner.xcodeproj/project.pbxproj",
+      "oldBlob": "0cb2235c8ce23569aafd6f2357b8ee5a69931cd7",
+      "blob": "b5f0f0c700d3933e762d38c3d706b2ce3af9d82a",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme",
+      "oldBlob": "15cada4838e2f4cac66c351178305967e0887c1d",
+      "blob": "c3fedb29c990d9c5a66b9f4ffb198b0ca3ce2ce5",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "lib/core/window_listener.dart",
+      "oldBlob": "546110827f39e26e69921c0daa226609eefa509a",
+      "blob": "25b13d9b31afead65b3f0ad17e7d9f7cca7167b3",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "pubspec.lock",
+      "oldBlob": "5e175ffefe86620541f53dcf8172b9c0f412b2bd",
+      "blob": "61f0e395ef0f048f47f46094a20cfa421a5e0178",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "pubspec.yaml",
+      "oldBlob": "332081188494a74e08c57595eb01ec882c0f97e3",
+      "blob": "cf796836f78f63e1cea0ce2cdbaa7dca9140246f",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "test/core/window_listener_native_visibility_test.dart",
+      "oldBlob": null,
+      "blob": "a6394e2c03a45c5a31462a5c1c4790382ed4297c",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "test/tool/perf_probe/apple_plugin_activity_contract_test.dart",
+      "oldBlob": "645806a8b861ca2897d76824bbfc315bdfd7ba0e",
+      "blob": "f299d1dcb02b591ff34644960973bf908f739fb4",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/AppleQuietControl.swift",
+      "oldBlob": "d8f8370bb94fa9f6b8d446a8a435cb29251dc063",
+      "blob": "c20567565beba70d97f672a0434a8456b021fda0",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/README.md",
+      "oldBlob": "d659e20765cf804ec17904c73a779055cc6a6a82",
+      "blob": "f703b059d4eef0911b2d91e18916586f4ef5ca2f",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/contract.dart",
+      "oldBlob": "72ee860815155f68cc5448da4838c518c8eff593",
+      "blob": "686f41066db684a14997bd707eca5e30cedb70f3",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/mac_application.swift",
+      "oldBlob": "f0017bd0f4d2a3a1b9269f75e3a22aea68143c0c",
+      "blob": "be9acc8964ca2f8bd2478b4677b6fc06ceed0f05",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/mac_launch_fixture.swift",
+      "oldBlob": null,
+      "blob": "6ee7c7f170a58ac81bc970c4d1ab0ce7ed94c0a7",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/mac_process_control.c",
+      "oldBlob": null,
+      "blob": "51b1610b1fcc85d15933cd927e543ff0b4786718",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/mac_process_control.h",
+      "oldBlob": null,
+      "blob": "d3d9d6086493f665d09f947d27d62ee9f9f665cc",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/run.py",
+      "oldBlob": "54f95af87d6d934fd5b2b7e88299f8b5ef81d59e",
+      "blob": "efce584b5e21011cc30a3763dcaf914fa5ae8b41",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_cleanup_boundaries.py",
+      "oldBlob": null,
+      "blob": "afa4b01aabe568ef820e3819c915ea214bf17a63",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_cleanup_permissions.py",
+      "oldBlob": null,
+      "blob": "dabca892ebb9adbe7934cd00889e92d22958aeb6",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_lifetime.py",
+      "oldBlob": null,
+      "blob": "766d0a4adc06acc1f73d7c69dffc38352e194099",
+      "oldMode": null,
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_macos_controller.py",
+      "oldBlob": "5a36cc9bcf8d24896da4f096d168b2da3dd07132",
+      "blob": "0f63966d86d891cd89d5cfbd7c317e99b49a1420",
+      "oldMode": "100644",
+      "mode": "100644"
+    },
+    {
+      "path": "tool/perf_probe/apple_plugin_activity/test_runner.py",
+      "oldBlob": "ee841fbfc4628ba27bd278412a29adc0799d48e6",
+      "blob": "7aaa1d8c619bbc9e2be3b9e732e7b43001039ad0",
+      "oldMode": "100644",
+      "mode": "100644"
+    }
+  ],
+  "execution": "PENDING focused implementation retry after typed negative-test fixture correction",
+  "independentQA": "REQUIRED",
+  "publicRef": "UNCHANGED",
+  "format": {
+    "source": "run42343509824/job128316145735, Dart3.13.5, language3.12,trailing_commas preserve",
+    "files": [
+      {
+        "path": "tool/perf_probe/apple_plugin_activity/contract.dart",
+        "bytes": 9662,
+        "blob": "686f41066db684a14997bd707eca5e30cedb70f3",
+        "sha256": "20536fc760dcac5d90ba6541198f4cb8ee07598d9f275f6df3df5f3c22ed0ac0",
+        "fullBase64ReadbackVerified": true,
+        "onlyWhitespaceAndOptionalTrailingCommasChanged": true,
+        "oldTokenCount": 5120,
+        "newTokenCount": 5121
+      },
+      {
+        "path": "test/tool/perf_probe/apple_plugin_activity_contract_test.dart",
+        "bytes": 19921,
+        "blob": "91bf8188a376cbb66dcf36d18fb54ed225eee12c",
+        "sha256": "dc0ac22b67805707de933ab8bd2e4adde733997974e8959dbedd204fb61ea809",
+        "fullBase64ReadbackVerified": true,
+        "onlyWhitespaceAndOptionalTrailingCommasChanged": true,
+        "oldTokenCount": 9166,
+        "newTokenCount": 9172
+      }
+    ],
+    "testFixtureDelta": "Copy readAt into explicit Map<String,dynamic> before injecting nonfinite values; no analyzer algorithm change"
+  }
+}
