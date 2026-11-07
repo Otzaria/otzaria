@@ -1,0 +1,61 @@
+name: QA 4424 source gates
+on:
+  push:
+    branches:
+      - y-ploni/qa-4424-source-20261107-d
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  hook:
+    name: Exact SDK, staged original hook and source integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 3
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - name: Run frozen source gates and preserve every formatter mutation
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-hook
+        run: python3 tool/perf_probe/qa_4424_source_gates.py hook
+      - name: Preserve complete and partial source gate evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-source-hook
+          path: ${{ runner.temp }}/qa-4424-hook
+          if-no-files-found: error
+          retention-days: 14
+  merges:
+    name: Actual merge-tree baseline and candidate comparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare current overlap heads and dev against public and candidate
+        env:
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/qa-4424-merges
+          QA_GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/perf_probe/qa_4424_source_gates.py merge
+      - name: Preserve complete and partial merge proof
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-source-merges
+          path: ${{ runner.temp }}/qa-4424-merges
+          if-no-files-found: error
+          retention-days: 14
