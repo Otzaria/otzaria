@@ -69,7 +69,8 @@ void main() {
     'dartVersion': Platform.version,
     'flutterVersion': const String.fromEnvironment('APPLE_QUIET_FLUTTER'),
     'commit': const String.fromEnvironment('APPLE_QUIET_COMMIT'),
-    'nativeFork': '53c2dd3300be979a7129281d11ef731a203af24a',
+    'nativeFork': const String.fromEnvironment('APPLE_QUIET_NATIVE_FORK'),
+    'lockSha256': const String.fromEnvironment('APPLE_QUIET_LOCK_SHA256'),
     'fixtureSha256': appleActivityFixtureSha256,
     'physicalDeviceAcceptance': false,
     'physicalDevice': const bool.fromEnvironment('APPLE_QUIET_EXTERNAL'),
@@ -631,6 +632,8 @@ class _Scenario {
         'hostPid': pid,
         'appBootToken': appBoot,
         'runId': report['runId'],
+        'nativeFork': report['nativeFork'],
+        'lockSha256': report['lockSha256'],
         'platform': Platform.operatingSystem,
       });
       final armEnd = DateTime.now().millisecondsSinceEpoch;

@@ -33,21 +33,51 @@ final class AppleQuietControl: XCTestCase {
 
     func testHomeAndActivateExistingOtzariaProcess() throws {
         continueAfterFailure = false
-        _ = try post("control-ready", ["osVersion": ProcessInfo.processInfo.operatingSystemVersionString])
+        var identity: [String: Any] = [
+            "runId": ControlConfig.runId,
+            "controllerPid": ProcessInfo.processInfo.processIdentifier,
+            "controllerBootToken": UUID().uuidString
+        ]
+        var ready = identity
+        ready["osVersion"] = ProcessInfo.processInfo.operatingSystemVersionString
+        let session = try post("control-ready", ready)
+        guard let controlSession = session["controlSession"] as? String, !controlSession.isEmpty else {
+            throw NSError(domain: "quiet.controllerIdentity", code: 1)
+        }
+        identity["controlSession"] = controlSession
+        var armedJob: String?
+        var armedChallenge: String?
         let overall = ProcessInfo.processInfo.systemUptime + 1800
         while ProcessInfo.processInfo.systemUptime < overall {
             let requestMs = now()
             let requestMonotonic = ProcessInfo.processInfo.systemUptime
-            let command = try post("control", [:])
+            let command = try post("control", identity)
             let replyMs = now()
             if command["stop"] as? Bool == true { return }
+            if let challenge = command["armChallenge"] as? String,
+               let job = command["jobId"] as? String {
+                guard armedJob == nil else { throw NSError(domain: "quiet.overlappingArm", code: 1) }
+                var ack = identity
+                ack["jobId"] = job
+                ack["challenge"] = challenge
+                _ = try post("control-arm", ack)
+                armedJob = job
+                armedChallenge = challenge
+                continue
+            }
             guard let job = command["jobId"] as? String else {
                 Thread.sleep(forTimeInterval: 0.25) // Before any quiet interval.
                 continue
             }
+            guard job == armedJob, let challenge = armedChallenge else {
+                throw NSError(domain: "quiet.unarmedJob", code: 1)
+            }
             let app = XCUIApplication(bundleIdentifier: ControlConfig.bundleIdentifier)
             let useHome = command["action"] as? String == "iosHome"
-            var result: [String: Any] = ["jobId": job, "status": "failed"]
+            var result = identity
+            result["jobId"] = job
+            result["challenge"] = challenge
+            result["status"] = "failed"
             do {
                 guard app.state == .runningForeground else {
                     throw NSError(domain: "quiet.notForeground", code: 1)
@@ -99,6 +129,8 @@ final class AppleQuietControl: XCTestCase {
                 "serverReplyMs": command["serverReplyMs"]!
             ]
             _ = try post("control-result", result)
+            armedJob = nil
+            armedChallenge = nil
             XCTAssertEqual(result["status"] as? String, "passed", String(describing: result))
         }
         XCTFail("The app did not complete within the controller deadline")

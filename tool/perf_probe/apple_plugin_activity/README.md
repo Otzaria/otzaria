@@ -61,32 +61,95 @@ timeout; שני יומני הפלט נשמרים גם בכשל, עד 64KiB לכ�
 [LaunchServices](https://developer.apple.com/documentation/appkit/nsrunningapplication/launchdate),
 בעוד Flutter יכול להפעיל את ה־executable ישירות. האימות מחייב גם PID,
 נתיב executable, זהות בקר ואסימון session קבועים. החלפת תהליך או סיום
-התהליך המקורי מכשילים את השלב. לפי
+התהליך המקורי מכשילים את השלב. הבקר מפעיל `NSApplication.run()` על ה־main thread, עם מדיניות הפעלה
+שאינה לוקחת focus מהאפליקציה. קריאת stdin מתבצעת ב־thread נפרד;
+פקודות הגבול חוזרות ל־main thread. לפי
 [תיעוד NSRunningApplication](https://developer.apple.com/documentation/appkit/nsrunningapplication),
-רענון ה־run loop מתבצע רק בפקודות הגבול; בין הפקודות הבקר חסום על stdin
-ואינו מפעיל run loop, query או IPC לאפליקציה. יומני `mac-*-controller*`
-משמרים פקודות, פלט, שגיאות זהות וזמנים. כשל בסגירת הבקר מכשיל את השלב.
+תכונות משתנות מתרעננות אחרי סיבוב של ה־main run loop. אין timer של
+ה־probe, שאילתת target או פקודת אפליקציה בין פקודות הגבול. לולאת AppKit
+עצמה נשארת פעילה והיא חלק מתקורת הבקר החיצוני.
 
-לפני מדידת macOS, ה־CI מפעיל בקרות AppKit ייעודיות: הפעלה ישירה של
-executable, הסתרה והצגה של אותו תהליך, ודחיית זהות של תהליך שהסתיים.
-הראיות נשמרות ב־`apple-helper-controls`. אלה בקרות של כלי העזר;
-מדידות אוצריא עצמה מופיעות רק בדוחות `apple-plugin-activity`.
+אתחול הבקר דורש בפועל `activationPolicy() == .prohibited` ומצב לא פעיל.
+התוצאה הבוליאנית של
+[`setActivationPolicy`](https://developer.apple.com/documentation/appkit/nsapplication/setactivationpolicy(_:))
+נשמרת כאבחון לצד המדיניות ההתחלתית והמדיניות שנקראה לאחר הבקשה.
+בתצפית הנפרדת
+[42330030086](https://github.com/Otzaria/otzaria/actions/runs/42330030086)
+הבקר התחיל במדיניות `prohibited`; בקשות חוזרות החזירו `false`,
+והמדיניות נשארה זהה בזמן callback אמיתי בלולאת האירועים הראשית.
+לכן האימות דורש את המצב המתאים, בלי לחייב שהתרחש שינוי. אותו תנאי
+נבדק שוב בכל פקודת גבול, ודוחות הבקר כוללים גם `controllerIsActive`.
+התצפית הזאת משמשת לאבחון אתחול הבקר; קבלת אוצריא דורשת את הריצה
+הנפרדת של האפליקציה.
 
-בקרות האבחון שומרות גם את תוצאת שינוי מדיניות ההפעלה, מצב החלון,
-`isFinishedLaunching`, `isTerminated` ומצב אתחול AppKit של הבקר. סירוב
-ל־hide שומר את המצבים שלפני הקריאה ואחריה ונשאר כשל. לפי
-[תיעוד Apple](https://developer.apple.com/documentation/appkit/nsrunningapplication/hide()),
-הערך `false` יכול להעיד על תהליך שיצא או סוג אפליקציה שאינו ניתן להסתרה;
-הנתון לבדו אינו מוכיח איזו סיבה התקיימה.
+ההסתרה החיצונית משתמשת ב־
+[`ShowHideProcess`](https://developer.apple.com/documentation/applicationservices/1501053-showhideprocess)
+על ה־process serial number שנשמר עבור ה־PID המדויק. בכל פקודת גבול
+נשמר גם האימות המקורי של `NSRunningApplication.isEqual`, ובנוסף
+`GetProcessPID`, `GetProcessForPID` ו־`SameProcess` מאמתים שהמספר
+הנייטיבי עדיין שייך לאותו תהליך. הדוח שומר את המספר, ה־PID ותוצאות
+הקריאות בפועל; ה־Python verifier מחייב אותן ובודק שהזהות לא השתנתה.
 
-אותו fixture נבדק גם בהסתרה עצמית באמצעות `NSApplication.hide(nil)`,
-ובתהליך נפרד מול עותק אבחוני של הבקר שבו נוסף רק `NSApplication.shared`.
-Apple מתעדת שהקריאה הזו מאתחלת את
-[החיבור לשרת החלונות](https://developer.apple.com/documentation/appkit/nsapplication).
-העותק האבחוני אינו fallback או retry למדידה: לכל בקרה יש דוח משלה,
-וכישלון הבקר הרגיל אינו מתחלף בהצלחת חלופה. `direct-execution.json`,
-`initialized-execution.json` ו־`self-hide.json` שומרים גם כשל ותצפיות חלקיות.
-אין כאן קביעה שאתחול הבקר הוא סיבת הסירוב; לכך נדרשת הריצה הנייטיבית.
+הסתרה מחייבת `ShowHideProcess == noErr` — קוד נייטיבי מספרי `0` —
+וגם `isHidden == true`, בתוך חמש שניות. `returnValue` בדוח מציין
+אם הקוד הנייטיבי היה אפס, ו־`nativeActionStatus` שומר את הקוד עצמו.
+חזרה נשארת באמצעות `NSRunningApplication.unhide` ו־`activate`,
+ומחייבת אישור הפעלה, מצב פעיל ונראה ואותה זהות תהליך, ללא relaunch.
+ה־verifier דורש גם event loop פעיל, מדיניות `prohibited` ובקר שאינו פעיל.
+הצלחה של הסתרה עצמית אינה מחליפה את התנאים האלה.
+
+זהו API ציבורי ישן ש־Apple מסמנת כ־deprecated. ה־SDK אינו מייבא
+ל־Swift את פונקציות התהליך שהוצאו משימוש ב־macOS 10.9 ולפניו.
+לכן `mac_process_control.c` ו־`mac_process_control.h` מספקים
+ארבע קריאות גישור דקות דרך כותרות ה־SDK הרגילות. הבנייה משתמשת
+ב־`clang` וב־`swiftc -import-objc-header`, שומרת את אזהרות
+ההתיישנות ביומני הקומפילציה ואינה משנה הצהרות או בדיקות זמינות של ה־SDK.
+אותה פונקציית בנייה משמשת את הרצת היישום ואת בקרות העזר.
+אין שימוש ב־`SetFrontProcess` במסלול שנבחר.
+
+בחירת הקריאה מבוססת על התצפית הנייטיבית
+[42335734696](https://github.com/Otzaria/otzaria/actions/runs/42335734696):
+באותו runner, `NSRunningApplication.hide` סירב בשני מסלולי ההפעלה,
+ואילו `ShowHideProcess` החזיר אפס, ההסתרה אושרה והחזרה הקיימת
+הצליחה, עם בקר לא פעיל וזהות קבועה. הבקרות של מספר תהליך בלתי תקין,
+מספר של תהליך אחר שבבעלות הבדיקה ותהליך שהסתיים נדחו, והניקוי הושלם.
+הבקרה של זהות שגויה נדחתה לפני תגובה תקינה; אין בה תצפית של הפעלת הבקר.
+בקרת התהליך שהסתיים משתמשת בתהליך חלופי בעל PID אחר, ואינה טוענת
+לכפיית שימוש חוזר באותו PID.
+
+תוצאות הסירוב נשמרות בנפרד, כולל תצפיות
+[מדיניות הבקר](https://github.com/Otzaria/otzaria/actions/runs/42333565002),
+[אתחול ואריזה](https://github.com/Otzaria/otzaria/actions/runs/42334740043)
+ו־[שגיאות הייבוא של Swift](https://github.com/Otzaria/otzaria/actions/runs/42335458656).
+הן אינן קובעות את הסיבה העמוקה לסירוב AppKit. התצפית המצליחה היא
+הוכחה עבור יישומי העזר שבבעלות הבדיקה בלבד; קבלת אוצריא על המקור
+החדש דורשת QA נפרד והרצת היישום בפועל. מדידות physical/profile/release
+וביצועי מערכת רחבים אינן נובעות ממנה.
+
+בקרות העזר מריצות את **אותו bundle** בשני אופנים: executable ישיר
+ו־`NSWorkspace.openApplication` דרך LaunchServices, עם instance חדש
+וללא החלפתו באפליקציה קיימת. בקר LaunchServices מחזיק את האובייקט
+שה־API החזיר ומסיים רק אותו, עם ניקוי מוגבל וזהות שמורה. התוצאות של
+`direct-execution.json`, `launch-services-execution.json`, `self-hide.json`
+ובקרת תהליך שהסתיים נפרדות. `invalid-process-serial.json` שומר סירוב
+נייטיבי למספר תהליך בלתי תקין; `wrong-process-serial.json` שומר זיהוי
+מספר של תהליך אחר שבבעלות הבדיקה ודחייה לפני פעולה. לאחר כל דחייה
+נבדק שהתהליכים שבבעלות הבדיקה עדיין נראים. שדות `launchDate`, activation policy,
+`isFinishedLaunching` ו־event loop נשמרים כאבחון; היעדר launchDate
+במסלול הישיר אינו כשלעצמו הוכחה לסיבת סירוב hide.
+
+אוצריא עצמה ממשיכה להיבדק דרך Flutter drive והפעלת ה־executable
+הרגילה שלו. ה־CI מריץ את מסלול היישום גם אחרי כשל בבקרת עזר, כל עוד
+פתרון התלויות ובחירת המערכת הושלמו; כשל העזר עדיין מכשיל את ה־job.
+כך אין קבלת אפליקציה מתוך fixture בלבד. הצלחת LaunchServices אינה
+fallback שמחליף כשל בהפעלה הישירה. דוחות הכשל הישנים של הבקר ללא
+event loop ושל הבקר עם `NSApplication.shared` בלבד נשארים ראיות
+היסטוריות; סיבת ה־hide שסירב בהם אינה מוכרעת על ידי השינוי הזה.
+
+ה־pin של `window_manager` הוא `88a433a7be43ed0213da12b561bf0d8d070c6d68`.
+המאזין הכללי ל־show/hide ובדיקותיו זהים ל־#4424; הם מחברים את אירועי
+הנראות הנייטיביים ל־dispatcher בלי להקל את תנאי המדידה. בדיקות הפורק
+אינן הוכחת external-hide של אוצריא.
 
 שירות ההפעלות החיצוניות בודק `FileSystemEntity.isWatchSupported` לפני
 יצירת watcher ברירת המחדל. כשמעקב קבצים אינו נתמך, כמו בריצת iOS,
@@ -98,6 +161,82 @@ Apple מתעדת שהקריאה הזו מאתחלת את
 בגבולות שנמדדו, ולא במספר המבוקש, לחישוב התוצאה. בקרת התפוגה משתמשת
 ב־190 שניות לפחות ובטיימר האמיתי של אוצריא, ללא האצת זמן.
 
+## חיי הבקר, זהות המקור וכשלים
+
+ב־iOS Simulator נבנה תחילה היעד המדויק ב־DEBUG, עם `--simulator`,
+`--no-pub`, ה־target וקובץ ה־defines של הריצה. רק אחרי הבנייה ואימות
+ה־bundle מתחיל XCUITest. Flutter drive מקבל את אותו `Runner.app` דרך
+`--use-application-binary`. מסלול `.app` נתמך במימוש Flutter 3.47.7 של
+[IOSApp.fromPrebuiltApp](https://github.com/flutter/flutter/blob/abaf9c523780a608bd46686fd5e53740a07077f8/packages/flutter_tools/lib/src/ios/application_package.dart).
+מספר ניסיונות העלייה הפנימיים של Flutter לא שונה. Manifest של תוכן
+ה־bundle ושל ה־defines נבדק שוב לפני drive; גם executable האפליקציה
+שהותקנה חייב להתאים ל־hash שנבנה.
+
+כל `arm` דורש challenge חדש בתוך חמש שניות, מאותו run, PID, boot token
+ו־session של XCUITest. בדיקת תהליך xcodebuild החי מתבצעת לפני חלון
+השקט. Event ישן של readiness אינו מספיק. אחרי arm הבקר מפסיק בקשות
+בזמן השקט; תגובת הגבול מתקבלת פעם אחת בתוך deadline שמתאים להמתנה
+החד־פעמית של האפליקציה. אין ניסיון חוזר או polling בזמן השקט. סיבת
+ה־HTTP timeout בריצה הישנה אינה ידועה; הקדמת הבנייה מתקנת את סדר חיי
+התהליכים ואינה טוענת שסיבת timeout זו הוכחה.
+
+ה־runner קורא את ה־lock וה־pubspec מתוך commit נקי, ודורש זהות לקבצים
+המקומיים. כל שמונת רכיבי WebView חייבים להיפתר לאותו Git ref ולקובצי
+המקור המחויבים של כל root. הבדיקה חוזרת אחרי הבנייה ואחרי הסגירה.
+`nativeFork` ו־`lockSha256` בדוח Dart מגיעים מ־defines של מקור מאומת זה;
+השרת דוחה דוח ישן או pin מעורב. אין SHA נייטיבי קשיח בתוך דוח האפליקציה.
+
+קובצי הפרויקט של iOS כוללים את migration ה־SwiftPM הדטרמיניסטי של
+Flutter 3.47.7. זהו אותו migration ש־Flutter מוסיף בעת build, כפי
+שמתואר ב־[תיעוד Flutter](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers).
+הגרסה הראשונית הופקה באמצעות מחלקת ה־SDK המקורית ונבדקה להעדר שינוי
+במעבר שני. בניית iOS נייטיבית לאחר מכן הוסיפה שינויים נוספים:
+סידור וכתיב קנוני ב־pbxproj, הסרת שלב CocoaPods שאינו נחוץ עוד, והגדרת
+קובץ האתחול של LLDB בשני ה־actions של ה־scheme. שינויים אלה הועתקו
+מה־diff שנשמר ב־[ריצת הבנייה הנייטיבית](https://github.com/Otzaria/otzaria/actions/runs/42324522422),
+artifact `13554198897`, אחרי אימות כל שורת context וכל hunk מול
+הקלט המדויק. אין טענה שהמחולל המקומי הפיק אותם. בנייה נוספת עם
+ה־pins של PR זה עדיין חייבת להשאיר מקור נקי; אין opt-out, reset או
+היתר לשינוי שרירותי במקור.
+
+שגיאה ראשונה נשמרת כאובייקט המקורי; כשלים נוספים בכתיבת ראיות ובניקוי
+נרשמים לפי סדרם. ניקוי אפליקציה, בקר, עובדי quiet ושרת ננסה בנפרד ובזמן
+מוגבל. ביטול בזמן quiet מעיר רק את ההמתנה המקומית, מסמן חלון חלקי
+ומנקז את הבקר שבבעלות העובד. כשל בראיות בלבד עדיין מכשיל את הריצה.
+סגירת שני קובצי הפלט וקובצי הלוג של Flutter ושל XCUITest נכללת באותו
+רישום שגיאות, גם אם הפקודה הצליחה. כשל בכתיבה ל־stderr סגור נשמר
+כשגיאה משנית באובייקט השגיאה, בלי להחליף את הכשל הראשון.
+
+ניקוי קבוצת התהליכים שנוצרה באמצעות `start_new_session=True` נמשך
+גם אחרי יציאת ההורה. הוא מוגבל ל־15 שניות אחרי TERM ול־5 שניות אחרי
+KILL, ובודק רק לצורך הניקוי אילו תהליכים חיים נשארו באותה קבוצה.
+שאילתות הניקוי מתבצעות מחוץ לחלון שקט תקף. קבוצת הריצה הנוכחית
+ותהליך שאינו מנהיג קבוצה נפרדת נדחים לפני שליחת אות. אין שליחת
+אות לפי שם תהליך או לתהליך שנמצא בחיפוש כללי.
+
+חברות חיה בקבוצה נקראת באמצעות `ps` לפני אות, תוך התעלמות מתהליכים
+שכבר נמצאים במצב zombie או dead. התצפית ב־Darwin באותה ריצה תיעדה
+`EPERM` מבדיקת `killpg(pgid, 0)` כאשר רק ילד zombie נשאר בקבוצה;
+אחרי `Popen.wait` הקבוצה נעלמה. לכן בדיקת הרשאה לשליחת אות אינה
+משמשת כבדיקת חברות חיה. ההורה הישיר נאסף לפני הניקוי. אם החבר החי
+האחרון יוצא בין קריאת `ps` לשליחת האות, תוצאת `EPERM` מחייבת
+צילום חברות נוסף: רק היעדר חברים חיים מאפשר לסיים את הניקוי בהצלחה,
+עם תיעוד `signalRaces`. כשנשאר חבר חי או שהצילום הנוסף נכשל,
+שגיאת ההרשאה נשמרת כראשונה והניקוי המוגבל ממשיך.
+
+`test_cleanup_permissions.py` מוסיף בקרות של ילדים אמיתיים עבור
+קבוצה שכבר נאספה, zombie ב־Darwin, סיום רגיל, יציאה בזמן שליחת אות,
+וסירוב הרשאה כאשר ילד נשאר חי. תקלות ההרשאה בתרחישי המרוץ והסירוב
+מוזרקות במפורש; התהליכים, קודי היציאה וצילומי `ps` אמיתיים.
+בקרה נוספת מייצרת כשל OS אמיתי בצילום החברות אחרי סירוב ההרשאה
+ומחייבת לשמור את הסירוב המקורי. ה־CI מריץ את כל בקרות Python גם
+ב־macOS ושומר את דוחות הניקוי מתוך `APPLE_CLEANUP_CONTROL_OUTPUT`.
+
+כאשר גם קובץ הסיכום אינו ניתן לכתיבה, נעשה ניסיון לשמור תיאור שגיאות
+מוגבל ב־stderr; השגיאה המקורית והכשלים המשניים נשארים באובייקט
+השגיאה גם אם stderr אינו זמין. דוחות ישנים אינם מאופסים או מחליפים
+את התוצאה החדשה.
+
 ## התרחישים והבקרות
 
 | שלב | פעולה | מה ניתן לבדוק |
@@ -106,7 +245,7 @@ Apple מתעדת שהקריאה הזו מאתחלת את
 | `offstage` | מעבר למסך הספרייה וחזרה לקריאה בלי לסגור את הלשונית | זהות controller, מסמך ו־canary נשמרת מלפני ההסתרה, דרך המצב המוסתר ועד אחרי ההצגה מחדש |
 | `minimize` / `hide` | מזעור/הסתרת החלון דרך `window_manager` ואימות נייטיבי | התנהגות חלון macOS; פעולות אלה מסומנות `notSupported` ב־iOS |
 | `neverShownBackground` | הפעלה עצלה אמיתית דרך `app.startup`, בלי פתיחת לשונית | מופע עם `startup.keepAlive: true` והרשאת `app.background_keep_alive` שמורה ומאומתת |
-| `osBackground` | macOS: `NSRunningApplication.hide`; iOS: `XCUIDevice.press(.home)` | מצב חיצוני בגבולות, חזרה באמצעות API ציבורי ושימור זהות/מצב |
+| `osBackground` | macOS: `ShowHideProcess` עם זהות תהליך שמורה; iOS: `XCUIDevice.press(.home)` | מצב חיצוני בגבולות, חזרה באמצעות API ציבורי ושימור זהות/מצב |
 | `idleExpiryControl` | אותו HTML ברקע, בלי הצהרת keepAlive ובלי ההרשאה, לצד מופע keepAlive | פינוי על ידי טיימר שלוש הדקות של אוצריא, בנפרד מהשהיה של WebKit |
 
 ה־fixture מפעיל `setInterval` כל 250ms, `requestAnimationFrame`, ולולאה
@@ -212,7 +351,8 @@ python3 tool/perf_probe/apple_plugin_activity/run.py \
   --output "$PWD/build/apple-quiet-physical-profile"
 ```
 
-כאשר הודעת ההכנה מופיעה, בטרמינל שני:
+כאשר הודעת ההכנה מופיעה, בונים תחילה את האפליקציה באמצעות פקודות
+הבנייה שלהלן. רק לאחר סיום הבנייה מתחילים את בקר XCUITest בטרמינל נפרד:
 
 ```sh
 PROBE_OUTPUT="$PWD/build/apple-quiet-physical-profile"
@@ -225,7 +365,9 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
 ```
 
-בטרמינל שלישי, אחרי שבקר XCUITest מוכן:
+את פקודות הבנייה הבאות יש להשלים לפני התחלת XCUITest; את שתי פקודות
+`devicectl` האחרונות מפעילים רק אחרי שהבקר מוכן. כך גם במסלול הידני
+אין המתנה של בקר חי לבנייה ארוכה:
 
 ```sh
 PROBE_OUTPUT="$PWD/build/apple-quiet-physical-profile"
