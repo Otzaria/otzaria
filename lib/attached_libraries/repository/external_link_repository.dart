@@ -1231,13 +1231,13 @@ _SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
       final batch = <ResolvedExternalLink>[];
       var scannedInBatch = 0;
       void flush([VoidCallback? releaseTargetReads]) {
+        releaseTargetReads?.call();
         if (batch.isNotEmpty) {
           _transaction(db, () => _insertRows(db, job.slug, batch));
         }
         batch.clear();
         scannedInBatch = 0;
         report();
-        releaseTargetReads?.call();
         _controlPoint(control, batchPauseMs);
       }
 
