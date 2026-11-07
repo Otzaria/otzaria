@@ -144,6 +144,7 @@ jobs:
           python3 -m unittest discover -s tool/perf_probe -p 'test_installed_plugin_linux.py' -v \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/session-tests.log"
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs \
+            tool/perf_probe/test_installed_plugin_store.mjs \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/fixture-tests.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_probe_test.dart \

@@ -960,12 +960,22 @@ class _Scenario {
   }
 
   Future<void> run() async {
+    Future<void> setupStep(String name) async {
+      report['setupStep'] = name;
+      await checkpoint();
+    }
+
+    await setupStep('install $installedProbeId');
     await fixture.installControlled(installedProbeId);
     for (final suffix in ['no-snapshot', 'unsaved', 'busy', 'service']) {
+      await setupStep('install $installedProbeId.$suffix');
       await fixture.installControlled('$installedProbeId.$suffix');
     }
+    await setupStep('install pinned store');
     await fixture.installStore();
+    await setupStep('reload installed plugins');
     await reloadPlugins();
+    await setupStep('complete');
     late ToolTab first;
     await phase('firstOpen', () async {
       first = await open();
@@ -1279,9 +1289,11 @@ class _Scenario {
     final value = await evaluate(controller(tab)!, '''JSON.stringify((() => {
       if (!window.__installedProbeDocumentToken) window.__installedProbeDocumentToken = ${jsonEncode(token)};
       const byId = id => document.getElementById(id);
+      const pending = typeof pendingScroll === 'undefined' ? 'unavailable' : pendingScroll;
       return {documentToken:window.__installedProbeDocumentToken,
         sdkBooted:!!(window.Otzaria && Otzaria._booted), userAgent:navigator.userAgent,
-        ready:!!byId('search') && !!byId('grid') && byId('grid').children.length > 0 && getComputedStyle(byId('loading')).display === 'none',
+        ready:!!byId('search') && !!byId('grid') && byId('grid').children.length > 0 && getComputedStyle(byId('loading')).display === 'none' && pending === null,
+        rendering:{pendingScroll:pending, sequence:typeof renderSeq === 'number' ? renderSeq : null},
         view:byId('search') ? {search:byId('search').value, status:byId('status-filter').value,
           sort:byId('sort-select').value, hideInstalled:byId('hide-installed').checked,
           scrollTop:byId('app-content').scrollTop} : null};
@@ -1312,10 +1324,10 @@ class _Scenario {
     await storeReady(tab);
     await evaluate(controller(tab)!, '''(() => {
       const byId = id => document.getElementById(id);
-      byId('search').value = 'Fixture'; byId('search').dispatchEvent(new Event('input', {bubbles:true}));
       byId('sort-select').value = 'updated'; byId('sort-select').dispatchEvent(new Event('change', {bubbles:true}));
       byId('status-filter').value = 'beta'; byId('status-filter').dispatchEvent(new Event('change', {bubbles:true}));
       byId('hide-installed').checked = true; byId('hide-installed').dispatchEvent(new Event('change', {bubbles:true}));
+      byId('search').value = 'Fixture'; byId('search').dispatchEvent(new Event('input', {bubbles:true}));
       return true;
     })()''');
     await wait(() {
@@ -1326,11 +1338,17 @@ class _Scenario {
           state['status'] == 'beta' &&
           state['hideInstalled'] == true;
     }, 'Store accepted view state through actual SDK');
-    await storeReady(tab);
-    await evaluate(controller(tab)!, '''(() => {
+    phaseRecord('storeRestore')['readyBeforeScroll'] = await storeReady(tab);
+    final scroll = await evaluate(controller(tab)!, '''JSON.stringify((() => {
       const content = document.getElementById('app-content'); content.scrollTop = 420;
-      content.dispatchEvent(new Event('scroll')); return content.scrollTop;
-    })()''');
+      content.dispatchEvent(new Event('scroll'));
+      return {requestedScrollTop:420, actualScrollTop:content.scrollTop,
+        scrollHeight:content.scrollHeight, clientHeight:content.clientHeight,
+        documentToken:window.__installedProbeDocumentToken};
+    })())''');
+    phaseRecord('storeRestore')['scrollAssignment'] = jsonDecode(
+      scroll as String,
+    );
     await wait(() {
       final state = restoreStore.stateOf(key(tab));
       return state is Map &&
