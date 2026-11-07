@@ -97,6 +97,8 @@ jobs:
       - name: Validate passive Windows process exit evidence
         if: matrix.platform == 'windows'
         run: |
+          & ./tool/perf_probe/test_installed_plugin_windows_diagnostics.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-diagnostic-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tool/perf_probe/test_installed_plugin_windows_control.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-control-report-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
@@ -127,4 +129,7 @@ jobs:
             ${{ runner.temp }}/installed-plugin-probe/*.txt
             ${{ runner.temp }}/installed-plugin-probe/device/**
             ${{ runner.temp }}/installed-plugin-probe/host/**
+            ${{ runner.temp }}/installed-plugin-probe/windows-crash/diagnostics.json
+            ${{ runner.temp }}/installed-plugin-probe/windows-crash/cdb.txt
+            ${{ runner.temp }}/installed-plugin-probe/windows-crash/artifacts/**
             ${{ runner.temp }}/installed-plugin-source/source-provenance.json

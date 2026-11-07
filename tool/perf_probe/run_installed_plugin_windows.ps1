@@ -7,6 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'This launcher requires Windows process trace events.' }
 Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_diagnostics.psm1') -Force
 
 foreach ($name in @('INSTALLED_PROBE_DATA', 'INSTALLED_PROBE_OUTPUT', 'INSTALLED_PROBE_REPORTS')) {
     $value = [Environment]::GetEnvironmentVariable($name)
@@ -30,6 +31,9 @@ $receipt = @{
     successRequirements = 'Driver exit 0, final passing device report, identified native exit 0 or Dart teardown 0xFFFFFFFF, and no matching Application Error record.'
 }
 $report = $null
+$exitCode = 1
+$diagnostics = Start-InstalledPluginCrashDiagnostics -Directory (Join-Path $output 'windows-crash')
+$receipt.crashDiagnostics = $diagnostics
 try {
     $receipt | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $receiptPath -Encoding utf8
     $receipt.driverExitCode = Invoke-InstalledPluginLoggedCommand -Command flutter -LogPath (Join-Path $output 'run.log') -Arguments @(
@@ -43,33 +47,38 @@ try {
 } catch { $receipt.driverError = $_.Exception.Message }
 finally {
     try {
-        $snapshotPath = Join-Path $output 'windows-device-report.json'
-        Copy-Item -LiteralPath $reportPath -Destination $snapshotPath -ErrorAction Stop
-        $receipt.reportSha256 = (Get-FileHash -LiteralPath $snapshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
-        $decoded = Get-Content -LiteralPath $snapshotPath -Raw | ConvertFrom-Json -AsHashtable
-        if ($decoded -isnot [System.Collections.IDictionary]) { throw 'The device report must be a JSON object.' }
-        $report = $decoded
-        $receipt.deviceStatus = $report['status']
-    } catch { $receipt.reportReadError = $_.Exception.Message }
-    $observedPid = $null
-    if ($null -ne $report -and ($report['pid'] -is [int] -or $report['pid'] -is [long]) -and
-        $report['pid'] -gt 0 -and $report['pid'] -le [int]::MaxValue) { $observedPid = [int]$report['pid'] }
-    try { Stop-InstalledPluginExitTrace -Trace $trace -ProcessId $observedPid }
-    catch { $trace.availability = 'unavailable'; $trace.errors.Add($_.Exception.Message) }
-    $receipt.nativeExit = Get-InstalledPluginExitEvidence -Trace $trace -Report $report
-    $receipt.applicationErrors = Read-InstalledPluginApplicationErrors -Trace $trace -Identity $receipt.nativeExit
-    try {
-        $source = Join-Path $env:INSTALLED_PROBE_DATA 'app-fixture/app-data/logs/errors.txt'
-        if (Test-Path -LiteralPath $source -PathType Leaf) {
-            $destination = Join-Path $output 'fixture-errors.txt'
-            Copy-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
-            $receipt.fixtureErrorLog = @{
-                availability = 'collected'; sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
-            }
-        } else { $receipt.fixtureErrorLog.reason = 'The isolated fixture did not produce an errors.txt file.' }
-    } catch { $receipt.fixtureErrorLog.reason = $_.Exception.Message }
-    $exitCode = Get-InstalledPluginRunExitCode -DriverExitCode $receipt.driverExitCode -Report $report `
-        -ExitEvidence $receipt.nativeExit -ApplicationErrors $receipt.applicationErrors
+        try {
+            $snapshotPath = Join-Path $output 'windows-device-report.json'
+            Copy-Item -LiteralPath $reportPath -Destination $snapshotPath -ErrorAction Stop
+            $receipt.reportSha256 = (Get-FileHash -LiteralPath $snapshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $decoded = Get-Content -LiteralPath $snapshotPath -Raw | ConvertFrom-Json -AsHashtable
+            if ($decoded -isnot [System.Collections.IDictionary]) { throw 'The device report must be a JSON object.' }
+            $report = $decoded
+            $receipt.deviceStatus = $report['status']
+        } catch { $receipt.reportReadError = $_.Exception.Message }
+        $observedPid = $null
+        if ($null -ne $report -and ($report['pid'] -is [int] -or $report['pid'] -is [long]) -and
+            $report['pid'] -gt 0 -and $report['pid'] -le [int]::MaxValue) { $observedPid = [int]$report['pid'] }
+        try { Stop-InstalledPluginExitTrace -Trace $trace -ProcessId $observedPid }
+        catch { $trace.availability = 'unavailable'; $trace.errors.Add($_.Exception.Message) }
+        $receipt.nativeExit = Get-InstalledPluginExitEvidence -Trace $trace -Report $report
+        $receipt.applicationErrors = Read-InstalledPluginApplicationErrors -Trace $trace -Identity $receipt.nativeExit
+        try {
+            $source = Join-Path $env:INSTALLED_PROBE_DATA 'app-fixture/app-data/logs/errors.txt'
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+                $destination = Join-Path $output 'fixture-errors.txt'
+                Copy-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
+                $receipt.fixtureErrorLog = @{
+                    availability = 'collected'; sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+            } else { $receipt.fixtureErrorLog.reason = 'The isolated fixture did not produce an errors.txt file.' }
+        } catch { $receipt.fixtureErrorLog.reason = $_.Exception.Message }
+        $exitCode = Get-InstalledPluginRunExitCode -DriverExitCode $receipt.driverExitCode -Report $report `
+            -ExitEvidence $receipt.nativeExit -ApplicationErrors $receipt.applicationErrors
+    } finally {
+        Complete-InstalledPluginCrashDiagnostics -State $diagnostics -RepositoryRoot (Get-Location).Path `
+            -Identity $receipt.nativeExit -Failed ($exitCode -ne 0)
+    }
     $exitCode = Save-InstalledPluginRunReceipt -Receipt $receipt -Path $receiptPath -ExitCode $exitCode
 }
 exit $exitCode
