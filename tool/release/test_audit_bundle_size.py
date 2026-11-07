@@ -19,7 +19,7 @@ class BundleSizeTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.parent = Path(self.temporary.name)
+        self.parent = Path(self.temporary.name).resolve()
         self.bundle = self.parent / 'bundle'
         self.bundle.mkdir()
 
