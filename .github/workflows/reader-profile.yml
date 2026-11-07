@@ -1,0 +1,136 @@
+name: Reader profile comparison
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/reader-profile.yml'
+      - 'tool/perf_probe/run_reader_comparison.ps1'
+      - 'tool/perf_probe/test_reader_comparison.ps1'
+      - 'tool/perf_probe/lockfile_quoting.ps1'
+      - 'tool/perf_probe/runner.ps1'
+      - 'tool/perf_probe/run_perf_probe.ps1'
+      - 'integration_test/perf_resource_probe_test.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'integration_test/support/perf_reader_probe.dart'
+      - 'integration_test/support/perf_reader_scroll.dart'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reader-profile-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  paired-profile:
+    name: Reader baseline and candidate on one Windows runner
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      BASELINE_SHA: ${{ github.event.pull_request.base.sha }}
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+      PAIR_HARDWARE_ID: github-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Preserve source bytes and long paths
+        run: |
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) { throw 'Could not enable Git long paths.' }
+          git config --global core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve source line endings.' }
+          foreach ($revision in @($env:BASELINE_SHA, $env:CANDIDATE_SHA)) {
+            if ($revision -notmatch '^[0-9a-f]{40}$') { throw 'The event must pin both source SHAs.' }
+          }
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate runner and source-overlay contracts
+        run: |
+          ./tool/perf_probe/test_sample_resources.ps1
+          ./tool/perf_probe/test_reader_comparison.ps1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate the reader measurement harness
+        run: |
+          . ./tool/perf_probe/lockfile_quoting.ps1
+          $lockfilePath = Join-Path $PWD 'pubspec.lock'
+          $originalLockfile = [IO.File]::ReadAllBytes($lockfilePath)
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency resolution failed.' }
+          $lockfileQuoting = Restore-PerfLockfileQuoting $lockfilePath $originalLockfile
+          $lockfileQuoting | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'reader-profile-setup-lockfile.json')
+          flutter analyze --no-pub integration_test/perf_resource_probe_test.dart `
+            integration_test/support/perf_fixture.dart integration_test/support/perf_recorder.dart `
+            integration_test/support/perf_reader_probe.dart integration_test/support/perf_reader_scroll.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Reader harness analysis failed.' }
+          flutter test --no-pub --reporter expanded `
+            test/tool/perf_probe/perf_fixture_test.dart `
+            test/tool/perf_probe/perf_reader_probe_test.dart `
+            test/tool/perf_probe/perf_reader_scroll_test.dart `
+            test/tool/perf_probe/perf_recorder_test.dart `
+            test/tool/perf_probe/report_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Reader harness contracts failed.' }
+
+      - name: Build both sides and measure in ABBA order
+        run: |
+          ./tool/perf_probe/run_reader_comparison.ps1 `
+            -BaselineRef $env:BASELINE_SHA -CandidateRef $env:CANDIDATE_SHA `
+            -Cycles 1 -Warmup 1 -Repetitions 2 -BookLines '2000,50000,1000000' `
+            -HardwareId $env:PAIR_HARDWARE_ID `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'reader-profile')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Summarize observed comparison
+        if: always()
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'reader-profile'
+          $report = Join-Path $root 'candidate/report.md'
+          @(
+            '## Reader profile comparison', '',
+            "Baseline source: $env:BASELINE_SHA", "Candidate source: $env:CANDIDATE_SHA", '',
+            'One Windows runner, Flutter 3.47.7/profile, identical committed measurement harness.',
+            'Launch order: baseline, candidate, candidate, baseline. Each launch has 1 warmup and 2 measured repetitions.',
+            'Books: 2,000 / 50,000 / 1,000,000 lines. Builds and fixture preparation are outside action timings.',
+            'Cold means fresh application data; operating-system caches are not cleared.',
+            'Four latency samples per action and side are descriptive; p95/p99 are not stable tail estimates.',
+            'No performance threshold or automatic retry is used.', ''
+          ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          if (Test-Path -LiteralPath $report) {
+            Get-Content -LiteralPath $report | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          } else {
+            'Comparison unavailable; inspect the preserved partial logs.' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Preserve observations and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: reader-profile-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/reader-profile/**/*.json
+            ${{ runner.temp }}/reader-profile/**/*.jsonl
+            ${{ runner.temp }}/reader-profile/**/*.csv
+            ${{ runner.temp }}/reader-profile/**/*.md
+            ${{ runner.temp }}/reader-profile/**/*.log
+            ${{ runner.temp }}/reader-profile/*-head.txt
+            ${{ runner.temp }}/reader-profile/*-status.txt
+            ${{ runner.temp }}/reader-profile/*-diff.patch
+            ${{ runner.temp }}/reader-profile-setup-lockfile.json
+            !${{ runner.temp }}/reader-profile/**/data/**
+            !${{ runner.temp }}/reader-profile/**/bundle/**
+            !${{ runner.temp }}/reader-profile/worktrees/**

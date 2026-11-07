@@ -164,9 +164,7 @@ void _measure(
       _keepAlive = operation();
     }
     watch.stop();
-    samples.add(
-      watch.elapsedTicks * 1000000 / watch.frequency / operations,
-    );
+    samples.add(watch.elapsedTicks * 1000000 / watch.frequency / operations);
   }
   _emit(name, lines, operations, samples, extra: extra);
 }
@@ -372,6 +370,67 @@ void _runSize(int length, int sampleCount) {
   }
 }
 
+void _runFlatConversion(int length, int sampleCount) {
+  final flat = _Snapshot(
+    List<String>.filled(length, _payloads[0][0]),
+    List<bool>.unmodifiable(List<bool>.filled(length, true)),
+  );
+  _Snapshot convert() => _Snapshot(
+    ChunkedList<String>.from(flat.content, defaultValue: ''),
+    ChunkedList<bool>.from(flat.flags, defaultValue: false),
+  );
+  final paged = convert();
+  final range = _ranges(length, 1, 1);
+  final start = max(0, length ~/ 2 - 320);
+  final end = min(length, start + 640);
+  _Snapshot retain(_Snapshot source) => _Snapshot(
+    (source.content as ChunkedList<String>).retainRange(start, end),
+    (source.flags as ChunkedList<bool>).retainRange(start, end),
+  );
+  _Snapshot flatRetain() => _Snapshot(
+    List<String>.filled(length, '')..setRange(start, end, flat.content, start),
+    List<bool>.unmodifiable(
+      List<bool>.filled(length, false)..setRange(start, end, flat.flags, start),
+    ),
+  );
+  final expected = flatRetain();
+  final actual = retain(convert());
+  if (!_listEquals(expected.content, actual.content) ||
+      !_listEquals(expected.flags, actual.flags) ||
+      !_listEquals(
+        _flatApply(flat, range).content,
+        _pagedApply(convert(), range).content,
+      )) {
+    throw StateError('Flat-to-chunked conversion changed source indices/text');
+  }
+  final cases = <String, _Snapshot Function()>{
+    'flat_full_resident_from_flat_apply_1x640': () => _flatApply(flat, range),
+    'paged_from_flat_full_apply_1x640': () => _pagedApply(convert(), range),
+    'paged_convert_full_lists': convert,
+    'flat_full_retain_viewport': flatRetain,
+    'paged_from_flat_full_retain_viewport': () => retain(convert()),
+    'paged_existing_full_retain_viewport': () => retain(paged),
+  };
+  for (final entry in cases.entries) {
+    _measure(
+      entry.key,
+      length,
+      entry.value,
+      sampleCount: sampleCount,
+      operations: length < 10000 ? 8 : 1,
+      extra: {
+        'resident_lines_before': length,
+        'retained_or_patched_lines': 640,
+        'source_is_flat': !entry.key.startsWith('paged_existing'),
+        'conversion_included':
+            entry.key.startsWith('paged_from_flat') ||
+            entry.key == 'paged_convert_full_lists',
+        'logical_indices_and_text_verified': true,
+      },
+    );
+  }
+}
+
 Future<void> _allocationWorker() async {
   final service = await Service.getInfo();
   stdout.writeln(
@@ -440,6 +499,9 @@ Future<void> main(List<String> args) async {
       'chunk_length': ChunkedList.chunkLength,
       'samples': samples,
       'sizes': [2000, 50000, 1000000],
+      'case_set': args.contains('--conversion-only')
+          ? 'flat_conversion'
+          : 'standard',
       'scope':
           'in-memory reference-array copies, immutable snapshot operations, and list reads; excludes layout, rendering, notes scanning, state construction and I/O',
       'payload':
@@ -447,7 +509,11 @@ Future<void> main(List<String> args) async {
     }),
   );
   for (final size in [2000, 50000, 1000000]) {
-    _runSize(size, samples);
+    if (args.contains('--conversion-only')) {
+      _runFlatConversion(size, samples);
+    } else {
+      _runSize(size, samples);
+    }
   }
   stdout.writeln(
     jsonEncode({

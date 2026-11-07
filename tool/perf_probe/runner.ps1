@@ -9,12 +9,22 @@ param(
   [string]$OutputDirectory = '',
   [string]$Baseline = '',
   [string]$HardwareId = '',
+  [switch]$ReaderOnly,
+  [string]$BookLines = '',
+  [switch]$BuildOnly,
+  [string]$ReuseBuild = '',
+  [ValidateRange(0, 59)][int]$LaunchIndexOffset = 0,
+  [switch]$SkipAnalysis,
   [ValidateRange(60, 7200)][int]$TimeoutSeconds = 1200
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lockfile_quoting.ps1')
 if (-not $IsWindows) { throw 'The automated desktop runner requires Windows. See README.md for other platforms.' }
+if ($BuildOnly -and $ReuseBuild) { throw 'BuildOnly and ReuseBuild are mutually exclusive.' }
+if ($BookLines -and $BookLines -notmatch '^\d+,\d+,\d+$') { throw 'BookLines must contain three comma-separated line counts.' }
+if ($LaunchIndexOffset -and -not $SkipAnalysis) { throw 'An offset launch must be analyzed with the complete launch set.' }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if ($Baseline) { $Baseline = [IO.Path]::GetFullPath($Baseline, $PWD.Path) }
 $runDir = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory, $PWD.Path) } else {
@@ -74,6 +84,8 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
         PERF_CACHE_STATE = $Cache; PERF_LAUNCH_INDEX = "$Index"
         PERF_WARMUP = "$Warmup"; PERF_REPETITIONS = "$Repetitions"
         PERF_PREPARE_ONLY = $(if ($PreparationOnly) { '1' } else { '0' })
+        PERF_READER_ONLY = $(if ($ReaderOnly) { '1' } else { '0' })
+        PERF_BOOK_LINES = $(if ($BookLines) { $BookLines } else { $null })
       }
     $ticks = $process.StartTime.ToUniversalTime().Ticks
     $ticks -= $ticks % 10000
@@ -136,8 +148,13 @@ $launchDirs = [Collections.Generic.List[string]]::new()
 $manifest = @{}
 Push-Location $repo
 try {
-  & flutter pub get --enforce-lockfile
-  if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency resolution failed.' }
+  if (-not $ReuseBuild) {
+    $lockfilePath = Join-Path $repo 'pubspec.lock'
+    $originalLockfile = [IO.File]::ReadAllBytes($lockfilePath)
+    & flutter pub get --enforce-lockfile
+    if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency resolution failed.' }
+    $lockfileQuoting = Restore-PerfLockfileQuoting $lockfilePath $originalLockfile
+  }
   $commit = (& git rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0) { throw 'Cannot identify source commit.' }
   $dirty = -not [string]::IsNullOrWhiteSpace((& git status --porcelain | Out-String))
@@ -158,30 +175,69 @@ try {
     schemaVersion = 2; protocolVersion = 2; commit = $commit; dirty = $dirty
     buildMode = $Mode; cacheState = $CacheState; hardwareId = $HardwareId
     os = "windows-$($os.Version)-$($os.BuildNumber)"; flutterVersion = $sdk.frameworkRevision
-    warmup = $Warmup; repetitions = $Repetitions; launchCount = $Launches
+    warmup = $Warmup; repetitions = $Repetitions; launchCount = $Launches; launchIndexOffset = $LaunchIndexOffset
     sampling = @{ intervalMs = 500; treeRefreshMs = 2000; heap = ($Mode -ne 'release') }
     machine = @{ cpu = $cpu; gpu = $gpu; memoryBytes = $system.TotalPhysicalMemory }
     startedAtUtc = [DateTime]::UtcNow.ToString('o'); status = 'running'
     coldDefinition = 'fresh application data; OS file cache is not flushed'
     startupOrigin = 'Dart main; fixture preparation and native pre-main are excluded'
   }
+  if (-not $ReuseBuild) { $manifest.lockfileQuoting = $lockfileQuoting }
   Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
-  & flutter build windows "--$Mode" --no-pub --target=integration_test/perf_resource_probe_test.dart `
-    --dart-define=SENTRY_DSN= --dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false `
-    2>&1 | Tee-Object -FilePath (Join-Path $runDir 'build.log')
-  if ($LASTEXITCODE -ne 0) { throw "Flutter build failed ($LASTEXITCODE)." }
+  if (-not $ReuseBuild) {
+    & flutter build windows "--$Mode" --no-pub --target=integration_test/perf_resource_probe_test.dart `
+      --dart-define=SENTRY_DSN= --dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false `
+      2>&1 | Tee-Object -FilePath (Join-Path $runDir 'build.log')
+    if ($LASTEXITCODE -ne 0) { throw "Flutter build failed ($LASTEXITCODE)." }
+  }
   if ((& git rev-parse HEAD).Trim() -ne $commit) { throw 'HEAD changed while building; rerun on a stable checkout.' }
   $manifest.dirty = $dirty -or -not [string]::IsNullOrWhiteSpace((& git status --porcelain | Out-String))
   $modeFolder = (Get-Culture).TextInfo.ToTitleCase($Mode)
   $executable = Join-Path $repo "build/windows/x64/runner/$modeFolder/otzaria.exe"
+  if ($ReuseBuild) {
+    $built = Get-Content -LiteralPath (Join-Path $ReuseBuild 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
+    if ($built.status -ne 'built' -or $built.dirty -or $manifest.dirty -or
+        $built.commit -ne $commit -or $built.buildMode -ne $Mode -or
+        $built.flutterVersion -ne $manifest.flutterVersion) {
+      throw 'The exported build does not match this clean checkout and SDK.'
+    }
+    $executable = Join-Path $ReuseBuild 'bundle/otzaria.exe'
+    $bundle = Join-Path $ReuseBuild 'bundle'
+    $expectedPaths = @($built.bundleHashes | ForEach-Object path | Sort-Object)
+    $actualPaths = @(Get-ChildItem -LiteralPath $bundle -Recurse -File | ForEach-Object {
+      [IO.Path]::GetRelativePath($bundle, $_.FullName)
+    } | Sort-Object)
+    if ($expectedPaths.Count -eq 0 -or ($expectedPaths -join "`n") -cne ($actualPaths -join "`n")) {
+      throw 'The exported build inventory changed.'
+    }
+    foreach ($binary in $built.bundleHashes) {
+      $path = Join-Path $ReuseBuild "bundle/$($binary.path)"
+      if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $binary.sha256) {
+        throw "Exported build changed: $($binary.path)"
+      }
+    }
+    $manifest.bundleHashes = $built.bundleHashes
+    $manifest.lockfileQuoting = $built.lockfileQuoting
+    $manifest.reusedBuild = [IO.Path]::GetFullPath($ReuseBuild)
+  }
   if (-not (Test-Path -LiteralPath $executable)) { throw "Built executable not found: $executable" }
   $manifest.binarySha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($BuildOnly) {
+    $bundle = Join-Path $runDir 'bundle'
+    Copy-Item -LiteralPath (Split-Path $executable) -Destination $bundle -Recurse
+    $manifest.bundleHashes = @(Get-ChildItem -LiteralPath $bundle -Recurse -File | Sort-Object FullName | ForEach-Object {
+      [ordered]@{ path = [IO.Path]::GetRelativePath($bundle, $_.FullName)
+        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+    })
+    $manifest.status = 'built'
+    return
+  }
   $warmData = Join-Path $runDir 'data/warm'
   if ($CacheState -eq 'warm') {
     Invoke-PerfLaunch $executable (Join-Path $runDir 'prepare-data') $warmData 'cold' -1 $true
     Invoke-PerfLaunch $executable (Join-Path $runDir 'prepare-warm') $warmData 'cold' -1
   }
-  for ($index = 0; $index -lt $Launches; $index++) {
+  for ($index = $LaunchIndexOffset; $index -lt $LaunchIndexOffset + $Launches; $index++) {
     $directory = Join-Path $runDir ('launch-{0:d3}' -f $index)
     $launchDirs.Add($directory)
     $data = if ($CacheState -eq 'warm') { $warmData } else { Join-Path $runDir "data/cold-$index" }
@@ -200,7 +256,7 @@ try {
   Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
   Merge-PerfOutputs $launchDirs.ToArray()
   try {
-    if ((Get-Item -LiteralPath (Join-Path $runDir 'phases.jsonl')).Length -gt 0) {
+    if (-not $SkipAnalysis -and (Get-Item -LiteralPath (Join-Path $runDir 'phases.jsonl')).Length -gt 0) {
       $arguments = @('tool/perf_probe/analyze.dart', $runDir)
       if ($Baseline) { $arguments += @('--baseline', $Baseline) }
       & dart @arguments
