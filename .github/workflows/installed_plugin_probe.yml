@@ -1,0 +1,111 @@
+name: Installed plugin resource scenario
+
+on:
+  pull_request:
+    paths:
+      - 'integration_test/installed_plugin_resource_probe_test.dart'
+      - 'integration_test/support/installed_plugin_*.dart'
+      - 'integration_test/support/perf_fixture.dart'
+      - 'integration_test/support/webview_probe_metrics.dart'
+      - 'integration_test/support/webview_probe_window.dart'
+      - 'test_driver/installed_plugin_resource_probe.dart'
+      - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'tool/perf_probe/*installed_plugin*'
+      - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'lib/plugins/**'
+      - 'lib/core/diagnostics/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/installed_plugin_probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-plugin-probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed:
+    name: Actual app / ${{ matrix.platform }} / profile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-2025
+          - platform: macos
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      INSTALLED_PROBE_DATA: ${{ runner.temp }}/installed-plugin-probe/data
+      INSTALLED_PROBE_OUTPUT: ${{ runner.temp }}/installed-plugin-probe/device
+      INSTALLED_PROBE_REPORTS: ${{ runner.temp }}/installed-plugin-probe/host
+      INSTALLED_PROBE_STORE_SOURCE: ${{ runner.temp }}/installed-plugin-source
+      INSTALLED_PROBE_MACHINE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.runner }}-${{ matrix.platform }}
+      FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '0'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.15'
+      - name: Record toolchain and prepare verified read-only source
+        run: |
+          New-Item -ItemType Directory -Force '${{ runner.temp }}/installed-plugin-probe' | Out-Null
+          flutter --version --machine | Set-Content '${{ runner.temp }}/installed-plugin-probe/flutter.json'
+          rustc --version | Set-Content '${{ runner.temp }}/installed-plugin-probe/rust.txt'
+          git rev-parse HEAD | Set-Content '${{ runner.temp }}/installed-plugin-probe/source-commit.txt'
+          python tool/perf_probe/prepare_installed_plugin_source.py --output "$env:INSTALLED_PROBE_STORE_SOURCE" 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/source.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Resolve exact dependencies and analyze
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pub-get.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter analyze --no-pub 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/analyze.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate fixture and negative evidence contracts
+        run: |
+          node --test tool/perf_probe/test_installed_plugin_fixture.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run actual installed plugin hosts and dispatcher
+        run: |
+          flutter drive --profile -d ${{ matrix.platform }} --no-pub `
+            --driver=test_driver/installed_plugin_resource_probe.dart `
+            --target=integration_test/installed_plugin_resource_probe_test.dart `
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=INSTALLED_PROBE_COMMIT=${{ github.sha }} `
+            --dart-define=INSTALLED_PROBE_IDLE_MS=1000 `
+            2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/run.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve raw results and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-${{ matrix.platform }}-profile
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/installed-plugin-probe/*.log
+            ${{ runner.temp }}/installed-plugin-probe/*.json
+            ${{ runner.temp }}/installed-plugin-probe/*.txt
+            ${{ runner.temp }}/installed-plugin-probe/device/**
+            ${{ runner.temp }}/installed-plugin-probe/host/**
+            ${{ runner.temp }}/installed-plugin-source/source-provenance.json

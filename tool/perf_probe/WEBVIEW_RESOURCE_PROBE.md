@@ -176,8 +176,9 @@ Offstage אינו מדמה פעולות מערכת אלה. המשך אימות A
 ערך חסר הוא null; אפס מותר רק כשזה ערך שנמדד. CPU, PSS וזיכרון GPU
 מסומנים unsupported בתוך ה־probe ויש לצרף עבורם איסוף חיצוני.
 
-ה־pin `66ed7ec924d6ce5366a79acf0f90b0932a334b0f` כולל את חוזה השגיאות
-המפורש של `getProcessInfos` מ־Otzaria/flutter_inappwebview#52. לכן
+חוזה השגיאות המפורש של `getProcessInfos` מ־Otzaria/flutter_inappwebview#52
+נוסף בקומיט `66ed7ec924d6ce5366a79acf0f90b0932a334b0f`, ונשמר גם בצאצא
+`c709de98711cf34350c48df4c75e24d0879d5876` הנעול בבסיס התרחיש החדש. לכן
 `pluginWebViewProcessSnapshot` מקבל רשימה ריקה מוצלחת כ־`collected`.
 אין להחיל פירוש זה על גרסה ישנה שבה כשל יכול להחזיר רשימה ריקה.
 גם בחוזה הנוכחי, אפס תצפיות אינו הוכחה לזיכרון כולל אפס או לכיסוי מלא
@@ -239,3 +240,191 @@ renderers. מקור `sampleProcessTree` עצמו לא שונה במסגרת PR �
 בדיקות החלון משתמשות ב־method channels מדומים: נבדקים חלון מוסתר,
 תשובת show שקודמת לחשיפה בפועל, fade ב־macOS, כשל/timeout ודילוג במובייל.
 הן אינן מדמות קומפוזיטור או מחליפות את הרצת תרחיש ה־profile במערכת היעד.
+
+## תוספים מותקנים באפליקציה האמיתית — #4108 / #4112
+
+`integration_test/installed_plugin_resource_probe_test.dart` הוא יעד נוסף
+המפעיל את `app.main`, את `PluginSystemBloc`, את הכרטיסיות והמארחים
+`PluginTabPage` ו־`PluginBackgroundHost`. הרישום עובר דרך
+`PluginRegistryRepository`; ה־SDK, ה־bridge, תהליך ה־boot והפינוי עוברים
+בקוד המוצר הרגיל. התרחיש הקודם נשאר בעל הגבולות המתועדים לעיל.
+
+ה־fixture החדש מרכיב את `PerfFixture` הקיים, ובוחר תיקיות מוחלטות, חדשות
+ונפרדות לנתוני האפליקציה, למקור החנות ולדוח. הוא מסרב לתיקייה מאוכלסת,
+לנתיבים חופפים ולמעבר דרך symlink. ספרייה, הגדרות, מסדי נתונים, הרשאות
+ותוספים נכתבים רק בתוך תיקיית הבדיקה. עדכונים, סנכרון, דיווחי קריסה
+וגיבויים אוטומטיים נשארים כבויים. מצב offline כבוי רק בנתוני בדיקה אלה,
+כדי שהחנות תוכל להשתמש בהרשאת הרשת מול שירות הקטלוג המקומי המבוקר.
+
+### מה נבדק
+
+| שלב | הראיה שנדרשת להצלחה |
+|---|---|
+| פתיחה ראשונה ושינוי מצב | SDK אמיתי שהשלים boot, שדה קלט גלוי, גלילה ו־ACK של `plugin.setRestoreState` |
+| ריבוי מופעים | מספר מופעים זכאים מעל תקרת הפלטפורמה, לצד כרטיסיה גלויה ובקרות הגנה |
+| לחץ זיכרון | קריאה אחת ל־`checkDiscard(memoryPressure: true)` לכל המועמדים והבקרות יחד |
+| פינוי ושחזור | בקר חסר ו־released, וה־widget הוסר אחרי הפינוי; לאחר בחירת אותה כרטיסיה נדרשים אותו instance ID, בקר ואובייקט מסמך חדשים ומצב DOM משוחזר. מזהה ה־native view נרשם כתצפית בלבד, כי מותר למחזר אותו |
+| הגנות | `noRestoreState`, `unsavedChanges`, `busyRpc` ו־`contextMenu` הם החסמים הראשונים שנצפו, והבקרים נשארים זהים לאחר אותה בקשת פינוי |
+| כמות וגיל | מדיניות הכמות האמיתית מול מספר גדול מהתקרה; במקרה הגיל בלבד מקדמים את שעון הדיספצ'ר מעבר לגיל האמיתי. כל override משוחזר |
+| חלון desktop | בקשת minimize וגם hide, ACK משאילתות חלון נייטיביות, מעבר מוסתר במארח, idle וחידוש אותו מסמך |
+| רקע | הפעלה עצלה של `PluginBackgroundHost`, boot במצב background, idle וסגירה דרך `plugin.backgroundDone` |
+
+בקרת `busyRpc` פותחת דיאלוג אישור דרך `ui.showConfirm` של התוסף ומשאירה
+את ה־RPC ממתין בזמן בקשת הפינוי. ה־runner סוגר את הדיאלוג לאחר אימות
+ההגנה. זו בקרת תקינות מבוקרת, ואינה עומס חיפוש, הורדה או עבודת משתמש.
+רישום השירות נעשה דרך ה־SDK לתפריט הקשר, ומוסר לפני סגירת הכרטיסיה.
+`firstBlockingReason` ו־`firstBlockerCounts` מתארים את החסם הראשון לפי סדר
+המדיניות; אין להסיק מהם שכל סיבות הפטור האפשריות נמנו.
+
+בשלב הכנת המופעים בלבד משתמשים בתקרת כמות וגיל גבוהה ומפורשת, כדי
+ששעון הפינוי הרגיל לא יקדים את בקשת הבדיקה. שעוני המוצר, השהיית מחזור
+החיים ופעילות הרקע אינם מבוטלים. מקרה הגיל המואץ ומקרה לחץ הזיכרון אינם
+הוכחה לזמני פינוי תחת מדיניות ברירת המחדל בשימוש רגיל.
+
+### חנות 2.13 עם שירות קטלוג מבוקר
+
+המקור הנבדק הוא
+[`Otzaria/otzaria-plugins-store@4517d39`](https://github.com/Otzaria/otzaria-plugins-store/tree/4517d39c4ecab632aff98e1c0e414881695961aa),
+המכיל את שחזור המצב מ־[PR #4](https://github.com/Otzaria/otzaria-plugins-store/pull/4).
+סקריפט ההכנה מוריד חמישה קבצים מהקומיט ומאמת SHA-256 לכל קובץ; ה־fixture
+מאמת אותם שוב לאחר ההעתקה. קוד החנות ו־`restore-state.js` אינם משוכתבים.
+אין תחליף JavaScript ל־SDK או לנתיב השחזור של החנות.
+
+החנות נבחרה בעקבות רשימת ההורדות הציבורית; מספר הורדות אינו מספר
+משתמשים פעילים. בזמן הכנת התרחיש הקטלוג הציבורי החזיר 503. הרצת הבדיקה
+עצמה אינה טוענת שדירוג ההורדות עדכני ואינה תלויה בזמינות הקטלוג.
+לצורך בדיקה שחוזרת על עצמה ניתנת לחנות רק ההרשאה האופציונלית
+`network.access`; הרשאות פתיחת תוספים והרצה ברקע אינן ניתנות לה.
+
+`InstalledProbeCatalog` מנתב את בקשות ה־HTTP של האפליקציה רק עבור GET
+ל־`/api/plugins`, `/api/plugins/search` ו־`/api/plugins/store-home` אל שרת
+loopback מקומי. הנתונים הם 36 רשומות בדיקה קבועות. שאר היעדים, שיטות
+הכתיבה, הורדות ויצירת install-token נחסמים לפני פתיחת תעבורה. נתיב
+ההרשאות ו־`network.fetchStream` המקורי נשארים פעילים. שתי בקשות ה־GET
+המדויקות לרענון רשימת ההיתר הרשמית נחסמות גם הן ונרשמות כ־
+`expectedPolicyBootstrap`; ה־resolver האמיתי יכול להמשיך לגיבוי המקומפל.
+מותר לכל היותר זוג חסום אחד, בסדר raw ואז Contents API; כפילות, סדר שגוי,
+רענון נוסף או כל חסימה אחרת מכשילים את הניסוי. כך גם ריצה ארוכה
+שמחדשת את המדיניות דורשת בירור ואינה מוצגת כהצלחת האתחול הקר.
+הדוח שומר את כל הבקשות החסומות ואת הספירות לפי סיווג, ללא השמטה.
+הספירות נבדקות שוב בסיום, אחרי ניקוי התוספים וסגירת לקוחות ה־HTTP;
+חסימה מאוחרת מסמנת כישלון ונשמרת בדוח הסופי.
+
+הניתוב חל על לקוחות Dart HTTP ב־isolate של הבדיקה, ואינו הופך את כל
+האפליקציה או מערכת ההפעלה ללא מקוונת; משאבים של החנות המקורית עשויים
+להשתמש ברשת דרך מנוע ה־WebView. הדוח אינו ראיה לביצועי שרת הקטלוג או
+לעומס של התקנת תוספים אמיתית. אין בדיקה של כל התוספים הנפוצים.
+
+במופע החנות משנים חיפוש, מסנן מצב, מיון, העדפת הסתרה וגלילה; לאחר פינוי
+נבדקים אותם ערכי DOM במסמך חדש. סמן מסמך מקומי נקרא ונוצר רק בגבולות
+המדידה. החנות המקורית אינה חושפת את payload ה־boot, ולכן שדה זה מסומן
+`unavailable` בדוח החנות; ה־SDK המאותחל, הבקר והמסמך החדשים וה־DOM המשוחזר
+נבדקים בפועל. ב־fixture המבוקר נבדק גם `boot.restore.reason=discarded`
+והמצב שנמסר ב־boot.
+
+### הרצה מקומית ו־CI
+
+ה־workflow `installed_plugin_probe.yml` בונה ומפעיל את האפליקציה ב־profile
+ב־Windows וב־macOS. לפניו נבדקים חוזי הדוח, בקרות הכשל וה־fixture.
+ה־driver שומר נתוני `reportData` גם בכשל, ובתיקיית הפלט נכתב checkpoint
+אחרי כל שלב. artifacts כוללים דוח גולמי, לוגים, SHA של מקור החנות וגרסאות
+כלים; כשל בנייה או ניתוק מוקדם עשוי להשאיר רק חלק מהם.
+
+```powershell
+# Windows; ב־macOS החלף windows ב־macos. נדרש PowerShell לפקודות דוגמה אלה.
+$installedProbeRun = Join-Path ([IO.Path]::GetTempPath()) ('installed-plugin-' + [guid]::NewGuid())
+$env:INSTALLED_PROBE_DATA = Join-Path $installedProbeRun 'data'
+$env:INSTALLED_PROBE_OUTPUT = Join-Path $installedProbeRun 'device'
+$env:INSTALLED_PROBE_REPORTS = Join-Path $installedProbeRun 'host'
+$env:INSTALLED_PROBE_STORE_SOURCE = Join-Path $installedProbeRun 'source'
+$env:INSTALLED_PROBE_MACHINE_ID = 'local-machine-session-1'
+python tool/perf_probe/prepare_installed_plugin_source.py --output $env:INSTALLED_PROBE_STORE_SOURCE
+flutter pub get --enforce-lockfile
+flutter drive --profile -d windows --no-pub `
+  --driver=test_driver/installed_plugin_resource_probe.dart `
+  --target=integration_test/installed_plugin_resource_probe_test.dart `
+  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
+  --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" `
+  --dart-define=INSTALLED_PROBE_IDLE_MS=3000
+```
+
+`INSTALLED_PROBE_IDLE_MS` חייב להיות בין 1,000 ל־60,000; ב־CI הוא 1,000.
+זהו חלון בדיקת פרוטוקול קצר. מדידה לצורך החלטות על צריכת משאבים מחייבת
+חלונות ארוכים יותר וחזרות באותו מחשב ובאותה בנייה. אין להשוות בין שתי
+מכונות hosted, בין profile ו־release או בין סטים שונים של הגדרות/backend.
+`machineId` הוא תווית המסופקת לריצה, ואינו זיהוי חומרה מאומת.
+
+להרצה על Linux או macOS, ועל מכשיר Android/iOS מחובר, אפשר להעביר את
+אותם קובצי מקור מאומתים בקלט הבנייה. כך אין צורך ב־adb push לתיקיית
+האפליקציה או בהעתקת נתיב מהמחשב לתוך המכשיר. הדוגמה הבאה משתמשת
+ב־Bash ובמחשב מארח Linux/macOS; ב־iOS נדרשים macOS, Xcode וחתימה:
+
+```bash
+installedProbeHost=$(python3 -c 'import pathlib,tempfile; print(pathlib.Path(tempfile.mkdtemp(prefix="installed-probe-")).resolve())')
+python3 tool/perf_probe/prepare_installed_plugin_source.py \
+  --output "$installedProbeHost/source" \
+  --defines-output "$installedProbeHost/store-defines.json"
+flutter pub get --enforce-lockfile
+flutter devices
+installedProbeDevice=linux # macos, או מזהה מכשיר Android/iOS פיזי מהרשימה
+unset INSTALLED_PROBE_DATA INSTALLED_PROBE_OUTPUT INSTALLED_PROBE_STORE_SOURCE
+flutter drive --profile -d "$installedProbeDevice" --no-dds --no-pub \
+  --driver=test_driver/installed_plugin_resource_probe.dart \
+  --target=integration_test/installed_plugin_resource_probe_test.dart \
+  --dart-define-from-file="$installedProbeHost/store-defines.json" \
+  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+  --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
+  --dart-define=INSTALLED_PROBE_IDLE_MS=3000
+```
+
+ההובלה משתמשת ב־gzip/JSON, עם גבולות של 256 KiB לטקסט המקודד,
+128 KiB לקלט הדחוס ו־512 KiB לתוכן המפוענח. רק חמשת הנתיבים המקובעים
+מותרים, וכל ה־SHA נבדקים לפני כתיבת קובץ. המכשיר מקצה תיקיית temp
+קנונית וחדשה, וה־driver מחזיר את הדוח למחשב המארח. קובצי הבדיקה נשמרים
+לאבחון כל עוד תהליך האפליקציה מחזיק מסדי נתונים פתוחים; אפשר להסיר את
+תיקיית הריצה לאחר יציאת התהליך. שרת הקטלוג וחיבורי HTTP נסגרים ב־finally,
+וכך גם מארחי הבדיקה אם נשארו פתוחים בעקבות כשל. בוני Windows הכפופים
+למגבלת אורך שורת פקודה יכולים להשתמש במסלול תיקיית המקור המקומית
+המתועד למעלה במקום להעביר payload בקלט הבנייה.
+
+מסלול האיסוף האוטומטי כאן הוא profile. ריצת release אינה מסופקת על ידי
+ה־driver הזה: היא דורשת רתמת בדיקה נייטיבית המתאימה לפלטפורמה ללא
+הסתמכות על VM service. בכל חמש המערכות תוצאות release נשארות `notRun`
+עד הרצה כזאת. בנייה מוצלחת לבדה אינה דוח תוצאות. גם profile על סימולטור
+או emulator אינו קבלת ביצועים של מכשיר פיזי.
+
+| מערכת | המסלול בתרחיש החדש | גבול קבלה |
+|---|---|---|
+| Windows | CI של האפליקציה ב־profile; backend נצפה דרך אבחון יצירת ה־native view | רק artifact של ריצה שעברה הוא ראיית ביצוע; אין סף חיסכון |
+| macOS | CI של האפליקציה ב־profile | RSS של המארח; זיכרון מנוע מלא ו־backend אבחוני מסומנים לפי זמינותם |
+| Linux | `notRun` עד הרצה עם סביבת GUI ותלויות native מתאימות | אין תוצאת Linux הנגזרת מבדיקות היחידה |
+| Android | פקודת profile משותפת עם payload מקור; `notRun` במסגרת workflow זה | נדרשים מכשיר מתאים ואוטומציית רקע במכשיר אמיתי למדידת ביצועים |
+| iOS | פקודת profile משותפת עם payload מקור; `notRun` במסגרת workflow זה | נדרשים מכשיר, חתימה ואוטומציית רקע; סימולטור אינו קבלת חומרה |
+
+כל דוח מסמן רק את מערכת ההפעלה שהריצה אותו. ארבע האחרות נשארות
+`notRun`. פעולות minimize/hide מסומנות `unsupported` במובייל; שלב רקע
+של מערכת ההפעלה מסומן `notRun`. מופע `PluginBackgroundHost` הנסתר בתוך
+האפליקציה אינו שקול להעברת האפליקציה עצמה לרקע.
+
+### פירוש המדדים
+
+כל גבול שלב שומר `describeForegroundResources()` הסינכרוני, שאינו פונה
+ל־JS, ל־native או למסד הנתונים, לצד דגימת תהליכים נפרדת. RSS של המארח
+נמדד בבתים דרך `ProcessInfo.currentRss`. הדוגם הקיים מוסיף את המדד הזמין
+של המארח ואת תהליכי המנוע שנצפו, עם מקור, יחידה, סטטוס איסוף וכיסוי.
+`complete` של המנוע נשאר לא ידוע; אין PID משוער לכל כרטיסיה ואין חיבור
+של מדדים שונים ל״זיכרון כולל״. נתוני CPU, PSS, זיכרון GPU ומשך ציור
+נייטיבי מסומנים חסרים כאשר לא נאספו.
+
+שאילתות JS, רשימות תהליכים ופעולות חלון נעשות בגבולות בלבד ועלולות
+להעיר את המנוע. חלון שקט מתחיל אחרי ACK ומסתיים לפני הקריאה הבאה;
+מונה פעולות הבדיקה חייב להישאר אפס. דגימה שנותרה תלויה אחרי timeout
+מונעת הצגת חלון שקט תקין. פעילות timers ו־bridge של המוצר עצמו אינה
+מנוטרלת. איסוף `DeveloperDiagnostics` נשאר כבוי, ולכן הבדיקה אינה
+מפעילה את הרחבת כל רמות ה־console שבאה עם מצב האיסוף.
+
+זמן החידוש כולל בחירת כרטיסיה, יצירת בקר/מסמך, SDK וקריאת DOM מאמתת;
+זו אינה מדידת compositor. `FrameTiming` נאסף באופן פסיבי ובכמות חסומה,
+ושייך ל־Flutter בלבד. המדידות נשמרות גם בלי הבטחה לחיסכון בזיכרון.
+בחירת פרופיל חסכוני או שינוי ברירות מחדל נשארים תלויים בנתוני RAM,
+זמן חידוש וחוויית שימוש ממכשירים מתאימים.
