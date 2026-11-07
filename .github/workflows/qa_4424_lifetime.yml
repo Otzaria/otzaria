@@ -1,0 +1,127 @@
+name: QA 4424 Windows native lifetime candidate
+
+on:
+  push:
+    branches: ['y-ploni/qa-4424-lifetime-20261107-b']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-4424-native-lifetime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed:
+    name: Actual app / ${{ matrix.platform }} / profile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-2025
+          - platform: macos
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      INSTALLED_PROBE_MACHINE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.runner }}-${{ matrix.platform }}
+      FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND: '0'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Bind this QA checkout to the frozen source candidate
+        run: |
+          $candidate = 'f4ac011f1b8c81d4a760eeeadfe037228fb944e3'
+          $expectedTree = '1767f0161e11567f3d4d0eb703d1bdeb1950272b'
+          $changes = @(& git diff --name-only $candidate HEAD)
+          if ($LASTEXITCODE -ne 0 -or $changes.Count -ne 1 -or $changes[0] -cne '.github/workflows/qa_4424_lifetime.yml') { throw 'Unexpected QA-only source delta' }
+          $actualTree = (& git rev-parse ($candidate + '^{tree}')).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualTree -cne $expectedTree) { throw 'Frozen source tree mismatch' }
+          $actualParent = (& git rev-parse 'HEAD^').Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualParent -cne $candidate) { throw 'Frozen source parent mismatch' }
+          [ordered]@{ qaHead = (& git rev-parse HEAD).Trim(); sourceCandidate = $candidate; sourceTree = $actualTree; qaOnlyFiles = $changes } | ConvertTo-Json -Compress
+      - name: Set probe paths on the runner
+        run: |
+          @(
+            "INSTALLED_PROBE_DATA=$env:RUNNER_TEMP/installed-plugin-probe/data"
+            "INSTALLED_PROBE_OUTPUT=$env:RUNNER_TEMP/installed-plugin-probe/device"
+            "INSTALLED_PROBE_REPORTS=$env:RUNNER_TEMP/installed-plugin-probe/host"
+            "INSTALLED_PROBE_STORE_SOURCE=$env:RUNNER_TEMP/installed-plugin-source"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.15'
+      - name: Record toolchain and prepare verified read-only source
+        run: |
+          New-Item -ItemType Directory -Force '${{ runner.temp }}/installed-plugin-probe' | Out-Null
+          flutter --version --machine | Set-Content '${{ runner.temp }}/installed-plugin-probe/flutter.json'
+          rustc --version | Set-Content '${{ runner.temp }}/installed-plugin-probe/rust.txt'
+          git rev-parse HEAD | Set-Content '${{ runner.temp }}/installed-plugin-probe/source-commit.txt'
+          python tool/perf_probe/prepare_installed_plugin_source.py --output "$env:INSTALLED_PROBE_STORE_SOURCE" 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/source.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Resolve exact dependencies and analyze
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pub-get.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter analyze --no-pub 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/analyze.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate fixture and negative evidence contracts
+        run: |
+          node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_windows_lifetime_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate retained Windows process lifetime and owned child exit
+        if: matrix.platform == 'windows'
+        run: |
+          & ./tool/perf_probe/test_installed_plugin_windows_control.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-control-report-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tool/perf_probe/test_installed_plugin_windows_runner.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-runner-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run actual installed plugin hosts and dispatcher
+        run: |
+          if ('${{ matrix.platform }}' -eq 'windows') {
+            & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
+            exit $LASTEXITCODE
+          }
+          flutter drive --profile -d ${{ matrix.platform }} --no-pub `
+            --driver=test_driver/installed_plugin_resource_probe.dart `
+            --target=integration_test/installed_plugin_resource_probe_test.dart `
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=INSTALLED_PROBE_COMMIT=${{ github.sha }} `
+            --dart-define=INSTALLED_PROBE_IDLE_MS=1000 `
+            2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/run.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve raw results and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-plugin-${{ matrix.platform }}-profile
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/installed-plugin-probe/*.log
+            ${{ runner.temp }}/installed-plugin-probe/*.json
+            ${{ runner.temp }}/installed-plugin-probe/*.txt
+            ${{ runner.temp }}/installed-plugin-probe/device/**
+            ${{ runner.temp }}/installed-plugin-probe/host/**
+            ${{ runner.temp }}/installed-plugin-source/source-provenance.json
