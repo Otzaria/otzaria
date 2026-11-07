@@ -213,5 +213,85 @@ class AndroidStartupContracts(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [sentinel])
 
 
+class ReportReadContracts(unittest.TestCase):
+    def make_runner(self, directory, replies):
+        class WireRunner(probe.Runner):
+            def adb(self, *args, **kwargs):
+                self.calls.append(args)
+                filename = Path(args[-1]).name
+                code, stdout, stderr = replies[filename].pop(0)
+                # ADB's raw exec service has no remote exit-status framing.
+                if args[0] == "exec-out":
+                    return probe.subprocess.CompletedProcess(args, 0, stdout + stderr, b"")
+                return probe.subprocess.CompletedProcess(args, code, stdout, stderr)
+
+        runner = WireRunner(probe.argparse.Namespace(output=Path(directory) / "reports"))
+        runner.calls = []
+        return runner
+
+    def test_missing_completion_is_polled_until_published(self):
+        config = sample_config()
+        body = b'{"status":"passed","label":"ready"}\n'
+        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"):
+            runner = self.make_runner(directory, {"completion.json": [
+                (1, b"", b"cat: completion.json: No such file or directory\n"),
+                (0, body, b""),
+            ]})
+            self.assertEqual(runner.wait_report(config, "completion.json", 10), probe.json.loads(body))
+            self.assertEqual(len(runner.calls), 2)
+            self.assertTrue(all(call[:2] == ("shell", "-T") for call in runner.calls))
+
+    def test_ready_waits_while_both_atomic_reports_are_absent(self):
+        config = sample_config()
+        missing = (1, b"", b"cat: No such file or directory\n")
+        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"):
+            runner = self.make_runner(directory, {
+                "ready.json": [missing, (0, b'{"status":"awaitingHostSample"}', b"")],
+                "completion.json": [missing],
+            })
+            self.assertEqual(runner.wait_report(config, "ready.json", 10)["status"], "awaitingHostSample")
+            self.assertEqual([Path(call[-1]).name for call in runner.calls],
+                             ["ready.json", "completion.json", "ready.json"])
+
+    def test_early_completion_remains_a_failure_and_retains_the_report(self):
+        config = sample_config()
+        body = b'{"status":"failed","error":"SDK boot failed"}\n'
+        with tempfile.TemporaryDirectory() as directory:
+            runner = self.make_runner(directory, {
+                "ready.json": [(1, b"", b"cat: No such file or directory\n")],
+                "completion.json": [(0, body, b"")],
+            })
+            with self.assertRaisesRegex(RuntimeError, "ended before the host sampling boundary"):
+                runner.wait_report(config, "ready.json", 10)
+            self.assertEqual((runner.output / config["runId"] / "completion.json").read_bytes(), body)
+
+    def test_malformed_published_report_fails_without_retry_and_keeps_raw_streams(self):
+        config = sample_config()
+        stdout, stderr = b"not-json\xff\n", b"unexpected remote diagnostic\n"
+        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep") as sleep:
+            runner = self.make_runner(directory, {"completion.json": [(0, stdout, stderr)]})
+            with self.assertRaises((probe.json.JSONDecodeError, UnicodeDecodeError)):
+                runner.wait_report(config, "completion.json", 10)
+            folder = runner.output / config["runId"]
+            self.assertEqual((folder / "completion.json.read.stdout").read_bytes(), stdout)
+            self.assertEqual((folder / "completion.json.read.stderr").read_bytes(), stderr)
+            self.assertEqual(probe.json.loads((folder / "completion.json.read.json").read_text())["exitCode"], 0)
+            sleep.assert_not_called()
+            self.assertEqual(len(runner.calls), 1)
+
+    def test_absent_report_times_out_and_preserves_remote_failure(self):
+        config = sample_config()
+        error = b"cat: completion.json: No such file or directory\n"
+        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"), \
+                patch.object(probe.time, "monotonic", side_effect=[0, 0, 2]):
+            runner = self.make_runner(directory, {"completion.json": [(1, b"", error)]})
+            with self.assertRaises(TimeoutError):
+                runner.wait_report(config, "completion.json", 1)
+            folder = runner.output / config["runId"]
+            self.assertEqual((folder / "completion.json.read.stderr").read_bytes(), error)
+            self.assertEqual(probe.json.loads((folder / "completion.json.read.json").read_text())["exitCode"], 1)
+            self.assertFalse((folder / "completion.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
