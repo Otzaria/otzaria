@@ -108,16 +108,22 @@ class ExternalTargetResolver {
   }
 
   (sqlite3.Database, DbCapabilities)? _connection(ExternalTargetDb target) {
-    final connection = _open.putIfAbsent(target.wireKey, () {
+    if (!_open.containsKey(target.wireKey)) {
+      sqlite3.Database? db;
       try {
-        final db = openReadOnlyTarget(target.target);
+        db = openReadOnlyTarget(target.target);
         // קצר: כותב שממתין לנעילה מחזיק PENDING, ובו הקורא ממתין לו.
         db.execute('PRAGMA busy_timeout=$targetBusyTimeoutMs');
-        return (db, DbCapabilities.probe(db));
-      } catch (_) {
-        return null;
+        _open[target.wireKey] = (db, DbCapabilities.probe(db));
+      } catch (e) {
+        db?.close();
+        // נעילה רגעית אינה נשמרת — השורה הבאה תנסה לפתוח שוב.
+        if (e is! sqlite3.SqliteException || e.resultCode != 5) {
+          _open[target.wireKey] = null;
+        }
       }
-    });
+    }
+    final connection = _open[target.wireKey];
     // שאילתה מחוץ לטרנזקציה נועלת את הקובץ ובודקת יומן — עשרות µs לכל אחת.
     if (connection != null && connection.$1.autocommit) {
       connection.$1.execute('BEGIN');
@@ -161,7 +167,7 @@ class ExternalTargetResolver {
 
   List<(int, int?)>? _queryBooks(ExternalTargetDb target, String title) {
     final connection = _connection(target);
-    if (connection == null) return const [];
+    if (connection == null) return null;
     final (db, caps) = connection;
     if (!caps.hasBooks) return const [];
     final category = caps.hasBookCategories ? 'categoryId' : 'NULL';
