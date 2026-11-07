@@ -354,7 +354,7 @@ flutter test --concurrency=1 \
 מקורות: [Android: Optimize WebView startup](https://developer.android.com/develop/ui/views/layout/webapps/optimize-webview-startup),
 [WebViewStartUpConfig](https://developer.android.com/reference/androidx/webkit/WebViewStartUpConfig),
 [ניהול זיכרון WebView](https://developer.android.com/develop/ui/views/layout/webapps/manage-webview-memory),
-[מימוש החימום ב־fork הנעול](https://github.com/Otzaria/flutter_inappwebview/blob/124bb8e63f345ffd0b0f2ea7190c24b19e69897d/flutter_inappwebview_android/android/src/main/java/com/pichillilorenzo/flutter_inappwebview_android/webview_environment/WebViewEnvironmentManager.java),
+[מימוש החימום ב־fork הנעול](https://github.com/Otzaria/flutter_inappwebview/blob/ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8/flutter_inappwebview_android/android/src/main/java/com/pichillilorenzo/flutter_inappwebview_android/webview_environment/WebViewEnvironmentManager.java),
 [FlutterActivity: ארגומנטים ל־Dart](https://github.com/flutter/flutter/blob/3.47.7/engine/src/flutter/shell/platform/android/io/flutter/embedding/android/FlutterActivity.java),
 [Flutter Gradle: תצורת profile](https://github.com/flutter/flutter/blob/3.47.7/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
 דוגמאות Android העדכניות עשויות להשתמש ב־API חדש יותר; המדידה כאן משתמשת
