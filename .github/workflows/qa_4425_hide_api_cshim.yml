@@ -1,0 +1,28 @@
+name: QA 4425 owned native public hide API C interoperability observation
+on:
+  push:
+    branches: ['y-ploni/qa-4425-hide-api-cshim-20261107-h']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Observe exact native controller variants on owned fixture apps
+        env:
+          QA_HIDE_API_CSHIM_OUTPUT: ${{ runner.temp }}/qa-4425-hide-api-cshim
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/qa/4425/observe_hide_api.py
+      - name: Preserve every source binding, command, native observation and cleanup receipt
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4425-hide-api-cshim-observation
+          path: ${{ runner.temp }}/qa-4425-hide-api-cshim
+          if-no-files-found: error
+          retention-days: 14
