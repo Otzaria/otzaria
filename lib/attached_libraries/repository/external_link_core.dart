@@ -55,6 +55,11 @@ String? _text(Object? value) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
+bool _isTransientSqliteLock(Object error) =>
+    error is sqlite3.SqliteException &&
+    (error.resultCode == sqlite3.SqlError.SQLITE_BUSY ||
+        error.resultCode == sqlite3.SqlError.SQLITE_LOCKED);
+
 /// פותר יעדי `external_link` מול רשימת מסדי יעד. מחזיק את החיבורים פתוחים עד
 /// [close], כך שסדרת שורות נפתרת בלי לפתוח את אותו מסד שוב ושוב.
 class ExternalTargetResolver {
@@ -118,7 +123,7 @@ class ExternalTargetResolver {
       } catch (e) {
         db?.close();
         // נעילה רגעית אינה נשמרת — השורה הבאה תנסה לפתוח שוב.
-        if (e is! sqlite3.SqliteException || e.resultCode != 5) {
+        if (!_isTransientSqliteLock(e)) {
           _open[target.wireKey] = null;
         }
       }
@@ -136,7 +141,7 @@ class ExternalTargetResolver {
     return connection;
   }
 
-  /// משך החזקת נעילת הקריאה בין שחרורים — כותב למסד יעד אינו ממתין יותר מזה.
+  /// תקציב החזקת הקריאה שנבדק בין שורות פתרון; שאילתה בודדת עשויה לחרוג ממנו.
   final Duration readHold;
   final Stopwatch _readClock = Stopwatch();
 
@@ -149,6 +154,7 @@ class ExternalTargetResolver {
       final db = connection?.$1;
       if (db != null && !db.autocommit) db.execute('COMMIT');
     }
+    _readClock.reset();
   }
 
   /// תקרת הכותרות שנשמרות בזיכרון — מסד עוין עם מיליוני יעדים שונים.
@@ -159,7 +165,7 @@ class ExternalTargetResolver {
     final cached = _books[key];
     if (cached != null) return cached;
     final books = _queryBooks(target, title);
-    // שגיאה (למשל BUSY רגעי) אינה נשמרת — אחרת הכותרת נשמטת עד סוף הבנייה.
+    // נעילה זמנית אינה נשמרת — אחרת הכותרת נשמטת עד סוף הבנייה.
     if (books == null) return const [];
     if (_books.length >= maxCachedTitles) _books.clear();
     return _books[key] = books;
@@ -181,9 +187,9 @@ class ExternalTargetResolver {
           if (_int(row['id']) != null)
             (row['id'] as int, _int(row['categoryId'])),
       ];
-    } catch (_) {
-      // מסד יעד פגום אינו מפיל את פתרון שאר הקישורים.
-      return null;
+    } catch (e) {
+      // כשל קבוע נשמר כדי שמסד פגום לא יישאל מחדש לכל שורה.
+      return _isTransientSqliteLock(e) ? null : const [];
     }
   }
 

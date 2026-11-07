@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_core.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -404,6 +405,42 @@ void main() {
         resolver.close();
       }
     });
+
+    for (final missingColumn in ['id', 'title']) {
+      test('שגיאת סכמה קבועה ב-$missingColumn נשמרת עד פותר חדש', () {
+        final brokenPath = path.join(tempDir.path, 'missing_$missingColumn.db');
+        final writer = sqlite3.sqlite3.open(brokenPath);
+        writer.execute(
+          missingColumn == 'id'
+              ? 'CREATE TABLE book (bad INTEGER PRIMARY KEY, title TEXT)'
+              : 'CREATE TABLE book (id INTEGER PRIMARY KEY, bad TEXT)',
+        );
+        writer.execute('INSERT INTO book VALUES (1, ?)', [_title]);
+        final ExternalTargetDb brokenTarget = (
+          wireKey: 'd:broken',
+          slug: 'broken',
+          target: (path: brokenPath, untrusted: true, immutable: false),
+          version: '1',
+        );
+        final resolver = ExternalTargetResolver([brokenTarget]);
+        ExternalTargetResolver? fresh;
+        try {
+          expect(AttachedLibraryProbe.probeSync(brokenPath).isOk, isTrue);
+          expect(resolver.bookDatabase('broken', _title), isNull);
+          resolver.releaseReads();
+          writer.execute(
+            'ALTER TABLE book RENAME COLUMN bad TO $missingColumn',
+          );
+          expect(resolver.bookDatabase('broken', _title), isNull);
+          fresh = ExternalTargetResolver([brokenTarget]);
+          expect(fresh.bookDatabase('broken', _title), isNotNull);
+        } finally {
+          fresh?.close();
+          resolver.close();
+          writer.close();
+        }
+      });
+    }
 
     test('כותרת שנכשלה ב-BUSY אינה נשמרת כריקה', () {
       final resolver = ExternalTargetResolver([
