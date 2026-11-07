@@ -10,6 +10,7 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/installed_plugin_windows_lifetime_test.dart'
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
@@ -91,12 +92,14 @@ jobs:
         run: |
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_windows_lifetime_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Validate passive Windows process exit evidence
+      - name: Validate retained Windows process lifetime and owned child exit
         if: matrix.platform == 'windows'
         run: |
           & ./tool/perf_probe/test_installed_plugin_windows_control.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-control-report-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tool/perf_probe/test_installed_plugin_windows_runner.ps1 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-runner-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
