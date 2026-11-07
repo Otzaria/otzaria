@@ -148,6 +148,7 @@ function Get-InstalledPluginExitEvidence {
     $evidence = @{
         availability = 'unavailable'; reason = $null; processId = $null; runId = $null
         bootstrapUtc = $null; processCreatedUtc = $null; start = $null; stop = $null; exitStatus = $null; exitStatusHex = $null
+        stopAuxiliaryIdentity = $null
         terminationCause = 'Not inferred: flutter drive can stop the app after the test.'
     }
     try {
@@ -193,11 +194,19 @@ function Get-InstalledPluginExitEvidence {
         }
         # The provider does not promise that stop event generation follows the
         # final ExitTime field. Verify each inside the lifetime/run independently.
+        $zeroStopAuxiliary = $stops[0].parentProcessId -eq 0 -and $stops[0].sessionId -eq 0
         if ($starts[0].utc -lt $identity.createdAtUtc -or $starts[0].utc -gt $Trace.finishedAtUtc -or
             $stops[0].utc -le $boot -or $stops[0].utc -lt $starts[0].utc -or
             $stops[0].utc -gt $Trace.finishedAtUtc -or
-            $stops[0].parentProcessId -ne $starts[0].parentProcessId -or $stops[0].sessionId -ne $starts[0].sessionId) {
+            (-not $zeroStopAuxiliary -and
+                ($stops[0].parentProcessId -ne $starts[0].parentProcessId -or $stops[0].sessionId -ne $starts[0].sessionId))) {
             throw 'Process notifications must match the retained lifetime, parent and session.'
+        }
+        # A retained live handle prevents PID reuse even when the stop provider
+        # omits both auxiliary IDs; the raw zero values remain in the stop record.
+        $evidence.stopAuxiliaryIdentity = @{
+            availability = $(if ($zeroStopAuxiliary) { 'unavailable' } else { 'collected' })
+            reason = $(if ($zeroStopAuxiliary) { 'Stop provider returned zero for both parent and session; identity is verified by the retained process handle.' } else { $null })
         }
         foreach ($status in @($stops[0].exitStatus, $identity.exitStatus)) {
             if ($null -eq $status -or ($status -isnot [int] -and $status -isnot [long] -and $status -isnot [uint32]) -or

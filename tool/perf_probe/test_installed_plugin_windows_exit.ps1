@@ -43,6 +43,54 @@ $earlyStop = New-Trace
 $earlyStop.events[1].utc = $boot.AddMilliseconds(900)
 Assert-Equal 'collected' (Get-InstalledPluginExitEvidence $earlyStop $report).availability 'Stop notification generation need not follow the retained handle final ExitTime'
 
+function New-ZeroStopTrace {
+    return @{
+        processName = 'pwsh.exe'; availability = 'collected'; truncated = $false; errors = @()
+        armedAtUtc = ([datetime]'2026-11-07T20:15:07.3635818Z').ToUniversalTime()
+        finishedAtUtc = ([datetime]'2026-11-07T20:15:09.8035653Z').ToUniversalTime()
+        events = @(
+            @{ kind = 'Start'; processName = 'pwsh.exe'; processId = 1280; parentProcessId = 5040; sessionId = 2
+                utc = ([datetime]'2026-11-07T20:15:08.380313Z').ToUniversalTime()
+                nativeIdentity = @{ availability = 'collected'; processId = 1280; processName = 'pwsh.exe'; sessionId = 2
+                    createdAtUtc = ([datetime]'2026-11-07T20:15:07.3657007Z').ToUniversalTime()
+                    capturedAtUtc = ([datetime]'2026-11-07T20:15:08.4264675Z').ToUniversalTime()
+                    exitedAtUtc = ([datetime]'2026-11-07T20:15:08.4926266Z').ToUniversalTime(); exitStatus = 37 } },
+            @{ kind = 'Stop'; processName = 'pwsh.exe'; processId = 1280; parentProcessId = 0; sessionId = 0
+                utc = ([datetime]'2026-11-07T20:15:09.5822065Z').ToUniversalTime(); exitStatus = 37 }
+        )
+    }
+}
+$zeroStopReport = @{ pid = 1280; runId = '1280-1794082507650431'; platform = 'windows'; buildMode = 'profile' }
+$zeroStop = New-ZeroStopTrace
+$zeroStopEvidence = Get-InstalledPluginExitEvidence $zeroStop $zeroStopReport
+Assert-Equal 'collected' $zeroStopEvidence.availability 'The real Windows control shape retains verified exit evidence when both stop auxiliary IDs are zero'
+Assert-Equal 'collected' $evidence.stopAuxiliaryIdentity.availability 'Matching nonzero stop metadata remains observed'
+Assert-Equal 37 $zeroStopEvidence.exitStatus 'Zero auxiliary metadata cannot replace the actual native exit status'
+Assert-Equal 'unavailable' $zeroStopEvidence.stopAuxiliaryIdentity.availability 'Missing stop auxiliary metadata is explicitly unavailable'
+Assert-Equal 0 $zeroStopEvidence.stop.parentProcessId 'The raw stop parent is not rewritten to the expected parent'
+Assert-Equal 0 $zeroStopEvidence.stop.sessionId 'The raw stop session is not rewritten to the expected session'
+Assert-Equal 2 $zeroStopEvidence.start.nativeIdentity.sessionId 'The retained handle still verifies the start session'
+foreach ($change in @(
+    { param($t) $t.events[0].Remove('nativeIdentity') },
+    { param($t) $t.events[0].nativeIdentity.availability = 'captured' },
+    { param($t) $t.events[0].nativeIdentity.sessionId = 3 },
+    { param($t) $t.events[0].nativeIdentity.createdAtUtc = ([datetime]'2026-11-07T20:15:08Z').ToUniversalTime() },
+    { param($t) $t.events[0].nativeIdentity.exitStatus = 0 },
+    { param($t) $t.events[1].exitStatus = $null },
+    { param($t) $t.events += $t.events[0].Clone() },
+    { param($t) $t.events += $t.events[1].Clone() },
+    { param($t) $old = $t.events[1].Clone(); $old.utc = $t.armedAtUtc; $t.events += $old },
+    { param($t) $t.events[1].parentProcessId = 5040 },
+    { param($t) $t.events[1].sessionId = 2 },
+    { param($t) $t.events[1].parentProcessId = 5041; $t.events[1].sessionId = 2 },
+    { param($t) $t.events[1].parentProcessId = 5040; $t.events[1].sessionId = 3 }
+)) {
+    $invalidZeroStop = New-ZeroStopTrace
+    & $change $invalidZeroStop
+    $rejected = Get-InstalledPluginExitEvidence $invalidZeroStop $zeroStopReport
+    Assert-Equal 'unavailable' $rejected.availability "Zero stop metadata cannot hide a missing handle, reused PID or contradictory evidence: $change"
+    Assert-Equal $null $rejected.exitStatus 'Rejected zero-metadata evidence has no synthetic success status'
+}
 
 Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $null @{ availability = 'unavailable' }) 'Driver failure remains exact when all diagnostics fail'
 Assert-Equal 37 (Get-InstalledPluginRunExitCode 37 $report $evidence) 'Native evidence cannot turn a failing driver green'
