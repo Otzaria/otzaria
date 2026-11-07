@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' show FrameTiming;
 
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,7 @@ Map<String, dynamic> _config() => {
   'fixtureState': 'prepared',
   'buildMode': 'profile',
   'observationMs': 5000,
+  'signalPort': 12345,
 };
 
 void main() {
@@ -151,6 +153,10 @@ void main() {
       {'observationMs': 999},
       {'observationMs': 60001},
       {'observationMs': 5000.0},
+      {'signalPort': 0},
+      {'signalPort': 65536},
+      {'signalPort': '12345'},
+      {'signalPort': 12345.0},
       {'operation': 'prepare', 'fixtureState': 'reused'},
     ]) {
       expect(
@@ -173,6 +179,154 @@ void main() {
       );
     }
   });
+
+  test(
+    'signals identify the process and follow durable report publication',
+    () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final accepted = server.first;
+      final config = AndroidStartupConfig.fromJson({
+        ..._config(),
+        'signalPort': server.port,
+      });
+      final signals = await AndroidStartupSignals.connect(
+        config,
+        'boot-testing',
+        123,
+      );
+      final peer = await accepted;
+      final events = StreamIterator(
+        peer
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter()),
+      );
+      final durable = Completer<void>();
+      Future<void>? publication;
+      try {
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isTrue,
+        );
+        expect(jsonDecode(events.current), {
+          'schemaVersion': 1,
+          'campaignId': config.campaignId,
+          'runId': config.runId,
+          'bootId': 'boot-testing',
+          'pid': 123,
+          'event': 'connected',
+          'reportAvailable': false,
+          'error': null,
+        });
+        publication = signals.publish('ready', () => durable.future);
+        final waiting = events.moveNext();
+        await expectLater(
+          waiting.timeout(const Duration(milliseconds: 30)),
+          throwsA(isA<TimeoutException>()),
+        );
+        durable.complete();
+        await publication;
+        expect(await waiting.timeout(const Duration(seconds: 1)), isTrue);
+        expect(jsonDecode(events.current), {
+          'schemaVersion': 1,
+          'campaignId': config.campaignId,
+          'runId': config.runId,
+          'bootId': 'boot-testing',
+          'pid': 123,
+          'event': 'ready',
+          'reportAvailable': true,
+          'error': null,
+        });
+        await signals.publish('completion', () async {});
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isTrue,
+        );
+        expect((jsonDecode(events.current) as Map)['event'], 'completion');
+        await signals.close();
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isFalse,
+        );
+      } finally {
+        if (!durable.isCompleted) durable.complete();
+        await publication;
+        await signals.close();
+        peer.destroy();
+        await events.cancel();
+        await server.close();
+      }
+    },
+  );
+
+  test(
+    'failed persistence sends no success signal and retains a bounded error',
+    () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final accepted = server.first;
+      final config = AndroidStartupConfig.fromJson({
+        ..._config(),
+        'signalPort': server.port,
+      });
+      final signals = await AndroidStartupSignals.connect(
+        config,
+        'boot-testing',
+        123,
+      );
+      final peer = await accepted;
+      final events = StreamIterator(
+        peer
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter()),
+      );
+      try {
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isTrue,
+        );
+        final original = FileSystemException('report write failed');
+        await expectLater(
+          signals.publish('ready', () async => throw original),
+          throwsA(same(original)),
+        );
+        await signals.failedCompletion(original);
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isTrue,
+        );
+        expect(jsonDecode(events.current), {
+          'schemaVersion': 1,
+          'campaignId': config.campaignId,
+          'runId': config.runId,
+          'bootId': 'boot-testing',
+          'pid': 123,
+          'event': 'completion',
+          'reportAvailable': false,
+          'error': original.toString(),
+        });
+        await signals.failedCompletion('א' * 1000);
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isTrue,
+        );
+        expect(
+          ((jsonDecode(events.current) as Map)['error'] as String).runes.length,
+          512,
+        );
+        await signals.close();
+        expect(
+          await events.moveNext().timeout(const Duration(seconds: 1)),
+          isFalse,
+        );
+      } finally {
+        await signals.close();
+        peer.destroy();
+        await events.cancel();
+        await server.close();
+      }
+    },
+  );
 
   test(
     'observer passes native settings, result identity and completion timing through',

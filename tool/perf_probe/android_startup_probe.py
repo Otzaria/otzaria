@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -13,8 +14,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
+import sys
 import time
+import traceback
 import uuid
 
 
@@ -230,6 +234,121 @@ def pair_readiness(first, second):
             "scope": "paired Dart-startup/open observations; one APK, fresh processes, shared OS/provider caches"}
 
 
+class ReportSignals:
+    """One idle connection across measurement; bounded messages only at boundaries."""
+
+    def __init__(self, runner, config):
+        self.runner = runner
+        self.config = config
+        self.listener = None
+        self.connection = None
+        self.remote = None
+        self.local = None
+        self.buffer = b""
+        self.identity = None
+        self.events = []
+
+    def open(self):
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(1)
+        self.local = f"tcp:{self.listener.getsockname()[1]}"
+        self.runner.adb("reverse", "--no-rebind", "tcp:0", self.local,
+                        on_success=self._own_reverse)
+        return self.config
+
+    def _own_reverse(self, result):
+        # Record the allocation before command-log I/O can fail. The caller's
+        # cleanup owns only this newly allocated device port, never tcp:0.
+        port = result.stdout.decode(errors="replace").strip()
+        if not re.fullmatch(r"[1-9][0-9]{0,4}", port) or int(port) > 65535:
+            raise ValueError("ADB did not return the allocated reverse port")
+        self.remote = f"tcp:{port}"
+        self.config = dict(self.config, signalPort=int(port))
+
+    def receive(self, timeout):
+        deadline = time.monotonic() + timeout
+        if self.connection is None:
+            self.listener.settimeout(timeout)
+            self.connection, _ = self.listener.accept()
+            self.listener.close()
+            self.listener = None
+        while b"\n" not in self.buffer:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Timed out waiting for startup probe signal")
+            self.connection.settimeout(remaining)
+            block = self.connection.recv(4097 - len(self.buffer))
+            if not block:
+                raise EOFError("Startup probe signal channel closed before its next signal")
+            self.buffer += block
+            newline = self.buffer.find(b"\n")
+            if newline > 4096 or (newline < 0 and len(self.buffer) > 4096):
+                raise ValueError("Oversized startup probe signal")
+        line, self.buffer = self.buffer.split(b"\n", 1)
+        signal = json.loads(line)
+        keys = {"schemaVersion", "campaignId", "runId", "bootId", "pid", "event",
+                "reportAvailable", "error"}
+        if (not isinstance(signal, dict) or set(signal) != keys or
+                type(signal["schemaVersion"]) is not int or signal["schemaVersion"] != 1):
+            raise ValueError("Invalid startup probe signal schema")
+        if any(signal[key] != self.config[key] for key in ("campaignId", "runId")):
+            raise ValueError("Startup probe signal belongs to another run")
+        if not isinstance(signal["bootId"], str):
+            raise ValueError("Invalid startup probe signal boot")
+        identifier(signal["bootId"])
+        if type(signal["pid"]) is not int or signal["pid"] <= 0:
+            raise ValueError("Invalid startup probe signal process")
+        identity = (signal["pid"], signal["bootId"])
+        if self.identity is not None and identity != self.identity:
+            raise ValueError("Startup probe signal process or boot changed")
+        if type(signal["reportAvailable"]) is not bool or not (
+                signal["error"] is None or isinstance(signal["error"], str)):
+            raise ValueError("Invalid startup probe signal outcome")
+        event = signal["event"]
+        expected = ("connected",) if not self.events else (
+            ("ready", "completion") if self.events == ["connected"] and
+            self.config["operation"] == "measure" else ("completion",))
+        if event not in expected or event in self.events:
+            raise ValueError("Duplicate or out-of-order startup probe signal")
+        if event == "connected" and (signal["reportAvailable"] or signal["error"] is not None):
+            raise ValueError("Invalid connected signal")
+        if event == "ready" and (not signal["reportAvailable"] or signal["error"] is not None):
+            raise ValueError("Invalid ready signal")
+        self.identity = identity
+        self.events.append(event)
+        return signal
+
+    def finish(self, timeout=5):
+        if not self.events or self.events[-1] != "completion":
+            raise ValueError("The signal channel has not completed")
+        self.connection.settimeout(timeout)
+        if self.buffer or self.connection.recv(1):
+            raise ValueError("Extra data after startup probe completion signal")
+
+    def close(self):
+        for stream in (self.connection, self.listener):
+            if stream is not None:
+                stream.close()
+
+    def remove_reverse(self):
+        if self.remote is not None:
+            # Inspect/remove before receipt writes, so a broken command log
+            # cannot skip resource cleanup after a successful ADB operation.
+            self.runner.adb("reverse", "--list", on_success=self._remove_owned_reverse)
+
+    def _remove_owned_reverse(self, result):
+        mappings = [line.split() for line in result.stdout.decode(errors="replace").splitlines()]
+        matches = [entry for entry in mappings if len(entry) == 3 and entry[1] == self.remote]
+        if not matches:
+            self.remote = None
+            return
+        if len(matches) != 1 or matches[0][2] != self.local:
+            raise RuntimeError("Startup probe reverse mapping was replaced; leaving it intact")
+        self.runner.adb("reverse", "--remove", self.remote,
+                        on_success=lambda _: setattr(self, "remote", None))
+
+
 class Runner:
     def __init__(self, args):
         self.args = args
@@ -241,16 +360,53 @@ class Runner:
         self.trials = []
         self.command_log = self.output / "commands.jsonl"
         self.current_pid = None
+        self.cleanup_errors = []
 
-    def command(self, argv, *, check=True, timeout=60, data=None, env=None):
+    @contextmanager
+    def cleanup(self, config, actions, primary=None):
+        try:
+            yield
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            first_cleanup = None
+            for phase, action in actions:
+                try:
+                    action()
+                except Exception as error:
+                    self.cleanup_errors.append({
+                        "runId": config.get("runId"), "phase": phase,
+                        "error": f"{type(error).__name__}: {error}",
+                        "traceback": traceback.format_exc(),
+                    })
+                    if first_cleanup is None:
+                        first_cleanup = (error, error.__traceback__)
+                    try:
+                        print(f"Probe cleanup failed [{phase}]: {type(error).__name__}: {error}", file=sys.stderr)
+                    except Exception as diagnostic_error:
+                        self.cleanup_errors.append({
+                            "runId": config.get("runId"), "phase": f"{phase}:stderr",
+                            "error": f"{type(diagnostic_error).__name__}: {diagnostic_error}",
+                            "traceback": traceback.format_exc(),
+                        })
+            if primary is None and first_cleanup is not None:
+                error, stack = first_cleanup
+                raise error.with_traceback(stack)
+
+    def command(self, argv, *, check=True, timeout=60, data=None, env=None, on_success=None):
         started = time.monotonic()
         result = subprocess.run(argv, cwd=ROOT, env=env, input=data, capture_output=True, timeout=timeout)
-        with self.command_log.open("a") as stream:
-            stream.write(json.dumps({"atUtc": utc_now(), "argv": list(map(str, argv)),
-                                     "exitCode": result.returncode,
-                                     "elapsedMs": round((time.monotonic() - started) * 1000, 3)}) + "\n")
-        if check and result.returncode:
-            raise RuntimeError(f"Command failed ({result.returncode}): {argv[0]}\n{result.stderr.decode(errors='replace')[-3000:]}")
+        def record():
+            with self.command_log.open("a") as stream:
+                stream.write(json.dumps({"atUtc": utc_now(), "argv": list(map(str, argv)),
+                                         "exitCode": result.returncode,
+                                         "elapsedMs": round((time.monotonic() - started) * 1000, 3)}) + "\n")
+        with self.cleanup({}, [("write_command_log", record)]):
+            if result.returncode == 0 and on_success is not None:
+                on_success(result)
+            if check and result.returncode:
+                raise RuntimeError(f"Command failed ({result.returncode}): {argv[0]}\n{result.stderr.decode(errors='replace')[-3000:]}")
         return result
 
     def adb(self, *args, **kwargs):
@@ -280,19 +436,28 @@ class Runner:
         }) + "\n")
         return result
 
-    def wait_report(self, config, filename, timeout):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            result = self.read_report_file(config, filename)
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            if filename == "ready.json":
-                failed = self.read_report_file(config, "completion.json")
-                if failed.returncode == 0:
-                    (self.output / config["runId"] / "completion.json").write_bytes(failed.stdout)
-                    raise RuntimeError("The integration test ended before the host sampling boundary; see completion.json")
-            time.sleep(0.5)
-        raise TimeoutError(f"Probe did not produce {filename} for {config['runId']}")
+    def wait_report(self, config, filename, timeout, signals):
+        signal = signals.receive(timeout)
+        actual = f"{signal['event']}.json"
+        if actual not in (filename, "completion.json"):
+            raise ValueError("Unexpected startup probe report signal")
+        if not signal["reportAvailable"]:
+            raise RuntimeError(f"Probe could not publish its report: {signal['error']}")
+        result = self.read_report_file(config, actual)
+        if result.returncode:
+            raise RuntimeError(f"Signalled {actual} could not be read ({result.returncode})")
+        report = json.loads(result.stdout)
+        if (not isinstance(report, dict) or report.get("config") != config or
+                report.get("package") != PACKAGE or
+                (report.get("pid"), report.get("bootId")) != signals.identity):
+            raise ValueError("Report does not match its startup probe signal")
+        if actual != filename:
+            (self.output / config["runId"] / actual).write_bytes(result.stdout)
+            raise RuntimeError("The integration test ended before the host sampling boundary; see completion.json")
+        if signal["error"] is not None:
+            (self.output / config["runId"] / actual).write_bytes(result.stdout)
+            raise RuntimeError(f"Probe reported failure: {signal['error']}")
+        return report
 
     def build(self):
         env = dict(os.environ, ORG_GRADLE_PROJECT_otzariaStartupProbe="true")
@@ -340,29 +505,32 @@ class Runner:
         (folder / "process-logcat.txt").write_text("\n".join(lines) + "\n")
 
     def launch(self, config):
-        try:
-            self._launch(config)
-        finally:
-            self.stop_probe()
+        signals = ReportSignals(self, config)
+        with self.cleanup(config, [
+            ("stop_probe", self.stop_probe),
+            ("close_signal", signals.close),
+            ("remove_reverse", signals.remove_reverse),
+        ]):
+            self._launch(config, signals)
 
-    def _launch(self, config):
+    def _launch(self, config, signals):
         folder = self.output / config["runId"]
         folder.mkdir()
-        (folder / "config.json").write_text(json.dumps(config, indent=2) + "\n")
         self.stop_probe()
+        config = signals.open()
+        (folder / "config.json").write_text(json.dumps(config, indent=2) + "\n")
         since = float(self.text("shell", "date", "+%s"))
         started = time.monotonic()
         launch = self.adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/{ACTIVITY}",
                           "-a", "android.intent.action.MAIN", "--esal", "dart_entrypoint_args", encode_config(config))
         (folder / "am-start.txt").write_bytes(launch.stdout + launch.stderr)
-        process = self.text("shell", "pidof", PACKAGE)
-        if not re.fullmatch(r"[1-9][0-9]*", process):
-            raise RuntimeError("Expected exactly one live dedicated probe process")
-        self.current_pid = process_id = int(process)
+        connected = signals.receive(30)
+        self.current_pid = process_id = connected["pid"]
+        process = str(process_id)
         sample = None
-        try:
+        with self.cleanup(config, [("collect_log", lambda: self.collect_log(folder, process_id, since))]):
             if config["operation"] == "measure":
-                ready = self.wait_report(config, "ready.json", 240)
+                ready = self.wait_report(config, "ready.json", 240, signals)
                 (folder / "ready.json").write_text(json.dumps(ready, indent=2) + "\n")
                 validate_report(ready, config, process_id, completion=False)
                 if self.text("shell", "pidof", PACKAGE) != process:
@@ -380,9 +548,10 @@ class Runner:
                          data=json.dumps({"runId": config["runId"], "bootId": ready["bootId"]}).encode())
                 self.adb("shell", "run-as", PACKAGE, "mv", report_path(config, "sample-ack.pending"),
                          report_path(config, "sample-ack.json"))
-            report = self.wait_report(config, "completion.json", 240 if config["operation"] == "prepare" else 30)
+            report = self.wait_report(config, "completion.json", 240 if config["operation"] == "prepare" else 30, signals)
             (folder / "completion.json").write_text(json.dumps(report, indent=2) + "\n")
             validate_report(report, config, process_id, completion=True)
+            signals.finish()
             if config["operation"] == "prepare":
                 return
             if report["bootId"] != ready["bootId"]:
@@ -399,11 +568,10 @@ class Runner:
                      "elapsedMs": round((time.monotonic() - started) * 1000, 3)}
             self.trials.append(trial)
             (folder / "trial.json").write_text(json.dumps(trial, indent=2) + "\n")
-        finally:
-            self.collect_log(folder, process_id, since)
 
     def run(self):
         failure = None
+        failure_stack = None
         try:
             if self.text("get-state") != "device":
                 raise RuntimeError("The selected adb device is unavailable")
@@ -431,24 +599,29 @@ class Runner:
                 if config["fixtureState"] == "prepared":
                     self.launch(dict(config, operation="prepare", runId=uuid.uuid4().hex))
                 self.launch(config)
-        except Exception as error:
+        except BaseException as error:
             failure = f"{type(error).__name__}: {error}"
+            failure_stack = traceback.format_exc()
             raise
         finally:
             result = {"schemaVersion": 1, "campaignId": self.campaign, "finishedAtUtc": utc_now(),
                       "status": "failed" if failure else "passed", "error": failure,
-                      "hostReportPollIntervalMs": 500,
+                      "errorTraceback": failure_stack, "cleanupErrors": self.cleanup_errors,
+                      "hostReportTransport": "persistentAdbReverseSocket",
+                      "hostReportPollIntervalMs": None,
                       "trials": self.trials,
                       "pairs": [pair_readiness(a, b) for a, b in zip(self.trials[::2], self.trials[1::2])],
                       "physicalDeviceAcceptance": False,
                       "limits": ["Fresh app processes do not imply cold OS or WebView provider caches.",
                                  "Prepared/reused labels describe the isolated fixture's launch history only.",
                                  "Fixture validation reads its files before app.main and warms those file caches.",
-                                 "The host polls run-as report files every 500ms during startup; this observer adds device work.",
+                                 "An idle ADB reverse socket is connected before measurement; report reads follow boundary signals.",
                                  "Host PSS is sampled after the app's measurement boundary, while it waits for an ack.",
                                  "Dart heartbeat/Flutter frames do not establish Android main-thread or WebView render responsiveness.",
                                  "No automatic performance threshold or default change; native CPU/renderer association are not collected."]}
-            (self.output / "campaign.json").write_text(json.dumps(result, indent=2) + "\n")
+            with self.cleanup({}, [("write_campaign", lambda: (self.output / "campaign.json").write_text(
+                    json.dumps(result, indent=2) + "\n"))], primary=failure):
+                pass
 
 
 def main():

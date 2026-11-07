@@ -71,22 +71,37 @@ void main(List<String> arguments) {
   };
   Directory? output;
   Object? runError;
+  AndroidStartupSignals? signals;
 
   unawaited(
     binding.allTestsPassed.future.then((passed) async {
       await bodyDone.future;
-      final directory = output;
-      if (directory == null) return;
-      await _writeAtomic(directory, 'completion.json', {
-        ...report,
-        'status': passed && runError == null ? 'passed' : 'failed',
-        'integrationTestsPassed': passed,
-        'error': runError?.toString(),
-        'testFailures': [
-          for (final failure in binding.failureMethodsDetails) failure.details,
-        ],
-        'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
-      });
+      var reportSaved = false;
+      try {
+        await signals?.publish('completion', () async {
+          final directory = output;
+          if (directory == null) {
+            throw runError ?? StateError('Probe output was not initialized.');
+          }
+          await _writeAtomic(directory, 'completion.json', {
+            ...report,
+            'status': passed && runError == null ? 'passed' : 'failed',
+            'integrationTestsPassed': passed,
+            'error': runError?.toString(),
+            'testFailures': [
+              for (final failure in binding.failureMethodsDetails)
+                failure.details,
+            ],
+            'completedAtUtc': DateTime.now().toUtc().toIso8601String(),
+          });
+          reportSaved = true;
+        });
+      } catch (error, stack) {
+        stderr.writeln('Startup completion publication failed: $error\n$stack');
+        if (!reportSaved) await signals?.failedCompletion(runError ?? error);
+      } finally {
+        await signals?.close();
+      }
     }),
   );
 
@@ -133,6 +148,7 @@ void main(List<String> arguments) {
       }
 
       try {
+        signals = await AndroidStartupSignals.connect(config, bootId, pid);
         final package = await PackageInfo.fromPlatform();
         expect(
           package.packageName,
@@ -450,10 +466,13 @@ void main(List<String> arguments) {
         );
         expect(errors, isEmpty);
 
-        await _writeAtomic(output!, 'ready.json', {
-          ...report,
-          'status': 'awaitingHostSample',
-        });
+        await signals!.publish(
+          'ready',
+          () => _writeAtomic(output!, 'ready.json', {
+            ...report,
+            'status': 'awaitingHostSample',
+          }),
+        );
         final ack = File(p.join(output!.path, 'sample-ack.json'));
         await _wait(
           () => ack.existsSync(),

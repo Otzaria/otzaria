@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -46,6 +47,7 @@ class AndroidStartupConfig {
       'fixtureState',
       'buildMode',
       'observationMs',
+      'signalPort',
     };
     if (json.keys.toSet().difference(keys).isNotEmpty ||
         json.length != keys.length ||
@@ -74,6 +76,11 @@ class AndroidStartupConfig {
       throw const FormatException('observationMs must be 1000..60000.');
     }
     observationMs = duration;
+    final port = json['signalPort'];
+    if (port is! int || port < 1 || port > 65535) {
+      throw const FormatException('signalPort must be 1..65535.');
+    }
+    signalPort = port;
     if (operation == 'prepare' && fixtureState != 'prepared') {
       throw const FormatException('Preparation requires a new fixture.');
     }
@@ -99,6 +106,7 @@ class AndroidStartupConfig {
   late final String fixtureState;
   late final String buildMode;
   late final int observationMs;
+  late final int signalPort;
 
   bool get enabledPlugin => scenario != AndroidStartupCase.noEnabled;
   bool get opensPlugin => ![
@@ -117,6 +125,7 @@ class AndroidStartupConfig {
     'fixtureState': fixtureState,
     'buildMode': buildMode,
     'observationMs': observationMs,
+    'signalPort': signalPort,
   };
 
   static String _identifier(Object? value) {
@@ -132,6 +141,89 @@ class AndroidStartupConfig {
       throw const FormatException('Invalid startup probe option.');
     }
     return value;
+  }
+}
+
+class AndroidStartupSignals {
+  AndroidStartupSignals._(
+    this.config,
+    this.bootId,
+    this.processId,
+    this._socket,
+  ) {
+    _socket.listen(
+      (_) => _transportError ??= StateError('Unexpected host signal data.'),
+      onError: (Object error) => _transportError ??= error,
+      onDone: () =>
+          _transportError ??= StateError('Host signal channel closed.'),
+    );
+    _socket.done.ignore();
+  }
+
+  final AndroidStartupConfig config;
+  final String bootId;
+  final int processId;
+  final Socket _socket;
+  Object? _transportError;
+
+  static Future<AndroidStartupSignals> connect(
+    AndroidStartupConfig config,
+    String bootId,
+    int processId,
+  ) async {
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      config.signalPort,
+      timeout: const Duration(seconds: 10),
+    );
+    final signals = AndroidStartupSignals._(config, bootId, processId, socket);
+    try {
+      await signals._send('connected', reportAvailable: false);
+      return signals;
+    } catch (_) {
+      socket.destroy();
+      rethrow;
+    }
+  }
+
+  Future<void> publish(String event, Future<void> Function() persist) async {
+    await persist();
+    await _send(event, reportAvailable: true);
+  }
+
+  Future<void> failedCompletion(Object error) => _send(
+    'completion',
+    reportAvailable: false,
+    error: String.fromCharCodes(error.toString().runes.take(512)),
+  );
+
+  Future<void> _send(
+    String event, {
+    required bool reportAvailable,
+    String? error,
+  }) async {
+    if (_transportError case final error?) throw error;
+    _socket.write(
+      '${jsonEncode({
+        'schemaVersion': 1,
+        'campaignId': config.campaignId,
+        'runId': config.runId,
+        'bootId': bootId,
+        'pid': processId,
+        'event': event,
+        'reportAvailable': reportAvailable,
+        'error': error,
+      })}\n',
+    );
+    await _socket.flush().timeout(const Duration(seconds: 5));
+  }
+
+  Future<void> close() async {
+    try {
+      await _socket.close().timeout(const Duration(seconds: 5));
+    } finally {
+      _socket.destroy();
+    }
   }
 }
 

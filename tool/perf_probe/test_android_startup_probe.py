@@ -1,4 +1,8 @@
 import copy
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+import socket
+import threading
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -213,6 +217,27 @@ class AndroidStartupContracts(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [sentinel])
 
 
+def signal_bytes(config, boundary, **changes):
+    value = {"schemaVersion": 1, "campaignId": config["campaignId"], "runId": config["runId"],
+             "bootId": "boot-" + config["runId"], "pid": 123, "event": boundary,
+             "reportAvailable": boundary != "connected", "error": None, **changes}
+    return probe.json.dumps(value).encode() + b"\n"
+
+
+@contextmanager
+def signal_channel(runner, config, *, connected=True):
+    signals = probe.ReportSignals(runner, config)
+    signals.connection, device = socket.socketpair()
+    try:
+        if connected:
+            device.sendall(signal_bytes(config, "connected"))
+            signals.receive(1)
+        yield signals, device
+    finally:
+        device.close()
+        signals.close()
+
+
 class ReportReadContracts(unittest.TestCase):
     def make_runner(self, directory, replies):
         class WireRunner(probe.Runner):
@@ -229,68 +254,364 @@ class ReportReadContracts(unittest.TestCase):
         runner.calls = []
         return runner
 
-    def test_missing_completion_is_polled_until_published(self):
+    def test_wait_is_idle_until_ready_signal_then_reads_exactly_once(self):
         config = sample_config()
-        body = b'{"status":"passed","label":"ready"}\n'
-        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"):
-            runner = self.make_runner(directory, {"completion.json": [
-                (1, b"", b"cat: completion.json: No such file or directory\n"),
-                (0, body, b""),
-            ]})
-            self.assertEqual(runner.wait_report(config, "completion.json", 10), probe.json.loads(body))
-            self.assertEqual(len(runner.calls), 2)
-            self.assertTrue(all(call[:2] == ("shell", "-T") for call in runner.calls))
+        body = probe.json.dumps(sample_report(config)).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            runner = self.make_runner(directory, {"ready.json": [(0, body, b"")]})
+            with signal_channel(runner, config) as (signals, device), ThreadPoolExecutor() as pool:
+                entered = threading.Event()
+                def wait():
+                    entered.set()
+                    return runner.wait_report(config, "ready.json", 2, signals)
+                future = pool.submit(wait)
+                try:
+                    self.assertTrue(entered.wait(1))
+                    with self.assertRaises(TimeoutError):
+                        future.result(timeout=0.05)
+                    self.assertEqual(runner.calls, [])
+                finally:
+                    device.sendall(signal_bytes(config, "ready"))
+                self.assertEqual(future.result(timeout=1), probe.json.loads(body))
+            self.assertEqual(len(runner.calls), 1)
+            self.assertEqual(runner.calls[0][:2], ("shell", "-T"))
 
-    def test_ready_waits_while_both_atomic_reports_are_absent(self):
-        config = sample_config()
-        missing = (1, b"", b"cat: No such file or directory\n")
-        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"):
-            runner = self.make_runner(directory, {
-                "ready.json": [missing, (0, b'{"status":"awaitingHostSample"}', b"")],
-                "completion.json": [missing],
-            })
-            self.assertEqual(runner.wait_report(config, "ready.json", 10)["status"], "awaitingHostSample")
-            self.assertEqual([Path(call[-1]).name for call in runner.calls],
-                             ["ready.json", "completion.json", "ready.json"])
+    def test_preparation_completes_without_a_ready_report(self):
+        config = dict(sample_config(), operation="prepare")
+        body = probe.json.dumps(sample_report(config)).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            runner = self.make_runner(directory, {"completion.json": [(0, body, b"")]})
+            with signal_channel(runner, config) as (signals, device):
+                device.sendall(signal_bytes(config, "completion"))
+                device.shutdown(socket.SHUT_WR)
+                self.assertEqual(runner.wait_report(config, "completion.json", 1, signals), probe.json.loads(body))
+                signals.finish()
+            self.assertEqual(len(runner.calls), 1)
 
     def test_early_completion_remains_a_failure_and_retains_the_report(self):
         config = sample_config()
-        body = b'{"status":"failed","error":"SDK boot failed"}\n'
+        body = probe.json.dumps(dict(sample_report(config), status="failed", error="SDK boot failed")).encode()
         with tempfile.TemporaryDirectory() as directory:
-            runner = self.make_runner(directory, {
-                "ready.json": [(1, b"", b"cat: No such file or directory\n")],
-                "completion.json": [(0, body, b"")],
-            })
-            with self.assertRaisesRegex(RuntimeError, "ended before the host sampling boundary"):
-                runner.wait_report(config, "ready.json", 10)
+            runner = self.make_runner(directory, {"completion.json": [(0, body, b"")]})
+            with signal_channel(runner, config) as (signals, device):
+                device.sendall(signal_bytes(config, "completion"))
+                with self.assertRaisesRegex(RuntimeError, "ended before the host sampling boundary"):
+                    runner.wait_report(config, "ready.json", 1, signals)
             self.assertEqual((runner.output / config["runId"] / "completion.json").read_bytes(), body)
+            self.assertEqual([Path(call[-1]).name for call in runner.calls], ["completion.json"])
 
     def test_malformed_published_report_fails_without_retry_and_keeps_raw_streams(self):
         config = sample_config()
         stdout, stderr = b"not-json\xff\n", b"unexpected remote diagnostic\n"
-        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep") as sleep:
+        with tempfile.TemporaryDirectory() as directory:
             runner = self.make_runner(directory, {"completion.json": [(0, stdout, stderr)]})
-            with self.assertRaises((probe.json.JSONDecodeError, UnicodeDecodeError)):
-                runner.wait_report(config, "completion.json", 10)
+            with signal_channel(runner, config) as (signals, device):
+                device.sendall(signal_bytes(config, "completion"))
+                with self.assertRaises((probe.json.JSONDecodeError, UnicodeDecodeError)):
+                    runner.wait_report(config, "completion.json", 1, signals)
             folder = runner.output / config["runId"]
             self.assertEqual((folder / "completion.json.read.stdout").read_bytes(), stdout)
             self.assertEqual((folder / "completion.json.read.stderr").read_bytes(), stderr)
             self.assertEqual(probe.json.loads((folder / "completion.json.read.json").read_text())["exitCode"], 0)
-            sleep.assert_not_called()
             self.assertEqual(len(runner.calls), 1)
 
-    def test_absent_report_times_out_and_preserves_remote_failure(self):
+    def test_signalled_missing_report_is_an_error_and_retains_remote_exit_status(self):
         config = sample_config()
         error = b"cat: completion.json: No such file or directory\n"
-        with tempfile.TemporaryDirectory() as directory, patch.object(probe.time, "sleep"), \
-                patch.object(probe.time, "monotonic", side_effect=[0, 0, 2]):
+        with tempfile.TemporaryDirectory() as directory:
             runner = self.make_runner(directory, {"completion.json": [(1, b"", error)]})
-            with self.assertRaises(TimeoutError):
-                runner.wait_report(config, "completion.json", 1)
+            with signal_channel(runner, config) as (signals, device):
+                device.sendall(signal_bytes(config, "completion"))
+                with self.assertRaisesRegex(RuntimeError, r"could not be read \(1\)"):
+                    runner.wait_report(config, "completion.json", 1, signals)
             folder = runner.output / config["runId"]
             self.assertEqual((folder / "completion.json.read.stderr").read_bytes(), error)
             self.assertEqual(probe.json.loads((folder / "completion.json.read.json").read_text())["exitCode"], 1)
-            self.assertFalse((folder / "completion.json").exists())
+            self.assertEqual(len(runner.calls), 1)
+
+    def test_timeout_eof_and_unpublished_failure_do_not_probe_report_files(self):
+        config = sample_config()
+        for mode in ("timeout", "eof", "failure"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                runner = self.make_runner(directory, {})
+                with signal_channel(runner, config) as (signals, device):
+                    if mode == "eof":
+                        device.shutdown(socket.SHUT_WR)
+                    elif mode == "failure":
+                        device.sendall(signal_bytes(config, "completion", reportAvailable=False, error="original native error"))
+                    error = {"timeout": TimeoutError, "eof": EOFError, "failure": RuntimeError}[mode]
+                    with self.assertRaises(error) as raised:
+                        runner.wait_report(config, "ready.json", 0.01, signals)
+                    if mode == "failure":
+                        self.assertIn("original native error", str(raised.exception))
+                self.assertEqual(runner.calls, [])
+
+    def test_report_must_match_signalled_run_and_boot_even_for_failed_completion(self):
+        config = sample_config()
+        for change in ({"config": dict(config, runId="another-run")}, {"bootId": "another-boot"},
+                       {"pid": 124}, {"package": "org.otzaria.otzaria"}):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                body = probe.json.dumps(dict(sample_report(config), status="failed", **change)).encode()
+                runner = self.make_runner(directory, {"completion.json": [(0, body, b"")]})
+                with signal_channel(runner, config) as (signals, device):
+                    device.sendall(signal_bytes(config, "completion"))
+                    with self.assertRaisesRegex(ValueError, "does not match"):
+                        runner.wait_report(config, "ready.json", 1, signals)
+
+
+class SignalContracts(unittest.TestCase):
+    def test_fragmented_messages_share_one_connection_and_require_terminal_eof(self):
+        config = sample_config()
+        with signal_channel(None, config, connected=False) as (signals, device):
+            combined = signal_bytes(config, "connected") + signal_bytes(config, "ready") + signal_bytes(config, "completion")
+            device.sendall(combined[:11])
+            device.sendall(combined[11:])
+            device.shutdown(socket.SHUT_WR)
+            self.assertEqual([signals.receive(1)["event"] for _ in range(3)], ["connected", "ready", "completion"])
+            signals.finish()
+
+    def test_invalid_schema_identity_and_sequence_are_rejected(self):
+        config = sample_config()
+        changes = [{"schemaVersion": True}, {"schemaVersion": 2}, {"extra": 1},
+                   {"campaignId": "other-campaign"}, {"runId": "other-run"},
+                   {"bootId": "../escape"}, {"bootId": None}, {"pid": True}, {"pid": 0},
+                   {"event": "ready"}, {"reportAvailable": True}, {"error": "early error"}]
+        for change in changes:
+            with self.subTest(change=change), signal_channel(None, config, connected=False) as (signals, device):
+                device.sendall(signal_bytes(config, "connected", **change))
+                with self.assertRaises(ValueError):
+                    signals.receive(1)
+        for body in (b"not-json\n", b"[]\n", b"x" * 4097):
+            with self.subTest(body=body[:10]), signal_channel(None, config, connected=False) as (signals, device):
+                device.sendall(body)
+                with self.assertRaises(ValueError):
+                    signals.receive(1)
+
+    def test_duplicate_stale_and_out_of_order_boundaries_are_rejected(self):
+        config = sample_config()
+        for event, changes in (("connected", {}), ("ready", {"reportAvailable": False}),
+                               ("ready", {"pid": 456}), ("ready", {"bootId": "another-boot"})):
+            with self.subTest(event=event, changes=changes), signal_channel(None, config) as (signals, device):
+                device.sendall(signal_bytes(config, event, **changes))
+                with self.assertRaises(ValueError):
+                    signals.receive(1)
+        with signal_channel(None, config) as (signals, device):
+            device.sendall(signal_bytes(config, "ready") * 2)
+            signals.receive(1)
+            with self.assertRaisesRegex(ValueError, "Duplicate"):
+                signals.receive(1)
+        for extra in (b"extra", signal_bytes(config, "completion")):
+            with self.subTest(extra=extra[:10]), signal_channel(None, config) as (signals, device):
+                device.sendall(signal_bytes(config, "completion") + extra)
+                signals.receive(1)
+                with self.assertRaisesRegex(ValueError, "Extra data"):
+                    signals.finish()
+
+    def test_reverse_owns_only_one_ephemeral_port_and_closes_on_timeout(self):
+        calls = []
+        class Adb:
+            def adb(self, *args, on_success=None):
+                calls.append(args)
+                output = (f"(reverse) tcp:24680 {signals.local}\n".encode()
+                          if args == ("reverse", "--list") else b"24680\n")
+                if on_success:
+                    on_success(probe.subprocess.CompletedProcess(args, 0, output, b""))
+        config = sample_config()
+        signals = probe.ReportSignals(Adb(), config)
+        try:
+            runtime = signals.open()
+            self.assertEqual(runtime, dict(config, signalPort=24680))
+            self.assertNotIn("signalPort", config)
+            self.assertEqual(signals.listener.getsockname()[0], "127.0.0.1")
+            self.assertEqual(calls[0][:3], ("reverse", "--no-rebind", "tcp:0"))
+            with self.assertRaises(TimeoutError):
+                signals.receive(0.01)
+        finally:
+            signals.close()
+            signals.remove_reverse()
+        self.assertEqual(calls[-1], ("reverse", "--remove", "tcp:24680"))
+        self.assertEqual(signals.listener.fileno(), -1)
+
+
+    def test_reverse_cleanup_respects_missing_replaced_or_ambiguous_mappings(self):
+        for mappings, fails in (("", False),
+                                ("(reverse) tcp:24680 tcp:9999\n", True),
+                                ("(reverse) tcp:24680 tcp:12345\n" * 2, True)):
+            with self.subTest(mappings=mappings):
+                calls = []
+                class Adb:
+                    def adb(self, *args, on_success=None):
+                        calls.append(args)
+                        if on_success:
+                            on_success(probe.subprocess.CompletedProcess(args, 0, mappings.encode(), b""))
+                signals = probe.ReportSignals(Adb(), sample_config())
+                signals.remote, signals.local = "tcp:24680", "tcp:12345"
+                if fails:
+                    with self.assertRaisesRegex(RuntimeError, "replaced"):
+                        signals.remove_reverse()
+                else:
+                    signals.remove_reverse()
+                    self.assertIsNone(signals.remote)
+                self.assertEqual(calls, [("reverse", "--list")])
+
+    def test_reverse_is_reclaimed_when_every_command_receipt_write_fails(self):
+        calls = []
+        receipt_error = OSError("command log disk full")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            signals = probe.ReportSignals(runner, sample_config())
+            def adb_result(argv, **_):
+                args = tuple(argv[3:])
+                calls.append(args)
+                output = (f"(reverse) tcp:24680 {signals.local}\n".encode()
+                          if args == ("reverse", "--list") else b"24680\n")
+                return probe.subprocess.CompletedProcess(argv, 0, output, b"")
+            with patch.object(probe.subprocess, "run", side_effect=adb_result), \
+                    patch.object(Path, "open", side_effect=receipt_error):
+                with self.assertRaises(OSError) as raised:
+                    with runner.cleanup(sample_config(), [("close_signal", signals.close),
+                                                         ("remove_reverse", signals.remove_reverse)]):
+                        signals.open()
+            self.assertIs(raised.exception, receipt_error)
+            self.assertEqual(calls[0][:3], ("reverse", "--no-rebind", "tcp:0"))
+            self.assertEqual(calls[1:], [("reverse", "--list"), ("reverse", "--remove", "tcp:24680")])
+            self.assertIsNone(signals.remote)
+            self.assertEqual(signals.listener.fileno(), -1)
+
+    def test_failed_allocation_never_claims_a_mapping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            signals = probe.ReportSignals(runner, sample_config())
+            failed = probe.subprocess.CompletedProcess([], 1, b"", b"reverse failed")
+            with patch.object(probe.subprocess, "run", return_value=failed) as command:
+                with self.assertRaisesRegex(RuntimeError, "reverse failed"):
+                    with runner.cleanup(sample_config(), [("close_signal", signals.close),
+                                                         ("remove_reverse", signals.remove_reverse)]):
+                        signals.open()
+            self.assertEqual(command.call_count, 1)
+            self.assertIsNone(signals.remote)
+            self.assertEqual(signals.listener.fileno(), -1)
+
+
+class CleanupContracts(unittest.TestCase):
+    def test_launch_retains_original_exception_and_traceback_when_stop_also_fails(self):
+        original = RuntimeError("original measurement failure")
+        class FailedRunner(probe.Runner):
+            def _launch(self, *_):
+                raise original
+            def stop_probe(self):
+                raise OSError("cleanup force-stop failed")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FailedRunner(probe.argparse.Namespace(output=Path(directory) / "reports"))
+            try:
+                runner.launch(sample_config())
+            except RuntimeError as error:
+                self.assertIs(error, original)
+                self.assertIn("_launch", [entry.name for entry in probe.traceback.extract_tb(error.__traceback__)])
+            else:
+                self.fail("Expected the original error")
+            self.assertEqual([error["phase"] for error in runner.cleanup_errors], ["stop_probe"])
+
+    def test_all_cleanup_actions_run_and_first_failure_wins(self):
+        original = RuntimeError("native SDK failed")
+        secondary = OSError("logcat failed")
+        attempted = []
+        def cleanup(name, error=None):
+            def action():
+                attempted.append(name)
+                if error:
+                    raise error
+            return name, action
+        for primary in (original, None):
+            with self.subTest(primary=primary), tempfile.TemporaryDirectory() as directory:
+                attempted.clear()
+                runner = probe.Runner(probe.argparse.Namespace(output=Path(directory) / "reports"))
+                with self.assertRaises(Exception) as raised:
+                    with runner.cleanup(sample_config(), [cleanup("logcat", secondary), cleanup("stop", ValueError("stop failed")), cleanup("reverse")]):
+                        if primary:
+                            raise primary
+                self.assertIs(raised.exception, primary or secondary)
+                self.assertEqual(attempted, ["logcat", "stop", "reverse"])
+                self.assertEqual([item["phase"] for item in runner.cleanup_errors], ["logcat", "stop"])
+                self.assertTrue(all(item["traceback"] for item in runner.cleanup_errors))
+
+    def test_campaign_keeps_first_error_and_cleanup_diagnostics(self):
+        original = RuntimeError("native SDK failed")
+        class FailedRunner(probe.Runner):
+            def text(self, *args):
+                return "device" if args == ("get-state",) else "x86_64"
+            def build(self):
+                def bad_log():
+                    raise OSError("logcat failed")
+                with self.cleanup(sample_config(), [("collect_log", bad_log)]):
+                    raise original
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FailedRunner(probe.argparse.Namespace(output=Path(directory) / "reports", mode="debug"))
+            with self.assertRaises(RuntimeError) as raised:
+                runner.run()
+            self.assertIs(raised.exception, original)
+            campaign = probe.json.loads((runner.output / "campaign.json").read_text())
+            self.assertEqual(campaign["error"], "RuntimeError: native SDK failed")
+            self.assertIn("raise original", campaign["errorTraceback"])
+            self.assertEqual(campaign["cleanupErrors"][0]["phase"], "collect_log")
+            self.assertEqual(campaign["hostReportTransport"], "persistentAdbReverseSocket")
+            self.assertIsNone(campaign["hostReportPollIntervalMs"])
+            write_text = Path.write_text
+            def fail_campaign_write(path, *args, **kwargs):
+                if path.name == "campaign.json":
+                    raise OSError("disk full")
+                return write_text(path, *args, **kwargs)
+            with patch.object(Path, "write_text", fail_campaign_write):
+                with self.assertRaises(RuntimeError) as raised:
+                    runner.run()
+            self.assertIs(raised.exception, original)
+            self.assertEqual(runner.cleanup_errors[-1]["phase"], "write_campaign")
+
+
+    def test_primary_survives_stop_stderr_and_campaign_write_failures_together(self):
+        original = RuntimeError("original native failure")
+        class FailedRunner(probe.Runner):
+            def text(self, *args):
+                return "device" if args == ("get-state",) else "x86_64"
+            def build(self):
+                self.launch(sample_config())
+            def _launch(self, *_):
+                raise original
+            def stop_probe(self):
+                raise OSError("force-stop failed")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FailedRunner(probe.argparse.Namespace(output=Path(directory) / "reports", mode="debug"))
+            write_text = Path.write_text
+            def fail_campaign(path, *args, **kwargs):
+                if path.name == "campaign.json":
+                    raise OSError("campaign disk full")
+                return write_text(path, *args, **kwargs)
+            with patch.object(Path, "write_text", fail_campaign), \
+                    patch.object(probe.sys.stderr, "write", side_effect=BrokenPipeError("stderr closed")):
+                try:
+                    runner.run()
+                except RuntimeError as error:
+                    self.assertIs(error, original)
+                    self.assertIn("_launch", [entry.name for entry in probe.traceback.extract_tb(error.__traceback__)])
+                else:
+                    self.fail("Expected the original failure")
+            self.assertEqual([entry["phase"] for entry in runner.cleanup_errors],
+                             ["stop_probe", "stop_probe:stderr", "write_campaign", "write_campaign:stderr"])
+            self.assertTrue(all(entry["traceback"] for entry in runner.cleanup_errors))
+
+    def test_command_failure_survives_broken_receipt_and_stderr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(output=Path(directory) / "reports"))
+            failed = probe.subprocess.CompletedProcess([], 7, b"", b"original adb failure")
+            with patch.object(probe.subprocess, "run", return_value=failed), \
+                    patch.object(Path, "open", side_effect=OSError("receipt full")), \
+                    patch.object(probe.sys.stderr, "write", side_effect=BrokenPipeError("stderr closed")):
+                with self.assertRaisesRegex(RuntimeError, "original adb failure"):
+                    runner.command(["adb", "version"])
+            self.assertEqual([entry["phase"] for entry in runner.cleanup_errors],
+                             ["write_command_log", "write_command_log:stderr"])
 
 
 if __name__ == "__main__":
