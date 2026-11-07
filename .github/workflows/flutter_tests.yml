@@ -442,6 +442,8 @@ jobs:
       # The Git-pinned engine may not have precompiled release assets yet.
       - name: Install Rust for native source fallback
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Test splash timeline
         shell: pwsh
@@ -451,6 +453,16 @@ jobs:
         shell: pwsh
         timeout-minutes: 3
         run: test/windows/run_shift_key_normalizer_test.ps1
+
+      - name: Test the native Windows clipboard bitmap reader
+        shell: pwsh
+        timeout-minutes: 10
+        working-directory: packages/super_native_extensions/rust
+        run: |
+          rustfmt --edition 2021 --check src/win32/reader.rs src/win32/image_conversion.rs src/win32/bitmap_reader_tests.rs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked bitmap_reader_tests -- --test-threads=1 --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # זה הצעד שבגללו ה-job קיים: MSBuild, רישום התוספים הנייטיביים
       # וה-build hooks. debug ולא release — הוא מפעיל את אותה שרשרת נייטיבית

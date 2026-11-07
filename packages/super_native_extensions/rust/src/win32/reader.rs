@@ -24,26 +24,31 @@ use threadpool::ThreadPool;
 use windows::{
     core::{w, HSTRING},
     Win32::{
-        Foundation::S_OK,
+        Foundation::{DV_E_TYMED, E_HANDLE, E_OUTOFMEMORY, HANDLE, S_OK},
+        Graphics::Gdi::{DeleteObject, HBITMAP},
         Storage::FileSystem::{
             SetFileAttributesW, FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_HIDDEN,
             FILE_ATTRIBUTE_TEMPORARY,
         },
         System::{
             Com::{
-                IDataObject, IStream, STATFLAG_NONAME, STATSTG, STGMEDIUM, STREAM_SEEK_SET, TYMED,
+                CoInitializeEx, CoUninitialize, IDataObject, IStream, COINIT_MULTITHREADED,
+                STATFLAG_NONAME, STATSTG, STGMEDIUM, STREAM_SEEK_SET, TYMED, TYMED_GDI,
                 TYMED_HGLOBAL, TYMED_ISTREAM,
             },
             DataExchange::RegisterClipboardFormatW,
             Memory::{GlobalLock, GlobalSize, GlobalUnlock},
             Ole::{
-                OleGetClipboard, ReleaseStgMedium, CF_DIB, CF_DIBV5, CF_HDROP, CF_TIFF,
+                OleGetClipboard, ReleaseStgMedium, CF_BITMAP, CF_DIB, CF_DIBV5, CF_HDROP, CF_TIFF,
                 CF_UNICODETEXT,
             },
         },
-        UI::Shell::{
-            SHCreateMemStream, CFSTR_FILECONTENTS, CFSTR_FILEDESCRIPTOR, DROPFILES,
-            FILEDESCRIPTORW, FILEGROUPDESCRIPTORW,
+        UI::{
+            Shell::{
+                SHCreateMemStream, CFSTR_FILECONTENTS, CFSTR_FILEDESCRIPTOR, DROPFILES,
+                FILEDESCRIPTORW, FILEGROUPDESCRIPTORW,
+            },
+            WindowsAndMessaging::{CopyImage, IMAGE_BITMAP, LR_CREATEDIBSECTION},
         },
     },
 };
@@ -59,19 +64,164 @@ use crate::{
 use super::{
     common::{
         copy_stream_to_file, extract_formats, format_from_string, format_to_string,
-        read_stream_fully,
+        make_format_with_tymed, read_stream_fully,
     },
     data_object::{DataObject, GetData},
-    image_conversion::convert_to_png,
+    image_conversion::{convert_bitmap_to_png, convert_to_png},
 };
 
 pub struct PlatformDataReader {
     data_object: IDataObject,
     _drop_notifier: Option<Arc<DropNotifier>>,
     supports_async: Cell<bool>,
-    formats_raw: RefCell<Option<Vec<u32>>>,
+    formats_raw: RefCell<Option<DataObjectFormats>>,
     file_descriptors: RefCell<Option<Option<Vec<FileDescriptor>>>>,
     hdrop: RefCell<Option<Option<Vec<String>>>>,
+}
+
+#[derive(Clone)]
+struct DataObjectFormats {
+    readable: Vec<u32>,
+    has_gdi_bitmap: bool,
+}
+
+struct OwnedBitmap(HBITMAP);
+
+impl Drop for OwnedBitmap {
+    fn drop(&mut self) {
+        let _ = unsafe { DeleteObject(self.0) }.ok();
+    }
+}
+
+struct OwnedMedium(STGMEDIUM);
+
+impl Drop for OwnedMedium {
+    fn drop(&mut self) {
+        unsafe { ReleaseStgMedium(&mut self.0) };
+    }
+}
+
+struct ComApartment;
+
+impl ComApartment {
+    fn new() -> windows::core::Result<Self> {
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED)? };
+        Ok(Self)
+    }
+}
+
+impl Drop for ComApartment {
+    fn drop(&mut self) {
+        unsafe { CoUninitialize() };
+    }
+}
+
+enum PngSource {
+    Dib(Vec<u8>),
+    Bitmap(OwnedBitmap),
+}
+
+fn dib_to_bmp_pixel_offset(data: &[u8]) -> Option<u32> {
+    let word = |at| Some(u16::from_le_bytes(data.get(at..at + 2)?.try_into().ok()?));
+    let dword = |at| Some(u32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?));
+    let header = dword(0)?;
+    if header as usize > data.len() {
+        return None;
+    }
+    let (bits, used, entry_size, masks) = match header {
+        12 => (word(10)? as u32, 0, 3, 0),
+        40 | 108 | 124 => {
+            let masks = if header == 40 {
+                match dword(16)? {
+                    3 => 12, // BI_BITFIELDS masks follow BITMAPINFOHEADER.
+                    6 => 16, // BI_ALPHABITFIELDS also includes an alpha mask.
+                    _ => 0,
+                }
+            } else {
+                0
+            };
+            (word(14)? as u32, dword(32)?, 4, masks)
+        }
+        _ => return None,
+    };
+    let colors = if used == 0 && matches!(bits, 1 | 4 | 8) {
+        1u32 << bits
+    } else {
+        used
+    };
+    if matches!(bits, 1 | 4 | 8) && colors > 1u32 << bits {
+        return None;
+    }
+    let offset = header
+        .checked_add(masks)?
+        .checked_add(colors.checked_mul(entry_size)?)?;
+    if offset as usize >= data.len() {
+        return None;
+    }
+    if header == 124 && matches!(dword(56)?, 0x4c494e4b | 0x4d424544) {
+        let profile_offset = dword(112)?;
+        let profile_size = dword(116)?;
+        let image_size = if matches!(dword(16)?, 0 | 3 | 6) {
+            let width = i32::from_le_bytes(data.get(4..8)?.try_into().ok()?);
+            let height = i32::from_le_bytes(data.get(8..12)?.try_into().ok()?);
+            let row_bits = u32::try_from(width).ok()?.checked_mul(bits)?;
+            (row_bits.checked_add(31)? / 32)
+                .checked_mul(4)?
+                .checked_mul(height.unsigned_abs())?
+        } else {
+            dword(20)?
+        };
+        // Packed DIB profiles follow the pixels and do not increase bfOffBits.
+        if profile_size == 0
+            || image_size == 0
+            || profile_offset < offset.checked_add(image_size)?
+            || profile_offset.checked_add(profile_size)? as usize > data.len()
+        {
+            return None;
+        }
+    }
+    offset.checked_add(14)
+}
+
+impl PngSource {
+    fn encode(self) -> NativeExtensionsResult<Vec<u8>> {
+        let _apartment = ComApartment::new()?;
+        match self {
+            Self::Dib(data) => {
+                let size = u32::try_from(data.len())
+                    .ok()
+                    .and_then(|size| size.checked_add(14))
+                    .ok_or(NativeExtensionsError::InvalidData)?;
+                let offset =
+                    dib_to_bmp_pixel_offset(&data).ok_or(NativeExtensionsError::InvalidData)?;
+                let mut bmp = Vec::<u8>::new();
+                bmp.extend_from_slice(&[0x42, 0x4D]); // BM
+                bmp.extend_from_slice(&size.to_le_bytes());
+                bmp.extend_from_slice(&[0; 4]); // Reserved fields.
+                bmp.extend_from_slice(&offset.to_le_bytes());
+                bmp.extend_from_slice(&data);
+                let stream = unsafe { SHCreateMemStream(Some(&bmp)) }
+                    .ok_or_else(|| windows::core::Error::from(E_OUTOFMEMORY))?;
+                Ok(convert_to_png(stream)?)
+            }
+            Self::Bitmap(bitmap) => Ok(convert_bitmap_to_png(bitmap.0)?),
+        }
+    }
+}
+
+fn snapshot_bitmap(data_object: &IDataObject) -> windows::core::Result<OwnedBitmap> {
+    let format = make_format_with_tymed(CF_BITMAP.0 as u32, TYMED_GDI);
+    let medium = OwnedMedium(unsafe { data_object.GetData(&format)? });
+    if medium.0.tymed != TYMED_GDI.0 as u32 {
+        return Err(DV_E_TYMED.into());
+    }
+    let bitmap = unsafe { medium.0.u.hBitmap };
+    if bitmap.is_invalid() {
+        return Err(E_HANDLE.into());
+    }
+    // Copy before releasing the original IDataObject medium; the worker owns only this copy.
+    let copy = unsafe { CopyImage(HANDLE(bitmap.0), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION)? };
+    Ok(OwnedBitmap(HBITMAP(copy.0)))
 }
 
 /// Virtual file descriptor
@@ -105,23 +255,29 @@ impl PlatformDataReader {
     }
 
     /// Returns formats that DataObject can provide.
-    fn data_object_formats_raw(&self) -> NativeExtensionsResult<Vec<u32>> {
+    fn data_object_formats_raw(&self) -> NativeExtensionsResult<DataObjectFormats> {
         let formats = self.formats_raw.clone().take();
         match formats {
             Some(formats) => Ok(formats),
             None => {
-                let formats: Vec<u32> = extract_formats(&self.data_object)?
-                    .iter()
-                    .filter_map(|f| {
-                        if (f.tymed & TYMED_HGLOBAL.0 as u32) != 0
-                            || (f.tymed & TYMED_ISTREAM.0 as u32) != 0
-                        {
-                            Some(f.cfFormat as u32)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                let available = extract_formats(&self.data_object)?;
+                let formats = DataObjectFormats {
+                    readable: available
+                        .iter()
+                        .filter_map(|f| {
+                            if (f.tymed & TYMED_HGLOBAL.0 as u32) != 0
+                                || (f.tymed & TYMED_ISTREAM.0 as u32) != 0
+                            {
+                                Some(f.cfFormat as u32)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    has_gdi_bitmap: available
+                        .iter()
+                        .any(|f| f.cfFormat == CF_BITMAP.0 && (f.tymed & TYMED_GDI.0 as u32) != 0),
+                };
                 self.formats_raw.replace(Some(formats.clone()));
                 Ok(formats)
             }
@@ -131,14 +287,14 @@ impl PlatformDataReader {
     fn need_to_synthesize_png(&self) -> NativeExtensionsResult<bool> {
         let png = unsafe { RegisterClipboardFormatW(w!("PNG")) };
         let formats = self.data_object_formats_raw()?;
-        let has_dib =
-            formats.contains(&(CF_DIBV5.0 as u32)) || formats.contains(&(CF_DIB.0 as u32));
-        let has_png = formats.contains(&png);
-        Ok(has_dib && !has_png)
+        let has_dib = formats.readable.contains(&(CF_DIBV5.0 as u32))
+            || formats.readable.contains(&(CF_DIB.0 as u32));
+        let has_png = formats.readable.contains(&png);
+        Ok((has_dib || formats.has_gdi_bitmap) && !has_png)
     }
 
     fn data_object_formats(&self) -> NativeExtensionsResult<Vec<u32>> {
-        let mut res = self.data_object_formats_raw()?;
+        let mut res = self.data_object_formats_raw()?.readable;
         if self.need_to_synthesize_png()? {
             let png = unsafe { RegisterClipboardFormatW(w!("PNG")) };
             res.push(png);
@@ -218,42 +374,37 @@ impl PlatformDataReader {
         Ok(None)
     }
 
-    async fn generate_png(&self) -> NativeExtensionsResult<Vec<u8>> {
-        let formats = self.data_object_formats()?;
-        // prefer DIBV5 with alpha channel
-        let data = if formats.contains(&(CF_DIBV5.0 as u32)) {
-            Ok(self.data_object.get_data(CF_DIBV5.0 as u32)?)
-        } else if formats.contains(&(CF_DIB.0 as u32)) {
-            Ok(self.data_object.get_data(CF_DIB.0 as u32)?)
+    fn snapshot_png_source(&self) -> NativeExtensionsResult<PngSource> {
+        let formats = self.data_object_formats_raw()?;
+        // Prefer DIBV5 to preserve a defined alpha channel.
+        if formats.readable.contains(&(CF_DIBV5.0 as u32)) {
+            Ok(PngSource::Dib(
+                self.data_object.get_data(CF_DIBV5.0 as u32)?,
+            ))
+        } else if formats.readable.contains(&(CF_DIB.0 as u32)) {
+            Ok(PngSource::Dib(self.data_object.get_data(CF_DIB.0 as u32)?))
+        } else if formats.has_gdi_bitmap {
+            Ok(PngSource::Bitmap(snapshot_bitmap(&self.data_object)?))
         } else {
             Err(NativeExtensionsError::OtherError(
-                "No DIB or DIBV5 data found in data object".into(),
+                "No DIB, DIBV5 or GDI bitmap data found in data object".into(),
             ))
-        }?;
-        let mut bmp = Vec::<u8>::new();
-        bmp.extend_from_slice(&[0x42, 0x4D]); // BM
-        bmp.extend_from_slice(&((data.len() + 14) as u32).to_le_bytes()); // File size
-        bmp.extend_from_slice(&[0, 0]); // reserved 1
-        bmp.extend_from_slice(&[0, 0]); // reserved 2
-        bmp.extend_from_slice(&[0, 0, 0, 0]); // data starting address; not required by decoder
-        bmp.extend_from_slice(&data);
+        }
+    }
 
+    async fn generate_png(&self) -> NativeExtensionsResult<Vec<u8>> {
+        let source = self.snapshot_png_source()?;
         let (future, completer) = FutureCompleter::new();
-
         let mut completer = Capsule::new(completer);
         let sender = RunLoop::current().new_sender();
 
-        // Do the actual encoding on worker thread
         thread::spawn(move || {
-            let stream = unsafe { SHCreateMemStream(Some(&bmp)) };
-            let stream = stream.unwrap();
-            let res = convert_to_png(stream).map_err(NativeExtensionsError::from);
+            let res = source.encode();
             sender.send(move || {
                 let completer = completer.take().unwrap();
                 completer.complete(res);
             });
         });
-
         future.await
     }
 
@@ -1036,3 +1187,7 @@ mod tests {
         assert_eq!(files, vec!["A", "B"]);
     }
 }
+
+#[cfg(test)]
+#[path = "bitmap_reader_tests.rs"]
+mod bitmap_reader_tests;

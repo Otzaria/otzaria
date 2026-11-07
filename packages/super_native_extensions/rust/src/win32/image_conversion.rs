@@ -1,12 +1,16 @@
 use std::{ptr::null_mut, slice};
 
 use windows::{
-    core::PWSTR,
+    core::{ComInterface, PWSTR},
     Win32::{
         Foundation::{HGLOBAL, VARIANT_BOOL},
-        Graphics::Imaging::{
-            CLSID_WICImagingFactory, GUID_ContainerFormatBmp, GUID_ContainerFormatPng,
-            IWICBitmapFrameEncode, IWICImagingFactory, WICBitmapEncoderNoCache,
+        Graphics::{
+            Gdi::{HBITMAP, HPALETTE},
+            Imaging::{
+                CLSID_WICImagingFactory, GUID_ContainerFormatBmp, GUID_ContainerFormatPng,
+                IWICBitmapFrameEncode, IWICBitmapSource, IWICImagingFactory,
+                WICBitmapEncoderNoCache, WICBitmapIgnoreAlpha,
+            },
         },
         System::{
             Com::{
@@ -29,15 +33,33 @@ pub fn convert_to_png(input_stream: IStream) -> windows::core::Result<Vec<u8>> {
     unsafe {
         let decoder =
             factory.CreateDecoderFromStream(&input_stream, null_mut(), Default::default())?;
+        let frame = decoder.GetFrame(0)?;
+        encode_png(&factory, &frame.cast()?)
+    }
+}
+
+pub fn convert_bitmap_to_png(bitmap: HBITMAP) -> windows::core::Result<Vec<u8>> {
+    let factory: IWICImagingFactory = create_instance(&CLSID_WICImagingFactory)?;
+    // CF_BITMAP does not define alpha; prefer DIBV5 before reaching this fallback.
+    let source = unsafe {
+        factory.CreateBitmapFromHBITMAP(bitmap, HPALETTE::default(), WICBitmapIgnoreAlpha)?
+    };
+    encode_png(&factory, &source.cast()?)
+}
+
+fn encode_png(
+    factory: &IWICImagingFactory,
+    source: &IWICBitmapSource,
+) -> windows::core::Result<Vec<u8>> {
+    unsafe {
         let encoder = factory.CreateEncoder(&GUID_ContainerFormatPng, null_mut())?;
         let output_stream = CreateStreamOnHGlobal(HGLOBAL::default(), true)?;
         encoder.Initialize(&output_stream, WICBitmapEncoderNoCache)?;
-        let frame = decoder.GetFrame(0)?;
         let mut encoder_frame = Option::<IWICBitmapFrameEncode>::None;
         encoder.CreateNewFrame(&mut encoder_frame as *mut _, null_mut())?;
         let encoder_frame = encoder_frame.unwrap();
         encoder_frame.Initialize(None)?;
-        encoder_frame.WriteSource(&frame, std::ptr::null_mut())?;
+        encoder_frame.WriteSource(source, std::ptr::null_mut())?;
         encoder_frame.Commit()?;
         encoder.Commit()?;
         let hglobal = GetHGlobalFromStream(&output_stream)?;
