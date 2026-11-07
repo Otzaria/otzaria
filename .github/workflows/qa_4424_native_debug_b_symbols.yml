@@ -1,0 +1,33 @@
+name: QA 4424 symbolize exact native debug-b dump
+on:
+  push:
+    branches: [qa/y-ploni-4424-native-debug-b-symbols-20261107]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  read:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Preserve exact source line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read exact dump with matching engine symbols
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: '1'
+          DIAGNOSTIC_TOKEN: ${{ github.token }}
+          QA_NATIVE_DEBUG_EVIDENCE_OUTPUT: ${{ runner.temp }}/native-debug-b-symbols
+        run: python .github/qa/4424/read_native_debug_b_symbols.py
+      - name: Preserve exact archive and decoded data
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: qa-4424-native-debug-b-symbols
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/native-debug-b-symbols/**
