@@ -410,26 +410,29 @@ class SignalContracts(unittest.TestCase):
     def test_reverse_owns_only_one_ephemeral_port_and_closes_on_timeout(self):
         calls = []
         class Adb:
-            def adb(self, *args, on_success=None):
+            def adb(self, *args, on_success=None, **_):
                 calls.append(args)
-                output = (f"(reverse) tcp:24680 {signals.local}\n".encode()
-                          if args == ("reverse", "--list") else b"24680\n")
+                output = (f"(reverse) {signals.local} {signals.local}\n".encode()
+                          if args == ("reverse", "--list") else b"")
+                result = probe.subprocess.CompletedProcess(args, 0, output, b"")
                 if on_success:
-                    on_success(probe.subprocess.CompletedProcess(args, 0, output, b""))
+                    on_success(result)
+                return result
         config = sample_config()
         signals = probe.ReportSignals(Adb(), config)
         try:
             runtime = signals.open()
-            self.assertEqual(runtime, dict(config, signalPort=24680))
+            port = signals.listener.getsockname()[1]
+            self.assertEqual(runtime, dict(config, signalPort=port))
             self.assertNotIn("signalPort", config)
             self.assertEqual(signals.listener.getsockname()[0], "127.0.0.1")
-            self.assertEqual(calls[0][:3], ("reverse", "--no-rebind", "tcp:0"))
+            self.assertEqual(calls[0], ("reverse", "--no-rebind", f"tcp:{port}", f"tcp:{port}"))
             with self.assertRaises(TimeoutError):
                 signals.receive(0.01)
         finally:
             signals.close()
             signals.remove_reverse()
-        self.assertEqual(calls[-1], ("reverse", "--remove", "tcp:24680"))
+        self.assertEqual(calls[-1], ("reverse", "--remove", f"tcp:{port}"))
         self.assertEqual(signals.listener.fileno(), -1)
 
 
@@ -464,8 +467,8 @@ class SignalContracts(unittest.TestCase):
             def adb_result(argv, **_):
                 args = tuple(argv[3:])
                 calls.append(args)
-                output = (f"(reverse) tcp:24680 {signals.local}\n".encode()
-                          if args == ("reverse", "--list") else b"24680\n")
+                output = (f"(reverse) {signals.local} {signals.local}\n".encode()
+                          if args == ("reverse", "--list") else b"")
                 return probe.subprocess.CompletedProcess(argv, 0, output, b"")
             with patch.object(probe.subprocess, "run", side_effect=adb_result), \
                     patch.object(Path, "open", side_effect=receipt_error):
@@ -474,8 +477,8 @@ class SignalContracts(unittest.TestCase):
                                                          ("remove_reverse", signals.remove_reverse)]):
                         signals.open()
             self.assertIs(raised.exception, receipt_error)
-            self.assertEqual(calls[0][:3], ("reverse", "--no-rebind", "tcp:0"))
-            self.assertEqual(calls[1:], [("reverse", "--list"), ("reverse", "--remove", "tcp:24680")])
+            self.assertEqual(calls[0], ("reverse", "--no-rebind", signals.local, signals.local))
+            self.assertEqual(calls[1:], [("reverse", "--list"), ("reverse", "--remove", signals.local)])
             self.assertIsNone(signals.remote)
             self.assertEqual(signals.listener.fileno(), -1)
 
@@ -495,7 +498,196 @@ class SignalContracts(unittest.TestCase):
             self.assertEqual(signals.listener.fileno(), -1)
 
 
+class ReverseAllocationContracts(unittest.TestCase):
+    class Listener:
+        def __init__(self, port):
+            self.port, self.closed = port, False
+        def bind(self, address):
+            assert address == ("127.0.0.1", 0)
+        def listen(self, backlog):
+            assert backlog == 1
+        def getsockname(self):
+            return ("127.0.0.1", self.port)
+        def close(self):
+            self.closed = True
+
+    class Adb:
+        # ADB's host allow-list uses the requested remote address, while adbd
+        # stores tcp:0 allocations under the actual device port. Keep both.
+        def __init__(self):
+            self.allowed, self.mappings, self.occupied, self.calls = {}, {}, set(), []
+            self.next_port = 46000
+        def process(self, argv, **_):
+            args = tuple(argv[3:])
+            self.calls.append(args)
+            output, error = b"", b""
+            if args[:2] == ("reverse", "--no-rebind"):
+                remote, local = args[2:]
+                self.allowed.setdefault(remote, local)
+                actual = remote
+                if remote == "tcp:0":
+                    actual = f"tcp:{self.next_port}"
+                    self.next_port += 1
+                    output = f"{actual[4:]}\n".encode()
+                if actual in self.mappings:
+                    error = b"adb: error: cannot rebind existing socket"
+                elif actual in self.occupied:
+                    error = b"adb: error: cannot bind listener: Address already in use"
+                else:
+                    self.mappings[actual] = local
+            elif args == ("reverse", "--list"):
+                output = "".join(f"(reverse) {remote} {local}\n"
+                                 for remote, local in self.mappings.items()).encode()
+            elif args[:2] == ("reverse", "--remove"):
+                self.allowed.pop(args[2], None)
+                self.mappings.pop(args[2])
+            else:
+                raise AssertionError(args)
+            return probe.subprocess.CompletedProcess(argv, 1 if error else 0, output, error)
+        def connect(self, port):
+            local = self.mappings[f"tcp:{port}"]
+            if local not in self.allowed.values():
+                raise ConnectionResetError("ADB host rejects the new reverse target")
+
+    def test_repeated_channels_remain_allowed_after_owned_mapping_cleanup(self):
+        adb = self.Adb()
+        adb.allowed["tcp:31000"] = adb.mappings["tcp:31000"] = "tcp:32000"
+        listeners = [self.Listener(41001), self.Listener(41002)]
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            with patch.object(probe.subprocess, "run", side_effect=adb.process), \
+                    patch.object(probe.socket, "socket", side_effect=listeners):
+                for listener in listeners:
+                    signals = probe.ReportSignals(runner, sample_config())
+                    try:
+                        config = signals.open()
+                        adb.connect(config["signalPort"])
+                    finally:
+                        signals.close()
+                        signals.remove_reverse()
+                    self.assertTrue(listener.closed)
+                    self.assertIsNone(signals.remote)
+        self.assertEqual(adb.mappings, {"tcp:31000": "tcp:32000"})
+        self.assertEqual(adb.allowed, {"tcp:31000": "tcp:32000"})
+
+    def test_collisions_preserve_foreign_ports_and_retry_before_launch(self):
+        for collision in ("mapping", "bound socket"):
+            with self.subTest(collision=collision), tempfile.TemporaryDirectory() as directory:
+                adb = self.Adb()
+                if collision == "mapping":
+                    adb.allowed["tcp:41001"] = adb.mappings["tcp:41001"] = "tcp:32000"
+                else:
+                    adb.occupied.add("tcp:41001")
+                listeners = [self.Listener(41001), self.Listener(41002)]
+                runner = probe.Runner(probe.argparse.Namespace(
+                    output=Path(directory) / "reports", adb="adb", device="selected-device"))
+                signals = probe.ReportSignals(runner, sample_config())
+                with patch.object(probe.subprocess, "run", side_effect=adb.process), \
+                        patch.object(probe.socket, "socket", side_effect=listeners):
+                    try:
+                        config = signals.open()
+                        self.assertTrue(listeners[0].closed)
+                        self.assertEqual(config["signalPort"], 41002)
+                        adb.connect(config["signalPort"])
+                    finally:
+                        signals.close()
+                        signals.remove_reverse()
+                self.assertTrue(all(listener.closed for listener in listeners))
+                self.assertNotIn(("reverse", "--remove", "tcp:41001"), adb.calls)
+                self.assertEqual(adb.mappings, {"tcp:41001": "tcp:32000"} if collision == "mapping" else {})
+                if collision == "bound socket":
+                    # A rejected bind may leave a host allow-list entry; reusing
+                    # the same explicit port still targets the same listener.
+                    adb.occupied.clear()
+                    reused = probe.ReportSignals(runner, sample_config())
+                    with patch.object(probe.subprocess, "run", side_effect=adb.process), \
+                            patch.object(probe.socket, "socket", return_value=self.Listener(41001)):
+                        try:
+                            adb.connect(reused.open()["signalPort"])
+                        finally:
+                            reused.close()
+                            reused.remove_reverse()
+                    self.assertEqual(adb.allowed, {})
+
+    def test_collision_retries_are_bounded_and_close_every_listener(self):
+        adb = self.Adb()
+        listeners = [self.Listener(41000 + i) for i in range(8)]
+        adb.occupied.update(f"tcp:{listener.port}" for listener in listeners)
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            signals = probe.ReportSignals(runner, sample_config())
+            with patch.object(probe.subprocess, "run", side_effect=adb.process), \
+                    patch.object(probe.socket, "socket", side_effect=listeners):
+                with self.assertRaisesRegex(RuntimeError, "8 attempts.*Address already in use"):
+                    with runner.cleanup(sample_config(), [("close_signal", signals.close),
+                                                         ("remove_reverse", signals.remove_reverse)]):
+                        signals.open()
+            self.assertIsNone(signals.remote)
+        self.assertEqual(len(adb.calls), 8)
+        self.assertTrue(all(listener.closed for listener in listeners))
+        self.assertEqual(adb.mappings, {})
+
+    def test_collision_receipt_failure_does_not_retry_or_remove_foreign_mapping(self):
+        adb, listener = self.Adb(), self.Listener(41001)
+        adb.allowed["tcp:41001"] = adb.mappings["tcp:41001"] = "tcp:32000"
+        receipt = OSError("command receipt unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            signals = probe.ReportSignals(runner, sample_config())
+            with patch.object(probe.subprocess, "run", side_effect=adb.process), \
+                    patch.object(probe.socket, "socket", return_value=listener), \
+                    patch.object(Path, "open", side_effect=receipt):
+                with self.assertRaises(OSError) as raised:
+                    with runner.cleanup(sample_config(), [("close_signal", signals.close),
+                                                         ("remove_reverse", signals.remove_reverse)]):
+                        signals.open()
+            self.assertIs(raised.exception, receipt)
+            self.assertIsNone(signals.remote)
+        self.assertTrue(listener.closed)
+        self.assertEqual(len(adb.calls), 1)
+        self.assertEqual(adb.mappings, {"tcp:41001": "tcp:32000"})
+
+    def test_non_collision_failure_remains_primary_when_receipt_also_fails(self):
+        listener = self.Listener(41001)
+        failed = probe.subprocess.CompletedProcess([], 1, b"", b"device offline")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = probe.Runner(probe.argparse.Namespace(
+                output=Path(directory) / "reports", adb="adb", device="selected-device"))
+            signals = probe.ReportSignals(runner, sample_config())
+            with patch.object(probe.subprocess, "run", return_value=failed) as command, \
+                    patch.object(probe.socket, "socket", return_value=listener), \
+                    patch.object(Path, "open", side_effect=OSError("receipt unavailable")):
+                with self.assertRaisesRegex(RuntimeError, "device offline"):
+                    with runner.cleanup(sample_config(), [("close_signal", signals.close),
+                                                         ("remove_reverse", signals.remove_reverse)]):
+                        signals.open()
+            self.assertEqual(command.call_count, 1)
+            self.assertIsNone(signals.remote)
+        self.assertTrue(listener.closed)
+
+
 class CleanupContracts(unittest.TestCase):
+    def test_adb_version_is_retained_before_a_device_failure(self):
+        version = "Android Debug Bridge version 1.0.41\nVersion test-build"
+        calls = []
+        class UnavailableDevice(probe.Runner):
+            def text(self, *args):
+                calls.append(args)
+                if args == ("version",):
+                    return version
+                raise RuntimeError("device unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = UnavailableDevice(probe.argparse.Namespace(output=Path(directory) / "reports"))
+            with self.assertRaisesRegex(RuntimeError, "device unavailable"):
+                runner.run()
+            self.assertEqual((runner.output / "adb-version.txt").read_text(), version + "\n")
+            campaign = probe.json.loads((runner.output / "campaign.json").read_text())
+            self.assertEqual(campaign["hostAdbVersion"], version)
+            self.assertEqual(calls, [("version",), ("get-state",)])
+
     def test_launch_retains_original_exception_and_traceback_when_stop_also_fails(self):
         original = RuntimeError("original measurement failure")
         class FailedRunner(probe.Runner):

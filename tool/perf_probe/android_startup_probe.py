@@ -249,22 +249,35 @@ class ReportSignals:
         self.events = []
 
     def open(self):
-        self.listener = socket.socket()
-        self.listener.bind(("127.0.0.1", 0))
-        self.listener.listen(1)
-        self.local = f"tcp:{self.listener.getsockname()[1]}"
-        self.runner.adb("reverse", "--no-rebind", "tcp:0", self.local,
-                        on_success=self._own_reverse)
-        return self.config
+        for _ in range(8):
+            self.listener = socket.socket()
+            self.listener.bind(("127.0.0.1", 0))
+            self.listener.listen(1)
+            self.local = f"tcp:{self.listener.getsockname()[1]}"
+            # Use the same explicit port on both ends: ADB's host allow-list
+            # retains tcp:0 after removal of its resolved device port.
+            result = self.runner.adb("reverse", "--no-rebind", self.local, self.local,
+                                     check=lambda result: not self._port_collision(result),
+                                     on_success=self._own_reverse)
+            if result.returncode == 0:
+                return self.config
+            self.listener.close()
+            self.listener = None
+        raise RuntimeError("Startup signal ports remained occupied after 8 attempts: " +
+                           result.stderr.decode(errors="replace")[-3000:])
 
-    def _own_reverse(self, result):
+    @staticmethod
+    def _port_collision(result):
+        return any(message in result.stderr for message in (
+            b"cannot rebind existing socket",
+            b"cannot bind listener: Address already in use",
+        ))
+
+    def _own_reverse(self, _):
         # Record the allocation before command-log I/O can fail. The caller's
-        # cleanup owns only this newly allocated device port, never tcp:0.
-        port = result.stdout.decode(errors="replace").strip()
-        if not re.fullmatch(r"[1-9][0-9]{0,4}", port) or int(port) > 65535:
-            raise ValueError("ADB did not return the allocated reverse port")
-        self.remote = f"tcp:{port}"
-        self.config = dict(self.config, signalPort=int(port))
+        # cleanup owns only this successfully bound, explicit device port.
+        self.remote = self.local
+        self.config = dict(self.config, signalPort=int(self.remote[4:]))
 
     def receive(self, timeout):
         deadline = time.monotonic() + timeout
@@ -361,6 +374,7 @@ class Runner:
         self.command_log = self.output / "commands.jsonl"
         self.current_pid = None
         self.cleanup_errors = []
+        self.adb_version = None
 
     @contextmanager
     def cleanup(self, config, actions, primary=None):
@@ -405,7 +419,7 @@ class Runner:
         with self.cleanup({}, [("write_command_log", record)]):
             if result.returncode == 0 and on_success is not None:
                 on_success(result)
-            if check and result.returncode:
+            if result.returncode and (check(result) if callable(check) else check):
                 raise RuntimeError(f"Command failed ({result.returncode}): {argv[0]}\n{result.stderr.decode(errors='replace')[-3000:]}")
         return result
 
@@ -573,6 +587,8 @@ class Runner:
         failure = None
         failure_stack = None
         try:
+            self.adb_version = self.text("version")
+            (self.output / "adb-version.txt").write_text(self.adb_version + "\n")
             if self.text("get-state") != "device":
                 raise RuntimeError("The selected adb device is unavailable")
             emulator = self.text("shell", "getprop", "ro.kernel.qemu") == "1"
@@ -607,6 +623,7 @@ class Runner:
             result = {"schemaVersion": 1, "campaignId": self.campaign, "finishedAtUtc": utc_now(),
                       "status": "failed" if failure else "passed", "error": failure,
                       "errorTraceback": failure_stack, "cleanupErrors": self.cleanup_errors,
+                      "hostAdbVersion": self.adb_version,
                       "hostReportTransport": "persistentAdbReverseSocket",
                       "hostReportPollIntervalMs": None,
                       "trials": self.trials,
