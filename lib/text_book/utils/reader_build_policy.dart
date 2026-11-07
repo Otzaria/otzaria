@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 /// ב-`test/text_book/view/visible_indices_rebuild_gate_test.dart`.
 bool shouldRebuildReader(TextBookState previous, TextBookState current) {
   if (previous is! TextBookLoaded || current is! TextBookLoaded) return true;
+  if (previous.contentVersion != current.contentVersion) return true;
   if (!listEquals(previous.content, current.content)) return true;
   return previous.copyWith(
         visibleIndices: current.visibleIndices,
