@@ -48,6 +48,31 @@ payload is hash-checked before compilation and again when materialized by the
 test. `CARGO_NET_GIT_FETCH_WITH_CLI=true` selects Cargo's documented Git CLI
 transport without altering TLS verification or dependency pins.
 
+## Private cache allocation
+
+Android probe roots come from `getTemporaryDirectory()` in the pinned
+`path_provider_android` package, which returns `Context.getCacheDir()`.
+The Dart VM's `Directory.systemTemp` can instead point to `code_cache`.
+The allocator resolves the platform cache to its canonical path and creates a
+new `otzaria-installed-probe-` directory for each run. Missing platform paths
+or filesystem failures remain failures; there is no fallback to a different
+directory.
+
+The existing controller still accepts only
+`cache/otzaria-installed-probe-<fresh>/output/installed-plugin-report.json`
+relative to the dedicated app's private data directory. Canonical report
+resolution rejects a sibling cache, another app root, traversal to
+`code_cache`, or an output link that escapes this boundary. The integration
+scenario retains its symlink rejection and fresh-empty-output check, and waits
+for the authenticated host stream before preparing the app. Other platforms
+keep the existing system-temp allocation path.
+
+The Dart controls use the actual allocator and real temporary directories with
+a mocked platform path provider. They reproduce the VM/app-cache mismatch,
+check fresh roots and retained old evidence, and exercise missing cache paths,
+canonical aliases and rejected escapes. These controls do not replace the
+native Android lifecycle job.
+
 ## Native transition and quiet-window boundaries
 
 The controller starts **after the APK build**. A long build cannot leave an old
@@ -161,4 +186,6 @@ that keeps a pipe open after its parent exits.
 Primary references: [ADB commands and activity flags](https://developer.android.com/tools/adb),
 [Android 14 ActivityRecord source](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/wm/ActivityRecord.java),
 [Android 14 component-only HOME resolution](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/pm/PackageManagerShellCommand.java),
-and [Cargo Git transport configuration](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli).
+[Cargo Git transport configuration](https://doc.rust-lang.org/cargo/reference/config.html#netgit-fetch-with-cli),
+[locked Android path provider](https://github.com/flutter/packages/blob/path_provider_android-v2.2.23/packages/path_provider/path_provider_android/android/src/main/java/io/flutter/plugins/pathprovider/PathProviderPlugin.java),
+and [the exact Flutter VM temp-directory setup](https://github.com/flutter/flutter/blob/abaf9c523780a608bd46686fd5e53740a07077f8/engine/src/flutter/shell/platform/android/io/flutter/util/PathUtils.java).
