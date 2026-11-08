@@ -49,12 +49,12 @@ function mark(phase, key) {
 }
 mark('started');
 var samples = [];
-function render(family, weight) {
+function render(family, weight, generic = false) {
   var canvas = document.createElement('canvas');
   canvas.width = 650; canvas.height = 80;
-  var ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d', {willReadFrequently: true});
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 650, 80);
-  ctx.font = weight + ' 28px "' + family + '"';
+  ctx.font = weight + ' 28px ' + (generic ? family : '"' + family + '"');
   ctx.fillStyle = '#000'; ctx.textBaseline = 'top';
   var text = 'שלום עולם אבגדה ABC 012345';
   ctx.fillText(text, 8, 8);
@@ -87,7 +87,7 @@ await new Promise(resolve => requestAnimationFrame(() => {
   requestAnimationFrame(() => { mark('frame-2'); resolve(); });
 }));
 mark('fallback-started');
-var fallback = render('monospace', '400');
+var fallback = render('monospace', '400', true);
 mark('fallback-completed');
 mark('completed');
 return {samples: samples, fallbackControl: fallback, renderingProgress: progress,
