@@ -127,24 +127,28 @@ class PdfBookSearchView extends StatefulWidget {
     required int currentPage,
   }) {
     if (resultsPageNumbersSorted.isEmpty) return 0;
-    final pages = resultsPageNumbersSorted.toSet().toList()..sort();
-    final targetPage = pages.firstWhere(
-      (p) => p >= currentPage,
-      orElse: () => pages.last,
-    );
 
-    int visualIdx = 0;
-    int resultIdx = 0;
-    for (final page in pages) {
-      if (page == targetPage) break;
-      visualIdx++; // כותרת הדף
-      while (resultIdx < resultsPageNumbersSorted.length &&
-          resultsPageNumbersSorted[resultIdx] == page) {
-        visualIdx++;
-        resultIdx++;
-      }
+    var resultIndex = 0;
+    var visualIndex = 0;
+    var lastHeaderIndex = 0;
+
+    // הקלט כבר ממוין לפי עמוד. מעבר יחיד מספיק גם לאיתור עמוד היעד וגם
+    // לספירת כותרות/תוצאות שקודמות לו; אין צורך ב-Set, העתקה ומיון חוזר.
+    while (resultIndex < resultsPageNumbersSorted.length) {
+      final page = resultsPageNumbersSorted[resultIndex];
+      lastHeaderIndex = visualIndex;
+      if (page >= currentPage) return visualIndex;
+
+      visualIndex++; // כותרת העמוד
+      do {
+        visualIndex++;
+        resultIndex++;
+      } while (resultIndex < resultsPageNumbersSorted.length &&
+          resultsPageNumbersSorted[resultIndex] == page);
     }
-    return visualIdx;
+
+    // כל התוצאות לפני המיקום הנוכחי — כותרת העמוד האחרון.
+    return lastHeaderIndex;
   }
 
   /// הודעה כשמסלול המנוע החזיר 0 תוצאות והספר כלל אינו באינדקס —
