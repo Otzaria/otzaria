@@ -11,6 +11,40 @@ function Assert-Equal($Expected, $Actual, [string]$Message) {
 }
 
 try {
+    $timingModule = Import-Module $modulePath -Force -PassThru
+    try {
+        $timingResults = & $timingModule {
+            function script:Start-Sleep {
+                param([int]$Milliseconds)
+                if ($Milliseconds -le 0) { throw 'The idle deadline must not busy-wait.' }
+                $script:idleSleepRequests.Add($Milliseconds)
+                if ($script:idleWakeTimes.Count -eq 0) { throw 'The control slept after its deadline.' }
+                $script:idleClock.Elapsed.TotalMilliseconds = $script:idleWakeTimes.Dequeue()
+            }
+            foreach ($idleCase in @(
+                @{ name = 'zero'; seconds = 0; wakes = @(); expected = '' },
+                @{ name = 'early'; seconds = 1; wakes = @(984.5, 999.75, 1000.125); expected = '1000,16,1' },
+                @{ name = 'overshoot'; seconds = 1; wakes = @(1040.0); expected = '1000' },
+                @{ name = 'native-idle'; seconds = 35; wakes = @(34999.5, 35000.25); expected = '35000,1' }
+            )) {
+                $script:idleClock = @{ Elapsed = @{ TotalMilliseconds = 0.0 } }
+                $script:idleSleepRequests = [Collections.Generic.List[int]]::new()
+                $script:idleWakeTimes = [Collections.Generic.Queue[double]]::new()
+                foreach ($wake in $idleCase.wakes) { $script:idleWakeTimes.Enqueue($wake) }
+                Wait-InstalledPluginControlIdle -Clock $script:idleClock -Seconds $idleCase.seconds
+                @{
+                    name = $idleCase.name; seconds = $idleCase.seconds; expected = $idleCase.expected
+                    requests = $script:idleSleepRequests -join ','; elapsedMs = $script:idleClock.Elapsed.TotalMilliseconds
+                    remainingWakes = $script:idleWakeTimes.Count
+                }
+            }
+        }
+    } finally { Remove-Module $timingModule }
+    foreach ($timing in $timingResults) {
+        Assert-Equal $timing.expected $timing.requests "The $($timing.name) deadline waits only for the rounded-up remainder"
+        Assert-Equal $true ($timing.elapsedMs -ge $timing.seconds * 1000) "The $($timing.name) deadline cannot release its child early"
+        Assert-Equal 0 $timing.remainingWakes "The $($timing.name) deadline consumes every early wake"
+    }
     foreach ($mode in @('pass', 'idle', 'missing-stop', 'provider-error', 'throw-stop', 'invalid-report', 'foreign-report', 'startup-error', 'cleanup-failure', 'oversized', 'save-error', 'primary-and-save-error')) {
         $directory = Join-Path $temporary $mode
         New-Item -ItemType Directory -Path $directory | Out-Null
