@@ -102,9 +102,9 @@ class _PreserveSelectionLongPressRecognizer
           ),
         );
         _scroll = null;
-      } else if (_accepted && !_menuOpened) {
-        _openMenu();
       }
+      // Winning early only protects the selection. Releasing before the
+      // long-press timer expires is still a tap, not a context-menu request.
       _cancelMenuTimer();
       resolve(GestureDisposition.rejected);
       return;
@@ -151,13 +151,6 @@ class _PreserveSelectionLongPressRecognizer
         localPosition: event.localPosition,
       ),
     );
-  }
-
-  void _openMenu() {
-    final position = initialPosition?.global;
-    if (position == null) return;
-    _menuOpened = true;
-    onOpenMenu(position);
   }
 
   @override
