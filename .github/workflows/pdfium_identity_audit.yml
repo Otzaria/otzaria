@@ -1,0 +1,93 @@
+name: Released PDFium identity audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pdfium_identity_audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            manifest_asset_id: 703153043
+            manifest_sha256: d214683a87df11072d10538b1dfa29d2b922fffa3ac70031cde64ab04f54d7bc
+          - arch: arm64
+            manifest_asset_id: 703122371
+            manifest_sha256: 6cb65241ef623ca673dbea3da818cbdc316e1ab741b08f6ca68fb956f7661c92
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download release manifest and both candidate PDFium builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api='https://api.github.com/repos'
+          curl_api() {
+            curl --fail --location --retry 8 --retry-all-errors --retry-delay 2 \
+              -H "Authorization: Bearer $GH_TOKEN" "$@"
+          }
+
+          curl_api -H 'Accept: application/octet-stream' \
+            "$api/Otzaria/otzaria/releases/assets/${{ matrix.manifest_asset_id }}" \
+            -o "$RUNNER_TEMP/manifest.json"
+          printf '%s  %s\n' '${{ matrix.manifest_sha256 }}' "$RUNNER_TEMP/manifest.json" | sha256sum --check -
+
+          for version in 5200 8125; do
+            release="$(curl_api -H 'Accept: application/vnd.github+json' \
+              "$api/bblanchon/pdfium-binaries/releases/tags/chromium%2F$version")"
+            url="$(jq -r --arg name "pdfium-linux-${{ matrix.arch }}.tgz" \
+              '.assets[] | select(.name == $name) | .url' <<<"$release")"
+            test -n "$url" && test "$url" != null
+            curl_api -H 'Accept: application/octet-stream' "$url" -o "$RUNNER_TEMP/pdfium-$version.tgz"
+            mkdir -p "$RUNNER_TEMP/pdfium-$version"
+            tar -xzf "$RUNNER_TEMP/pdfium-$version.tgz" -C "$RUNNER_TEMP/pdfium-$version" lib/libpdfium.so
+          done
+
+      - name: Compare packaged hash to producer versions
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/pdfium-5200/lib/libpdfium.so" "$RUNNER_TEMP/pdfium-8125/lib/libpdfium.so" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+
+          manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [f for f in manifest["files"] if f["path"].endswith("lib/libpdfium.so")]
+          if len(matches) != 1:
+              raise SystemExit(f"expected exactly one packaged libpdfium.so, found {matches!r}")
+          packaged = matches[0]
+          candidates = {}
+          for version, arg in (("5200", sys.argv[2]), ("8125", sys.argv[3])):
+              data = Path(arg).read_bytes()
+              candidates[version] = {
+                  "size": len(data),
+                  "sha256": hashlib.sha256(data).hexdigest(),
+              }
+          matched = [
+              version for version, item in candidates.items()
+              if item["sha256"] == packaged["sha256"]
+          ]
+          report = {
+              "architecture": manifest["architecture"],
+              "packaged": {
+                  "size": packaged["size"],
+                  "sha256": packaged["sha256"],
+              },
+              "candidates": candidates,
+              "matchedVersions": matched,
+          }
+          print(json.dumps(report, indent=2))
+          if len(matched) != 1:
+              raise SystemExit("packaged PDFium did not match exactly one expected producer")
+          PY
