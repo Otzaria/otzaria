@@ -503,6 +503,124 @@ void main() {
     expect(updated.loadedLineFlags?.every((loaded) => loaded), isTrue);
   });
 
+  test('טווח זהה שומר שורה, בחירה, סימון ו-revision', () async {
+    const original = ['א', 'ב', '', 'ד'];
+    bloc.emit(buildLoadedState(content: const []));
+    final fullFuture = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.content.length == 4,
+    );
+    bloc.add(
+      ApplyFullBookContent(bookTitle: book.title, content: original),
+    );
+    final full = await fullFuture as TextBookLoaded;
+    final selected = full.copyWith(
+      selectedIndex: 2,
+      selectedIndices: const {2},
+      visibleIndices: const [2],
+      permanentHighlightLine: 2,
+      currentTitle: 'כותרת נבחרת',
+    );
+    bloc.emit(selected);
+
+    bloc.add(
+      ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: const [
+          (startLine: 0, totalLines: 4, lines: ['א', 'ב']),
+          (startLine: 2, totalLines: 4, lines: ['', 'ד']),
+        ],
+      ),
+    );
+    await pumpEventQueue();
+    expect(bloc.state, same(selected));
+    expect((bloc.state as TextBookLoaded).contentVersion, full.contentVersion);
+    expect((bloc.state as TextBookLoaded).selectedIndices, {2});
+
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == selected.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: 1,
+        totalLines: 4,
+        lines: const ['שורה מתוקנת'],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, ['א', 'שורה מתוקנת', '', 'ד']);
+    expect(updated.contentChanges?.fromVersion, selected.contentVersion);
+    expect(updated.contentChanges?.ranges, [(first: 1, last: 1)]);
+    expect(updated.selectedIndex, 2);
+    expect(updated.selectedIndices, {2});
+    expect(updated.visibleIndices, [2]);
+    expect(updated.permanentHighlightLine, 2);
+    expect(updated.currentTitle, 'כותרת נבחרת');
+    expect(selected.content, original);
+  });
+
+  test('שורה ריקה ללא דגל טעון עדיין מפעילה רענון', () async {
+    bloc.emit(
+      buildLoadedState(content: const ['א', '', 'ג']).copyWith(
+        selectedIndex: 1,
+        selectedIndices: const {1},
+      ),
+    );
+    final before = bloc.state as TextBookLoaded;
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == before.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: 1,
+        totalLines: 3,
+        lines: const [''],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, before.content);
+    expect(updated.isContentLineLoaded(1), isTrue);
+    expect(updated.contentVersion, before.contentVersion + 1);
+    expect(updated.selectedIndices, before.selectedIndices);
+    expect(updated.contentChanges?.fromVersion, before.contentVersion);
+  });
+
+  test('אצווה שמשנה ואז משחזרת עדיין מגדילה revision', () async {
+    const original = ['א', '', 'ג'];
+    bloc.emit(buildLoadedState(content: const []));
+    final fullFuture = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && state.content.length == 3,
+    );
+    bloc.add(
+      ApplyFullBookContent(bookTitle: book.title, content: original),
+    );
+    final full = await fullFuture as TextBookLoaded;
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == full.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: const [
+          (startLine: 1, totalLines: 3, lines: ['תוכן זמני']),
+          (startLine: 1, totalLines: 3, lines: ['']),
+        ],
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content, original);
+    expect(updated.contentVersion, full.contentVersion + 1);
+    expect(updated.contentChanges?.ranges, [(first: 1, last: 1), (first: 1, last: 1)]);
+    expect(full.content, original);
+  });
+
   test('פסקה רציפה שלא נטענה כולה מבקשת את כל טווח שורותיה', () async {
     // שורות 1..1999 בין שתי כותרות (נחתכות לפריטים); רק סביב שורה 1000 טעון.
     const lineCount = 2100;
