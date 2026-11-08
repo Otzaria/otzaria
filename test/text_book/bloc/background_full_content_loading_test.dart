@@ -617,10 +617,8 @@ void main() {
     final updated = await updatedFuture as TextBookLoaded;
     expect(updated.content, original);
     expect(updated.contentVersion, full.contentVersion + 1);
-    expect(updated.contentChanges?.ranges, [
-      (first: 1, last: 1),
-      (first: 1, last: 1),
-    ]);
+    // Overlapping identical ranges are coalesced in ContentLineChanges.
+    expect(updated.contentChanges?.ranges, [(first: 1, last: 1)]);
     expect(full.content, original);
   });
 
