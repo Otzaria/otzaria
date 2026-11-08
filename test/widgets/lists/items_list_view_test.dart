@@ -700,6 +700,7 @@ void main() {
     ) async {
       var filterCalls = 0;
       var searchKeyCalls = 0;
+      var subtitleCalls = 0;
       final manyItems = List<dynamic>.generate(
         80,
         (index) => _Item('ספר $index', workspaceName: 'קבוצה'),
@@ -716,6 +717,10 @@ void main() {
             searchKeyCalls++;
             return (item as _Item).ref;
           },
+          subtitleBuilder: (_) {
+            subtitleCalls++;
+            return 'תיאור';
+          },
         ),
       );
       await tester.pump();
@@ -724,6 +729,7 @@ void main() {
 
       final filterCallsBeforeArrows = filterCalls;
       final searchKeyCallsBeforeArrows = searchKeyCalls;
+      final subtitleCallsBeforeArrows = subtitleCalls;
 
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();
@@ -734,6 +740,7 @@ void main() {
 
       expect(filterCalls, filterCallsBeforeArrows);
       expect(searchKeyCalls, searchKeyCallsBeforeArrows);
+      expect(subtitleCalls, subtitleCallsBeforeArrows);
     });
 
     testWidgets('Enter אחרי חץ ראשון פותח את התוצאה העליונה', (tester) async {
