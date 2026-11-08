@@ -18,6 +18,9 @@ const appleActivityFixtureHtml = r'''<!doctype html><html lang="en">
   'use strict';
   const capacity = 32768;
   const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  // WebKit can reproject the raw getter onto an adjusted wall clock.
+  // Capture realm identity once, while retaining every raw read below.
+  const timeOriginAtBootstrap = performance.timeOrigin;
   let phase = 'boot';
   let armCount = 0;
   let stateCanary = 'not-armed';
@@ -84,7 +87,7 @@ const appleActivityFixtureHtml = r'''<!doctype html><html lang="en">
     },
     read() {
       return {schemaVersion: 1, phase, documentToken: token, stateCanary, bootCount, boot,
-        ready, timeOrigin: performance.timeOrigin, readAt: stamp(),
+        ready, timeOriginAtBootstrap, timeOrigin: performance.timeOrigin, readAt: stamp(),
         documentHidden: document.hidden, visibilityState: document.visibilityState,
         streams, lifecycle, commands, errors, droppedErrors};
     }

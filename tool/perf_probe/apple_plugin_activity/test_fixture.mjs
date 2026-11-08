@@ -6,14 +6,14 @@ import vm from 'node:vm';
 const dart = readFileSync(new URL('../../../integration_test/support/apple_plugin_activity_fixture.dart', import.meta.url), 'utf8');
 const script = dart.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-function fixture() {
+function fixture({timeOrigin = 1000} = {}) {
   let wall = 1000;
   const listeners = new Map();
   const intervals = [], timeouts = [], frames = [];
   const sdk = new Map();
   const context = {
     Date: {now: () => wall}, Math,
-    performance: {now: () => wall - 1000, timeOrigin: 1000},
+    performance: {now: () => wall - 1000, get timeOrigin() {return timeOrigin;}},
     document: {hidden: false, visibilityState: 'visible'},
     setInterval: callback => intervals.push(callback),
     setTimeout: callback => timeouts.push(callback),
@@ -31,6 +31,7 @@ function fixture() {
   return {probe: context.appleActivity, intervals, timeouts, frames, sdk, fire,
     emit: (topic, event) => listeners.get(topic)(event),
     advance: value => {wall = value;},
+    reprojectTimeOrigin: value => {timeOrigin = value;},
     snapshot: () => JSON.parse(JSON.stringify(context.appleActivity.read()))};
 }
 
@@ -48,6 +49,23 @@ test('local async, interval and rAF are independent of SDK RPC', async () => {
     assert.equal(s.streams[name].callbacks[0].wallMs, 1400);
   }
   assert.equal(s.boot.runMode, 'background');
+});
+
+test('bootstrap clock identity survives a raw WebKit wall-clock projection change', () => {
+  const f = fixture();
+  f.probe.arm('quiet');
+  const before = f.snapshot();
+  assert.equal(before.timeOriginAtBootstrap, 1000);
+  f.reprojectTimeOrigin(1014);
+  const after = f.snapshot();
+  assert.equal(after.timeOrigin, 1014, 'Keep the current raw getter observable');
+  assert.equal(after.timeOriginAtBootstrap, before.timeOriginAtBootstrap);
+  assert.equal(after.documentToken, before.documentToken);
+  assert.equal(after.stateCanary, before.stateCanary);
+  assert.equal(after.bootCount, before.bootCount);
+  const replacement = fixture({timeOrigin: 1014}).snapshot();
+  assert.equal(replacement.timeOriginAtBootstrap, 1014);
+  assert.notEqual(replacement.documentToken, before.documentToken);
 });
 
 test('execution timestamp, not a scheduled deadline, labels a delayed callback', () => {

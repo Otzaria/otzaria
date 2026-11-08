@@ -13,6 +13,7 @@ Map<String, dynamic> snapshot({
   'documentToken': 'document-A',
   'stateCanary': 'local-state-A',
   'timeOrigin': 1,
+  'timeOriginAtBootstrap': 1,
   'bootCount': 1,
   'phase': 'offstage',
   'ready': true,
@@ -387,7 +388,7 @@ void main() {
   for (final key in [
     'documentToken',
     'stateCanary',
-    'timeOrigin',
+    'timeOriginAtBootstrap',
     'bootCount',
     'phase',
   ]) {
@@ -398,6 +399,49 @@ void main() {
         expect(() => analyze(changed), throwsStateError);
       },
     );
+  }
+
+  test(
+    'raw timeOrigin projection changes preserve bootstrap document identity',
+    () {
+      final before = snapshot(readWall: 900, readMono: 900);
+      final after = snapshot()..['timeOrigin'] = 15;
+      final report = analyze(after, before: before);
+      expect(report['clockStable'], true);
+      expect(after['timeOrigin'], 15);
+      expect(after['timeOriginAtBootstrap'], before['timeOriginAtBootstrap']);
+    },
+  );
+
+  for (final field in ['timeOrigin', 'timeOriginAtBootstrap']) {
+    test('$field must be present and finite at both document boundaries', () {
+      for (final invalid in [
+        null,
+        double.nan,
+        double.infinity,
+        -double.infinity,
+        '1',
+      ]) {
+        final bad = snapshot()..[field] = invalid;
+        expect(
+          () => verifyAppleDocumentIdentity(snapshot(), bad),
+          throwsStateError,
+        );
+        expect(
+          () => verifyAppleDocumentIdentity(bad, snapshot()),
+          throwsStateError,
+        );
+      }
+      final missing = snapshot()..remove(field);
+      expect(
+        () => verifyAppleDocumentIdentity(snapshot(), missing),
+        throwsStateError,
+      );
+      expect(
+        () => verifyAppleDocumentIdentity(missing, snapshot()),
+        throwsStateError,
+      );
+    });
   }
 
   test('inconsistent bounded log fails instead of silently dropping data', () {
@@ -468,7 +512,7 @@ void main() {
         'controllerToken',
         'documentToken',
         'stateCanary',
-        'timeOrigin',
+        'timeOriginAtBootstrap',
         'bootCount',
         'phase',
       ]) {

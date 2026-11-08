@@ -236,6 +236,16 @@ hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=t
   האפליקציה, boot של האפליקציה, controller, document token, מספר אירועי
   boot, שמירת מצב, רשות keepAlive, מונים ופקודות. שינוי זהות, reload,
   dispose בלתי צפוי או relaunch אינם מוצגים כ־resume תקין.
+- `timeOriginAtBootstrap` נלכד פעם אחת בעת אתחול המסמך ומשמש לשמירת
+  הזהות, לצד token, canary ומספר אירועי boot. `timeOrigin` ממשיך לתעד
+  את ערך `performance.timeOrigin` הגולמי בכל קריאה. המקור של
+  [WebKit `Performance::timeOrigin`](https://github.com/WebKit/WebKit/blob/c09d0e32e2e9d4cad505bd3dd068273d0b9c8bc1/Source/WebCore/page/Performance.cpp)
+  מקרין את המקור המונוטוני לשעון קיר באמצעות
+  [`GenericTimeMixin::approximate`](https://github.com/WebKit/WebKit/blob/c09d0e32e2e9d4cad505bd3dd068273d0b9c8bc1/Source/WTF/wtf/GenericTimeMixin.h),
+  ולכן שינוי בהקרנה הגולמית אינו לבדו עדות להחלפת מסמך. זה אינו זיהוי
+  של גרסת WebKit במערכת שנמדדה. העוגן שנלכד עדיין חייב להיות זהה
+  בדיוק, ושני שדות השעון חייבים להכיל מספר סופי בכל תצפית. החלפת
+  מסמך, state או boot נכשלת, וגבולות סטיית השעון במדידה אינם משתנים.
 - `driver-*.json`: תחילת/סוף שקט בשעון חיצוני ובשעון מונוטוני, תקציב
   התיאום, פעולת OS, מצב לפני/אחרי ותוצאת CPU. קבצים חלקיים נשמרים גם
   בכשל; timeout אינו מסומן כהצלחה.

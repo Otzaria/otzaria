@@ -245,10 +245,18 @@ void verifyAppleDocumentIdentity(
   Map<String, dynamic> before,
   Map<String, dynamic> after,
 ) {
+  for (final observation in [before, after]) {
+    for (final key in ['timeOrigin', 'timeOriginAtBootstrap']) {
+      final value = observation[key];
+      if (value is! num || !value.isFinite) {
+        throw StateError('Missing or non-finite document clock: $key');
+      }
+    }
+  }
   for (final key in [
     'documentToken',
     'stateCanary',
-    'timeOrigin',
+    'timeOriginAtBootstrap',
     'bootCount',
     'phase',
   ]) {
