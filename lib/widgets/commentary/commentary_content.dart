@@ -27,7 +27,7 @@ import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 
 typedef CommentaryNotesByLine = Map<int, List<PersonalNote>>;
 
-@visibleForTesting
+/// אינדוקס הערות לפי שורה, משותף לטעינה ולבדיקות.
 CommentaryNotesByLine indexCommentaryNotesByLine(List<PersonalNote> notes) {
   final byLine = <int, List<PersonalNote>>{};
   for (final note in notes) {
