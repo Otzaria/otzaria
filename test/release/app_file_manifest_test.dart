@@ -122,18 +122,18 @@ void main() {
 
   group('כללי הנתיב המנוהל', () {
     test('נתיב יחסי עם / בלבד תקין', () {
-      expect(appFilePathError('data/app.so'), isNull);
-      expect(appFilePathError('otzaria.exe'), isNull);
+      expect(managedApplicationPathError('data/app.so'), isNull);
+      expect(managedApplicationPathError('otzaria.exe'), isNull);
     });
 
     test('נתיב מוחלט, מטפס או עם מפריד חלונות נדחה', () {
-      expect(appFilePathError(''), isNotNull);
-      expect(appFilePathError('/etc/passwd'), isNotNull);
-      expect(appFilePathError('C:/Windows/system32.dll'), isNotNull);
-      expect(appFilePathError(r'data\app.so'), isNotNull);
-      expect(appFilePathError('../outside.dll'), isNotNull);
-      expect(appFilePathError('data/../../outside.dll'), isNotNull);
-      expect(appFilePathError('data//app.so'), isNotNull);
+      expect(managedApplicationPathError(''), isNotNull);
+      expect(managedApplicationPathError('/etc/passwd'), isNotNull);
+      expect(managedApplicationPathError('C:/Windows/system32.dll'), isNotNull);
+      expect(managedApplicationPathError(r'data\app.so'), isNotNull);
+      expect(managedApplicationPathError('../outside.dll'), isNotNull);
+      expect(managedApplicationPathError('data/../../outside.dll'), isNotNull);
+      expect(managedApplicationPathError('data//app.so'), isNotNull);
     });
   });
 
@@ -185,8 +185,12 @@ void main() {
   group('נתוני משתמש נדחים בבנייה', () {
     test('תיקיית נתונים בפלט הבנייה מפילה את הגנרטור ברעש', () {
       write('otzaria.exe', 'binary');
-      for (final folder in kAppFileUserDataFolderNames) {
-        expect(appFilePathError('$folder/x.dat'), isNotNull, reason: folder);
+      for (final folder in kUserDataFolderNames) {
+        expect(
+          managedApplicationPathError('$folder/x.dat'),
+          isNotNull,
+          reason: folder,
+        );
       }
       write('books/seforim.db', 'library');
       expect(
@@ -202,26 +206,8 @@ void main() {
     });
 
     test('קובץ סימון בשורש נדחה, ותת-נתיב באותו שם אינו נדחה', () {
-      expect(appFilePathError('library_path.txt'), isNotNull);
-      expect(appFilePathError('data/library_path.txt'), isNull);
-    });
-
-    test('הרשימות זהות לאלה של הלקוח — אחרת המניפסט נדחה אצלו כולו', () {
-      expect(kAppFileUserDataFolderNames, kUserDataFolderNames);
-      expect(kAppFileUserDataFileNames, kUserDataFileNames);
-      for (final path in [
-        'otzaria.exe',
-        'data/flutter_assets/a.bin',
-        'books/seforim.db',
-        'otzaria_data/settings.hive',
-        'library_path.txt',
-      ]) {
-        expect(
-          appFilePathError(path) == null,
-          managedApplicationPathError(path) == null,
-          reason: path,
-        );
-      }
+      expect(managedApplicationPathError('library_path.txt'), isNotNull);
+      expect(managedApplicationPathError('data/library_path.txt'), isNull);
     });
   });
 

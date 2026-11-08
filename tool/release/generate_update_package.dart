@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:otzaria/update/differential/managed_paths.dart'
+    show managedApplicationPathError;
 import 'package:otzaria/update/differential/tree_fs.dart';
 
 import 'generate_app_file_manifest.dart';
@@ -486,7 +488,7 @@ List<String> validateUpdatePackageManifest(Object? manifest) {
       continue;
     }
     final path = entry['path'];
-    if (path is! String || appFilePathError(path) != null) {
+    if (path is! String || managedApplicationPathError(path) != null) {
       errors.add('entry ${path ?? '<unnamed>'}: invalid target path');
       continue;
     }
@@ -549,7 +551,7 @@ List<String> validateUpdatePackageManifest(Object? manifest) {
       continue;
     }
     final path = removal['path'];
-    if (path is! String || appFilePathError(path) != null) {
+    if (path is! String || managedApplicationPathError(path) != null) {
       errors.add('removal ${path ?? '<unnamed>'}: invalid target path');
       continue;
     }
@@ -595,7 +597,7 @@ List<String> _treeErrors(Map manifest, List entries, List removals) {
       continue;
     }
     final path = file['path'] as String;
-    if (appFilePathError(path) != null) {
+    if (managedApplicationPathError(path) != null) {
       errors.add('newTree: invalid file path $path');
     }
     final mode = file['mode'];
@@ -618,7 +620,8 @@ List<String> _treeErrors(Map manifest, List entries, List removals) {
     }
     final path = link['path'] as String;
     final target = link['target'] as String;
-    final error = appFilePathError(path) ?? linkTargetError(path, target);
+    final error =
+        managedApplicationPathError(path) ?? linkTargetError(path, target);
     if (error != null) errors.add('newTree: link $path: $error');
     if (treeFiles.containsKey(path) || treeLinks.containsKey(path)) {
       errors.add('newTree: duplicate $path');
@@ -667,7 +670,7 @@ List<String> _treeErrors(Map manifest, List entries, List removals) {
       continue;
     }
     final path = removal['path'] as String;
-    if (appFilePathError(path) != null) {
+    if (managedApplicationPathError(path) != null) {
       errors.add('link removal $path: invalid path');
     }
     if (treeLinks.containsKey(path)) {
