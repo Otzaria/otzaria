@@ -82,6 +82,7 @@ Future<void> _pumpPdfSearchPane(WidgetTester tester, Size screen) async {
                           searchFieldActions: [
                             OtzariaSearchAction.icon(
                               iconData: Icons.abc,
+                              tooltip: 'פעולה',
                               onPressed: () {},
                             ),
                           ],

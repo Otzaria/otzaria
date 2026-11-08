@@ -22,7 +22,11 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/plugin_constants.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:http/http.dart' as http;
@@ -180,6 +184,20 @@ import 'package:otzaria/utils/calendar_days.dart';
 /// והתגיות שלו נמרחות בכפתור או בתפריט.
 const String kPluginUiFont = 'Rubik';
 
+/// גופן הממשק של המארח כערך `font-family` של CSS: המשפחה שהפלטפורמה בוחרת
+/// ורשימת ה-fallback של [AppThemeData], ואחריהן גופן המערכת של הדפדפן.
+String pluginHostUiFontStack() {
+  final families = <String>{
+    ?AppThemeData.uiFontFamily,
+    ...AppThemeData.uiFontFamilyFallback,
+  };
+  return [
+    for (final family in families) "'$family'",
+    'system-ui',
+    'sans-serif',
+  ].join(', ');
+}
+
 // ===================================================================
 // Helper: build the main colorScheme roles + typography from Flutter theme
 // ===================================================================
@@ -188,6 +206,8 @@ Map<String, dynamic> buildThemePayload(BuildContext context) {
   return buildThemePayloadFromScheme(
     theme.colorScheme,
     isDark: theme.brightness == Brightness.dark,
+    surfaces: AppSurfaceColors.of(context),
+    density: AppDensity.of(context),
   );
 }
 
@@ -195,9 +215,12 @@ Map<String, dynamic> buildThemePayload(BuildContext context) {
 /// נצרך כשמדווחים על שינוי theme בזמן אמת: ה-`MaterialApp` מתעדכן רק ב-frame
 /// הבא, כך ש-`Theme.of(context)` עדיין מחזיר את הצבעים הישנים. בנייה מ-scheme
 /// שמחושב ישירות מההגדרות מבטיחה שהתוסף יקבל את הצבעים הנכונים.
+/// [surfaces] חסר — המשטחים מחושבים מ-[cs], כמו ב-[AppThemeData].
 Map<String, dynamic> buildThemePayloadFromScheme(
   ColorScheme cs, {
   required bool isDark,
+  required AppDensity density,
+  AppSurfaceColors? surfaces,
 }) {
   String hex(Color c) =>
       '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -215,6 +238,7 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       22.0;
   final lineHeight =
       Settings.getValue<double>(SettingsRepository.keyLineHeight) ?? 1.5;
+  final surface = surfaces ?? AppSurfaceColors.fromScheme(cs);
 
   return {
     'mode': isDark ? 'dark' : 'light',
@@ -259,6 +283,28 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       'lineHeight': lineHeight,
       'commentatorsFontFamily': commentatorsFontFamily,
       'commentatorsFontSize': commentatorsFontSize,
+      'uiFont': pluginHostUiFontStack(),
+    },
+    'surfaces': {
+      'reader': hex(surface.readerBackground),
+      'panel': hex(surface.panelBackground),
+      'card': hex(surface.card),
+      'topBar': hex(surface.topBarBackground),
+    },
+    'radius': AppTokens.radius,
+    'spacing': {
+      '2xs': AppTokens.space2XS,
+      'xs': AppTokens.spaceXS,
+      'sm': AppTokens.spaceSM,
+      'smd': AppTokens.spaceSMD,
+      'md': AppTokens.spaceMD,
+      'lg': AppTokens.spaceLG,
+      'xl': AppTokens.spaceXL,
+    },
+    'density': {
+      'compact': density.isCompact,
+      'topBarHeight': density.topBarHeight,
+      'fieldHeight': density.fieldHeight,
     },
   };
 }

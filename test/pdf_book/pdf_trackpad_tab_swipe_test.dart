@@ -196,7 +196,12 @@ void main() {
   }
 
   Future<void> toggleFit(WidgetTester tester) async {
-    await tester.tap(find.byTooltip('התאם לרוחב / לעמוד שלם'));
+    // הכיתוב מתחלף לפי ההתאמה הבאה (#2988).
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is Tooltip && (w.message ?? '').startsWith('התאם ל'),
+      ),
+    );
     await frames(tester);
   }
 
@@ -430,6 +435,34 @@ void main() {
     final reader = await pumpReader(tester, currentTabIndex: 0);
     await swipe(tester, -900);
     expect(reader.tabs.state.currentTabIndex, 1);
+  });
+
+  // R7-5, #2988: גם בתפריט "עוד" הפריט מציע את ההתאמה הבאה.
+  testWidgets('חלון צר: "התאם" בתפריט עוד מתחלף אחרי ההתאמה', (tester) async {
+    await pumpReader(tester, currentTabIndex: 1);
+    // ברוחב הזה ההתאמה כבר בתפריט "עוד" (toolbarOverflowOrder).
+    tester.view.physicalSize = const Size(320, 900);
+    await frames(tester);
+    final inline = find.byWidgetPredicate(
+      (w) => w is Tooltip && (w.message ?? '').startsWith('התאם ל'),
+    );
+    expect(inline, findsNothing, reason: 'הכפתור עוד בסרגל, לא בתפריט');
+
+    Future<String?> openMenuItem() async {
+      await tester.tap(find.byTooltip('עוד פעולות').first);
+      await frames(tester);
+      final item = find.textContaining('התאם ל');
+      expect(item, findsOneWidget);
+      return tester.widget<Text>(item).data;
+    }
+
+    final before = await openMenuItem();
+    await tester.tap(find.textContaining('התאם ל'));
+    await frames(tester);
+    final after = await openMenuItem();
+    expect(after, isNot(before), reason: 'הפריט מציע את מה שכבר נעשה');
+    await tester.tapAt(const Offset(5, 890));
+    await frames(tester);
   });
 }
 

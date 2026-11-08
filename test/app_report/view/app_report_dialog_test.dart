@@ -9,6 +9,8 @@ import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -118,6 +120,11 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   Future<void> send(WidgetTester tester) async {
     await tester.ensureVisible(find.byKey(const ValueKey('app-report-send')));
     await tester.tap(find.byKey(const ValueKey('app-report-send')));
@@ -144,8 +151,7 @@ void main() {
       'Report type',
       'Title',
       'What happened?',
-      'Steps to reproduce',
-      '(optional)',
+      'Steps to reproduce (optional)',
       'Email address for replies',
       PluginFileDropService.isSupported
           ? 'Paste, drop, or click to choose an image'
@@ -191,6 +197,21 @@ void main() {
       expect(find.text(appReportTypeLabel(type)), findsOneWidget);
     }
     expect(find.text('saved@x.com'), findsOneWidget);
+  });
+
+  testSnack('השדות ממולאים במשטח הכרטיס, כמו בעריכת דיווח שמור (#3448)', (
+    tester,
+  ) async {
+    await pumpDialog(tester);
+    final fields = tester.widgetList<RtlTextField>(find.byType(RtlTextField));
+    expect(fields, hasLength(4));
+    final card = AppSurfaces.card(
+      tester.element(find.byType(RtlTextField).first),
+    );
+    for (final field in fields) {
+      expect(field.decoration?.filled, isTrue);
+      expect(field.decoration?.fillColor, card);
+    }
   });
 
   testSnack('בלי מייל — הדיווח נדחה מקומית ולא נשלח', (tester) async {
@@ -374,4 +395,37 @@ void main() {
     expect(service.sent, isEmpty);
     expect(popped, isNull);
   });
+
+  for (final viaHeader in [true, false]) {
+    testSnack(
+      '${viaHeader ? 'X' : 'כפתור היציאה'} שומר את כל התוכן בלי לשלוח או לשאול',
+      (tester) async {
+        await pumpDialog(tester);
+        await fill(tester);
+        await tester.enterText(
+          find.byKey(const ValueKey('app-report-steps')),
+          'שלב ראשון\nשלב שני',
+        );
+        await tester.pump();
+
+        final close = viaHeader
+            ? find.byTooltip('סגור')
+            : find.byKey(const ValueKey('app-report-save-draft'));
+        await tester.ensureVisible(close);
+        await tester.tap(close);
+        await settle(tester);
+
+        expect(find.text('לסגור בלי לשמור?'), findsNothing);
+        expect(find.byType(AppReportDialog), findsNothing);
+        expect(service.draft, isNotNull);
+        expect(service.draft!.title, 'כותרת');
+        expect(service.draft!.description, 'תיאור');
+        expect(service.draft!.steps, 'שלב ראשון\nשלב שני');
+        expect(service.draft!.email, 'me@x.com');
+        expect(service.sent, isEmpty);
+        expect(service.queued, isEmpty);
+        expect(popped, isNull);
+      },
+    );
+  }
 }

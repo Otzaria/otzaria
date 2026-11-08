@@ -341,6 +341,19 @@ void main() {
       PageShapeSettingsManager.loadConfiguration('בחירה מרובה שמורה')?['right'],
       pageShapeMultipleCommentatorsModeValue,
     );
+
+    // R7-4: המחוון "גודל גופן מפרשים (צורת הדף)" בהגדרות התצוגה הכלליות
+    // שומר בלי לבנות את המסך מחדש. גם הטור הימני במצב "מפרשים מרובים"
+    // מתעדכן מיד, כמו הטורים שמתחת.
+    double listFontSize() => tester
+        .widget<CommentaryListBase>(find.byType(CommentaryListBase))
+        .fontSize;
+    final resized = listFontSize() + 4;
+    await tester.runAsync(
+      () => PageShapeSettingsManager.saveCommentaryFontSize(resized),
+    );
+    await tester.pump();
+    expect(listFontSize(), resized);
   });
 }
 

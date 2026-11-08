@@ -61,7 +61,10 @@ void main() {
                         searchController: controller,
                         focusNode: focusNode,
                         onAdvancedSearch: () => settingsOpened++,
-                        pluginActionsField: PluginSearchField.inBook,
+                        searchFieldExtraActions:
+                            const PluginSearchFieldExtraActions(
+                              PluginSearchField.inBook,
+                            ),
                         searchFieldActions: [
                           OtzariaSearchAction.icon(
                             iconData: FluentIcons.text_whole_word_20_regular,

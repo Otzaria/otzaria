@@ -2,7 +2,6 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// שורת פירורי-לחם המציגה את הנתיב המלא של המיקום הנוכחי בקטלוג.
 ///
@@ -41,7 +40,7 @@ class LibraryBreadcrumbBar extends StatelessWidget {
         onTap: onNavigateHome,
         child: Icon(
           FluentIcons.home_16_regular,
-          size: 16,
+          size: AppTokens.iconSM,
           color: cs.onSurfaceVariant,
         ),
       ),
@@ -58,8 +57,8 @@ class LibraryBreadcrumbBar extends StatelessWidget {
 
     for (final category in visible) {
       children.add(
-        RtlIcon(
-          FluentIcons.chevron_left_16_regular,
+        Icon(
+          FluentIcons.chevron_right_16_regular,
           size: 13,
           color: cs.outline,
         ),

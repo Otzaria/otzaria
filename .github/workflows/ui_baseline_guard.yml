@@ -1,0 +1,97 @@
+name: UI Baseline Guard
+
+# tool/ui_lint/baseline.json הוא החוב הקיים מול תקן הממשק
+# (docs/design-system/CI_ENFORCEMENT.md §3.4, DD-23). הוא יכול רק לקטון:
+# `dart tool/ui_lint_cli.dart --update-baseline` מוחק רשומות שתוקנו. PR שמוסיף
+# מופע לכלל באותו קובץ ובאותו scope צריך את התווית ui-baseline, שמתחזק מוסיף.
+# גם החרגת נתיב חדשה או מורחבת ב־tool/ui_lint/config.yaml משתיקה חריגות בלי
+# baseline, ולכן גם היא צריכה את אותה תווית.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-baseline-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: ui_lint baseline growth
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check baseline growth
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASELINE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ui-baseline') }}
+        run: |
+          set -euo pipefail
+          path=tool/ui_lint/baseline.json
+          # ה־PR שמכניס את ui_lint: ב־base אין baseline ואין config, ולכן אין
+          # מול מה למדוד גידול. ה־baseline הראשון הוא רישום החוב (§3.4).
+          if ! git cat-file -e "$BASE_SHA:$path" 2>/dev/null; then
+            echo "The base has no $path: this pull request introduces the ui_lint baseline, so there is no growth to check."
+            exit 0
+          fi
+          git show "$BASE_SHA:$path" > /tmp/base.json
+          python3 - /tmp/base.json "$path" > /tmp/growth.txt <<'PY'
+          import json, sys
+
+          # Per rule, file and scope: a fingerprint change (an edited
+          # expression, or a new engine version) is not growth.
+          def counts(path):
+              data = json.load(open(path, encoding="utf-8"))
+              totals = {}
+              for rule, files in data["rules"].items():
+                  for file, entries in files.items():
+                      for entry in entries:
+                          key = (rule, file, entry["scope"])
+                          totals[key] = totals.get(key, 0) + entry["n"]
+              return totals
+
+          base, head = counts(sys.argv[1]), counts(sys.argv[2])
+          for key, n in sorted(head.items()):
+              added = n - base.get(key, 0)
+              if added > 0:
+                  print(f"+{added} {key[0]} {key[1]} ({key[2]})")
+          PY
+          # A new or edited path exclusion silences findings without a baseline
+          # entry. A changed glob shows up as an added line too.
+          config=tool/ui_lint/config.yaml
+          git diff --unified=0 "$BASE_SHA" HEAD -- "$config" \
+            | { grep -E '^\+[[:space:]]*(-[[:space:]]*)?path:' || true; } \
+            | sed -E 's/^\+[[:space:]]*(-[[:space:]]*)?/exclude /' > /tmp/excludes.txt
+          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ]; then
+            echo "The ui_lint baseline did not grow, and no path exclusion was added."
+            exit 0
+          fi
+          if [ -s /tmp/growth.txt ]; then
+            echo "Baseline additions:"
+            cat /tmp/growth.txt
+          fi
+          if [ -s /tmp/excludes.txt ]; then
+            echo "Path exclusions added or changed in $config:"
+            cat /tmp/excludes.txt
+          fi
+          if [ "$BASELINE_LABEL" = "true" ]; then
+            echo "Baseline growth and exclusions approved with the 'ui-baseline' label."
+            exit 0
+          fi
+          if [ -s /tmp/growth.txt ]; then
+            echo "::error file=$path::This pull request adds entries to the ui_lint baseline. Fix the new violations, or mark a justified one with '// ui-lint: allow UIL-xxx — reason'. If the debt is intended, ask a maintainer to add the 'ui-baseline' label."
+          fi
+          if [ -s /tmp/excludes.txt ]; then
+            echo "::error file=$config::This pull request adds or widens a path exclusion in the ui_lint config, which silences findings without a baseline entry. Prefer '// ui-lint: allow UIL-xxx — reason' on the single node, or ask a maintainer to add the 'ui-baseline' label."
+          fi
+          exit 1

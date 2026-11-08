@@ -26,6 +26,9 @@ class SettingsRepository {
   static const String keyFontBold = 'key-font-bold';
   static const String keyCommentatorsFontBold = 'key-commentators-font-bold';
   static const String keyCommentatorsFontSize = 'key-commentators-font-size';
+
+  /// גודל הטקסט בקטעי תוצאות החיפוש (#2826). עד שנשמר ערך — גודל הספר.
+  static const String keySearchResultsFontSize = 'key-search-results-font-size';
   static const String keyLineHeight = 'key-line-height';
   static const String keyShowOtzarHachochma = 'key-show-otzar-hachochma';
   static const String keyShowHebrewBooks = 'key-show-hebrew-books';
@@ -73,6 +76,10 @@ class SettingsRepository {
   static const String keyRestoreAllWindows = 'key-restore-all-windows';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
+
+  /// "תצוגה מקדימה" בספרייה בחלון נמוך. בלי ערך: לא נבחר, וסגורה (ss5).
+  static const String keyLibraryShowPreviewShortWindow =
+      'key-library-show-preview-short-window';
   static const String keySearchShowPreview = 'key-search-show-preview';
   static const String keyEnablePerBookSettings = 'key-enable-per-book-settings';
   static const String keyPdfBookViewByDefault = 'key-pdf-book-view-by-default';
@@ -122,6 +129,31 @@ class SettingsRepository {
   static const String keyIndexPath = 'key-index-path';
   static const String keyDatabasesPath = 'key-databases-path';
   static const String keyBackupPath = 'key-backup-path';
+
+  /// הצגת המפרשים בחלונית בצד. גם הקורא כותב אותו (TextBookBloc).
+  static const String keySplitedView = 'key-splited-view';
+  static const String keyAutoBackupFrequency = 'key-auto-backup-frequency';
+  static const String keyBackupRetentionProfile =
+      'key-backup-retention-profile';
+  static const String keyBackupSettings = 'key-backup-settings';
+  static const String keyBackupBookmarks = 'key-backup-bookmarks';
+  static const String keyBackupHistory = 'key-backup-history';
+  static const String keyBackupNotes = 'key-backup-notes';
+  static const String keyBackupWorkspaces = 'key-backup-workspaces';
+  static const String keyBackupShamorZachor = 'key-backup-shamor-zachor';
+  static const String keyBackupPlugins = 'key-backup-plugins';
+
+  /// מתגי סעיפי הגיבוי. הגיבוי הידני והאוטומטי קוראים את אותם מתגים,
+  /// ו"גבה הכל" במסך פירושו שכולם דולקים.
+  static const List<String> backupSectionKeys = [
+    keyBackupSettings,
+    keyBackupBookmarks,
+    keyBackupHistory,
+    keyBackupNotes,
+    keyBackupWorkspaces,
+    keyBackupShamorZachor,
+    keyBackupPlugins,
+  ];
   static const String keyLibraryFolderName = 'key-library-folder-name';
 
   /// Android only: nתיב ה-DB שנגיש ל-sqlite3 native (override ל-getDatabasePath).
@@ -258,6 +290,7 @@ class SettingsRepository {
     keyFontBold,
     keyCommentatorsFontBold,
     keyCommentatorsFontSize,
+    keySearchResultsFontSize,
     keyLineHeight,
     keyShowOtzarHachochma,
     keyShowHebrewBooks,
@@ -293,6 +326,7 @@ class SettingsRepository {
     keyRestoreAllWindows,
     keyLibraryViewMode,
     keyLibraryShowPreview,
+    keyLibraryShowPreviewShortWindow,
     keySearchShowPreview,
     keyEnablePerBookSettings,
     keyPdfBookViewByDefault,
@@ -317,6 +351,16 @@ class SettingsRepository {
     keyIndexPath,
     keyDatabasesPath,
     keyBackupPath,
+    keyAutoBackupFrequency,
+    keyBackupRetentionProfile,
+    keyBackupSettings,
+    keyBackupBookmarks,
+    keyBackupHistory,
+    keyBackupNotes,
+    keyBackupWorkspaces,
+    keyBackupShamorZachor,
+    keyBackupPlugins,
+    keySplitedView,
     keyLibraryFolderName,
     keyDbEffectivePath,
     keyAndroidLibraryRoot,
@@ -369,6 +413,7 @@ class SettingsRepository {
   Future<Map<String, dynamic>> loadSettings() async {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
+    await _migrateSearchResultsFontSize();
     await removeUnrecognizedShortcuts();
     return readSettings();
   }
@@ -376,6 +421,7 @@ class SettingsRepository {
   /// קריאה סינכרונית של ההגדרות השמורות — למצב ההתחלתי של ה-bloc, כדי
   /// שהמסך הראשון לא ייבנה מברירות מחדל ויקפוץ אחרי הטעינה (issue #1280).
   Map<String, dynamic> readSettings() {
+    final fontSize = _settings.getValue<double>(keyFontSize, defaultValue: 25);
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
       'followSystemTheme': _settings.getValue<bool>(
@@ -398,7 +444,11 @@ class SettingsRepository {
         keyTextColumnWidth,
         defaultValue: 0,
       ),
-      'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
+      'fontSize': fontSize,
+      'searchResultsFontSize': _settings.getValue<double>(
+        keySearchResultsFontSize,
+        defaultValue: fontSize,
+      ),
       'fontFamily': _settings.getValue<String>(
         keyFontFamily,
         defaultValue: AppFonts.defaultFont,
@@ -522,6 +572,11 @@ class SettingsRepository {
         keyLibraryShowPreview,
         defaultValue: true,
       ),
+      // null: המשתמש לא בחר בחלון נמוך (SettingsState.libraryShowPreviewFor).
+      'libraryShowPreviewShortWindow': _settings.getValue<bool?>(
+        keyLibraryShowPreviewShortWindow,
+        defaultValue: null,
+      ),
       'searchShowPreview': _settings.getValue<bool>(
         keySearchShowPreview,
         defaultValue: true,
@@ -555,10 +610,46 @@ class SettingsRepository {
         keyPersonalNotesCollapsedByDefault,
         defaultValue: true,
       ),
-      'compactMenuMode': _settings.getValue<bool>(
+      // null: המשתמש לא בחר, והצפיפות לפי גודל החלון
+      // (SettingsState.compactMenuModeFor).
+      'compactMenuMode': _settings.getValue<bool?>(
         keyCompactMenuMode,
+        defaultValue: null,
+      ),
+      'autoSync': _settings.getValue<bool>(keyAutoSync, defaultValue: true),
+      'updateCheckFrequency': _settings.getValue<String>(
+        keyUpdateCheckFrequency,
+        defaultValue: '',
+      ),
+      'restoreAllWindows': _settings.getValue<bool>(
+        keyRestoreAllWindows,
         defaultValue: false,
       ),
+      'backupPath': _settings.getValue<String>(keyBackupPath, defaultValue: ''),
+      'autoBackupFrequency': _settings.getValue<String>(
+        keyAutoBackupFrequency,
+        defaultValue: 'weekly',
+      ),
+      'backupRetentionProfile': _settings.getValue<String>(
+        keyBackupRetentionProfile,
+        defaultValue: '',
+      ),
+      'libraryPath': _settings.getValue<String>(
+        keyLibraryPath,
+        defaultValue: '',
+      ),
+      'hebrewBooksPath': _settings.getValue<String>(
+        keyHebrewBooksPath,
+        defaultValue: '',
+      ),
+      'splitedView': _settings.getValue<bool>(
+        keySplitedView,
+        defaultValue: true,
+      ),
+      'backupSections': <String, bool>{
+        for (final key in backupSectionKeys)
+          key: _settings.getValue<bool>(key, defaultValue: true),
+      },
       'readingTabsPlacement': _settings.getValue<String>(
         keyReadingTabsPlacement,
         defaultValue: readingTabsPlacementTop,
@@ -722,6 +813,10 @@ class SettingsRepository {
     await _settings.setValue(keyCommentatorsFontSize, value);
   }
 
+  Future<void> updateSearchResultsFontSize(double value) async {
+    await _settings.setValue(keySearchResultsFontSize, value);
+  }
+
   Future<void> updateLineHeight(double value) async {
     await _settings.setValue(keyLineHeight, value);
   }
@@ -872,6 +967,10 @@ class SettingsRepository {
     await _settings.setValue(keyLibraryShowPreview, value);
   }
 
+  Future<void> updateLibraryShowPreviewShortWindow(bool value) async {
+    await _settings.setValue(keyLibraryShowPreviewShortWindow, value);
+  }
+
   Future<void> updateSearchShowPreview(bool value) async {
     await _settings.setValue(keySearchShowPreview, value);
   }
@@ -904,8 +1003,46 @@ class SettingsRepository {
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
   }
 
-  Future<void> updateCompactMenuMode(bool value) async {
-    await _settings.setValue(keyCompactMenuMode, value);
+  Future<void> updateAutoSync(bool value) async {
+    await _settings.setValue(keyAutoSync, value);
+  }
+
+  Future<void> updateUpdateCheckFrequency(String value) async {
+    await _settings.setValue(keyUpdateCheckFrequency, value);
+  }
+
+  Future<void> updateRestoreAllWindows(bool value) async {
+    await _settings.setValue(keyRestoreAllWindows, value);
+  }
+
+  Future<void> updateBackupPath(String value) async {
+    await _settings.setValue(keyBackupPath, value);
+  }
+
+  Future<void> updateAutoBackupFrequency(String value) async {
+    await _settings.setValue(keyAutoBackupFrequency, value);
+  }
+
+  Future<void> updateBackupRetentionProfile(String value) async {
+    await _settings.setValue(keyBackupRetentionProfile, value);
+  }
+
+  Future<void> updateBackupSection(String key, bool include) async {
+    assert(backupSectionKeys.contains(key), key);
+    await _settings.setValue(key, include);
+  }
+
+  Future<void> updateSplitedView(bool value) async {
+    await _settings.setValue(keySplitedView, value);
+  }
+
+  /// null ("אוטומטי") מוחק את המפתח: בלי מפתח הצפיפות לפי גודל החלון.
+  Future<void> updateCompactMenuMode(bool? value) async {
+    if (value == null) {
+      await _settings.remove(keyCompactMenuMode);
+    } else {
+      await _settings.setValue(keyCompactMenuMode, value);
+    }
   }
 
   Future<void> updateReadingTabsPlacement(String value) async {
@@ -1219,6 +1356,21 @@ class SettingsRepository {
     }
   }
 
+  /// גודל התוצאות נפרד מגודל הספר מאז #2826. משתמש קיים מקבל פעם אחת את
+  /// גודל הספר שלו, כך שהתוצאות נשארות כמו שהיו עד שישנה אותן; משם והלאה
+  /// הגדלת הספר כבר לא מגדילה אותן.
+  Future<void> _migrateSearchResultsFontSize() async {
+    final saved = _settings.getValue<double?>(
+      keySearchResultsFontSize,
+      defaultValue: null,
+    );
+    if (saved != null) return;
+    await _settings.setValue(
+      keySearchResultsFontSize,
+      _settings.getValue<double>(keyFontSize, defaultValue: 25),
+    );
+  }
+
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
@@ -1240,6 +1392,7 @@ class SettingsRepository {
     await _settings.setValue(keyFontBold, false);
     await _settings.setValue(keyCommentatorsFontBold, false);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);
+    await _settings.setValue(keySearchResultsFontSize, 25.0);
     await _settings.setValue(keyLineHeight, 1.5);
     await _settings.setValue(keyShowOtzarHachochma, false);
     await _settings.setValue(keyShowHebrewBooks, false);

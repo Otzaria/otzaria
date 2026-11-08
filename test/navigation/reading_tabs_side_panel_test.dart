@@ -7,6 +7,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -29,6 +30,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import '../helpers/memory_settings_cache.dart';
@@ -62,6 +64,7 @@ void main() {
     double width = 220,
     double textScale = 1.0,
     List<OpenedTab>? withTabs,
+    ThemeData? theme,
   }) async {
     tabs =
         withTabs ?? [_StubTab('ספר א'), _StubTab('ספר ב'), _StubTab('ספר ג')];
@@ -92,6 +95,7 @@ void main() {
           BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
         ],
         child: MaterialApp(
+          theme: theme,
           home: Builder(
             builder: (context) => MediaQuery(
               data: MediaQuery.of(
@@ -235,6 +239,64 @@ void main() {
 
     await pumpPanel(tester);
     expect(find.byType(ResizableDragHandle), findsOneWidget);
+  });
+
+  testWidgets('קו דק בקצה הפנימי מפריד בין העמודה לתוכן (q11 Q1)', (
+    tester,
+  ) async {
+    BorderSide edge() {
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(ReadingTabsSidePanel),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(box.position, DecorationPosition.foreground);
+      final border = (box.decoration as BoxDecoration).border!;
+      return (border as BorderDirectional).end;
+    }
+
+    for (final collapsed in [false, true]) {
+      await pumpPanel(tester, collapsed: collapsed);
+      final cs = Theme.of(
+        tester.element(find.byType(ReadingTabsSidePanel)),
+      ).colorScheme;
+      expect(edge().color, cs.outlineVariant, reason: 'collapsed=$collapsed');
+      expect(edge().width, 1);
+    }
+    // בערכת "לבן" בבהיר הקו הוא קו האזורים, כמו בשאר האזורים (#1939).
+    const white = AppSeedColors.white;
+    await pumpPanel(
+      tester,
+      theme: AppThemeData.light(
+        AppThemeData.createColorScheme(white, Brightness.light),
+        compactMenuMode: false,
+        variant: AppThemeVariant.ofSeed(white),
+      ),
+    );
+    final context = tester.element(find.byType(ReadingTabsSidePanel));
+    expect(edge().color, AppSurfaces.regionBorder(context));
+    // הקו במנוחה הוא של העמודה; לידית אין קו שני לצדו.
+    await pumpPanel(tester);
+    expect(
+      tester
+          .widget<ResizableDragHandle>(find.byType(ResizableDragHandle))
+          .showDivider,
+      isFalse,
+    );
+  });
+
+  testWidgets('ידית שינוי הרוחב גלויה במנוחה, בלי קו שני (סקירת 4.11)', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    final handle = tester.widget<ResizableDragHandle>(
+      find.byType(ResizableDragHandle),
+    );
+    expect(handle.showDivider, isFalse);
+    expect(handle.showIdleGrip, isTrue);
   });
 
   testWidgets('במצב מכווץ האייקונים ממורכזים ברוחב העמודה', (tester) async {
@@ -522,41 +584,63 @@ void main() {
     expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
   });
 
-  testWidgets('נעצי כרטיסיות מוצמדות מיושרים גם כשהפעילה מציגה X', (
+  // הנעץ בתחילת השורה ולחיץ, כמו ברצועה העליונה (q10 Q14 C). קודם הוא היה
+  // אחרי ה-X, וזז כשה-X הופיע (issue #1134).
+  testWidgets(
+    'נעצי כרטיסיות מוצמדות בתחילת השורה, מיושרים גם כשהפעילה מציגה X',
+    (
+      tester,
+    ) async {
+      final pdfTab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: '/tmp/book.pdf'),
+        pageNumber: 1,
+      )..isPinned = true;
+      addTearDown(pdfTab.dispose);
+      final textTab = _StubTab('ספר ב')..isPinned = true;
+      await pumpPanel(tester, withTabs: [pdfTab, textTab]);
+
+      final pdfIcon = tester.getCenter(
+        find.byIcon(OtzariaIcons.document_pdf_24_regular),
+      );
+      final pdfTitle = tester.getCenter(find.text('ספר PDF'));
+      final textTitle = tester.getCenter(find.text('ספר ב'));
+      final pinFinder = find.byIcon(FluentIcons.pin_24_filled);
+      expect(pinFinder, findsNWidgets(2));
+      final pins = [
+        tester.getCenter(pinFinder.at(0)),
+        tester.getCenter(pinFinder.at(1)),
+      ];
+
+      // RTL: הפריט הראשון בשורה הוא הימני ביותר.
+      expect(pdfIcon.dx, greaterThan(pdfTitle.dx));
+      for (final pin in pins) {
+        expect(
+          pin.dx,
+          greaterThan(pdfIcon.dx),
+          reason: 'הנעץ בתחילת השורה, לפני אייקון הסוג והכותרת',
+        );
+        expect(pin.dx, greaterThan(textTitle.dx));
+      }
+      // הנעצים של כרטיסיית PDF ושל כרטיסיית טקסט מיושרים באותו קו אנכי.
+      expect(pins[0].dx, closeTo(pins[1].dx, 0.5));
+    },
+  );
+
+  testWidgets('לחיצה על הנעץ מבטלת את ההצמדה ולא בוחרת את הכרטיסיה', (
     tester,
   ) async {
-    final pdfTab = PdfBookTab(
-      book: PdfBook(title: 'ספר PDF', path: '/tmp/book.pdf'),
-      pageNumber: 1,
-    )..isPinned = true;
-    addTearDown(pdfTab.dispose);
-    final textTab = _StubTab('ספר ב')..isPinned = true;
-    await pumpPanel(tester, withTabs: [pdfTab, textTab]);
+    final pinned = _StubTab('ספר מוצמד')..isPinned = true;
+    final other = _StubTab('ספר אחר');
+    await pumpPanel(tester, withTabs: [other, pinned]);
 
-    final pdfIcon = tester.getCenter(
-      find.byIcon(FluentIcons.document_pdf_16_regular),
+    await tester.tap(find.byIcon(FluentIcons.pin_24_filled));
+    await tester.pump();
+
+    expect(
+      tabsBloc.addedEvents.whereType<TogglePinTab>().map((e) => e.tab),
+      [pinned],
     );
-    final pdfTitle = tester.getCenter(find.text('ספר PDF'));
-    final textTitle = tester.getCenter(find.text('ספר ב'));
-    final pinFinder = find.byIcon(FluentIcons.pin_24_filled);
-    expect(pinFinder, findsNWidgets(2));
-    final pins = [
-      tester.getCenter(pinFinder.at(0)),
-      tester.getCenter(pinFinder.at(1)),
-    ];
-
-    // RTL: הפריט הראשון בשורה הוא הימני ביותר.
-    expect(pdfIcon.dx, greaterThan(pdfTitle.dx));
-    for (final pin in pins) {
-      expect(
-        pin.dx,
-        lessThan(pdfTitle.dx),
-        reason: 'הנעץ בקצה השמאלי, אחרי הכותרת (issue #1134)',
-      );
-      expect(pin.dx, lessThan(textTitle.dx));
-    }
-    // הנעצים של כרטיסיית PDF ושל כרטיסיית טקסט מיושרים באותו קו אנכי.
-    expect(pins[0].dx, closeTo(pins[1].dx, 0.5));
+    expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
   });
 
   testWidgets('לחיצה ימנית על כרטיסיה פותחת את תפריט ההקשר', (tester) async {
@@ -867,17 +951,46 @@ void main() {
       findsOneWidget,
       reason: 'הכרטיסיה הפעילה מציגה X',
     );
+    Color? rowColor(String title) =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: row(title),
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color;
+    expect(
+      rowColor('ספר ב'),
+      AppSurfaces.topBarBackground(tester.element(row('ספר ב'))),
+      reason: 'הפעילה בצבע הסרגל, כמו ברצועה האופקית (DD-06)',
+    );
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find
+                .descendant(
+                  of: find.byType(ReadingTabsSidePanel),
+                  matching: find.byType(ColoredBox),
+                )
+                .first,
+          )
+          .color,
+      AppSurfaces.readerBackground(tester.element(row('ספר ב'))),
+      reason: 'רקע העמודה כרקע הרצועה האופקית, כדי שהריחוף ייראה אפור (q11 Q1)',
+    );
 
     tabsBloc.emitState(tabsBloc.state.copyWith(selectedTabs: [second]));
     await tester.pumpAndSettle();
-    final background = tester.widget<DecoratedBox>(
-      find
-          .descendant(of: row('ספר ב'), matching: find.byType(DecoratedBox))
-          .first,
-    );
     expect(
-      (background.decoration as BoxDecoration).color,
-      Theme.of(tester.element(row('ספר ב'))).colorScheme.secondaryContainer,
+      rowColor('ספר ב'),
+      AppSurfaces.multiSelected(
+        Theme.of(tester.element(row('ספר ב'))).colorScheme,
+      ),
     );
 
     // שינוי שם והצמדה משנים את הכרטיסיה במקום ומסתמכים על forceUpdate.

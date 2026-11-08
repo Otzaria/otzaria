@@ -3,13 +3,14 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// גוון תג האייקון בכותרת. [error] שמור למצבי תקלה וסיכון.
 enum AppDialogHeaderTone { primary, error }
-
-/// מתחת לרוחב מסך כזה ה-trailing יורד לשורה משלו.
-const double _kStackTrailingBelow = 520;
 
 /// כותרת דיאלוג בצורה אחידה: אייקון מסומל, שם, שורת משנה אופציונלית וכפתור
 /// סגירה. משמשת את דיאלוגי הדיווח, ההקרסה והרשימות, כדי שכולם ייראו כחלק
@@ -20,11 +21,13 @@ class AppDialogHeader extends StatelessWidget {
     this.icon,
     required this.title,
     this.subtitle,
+    this.leading,
     this.trailing,
     this.tone = AppDialogHeaderTone.primary,
     this.onClose,
     this.closeEnabled = true,
-    this.closeTooltip = 'סגור',
+    this.showClose = true,
+    this.closeTooltip,
     this.compact = false,
     this.titleMaxLines,
     this.subtitleMaxLines,
@@ -38,18 +41,25 @@ class AppDialogHeader extends StatelessWidget {
   /// שורה קטנה מתחת לשם: תיאור המקרה, שם הספר וכד'.
   final String? subtitle;
 
+  /// פקדים בתחילת הרצועה, לפני התג. בחלון צר הם יורדים לשורה משלהם מתחת
+  /// לכותרת, כדי לא לדחוק אותה.
+  final Widget? leading;
+
   /// ווידג'ט בין הטקסט לכפתור הסגירה, למשל מונה.
   final Widget? trailing;
 
   final AppDialogHeaderTone tone;
 
-  /// ברירת מחדל: סגירת הדיאלוג. [closeEnabled] false משבית את הכפתור, למשל
-  /// בזמן שליחה.
+  /// ברירת מחדל: [Navigator.maybePop], כמו Escape, כדי שיעבור בשומר השינויים
+  /// של הדיאלוג. [closeEnabled] false משבית את הכפתור, למשל בזמן שליחה.
   final VoidCallback? onClose;
   final bool closeEnabled;
 
-  /// טקסט הרמז של כפתור הסגירה; מסכים מתורגמים מעבירים את התרגום.
-  final String closeTooltip;
+  /// false = בלי כפתור סגירה, למשל בדיאלוג התקדמות שאי אפשר לסגור.
+  final bool showClose;
+
+  /// טקסט הרמז של כפתור הסגירה; null = "סגור" בשפת הממשק.
+  final String? closeTooltip;
 
   /// ריפוד אנכי קטן יותר, לכותרות שאינן מחזיקות תיאור ארוך.
   final bool compact;
@@ -71,14 +81,18 @@ class AppDialogHeader extends StatelessWidget {
     // ברוחב טלפון ה-trailing (מונה, שם צבע) היה מצמצם את הכותרת לרוחב של אות
     // אחת; שם הוא יורד לשורה משלו מתחת לכותרת. נמדד לפי המסך ולא לפי
     // LayoutBuilder, כי AlertDialog מודד רוחב פנימי.
-    final stackTrailing =
-        trailing != null &&
-        MediaQuery.sizeOf(context).width < _kStackTrailingBelow;
+    final compactWindow = WindowClass.of(context).isCompact;
+    final stackTrailing = trailing != null && compactWindow;
+    final stackLeading = leading != null && compactWindow;
     return Container(
       // קו עדין בתחתית הרצועה: מפריד בינה לבין גוף הדיאלוג.
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        border: Border(
+          bottom: BorderSide(
+            color: AppSurfaces.regionBorder(context) ?? cs.outlineVariant,
+          ),
+        ),
       ),
       padding: EdgeInsetsDirectional.fromSTEB(
         AppTokens.spaceLG,
@@ -86,75 +100,100 @@ class AppDialogHeader extends StatelessWidget {
         AppTokens.spaceSM,
         vertical,
       ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            AppDialogIconBadge(icon: icon!, tone: tone),
-            const SizedBox(width: AppTokens.spaceMD),
-          ] else
-            const SizedBox(width: AppTokens.spaceSM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (fitTitle)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
+      child: _withStackedLeading(
+        stackLeading,
+        Row(
+          children: [
+            if (leading != null && !stackLeading) ...[
+              leading!,
+              const SizedBox(width: AppTokens.spaceMD),
+            ],
+            if (icon != null) ...[
+              AppDialogIconBadge(icon: icon!, tone: tone),
+              const SizedBox(width: AppTokens.spaceMD),
+            ] else
+              const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (fitTitle)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                      ),
+                    )
+                  else if (titleMaxLines != null)
+                    Tooltip(
+                      message: title,
                       child: Text(
                         title,
-                        maxLines: 1,
+                        maxLines: titleMaxLines,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleLarge,
                       ),
+                    )
+                  else
+                    Text(title, style: theme.textTheme.titleLarge),
+                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: subtitleMaxLines,
+                      overflow: subtitleMaxLines == null
+                          ? null
+                          : TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
-                  )
-                else if (titleMaxLines != null)
-                  Tooltip(
-                    message: title,
-                    child: Text(
-                      title,
-                      maxLines: titleMaxLines,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge,
-                    ),
-                  )
-                else
-                  Text(title, style: theme.textTheme.titleLarge),
-                if (subtitle != null && subtitle!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    maxLines: subtitleMaxLines,
-                    overflow: subtitleMaxLines == null
-                        ? null
-                        : TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
+                  ],
+                  if (stackTrailing) ...[
+                    const SizedBox(height: AppTokens.spaceXS),
+                    trailing!,
+                  ],
                 ],
-                if (stackTrailing) ...[
-                  const SizedBox(height: AppTokens.spaceXS),
-                  trailing!,
-                ],
-              ],
+              ),
             ),
-          ),
-          if (trailing != null && !stackTrailing) ...[
-            const SizedBox(width: AppTokens.spaceSM),
-            trailing!,
+            if (trailing != null && !stackTrailing) ...[
+              const SizedBox(width: AppTokens.spaceSM),
+              trailing!,
+            ],
+            if (showClose)
+              AppIconButton(
+                icon: const Icon(FluentIcons.dismiss_24_regular),
+                tooltip: closeTooltip ?? context.settingsText('סגור'),
+                onPressed: closeEnabled
+                    ? (onClose ?? () => Navigator.of(context).maybePop())
+                    : null,
+              )
+            else
+              const SizedBox(width: AppTokens.spaceSM),
           ],
-          IconButton(
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-            tooltip: closeTooltip,
-            onPressed: closeEnabled
-                ? (onClose ?? () => Navigator.of(context).pop())
-                : null,
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _withStackedLeading(bool stack, Widget row) {
+    if (!stack) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(top: AppTokens.spaceSM),
+          child: leading!,
+        ),
+      ],
     );
   }
 }
@@ -179,11 +218,11 @@ class AppDialogIconBadge extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         color: isError ? cs.errorContainer : cs.primaryContainer,
-        shape: BoxShape.circle,
+        borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Icon(
         icon,
-        size: 22,
+        size: AppTokens.iconMD,
         color: isError ? cs.onErrorContainer : cs.onPrimaryContainer,
       ),
     );

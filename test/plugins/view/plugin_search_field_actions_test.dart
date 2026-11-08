@@ -43,7 +43,9 @@ void main() {
             body: OtzariaSearchField(
               controller: controller,
               hintText: 'חיפוש',
-              pluginActionsField: field,
+              extraActions: field == null
+                  ? null
+                  : PluginSearchFieldExtraActions(field),
               autofocus: true,
             ),
           ),
@@ -354,6 +356,70 @@ void main() {
         await tester.pump();
         expect(books.sourceFilter.value, PluginLibraryBooksFilter.all);
         expect(sent, isEmpty, reason: 'הכפתור אינו פותח סשן');
+      });
+
+      testWidgets('במצבי הסינון תווית: ברירת המחדל "רק התוסף" / "רק הספרייה"', (
+        tester,
+      ) async {
+        registerProvider();
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(
+          tester,
+          controller,
+          field: PluginSearchField.library,
+          libraryBooks: books,
+        );
+        expect(find.text('רק התוסף'), findsNothing, reason: 'במצב "הכל" אין');
+        expect(find.text('רק הספרייה'), findsNothing);
+
+        await tester.tap(find.byKey(_filterKey));
+        await tester.pump();
+        expect(find.text('רק התוסף'), findsOneWidget);
+        expect(
+          find.byTooltip('מקור הספרים: מציג רק ספרי התוסף'),
+          findsOneWidget,
+          reason: 'ה-tooltip נשאר',
+        );
+
+        await tester.tap(find.byKey(_filterKey));
+        await tester.pump();
+        expect(find.text('רק התוסף'), findsNothing);
+        expect(find.text('רק הספרייה'), findsOneWidget);
+
+        await tester.tap(find.byKey(_filterKey));
+        await tester.pump();
+        expect(find.text('רק הספרייה'), findsNothing);
+      });
+
+      testWidgets('התוסף קובע את שתי התוויות', (tester) async {
+        registry.removeAll('voice');
+        registry.registerPayload('voice', {
+          'id': 'source',
+          'title': 'מקור הספרים',
+          'mode': 'providerBooksFilter',
+          'pluginOnlyLabel': 'רק בר אילן',
+          'libraryOnlyLabel': 'רק אוצריא',
+        });
+        registerProvider();
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await pumpActions(
+          tester,
+          controller,
+          field: PluginSearchField.library,
+          libraryBooks: books,
+        );
+
+        await tester.tap(find.byKey(_filterKey));
+        await tester.pump();
+        expect(find.text('רק בר אילן'), findsOneWidget);
+        expect(find.text('רק התוסף'), findsNothing);
+
+        await tester.tap(find.byKey(_filterKey));
+        await tester.pump();
+        expect(find.text('רק אוצריא'), findsOneWidget);
+        expect(find.text('רק הספרייה'), findsNothing);
       });
 
       testWidgets('בלי ספק רשום לתוסף הכפתור מוסתר', (tester) async {

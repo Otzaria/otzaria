@@ -11,6 +11,8 @@ import 'package:otzaria/core/windowing/tab_drag_preview.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_target.dart';
+import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// עובי קו החיווי שמסמן היכן הכרטיסיה הנגררת תיכנס.
 const double _kInsertLineWidth = 3;
@@ -1003,8 +1005,9 @@ class _TabDragFeedback extends StatelessWidget {
             color: content == null
                 ? theme.colorScheme.surfaceContainerHigh
                 : stripColor,
-            elevation: 8,
-            borderRadius: BorderRadius.circular(8),
+            elevation: AppTokens.elevation2,
+            shadowColor: AppShadows.color(theme.colorScheme),
+            borderRadius: AppTokens.borderRadiusAll,
             clipBehavior: Clip.antiAlias,
             child: content == null
                 ? SizedBox(width: width, height: height, child: child)

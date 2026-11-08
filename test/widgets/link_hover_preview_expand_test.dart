@@ -17,6 +17,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
@@ -257,6 +258,111 @@ void main() {
     },
   );
 
+  testWidgets('"אין תוכן זמין" היא הודעת ממשק: bodyMedium ולא גודל הקריאה', (
+    tester,
+  ) async {
+    await pumpPreviewWithContent(
+      tester,
+      ' ',
+      path2: 'מפרש ט',
+      maxFontSize: 30,
+    );
+
+    final message = tester.widget<Text>(find.text('אין תוכן זמין'));
+    final theme = Theme.of(tester.element(find.text('אין תוכן זמין')));
+    expect(message.style?.fontSize, theme.textTheme.bodyMedium?.fontSize);
+    expect(message.style?.color, theme.colorScheme.onSurfaceVariant);
+  });
+
+  testWidgets('הטעינה ב-LoadingIndicator.inline', (tester) async {
+    Link.clearContentCache();
+    final provider = _DeferredContentProvider();
+    LibraryProviderManager.instance.seedMappingsForTesting(
+      mapping: const {},
+      providers: [provider],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<SettingsBloc>.value(
+          value: _TestSettingsBloc(SettingsState.initial()),
+          child: Scaffold(
+            body: SizedBox(
+              width: 240,
+              child: LinkHoverPreviewContent(
+                link: Link(
+                  heRef: 'מפרש י, א',
+                  index1: 1,
+                  path2: 'מפרש י',
+                  index2: 1,
+                  connectionType: 'LINKER',
+                ),
+                maxContentLines: 4,
+                compact: true,
+                displayProfile: TextDisplayProfile.defaults,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final loading = tester.widget<LoadingIndicator>(
+      find.byType(LoadingIndicator),
+    );
+    expect(loading.size, LoadingIndicator.inlineSize);
+    provider.pending.complete('תוכן');
+    await pumpFrames(tester);
+  });
+
+  testWidgets('לחצן "…" בצבע המשטח שעליו נפתחה החלונית', (tester) async {
+    addTearDown(LinkPreviewOverlay.dismiss);
+    Link.clearContentCache();
+    LibraryProviderManager.instance.seedMappingsForTesting(
+      mapping: const {},
+      providers: [_FakeContentProvider(List.filled(60, 'מילה').join(' '))],
+    );
+    late BuildContext host;
+    await tester.pumpWidget(
+      BlocProvider<SettingsBloc>.value(
+        value: _TestSettingsBloc(SettingsState.initial()),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              host = context;
+              return const Scaffold();
+            },
+          ),
+        ),
+      ),
+    );
+    LinkPreviewOverlay.show(
+      host,
+      link: Link(
+        heRef: 'מפרש יא, א',
+        index1: 1,
+        path2: 'מפרש יא',
+        index2: 1,
+        connectionType: 'LINKER',
+      ),
+      globalPosition: const Offset(600, 100),
+      displayProfile: TextDisplayProfile.defaults,
+    );
+    await pumpFrames(tester);
+
+    final dots = find.text('…');
+    expect(dots, findsOneWidget);
+    final materials = tester
+        .widgetList<Material>(
+          find.ancestor(of: dots, matching: find.byType(Material)),
+        )
+        .toList();
+    final button = materials.first;
+    final panel = materials.last;
+    expect(button.color, Theme.of(host).colorScheme.surfaceContainerHigh);
+    expect(button.color, panel.color);
+  });
+
   testWidgets('תוכן קצר אינו מציג לחצן פרישה', (tester) async {
     await pumpPreviewWithContent(tester, 'שורה קצרה', path2: 'מפרש ב');
 
@@ -341,6 +447,36 @@ void main() {
     test('בלי גודל טקסט — גודל המפרשים', () {
       expect(previewFontSize(settings, null), 30);
     });
+  });
+
+  group('compactPreviewTitleFontSize: ×0.85 מגודל התוכן, בין 11 ל-14', () {
+    test('בטווח — ×0.85, כמו כותרת מפרש', () {
+      expect(compactPreviewTitleFontSize(14), closeTo(11.9, 1e-9));
+      expect(compactPreviewTitleFontSize(16), closeTo(13.6, 1e-9));
+    });
+
+    test('גודל קריאה גדול — לא יותר מ-14 (titleSmall)', () {
+      expect(compactPreviewTitleFontSize(22), 14);
+      expect(compactPreviewTitleFontSize(40), 14);
+    });
+
+    test('גודל קריאה קטן — לא פחות מ-11 (labelSmall)', () {
+      expect(compactPreviewTitleFontSize(10), 11);
+    });
+  });
+
+  testWidgets('כותרת החלונית הקומפקטית בגודל שנגזר מגודל התוכן', (
+    tester,
+  ) async {
+    await pumpPreviewWithContent(
+      tester,
+      'תוכן קצר',
+      path2: 'מפרש כותרת',
+      maxFontSize: 15,
+    );
+
+    final title = tester.widget<Text>(find.textContaining('מפרש כותרת').first);
+    expect(title.style?.fontSize, closeTo(15 * 0.85, 1e-9));
   });
 
   group('כותרת ארוכה וגופן גדול בתצוגה המקדימה', () {

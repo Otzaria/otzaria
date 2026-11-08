@@ -10,8 +10,10 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/layout/tool_results_header.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 
 /// מסנן ערכים ש-[field] שלהם מכיל את [query] וממיין: מדויק < מתחיל ב- < מילה שלמה < מכיל.
 /// בכל רמת התאמה "פשיטא" קודם, ובשוויון נשמר סדר הקלט (המיון של Dart אינו יציב).
@@ -127,6 +129,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   List<Map<String, String>> _dictionaryData = [];
   List<Map<String, String>> _filteredResults = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
   bool _isHebrewToAramaic = false;
   String _query = '';
 
@@ -160,6 +163,12 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
   }
 
   Future<void> _loadDictionary() async {
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       await _dictionaryRepository.ensureAramaicLoaded();
       final entries = _dictionaryRepository.getAllAramaicEntries();
@@ -183,11 +192,14 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
         }).toList();
         _isLoading = false;
       });
+      // השדה גלוי גם בטעינה, ומה שהוקלד בה מחפש עכשיו במילון הטעון.
+      _performSearch(_searchController.text);
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
+        _loadFailed = true;
       });
       UiSnack.showError(ToolsMessages.dictionaryLoadError(e));
     }
@@ -230,84 +242,57 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return CallbackShortcuts(
-      bindings: {
-        currentWindowSearchActivator(context): () {
-          _searchFocusNode.requestFocus();
-        },
-      },
-      child: Column(
+    return ToolScaffold(
+      onSearchShortcut: _searchFocusNode.requestFocus,
+      searchShortcut: currentWindowSearchActivator(context),
+      loading: _isLoading,
+      loadError: _loadFailed ? 'טעינת המילון נכשלה' : null,
+      onRetry: _loadDictionary,
+      topBar: AppTopBar(
+        center: OtzariaSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          icon: OtzariaIcons.search_in_text_24_regular,
+          hintText: _isHebrewToAramaic
+              ? 'חפש מילה בעברית...'
+              : 'חפש מילה בארמית...',
+          autofocus: true,
+          onChanged: _performSearch,
+          onClear: () => setState(() {
+            _query = '';
+            _filteredResults = [];
+          }),
+        ),
+      ),
+      body: Column(
         children: [
-          AppTopBar(
-            center: OtzariaSearchField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              icon: OtzariaIcons.search_in_text_24_regular,
-              hintText: _isHebrewToAramaic
-                  ? 'חפש מילה בעברית...'
-                  : 'חפש מילה בארמית...',
-              autofocus: true,
-              onChanged: _performSearch,
-              onClear: () => setState(() {
-                _query = '';
-                _filteredResults = [];
-              }),
+          _buildDirectionToggle(),
+          if (_query.isNotEmpty && _filteredResults.isNotEmpty)
+            ToolResultsHeader(
+              label: _filteredResults.length == 1
+                  ? 'ערך אחד'
+                  : '${_filteredResults.length} ערכים',
             ),
-          ),
-          Expanded(
-            child: ToolPanelWrapper(
-              child: Column(
-                children: [
-                  _buildDirectionToggle(),
-                  Expanded(child: _buildResultsList()),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: _buildResultsList()),
         ],
       ),
     );
   }
 
   Widget _buildDirectionToggle() {
-    final cs = Theme.of(context).colorScheme;
-    final count = _filteredResults.length;
-    final width = MediaQuery.sizeOf(context).width;
-
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMD,
         vertical: AppTokens.spaceSM,
       ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            AppSegmentedControl<bool>(
-              options: const [
-                SegmentOption(value: false, label: 'ארמית לעברית'),
-                SegmentOption(value: true, label: 'עברית לארמית'),
-              ],
-              currentValue: _isHebrewToAramaic,
-              onChanged: _setDirection,
-            ),
-            if (_query.isNotEmpty && count > 0 && width >= 560)
-              PositionedDirectional(
-                end: 0,
-                child: Text(
-                  count == 1 ? 'ערך אחד' : '$count ערכים',
-                  style: TextStyle(
-                    fontSize: AppTokens.fontMD,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
+      child: Center(
+        child: AppSegmentedControl<bool>(
+          options: const [
+            SegmentOption(value: false, label: 'ארמית לעברית'),
+            SegmentOption(value: true, label: 'עברית לארמית'),
           ],
+          currentValue: _isHebrewToAramaic,
+          onChanged: _setDirection,
         ),
       ),
     );
@@ -315,16 +300,16 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.alef_near_alef_stam_24_filled,
-        message: 'הזן מילה לחיפוש במילון',
+        title: 'הזן מילה לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: OtzariaIcons.search_24_regular,
-        message: 'לא נמצאו תוצאות',
+        title: 'לא נמצאו תוצאות',
       );
     }
 

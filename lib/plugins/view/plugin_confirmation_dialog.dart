@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
 /// דיאלוג אישור יחיד שחי רק כל עוד מופע התוסף שפתח אותו חי.
@@ -24,7 +25,7 @@ class PluginConfirmationDialog {
       barrierColor:
           DialogTheme.of(context).barrierColor ??
           Theme.of(context).dialogTheme.barrierColor ??
-          Colors.black54,
+          AppSurfaces.scrim(Theme.of(context).colorScheme),
       traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
       themes: InheritedTheme.capture(from: context, to: navigator.context),
       builder: (_) => Directionality(

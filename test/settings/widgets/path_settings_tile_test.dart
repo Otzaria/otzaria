@@ -46,7 +46,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '',
@@ -68,7 +68,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '',
@@ -92,7 +92,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/some/path',
@@ -116,7 +116,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '',
@@ -142,7 +142,7 @@ void main() {
         // בדיקה שה-tile נבנה ללא שגיאות כשclearPathEnabled=false
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/default/path',
@@ -166,7 +166,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/custom/path',
@@ -192,7 +192,7 @@ void main() {
         const path = '/my/library/path';
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: path,
@@ -214,7 +214,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '',
@@ -242,7 +242,7 @@ void main() {
         String? opened;
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: r'C:\root',
@@ -281,7 +281,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/data/otzaria',
@@ -315,7 +315,7 @@ void main() {
 
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: r'C:\root',
@@ -354,7 +354,7 @@ void main() {
 
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/some/path',
@@ -390,7 +390,7 @@ void main() {
 
         await tester.pumpWidget(
           _wrap(
-            SettingsActionTile.pathTile(
+            SettingsPathTile(
               icon: icon,
               title: title,
               currentPath: '/some/path',

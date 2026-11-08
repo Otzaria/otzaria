@@ -5,7 +5,7 @@ import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// דיאלוג לאימות סיסמה במצב סייפר
@@ -27,9 +27,7 @@ class SaferModePasswordDialog extends StatefulWidget {
 }
 
 class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
-    with
-        DialogNavigationMixin,
-        DialogFocusRestorerMixin<SaferModePasswordDialog> {
+    with DialogFocusRestorerMixin<SaferModePasswordDialog> {
   final TextEditingController _passwordController = TextEditingController();
   final FocusNode _textFieldFocusNode = FocusNode();
   final FocusNode _cancelFocusNode = FocusNode();
@@ -88,71 +86,65 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
 
   @override
   Widget build(BuildContext context) {
-    return buildKeyboardNavigator(
+    return AppDialogFrame(
+      size: AppDialogSize.small,
+      title: widget.title,
+      icon: FluentIcons.lock_closed_24_regular,
       onConfirm: _handleVerify,
-      onCancel: () => Navigator.of(context).pop(false),
-      textFieldFocusNode: _textFieldFocusNode,
-      child: AlertDialog(
-        title: AppDialogTitle(
-          widget.title,
-          icon: FluentIcons.lock_closed_24_regular,
+      dismissResult: false,
+      closeEnabled: !_isVerifying,
+      actions: [
+        ActionButton.neutral(
+          text: context.settingsText('ביטול'),
+          focusNode: _cancelFocusNode,
+          onPressed: !_isVerifying
+              ? () => Navigator.of(context).pop(false)
+              : null,
         ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.hint != null) ...[
-                Text(
-                  widget.hint!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              RtlTextField(
-                controller: _passwordController,
-                focusNode: _textFieldFocusNode,
-                obscureText: _isObscured,
-                enabled: !_isVerifying,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: context.settingsText('סיסמה'),
-                  hintText: context.settingsText('הזן את הסיסמה'),
-                  prefixIcon: const Icon(FluentIcons.key_24_regular),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscured
-                          ? FluentIcons.eye_24_regular
-                          : FluentIcons.eye_off_24_regular,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscured = !_isObscured;
-                      });
-                    },
-                  ),
-                ),
-                onSubmitted: (_) => _handleVerify(),
+        ActionButton.recommended(
+          text: context.settingsText('אישור'),
+          focusNode: _confirmFocusNode,
+          onPressed: !_isVerifying ? _handleVerify : null,
+          isLoading: _isVerifying,
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.hint != null) ...[
+            Text(
+              widget.hint!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-            ],
-          ),
-        ),
-        actions: [
-          ActionButton.neutral(
-            text: context.settingsText('ביטול'),
-            focusNode: _cancelFocusNode,
-            onPressed: !_isVerifying
-                ? () => Navigator.of(context).pop(false)
-                : null,
-          ),
-          ActionButton.recommended(
-            text: context.settingsText('אישור'),
-            focusNode: _confirmFocusNode,
-            onPressed: !_isVerifying ? _handleVerify : null,
-            isLoading: _isVerifying,
+            ),
+            const SizedBox(height: 16),
+          ],
+          RtlTextField(
+            controller: _passwordController,
+            focusNode: _textFieldFocusNode,
+            obscureText: _isObscured,
+            enabled: !_isVerifying,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: context.settingsText('סיסמה'),
+              hintText: context.settingsText('הזן את הסיסמה'),
+              prefixIcon: const Icon(FluentIcons.key_24_regular),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isObscured
+                      ? FluentIcons.eye_24_regular
+                      : FluentIcons.eye_off_24_regular,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isObscured = !_isObscured;
+                  });
+                },
+              ),
+            ),
+            onSubmitted: (_) => _handleVerify(),
           ),
         ],
       ),
@@ -181,9 +173,7 @@ class SaferModeSetPasswordDialog extends StatefulWidget {
 }
 
 class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
-    with
-        DialogNavigationMixin,
-        DialogFocusRestorerMixin<SaferModeSetPasswordDialog> {
+    with DialogFocusRestorerMixin<SaferModeSetPasswordDialog> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
   final FocusNode _passwordFocusNode = FocusNode();
@@ -286,110 +276,102 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
 
   @override
   Widget build(BuildContext context) {
-    return buildKeyboardNavigator(
+    return AppDialogFrame(
+      size: AppDialogSize.small,
+      title: context.settingsText('הגדרת סיסמה'),
+      icon: FluentIcons.lock_closed_24_regular,
       onConfirm: _handleSave,
-      onCancel: () => Navigator.of(context).pop(false),
-      textFieldFocusNode: _passwordFocusNode,
-      child: AlertDialog(
-        title: AppDialogTitle(
-          context.settingsText('הגדרת סיסמה'),
-          icon: FluentIcons.lock_closed_24_regular,
+      dismissResult: false,
+      closeEnabled: !_isSaving,
+      actions: [
+        ActionButton.neutral(
+          text: context.settingsText('ביטול'),
+          focusNode: _cancelButtonFocusNode,
+          onPressed: !_isSaving ? () => Navigator.of(context).pop(false) : null,
         ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                context.settingsText('הגדר סיסמה להגנה על ההגדרות'),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 16),
-              RtlTextField(
-                controller: _passwordController,
-                focusNode: _passwordFocusNode,
-                obscureText: _isObscured1,
-                enabled: !_isSaving,
-                decoration: InputDecoration(
-                  labelText: context.settingsText('סיסמה חדשה'),
-                  hintText: context.settingsText('לפחות 4 תווים'),
-                  prefixIcon: const Icon(FluentIcons.key_24_regular),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscured1
-                          ? FluentIcons.eye_24_regular
-                          : FluentIcons.eye_off_24_regular,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscured1 = !_isObscured1;
-                      });
-                    },
-                  ),
-                ),
-                onSubmitted: (_) => _confirmFocusNode.requestFocus(),
-              ),
-              const SizedBox(height: 16),
-              RtlTextField(
-                controller: _confirmController,
-                focusNode: _confirmFocusNode,
-                obscureText: _isObscured2,
-                enabled: !_isSaving,
-                decoration: InputDecoration(
-                  labelText: context.settingsText('אימות סיסמה'),
-                  hintText: context.settingsText('הזן שוב את הסיסמה'),
-                  prefixIcon: const Icon(FluentIcons.checkmark_lock_24_regular),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscured2
-                          ? FluentIcons.eye_24_regular
-                          : FluentIcons.eye_off_24_regular,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isObscured2 = !_isObscured2;
-                      });
-                    },
-                  ),
-                ),
-                onSubmitted: (_) => _handleSave(),
-              ),
-              if (widget.onClearPassword != null) ...[
-                const SizedBox(height: 16),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: ActionButton.ghost(
-                    text: widget.isSaferModeEnabled
-                        ? context.settingsText(
-                            'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל',
-                          )
-                        : context.settingsText('מחיקת סיסמה'),
-                    onPressed: (!_isSaving && !widget.isSaferModeEnabled)
-                        ? _handleClear
-                        : null,
-                  ),
-                ),
-              ],
-            ],
-          ),
+        ActionButton.recommended(
+          text: context.settingsText('שמור'),
+          focusNode: _saveButtonFocusNode,
+          onPressed: !_isSaving ? _handleSave : null,
+          isLoading: _isSaving,
         ),
-        actions: [
-          ActionButton.neutral(
-            text: context.settingsText('ביטול'),
-            focusNode: _cancelButtonFocusNode,
-            onPressed: !_isSaving
-                ? () => Navigator.of(context).pop(false)
-                : null,
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            context.settingsText('הגדר סיסמה להגנה על ההגדרות'),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
-          ActionButton.recommended(
-            text: context.settingsText('שמור'),
-            focusNode: _saveButtonFocusNode,
-            onPressed: !_isSaving ? _handleSave : null,
-            isLoading: _isSaving,
+          const SizedBox(height: 16),
+          RtlTextField(
+            controller: _passwordController,
+            focusNode: _passwordFocusNode,
+            obscureText: _isObscured1,
+            enabled: !_isSaving,
+            decoration: InputDecoration(
+              labelText: context.settingsText('סיסמה חדשה'),
+              hintText: context.settingsText('לפחות 4 תווים'),
+              prefixIcon: const Icon(FluentIcons.key_24_regular),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isObscured1
+                      ? FluentIcons.eye_24_regular
+                      : FluentIcons.eye_off_24_regular,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isObscured1 = !_isObscured1;
+                  });
+                },
+              ),
+            ),
+            onSubmitted: (_) => _confirmFocusNode.requestFocus(),
           ),
+          const SizedBox(height: 16),
+          RtlTextField(
+            controller: _confirmController,
+            focusNode: _confirmFocusNode,
+            obscureText: _isObscured2,
+            enabled: !_isSaving,
+            decoration: InputDecoration(
+              labelText: context.settingsText('אימות סיסמה'),
+              hintText: context.settingsText('הזן שוב את הסיסמה'),
+              prefixIcon: const Icon(FluentIcons.checkmark_lock_24_regular),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isObscured2
+                      ? FluentIcons.eye_24_regular
+                      : FluentIcons.eye_off_24_regular,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isObscured2 = !_isObscured2;
+                  });
+                },
+              ),
+            ),
+            onSubmitted: (_) => _handleSave(),
+          ),
+          if (widget.onClearPassword != null) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ActionButton.ghost(
+                text: widget.isSaferModeEnabled
+                    ? context.settingsText(
+                        'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל',
+                      )
+                    : context.settingsText('מחיקת סיסמה'),
+                onPressed: (!_isSaving && !widget.isSaferModeEnabled)
+                    ? _handleClear
+                    : null,
+              ),
+            ),
+          ],
         ],
       ),
     );

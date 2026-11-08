@@ -4,6 +4,7 @@ import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import '../models/book_model.dart';
 import '../models/progress_model.dart';
@@ -17,7 +18,7 @@ class BookCardWidget extends StatefulWidget {
   final String bookName;
   final BookDetails bookDetails;
   final VoidCallback? onDelete;
-  final VoidCallback? onTap; // Override default navigation
+  final VoidCallback? onTap;
 
   const BookCardWidget({
     super.key,
@@ -188,14 +189,14 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       actions: {
         ActivateIntent: CallbackAction<ActivateIntent>(
           onInvoke: (_) {
-            _onCardTap(context);
+            widget.onTap?.call();
             return null;
           },
         ),
       },
       child: AppCard(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        onTap: () => _onCardTap(context),
+        onTap: () => widget.onTap?.call(),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(12.0),
@@ -229,28 +230,17 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              _BookMetaChip(
+                              MetaChip(
                                 icon: FluentIcons.folder_24_regular,
-                                text:
+                                label:
                                     widget.bookDetails.categoryPath ??
                                     widget.categoryName,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.secondaryContainer,
-                                foregroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.onSecondaryContainer,
                               ),
                               if (_isCompleted)
-                                _BookMetaChip(
+                                const MetaChip(
                                   icon: FluentIcons.checkmark_circle_24_regular,
-                                  text: 'הושלם',
-                                  backgroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.primary,
-                                  foregroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimary,
+                                  label: 'הושלם',
+                                  tone: MetaChipTone.success,
                                 ),
                             ],
                           ),
@@ -276,20 +266,6 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           ),
         ),
       ),
-    );
-  }
-
-  void _onCardTap(BuildContext context) {
-    if (widget.onTap != null) {
-      widget.onTap!();
-      return;
-    }
-    Navigator.of(context).pushNamed(
-      '/book_detail',
-      arguments: {
-        'topLevelCategoryKey': widget.topLevelCategoryKey,
-        'bookName': widget.bookName,
-      },
     );
   }
 
@@ -424,51 +400,6 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       _logger.warning('getBookProgressSummarySyncById failed', e, st);
       return 'לימוד פעיל';
     }
-  }
-}
-
-/// צ'יפ מטא-דאטה לכרטיס ספר
-class _BookMetaChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color backgroundColor;
-  final Color foregroundColor;
-
-  const _BookMetaChip({
-    required this.icon,
-    required this.text,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: AppTokens.fontSM,
-                color: foregroundColor,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

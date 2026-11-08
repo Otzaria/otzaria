@@ -79,6 +79,12 @@ class _ExpandableCardState extends State<ExpandableCard>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller.duration = AppMotion.duration(context, AppTokens.animNormal);
+  }
+
+  @override
   void dispose() {
     _animation.dispose();
     _controller.dispose();
@@ -117,12 +123,10 @@ class _ExpandableCardState extends State<ExpandableCard>
 
     if (!widget.wrapInCard) return content;
 
-    final resolvedRadius = AppTokens.borderRadiusAll;
-
     Widget card = Material(
       color: cardColor,
       surfaceTintColor: Colors.transparent,
-      borderRadius: resolvedRadius,
+      shape: AppCard.shape(Theme.of(context).colorScheme),
       clipBehavior: Clip.antiAlias,
       child: content,
     );

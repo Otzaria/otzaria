@@ -1,3 +1,5 @@
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
+import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/book_common/bloc/commentary_search_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -13,13 +15,11 @@ import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/book_common/utils/commentary_plugin_menu_entries.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
@@ -69,7 +69,6 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -81,6 +80,8 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'dart:async';
 
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// Type alias לתאימות - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -1289,67 +1290,16 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Widget _buildButtonsRow() {
-    const double gap = 16;
-    // גובה 36 כשדה החיפוש המצומצם, כדי שפתיחת החיפוש לא תזיז את הרשימה.
-    return IconButtonTheme(
-      data: IconButtonThemeData(
-        style: (Theme.of(context).iconButtonTheme.style ?? const ButtonStyle())
-            .copyWith(
-              visualDensity:
-                  Theme.of(context).extension<AppMenuMetrics>()?.compactMenus ==
-                      true
-                  ? const VisualDensity(vertical: -1)
-                  : null,
-            ),
+    return CommentaryPanelToolbar(
+      onOpenFilter: () => setState(() => _showFilterTab = true),
+      allExpanded: _allExpanded,
+      onToggleAllExpanded: widget.tab.activeCommentators.isNotEmpty
+          ? toggleAllExpanded
+          : null,
+      onOpenInNewTab: () => context.read<TabsBloc>().add(
+        AddTab(PdfCommentatorsTab.of(widget.tab), insertAdjacent: true),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 1. בחירת מפרשים
-          CommentatorsFilterButton(
-            isActive: false,
-            onPressed: () {
-              setState(() {
-                _showFilterTab = true;
-              });
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            iconSize: 20,
-          ),
-          // 2. הרחב/כווץ הכל — רק כשיש מפרשים פעילים
-          if (widget.tab.activeCommentators.isNotEmpty) ...[
-            const SizedBox(width: gap),
-            IconButton(
-              icon: Icon(
-                _allExpanded
-                    ? FluentIcons.arrow_collapse_all_24_regular
-                    : FluentIcons.arrow_expand_all_24_regular,
-              ),
-              tooltip: _allExpanded
-                  ? 'כווץ את כל המפרשים'
-                  : 'הרחב את כל המפרשים',
-              onPressed: toggleAllExpanded,
-            ),
-          ],
-          const SizedBox(width: gap),
-          // 3. פתיחה בכרטיסייה חדשה
-          IconButton(
-            icon: const Icon(FluentIcons.open_24_regular),
-            tooltip: 'פתח כרטסיית מפרשים',
-            onPressed: () => context.read<TabsBloc>().add(
-              AddTab(PdfCommentatorsTab.of(widget.tab), insertAdjacent: true),
-            ),
-          ),
-          const SizedBox(width: gap),
-          // 4. הפעלת שדה החיפוש
-          IconButton(
-            icon: const Icon(FluentIcons.search_24_regular),
-            tooltip: 'חיפוש',
-            onPressed: _openInlineSearch,
-          ),
-        ],
-      ),
+      onOpenSearch: _openInlineSearch,
     );
   }
 
@@ -1410,22 +1360,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       // all on focus would erase the query on the next key.
       selectAllOnFocus: false,
       trailingActions: [
-        if (_searchQuery.isNotEmpty && _totalSearchResults > 1) ...[
-          if (_currentSearchIndex >= 0)
-            OtzariaSearchAction.resultCounter(
-              current: _currentSearchIndex + 1,
-              total: _totalSearchResults,
-              context: context,
-            ),
-          OtzariaSearchAction.prevResult(
-            onPressed: _currentSearchIndex > 0 ? navigateSearchPrev : null,
-          ),
-          OtzariaSearchAction.nextResult(
-            onPressed: _currentSearchIndex < _totalSearchResults - 1
+        if (_searchQuery.isNotEmpty && _totalSearchResults > 1)
+          SearchResultNavigator(
+            current: _currentSearchIndex >= 0 ? _currentSearchIndex + 1 : null,
+            total: _totalSearchResults,
+            onPrevious: _currentSearchIndex > 0 ? navigateSearchPrev : null,
+            onNext: _currentSearchIndex < _totalSearchResults - 1
                 ? navigateSearchNext
                 : null,
           ),
-        ],
         OtzariaSearchAction.icon(
           iconData: FluentIcons.dismiss_24_regular,
           tooltip: 'סגור חיפוש',
@@ -2298,9 +2241,9 @@ class _PdfCommentaryGroupHeader extends StatelessWidget {
           children: [
             AnimatedRotation(
               turns: isExpanded ? -0.25 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: RtlIcon(
-                FluentIcons.chevron_left_24_regular,
+              duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
+              child: Icon(
+                FluentIcons.chevron_right_24_regular,
                 size: 20,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),

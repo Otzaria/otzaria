@@ -174,8 +174,14 @@ Future<void> main() async {
 
       final highlighted = utils.highLight(text, 'כי גר');
       expect(highlighted, contains('־'));
-      expect(highlighted, contains('<span style="color: red">כי</span>'));
-      expect(highlighted, contains('<span style="color: red">גר</span>'));
+      expect(
+        highlighted,
+        contains('<span style="color: otzaria-search-hit">כי</span>'),
+      );
+      expect(
+        highlighted,
+        contains('<span style="color: otzaria-search-hit">גר</span>'),
+      );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }

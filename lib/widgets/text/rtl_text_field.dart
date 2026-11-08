@@ -826,7 +826,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
       ),
       items: menuItems,
       requestFocus: requestFocus,
-      elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
       color: Theme.of(context).colorScheme.surface,
     ).then((value) async {
@@ -914,7 +913,11 @@ class _RtlTextFieldState extends State<RtlTextField> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurface),
+          Icon(
+            icon,
+            size: AppTokens.iconSM,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
           const SizedBox(width: 8),
           Text(
             context.settingsText(label),

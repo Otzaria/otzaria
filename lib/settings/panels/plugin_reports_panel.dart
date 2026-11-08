@@ -196,8 +196,7 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
       context: context,
       title: context.settingsText('עריכת דיווח שמור'),
       icon: FluentIcons.edit_24_regular,
-      headerBand: true,
-      content: '',
+      size: AppDialogSize.medium,
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
@@ -217,7 +216,7 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
           ),
         ),
       ),
-      hasUnsavedChanges: hasChanges,
+      isDirty: hasChanges,
     );
     hasChanges.dispose();
     if (confirmed != true) return;

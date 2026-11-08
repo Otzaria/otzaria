@@ -57,7 +57,7 @@ Future<void> main() async {
         );
         expect(
           highlighted,
-          contains('background-color: rgba(255, 255, 0, 0.8)'),
+          contains('background-color: otzaria-mark'),
         );
         expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
       });
@@ -72,27 +72,29 @@ Future<void> main() async {
         expect(highlighted.startsWith('😀 '), isTrue);
         expect(
           highlighted,
-          contains('<b><span style="color: red">וֹרָ</span></b>'),
+          contains(
+            '<b><span style="color: otzaria-search-hit">וֹרָ</span></b>',
+          ),
         );
         expect(
           highlighted,
-          contains('<span style="color: red">מִצְווֹת</span>'),
+          contains('<span style="color: otzaria-search-hit">מִצְווֹת</span>'),
         );
       });
 
       test('word highlighting preserves inline HTML nesting', () {
         expect(
           highLight('ת<b>ור</b>ה', 'תורה'),
-          '<span style="color: red">ת</span><b>'
-          '<span style="color: red">ור</span></b>'
-          '<span style="color: red">ה</span>',
+          '<span style="color: otzaria-search-hit">ת</span><b>'
+          '<span style="color: otzaria-search-hit">ור</span></b>'
+          '<span style="color: otzaria-search-hit">ה</span>',
         );
       });
 
       test('single word - highlights the word', () {
         const text = 'כל יום טוב';
         final result = highLight(text, 'יום');
-        expect(result, contains('<span style="color: red">'));
+        expect(result, contains('<span style="color: otzaria-search-hit">'));
         expect(result, contains('יום'));
       });
 
@@ -101,16 +103,22 @@ Future<void> main() async {
         const text = 'היה זה כל היום טוב';
         final result = highLight(text, 'כל היום');
         // המילה "היה" לא אמורה להיות מודגשת
-        expect(result, isNot(contains('<span style="color: red">היה')));
+        expect(
+          result,
+          isNot(contains('<span style="color: otzaria-search-hit">היה')),
+        );
         // רק מילות החיפוש עצמן אמורות להיות מודגשות
         expect(
           result,
           contains(
-            '<span style="color: red">כל</span> <span style="color: red">היום</span>',
+            '<span style="color: otzaria-search-hit">כל</span> <span style="color: otzaria-search-hit">היום</span>',
           ),
         );
         // "היה", "זה", "טוב" לא אמורים להיות מודגשים
-        expect(result, isNot(contains('<span style="color: red">טוב')));
+        expect(
+          result,
+          isNot(contains('<span style="color: otzaria-search-hit">טוב')),
+        );
       });
 
       test('multi-word query - does not highlight lone words from query', () {
@@ -141,7 +149,10 @@ Future<void> main() async {
           },
         );
 
-        expect(result, contains('<span style="color: red">אמר</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">אמר</span>'),
+        );
       });
 
       test('multi-word query with spacing - highlights spaced phrase', () {
@@ -155,10 +166,13 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="color: red">כל</span> דבר <span style="color: red">היום</span>',
+            '<span style="color: otzaria-search-hit">כל</span> דבר <span style="color: otzaria-search-hit">היום</span>',
           ),
         );
-        expect(result, isNot(contains('<span style="color: red">דבר</span>')));
+        expect(
+          result,
+          isNot(contains('<span style="color: otzaria-search-hit">דבר</span>')),
+        );
       });
 
       test('multi-word query with spacing - respects spacing limit', () {
@@ -185,12 +199,14 @@ Future<void> main() async {
           expect(
             result,
             contains(
-              '<span style="color: red">אמר</span> ליה <span style="color: red">רבי</span> <span style="color: red">יוחנן</span>: <span style="color: red">הוא</span>',
+              '<span style="color: otzaria-search-hit">אמר</span> ליה <span style="color: otzaria-search-hit">רבי</span> <span style="color: otzaria-search-hit">יוחנן</span>: <span style="color: otzaria-search-hit">הוא</span>',
             ),
           );
           expect(
             result,
-            isNot(contains('<span style="color: red">ליה</span>')),
+            isNot(
+              contains('<span style="color: otzaria-search-hit">ליה</span>'),
+            ),
           );
         },
       );
@@ -208,21 +224,28 @@ Future<void> main() async {
           expect(
             result,
             contains(
-              '<span style="color: red">אמר</span> רבי <span style="color: red">שמעון</span> בן <span style="color: red">לקיש</span>',
+              '<span style="color: otzaria-search-hit">אמר</span> רבי <span style="color: otzaria-search-hit">שמעון</span> בן <span style="color: otzaria-search-hit">לקיש</span>',
             ),
           );
           expect(
             result,
-            isNot(contains('<span style="color: red">רבי</span>')),
+            isNot(
+              contains('<span style="color: otzaria-search-hit">רבי</span>'),
+            ),
           );
-          expect(result, isNot(contains('<span style="color: red">בן</span>')));
+          expect(
+            result,
+            isNot(
+              contains('<span style="color: otzaria-search-hit">בן</span>'),
+            ),
+          );
         },
       );
 
       test('single word with nikud in text - highlights correctly', () {
         const text = 'הָיָה כָּל הַיּוֹם';
         final result = highLight(text, 'כל');
-        expect(result, contains('<span style="color: red">'));
+        expect(result, contains('<span style="color: otzaria-search-hit">'));
       });
 
       test('multi-word with nikud and spacing - highlights both words', () {
@@ -233,8 +256,14 @@ Future<void> main() async {
           spacingValues: const {'0-1': '1'},
         );
 
-        expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
-        expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">פַּרְעֹה</span>'),
+        );
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">נָבוֹן</span>'),
+        );
       });
 
       test('multi-word separated by maqaf - highlights all words', () {
@@ -243,9 +272,18 @@ Future<void> main() async {
         const text = 'עֵ֣קֶב אֲשֶׁר־שָׁמַ֣ע אַבְרָהָ֖ם בְּקֹלִ֑י';
         final result = highLight(text, 'עקב אשר שמע אברהם');
 
-        expect(result, contains('<span style="color: red">אֲשֶׁר</span>'));
-        expect(result, contains('<span style="color: red">שָׁמַ֣ע</span>'));
-        expect(result, contains('<span style="color: red">אַבְרָהָ֖ם</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">אֲשֶׁר</span>'),
+        );
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">שָׁמַ֣ע</span>'),
+        );
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">אַבְרָהָ֖ם</span>'),
+        );
       });
 
       test('yellowBackground - הדגשה רציפה אחת כולל הרווחים בין המילים', () {
@@ -259,7 +297,7 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי יוחנן משום</span>',
+            '<span style="background-color: otzaria-mark; color: otzaria-on-mark">רבי יוחנן משום</span>',
           ),
         );
       });
@@ -275,7 +313,7 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי יוחנן: הוא</span>',
+            '<span style="background-color: otzaria-mark; color: otzaria-on-mark">רבי יוחנן: הוא</span>',
           ),
         );
       });
@@ -292,7 +330,7 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">',
+            '<span style="background-color: otzaria-mark; color: otzaria-on-mark">',
           ),
         );
         expect(result, contains('שֶׁנָּדַרְתָּ'));
@@ -309,9 +347,9 @@ Future<void> main() async {
         expect(
           result,
           equals(
-            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">אמר </span>'
-            '<b><span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי</span></b>'
-            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black"> יוחנן</span>',
+            '<span style="background-color: otzaria-mark; color: otzaria-on-mark">אמר </span>'
+            '<b><span style="background-color: otzaria-mark; color: otzaria-on-mark">רבי</span></b>'
+            '<span style="background-color: otzaria-mark; color: otzaria-on-mark"> יוחנן</span>',
           ),
         );
       });
@@ -326,8 +364,14 @@ Future<void> main() async {
             searchDistance: 1,
           );
 
-          expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
-          expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+          expect(
+            result,
+            contains('<span style="color: otzaria-search-hit">פַּרְעֹה</span>'),
+          );
+          expect(
+            result,
+            contains('<span style="color: otzaria-search-hit">נָבוֹן</span>'),
+          );
         },
       );
     },
@@ -964,7 +1008,10 @@ Future<void> main() async {
         query,
         searchOptions: options,
       );
-      expect(result, contains('<span style="color: red">מסה</span>'));
+      expect(
+        result,
+        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+      );
     });
 
     test('פרמטרים שונים לא פוגעים בתבנית שהוזנה — מפתח לפי פרמטרים', () async {
@@ -985,7 +1032,10 @@ Future<void> main() async {
 
       // הפרמטרים המקוריים עדיין מוצאים את התבנית שהוזנה.
       final hit = highLight('ויקח מסה', query);
-      expect(hit, contains('<span style="color: red">מסה</span>'));
+      expect(
+        hit,
+        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+      );
     });
 
     test('כשל בהבאה נבלע וה-fallback ממשיך לשרת', () async {
@@ -1002,7 +1052,10 @@ Future<void> main() async {
 
       // ה-fallback הסינכרוני (תבנית מבוססת-שאילתה) עדיין עובד.
       final result = highLight('שלום עולם', query);
-      expect(result, contains('<span style="color: red">שלום</span>'));
+      expect(
+        result,
+        contains('<span style="color: otzaria-search-hit">שלום</span>'),
+      );
     });
 
     test('תבנית advanced אינה משמשת רינדור fuzzy — המצב חלק מהמפתח', () async {
@@ -1024,7 +1077,10 @@ Future<void> main() async {
 
       // רינדור advanced כן פוגע בתבנית.
       final advancedRender = highLight('ויקח מסה', query);
-      expect(advancedRender, contains('<span style="color: red">מסה</span>'));
+      expect(
+        advancedRender,
+        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+      );
     });
 
     test('קידומת בתוך ההתאמה אינה פוסלת הדגשה — "מיעוט" ב"במיעוט"', () async {
@@ -1045,7 +1101,10 @@ Future<void> main() async {
 
       final result = highLight('ראה במיעוט גדול', query);
       // רק "מיעוט" מודגש; ה"ב" של הקידומת נשאר מחוץ להדגשה.
-      expect(result, contains('ב<span style="color: red">מיעוט</span>'));
+      expect(
+        result,
+        contains('ב<span style="color: otzaria-search-hit">מיעוט</span>'),
+      );
     });
 
     test(
@@ -1223,12 +1282,18 @@ Future<void> main() async {
         // ׃ (U+05C3) מפריד מילים כמו במנוע — "ברא" לפני ׃ הוא טוקן שלם
         // וההדגשה חייבת לעבור את בדיקת הגבול, גם ללא רווח אחרי ה-׃.
         final result = highLight('בְּרֵאשִׁית ברא\u{05C3}והארץ היתה', 'ברא');
-        expect(result, contains('<span style="color: red">ברא</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">ברא</span>'),
+        );
       });
 
       test('נו"ן הפוכה אינה נבלעת בגבול המילה', () {
         final result = highLight('פסוק\u{05C6} אחר', 'פסוק');
-        expect(result, contains('<span style="color: red">פסוק</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">פסוק</span>'),
+        );
       });
 
       test('ליגטורת יידיש לפני התאמה אינה נחשבת גבול מילה', () {
@@ -1273,8 +1338,14 @@ Future<void> main() async {
 
       test('מילים שהמקף מחבר ביניהן מודגשות בנפרד', () {
         final result = highLight('תדע כי־גר יהיה', 'כי גר');
-        expect(result, contains('<span style="color: red">כי</span>'));
-        expect(result, contains('<span style="color: red">גר</span>'));
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">כי</span>'),
+        );
+        expect(
+          result,
+          contains('<span style="color: otzaria-search-hit">גר</span>'),
+        );
       });
 
       test('המקף נשמר בטקסט המודגש', () {

@@ -20,7 +20,7 @@ class BiographiesCreditLine extends StatelessWidget {
       builder: (_) => AppDialog.singleAction(
         title: 'מקורות וזכויות',
         icon: FluentIcons.certificate_24_regular,
-        headerBand: true,
+        size: AppDialogSize.medium,
         confirmText: 'סגור',
         customContent: _CreditsContent(bundle: bundle),
       ),
@@ -63,7 +63,7 @@ class BiographiesCreditLine extends StatelessWidget {
                   children: [
                     Icon(
                       FluentIcons.info_16_regular,
-                      size: 14,
+                      size: AppTokens.iconXS,
                       color: linkColor,
                     ),
                     const SizedBox(width: AppTokens.spaceXS),
@@ -140,7 +140,6 @@ class _CreditsContent extends StatelessWidget {
                     MetaChip(
                       label: label,
                       icon: FluentIcons.arrow_sync_24_regular,
-                      outlined: true,
                     ),
                 ],
               ),

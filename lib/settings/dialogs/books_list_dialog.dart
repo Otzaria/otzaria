@@ -16,6 +16,8 @@ import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// פותח דיאלוג עם רשימות הספרים — ספרי הספרייה והספרים האישיים — חיפוש,
 /// וייצוא ל-CSV.
@@ -126,85 +128,91 @@ class _BooksListDialogState extends State<_BooksListDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return ListDialogFrame(
+    return AppDialogFrame(
       icon: OtzariaIcons.book_24_regular,
       title: context.settingsText('רשימת הספרים'),
-      counter: '${_visibleRows.length} / ${_rows.length}',
-      children: [
-        const SizedBox(height: AppTokens.spaceMD),
-        AppSegmentedControl<bool>(
-          options: [
-            SegmentOption(
-              value: false,
-              label: context.settingsText(
-                'ספרייה {count}',
-                args: {'count': _libraryRows.length},
+      trailing: ListDialogCounter('${_visibleRows.length} / ${_rows.length}'),
+      size: AppDialogSize.large,
+      padding: AppTokens.dialogPadding.copyWith(top: 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppTokens.spaceMD),
+          AppSegmentedControl<bool>(
+            options: [
+              SegmentOption(
+                value: false,
+                label: context.settingsText(
+                  'ספרייה {count}',
+                  args: {'count': _libraryRows.length},
+                ),
               ),
-            ),
-            SegmentOption(
-              value: true,
-              label: context.settingsText(
-                'אישיים {count}',
-                args: {'count': _personalRows.length},
+              SegmentOption(
+                value: true,
+                label: context.settingsText(
+                  'אישיים {count}',
+                  args: {'count': _personalRows.length},
+                ),
               ),
-            ),
-          ],
-          currentValue: _showPersonal,
-          expandToFillWidth: true,
-          onChanged: (personal) => _selectList(personal: personal),
-        ),
-        const SizedBox(height: AppTokens.spaceMD),
-        OtzariaSearchField(
-          controller: _searchController,
-          autofocus: true,
-          hintText: context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
-        ),
-        const SizedBox(height: AppTokens.spaceMD),
-        Expanded(
-          child: _visibleRows.isEmpty
-              ? OtzariaEmptyState(
-                  isCompact: true,
-                  icon: OtzariaIcons.search_in_library_24_regular,
-                  title: context.settingsText('לא נמצאו ספרים'),
-                )
-              : ListDialogCard(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    thumbVisibility: true,
-                    // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה
-                    // (ListTile.shape) מצויר מחוץ לאזור הגלילה.
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
-                        prototypeItem: _BookListRow(row: _BookRow.blank()),
-                        itemCount: _visibleRows.length,
-                        itemBuilder: (_, i) => _BookListRow(
-                          row: _visibleRows[i],
+            ],
+            currentValue: _showPersonal,
+            expandToFillWidth: true,
+            onChanged: (personal) => _selectList(personal: personal),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          OtzariaSearchField(
+            controller: _searchController,
+            autofocus: true,
+            hintText: context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          Expanded(
+            child: _visibleRows.isEmpty
+                ? OtzariaEmptyState(
+                    isCompact: true,
+                    icon: OtzariaIcons.search_in_library_24_regular,
+                    title: context.settingsText('לא נמצאו ספרים'),
+                  )
+                : AppCard(
+                    child: AppScrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה
+                      // (ListTile.shape) מצויר מחוץ לאזור הגלילה.
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
+                          prototypeItem: _BookListRow(row: _BookRow.blank()),
+                          itemCount: _visibleRows.length,
+                          itemBuilder: (_, i) => _BookListRow(
+                            row: _visibleRows[i],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-        ),
-        const SizedBox(height: AppTokens.spaceMD),
-        Row(
-          children: [
-            ActionButton.recommended(
-              text: context.settingsText('ייצוא ל-CSV'),
-              icon: FluentIcons.arrow_download_24_regular,
-              isLoading: _isExporting,
-              onPressed: _exportToCsv,
-            ),
-            const Spacer(),
-            ActionButton.neutral(
-              text: context.settingsText('סגור'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          Row(
+            children: [
+              ActionButton.recommended(
+                text: context.settingsText('ייצוא ל-CSV'),
+                icon: FluentIcons.arrow_download_24_regular,
+                isLoading: _isExporting,
+                onPressed: _exportToCsv,
+              ),
+              const Spacer(),
+              ActionButton.neutral(
+                text: context.settingsText('סגור'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

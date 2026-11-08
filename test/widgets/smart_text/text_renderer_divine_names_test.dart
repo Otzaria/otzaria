@@ -131,8 +131,14 @@ Future<void> main() async {
         marked,
         substitute.copyWith(searchText: 'לאלהים'),
       );
-      expect(out, contains('<span style="color: red">לֵ</span>'));
-      expect(out, contains('<span style="color: red">אלֹקִים</span>'));
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">לֵ</span>'),
+      );
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">אלֹקִים</span>'),
+      );
       expect(out, isNot(contains('divine-name')));
     });
 
@@ -141,9 +147,18 @@ Future<void> main() async {
         marked,
         substitute.copyWith(searchText: 'ויאמר לאלהים שלום'),
       );
-      expect(out, contains('<span style="color: red">ויאמר</span>'));
-      expect(out, contains('<span style="color: red">אלֹקִים</span>'));
-      expect(out, contains('<span style="color: red">שלום</span>'));
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">ויאמר</span>'),
+      );
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">אלֹקִים</span>'),
+      );
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">שלום</span>'),
+      );
     });
 
     test('אדנות — ההדגשה על הכתיב שבשאילתה, המקף נוסף אחריה', () {
@@ -154,7 +169,10 @@ Future<void> main() async {
         adnut,
         substitute.copyWith(searchText: 'אדני'),
       );
-      expect(out, 'אמר <span style="color: red">אד-\u2060ני</span>');
+      expect(
+        out,
+        'אמר <span style="color: otzaria-search-hit">אד-\u2060ני</span>',
+      );
       expect(stripHtmlIfNeeded(out), 'אמר אד-\u2060ני');
     });
 
@@ -173,7 +191,7 @@ Future<void> main() async {
             marked,
             substitute.copyWith(searchText: form.word),
           ),
-          'אמר <span style="color: red">${form.shown}</span>',
+          'אמר <span style="color: otzaria-search-hit">${form.shown}</span>',
           reason: form.word,
         );
       }

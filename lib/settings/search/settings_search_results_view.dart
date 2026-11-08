@@ -9,7 +9,6 @@ import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// תצוגת תוצאות חיפוש בהגדרות — מוצגת באזור התוכן כאשר השאילתה אינה ריקה.
 class SettingsSearchResultsView extends StatelessWidget {
@@ -101,7 +100,7 @@ class _SearchResultTile extends StatelessWidget {
             children: [
               Icon(
                 _iconForTab(entry.tab),
-                size: 22,
+                size: AppTokens.iconMD,
                 color: colorScheme.primary,
               ),
               const SizedBox(width: 14),
@@ -152,9 +151,9 @@ class _SearchResultTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              RtlIcon(
-                FluentIcons.chevron_left_24_regular,
-                size: 18,
+              Icon(
+                FluentIcons.chevron_right_24_regular,
+                size: AppTokens.iconSM,
                 color: colorScheme.onSurfaceVariant,
               ),
             ],
@@ -184,6 +183,7 @@ class _HighlightedText extends StatelessWidget {
     final spans = _buildSpans(text, query, highlightColor);
 
     return RichText(
+      textScaler: MediaQuery.textScalerOf(context),
       text: TextSpan(
         style: style ?? DefaultTextStyle.of(context).style,
         children: spans,

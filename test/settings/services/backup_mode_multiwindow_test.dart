@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
@@ -21,10 +22,12 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
+import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -114,11 +117,6 @@ void main() {
     settings = _SettingsBloc();
     library = _LibraryBloc();
     whenListen(
-      settings,
-      const Stream<SettingsState>.empty(),
-      initialState: SettingsState.initial(),
-    );
-    whenListen(
       library,
       const Stream<LibraryState>.empty(),
       initialState: const LibraryState(),
@@ -140,6 +138,29 @@ void main() {
   testWidgets(
     'הבורר והגיבוי מסתנכרנים עם שינויים בסעיפים מחלון אחר',
     (tester) async {
+      // הלשונית קוראת את סעיפי הגיבוי מ־SettingsBloc (q9 Q6 = C). כאן הבלוק
+      // מדומה כמו שהוא מתנהג באפליקציה: כל כתיבה לקובץ ההגדרות
+      // (HiveCache.changedKeys, הזרם ש־AppScopeProviders מזריק) נקראת מחדש
+      // ונפלטת, ו"גבה הכל" כותב את הסעיפים. ההתנהגות של הבלוק האמיתי עם הזרם
+      // נבדקת ב־settings_bloc_external_changes_test וב־app_scope_settings_sync_test;
+      // כאן נשארות הכתיבות ב־Hive באותם אזורים כמו לפני המעבר לבלוק.
+      SettingsState fromStore() => SettingsState.initial().copyWith(
+        backupSections: {
+          for (final key in SettingsRepository.backupSectionKeys)
+            key: Settings.getValue<bool>(key) ?? true,
+        },
+      );
+      final states = StreamController<SettingsState>.broadcast();
+      addTearDown(states.close);
+      whenListen(settings, states.stream, initialState: fromStore());
+      final changes = HiveCache.changedKeys().listen(
+        (_) => states.add(fromStore()),
+      );
+      addTearDown(changes.cancel);
+      when(() => settings.add(const IncludeAllBackupSections())).thenAnswer(
+        (_) => unawaited(BackupService.includeAllSections()),
+      );
+
       await tester.binding.setSurfaceSize(const Size(1400, 8000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       Widget tab() => MaterialApp(
@@ -285,4 +306,51 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // R4-1: העברת תיקיית הגיבוי ממשיכה אחרי שהמשתמש עבר ללשונית אחרת. הקריאה
+  // שנשמרת אחרי moveDirectory צריכה עדיין לשמור את הנתיב, בלי context.
+  testWidgets('נתיב הגיבוי נשמר גם כשהלשונית נסגרה באמצע ההעברה', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 8000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    whenListen(
+      settings,
+      const Stream<SettingsState>.empty(),
+      initialState: SettingsState.initial(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<LibraryBloc>.value(value: library),
+          ],
+          child: const Scaffold(body: SystemSettingsTab()),
+        ),
+      ),
+    );
+    await tester.pump();
+    final section = find.byWidgetPredicate(
+      (w) => w is ExpandableSection && w.title == 'גיבוי אוטומטי',
+    );
+    tester.widget<ExpandableSection>(section).onTap();
+    await tester.pump();
+    final tile = tester.widget<SettingsPathTile>(
+      find.byWidgetPredicate(
+        (w) => w is SettingsPathTile && w.title == 'תיקיית גיבוי',
+      ),
+    );
+
+    // הלשונית יוצאת מהעץ (מעבר ללשונית הגדרות אחרת) לפני שההעברה הסתיימה.
+    await tester.pumpWidget(const SizedBox());
+    await tile.onFolderChanged('C:/moved/backups');
+    tile.onClearPath!();
+
+    expect(tester.takeException(), isNull);
+    verify(
+      () => settings.add(const UpdateBackupPath('C:/moved/backups')),
+    ).called(1);
+    verify(() => settings.add(const UpdateBackupPath(''))).called(1);
+  });
 }

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -20,6 +18,8 @@ enum ToolbarActionId {
   fitMode,
   continuousReading,
   textDisplay,
+  // מסך מלא בקורא, בטלפון בלבד (q12 Q8)
+  fullscreen,
   viewMode,
   openCommentatorsTab,
   parallelEdition,
@@ -33,6 +33,19 @@ enum ToolbarActionId {
   navigateHome,
   sync,
   refresh,
+  // סרגל העיצוב בעורך ההערות
+  noteBold,
+  noteItalic,
+  noteUnderline,
+  noteStrikethrough,
+  noteHighlight,
+  noteFontIncrease,
+  noteFontDecrease,
+  noteHeader,
+  noteBulletList,
+  noteNumberList,
+  noteQuote,
+  noteLink,
 }
 
 /// סדר ההעברה לתפריט overflow.
@@ -53,6 +66,8 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.fitMode,
   ToolbarActionId.continuousReading,
   ToolbarActionId.textDisplay,
+  // בטלפון זה החיסכון הגדול בגובה, ולכן נשאר בסרגל אחרי החיפוש והזום.
+  ToolbarActionId.fullscreen,
   ToolbarActionId.viewMode,
   ToolbarActionId.openCommentatorsTab,
   ToolbarActionId.parallelEdition,
@@ -66,6 +81,20 @@ const List<ToolbarActionId> toolbarOverflowOrder = [
   ToolbarActionId.navigateHome,
   ToolbarActionId.sync,
   ToolbarActionId.refresh,
+  // עורך ההערות — מהנדיר לנפוץ. ברוחב הדיאלוג (560) עוברים לתפריט רק
+  // "ציטוט" ו"כותרת" (q12 Q6).
+  ToolbarActionId.noteQuote,
+  ToolbarActionId.noteHeader,
+  ToolbarActionId.noteStrikethrough,
+  ToolbarActionId.noteFontIncrease,
+  ToolbarActionId.noteFontDecrease,
+  ToolbarActionId.noteNumberList,
+  ToolbarActionId.noteItalic,
+  ToolbarActionId.noteUnderline,
+  ToolbarActionId.noteBulletList,
+  ToolbarActionId.noteLink,
+  ToolbarActionId.noteHighlight,
+  ToolbarActionId.noteBold,
 ];
 
 final Map<ToolbarActionId, int> toolbarOverflowRank = {
@@ -91,6 +120,7 @@ int toolbarOverflowRankOf(ToolbarActionId id) {
 /// אין צורך לשנות ActionButtonData.
 const List<Set<ToolbarActionId>> toolbarAtomicOverflowGroups = [
   {ToolbarActionId.zoomOut, ToolbarActionId.zoomIn},
+  {ToolbarActionId.noteFontIncrease, ToolbarActionId.noteFontDecrease},
 ];
 
 /// מחזיר את קבוצת ה-IDs שאליה שייך [id], כולל עצמו.
@@ -124,6 +154,11 @@ class ResponsiveActionBar extends StatefulWidget {
   /// לחיצה עליהן משאירה את התפריט פתוח; לכל פעולה נדרש [ActionButtonData.icon].
   final List<ActionButtonData>? menuHeaderActions;
 
+  /// נקרא כשהתפריט נפתח: false — בלי שורת [menuHeaderActions] הפעם. כך סרגל
+  /// שמחליט בזמן הפריסה איפה החיצים (`ReaderNavPlacement`) מציג אותם בתפריט
+  /// רק כשהם לא בסרגל. null — השורה תמיד מוצגת.
+  final ValueGetter<bool>? menuHeaderActionsVisible;
+
   /// מספר מקסימלי של כפתורים להציג לפני מעבר לתפריט "..."
   final int? maxVisibleButtons;
 
@@ -142,6 +177,7 @@ class ResponsiveActionBar extends StatefulWidget {
     this.alwaysInMenu,
     this.originalOrder,
     this.menuHeaderActions,
+    this.menuHeaderActionsVisible,
     this.maxVisibleButtons,
     this.overflowOnRight = false,
     this.overflowMenuOffset = const Offset(0, 4),
@@ -361,8 +397,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
   Widget _buildNewMode(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact =
-            context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+        final isCompact = AppDensity.of(context).isCompact;
 
         final standardButtonWidth = BarButton.toolbarWidth(isCompact);
 
@@ -498,7 +533,10 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
             action.onPressed?.call();
           },
           itemBuilder: (context) {
-            final headerActions = _headerActions;
+            final headerActions =
+                widget.menuHeaderActionsVisible?.call() ?? true
+                ? _headerActions
+                : const <ActionButtonData>[];
             final items = <PopupMenuEntry<ActionButtonData>>[];
 
             if (headerActions.isNotEmpty) {
@@ -613,10 +651,7 @@ class _MenuIconActionRow extends StatelessWidget {
             IconButton(
               onPressed: action.onPressed,
               tooltip: action.tooltip,
-              // אייקון עם matchTextDirection מתהפך כבר ב-Icon; RtlIcon היה מהפך פעמיים.
-              icon: action.icon!.matchTextDirection
-                  ? Icon(action.icon, size: _iconSize)
-                  : RtlIcon(action.icon!, size: _iconSize),
+              icon: RtlIcon(action.icon!, size: _iconSize),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(
                 minWidth: _buttonSize,

@@ -15,10 +15,13 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
-import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 class WorkspaceSwitcherDialog extends StatefulWidget {
@@ -30,70 +33,93 @@ class WorkspaceSwitcherDialog extends StatefulWidget {
 }
 
 class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
-  final TextEditingController _textFieldController = TextEditingController();
+  /// הרוחב המזערי של אריח: ב־720 של דיאלוג גדול נכנסות 3 עמודות.
+  static const double _minTileWidth = 200;
+
+  /// הריבוע שסביב ה־+ באריח "שולחן עבודה חדש".
+  static const double _newTileIconBox = 100;
+
   bool _switchPending = false;
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _textFieldController.text = getHebrewTimeStamp();
     context.read<WorkspaceBloc>().add(LoadWorkspaces());
   }
 
   @override
   void dispose() {
-    _textFieldController.dispose();
+    _search.dispose();
     super.dispose();
   }
 
+  /// בלי ניקוד ובלי הבדל אותיות גדולות, כמו בשאר שדות הסינון.
+  static String _normalize(String text) =>
+      removeVolwels(text).toLowerCase().trim();
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     return AppDialogFrame(
       title: 'שולחנות עבודה',
       icon: OtzariaIcons.lectern_24_regular,
-      width: size.width * 0.8,
-      height: size.height * 0.8,
-      backgroundColor: AppSurfaces.panelBackground(context),
+      size: AppDialogSize.large,
+      // גובה קבוע, כדי ששדה החיפוש לא יזוז בזמן ההקלדה (§3.1).
+      height: MediaQuery.sizeOf(context).height * AppDialogSize.maxHeightFactor,
       child: BlocBuilder<WorkspaceBloc, WorkspaceState>(
         builder: (context, state) {
           if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingIndicator();
           }
 
           if (state.error != null) {
-            return Center(
-              child: Text(
-                'שגיאה: ${state.error}',
-              ),
+            return OtzariaErrorState(
+              title: 'לא ניתן לטעון את שולחנות העבודה',
+              details: state.error,
             );
           }
 
           final liveTabs = context.select(
             (TabsBloc bloc) => bloc.state.tabs,
           );
-          return LayoutBuilder(
+          final query = _normalize(_query);
+          final workspaces = query.isEmpty
+              ? state.workspaces
+              : state.workspaces
+                    .where((w) => _normalize(w.name).contains(query))
+                    .toList();
+          final grid = LayoutBuilder(
             builder: (context, constraints) {
               // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
-              final crossAxisCount = (constraints.maxWidth / 200).floor().clamp(
-                1,
-                3,
-              );
+              final crossAxisCount = (constraints.maxWidth / _minTileWidth)
+                  .floor()
+                  .clamp(1, 3);
               return GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  crossAxisSpacing: AppTokens.spaceMD,
+                  mainAxisSpacing: AppTokens.spaceMD,
                   childAspectRatio: 1.2,
                 ),
-                itemCount: state.workspaces.length + 1,
+                // אריח "חדש" תמיד בסוף, גם כשהחיפוש לא מצא דבר.
+                itemCount: workspaces.length + 1,
+                // אריח לפי מזהה השולחן: כשהסינון משתנה, מצב העריכה של השם
+                // עובר עם השולחן למקומו החדש, ולא נשאר באינדקס של שולחן אחר.
+                findChildIndexCallback: (key) {
+                  if (key is! ValueKey<String>) return null;
+                  final index = workspaces.indexWhere(
+                    (w) => w.id == key.value,
+                  );
+                  return index < 0 ? null : index;
+                },
                 itemBuilder: (context, index) {
-                  if (index == state.workspaces.length) {
+                  if (index == workspaces.length) {
                     // "New Workspace" tile
                     return _buildNewWorkspaceTile(context);
                   } else {
                     // Workspace tile
-                    final workspace = state.workspaces[index];
+                    final workspace = workspaces[index];
                     final isActive = state.activeWorkspaceId == workspace.id;
                     return _buildWorkspaceTile(
                       context,
@@ -106,6 +132,26 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
               );
             },
           );
+          // שדה החיפוש תמיד, כמו בתוספים, בהגדרות ובהיסטוריה (#2841).
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OtzariaSearchField(
+                controller: _search,
+                hintText: 'חיפוש שולחן עבודה',
+                onChanged: (value) => setState(() => _query = value),
+                onClear: () => setState(() => _query = ''),
+              ),
+              const SizedBox(height: AppTokens.spaceSM),
+              if (workspaces.isEmpty)
+                const OtzariaEmptyState(
+                  isCompact: true,
+                  icon: OtzariaIcons.search_24_regular,
+                  title: 'לא נמצאו שולחנות עבודה',
+                ),
+              Expanded(child: grid),
+            ],
+          );
         },
       ),
     );
@@ -114,48 +160,45 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   Widget _buildNewWorkspaceTile(BuildContext context) {
     return BlocBuilder<TabsBloc, TabsState>(
       builder: (context, tabsState) {
-        return Card(
-          child: InkWell(
-            onTap: () {
-              final workspaceBloc = context.read<WorkspaceBloc>();
-              final newWorkspaceName = uniqueWorkspaceName(
-                workspaceBloc.state.workspaces,
-              );
-              workspaceBloc.add(
-                AddWorkspace(
-                  name: newWorkspaceName,
-                  tabs: const [],
-                  currentTabIndex: 0,
+        return AppCard(
+          margin: const EdgeInsets.all(4),
+          onTap: () {
+            final workspaceBloc = context.read<WorkspaceBloc>();
+            final newWorkspaceName = uniqueWorkspaceName(
+              workspaceBloc.state.workspaces,
+            );
+            workspaceBloc.add(
+              AddWorkspace(
+                name: newWorkspaceName,
+                tabs: const [],
+                currentTabIndex: 0,
+              ),
+            );
+          },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: _newTileIconBox,
+                height: _newTileIconBox,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: AppTokens.borderRadiusAll,
                 ),
-              );
-            },
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: AppTokens.borderRadiusAll,
-                  ),
-                  child: Icon(
-                    FluentIcons.add_24_regular,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                child: Icon(
+                  FluentIcons.add_24_regular,
+                  size: AppTokens.iconXL,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'שולחן עבודה חדש',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'שולחן עבודה חדש',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -168,104 +211,94 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     List<OpenedTab> tabs,
     bool isActive,
   ) {
-    return Card(
-      child: Stack(
-        children: [
-          InkWell(
-            onTap: () async {
-              if (_switchPending) return;
-              _switchPending = true;
-              // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
-              final tabsBloc = context.read<TabsBloc>();
-              final workspaceBloc = context.read<WorkspaceBloc>();
-              final navigationBloc = context.read<NavigationBloc>();
-              final navigator = Navigator.of(context);
-              final route = ModalRoute.of(context);
-              if (!await confirmCloseTabs(context, tabsBloc.state.tabs)) {
-                _switchPending = false;
+    final cs = Theme.of(context).colorScheme;
+    // הפעיל: מסגרת הבחירה, ורק אזור התצוגה המקדימה בצבע "נבחר" (q9 שאלה 7).
+    return AppCard(
+      key: ValueKey<String>(workspace.id),
+      margin: const EdgeInsets.all(4),
+      active: isActive,
+      onTap: () async {
+        if (_switchPending) return;
+        _switchPending = true;
+        // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
+        final tabsBloc = context.read<TabsBloc>();
+        final workspaceBloc = context.read<WorkspaceBloc>();
+        final navigationBloc = context.read<NavigationBloc>();
+        final navigator = Navigator.of(context);
+        final route = ModalRoute.of(context);
+        if (!await confirmCloseTabs(context, tabsBloc.state.tabs)) {
+          _switchPending = false;
+          return;
+        }
+        if (!context.mounted || route?.isCurrent != true) return;
+        final tabsState = tabsBloc.state;
+        workspaceBloc.add(
+          SwitchToWorkspace(
+            targetWorkspaceId: workspace.id,
+            currentTabsToSave: tabsState.tabs,
+            currentTabIndexToSave: tabsState.currentTabIndex,
+            // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
+            // הטאבים, וזהות האובייקט אובדת ממילא.
+            currentActivePaneToSave: tabsState.activePaneSide,
+            onCompleted: (hasTabs) {
+              _switchPending = false;
+              if (hasTabs == null ||
+                  !context.mounted ||
+                  route?.isCurrent != true) {
                 return;
               }
-              if (!context.mounted || route?.isCurrent != true) return;
-              final tabsState = tabsBloc.state;
-              workspaceBloc.add(
-                SwitchToWorkspace(
-                  targetWorkspaceId: workspace.id,
-                  currentTabsToSave: tabsState.tabs,
-                  currentTabIndexToSave: tabsState.currentTabIndex,
-                  // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
-                  // הטאבים, וזהות האובייקט אובדת ממילא.
-                  currentActivePaneToSave: tabsState.activePaneSide,
-                  onCompleted: (hasTabs) {
-                    _switchPending = false;
-                    if (hasTabs == null ||
-                        !context.mounted ||
-                        route?.isCurrent != true) {
-                      return;
-                    }
-                    navigationBloc.add(
-                      NavigateToScreen(
-                        hasTabs ? Screen.reading : Screen.library,
-                      ),
-                    );
-                    navigator.pop();
-                  },
+              navigationBloc.add(
+                NavigateToScreen(
+                  hasTabs ? Screen.reading : Screen.library,
                 ),
               );
+              navigator.pop();
             },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.5)
-                          : Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: AppTokens.borderRadiusAll,
-                    ),
-                    child: _buildWorkspacePreview(context, tabs, isActive),
+          ),
+        );
+      },
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? AppSurfaces.selectedRow(cs)
+                        : cs.surfaceContainerHighest,
+                    borderRadius: AppTokens.borderRadiusAll,
                   ),
+                  child: _buildWorkspacePreview(context, tabs, isActive),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: _WorkspaceNameField(workspace: workspace),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: _WorkspaceNameField(
+                  workspace: workspace,
+                  // הפעיל לא נמחק: הכפתור מושבת, במקום הודעת שגיאה.
+                  onDelete: isActive
+                      ? null
+                      : () => _deleteWorkspace(context, workspace),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Positioned(
+          PositionedDirectional(
             top: 4,
-            right: 4,
-            child: IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 16),
-              onPressed: () {
-                // Remove the workspace
-                if (isActive) {
-                  UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
-                  return;
-                }
-                context.read<WorkspaceBloc>().add(
-                  RemoveWorkspace(workspace.id),
-                );
-                UiSnack.show(NotesMessages.workspaceDeleted);
-              },
-            ),
-          ),
-          Positioned(
-            top: 4,
-            left: 4,
+            end: 4,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (isActive && workspace.isPinned)
                   IconButton(
                     tooltip: 'שמור את הספרים הפתוחים כעת בשולחן המקובע',
-                    icon: const Icon(FluentIcons.save_24_regular, size: 16),
+                    icon: const Icon(
+                      FluentIcons.save_24_regular,
+                      size: AppTokens.iconSM,
+                    ),
                     onPressed: () => _saveSnapshot(context),
                   ),
                 IconButton(
@@ -273,10 +306,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                       ? 'בטל קיבוע'
                       : 'קבע: בכל כניסה ייפתחו רק הספרים שנשמרו',
                   isSelected: workspace.isPinned,
-                  icon: const Icon(FluentIcons.pin_24_regular, size: 16),
+                  icon: const Icon(
+                    FluentIcons.pin_24_regular,
+                    size: AppTokens.iconSM,
+                  ),
                   selectedIcon: const Icon(
                     FluentIcons.pin_24_filled,
-                    size: 16,
+                    size: AppTokens.iconSM,
                   ),
                   onPressed: () => _togglePinned(context, workspace, isActive),
                 ),
@@ -286,6 +322,22 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteWorkspace(
+    BuildContext context,
+    Workspace workspace,
+  ) async {
+    final workspaceBloc = context.read<WorkspaceBloc>();
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'למחוק את שולחן העבודה?',
+      content: 'שולחן העבודה "${workspace.name}" והכרטיסיות שנשמרו בו יימחקו.',
+      confirmText: 'מחק',
+    );
+    if (confirmed != true) return;
+    workspaceBloc.add(RemoveWorkspace(workspace.id));
+    UiSnack.show(NotesMessages.workspaceDeleted);
   }
 
   void _togglePinned(BuildContext context, Workspace workspace, bool isActive) {
@@ -324,7 +376,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     bool isActive,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final color = isActive ? cs.onPrimary : cs.primary;
+    final color = isActive ? AppSurfaces.onSelectedRow(cs) : cs.primary;
     final preview = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -333,7 +385,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           const SizedBox(height: AppTokens.spaceXS),
           Text(
             tabs.length == 1 ? 'כרטיסייה אחת' : '${tabs.length} כרטיסיות',
-            style: TextStyle(fontSize: AppTokens.fontSM, color: color),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: color),
           ),
         ],
       ],
@@ -352,9 +406,12 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
 
 /// מצב העריכה נשמר ב-State כדי שפתיחת המקלדת לא תסגור את שדה הקלט.
 class _WorkspaceNameField extends StatefulWidget {
-  const _WorkspaceNameField({required this.workspace});
+  const _WorkspaceNameField({required this.workspace, required this.onDelete});
 
   final Workspace workspace;
+
+  /// null = מושבת (השולחן הפעיל).
+  final VoidCallback? onDelete;
 
   @override
   State<_WorkspaceNameField> createState() => _WorkspaceNameFieldState();
@@ -410,7 +467,7 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
             ),
           ),
           const SizedBox(width: 6),
-          IconButton(
+          AppIconButton(
             tooltip: 'שמור',
             icon: const Icon(FluentIcons.checkmark_24_regular),
             onPressed: _commitRenameAndClose,
@@ -428,9 +485,18 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        IconButton(
+        AppIconButton(
+          tooltip: 'שנה שם',
           icon: const Icon(FluentIcons.edit_24_regular),
           onPressed: _startEditing,
+        ),
+        AppIconButton(
+          // המושבת (השולחן הפעיל) אומר למה (q10 שאלה 24).
+          tooltip: widget.onDelete == null
+              ? NotesMessages.cannotDeleteActiveWorkspace
+              : 'מחק שולחן עבודה',
+          icon: const Icon(FluentIcons.delete_24_regular),
+          onPressed: widget.onDelete,
         ),
       ],
     );

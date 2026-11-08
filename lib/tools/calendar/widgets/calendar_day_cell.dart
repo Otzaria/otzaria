@@ -18,9 +18,7 @@ Color? getDayBackgroundColor(
       jc.isYomTov() ||
       jc.isTaanis() ||
       jc.isRoshChodesh()) {
-    return Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: 0.4);
+    return AppSurfaces.calendarSpecialDay(Theme.of(context).colorScheme);
   }
   return null;
 }
@@ -65,13 +63,10 @@ Widget buildDayCell(
           (isSelected
               ? cs.primaryContainer
               : isToday
-              ? cs.primary.withValues(alpha: 0.25)
+              ? AppSurfaces.calendarToday(cs)
               : baseCellColor);
       final tintedBackground = (isHovered || isToday)
-          ? Color.alphaBlend(
-              cs.surfaceTint.withValues(alpha: 0.08),
-              baseBackground,
-            )
+          ? Color.alphaBlend(AppSurfaces.calendarDayTint(cs), baseBackground)
           : baseBackground;
       final elevation = (isHovered || isToday) ? AppTokens.elevation2 : 0.0;
 
@@ -410,7 +405,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
       message: 'צור אירוע',
       verticalOffset: -40.0,
       child: IconButton.filled(
-        icon: const Icon(FluentIcons.add_24_regular, size: 16),
+        icon: const Icon(FluentIcons.add_24_regular, size: AppTokens.iconSM),
         onPressed: () => widget.onAdd(),
         style: IconButton.styleFrom(
           minimumSize: const Size(24, 24),
@@ -418,6 +413,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
           foregroundColor: cs.onPrimaryContainer,
           visualDensity: VisualDensity.compact,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: AppTokens.roundedShape,
         ),
       ),
     );
@@ -447,7 +443,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
           ),
           AnimatedOpacity(
             opacity: _showButton ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
             child: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: IgnorePointer(

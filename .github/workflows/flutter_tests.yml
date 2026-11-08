@@ -143,6 +143,13 @@ jobs:
       - name: Check plugin SDK spec is fresh
         run: dart run tool/plugins/generate_plugin_spec.dart --check
 
+      # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
+      # ה-step הזה רק מדווח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
+      # השער החוסם הוא test/design_system/ui_lint_test.dart, שרץ ב-shards של job ה-test.
+      - name: UI lint report
+        continue-on-error: true
+        run: dart tool/ui_lint_cli.dart --format=github
+
       # בדיקות ה־CI: analyze + test (פורמט נבדק locally ב־lint).
       - name: Analyze
         run: flutter analyze
@@ -548,13 +555,50 @@ jobs:
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
 
-      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-4 shards. כאן רצות
+      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-5 shards. כאן רצות
       # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות, ועוד 146 של
       # personal_notes), והקבוצות הידועות כתלויות-סביבה או flaky (migration,
       # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
       # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
       - name: Run Windows-relevant tests
         run: flutter test -j 4 test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/ test/utils/file/native_sha256_test.dart test/external_catalog/external_catalog_repository_test.dart
+
+  # Golden tests (docs/design-system/CI_ENFORCEMENT.md §5, DD-22): Windows היא
+  # פלטפורמת הייחוס, ולכן test/goldens/ מוחרג מה-shards של Linux
+  # (tool/ci/test_shards.dart). כשל מעלה את תמונות ההשוואה כ-artifact.
+  goldens_windows:
+    name: Goldens (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Run golden tests
+        run: flutter test test/goldens/
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: golden-failures
+          path: test/goldens/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
 
   build_linux:
     name: Build (Linux)

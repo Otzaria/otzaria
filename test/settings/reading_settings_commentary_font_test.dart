@@ -1,10 +1,10 @@
-// טסטים ייעודיים להסתרת סליידר "גודל גופן מפרשים" בהגדרות תצוגת הספרים.
+// טסטים ייעודיים לסליידר "גודל גופן מפרשים" בהגדרות תצוגת הספרים.
 //
 // רקע: בתצוגה רגילה גודל גופן המפרשים נשלט בהגדרה הכללית
-// (commentatorsFontSize). בצורת הדף קיימת הגדרה ייעודית נפרדת, ולכן הסליידר
-// הכללי אינו רלוונטי שם ומוסתר. הלוגיקה:
-//   * TextSettingsTab(hideCommentaryFontSize: true) → הסליידר מוסתר, ה-dropdown
-//     "גופן מפרשים" נשאר.
+// (commentatorsFontSize). בצורת הדף קיימת הגדרה ייעודית נפרדת, ולכן שם מוצג
+// הסליידר של צורת הדף במקום הכללי (#3244). הלוגיקה:
+//   * TextSettingsTab(pageShapeCommentaryFontSize: true) → הסליידר הכללי מוחלף
+//     ב"גודל גופן מפרשים (צורת הדף)", ה-dropdown "גופן מפרשים" נשאר.
 //   * ReadingSettingsPanel → מזהה אם הטאב הפעיל בצורת הדף ומעביר את הדגל בהתאם.
 
 import 'package:flutter/material.dart';
@@ -25,6 +25,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -49,7 +51,7 @@ void main() {
             value: _TestSettingsBloc(SettingsState.initial()),
             child: TextSettingsTab(
               isDialog: true,
-              hideCommentaryFontSize: hide,
+              pageShapeCommentaryFontSize: hide,
             ),
           ),
         ),
@@ -96,7 +98,7 @@ void main() {
     });
 
     testWidgets(
-      'hideCommentaryFontSize=true מסתיר את הסליידר ומשאיר את הגופן',
+      'pageShapeCommentaryFontSize=true מציג את סליידר צורת הדף ומשאיר את הגופן',
       (tester) async {
         await setWideSurface(tester);
 
@@ -104,12 +106,51 @@ void main() {
         await tester.pump();
 
         expect(find.text('גודל גופן מפרשים'), findsNothing);
+        expect(find.text(_pageShapeLabel), findsOneWidget);
+        expect(find.byType(PageShapeCommentaryFontSizeSlider), findsOneWidget);
         // ה-dropdown של גופן המפרשים נשאר — מוסתר רק הסליידר.
         expect(find.text('גופן מפרשים'), findsOneWidget);
         // גודל גופן הספר אינו מושפע.
         expect(find.text('גודל גופן הספר'), findsOneWidget);
       },
     );
+  });
+
+  group('סליידר צורת הדף (#3244)', () {
+    testWidgets('שמירה באחד מעדכנת את השני ונכתבת להגדרה של צורת הדף', (
+      tester,
+    ) async {
+      await PageShapeSettingsManager.saveCommentaryFontSize(16);
+      var saved = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                PageShapeCommentaryFontSizeSlider(
+                  title: 'כללי',
+                  onSaved: () => saved++,
+                ),
+                const PageShapeCommentaryFontSizeSlider(title: 'צורת הדף'),
+              ],
+            ),
+          ),
+        ),
+      );
+      final sliders = find.byType(Slider);
+      expect(sliders, findsNWidgets(2));
+      final general = tester.widget<Slider>(sliders.first);
+      expect(general.min, 10);
+      expect(general.max, 30);
+      general.onChangeEnd!(20);
+      await tester.pump();
+      await tester.pump();
+
+      expect(PageShapeSettingsManager.getCommentaryFontSize(), 20);
+      expect(saved, 1);
+      expect(tester.widget<Slider>(sliders.last).value, 20);
+      expect(find.text('20'), findsNWidgets(2));
+    });
   });
 
   group('ReadingSettingsPanel — זיהוי מצב צורת הדף', () {
@@ -150,13 +191,16 @@ void main() {
       expect(find.text('גודל גופן מפרשים'), findsOneWidget);
     });
 
-    testWidgets('טאב בצורת הדף — הסליידר מוסתר', (tester) async {
+    testWidgets('טאב בצורת הדף — הסליידר של צורת הדף במקום הכללי', (
+      tester,
+    ) async {
       await setWideSurface(tester);
 
       await tester.pumpWidget(buildBody(pageShape: true));
       await tester.pump();
 
       expect(find.text('גודל גופן מפרשים'), findsNothing);
+      expect(find.text(_pageShapeLabel), findsOneWidget);
       // גופן המפרשים עדיין רלוונטי בצורת הדף (מפרשים עליונים).
       expect(find.text('גופן מפרשים'), findsOneWidget);
     });
@@ -182,7 +226,7 @@ void main() {
       );
     });
 
-    testWidgets('מעבר לצורת הדף מסתיר את הסליידר', (tester) async {
+    testWidgets('מעבר לצורת הדף מחליף את הסליידר', (tester) async {
       await setWideSurface(tester);
       final textBloc = _TestTextBookBloc(_loaded(showPageShapeView: false));
       await tester.pumpWidget(buildBody(pageShape: false, textBloc: textBloc));
@@ -192,6 +236,7 @@ void main() {
       textBloc.push(_loaded(showPageShapeView: true));
       await tester.pumpAndSettle();
       expect(find.text('גודל גופן מפרשים'), findsNothing);
+      expect(find.text(_pageShapeLabel), findsOneWidget);
 
       textBloc.push(_loaded(showPageShapeView: false));
       await tester.pumpAndSettle();
@@ -237,6 +282,8 @@ void main() {
     });
   });
 }
+
+const _pageShapeLabel = 'גודל גופן מפרשים (צורת הדף)';
 
 // ===== Helpers =====
 

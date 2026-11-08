@@ -1,7 +1,6 @@
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
@@ -31,6 +30,8 @@ import 'package:otzaria/text_book/utils/section_search_utils.dart'
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// "הלכות וסימנים" (`SimanNames`) ראשון — המבנה הראשון המתאים למיקום הוא
 /// שנפתח מעצמו; שאר המבנים בסדר המסד.
@@ -49,6 +50,8 @@ String altTocEntryMatchText(AltTocEntry entry) =>
 
 class AltTocSidebarView extends StatefulWidget {
   final TextBook book;
+
+  /// נקרא אחרי מעבר לשורה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final LineScrollController lines;
 
@@ -225,11 +228,16 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         return;
       }
     }
-    _searchScrollController.scrollTo(
-      index: index,
-      alignment: 0.3,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
+    AppMotion.scroll(
+      context,
+      AppTokens.animPanelOpacity,
+      animate: (duration) => _searchScrollController.scrollTo(
+        index: index,
+        alignment: 0.3,
+        duration: duration,
+        curve: Curves.easeInOut,
+      ),
+      jump: () => _searchScrollController.jumpTo(index: index, alignment: 0.3),
     );
   }
 
@@ -602,10 +610,10 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             (viewportHeight / 2) +
             (itemHeight / 2);
 
-        _sidebarScrollController.animateTo(
+        AppMotion.scrollPosition(
+          _sidebarScrollController.position,
           target.clamp(0.0, _sidebarScrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          AppTokens.animPanelSlide,
         );
 
         _lastScrolledEntryIds[structureId] = entryId;
@@ -685,18 +693,14 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       curve: Curves.easeInOut,
     );
 
-    if (Platform.isAndroid) {
-      unawaited(
-        closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ),
-      );
-    } else {
-      unawaited(navigation);
-    }
+    unawaited(
+      closePaneAfterNavigation(
+        navigation: navigation,
+        closePane: () {
+          if (mounted) widget.closeLeftPaneCallback();
+        },
+      ),
+    );
   }
 
   Future<void> _openLink(Link link, {String? markerTitle}) async {

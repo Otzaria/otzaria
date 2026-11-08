@@ -30,6 +30,8 @@ class OtzariaEmptyState extends StatelessWidget {
   /// כדי למנוע גלילה כפולה וקריסת חישוב ממדים אינטרינסיים ב-LayoutBuilder.
   final bool scrollable;
 
+  final bool _large;
+
   const OtzariaEmptyState({
     super.key,
     this.icon,
@@ -42,7 +44,8 @@ class OtzariaEmptyState extends StatelessWidget {
     this.isCompact = false,
     this.padding,
     this.scrollable = true,
-  }) : assert(
+  }) : _large = false,
+       assert(
          icon == null || customIcon == null,
          'Cannot provide both icon and customIcon',
        ),
@@ -51,8 +54,32 @@ class OtzariaEmptyState extends StatelessWidget {
          'Cannot provide both action and actions',
        );
 
+  /// מצב ריק של מסך שלם (ספרייה ריקה, אינדקס חסר), DD-31d: אייקון 64,
+  /// headlineSmall, bodyLarge, רוחב עד 420, ו־[actions] ברוחב מלא זו מתחת לזו.
+  const OtzariaEmptyState.large({
+    super.key,
+    this.icon,
+    this.customIcon,
+    required this.title,
+    this.message,
+    this.body,
+    this.actions,
+    this.padding,
+    this.scrollable = true,
+  }) : action = null,
+       isCompact = false,
+       _large = true,
+       assert(
+         icon == null || customIcon == null,
+         'Cannot provide both icon and customIcon',
+       );
+
+  static const double _largeIconSize = 64;
+  static const double _largeMaxWidth = 420;
+
   @override
   Widget build(BuildContext context) {
+    if (_large) return _buildLarge(context);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -66,35 +93,13 @@ class OtzariaEmptyState extends StatelessWidget {
               )
             : null);
 
-    final titleStyle = isCompact
-        ? (theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ) ??
-              TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ))
-        : (theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ) ??
-              TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ));
+    final titleStyle =
+        (isCompact ? theme.textTheme.bodyMedium : theme.textTheme.titleMedium)
+            ?.copyWith(fontWeight: FontWeight.w600, color: cs.onSurface);
 
-    final messageStyle = isCompact
-        ? (theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ) ??
-              TextStyle(fontSize: 12, color: cs.onSurfaceVariant))
-        : (theme.textTheme.bodyMedium?.copyWith(
-                color: cs.onSurfaceVariant,
-              ) ??
-              TextStyle(fontSize: 14, color: cs.onSurfaceVariant));
+    final messageStyle =
+        (isCompact ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+            ?.copyWith(color: cs.onSurfaceVariant);
 
     final effectiveActions = actions ?? (action != null ? [action!] : null);
 
@@ -154,5 +159,62 @@ class OtzariaEmptyState extends StatelessWidget {
       padding: effectivePadding,
       child: content,
     );
+  }
+
+  Widget _buildLarge(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final iconWidget =
+        customIcon ??
+        (icon != null
+            ? Icon(icon, size: _largeIconSize, color: cs.onSurfaceVariant)
+            : null);
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _largeMaxWidth),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (iconWidget != null) ...[
+            iconWidget,
+            const SizedBox(height: AppTokens.spaceMD),
+          ],
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: cs.onSurface,
+            ),
+          ),
+          if (message != null) ...[
+            const SizedBox(height: AppTokens.spaceSM),
+            Text(
+              message!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+          if (body != null) ...[
+            const SizedBox(height: AppTokens.spaceMD),
+            body!,
+          ],
+          if (actions != null && actions!.isNotEmpty) ...[
+            const SizedBox(height: AppTokens.spaceLG),
+            for (final (i, action) in actions!.indexed) ...[
+              if (i > 0) const SizedBox(height: AppTokens.spaceSM),
+              SizedBox(width: double.infinity, child: action),
+            ],
+          ],
+        ],
+      ),
+    );
+    final effectivePadding = padding ?? const EdgeInsets.all(AppTokens.spaceLG);
+    if (!scrollable) {
+      return Center(
+        child: Padding(padding: effectivePadding, child: content),
+      );
+    }
+    return CenteredScrollableState(padding: effectivePadding, child: content);
   }
 }

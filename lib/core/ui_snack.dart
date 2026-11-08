@@ -3,9 +3,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// מפתח הניווט של החלון הנוכחי ([AppWindowKeys.current]) — חובה לחבר ל-MaterialApp.
@@ -20,7 +23,6 @@ abstract class _ToastTokens {
   static const double padV = AppTokens.spaceSM; // 8
 
   static const double fontMessage = AppTokens.fontXL; // 18 — גדול יותר
-  static const double fontAction = AppTokens.fontMD; // 14
 
   static const double maxWidth = 500;
 
@@ -343,6 +345,7 @@ class _SnackToastState extends State<_SnackToast>
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
   Timer? _closeTimer;
+  bool _entered = false;
 
   @override
   void initState() {
@@ -365,8 +368,41 @@ class _SnackToastState extends State<_SnackToast>
       CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
     );
 
-    _ctrl.forward();
     _closeTimer = Timer(widget.duration, _close);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ctrl
+      ..duration = AppMotion.duration(context, _ToastTokens.animEnter)
+      ..reverseDuration = AppMotion.duration(context, _ToastTokens.animExit);
+    if (!_entered) {
+      _entered = true;
+      _announce();
+      _ctrl.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SnackToast oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message != widget.message) _announce();
+  }
+
+  /// ההודעה צפה ב-Overlay ואינה מקבלת פוקוס, ולכן קורא המסך לא יקרא אותה
+  /// בלי הכרזה מפורשת.
+  void _announce() {
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        widget.message,
+        Directionality.of(context),
+        assertiveness: widget.variant == _SnackVariant.error
+            ? Assertiveness.assertive
+            : Assertiveness.polite,
+      ),
+    );
   }
 
   void _close() {
@@ -384,30 +420,31 @@ class _SnackToastState extends State<_SnackToast>
   }
 
   /// צבעים לפי variant — נשענים על צבעי המערכת (ColorScheme)
-  ({Color bg, Color fg, Color action}) _colors(ColorScheme cs) =>
-      switch (widget.variant) {
-        _SnackVariant.error => (
-          bg: cs.errorContainer,
-          fg: cs.onErrorContainer,
-          action: cs.error,
-        ),
-        _SnackVariant.warning => (
-          bg: cs.tertiaryContainer,
-          fg: cs.onSurface, // שחור במצב בהיר, לבן במצב כהה
-          action: cs.tertiary,
-        ),
-        _SnackVariant.standard => (
-          bg: cs.surfaceContainerHighest,
-          fg: cs.onSurface,
-          action: cs.primary,
-        ),
-      };
+  ({Color bg, Color fg, Color action}) _colors(
+    ColorScheme cs,
+    AppSurfaceColors surfaces,
+  ) => switch (widget.variant) {
+    _SnackVariant.error => (
+      bg: cs.errorContainer,
+      fg: cs.onErrorContainer,
+      action: cs.error,
+    ),
+    _SnackVariant.warning => (
+      bg: surfaces.warningContainer,
+      fg: surfaces.onWarningContainer,
+      action: surfaces.warning,
+    ),
+    _SnackVariant.standard => (
+      bg: cs.surfaceContainerHighest,
+      fg: cs.onSurface,
+      action: cs.primary,
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final c = _colors(cs);
+    final c = _colors(cs, AppSurfaceColors.of(context));
 
     // רקע שקוף-למחצה — מספיק אטום לקריאות, מספיק שקוף לאפקט עמוק
     final bgColor = c.bg.withValues(alpha: _ToastTokens.bgAlpha);
@@ -458,17 +495,7 @@ class _SnackToastState extends State<_SnackToast>
                           decoration: BoxDecoration(
                             color: bgColor,
                             borderRadius: AppTokens.borderRadiusAll,
-                            //  ללא border — רק צל עדין לעומק
-                            boxShadow: [
-                              BoxShadow(
-                                color: cs.shadow.withValues(
-                                  alpha: isDark ? 0.35 : 0.12,
-                                ),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                                spreadRadius: -2,
-                              ),
-                            ],
+                            boxShadow: AppShadows.floating(cs),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: _ToastTokens.padH,
@@ -478,7 +505,11 @@ class _SnackToastState extends State<_SnackToast>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (widget.icon != null) ...[
-                                Icon(widget.icon, color: c.fg, size: 20),
+                                Icon(
+                                  widget.icon,
+                                  color: c.fg,
+                                  size: AppTokens.iconMD,
+                                ),
                                 const SizedBox(width: AppTokens.spaceSM),
                               ],
                               Flexible(
@@ -496,36 +527,24 @@ class _SnackToastState extends State<_SnackToast>
                               if (widget.actionLabel != null &&
                                   widget.onAction != null) ...[
                                 const SizedBox(width: AppTokens.spaceSM),
-                                TextButton(
+                                ActionButton.inline(
+                                  text: widget.actionLabel!,
+                                  color: c.action,
                                   onPressed: () {
                                     widget.onAction!();
                                     _close();
                                   },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: c.action,
-                                    textStyle: const TextStyle(
-                                      fontSize: _ToastTokens.fontAction,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppTokens.spaceSM,
-                                      vertical: 4,
-                                    ),
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(widget.actionLabel!),
                                 ),
                               ],
                               if (widget.showCloseButton) ...[
                                 const SizedBox(width: AppTokens.spaceSM),
                                 IconButton(
+                                  tooltip: context.settingsText('סגור'),
                                   onPressed: _close,
                                   icon: Icon(
                                     FluentIcons.dismiss_24_regular,
                                     color: c.fg,
-                                    size: 18,
+                                    size: AppTokens.iconSM,
                                   ),
                                   visualDensity: VisualDensity.compact,
                                   padding: EdgeInsets.zero,

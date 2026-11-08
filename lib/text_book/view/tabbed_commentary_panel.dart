@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -29,6 +30,7 @@ import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// אינדקסי הלשוניות ב-[TabbedCommentaryPanel]
 const int kCommentaryTabIndex = 0;
@@ -158,8 +160,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
             // שורת הכרטיסיות עם כפתור סגירה
             LayoutBuilder(
               builder: (context, constraints) {
-                // מתחת לסף זה - הצג אייקונים בלבד (ללא טקסט)
-                final isCompact = constraints.maxWidth < 270;
+                const iconsOnlyBelow = 270.0;
+                final isCompact = constraints.maxWidth < iconsOnlyBelow;
                 final firstTabIconData = widget.showSplitView
                     ? OtzariaIcons.book_24_regular
                     : OtzariaIcons.apps_list_24_regular;
@@ -173,13 +175,13 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       ? const []
                       : [
                           IconButton(
-                            iconSize: 18,
+                            iconSize: AppTokens.iconSM,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                               minWidth: 36,
                               minHeight: 40,
                             ),
-                            tooltip: 'פתח כרטסיית מפרשים',
+                            tooltip: CommentaryPanelToolbar.openInNewTabTooltip,
                             icon: const Icon(FluentIcons.open_24_regular),
                             onPressed: widget.tab == null
                                 ? null
@@ -193,28 +195,23 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                                   ),
                           ),
                         ],
-                  tabs: isCompact
-                      ? [
-                          PanelTab(icon: firstTabIconData),
-                          const PanelTab(icon: OtzariaIcons.links_24_regular),
-                          const PanelTab(icon: FluentIcons.note_24_regular),
-                        ]
-                      : [
-                          PanelTab(
-                            icon: firstTabIconData,
-                            label: widget.showSplitView
-                                ? 'מפרשים'
-                                : 'סינון מפרשים',
-                          ),
-                          const PanelTab(
-                            icon: OtzariaIcons.links_24_regular,
-                            label: 'קישורים',
-                          ),
-                          const PanelTab(
-                            icon: FluentIcons.note_24_regular,
-                            label: 'הערות',
-                          ),
-                        ],
+                  tabs: [
+                    PanelTab(
+                      icon: firstTabIconData,
+                      label: widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
+                      showLabel: !isCompact,
+                    ),
+                    PanelTab(
+                      icon: OtzariaIcons.links_24_regular,
+                      label: 'קישורים',
+                      showLabel: !isCompact,
+                    ),
+                    PanelTab(
+                      icon: FluentIcons.note_24_regular,
+                      label: 'הערות',
+                      showLabel: !isCompact,
+                    ),
+                  ],
                 );
               },
             ),

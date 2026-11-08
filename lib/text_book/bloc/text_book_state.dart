@@ -363,12 +363,6 @@ class TextBookLoaded extends TextBookState {
   /// הטקסט להדגשה ממוקדת באותו סעיף. null = אין.
   final String? pinpointHighlightText;
 
-  // Editor state
-  final bool isEditorOpen;
-  final int? editorIndex;
-  final String? editorSectionId;
-  final String? editorText;
-  final bool hasDraft;
   final bool hasLinksFile;
 
   // Caches
@@ -451,11 +445,6 @@ class TextBookLoaded extends TextBookState {
     this.linksLoading = false,
     this.pinpointHighlightIndex,
     this.pinpointHighlightText,
-    this.isEditorOpen = false,
-    this.editorIndex,
-    this.editorSectionId,
-    this.editorText,
-    this.hasDraft = false,
     this.hasLinksFile = false,
     this.highlightText = '',
     this.permanentHighlightLine,
@@ -514,11 +503,6 @@ class TextBookLoaded extends TextBookState {
       selectedTextEnd: null,
       highlightedLine: null,
       linksLoading: false,
-      isEditorOpen: false,
-      editorIndex: null,
-      editorSectionId: null,
-      editorText: null,
-      hasDraft: false,
       hasLinksFile: false,
     );
   }
@@ -678,11 +662,6 @@ class TextBookLoaded extends TextBookState {
     String? pinpointHighlightText,
     bool clearPinpointHighlight = false,
     bool clearSearchResultLines = false,
-    bool? isEditorOpen,
-    int? editorIndex,
-    String? editorSectionId,
-    String? editorText,
-    bool? hasDraft,
     bool? hasLinksFile,
     // לאיפוס highlightText ו-permanentHighlightLine יש להעביר ערכים מפורשים
     String? highlightText,
@@ -843,11 +822,6 @@ class TextBookLoaded extends TextBookState {
       pinpointHighlightText: clearPinpointHighlight
           ? null
           : (pinpointHighlightText ?? this.pinpointHighlightText),
-      isEditorOpen: isEditorOpen ?? this.isEditorOpen,
-      editorIndex: editorIndex ?? this.editorIndex,
-      editorSectionId: editorSectionId ?? this.editorSectionId,
-      editorText: editorText ?? this.editorText,
-      hasDraft: hasDraft ?? this.hasDraft,
       hasLinksFile: hasLinksFile ?? this.hasLinksFile,
       highlightText: clearHighlightText
           ? ''
@@ -928,11 +902,6 @@ class TextBookLoaded extends TextBookState {
     linksLoading,
     pinpointHighlightIndex,
     pinpointHighlightText,
-    isEditorOpen,
-    editorIndex,
-    editorSectionId,
-    editorText,
-    hasDraft,
     hasLinksFile,
     highlightText,
     permanentHighlightLine,

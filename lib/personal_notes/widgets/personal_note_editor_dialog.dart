@@ -11,9 +11,8 @@ import 'package:otzaria/personal_notes/widgets/note_draft_decision_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class PersonalNoteEditorDialog extends StatefulWidget {
   final String initialContent;
@@ -271,89 +270,45 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
 
         return KeyEventResult.ignored;
       },
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, result) async {
-          if (didPop) return;
-          await _handleCancel();
-        },
-        child: Dialog(
-          clipBehavior: Clip.antiAlias,
-          child: ConstrainedBox(
-            // minWidth קשיח חורג מרוחב טלפון וגורם חיתוך — מצמידים לרוחב
-            // המסך בפועל (בניכוי שולי הדיאלוג).
-            constraints: BoxConstraints(
-              maxWidth: _maxWidth,
-              minWidth: (MediaQuery.sizeOf(context).width - 80).clamp(
-                0.0,
-                _maxWidth,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppDialogHeader(
-                  icon: widget.icon ?? FluentIcons.note_edit_24_regular,
-                  title: widget.title,
-                  compact: true,
-                  onClose: _handleCancel,
-                  closeEnabled: !_isSaving,
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTokens.spaceLG,
-                      AppTokens.spaceMD,
-                      AppTokens.spaceLG,
-                      0,
-                    ),
-                    child: ExcludeFocus(
-                      excluding: _isSaving,
-                      child: AbsorbPointer(
-                        absorbing: _isSaving,
-                        child: PersonalNoteEditorBody(
-                          controller: _editorController,
-                          focusNode: _textFieldFocusNode,
-                          scrollController: _scrollController,
-                          autofocus: true,
-                          referenceText: widget.referenceText,
-                          bookId: widget.bookId,
-                          linkableNotes: widget.linkableNotes,
-                          onSaveShortcut: _submit,
-                          onCancelShortcut: _handleCancel,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(AppTokens.spaceMD),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ActionButton.neutral(
-                        focusNode: _cancelFocusNode,
-                        text: 'ביטול',
-                        onPressed: _isSaving ? null : _handleCancel,
-                      ),
-                      const SizedBox(width: AppTokens.spaceSM),
-                      ActionButton.recommended(
-                        focusNode: _saveFocusNode,
-                        text: 'שמור',
-                        onPressed: _isSaving ? null : _submit,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+      // היציאה שואלת על טיוטה ב-_handleCancel, לא בשאלת הסגירה הכללית.
+      child: AppDialogFrame(
+        size: AppDialogSize.medium,
+        icon: widget.icon ?? FluentIcons.note_edit_24_regular,
+        title: widget.title,
+        scrollable: true,
+        closeEnabled: !_isSaving,
+        onDismissRequest: _handleCancel,
+        actions: [
+          ActionButton.neutral(
+            focusNode: _cancelFocusNode,
+            text: 'ביטול',
+            onPressed: _isSaving ? null : _handleCancel,
+          ),
+          ActionButton.recommended(
+            focusNode: _saveFocusNode,
+            text: 'שמור',
+            onPressed: _isSaving ? null : _submit,
+          ),
+        ],
+        child: ExcludeFocus(
+          excluding: _isSaving,
+          child: AbsorbPointer(
+            absorbing: _isSaving,
+            child: PersonalNoteEditorBody(
+              controller: _editorController,
+              focusNode: _textFieldFocusNode,
+              scrollController: _scrollController,
+              autofocus: true,
+              referenceText: widget.referenceText,
+              bookId: widget.bookId,
+              linkableNotes: widget.linkableNotes,
+              onSaveShortcut: _submit,
+              onCancelShortcut: _handleCancel,
+              escapeDismisses: true,
             ),
           ),
         ),
       ),
     );
   }
-
-  /// רוחב הדיאלוג: גוף העורך (480) ועוד ריפוד אופקי.
-  static const double _maxWidth = 480 + AppTokens.spaceLG * 2;
 }

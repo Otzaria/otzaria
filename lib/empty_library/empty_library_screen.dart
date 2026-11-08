@@ -1,4 +1,3 @@
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -7,6 +6,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// תוכן שמוצג באזור התוכן של LibraryBrowser כשאין ספרייה מוגדרת.
@@ -73,70 +73,37 @@ class _LibrarySetupViewState extends State<LibrarySetupView> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final unsupportedSchema = widget.unsupportedDbSchemaVersion;
-    return CenteredScrollableState(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.library_24_regular,
-              size: 64,
-              color: cs.onSurfaceVariant,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              unsupportedSchema == null
-                  ? 'לא נמצאה ספריית ספרים'
-                  : 'ספריית הספרים חדשה מגרסת התוכנה',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              unsupportedSchema == null
-                  ? 'ניתן להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת\n'
-                        'שכבר יש במחשב, או לייבא אותה מהתיקייה שבה נמצאים קובצי הספרייה.'
-                  : 'הספרייה במחשב בפורמט מסד $unsupportedSchema, וגרסה זו של '
-                        'אוצריא קוראת עד פורמט '
-                        '${DatabaseConstants.readableDbSchemaVersion}.\n'
-                        'יש לעדכן את התוכנה לגרסה האחרונה, או לבחור ספרייה אחרת.',
-              style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-            if (_sdLibraryWiped) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                child: Text(
+    return OtzariaEmptyState.large(
+      icon: FluentIcons.library_24_regular,
+      title: unsupportedSchema == null
+          ? 'לא נמצאה ספריית ספרים'
+          : 'ספריית הספרים חדשה מגרסת התוכנה',
+      message: unsupportedSchema == null
+          ? 'ניתן להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת\n'
+                'שכבר יש במחשב, או לייבא אותה מהתיקייה שבה נמצאים קובצי הספרייה.'
+          : 'הספרייה במחשב בפורמט מסד $unsupportedSchema, וגרסה זו של '
+                'אוצריא קוראת עד פורמט '
+                '${DatabaseConstants.readableDbSchemaVersion}.\n'
+                'יש לעדכן את התוכנה לגרסה האחרונה, או לבחור ספרייה אחרת.',
+      body: _sdLibraryWiped
+          ? const AppInfoBanner(
+              tone: AppInfoBannerTone.error,
+              message:
                   'הספרייה שהייתה שמורה על כרטיס ה-SD נמחקה — ככל הנראה '
                   'בניקוי מטמון של המכשיר, שמוחק את תיקיית האפליקציה '
                   'שבכרטיס. כדי שזה לא יחזור, מומלץ להתקין את הספרייה '
                   'באחסון הפנימי.',
-                  style: TextStyle(fontSize: 14, color: cs.onErrorContainer),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ActionButton.recommended(
-                text: 'בחר מיקום או הורד ספרייה',
-                onPressed: _openSetupDialog,
-                iconWidget: const Icon(FluentIcons.folder_add_24_regular),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
+            )
+          : null,
+      actions: [
+        ActionButton.recommended(
+          text: 'בחר מיקום או הורד ספרייה',
+          onPressed: _openSetupDialog,
+          iconWidget: const Icon(FluentIcons.folder_add_24_regular),
+          textAlign: TextAlign.center,
         ),
-      ),
+      ],
     );
   }
 }

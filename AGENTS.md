@@ -105,29 +105,32 @@ lib/feature_name/
 ```
 lib/
 ├── data/repository/
-│   └── books_repository.dart          # Central books management
+│   └── data_repository.dart           # Central books/library access
 ├── models/
-│   ├── books.dart                     # Book model (title, path, etc)
-│   └── app_model.dart                 # Main app state
-├── widgets/
-│   ├── rtl_text_field.dart           # RTL text input (USE THIS!)
-│   └── [other shared widgets]
+│   └── books.dart                     # Book model (title, path, etc)
+├── theme/                             # Tokens: AppTokens, AppSurfaces, AppDensity, AppMotion, WindowClass
+├── widgets/                           # Shared UI catalog (see "UI rules")
+│   ├── dialogs/ controls/ layout/ feedback/ navigation/ text/ misc/
+│   └── text/rtl_text_field.dart       # RTL text input (USE THIS!)
 ├── core/
-│   └── scaffold_messenger.dart        # UiSnack for messages
+│   ├── ui_snack.dart                  # UiSnack for messages
+│   └── messages/                      # Message catalogs (CommonMessages, ...)
 ├── search/
 │   ├── bloc/                          # Search state management
 │   └── search_repository.dart         # Search engine
 ├── settings/
-│   ├── settings_repository.dart       # App settings
-│   └── bloc/
+│   ├── engine/                        # SettingsRepository, SettingsBloc
+│   └── widgets/                       # SettingsCard and settings tiles
 ├── bookmarks/repository/              # Bookmarks system
 ├── history/                           # Reading history
 ├── personal_notes/                    # User notes feature
 ├── book_common/                       # Shared by text and PDF books
 ├── pdf_book/                          # PDF viewer screens
 ├── text_book/                         # Text viewer screens
-└── utils/
+└── utils/navigation/
     └── open_book.dart                 # Book opening logic
+tool/ui_lint/                          # UI lint engine, config.yaml, baseline.json
+docs/design-system/                    # Binding UI standard (see "UI rules")
 ```
 
 
@@ -298,13 +301,71 @@ twice.
 
 ## UI rules
 
-Read the relevant section of `docs/agent_ui_reference.md` before changing UI; do not load it for unrelated tasks.
+The binding UI standard is the design system in `docs/design-system/`. Read only the section you need; do not load the whole folder for unrelated tasks.
 
-- Icons: prefer `otzaria_icons` for its supported cases; use Fluent for generic chrome and the documented exceptions. `OtzariaIcons` always uses plain `Icon`; registered directional Fluent icons use `RtlIcon`. Never use Material/Cupertino icons or manually flip icons.
-- Messages use centralized `UiSnack` catalogs; text inputs use `RtlTextField`; dialogs, action buttons and settings cards use the shared components.
-- Use theme colors and shared interaction styling. Do not add color overrides in feature files.
-- New settings, navigation and tour strings use `context.settingsText` and `settings_en.arb`; regenerate the catalog and run `flutter test test/settings/l10n/`.
+| Document | Use it for |
+|---|---|
+| `DESIGN_SYSTEM.md` | The standard. Start with its "מתחילים כאן" section (need → component table, the five things never to write, what to do when ui_lint fails). Then: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests) |
+| `DESIGN_DECISIONS.md` | Settled decisions (DD-xx). Follow them; do not re-decide in a PR. Each one lists the alternatives, the reason, what is implemented and the commits |
+| `CI_ENFORCEMENT.md` | The `tool/ui_lint` rules, baseline, goldens and CI guards |
+
+Component-specific usage notes (icons, UiSnack catalogs, settings strings, nav panels) are in `docs/agent_ui_reference.md`.
+
+### Core rules
+- Pick a role, not a value. Colour comes from `ColorScheme` / `AppSurfaces`, UI text from `textTheme` (no `fontSize:` or literal `fontFamily` in feature code), and spacing, radius (8 only), icon size and motion from `AppTokens` / `AppDensity` / `AppMotion`. Book-content typography comes from the reading settings. Do not add colour overrides in feature files.
+- Layout decisions use `WindowClass` or the parent's `LayoutBuilder` constraints, never orientation. Use directional APIs (`EdgeInsetsDirectional`, `AlignmentDirectional`, `start`/`end`).
+- Every icon-only button has a `tooltip`. A tappable widget that is not a Material button needs `Semantics(button:)`, Enter/Space and focus.
+- Icons: prefer `otzaria_icons` for its supported cases, and use Fluent for generic chrome and the documented exceptions. `OtzariaIcons` always uses plain `Icon`; registered directional Fluent icons use `RtlIcon`. Never use Material/Cupertino icons, and never flip icons manually.
+- New settings, navigation and tour strings use `context.settingsText` and `settings_en.arb`. Regenerate the catalog and run `flutter test test/settings/l10n/`.
+- Messages go through the `UiSnack` catalogs in `lib/core/messages/`. Never show `e.toString()` to the user.
 - Navigation panels use `NavSidePanel` and its shared search/tree components. Middle-click autoscroll is global; use `AutoScrollBarrier` only where middle-click has another action.
+
+### Which shared component to use
+Never add a raw `AlertDialog`/`Dialog`/`TextButton`/`FilledButton`/`OutlinedButton`/`Card`/`CircularProgressIndicator`/`PopupMenuButton`. Use the catalog, which is documented in full in `DESIGN_SYSTEM.md` §3:
+
+| Need | Use | Where |
+|---|---|---|
+| Dialog | `showSingleActionDialog` / `showTwoActionsDialog` / `showWarningDialog` / `showChoiceDialog` / `showInputDialog` / `showSelectionDialog`; custom content in `AppDialogFrame` (`AppDialogSize`) | `lib/widgets/dialogs/` |
+| Unsaved-changes guard | `DialogDismissGuard`, `confirmDiscardChanges` | `lib/widgets/dialogs/dialog_dismiss_guard.dart` |
+| Buttons | `ActionButton` (variants), `SquareIconButton`, `AppIconButton`, `BarButton`, `AppTogglePill`, `StatusChip` | `lib/widgets/controls/` |
+| Text input and search | `RtlTextField`, `OtzariaSearchField` (+ `OtzariaSearchFieldButton`) | `lib/widgets/text/` |
+| Choice | `AppSegmentedControl`, `AppDropdownField`, `AppPopupMenuButton` / `showAnchoredAppMenu` | `lib/widgets/controls/`, `lib/widgets/misc/` |
+| Cards and results | `AppCard`, `ResultCardFrame`, `ToolResultCardShell`, `ToolResultsHeader`, `MetaChip` | `lib/widgets/layout/` |
+| Section headings | `AppSectionLabel` | `lib/widgets/text/` |
+| Loading, empty, error, notices | `LoadingIndicator` / `SkeletonLines`, `OtzariaEmptyState`, `OtzariaErrorState`, `AppInfoBanner`, `UiSnack` | `lib/widgets/feedback/`, `lib/core/ui_snack.dart` |
+| Screen layout | `AppTopBar`, `ToolScaffold`, `AdaptiveSidePane`, `ContextOverlayPanel`, `NavSidePanel`, `SearchResultNavigator` | `lib/widgets/layout/`, `lib/widgets/navigation/` |
+| Settings | `SettingsCard` and its tiles (`SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsSliderTile`, `SettingsPathTile`, `SettingsActionTile`) | `lib/settings/widgets/` |
+| Window caption (Windows) | `AppWindowCaption`, `AppCaptionIconButton` | `lib/core/windowing/` |
+
+A widget that only fits one feature's content or geometry may stay in `lib/<feature>/view/widgets/`. It must be built from catalog components and tokens, and it is not imported by other modules (`DESIGN_SYSTEM.md` §8.5).
+
+### ui_lint and baseline
+- `tool/ui_lint` checks the design rules (UIL-xxx, catalog in `CI_ENFORCEMENT.md`). Rules at the blocking stage fail `test/design_system/ui_lint_test.dart` on any new violation and on any stale baseline entry.
+- Run `dart tool/ui_lint_cli.dart` for the report. After you fix existing debt, run `dart tool/ui_lint_cli.dart --update-baseline` so the fixed entries leave `tool/ui_lint/baseline.json`.
+- Never add your own violations to the baseline to pass the test. Fix them, or justify them as exceptions (below). Growth in the baseline (`--allow-growth`) needs the `ui-baseline` label from a maintainer (`ui_baseline_guard.yml`).
+- A changed golden PNG needs the `goldens-approved` label (`goldens_guard.yml`), and the reviewer checks the GitHub image diff. The threshold stays 0.05% (DD-22).
+
+### Processes
+- **Adding a token.** Use an existing role or scale value first (`DESIGN_SYSTEM.md` §8.1). A value off the scale rounds up. A theme-dependent surface or state goes into `AppSurfaceColors` (`lib/theme/app_surface_colors.dart`) and is read through `AppSurfaces`; a state colour derived directly from a `ColorScheme` role can be an `AppSurfaces` function. Either way, with a one-line comment, in the same PR that uses it. A new scale value or semantic colour needs a DD in `DESIGN_DECISIONS.md` approved by a maintainer, plus `test/theme/` contrast coverage for all seeds.
+- **Adding a shared component.** Only when the same role appears in 3+ places or 2+ modules and no existing component can take a variant (`DESIGN_SYSTEM.md` §8.5). Keep the API small (variants, not booleans; no escape hatches), with no feature imports. Add a contract test in `test/design_system/contracts/`, plus a golden if it has a look. Move the call sites that justified it in the same PR, and go through the checklist in `DESIGN_SYSTEM.md` §8.5. Before replacing an existing API, find every caller and write the contract test first; keep a temporary compatibility layer only when it is really needed, with a written removal condition, so two competing implementations do not remain (`DESIGN_SYSTEM.md` §3).
+- **Getting an exception approved.** Put `// ui-lint: allow UIL-xxx — <reason>` on the line directly above the flagged node. Use one rule per comment, with a real reason (12+ characters) and the DD that allows it, e.g. `(DD-24)`. Local colour is allowed only for content, export/print and OS-chrome imitation. A whole-folder exception goes into `tool/ui_lint/config.yaml` with `reason:` and needs maintainer approval. Never use `// ignore:` for ui-lint rules, and never exempt a whole file.
+
+### PR checklist for visual changes
+Before opening the PR, confirm that no open PR already covers the topic, that the branch is current with `dev`, that it carries no unrelated files, and that the design decisions it relies on are approved. The PR description states:
+1. The goal.
+2. The DD ids it implements.
+3. The problems it fixes (what was wrong before).
+4. Changed infrastructure files (theme, `lib/widgets/`, `tool/ui_lint`).
+5. Affected components and screens.
+6. Impact on behaviour.
+7. Before/after shots from the same scenario at the same size.
+8. Tests that were run.
+9. Tests that were not run.
+10. Remaining exceptions (allow comments, baseline).
+11. Regression risks.
+12. Related PRs.
+
+The checklist is also in `.github/PULL_REQUEST_TEMPLATE.md`. The per-change checks (light, dark and the "לבן" (white) theme, RTL, width 360 and full, text ×1.3) and the required tests are in `DESIGN_SYSTEM.md` §8.7.
 
 ## Code Guidelines
 
@@ -383,7 +444,7 @@ class FeatureBloc extends Bloc<FeatureEvent, FeatureState> {
       emit(LoadedState(data));
     } catch (e) {
       emit(ErrorState(e.toString()));
-      UiSnack.showError('שגיאה: ${e.toString()}');
+      UiSnack.showError(CommonMessages.loadFailed); // never show e.toString()
     }
   }
 }
@@ -416,7 +477,7 @@ try {
   debugPrint('Error: $e\n$stackTrace');
   
   // Show user-friendly message
-  UiSnack.showError('אירעה שגיאה: ${e.toString()}');
+  UiSnack.showError(CommonMessages.loadFailed); // a catalog message, not the exception
   
   // Update state if needed
   emit(ErrorState(e.toString()));

@@ -12,9 +12,8 @@ import 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show AppMenuEntry;
 import 'package:otzaria/widgets/misc/app_menu_presentation.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 export 'package:otzaria_context_menu/otzaria_context_menu.dart'
     show
@@ -174,7 +173,7 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     } else if (widget.iconData != null) {
       // מצב Toolbar: BarButton.icon עם אייקון מסוגנן. חייב לגבור על מצב מגע —
       // כפתור טקסט רחב מפוצץ את תקציב הרוחב של הסרגל וגורם overflow (#891).
-      final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+      final isCompact = AppDensity.of(context).isCompact;
       trigger = Opacity(
         opacity: widget.enabled ? 1.0 : 0.38,
         child: IgnorePointer(
@@ -192,12 +191,11 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     } else if (_isTouchMode &&
         widget.tooltip != null &&
         !_hasCompactConstraints) {
-      trigger = TextButton.icon(
+      trigger = ActionButton.ghost(
         onPressed: widget.enabled ? _showAdaptiveMenu : null,
-        icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
-        label: Text(
-          widget.tooltip!,
-        ),
+        iconWidget:
+            widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
+        text: widget.tooltip!,
       );
     } else if (widget.highlighted) {
       final cs = Theme.of(context).colorScheme;
@@ -209,6 +207,7 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         style: IconButton.styleFrom(
           backgroundColor: cs.secondaryContainer,
           foregroundColor: cs.onSecondaryContainer,
+          shape: AppTokens.roundedShape,
         ),
         icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
       );
@@ -294,6 +293,7 @@ Future<T?> showAnchoredAppMenu<T>({
       opensBelow: shouldOpenBelow,
       items: items,
       initialValue: initialValue,
+      transitionDuration: AppMotion.duration(context, AppTokens.animPanelSlide),
       // רוחב מינימלי: רוחב הטריגר, או רוחב התוכן הרצוי (calculateAppMenuPreferredWidth) — הגדול מביניהם.
       // התוכן בפועל עדיין קובע את הרוחב הסופי (IntrinsicWidth בתוך _AnchoredMenu).
       constraints: BoxConstraints(
@@ -320,6 +320,7 @@ class _AnchoredMenuRoute<T> extends PopupRoute<T> {
     required this.overlaySize,
     required this.gap,
     required this.opensBelow,
+    required this.transitionDuration,
     required this.items,
     required this.initialValue,
     required this.constraints,
@@ -350,7 +351,7 @@ class _AnchoredMenuRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => true;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
+  final Duration transitionDuration;
 
   CurvedAnimation? _animation;
 
@@ -508,6 +509,23 @@ class _AnchoredMenu<T> extends StatelessWidget {
     final menuTheme = PopupMenuTheme.of(context);
     final count = route.items.length;
     final unit = 1.0 / (count + 1.5);
+    // ב"לבן" בבהיר הפריט הנבחר מסומן גם בקו למעלה ולמטה. בצדדים הוא נוגע
+    // במסגרת התפריט, ולכן שם אין קו שני.
+    final selectedBorder = AppSurfaces.selectedBorder(context);
+    Widget selected(Widget item) => selectedBorder == null
+        ? ColoredBox(color: theme.highlightColor, child: item)
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.highlightColor,
+              border: Border.symmetric(
+                horizontal: BorderSide(
+                  color: selectedBorder,
+                  width: AppTokens.borderThin,
+                ),
+              ),
+            ),
+            child: item,
+          );
     final width = CurveTween(curve: Interval(0.0, unit));
     final height = CurveTween(curve: Interval(0.0, unit * count));
 
@@ -517,9 +535,7 @@ class _AnchoredMenu<T> extends StatelessWidget {
       return FadeTransition(
         key: route.itemKeys[i],
         opacity: animation.drive(CurveTween(curve: opacity)),
-        child: i == selectedIndex
-            ? ColoredBox(color: theme.highlightColor, child: route.items[i])
-            : route.items[i],
+        child: i == selectedIndex ? selected(route.items[i]) : route.items[i],
       );
     }
 
@@ -529,13 +545,9 @@ class _AnchoredMenu<T> extends StatelessWidget {
       ).animate(animation),
       child: Material(
         type: MaterialType.card,
-        shape:
-            menuTheme.shape ??
-            const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(4)),
-            ),
+        shape: menuTheme.shape ?? AppTokens.roundedShape,
         color: menuTheme.color ?? theme.colorScheme.surfaceContainer,
-        elevation: menuTheme.elevation ?? 3,
+        elevation: menuTheme.elevation ?? AppTokens.elevation2,
         shadowColor: menuTheme.shadowColor ?? theme.colorScheme.shadow,
         surfaceTintColor: menuTheme.surfaceTintColor ?? Colors.transparent,
         child: AnimatedBuilder(
@@ -713,6 +725,10 @@ Future<T?> showAnchoredAppSearchMenu<T>({
       filterLabels: filterLabels,
       filterPredicates: filterPredicates,
       initialFilter: initialFilter,
+      transitionDuration: AppMotion.duration(
+        context,
+        const Duration(milliseconds: 100),
+      ),
     ),
   );
 }
@@ -740,6 +756,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
     this.filterLabels,
     this.filterPredicates,
     this.initialFilter = 0,
+    required this.transitionDuration,
   });
 
   @override
@@ -752,7 +769,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
   String? get barrierLabel => 'Dismiss';
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 100);
+  final Duration transitionDuration;
 
   @override
   Widget buildPage(
@@ -886,8 +903,9 @@ class _AnchoredSearchMenuContentState<T>
           child: FadeTransition(
             opacity: widget.animation,
             child: Material(
-              elevation: 8,
-              borderRadius: AppTokens.borderRadiusAll,
+              elevation: AppTokens.elevation2,
+              shadowColor: AppShadows.color(cs),
+              shape: AppSurfaces.raisedShape(context),
               color: menuColor,
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -945,7 +963,6 @@ class _AnchoredSearchMenuContentState<T>
                                   widget.filterLabels![i],
                                   style: TextStyle(
                                     fontSize: widget.metrics.fontSize - 1,
-                                    fontFamily: 'Roboto',
                                   ),
                                 ),
                                 selected: _activeFilter == i,
@@ -1140,7 +1157,8 @@ double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
   const double chipChrome = 22.0;
 
   final chipTextStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: AppThemeData.uiFontFamily,
+    fontFamilyFallback: AppThemeData.uiFontFamilyFallback,
     fontSize: metrics.fontSize - 1,
   );
 

@@ -31,6 +31,7 @@ import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -920,7 +921,7 @@ $detailsSection
       context: context,
       title: reportText(context, title),
       icon: FluentIcons.document_text_24_regular,
-      headerBand: true,
+      size: AppDialogSize.medium,
       confirmText: reportText(context, 'סגור'),
       customContent: reportDialogBuilder(
         context,
@@ -934,20 +935,13 @@ $detailsSection
     DirectErrorReport reportData,
   ) async {
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
       final reportService = DirectErrorReportService();
-      final result = await reportService.submitReport(reportData);
-
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+      final result = await runWithBlockingProgress(
+        context: context,
+        title: reportText(context, ReportMessages.sendingTitle),
+        message: reportText(context, ReportMessages.sending),
+        task: () => reportService.submitReport(reportData),
+      );
 
       if (!context.mounted) {
         return result.isSent || result.isQueued;
@@ -970,10 +964,6 @@ $detailsSection
       }
       return result.isSent || result.isQueued;
     } catch (e) {
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
       debugPrint('Direct report error: $e');
       if (context.mounted) {
         UiSnack.showError(
@@ -1361,9 +1351,8 @@ $detailsSection
       return;
     }
     try {
-      final result = await showDialog<ReportDialogResult>(
+      final result = await showDialogUntilTornDown<ReportDialogResult>(
         context: context,
-        barrierDismissible: false,
         builder: reportDialogBuilder(
           context,
           (_) => TabbedReportDialog(
@@ -1498,6 +1487,13 @@ const double _freeTextReportDialogHeight = 560;
 
 class _TabbedReportDialogState extends State<TabbedReportDialog> {
   bool _leaving = false;
+  final ValueNotifier<bool> _regularTabDirty = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _regularTabDirty.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1508,65 +1504,33 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
         mediaQuery.padding.top -
         mediaQuery.padding.bottom;
 
-    // minWidth/minHeight נסגרים ל-max, אחרת במסך קטן הקונסטריינטים
-    // אינם נורמליים → BoxConstraints assertion crash.
-    final screenWidth = mediaQuery.size.width;
-    final isNarrow = screenWidth < 600;
-    final maxWidth = isNarrow ? screenWidth : screenWidth * 0.6;
-    final minWidth = maxWidth < 400 ? maxWidth : 400.0;
-    final maxHeight = widget.correctionTemplate == null && !isNarrow
+    // בחלון צר הדיאלוג במסך מלא (DD-16), והגובה כאן חל רק בחלון רחב.
+    final height = widget.correctionTemplate == null
         ? math.min(availableHeight, _freeTextReportDialogHeight)
-        // במסך נמוך 70% חותך את הטופס; Dialog עצמו מצמצם לגובה הפנוי.
+        // במסך נמוך 70% חותך את הטופס; המסגרת מגבילה לגובה החלון.
         : math.max(
             availableHeight * 0.7,
             math.min(availableHeight, _comfortableReportDialogHeight),
           );
-    final minHeight = maxHeight < 400 ? maxHeight : 400.0;
-    final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _leave();
-      },
+    return AppDialogFrame(
+      icon: OtzariaIcons.book_exclamation_24_regular,
+      title: context.settingsText('דיווח על טעות בספר'),
+      subtitle: widget.bookTitle,
+      subtitleMaxLines: 1,
+      size: AppDialogSize.large,
+      height: height,
+      padding: EdgeInsets.zero,
+      closeEnabled: !_leaving,
+      isDirty: widget.draft == null ? _regularTabDirty : null,
+      onDismissRequest: widget.draft == null ? null : _leave,
       child: AbsorbPointer(
         absorbing: _leaving,
         child: ExcludeFocus(
           excluding: _leaving,
-          child: Dialog(
-            clipBehavior: Clip.antiAlias,
-            insetPadding: isCompact ? const EdgeInsets.all(8) : null,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: minWidth,
-                maxWidth: maxWidth,
-                minHeight: minHeight,
-                maxHeight: maxHeight,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildHeader(context),
-                  Expanded(child: _buildRegularReportTab()),
-                ],
-              ),
-            ),
-          ),
+          child: _buildRegularReportTab(),
         ),
       ),
-    );
-  }
-
-  /// כותרת בצורת כותרת [AppReportDialog]: אייקון מסומל, שם הטופס ואיפה
-  /// מדווחים.
-  Widget _buildHeader(BuildContext context) {
-    return AppDialogHeader(
-      icon: OtzariaIcons.book_exclamation_24_regular,
-      title: context.settingsText('דיווח על טעות בספר'),
-      onClose: _leaving ? () {} : _leave,
-      subtitle: widget.bookTitle,
-      subtitleMaxLines: 1,
-      compact: true,
     );
   }
 
@@ -1587,8 +1551,20 @@ class _TabbedReportDialogState extends State<TabbedReportDialog> {
       validateBeforeSubmit: widget.validateBeforeSubmit,
       onActionSelected: (action, reportData) =>
           _leave(ReportDialogResult(action, reportData)),
-      onCancel: _leave,
+      onCancel: _requestLeave,
+      // מעבר לתיקון עצמי באתר שומר טיוטה ונסגר בלי שאלת השלכה.
+      onHandOff: _leave,
+      onDirtyChanged: (dirty) => _regularTabDirty.value = dirty,
     );
+  }
+
+  void _requestLeave() {
+    if (_leaving) return;
+    if (widget.draft == null) {
+      Navigator.of(context).maybePop();
+    } else {
+      _leave();
+    }
   }
 
   Future<void> _leave([ReportDialogResult? result]) async {
@@ -1650,6 +1626,13 @@ class RegularReportTab extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onDraftChanged;
   final bool sourceChanged;
 
+  /// סוגר את הטופס אחרי שהמשתמש עבר לתקן בעצמו באתר דיקטה, בלי לשאול על
+  /// טקסט שהוקלד. null: [onCancel].
+  final VoidCallback? onHandOff;
+
+  /// מדווח אם יש בטופס טקסט או הצעת תיקון שיאבדו בסגירה.
+  final ValueChanged<bool>? onDirtyChanged;
+
   const RegularReportTab({
     super.key,
     required this.selectedText,
@@ -1667,6 +1650,8 @@ class RegularReportTab extends StatefulWidget {
     this.initialForm,
     this.onDraftChanged,
     this.sourceChanged = false,
+    this.onHandOff,
+    this.onDirtyChanged,
   });
 
   @override
@@ -1710,6 +1695,17 @@ class _RegularReportTabState extends State<RegularReportTab> {
   }
 
   bool get _hasDetails => _detailsController.text.trim().isNotEmpty;
+
+  bool get _isDirty {
+    final draft = _draft;
+    final editedProposal =
+        _isCorrection &&
+        draft != null &&
+        draft.correction.proposedText != widget.correctionTemplate?.target;
+    return _hasDetails || editedProposal;
+  }
+
+  void _reportDirty() => widget.onDirtyChanged?.call(_isDirty);
 
   bool get _canSubmit {
     if (_validating) return false;
@@ -1824,7 +1820,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
     _draftChanged();
   }
 
-  void _draftChanged() => widget.onDraftChanged?.call(_form);
+  void _draftChanged() {
+    widget.onDraftChanged?.call(_form);
+    _reportDirty();
+  }
 
   void _handleDetailsChanged(String _) {
     if (mounted) {
@@ -1841,7 +1840,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
     );
     if (!mounted) return;
     if (opened) {
-      widget.onCancel(); // המשתמש עבר לתקן באתר — אין צורך בטופס הדיווח
+      // המשתמש עבר לתקן באתר — אין צורך בטופס הדיווח.
+      (widget.onHandOff ?? widget.onCancel)();
     } else {
       UiSnack.showError(
         context.settingsText(ReportMessages.cannotOpenEditPage),
@@ -1892,7 +1892,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
               ),
               Icon(
                 FluentIcons.open_24_regular,
-                size: 18,
+                size: AppTokens.iconSM,
                 color: colorScheme.onPrimaryContainer,
               ),
             ],
@@ -2000,11 +2000,11 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         'סמנו בציטוט את המילים שבהן נמצאת הטעות. המיקום וההקשר יצורפו לדיווח.',
                       ),
                     ),
-                    TextButton(
+                    ActionButton.ghost(
+                      text: context.settingsText('נקה סימון'),
                       onPressed: _selection == null
                           ? null
                           : _clearQuoteSelection,
-                      child: Text(context.settingsText('נקה סימון')),
                     ),
                     Container(
                       constraints: const BoxConstraints(

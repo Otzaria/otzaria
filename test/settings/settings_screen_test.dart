@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -85,6 +86,34 @@ void main() {
       );
     }
 
+    // חריג מתועד מהימין הקבוע (הערת בעל הפרויקט, 4.11): בהגדרות הפס בקצה
+    // ה-end של שפת ההגדרות, כמו לפני הכלל.
+    for (final language in SettingsLanguage.values) {
+      testWidgets('פס הגלילה בהגדרות בקצה ה-end (${language.code})', (
+        tester,
+      ) async {
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial().copyWith(
+            settingsLanguageCode: language.code,
+          ),
+        );
+        await tester.binding.setSurfaceSize(const Size(1400, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(buildScreen());
+        await tester.pumpAndSettle();
+        final expected = language.textDirection == TextDirection.rtl
+            ? ScrollbarOrientation.left
+            : ScrollbarOrientation.right;
+        final bars = tester.widgetList<Scrollbar>(find.byType(Scrollbar));
+        expect(bars, isNotEmpty);
+        for (final bar in bars) {
+          expect(bar.scrollbarOrientation, expected);
+        }
+      }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+    }
+
     testWidgets('דסקטופ: ESC חוזר למסך הקודם', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -142,7 +171,8 @@ void main() {
         await tester.pump();
         expect(position.pixels, 300, reason: 'גלגלת מעל הסרגל');
 
-        // פס הגלילה בצד שמאל (RTL); לחיצה על המסילה מתחת לסמן מדפדפת.
+        // פס הגלילה בצד שמאל (RTL, חריג ההגדרות); לחיצה על המסילה מתחת
+        // לסמן מדפדפת.
         final bar = tester.getRect(
           find.ancestor(of: results, matching: find.byType(Scrollbar)),
         );
@@ -346,23 +376,82 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      FontWeight? appBarTitleWeight() => tester
+      // סרגל הכותרת בטלפון הוא AppTopBar (q10 Q8b), והכותרת בסגנון הכותרת שלו
+      // (titleLarge; בערכת הנושא של האפליקציה w600), כמו בשאר המסכים.
+      int? expectedWeight() => AppTopBar.titleStyle(
+        tester.element(find.byType(AppTopBar)),
+      ).fontWeight?.value;
+      int? appBarTitleWeight() => tester
           .widget<Text>(
             find.descendant(
-              of: find.byType(AppBar),
+              of: find.byType(AppTopBar),
               matching: find.byType(Text),
             ),
           )
           .style
-          ?.fontWeight;
-
-      expect(appBarTitleWeight(), FontWeight.bold);
+          ?.fontWeight
+          ?.value;
 
       await tester.tap(find.widgetWithText(ListTile, 'כתב'));
       await tester.pump();
       await tester.pump();
 
-      expect(appBarTitleWeight(), FontWeight.bold);
+      expect(appBarTitleWeight(), expectedWeight());
+    });
+
+    // סקירת 4.11 (ss3): בתפריט הסרגל היה רק "הגדרות", שוב, מתחת לשורת הכותרת
+    // של החלון. הוא מוצג רק כשיש בו "חזור".
+    testWidgets('מובייל: בתפריט אין סרגל כותרת, בלשונית יש, עם "חזור"', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildScreen());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(AppTopBar), findsNothing);
+      expect(find.text('הגדרות'), findsNothing);
+
+      await tester.tap(find.widgetWithText(ListTile, 'כתב'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(AppTopBar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppTopBar),
+          matching: find.byTooltip('חזור (Esc)'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byType(AppTopBar), matching: find.text('כתב')),
+        findsOneWidget,
+      );
+    });
+
+    // בחלון נמוך (טלפון לרוחב) כותרת "הגדרות" מעל הרשימה בצד רק חוזרת על
+    // שורת הכותרת של החלון. ב־1024×600 היא נשארת.
+    testWidgets('חלון נמוך: בלי כותרת "הגדרות" מעל הרשימה בצד', (
+      tester,
+    ) async {
+      Future<void> at(Size size) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(buildScreen());
+        await tester.pump();
+        await tester.pump();
+      }
+
+      addTearDown(tester.view.reset);
+      await at(const Size(844, 390));
+      expect(find.byType(SidebarNavItem), findsWidgets);
+      expect(find.text('הגדרות'), findsNothing);
+
+      await at(const Size(1024, 600));
+      expect(find.text('הגדרות'), findsOneWidget);
     });
 
     // "קיצורי מקשים" זמין רק בדסקטופ (ShortcutsSettingsTab מציג במובייל

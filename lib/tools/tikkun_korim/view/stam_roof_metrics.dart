@@ -109,6 +109,7 @@ Future<_Raster?> _rasterize(String family, int letter) async {
   final style = TextStyle(
     fontFamily: family,
     fontSize: _measureFontSize,
+    // ui-lint: allow UIL-015 — רסטור למדידת הגליף בלבד, לא מוצג למשתמש
     color: const Color(0xFF000000),
   );
   final painter = TextPainter(
@@ -122,6 +123,7 @@ Future<_Raster?> _rasterize(String family, int letter) async {
   final canvas = ui.Canvas(recorder);
   canvas.drawRect(
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    // ui-lint: allow UIL-015 — רסטור למדידת הגליף בלבד, לא מוצג למשתמש
     Paint()..color = const Color(0xFFFFFFFF),
   );
   painter.paint(canvas, padOffset);

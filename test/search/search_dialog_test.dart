@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/controls/custom_switch.dart';
+import 'package:otzaria/widgets/controls/toggle_pill.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -201,7 +203,7 @@ Future<void> main() async {
       );
       await _openMoreOptions(tester);
       expect(contribution, findsOneWidget);
-      expect(tester.widget<CheckboxListTile>(contribution).value, isTrue);
+      expect(tester.widget<FilterChip>(contribution).selected, isTrue);
 
       await tester.tap(find.text('מתקדם').first);
       await tester.pumpAndSettle();
@@ -367,16 +369,16 @@ Future<void> main() async {
       const ValueKey('plugin-search-dialog-test.plugin-include-external'),
     );
     await _openMoreOptions(tester);
-    expect(tester.widget<CheckboxListTile>(contribution).value, isTrue);
+    expect(tester.widget<FilterChip>(contribution).selected, isTrue);
 
     await tester.ensureVisible(contribution);
     await tester.tap(contribution);
     await tester.pumpAndSettle();
-    expect(tester.widget<CheckboxListTile>(contribution).value, isFalse);
+    expect(tester.widget<FilterChip>(contribution).selected, isFalse);
 
     // בחירה ששונה מברירת המחדל פותחת את "אפשרויות נוספות" מעצמה.
     await pumpDialog(const ValueKey('second'));
-    expect(tester.widget<CheckboxListTile>(contribution).value, isFalse);
+    expect(tester.widget<FilterChip>(contribution).selected, isFalse);
   });
 
   group('שורות תוסף בדיאלוג', () {
@@ -434,43 +436,52 @@ Future<void> main() async {
     Finder row(String id) =>
         find.byKey(ValueKey('plugin-search-dialog-test.plugin-$id'));
 
-    testWidgets('שורת switch מוצגת כמתג, ושורה עם persist:false אינה נשמרת', (
-      tester,
-    ) async {
-      registry.registerPayload('test.plugin', {
-        'id': 'sw',
-        'type': 'switch',
-        'title': 'מתג',
-        'visibleInModes': ['exact'],
-      });
-      registry.registerPayload('test.plugin', {
-        'id': 'tmp',
-        'type': 'checkbox',
-        'title': 'זמני',
-        'persist': false,
-        'visibleInModes': ['exact'],
-      });
-      addTearDown(registry.dispose);
+    testWidgets(
+      'פריט switch מוצג כ-AppTogglePill, ושורה עם persist:false אינה נשמרת',
+      (
+        tester,
+      ) async {
+        registry.registerPayload('test.plugin', {
+          'id': 'sw',
+          'type': 'switch',
+          'title': 'מתג',
+          'visibleInModes': ['exact'],
+        });
+        registry.registerPayload('test.plugin', {
+          'id': 'tmp',
+          'type': 'checkbox',
+          'title': 'זמני',
+          'persist': false,
+          'visibleInModes': ['exact'],
+        });
+        addTearDown(registry.dispose);
 
-      await pumpDialog(tester, const ValueKey('first'));
-      await _openMoreOptions(tester);
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isFalse);
-      expect(row('tmp'), findsOneWidget);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
+        await pumpDialog(tester, const ValueKey('first'));
+        await _openMoreOptions(tester);
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isFalse);
+        expect(row('tmp'), findsOneWidget);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isFalse);
 
-      for (final id in ['sw', 'tmp']) {
-        await tester.ensureVisible(row(id));
-        await tester.tap(row(id));
-        await tester.pumpAndSettle();
-      }
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isTrue);
-      expect(PluginSearchSelectionPreferences.load(), {'test.plugin/sw': true});
+        // ב־AppTogglePill המתג הוא הפקד; בשבב — השבב כולו.
+        for (final target in [
+          find.descendant(of: row('sw'), matching: find.byType(CustomSwitch)),
+          row('tmp'),
+        ]) {
+          await tester.ensureVisible(target);
+          await tester.tap(target);
+          await tester.pumpAndSettle();
+        }
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isTrue);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isTrue);
+        expect(PluginSearchSelectionPreferences.load(), {
+          'test.plugin/sw': true,
+        });
 
-      await pumpDialog(tester, const ValueKey('second'));
-      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
-      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
-    });
+        await pumpDialog(tester, const ValueKey('second'));
+        expect(tester.widget<AppTogglePill>(row('sw')).value, isTrue);
+        expect(tester.widget<FilterChip>(row('tmp')).selected, isFalse);
+      },
+    );
 
     testWidgets('הקשר לכפתור תוסף בשדה: בקשת החיפוש הנוכחית ובחירות השורות', (
       tester,
@@ -1533,6 +1544,69 @@ Future<void> main() async {
     expect(_moreOptionsButton.hitTestable(), findsOneWidget);
     expect(find.byTooltip('חפש').hitTestable(), findsOneWidget);
     expect(find.text('בחר שאילתה, סוג חיפוש והיקף'), findsOneWidget);
+  });
+
+  // סקירה שלישית של 4.11, q-ss7: 2×2 רק כשתווית נחתכת גם בלי אייקונים.
+  testWidgets('בורר המצבים בשתי שורות רק כשתווית נחתכת, והבחירה עובדת בהן', (
+    WidgetTester tester,
+  ) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final tab = SearchingTab('חיפוש', '');
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() async {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tab.dispose();
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+    final modeRows = find.descendant(
+      of: find.byType(SearchDialog),
+      matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+    );
+    Future<void> pump(Size size) async {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(existingTab: tab),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pump(const Size(1400, 900));
+    expect(modeRows, findsOneWidget);
+
+    // בגופן הבדיקות כל אות 14: ב-300 "מתקדם" (70) לא נכנס גם בלי אייקון.
+    await pump(const Size(300, 640));
+    expect(modeRows, findsNWidgets(2));
+    // ב-300 בגופן הבדיקות שורה אחרת בדיאלוג גולשת, גם בלי השינוי הזה.
+    tester.takeException();
+    await tester.tap(find.text('מקורב'));
+    await tester.pumpAndSettle();
+    expect(tab.searchBloc.state.configuration.searchMode, SearchMode.fuzzy);
   });
 
   testWidgets('כותרת החיפוש בתוך ספר לא מבטיחה היקף', (

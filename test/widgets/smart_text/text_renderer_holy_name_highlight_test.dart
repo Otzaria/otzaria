@@ -22,8 +22,14 @@ Future<void> main() async {
         verse,
         const RenderSettings(searchText: query),
       );
-      expect(out, contains('<span style="color: red">יוֹד֣וּ</span>'));
-      expect(out, contains('<span style="color: red">חַסְדּ֑וֹ</span>'));
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">יוֹד֣וּ</span>'),
+      );
+      expect(
+        out,
+        contains('<span style="color: otzaria-search-hit">חַסְדּ֑וֹ</span>'),
+      );
     });
 
     for (final style in HolyNameStyle.values) {
@@ -43,10 +49,13 @@ Future<void> main() async {
         );
         expect(
           out,
-          contains('<span style="color: red">יוֹד֣וּ</span>'),
+          contains('<span style="color: otzaria-search-hit">יוֹד֣וּ</span>'),
           reason: 'מילות החיפוש סביב השם חייבות להיות מודגשות',
         );
-        expect(out, contains('<span style="color: red">חַסְדּ֑וֹ</span>'));
+        expect(
+          out,
+          contains('<span style="color: otzaria-search-hit">חַסְדּ֑וֹ</span>'),
+        );
       });
     }
   }, skip: engineReady ? false : searchEngineSkipReason);

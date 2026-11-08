@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'measurement_data.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -13,7 +11,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:otzaria/core/ui_snack.dart';
 
@@ -58,6 +56,7 @@ class MeasurementConverterScreen extends StatefulWidget {
 class _MeasurementConverterScreenState
     extends State<MeasurementConverterScreen> {
   static const _categories = ['אורך', 'שטח', 'נפח', 'משקל', 'זמן'];
+  static const double _wideMinWidth = 700;
 
   String _selectedCategory = 'אורך';
   String? _selectedFromUnit;
@@ -467,7 +466,7 @@ class _MeasurementConverterScreenState
           children: [
             LayoutBuilder(
               builder: (context, barConstraints) {
-                final isWideBar = barConstraints.maxWidth >= 700;
+                final isWideBar = barConstraints.maxWidth >= _wideMinWidth;
                 final sidebarOpen = isWideBar
                     ? _sidebarVisible
                     : _narrowShowCategories;
@@ -476,7 +475,10 @@ class _MeasurementConverterScreenState
                     AppTopBarItem(
                       widget: IconButton(
                         icon: AnimatedSwitcher(
-                          duration: AppTokens.animFast,
+                          duration: AppMotion.duration(
+                            context,
+                            AppTokens.animFast,
+                          ),
                           transitionBuilder: (child, animation) =>
                               RotationTransition(
                                 turns: Tween<double>(
@@ -496,7 +498,7 @@ class _MeasurementConverterScreenState
                                 ? OtzariaIcons.panel_right_contract_24_regular
                                 : OtzariaIcons.panel_right_expand_24_regular,
                             key: ValueKey(sidebarOpen),
-                            size: 24,
+                            size: AppTokens.iconLG,
                           ),
                         ),
                         tooltip: sidebarOpen ? 'הסתר קטגוריות' : 'הצג קטגוריות',
@@ -516,7 +518,7 @@ class _MeasurementConverterScreenState
                     children: [
                       Icon(
                         _getCategoryIcon(_selectedCategory),
-                        size: 22,
+                        size: AppTokens.iconMD,
                         color: cs.primary,
                       ),
                       const SizedBox(width: AppTokens.spaceSM),
@@ -536,7 +538,7 @@ class _MeasurementConverterScreenState
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 700;
+                  final isWide = constraints.maxWidth >= _wideMinWidth;
                   return _buildAdaptiveContent(isWide: isWide);
                 },
               ),
@@ -640,7 +642,7 @@ class _MeasurementConverterScreenState
 
   Widget _buildCategoriesPane({required bool closeOnSelect}) {
     return Container(
-      color: AppSurfaces.solidPanelBackground(context),
+      color: AppSurfaces.panelBackground(context),
       padding: const EdgeInsets.symmetric(
         vertical: AppTokens.spaceMD,
         horizontal: AppTokens.spaceSM,
@@ -683,6 +685,9 @@ class _MeasurementConverterScreenState
       );
     },
     tooltip: 'החלף יחידות',
+    style: IconButton.styleFrom(
+      shape: AppTokens.roundedShape,
+    ),
   );
 
   // ── קלט ──────────────────────────────────────────────────────────────────────
@@ -690,9 +695,9 @@ class _MeasurementConverterScreenState
     final cs = Theme.of(context).colorScheme;
     final showOpinion = _shouldShowOpinionSelector();
 
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
+    return Builder(
+      builder: (context) {
+        final isCompact = AppDensity.of(context).isCompact;
         final fieldHeight = isCompact ? AppInputTokens.compactHeight : 40.0;
         final fieldFontSize = AppInputTokens.fontSize(isCompact);
 
@@ -750,7 +755,7 @@ class _MeasurementConverterScreenState
                     ? IconButton(
                         icon: const Icon(
                           FluentIcons.dismiss_24_regular,
-                          size: 16,
+                          size: AppTokens.iconSM,
                         ),
                         tooltip: 'נקה',
                         padding: EdgeInsets.zero,
@@ -773,7 +778,7 @@ class _MeasurementConverterScreenState
 
         final opinionField = AnimatedOpacity(
           opacity: showOpinion ? 1.0 : 0.4,
-          duration: AppTokens.animFast,
+          duration: AppMotion.duration(context, AppTokens.animFast),
           child: _labeled(
             'שיטה',
             AppDropdownField<String>(
@@ -803,7 +808,8 @@ class _MeasurementConverterScreenState
         return _sectionCard(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              if (constraints.maxWidth >= 520) {
+              const rowMinWidth = 520.0;
+              if (constraints.maxWidth >= rowMinWidth) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -902,7 +908,7 @@ class _MeasurementConverterScreenState
             const SizedBox(width: AppTokens.spaceSM),
             AnimatedOpacity(
               opacity: hasResult && isNumber ? 1.0 : 0.3,
-              duration: AppTokens.animFast,
+              duration: AppMotion.duration(context, AppTokens.animFast),
               child: IgnorePointer(
                 ignoring: !(hasResult && isNumber),
                 child: SecondaryIconButton(
@@ -967,7 +973,8 @@ class _MeasurementConverterScreenState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= 560) {
+        const rowMinWidth = 560.0;
+        if (constraints.maxWidth >= rowMinWidth) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1026,7 +1033,7 @@ class _MeasurementConverterScreenState
             ),
             child: Row(
               children: [
-                Icon(icon, size: 18, color: cs.primary),
+                Icon(icon, size: AppTokens.iconSM, color: cs.primary),
                 const SizedBox(width: AppTokens.spaceSM),
                 Text(
                   title,

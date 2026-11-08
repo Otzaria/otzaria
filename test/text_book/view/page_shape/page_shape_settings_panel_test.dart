@@ -1,13 +1,14 @@
 // הפאנל נגלל ב-ContextOverlayPanel; כאן נדרשת מעטפת גלילה מקבילה.
 
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
@@ -63,10 +64,13 @@ void main() {
     await tester.pump();
   }
 
-  // פריט מתוך תפריט החיפוש המוצמד בלבד (Material עם elevation 8), כדי
-  // להבחין בינו לבין השדות הסגורים שמציגים את אותה תווית.
+  // פריט מתוך תפריט החיפוש המוצמד בלבד (Material בהגבהה של תפריט,
+  // AppTokens.elevation2 לפי DD-12), כדי להבחין בינו לבין השדות הסגורים
+  // שמציגים את אותה תווית.
   Finder menuItem(String label) => find.descendant(
-    of: find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+    of: find.byWidgetPredicate(
+      (w) => w is Material && w.elevation == AppTokens.elevation2,
+    ),
     matching: find.text(label),
   );
 
@@ -325,16 +329,17 @@ void main() {
     var notified = 0;
     await pumpPanel(tester, onSettingsChanged: () => notified++);
 
-    final addButton = find.widgetWithIcon(
-      IconButton,
-      FluentIcons.add_24_regular,
+    final slider = find.descendant(
+      of: find.byType(PageShapeCommentaryFontSizeSlider),
+      matching: find.byType(Slider),
     );
-    await tester.ensureVisible(addButton);
+    await tester.ensureVisible(slider);
     await tester.pump();
-    await tester.tap(addButton);
+    tester.widget<Slider>(slider).onChangeEnd!(17);
+    await tester.pump();
     await tester.pump();
 
-    // ברירת המחדל 16 + לחיצה אחת = 17
+    // סוף גרירה מ-16 ל-17
     expect(
       Settings.getValue<double>('page_shape_commentary_font_size'),
       17.0,

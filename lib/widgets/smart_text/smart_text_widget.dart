@@ -10,6 +10,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -186,6 +187,12 @@ class SmartTextWidget extends StatelessWidget {
       processedHtml = rendering.html;
       frameRanges = rendering.ranges;
     }
+    // צבעי ההדגשה נפתרים לפני חילוץ הסימונים המורמים, כדי שהדגשה בתוך
+    // sup תצויר גם בשכבה המורמת.
+    late final colorScheme = Theme.of(context).colorScheme;
+    if (SearchHighlightCss.hasTokens(processedHtml)) {
+      processedHtml = SearchHighlightCss.resolve(processedHtml, colorScheme);
+    }
     // סימונים מורמים (sup פשוט ולא-מספרי שהומר ל-span ב-processText): מחולצים
     // מה-HTML הסופי. ה-HTML לא משתנה — הגליפים נשארים בשורה (שקופים, בסדר
     // הנכון), ושכבת הציור מציירת אותם מורמים מעל מקומם האמיתי.
@@ -205,7 +212,6 @@ class SmartTextWidget extends StatelessWidget {
       height: settings.lineHeight,
     );
     // נחוצים רק לשורה עם קישורים או ל-HtmlWidget, לא לשורה סטטית.
-    late final colorScheme = Theme.of(context).colorScheme;
     late final linkColor = AppSurfaces.readerLink(colorScheme);
     late final onTapUrl = _tapHandler(context);
     late final onMiddleClickUrl = onOpenBook == null

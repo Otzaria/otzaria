@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' show min;
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'dart:ui';
@@ -37,6 +38,8 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -383,7 +386,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void _paintPdfHighlights(Canvas canvas, Rect pageRect, PdfPage page) {
     final paint = Paint()
       ..color =
-          _pdfController?.params.matchTextColor ?? AppColors.permanentHighlight;
+          _pdfController?.params.matchTextColor ?? AppColors.pdfSearchHighlight;
     for (final match in _pdfHighlights) {
       if (match.pageNumber != page.pageNumber) continue;
       for (final bounds in match.rects) {
@@ -606,7 +609,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           children: [
             Icon(
               OtzariaIcons.link_24_regular,
-              size: 64,
+              size: AppTokens.iconXL,
               color: Theme.of(
                 context,
               ).colorScheme.secondary.withValues(alpha: 0.3),
@@ -645,10 +648,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     // תצוגת ספר PDF (או מהדורת ה-PDF הנלווית של מסכת בבלי)
     final displayedPdf = _displayedPdfBook;
     if (displayedPdf != null && _pdfController != null) {
-      return BlocBuilder<SettingsBloc, SettingsState>(
-        buildWhen: (p, c) => p.compactMenuMode != c.compactMenuMode,
-        builder: (context, settingsState) {
-          final compact = settingsState.compactMenuMode;
+      return Builder(
+        builder: (context) {
+          final compact = AppDensity.of(context).isCompact;
           return Stack(
             children: [
               _buildPdfViewer(displayedPdf.path),
@@ -679,11 +681,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     }
 
     return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) =>
-          p.compactMenuMode != c.compactMenuMode ||
-          p.textDisplayPolicy != c.textDisplayPolicy,
+      buildWhen: (p, c) => p.textDisplayPolicy != c.textDisplayPolicy,
       builder: (context, settingsState) {
-        final compact = settingsState.compactMenuMode;
+        final compact = AppDensity.of(context).isCompact;
         return Stack(
           children: [
             GestureDetector(
@@ -885,87 +885,35 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   }
 
   Widget _buildSkeletonLoading() {
-    final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-
-    return SingleChildScrollView(
+    return const SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: _SkeletonLine(width: 0.25, height: 36, color: baseColor),
-              ),
+            SkeletonLines(widths: [0.25], lineHeight: 36, spacing: 16),
+            SkeletonLines(widths: [0.2], lineHeight: 28, spacing: 20),
+            SkeletonLines(
+              widths: [0.95, 0.92, 0.88, 0.94, 0.85],
+              lineHeight: 18,
+              spacing: 10,
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: _SkeletonLine(width: 0.2, height: 28, color: baseColor),
-              ),
+            SizedBox(height: 24),
+            SkeletonLines(widths: [0.18], lineHeight: 28, spacing: 20),
+            SkeletonLines(
+              widths: [0.93, 0.89, 0.96, 0.87, 0.91, 0.82],
+              lineHeight: 18,
+              spacing: 10,
             ),
-            ..._buildParagraph([0.95, 0.92, 0.88, 0.94, 0.85], baseColor),
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: _SkeletonLine(width: 0.18, height: 28, color: baseColor),
-              ),
+            SizedBox(height: 24),
+            SkeletonLines(widths: [0.22], lineHeight: 28, spacing: 20),
+            SkeletonLines(
+              widths: [0.94, 0.88, 0.92, 0.86],
+              lineHeight: 18,
+              spacing: 10,
             ),
-            ..._buildParagraph([0.93, 0.89, 0.96, 0.87, 0.91, 0.82], baseColor),
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: _SkeletonLine(width: 0.22, height: 28, color: baseColor),
-              ),
-            ),
-            ..._buildParagraph([0.94, 0.88, 0.92, 0.86], baseColor),
           ],
         ),
-      ),
-    );
-  }
-
-  List<Widget> _buildParagraph(List<double> widths, Color color) {
-    return widths
-        .map(
-          (width) => Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10.0),
-              child: _SkeletonLine(width: width, height: 18, color: color),
-            ),
-          ),
-        )
-        .toList();
-  }
-}
-
-class _SkeletonLine extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-
-  const _SkeletonLine({
-    required this.width,
-    required this.color,
-    this.height = 16,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: MediaQuery.of(context).size.width * width,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppTokens.borderRadiusAll,
       ),
     );
   }
@@ -997,7 +945,8 @@ class _PreviewToolbar extends StatelessWidget {
     return Material(
       color: cs.surfaceContainerHigh,
       shape: AppTokens.roundedShape,
-      elevation: 2,
+      elevation: AppTokens.elevation1,
+      shadowColor: AppShadows.color(cs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

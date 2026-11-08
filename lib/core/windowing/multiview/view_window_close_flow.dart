@@ -10,6 +10,7 @@ import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
+import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 
 /// שואל אם מותר לסגור את [tabs], בתוך החלון של [context].
 typedef ViewWindowCloseConfirm =
@@ -50,6 +51,17 @@ class ViewWindowCloseFlow {
     subtitle: unsavedChangesWindowCloseSubtitle,
   );
 
+  /// קודם הדיאלוגים הפתוחים בחלון (מה שהוקלד בהם, DD-08), ואז הכרטיסיות.
+  Future<bool> _confirmDialogsThenTabs(
+    BuildContext context,
+    List<OpenedTab> tabs,
+  ) async {
+    if (!await DialogDismissGuard.confirmWindowClose(window: entry.keys)) {
+      return false;
+    }
+    return !context.mounted || await _confirm(context, tabs);
+  }
+
   /// מחזיר false כשהמשתמש ביטל; לחיצה חוזרת בזמן ריצה אינה עושה דבר.
   Future<bool> run() async {
     if (_running || _abandoned.isCompleted) return false;
@@ -77,7 +89,7 @@ class ViewWindowCloseFlow {
           tabs = context.read<TabsBloc>().state.tabs;
           // דיאלוג שה-Navigator שלו נהרס אינו חוזר; בלי זה התור ננעל לכל החלונות.
           final confirmed = await Future.any([
-            _confirm(context, tabs),
+            _confirmDialogsThenTabs(context, tabs),
             _abandoned.future,
           ]);
           if (!confirmed || _abandoned.isCompleted) return false;

@@ -2,21 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// Overlay widget for showing completion animations
+import '../shamor_zachor_widget.dart';
+
+/// אנימציית סיום במרכז הכלי, בלי רקע כהה ובלי חסימת לחיצות (q10 שאלה 19).
+/// עולה ב־Overlay של החלון, ולכן ממוקמת לפי המלבן של הכלי.
 class CompletionAnimationOverlay {
-  /// Show completion animation with message
+  /// מציג את [message] מעל הכלי ש־[context] בתוכו.
   static void show(BuildContext context, String message) {
     final overlay = Overlay.of(context);
+    final area =
+        context.findAncestorStateOfType<State<ShamorZachorWidget>>()?.context ??
+        context;
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
-      builder: (context) => _CompletionAnimation(
-        message: message,
-        onComplete: () => overlayEntry.remove(),
-      ),
+      builder: (entryContext) {
+        final Widget animation = IgnorePointer(
+          child: _CompletionAnimation(
+            message: message,
+            onComplete: () => overlayEntry.remove(),
+          ),
+        );
+        final rect = _areaRect(area, overlay.context);
+        return rect == null
+            ? animation
+            : Positioned.fromRect(rect: rect, child: animation);
+      },
     );
 
     overlay.insert(overlayEntry);
+  }
+
+  /// המלבן של הכלי ביחס ל־Overlay; null כשהכלי כבר לא בעץ.
+  static Rect? _areaRect(BuildContext area, BuildContext overlayContext) {
+    if (!area.mounted) return null;
+    final box = area.findRenderObject();
+    final overlayBox = overlayContext.findRenderObject();
+    if (box is! RenderBox || overlayBox is! RenderBox) return null;
+    if (!box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
   }
 }
 
@@ -82,7 +106,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Material(
-      color: cs.scrim.withValues(alpha: 0.54),
+      type: MaterialType.transparency,
       child: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -110,7 +134,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                     children: [
                       Icon(
                         FluentIcons.trophy_24_regular,
-                        size: 64,
+                        size: AppTokens.iconXL,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(height: 16),

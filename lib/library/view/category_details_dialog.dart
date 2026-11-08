@@ -6,6 +6,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 /// מציג את כל פרטי הקטגוריה הזמינים.
 Future<void> showCategoryDetailsDialog(
@@ -16,7 +17,7 @@ Future<void> showCategoryDetailsDialog(
     context: context,
     title: 'אודות הקטגוריה',
     icon: FluentIcons.folder_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: 'סגור',
     customContent: _CategoryDetailsDialogContent(category: category),
   );
@@ -59,15 +60,11 @@ class _CategoryDetailsDialogContentState
     // שיש המשך.
     return SizedBox(
       width: 500,
-      child: RawScrollbar(
+      child: AppScrollbar(
         controller: _scroll,
         thumbVisibility: true,
-        thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: 6,
-        radius: const Radius.circular(3),
         child: SingleChildScrollView(
           controller: _scroll,
-          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
           child: AppSelectionArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,

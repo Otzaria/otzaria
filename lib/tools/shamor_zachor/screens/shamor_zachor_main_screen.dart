@@ -1,5 +1,3 @@
-import 'package:otzaria/widgets/feedback/loading_indicator.dart';
-import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,12 +19,14 @@ import 'book_detail_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/layout/tool_scaffold.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -247,6 +247,9 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           child: IconButton.filledTonal(
             tooltip: 'הוסף ספרים למעקב',
             visualDensity: VisualDensity.compact,
+            style: IconButton.styleFrom(
+              shape: AppTokens.roundedShape,
+            ),
             onPressed: _openAddBooksDialog,
             icon: const Icon(FluentIcons.add_24_regular),
           ),
@@ -390,192 +393,185 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           autofocus: true,
           onKeyEvent: _handleWindowKeyEvent,
           child: ErrorBoundary(
-            child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
-              builder: (context, dataProvider, progressProvider, child) {
-                if (dataProvider.isLoading || progressProvider.isLoading) {
-                  return const LoadingIndicator();
-                }
+            child:
+                Consumer2<
+                  ShamorZachorDataProvider,
+                  ShamorZachorProgressProvider
+                >(
+                  builder: (context, dataProvider, progressProvider, child) {
+                    final loading =
+                        dataProvider.isLoading || progressProvider.isLoading;
+                    final failed =
+                        dataProvider.error != null ||
+                        progressProvider.error != null;
 
-                if (dataProvider.error != null ||
-                    progressProvider.error != null) {
-                  return OtzariaErrorState(
-                    title: 'שגיאה בטעינת הנתונים',
-                    actions: [
-                      ActionButton.recommended(
-                        text: 'נסה שוב',
-                        icon: FluentIcons.arrow_clockwise_24_regular,
-                        onPressed: () async {
-                          if (dataProvider.error != null) {
-                            await dataProvider.loadAllData();
-                          }
-                          if (!context.mounted) {
-                            return;
-                          }
-                          if (progressProvider.error != null) {
-                            await progressProvider.retry();
-                          }
-                        },
-                      ),
-                    ],
-                  );
-                }
+                    return Scaffold(
+                      backgroundColor: Colors.transparent,
+                      body: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final screenWidth = constraints.maxWidth;
+                          const secondaryRowBelow = 900.0;
+                          final useSecondaryRow =
+                              screenWidth < secondaryRowBelow;
+                          final filterControl = ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 460),
+                            child: _buildFilterControls(),
+                          );
+                          final narrowFilterControl = _buildFilterControls();
 
-                // Default Selection Logic: 'All Books'
-                BookCategory? currentCategoryObject = _resolveSelectedCategory(
-                  dataProvider,
-                );
-                String? currentCategoryName = _selectedCategoryName;
-                String? currentTopLevelName = _selectedTopLevelName;
-
-                if (currentCategoryObject == null &&
-                    currentCategoryName == null) {
-                  // Construct 'All Books' category (same logic as Sidebar)
-                  final allCategories = dataProvider.allBookData;
-                  // Use natural order from DataProvider (already sorted by orderIndex from DB)
-                  final sortedKeys = allCategories.keys.toList();
-
-                  currentCategoryName = 'כל הספרים';
-                  currentTopLevelName = 'all_books_virtual';
-                  currentCategoryObject = BookCategory(
-                    name: 'כל הספרים',
-                    books: {},
-                    subcategories: sortedKeys
-                        .map((key) => allCategories[key]!)
-                        .toList(),
-                    isCustom: false,
-                    sourceFile: 'virtual',
-                    schemaVersion: 1,
-                    contentType: 'text',
-                    defaultStartPage: 1,
-                  );
-                }
-
-                return Scaffold(
-                  backgroundColor: Colors.transparent,
-                  body: Builder(
-                    builder: (context) {
-                      final screenWidth = MediaQuery.sizeOf(context).width;
-                      final useSecondaryRow = screenWidth < 900;
-                      final filterControl = ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 460),
-                        child: _buildFilterControls(),
-                      );
-                      final narrowFilterControl = _buildFilterControls();
-
-                      return Column(
-                        children: [
-                          AppTopBar(
-                            leadingItems: [
-                              AppTopBarItem(
-                                widget: NavPanelToggleButton(
-                                  isOpen: _isSidebarVisible,
-                                  onToggle: () =>
-                                      _setSidebarVisible(!_isSidebarVisible),
-                                ),
-                              ),
-                            ],
-                            center: Row(
-                              children: [
-                                if (!useSecondaryRow) ...[
-                                  filterControl,
-                                  const SizedBox(width: 16),
-                                ],
-                                Expanded(
-                                  child: OtzariaSearchField(
-                                    icon: OtzariaIcons
-                                        .search_in_library_24_regular,
-                                    controller: _searchController,
-                                    focusNode: _searchFocusNode,
-                                    hintText: 'חפש...',
-                                    onChanged: _onSearchChanged,
-                                    onSubmitted: (_) => _focusWindow(),
-                                    onClear: () => _onSearchChanged(''),
+                          return ToolScaffold(
+                            centerContent: false,
+                            loading: loading,
+                            loadError: failed ? 'שגיאה בטעינת הנתונים' : null,
+                            onRetry: () async {
+                              if (dataProvider.error != null) {
+                                await dataProvider.loadAllData();
+                              }
+                              if (!context.mounted) {
+                                return;
+                              }
+                              if (progressProvider.error != null) {
+                                await progressProvider.retry();
+                              }
+                            },
+                            topBar: AppTopBar(
+                              leadingItems: [
+                                AppTopBarItem(
+                                  widget: NavPanelToggleButton(
+                                    isOpen: _isSidebarVisible,
+                                    onToggle: () =>
+                                        _setSidebarVisible(!_isSidebarVisible),
                                   ),
                                 ),
                               ],
-                            ),
-                            secondaryRow: useSecondaryRow
-                                ? Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
+                              center: Row(
+                                children: [
+                                  if (!useSecondaryRow) ...[
+                                    filterControl,
+                                    const SizedBox(width: 16),
+                                  ],
+                                  Expanded(
+                                    child: OtzariaSearchField(
+                                      icon: OtzariaIcons
+                                          .search_in_library_24_regular,
+                                      controller: _searchController,
+                                      focusNode: _searchFocusNode,
+                                      hintText: 'חפש...',
+                                      onChanged: _onSearchChanged,
+                                      onSubmitted: (_) => _focusWindow(),
+                                      onClear: () => _onSearchChanged(''),
                                     ),
-                                    child: Align(
-                                      alignment:
-                                          AlignmentDirectional.centerStart,
-                                      child: narrowFilterControl,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          Expanded(
-                            child: NavSidePanel(
-                              isOpen: _isSidebarVisible,
-                              alignment: AlignmentDirectional.centerEnd,
-                              paneWidth: _sidebarWidth,
-                              minMainContentWidth: 320,
-                              onClose: () => _setSidebarVisible(false),
-                              onOpen: () => _setSidebarVisible(true),
-                              isResizable: true,
-                              minPaneWidth: 220,
-                              maxPaneWidth: 420,
-                              onPaneWidthChanged: (nextWidth) {
-                                _sidebarWidth = nextWidth;
-                              },
-                              paneContent: PrimaryScrollController.none(
-                                child: ShamorZachorSidebar(
-                                  onCategorySelected: _onCategorySelected,
-                                  selectedCategoryName:
-                                      currentTopLevelName == 'all_books_virtual'
-                                      ? 'all_books_virtual'
-                                      : _selectedCategoryName,
-                                ),
+                                  ),
+                                ],
                               ),
-                              mainContent:
-                                  _selectedBookName != null &&
-                                      _selectedBookDetails != null
-                                  ? Builder(
-                                      builder: (context) {
-                                        _logger.info(
-                                          'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}',
-                                        );
-
-                                        return KeyedSubtree(
-                                          key: ValueKey(
-                                            'Book_${_selectedBookCategory}_$_selectedBookName',
-                                          ),
-                                          child: BookDetailScreen(
-                                            topLevelCategoryKey:
-                                                _selectedBookCategory!,
-                                            bookName: _selectedBookName!,
-                                            bookId: _selectedBookDetails!.id,
-                                            bookDetails: _selectedBookDetails!,
-                                            onBack: _closeBookDetails,
-                                          ),
-                                        );
-                                      },
+                              secondaryRow: useSecondaryRow
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      child: Align(
+                                        alignment:
+                                            AlignmentDirectional.centerStart,
+                                        child: narrowFilterControl,
+                                      ),
                                     )
-                                  : _searchQuery.length >= 2
-                                  ? _buildSearchResults(dataProvider)
-                                  : CategoryBooksGrid(
-                                      categoryName: currentCategoryName,
-                                      category: currentCategoryObject,
-                                      topLevelName: currentTopLevelName,
-                                      onBookSelected: _navigateToBook,
-                                      selectedFilter: _selectedFilter,
-                                    ),
+                                  : null,
                             ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
+                            body: loading || failed
+                                ? const SizedBox.shrink()
+                                : _buildMainContent(dataProvider),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMainContent(ShamorZachorDataProvider dataProvider) {
+    // Default Selection Logic: 'All Books'
+    BookCategory? currentCategoryObject = _resolveSelectedCategory(
+      dataProvider,
+    );
+    String? currentCategoryName = _selectedCategoryName;
+    String? currentTopLevelName = _selectedTopLevelName;
+
+    if (currentCategoryObject == null && currentCategoryName == null) {
+      // Construct 'All Books' category (same logic as Sidebar)
+      final allCategories = dataProvider.allBookData;
+      // Use natural order from DataProvider (already sorted by orderIndex from DB)
+      final sortedKeys = allCategories.keys.toList();
+
+      currentCategoryName = 'כל הספרים';
+      currentTopLevelName = 'all_books_virtual';
+      currentCategoryObject = BookCategory(
+        name: 'כל הספרים',
+        books: {},
+        subcategories: sortedKeys.map((key) => allCategories[key]!).toList(),
+        isCustom: false,
+        sourceFile: 'virtual',
+        schemaVersion: 1,
+        contentType: 'text',
+        defaultStartPage: 1,
+      );
+    }
+
+    return NavSidePanel(
+      isOpen: _isSidebarVisible,
+      alignment: AlignmentDirectional.centerEnd,
+      paneWidth: _sidebarWidth,
+      minMainContentWidth: 320,
+      onClose: () => _setSidebarVisible(false),
+      onOpen: () => _setSidebarVisible(true),
+      isResizable: true,
+      minPaneWidth: 220,
+      maxPaneWidth: 420,
+      onPaneWidthChanged: (nextWidth) {
+        _sidebarWidth = nextWidth;
+      },
+      paneContent: PrimaryScrollController.none(
+        child: ShamorZachorSidebar(
+          onCategorySelected: _onCategorySelected,
+          selectedCategoryName: currentTopLevelName == 'all_books_virtual'
+              ? 'all_books_virtual'
+              : _selectedCategoryName,
+        ),
+      ),
+      mainContent: _selectedBookName != null && _selectedBookDetails != null
+          ? Builder(
+              builder: (context) {
+                _logger.info(
+                  'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}',
+                );
+
+                return KeyedSubtree(
+                  key: ValueKey(
+                    'Book_${_selectedBookCategory}_$_selectedBookName',
+                  ),
+                  child: BookDetailScreen(
+                    topLevelCategoryKey: _selectedBookCategory!,
+                    bookName: _selectedBookName!,
+                    bookId: _selectedBookDetails!.id,
+                    bookDetails: _selectedBookDetails!,
+                    onBack: _closeBookDetails,
+                  ),
+                );
+              },
+            )
+          : _searchQuery.length >= 2
+          ? _buildSearchResults(dataProvider)
+          : CategoryBooksGrid(
+              categoryName: currentCategoryName,
+              category: currentCategoryObject,
+              topLevelName: currentTopLevelName,
+              onBookSelected: _navigateToBook,
+              selectedFilter: _selectedFilter,
+            ),
     );
   }
 

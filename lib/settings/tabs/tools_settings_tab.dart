@@ -5,6 +5,7 @@ import 'package:otzaria/settings/panels/settings_panels_exports.dart';
 import 'package:otzaria/settings/panels/tools_management_panel.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// טאב כלים — לוח שנה, גימטריות, עורך.
 ///
@@ -26,13 +27,10 @@ class ToolsSettingsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ToolsManagementPanel(),
-            SizedBox(height: 16),
             CalendarSettingsTab(),
             GematriaSettingsTab(),
-            SizedBox(height: 16),
             TikkunKorimSettingsTab(),
-            // [EDITING DISABLED] EditorSettingsTab(),
-            SizedBox(height: 16),
+            SizedBox(height: AppTokens.spaceMD),
           ],
         ),
       ),

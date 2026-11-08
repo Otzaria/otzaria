@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -240,77 +241,96 @@ class NavTreeTile extends StatelessWidget {
                 ),
               ));
 
-    final row = InkWell(
-      onTap: onTap,
-      child: Container(
-        color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.4) : null,
-        padding: EdgeInsetsDirectional.only(
-          start: 12 + indent,
-          end: 12,
-          top: 8,
-          bottom: 8,
-        ),
-        // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
-        // אותו קצב רשימה כמו שורה שיש בה קופסה.
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: iconBoxSize),
-          child: Row(
-            children: [
-              if (leadingWidget != null) ...[
-                leadingWidget,
-                const SizedBox(width: 9),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OverflowTooltipText(
-                      text: title,
-                      maxLines: 1,
-                      style: AppTextStyles.settingTitle.copyWith(
-                        fontWeight: fontWeight,
-                        color: cs.onSurface,
+    final row = Semantics(
+      selected: isSelected,
+      expanded: hasChildren ? isExpanded : null,
+      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+      child: Material(
+        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+        textStyle: DefaultTextStyle.of(context).style,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: AppSurfaces.hoverRow(cs),
+          child: Container(
+            padding: EdgeInsetsDirectional.only(
+              start: 12 + indent,
+              end: 12,
+              top: 8,
+              bottom: 8,
+            ),
+            // גובה מזערי כגובה קופסת האייקון — שורה ללא קופסה (TOC) שומרת על
+            // אותו קצב רשימה כמו שורה שיש בה קופסה.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: iconBoxSize),
+              child: Row(
+                children: [
+                  if (leadingWidget != null) ...[
+                    leadingWidget,
+                    const SizedBox(width: 9),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OverflowTooltipText(
+                          text: title,
+                          maxLines: 1,
+                          style: AppTextStyles.settingTitle.copyWith(
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : fontWeight,
+                            color: cs.onSurface,
+                            fontSize: AppTokens.fontMD,
+                          ),
+                        ),
+                        if (subtitle != null && subtitle!.isNotEmpty)
+                          OverflowTooltipText(
+                            text: subtitle!,
+                            maxLines: 1,
+                            style: AppTextStyles.settingSubtitle.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontSize: AppTokens.fontSM,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (trailing != null)
+                    trailing!
+                  else if (onClearFilter != null)
+                    _ClearFilterButton(onTap: onClearFilter!)
+                  else if (count != null && count! > 0)
+                    Text(
+                      '($count)',
+                      style: TextStyle(
                         fontSize: AppTokens.fontMD,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
-                    if (subtitle != null && subtitle!.isNotEmpty)
-                      OverflowTooltipText(
-                        text: subtitle!,
-                        maxLines: 1,
-                        style: AppTextStyles.settingSubtitle.copyWith(
+                  if (hasChildren) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: context.settingsText(
+                        isExpanded ? 'כווץ' : 'הרחב',
+                      ),
+                      // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
+                      icon: ExcludeSemantics(
+                        child: ExpandingChevron(
+                          isExpanded: isExpanded,
+                          style: ExpandingChevronStyle.tree,
                           color: cs.onSurfaceVariant,
-                          fontSize: AppTokens.fontSM,
+                          size: AppTokens.iconSM,
                         ),
                       ),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onToggleExpand,
+                    ),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              if (trailing != null)
-                trailing!
-              else if (onClearFilter != null)
-                _ClearFilterButton(onTap: onClearFilter!)
-              else if (count != null && count! > 0)
-                Text(
-                  '($count)',
-                  style: TextStyle(
-                    fontSize: AppTokens.fontMD,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              if (hasChildren) ...[
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: ExpandingChevron(
-                    isExpanded: isExpanded,
-                    color: cs.onSurfaceVariant,
-                    size: 18,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onToggleExpand,
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -361,31 +381,38 @@ class NavTreeHeader extends StatelessWidget {
         kNavTreeSideInset + 12,
         8,
       ),
-      child: Row(
+      child: OverflowBar(
+        alignment: MainAxisAlignment.spaceBetween,
+        spacing: AppTokens.spaceSM,
+        overflowSpacing: AppTokens.spaceXS,
         children: [
-          Expanded(
-            child: OverflowTooltipText(
-              text: title,
-              maxLines: 1,
-              style: AppTextStyles.settingTitle.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: AppTokens.fontMD,
-                color: cs.primary,
-              ),
+          OverflowTooltipText(
+            text: title,
+            maxLines: 1,
+            style: AppTextStyles.settingTitle.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: AppTokens.fontMD,
+              color: cs.primary,
             ),
           ),
-          const SizedBox(width: 8),
-          if (hasFilter)
-            _ClearFilterButton(onTap: onClearFilter!)
-          else if (count != null && count! > 0)
-            Text(
-              '($count)',
-              style: TextStyle(
-                fontSize: AppTokens.fontMD,
-                color: cs.onSurfaceVariant,
-              ),
+          if (hasFilter || (count != null && count! > 0) || trailing != null)
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: AppTokens.spaceXS,
+              children: [
+                if (hasFilter)
+                  _ClearFilterButton(onTap: onClearFilter!)
+                else if (count != null && count! > 0)
+                  Text(
+                    '($count)',
+                    style: TextStyle(
+                      fontSize: AppTokens.fontMD,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ?trailing,
+              ],
             ),
-          ?trailing,
         ],
       ),
     );
@@ -421,17 +448,27 @@ class NavTreeContentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = InkWell(
-      onTap: onTap,
-      child: Container(
-        color: isSelected ? AppSurfaces.cardSelectionOverlay(context) : null,
-        padding: const EdgeInsetsDirectional.only(
-          start: 12,
-          end: 12,
-          top: 10,
-          bottom: 10,
+    final cs = Theme.of(context).colorScheme;
+    final row = Semantics(
+      selected: isSelected,
+      // רקע הבחירה על ה-Material, כדי שהריחוף והלחיצה יצוירו מעליו. הסגנון
+      // הנורש נשמר: Material היה מחליף אותו ב-bodyMedium.
+      child: Material(
+        color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+        textStyle: DefaultTextStyle.of(context).style,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: AppSurfaces.hoverRow(cs),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(
+              start: 12,
+              end: 12,
+              top: 10,
+              bottom: 10,
+            ),
+            child: child,
+          ),
         ),
-        child: child,
       ),
     );
 
@@ -520,8 +557,7 @@ class _ClearFilterButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   'נקה סינון',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: cs.onPrimaryContainer,
                   ),

@@ -56,7 +56,7 @@ class ExpandableSection extends StatelessWidget {
       children: [
         header,
         AnimatedSize(
-          duration: AppTokens.animNormal,
+          duration: AppMotion.duration(context, AppTokens.animNormal),
           curve: Curves.easeInOut,
           child: Column(
             mainAxisSize: MainAxisSize.min,

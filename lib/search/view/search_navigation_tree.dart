@@ -1,6 +1,5 @@
 import 'dart:io' show Platform;
 
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -8,10 +7,10 @@ import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
-import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 
@@ -289,8 +288,14 @@ class SearchNavigationTree extends StatelessWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (rows.any((r) => r.isExpanded))
-                _buildCollapseAllButton(context, rows),
+              // אותו כלל כמו בתוכן העניינים (#3103): "הרחב הכל" כשהכל מכווץ,
+              // "כווץ הכל" כשמשהו פתוח. בלי ענף שאפשר לפתוח, אין כפתור.
+              if (rows.any((r) => r.hasChildren))
+                NavTreeCollapseAllButton(
+                  isCollapsed: !rows.any((r) => r.isExpanded),
+                  onCollapseAll: () => _collapseAll(rows),
+                  onExpandAll: _expandAll,
+                ),
               const NavPanelSearchToggle(),
               ?rootHeaderAction,
             ],
@@ -408,19 +413,6 @@ class SearchNavigationTree extends StatelessWidget {
     );
   }
 
-  Widget _buildCollapseAllButton(BuildContext context, List<_FlatRow> rows) {
-    return SizedBox.square(
-      dimension: 28,
-      child: IconButton(
-        tooltip: context.settingsText('כווץ הכל'),
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        icon: const Icon(FluentIcons.arrow_collapse_all_24_regular, size: 18),
-        onPressed: () => _collapseAll(rows),
-      ),
-    );
-  }
-
   /// גם ענפים פתוחים שמוסתרים תחת הורה סגור נסגרים, כדי שלא ייפתחו שוב
   /// כשההורה נפתח.
   void _collapseAll(List<_FlatRow> rows) {
@@ -437,6 +429,46 @@ class SearchNavigationTree extends StatelessWidget {
     for (final path in paths) {
       onToggleExpand(path, true);
     }
+  }
+
+  /// פותח כל ענף שאפשר לפתוח, גם ענפים שמתחת להורה סגור, כדי שכל העץ ייפתח
+  /// בלחיצה אחת. ענף שכבר פתוח (גם בפתיחה האוטומטית של ענף הבחירה) לא
+  /// נשלח, כי [onToggleExpand] הופך את המצב.
+  void _expandAll() {
+    final selectedPaths = _selectedPaths();
+    for (final path in _expandablePaths(selectedPaths)) {
+      final isExpanded =
+          expansion[path] ?? _leadsToSelection(path, selectedPaths);
+      if (!isExpanded) onToggleExpand(path, false);
+    }
+  }
+
+  /// כל הענפים שיש להם חץ הרחבה, באותם תנאים שבהם [_flattenChildren]
+  /// ו־[_appendExtraRows] מרנדרים שורה עם ילדים, בלי תלות במצב הפתיחה.
+  List<String> _expandablePaths(List<String> selectedPaths) {
+    final pinnedPaths = _pinnedPaths(selectedPaths);
+    final paths = <String>[];
+    void walk(Category category) {
+      for (final sub in category.subCategories) {
+        final count = facetCounts[sub.path] ?? 0;
+        if (count == 0 && !_isPinned(sub.path, pinnedPaths)) continue;
+        if (!_hasVisibleChildren(sub, pinnedPaths)) continue;
+        paths.add(sub.path);
+        walk(sub);
+      }
+    }
+
+    walk(library);
+    for (final extra in extraRootCategories) {
+      if (extra.books.isEmpty) continue;
+      if (extra.count == 0 &&
+          !_isSelected(extra.facet) &&
+          !_leadsToSelection(extra.facet, selectedPaths)) {
+        continue;
+      }
+      paths.add(extra.facet);
+    }
+    return paths;
   }
 
   // ── קטגוריות ──────────────────────────────────────────────────────────────

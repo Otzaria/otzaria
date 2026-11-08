@@ -1,12 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -21,10 +24,15 @@ import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// כפתור-שדה אחד המרכז את כל סינון היקף החיפוש: הקלדה מסננת בזמן אמת, ותפריט
 /// עם ניווט drill-down פנימי (עץ הקטגוריות/ספרים, ספרי יסוד, תקופה, מחבר).
@@ -346,12 +354,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               color: colorScheme.onSurfaceVariant,
             ),
             suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-                    tooltip: 'ניקוי',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _searchController.clear(),
-                  )
+                ? OtzariaSearchClearButton(controller: _searchController)
                 : Icon(
                     FluentIcons.chevron_down_16_regular,
                     size: 16,
@@ -495,12 +498,17 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         groupId: _tapGroup,
         onTapOutside: (_) => _close(),
         child: Material(
-          elevation: 8,
+          elevation: AppTokens.elevation2,
+          shadowColor: AppShadows.color(colorScheme),
           color: colorScheme.surfaceContainerHigh,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
+            side: BorderSide(
+              color:
+                  AppSurfaces.regionBorder(context) ??
+                  colorScheme.outlineVariant,
+            ),
           ),
           // הפוקוס נשמר בשדה לאחר כל פעולה (onKeepFocus) כדי לאפשר הקלדה
           // וניווט מקלדת רציפים גם אחרי לחיצה בעכבר על פריט בתפריט.
@@ -677,6 +685,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   // ריחוף משנה רק את כפתור "רק" בשורה, בלי לבנות מחדש את כל שורות התפריט.
   final ValueNotifier<int> _hoveredRow = ValueNotifier<int>(-1);
 
+  /// מגע (או עט) בלי ריחוף: "רק" מוצג בכל השורות. לפי המצביע האחרון בתפריט;
+  /// לפני הראשון — מכשיר נייד, או שאין עכבר מחובר.
+  final ValueNotifier<bool> _touchInput = ValueNotifier<bool>(
+    defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        !RendererBinding.instance.mouseTracker.mouseIsConnected,
+  );
+
+  void _onPointer(PointerEvent event) => _touchInput.value =
+      event.kind != PointerDeviceKind.mouse &&
+      event.kind != PointerDeviceKind.trackpad;
+
   // חיצים, סימון ותוצאות המחברים בונים את התפריט מחדש עם אותה שאילתה.
   ({ScopeTree tree, String query, List<ScopeSearchResultItem> results})?
   _treeSearch;
@@ -730,6 +750,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     widget.searchController.removeListener(_onQueryChanged);
     _scrollController.dispose();
     _hoveredRow.dispose();
+    _touchInput.dispose();
     super.dispose();
   }
 
@@ -895,9 +916,10 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final target = _highlight * _rowHeight;
     final min = _scrollController.position.minScrollExtent;
     final max = _scrollController.position.maxScrollExtent;
-    _scrollController.animateTo(
+    AppMotion.scrollPosition(
+      _scrollController.position,
       (target - _rowHeight).clamp(min, max),
-      duration: const Duration(milliseconds: 120),
+      const Duration(milliseconds: 120),
       curve: Curves.easeOut,
     );
   }
@@ -1130,25 +1152,29 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
     final showBreadcrumb = !_hasActiveSearch && _view != _View.root;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showBreadcrumb) _buildBreadcrumb(context),
-        Flexible(
-          child: waitingForTree || waitingForBaseBooks
-              ? const Center(child: CircularProgressIndicator())
-              : items.isEmpty
-              ? _buildEmpty(context)
-              : ListView.builder(
-                  controller: _scrollController,
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) =>
-                      _buildRow(context, items[index], index),
-                ),
-        ),
-      ],
+    return Listener(
+      onPointerDown: _onPointer,
+      onPointerHover: _onPointer,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showBreadcrumb) _buildBreadcrumb(context),
+          Flexible(
+            child: waitingForTree || waitingForBaseBooks
+                ? const Center(child: CircularProgressIndicator())
+                : items.isEmpty
+                ? _buildEmpty(context)
+                : ListView.builder(
+                    controller: _scrollController,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) =>
+                        _buildRow(context, items[index], index),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1175,7 +1201,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       child: Row(
         children: [
           IconButton(
-            icon: const RtlIcon(FluentIcons.arrow_right_24_regular, size: 20),
+            icon: const Icon(FluentIcons.arrow_left_24_regular, size: 20),
             tooltip: 'חזרה',
             visualDensity: VisualDensity.compact,
             onPressed: goBack,
@@ -1193,26 +1219,27 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                         size: 14,
                         color: colorScheme.onSurfaceVariant,
                       ),
-                    TextButton(
-                      onPressed: i == trail.length - 1
-                          ? null
-                          : () => _goToDepth(i),
-                      style: TextButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        trail[i],
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: i == trail.length - 1
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
+                    // הקודמים קישורים; המיקום הנוכחי טקסט, לא כפתור.
+                    if (i == trail.length - 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceSM,
+                          vertical: AppTokens.spaceXS,
                         ),
+                        child: Text(
+                          trail[i],
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.onSurface,
+                              ),
+                        ),
+                      )
+                    else
+                      ActionButton.inline(
+                        text: trail[i],
+                        onPressed: () => _goToDepth(i),
                       ),
-                    ),
                   ],
                 ],
               ),
@@ -1269,11 +1296,6 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     }
 
     // במגע אין hover — "רק" מוצג תמיד; בעכבר הוא נחשף בריחוף או בניווט מקלדת.
-    final alwaysShowOnly =
-        Platform.isAndroid ||
-        Platform.isIOS ||
-        Platform.isWindows ||
-        highlighted;
 
     return InkWell(
       canRequestFocus: false,
@@ -1287,7 +1309,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       },
       child: Container(
         constraints: const BoxConstraints(minHeight: _rowHeight),
-        color: highlighted ? colorScheme.primary.withValues(alpha: 0.10) : null,
+        decoration: highlighted
+            ? BoxDecoration(color: AppSurfaces.focusedRow(colorScheme))
+            : null,
+        foregroundDecoration: highlighted
+            ? AppSurfaces.focusRingDecoration(colorScheme)
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Row(
           children: [
@@ -1311,8 +1338,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
             const SizedBox(width: 2),
             if (item.icon != null) ...[
               item.useRtlIcon
-                  ? RtlIcon(item.icon!, size: 18, color: iconColor)
-                  : Icon(item.icon, size: 18, color: iconColor),
+                  ? RtlIcon(
+                      item.icon!,
+                      size: AppTokens.iconSM,
+                      color: iconColor,
+                    )
+                  : Icon(item.icon, size: AppTokens.iconSM, color: iconColor),
               const SizedBox(width: 8),
             ],
             Expanded(
@@ -1332,8 +1363,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                   if (item.subtitle.isNotEmpty)
                     Text(
                       item.subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                       maxLines: 1,
@@ -1343,45 +1373,33 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               ),
             ),
             if (item.onOnly != null)
-              ValueListenableBuilder<int>(
-                valueListenable: _hoveredRow,
-                builder: (context, hovered, onlyButton) =>
-                    alwaysShowOnly || hovered == index
+              ListenableBuilder(
+                listenable: Listenable.merge([_hoveredRow, _touchInput]),
+                builder: (context, onlyButton) =>
+                    highlighted ||
+                        _touchInput.value ||
+                        _hoveredRow.value == index
                     ? onlyButton!
                     : const SizedBox.shrink(),
                 child: Padding(
                   padding: const EdgeInsetsDirectional.only(start: 4),
-                  child: Tooltip(
-                    message: 'בחר רק את זה',
-                    child: TextButton(
-                      onPressed: () {
-                        item.onOnly!();
-                        widget.onKeepFocus();
-                      },
-                      style: TextButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'רק',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                  child: ActionButton.inline(
+                    text: 'רק',
+                    tooltip: 'בחר רק את זה',
+                    onPressed: () {
+                      item.onOnly!();
+                      widget.onKeepFocus();
+                    },
                   ),
                 ),
               ),
             if (item.onDelete != null)
-              IconButton(
-                icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+              AppIconButton(
+                size: AppIconButtonSize.small,
+                // בגובה השורה (_rowHeight), כמו שאר השורות בתפריט.
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                icon: const Icon(FluentIcons.delete_24_regular),
                 tooltip: context.settingsText('מחק היקף שמור'),
-                visualDensity: VisualDensity.compact,
                 onPressed: () {
                   item.onDelete!();
                   widget.onKeepFocus();
@@ -1390,9 +1408,9 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
             if (item.isDrill) ...[
               const SizedBox(width: 4),
               // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
-              RtlIcon(
-                FluentIcons.chevron_left_24_regular,
-                size: 18,
+              Icon(
+                FluentIcons.chevron_right_24_regular,
+                size: AppTokens.iconSM,
                 color: colorScheme.onSurfaceVariant,
               ),
             ],

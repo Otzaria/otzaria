@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
@@ -320,6 +321,66 @@ void main() {
 
         expect(groupStarts(), findsOneWidget);
       });
+
+      // q12 שאלה 9 C (DD-11): כרטיס בהיר לכל קבוצה, כמו ב-upstream. השורות על
+      // רקע AppSurfaces.card, והרווח ביניהן מראה את המשטח שמתחת (בלי קו).
+      testWidgets('כל שורה על רקע הכרטיס, בלי קו בין השורות', (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          buildGrouped(
+            testItems: items,
+            groupKeyBuilder: (item) => (item as _Item).workspaceName,
+          ),
+        );
+        await tester.pump();
+
+        final card = AppSurfaces.card(
+          tester.element(find.byType(ItemsListView)),
+        );
+        for (final title in ['שבת עד:', 'ברכות ב.', 'הלכות שבת']) {
+          final row = tester.widget<Material>(
+            find
+                .ancestor(of: find.text(title), matching: find.byType(Material))
+                .first,
+          );
+          expect(row.color, card, reason: title);
+        }
+        expect(find.byType(Divider), findsNothing);
+      });
+
+      // הכרטיס בהיר מגוף דיאלוג ההיסטוריה והסימניות בשתי הערכות, כמו ב-upstream
+      // (הערת בעל הפרויקט 4.11).
+      for (final brightness in Brightness.values) {
+        testWidgets('הכרטיס בהיר מגוף הדיאלוג: ${brightness.name}', (
+          tester,
+        ) async {
+          late Color card;
+          late Color body;
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.brown,
+                  brightness: brightness,
+                ),
+              ),
+              home: Builder(
+                builder: (context) {
+                  card = AppSurfaces.card(context);
+                  body = AppSurfaces.cardDialogBackground(context);
+                  return const SizedBox();
+                },
+              ),
+            ),
+          );
+          expect(
+            card.computeLuminance(),
+            greaterThan(body.computeLuminance()),
+          );
+        });
+      }
     });
 
     group('itemSortComparator', () {

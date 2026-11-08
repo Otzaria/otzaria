@@ -31,9 +31,14 @@ import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class PersonalNotesSidebar extends StatefulWidget {
   final String bookId;
@@ -318,10 +323,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         // rebuild מההורה עוקף את buildWhen, ולכן state של ספר אחר (למשל
         // במעבר ספר באותו טאב) עלול להגיע לכאן — לא מציגים הערות זרות.
         if (state.bookId != null && state.bookId != widget.bookId) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingIndicator();
         }
         if (state.isLoading && state.locatedNotes.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingIndicator();
         }
 
         return ValueListenableBuilder<List<int>>(
@@ -465,15 +470,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     List<PdfOutlineNode>? pdfOutline,
   }) {
     if (state.errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            state.errorMessage!,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ),
+      return OtzariaErrorState(
+        isCompact: true,
+        title: 'לא ניתן לטעון את ההערות',
+        details: state.errorMessage,
       );
     }
 
@@ -497,6 +497,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     );
     // רשימה משותפת לכל הכרטיסים: העתקה לכל כרטיס ריבועית במספר ההערות.
     final linkableNotes = [...state.locatedNotes, ...state.missingNotes];
+    // כל הערה כרטיס עדין, ממוקמת וחסרת מיקום כאחת, עם רווח ביניהם ובלי קווים
+    // (review-r5, q-notes-cards). רק בחלונית ההערות: הקישורים והמפרשים נשארים
+    // שורות שקופות עם מפריד. הקבוצה של חסרות המיקום מזוהה בכותרת שמעליה.
+    final cardColor = AppSurfaces.tintedRow(Theme.of(context).colorScheme);
     final items = <Widget>[];
 
     // הטיוטה מזוהה לפי newNoteBookId; state.bookId הוא הספר האחרון שנטען.
@@ -517,6 +521,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             onDelete: () => _confirmDelete(context, note),
             onLinkTap: (url) => _handleNoteLinkTap(context, url),
             defaultExpanded: defaultExpanded,
+            backgroundColor: cardColor,
             subtitle: _buildLocationSubtitle(
               context,
               note,
@@ -529,12 +534,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             bookId: widget.bookId,
             categoryId: widget.categoryId,
             linkableNotes: linkableNotes,
-            extraAction: IconButton(
+            extraAction: AppIconButton(
+              size: AppIconButtonSize.small,
               tooltip: widget.isPdf ? 'שנה מיקום בדף' : 'שנה שיוך לשורה נבחרת',
-              icon: const Icon(FluentIcons.pin_24_regular, size: 18),
-              iconSize: 18,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              icon: const Icon(FluentIcons.pin_24_regular),
               onPressed: () => _reanchorNote(context, note, selectedLineNumber),
             ),
           ),
@@ -547,13 +550,14 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       if (filtered.locatedNotes.isNotEmpty) {
         items.add(
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMD,
+              vertical: AppTokens.spaceSM,
+            ),
             child: Text(
               'הערות חסרות מיקום',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.5),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -575,25 +579,19 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             bookId: widget.bookId,
             categoryId: widget.categoryId,
             linkableNotes: linkableNotes,
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.surfaceTint.withValues(alpha: 0.05),
+            backgroundColor: cardColor,
             subtitle: note.lastKnownLineNumber != null
                 ? Text(
                     'שורה קודמת: ${note.lastKnownLineNumber}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   )
                 : null,
-            extraAction: IconButton(
+            extraAction: AppIconButton(
+              size: AppIconButtonSize.small,
               tooltip: 'מיקום מחדש',
-              icon: const Icon(FluentIcons.location_24_regular, size: 18),
-              iconSize: 18,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              icon: const Icon(FluentIcons.location_24_regular),
               onPressed: () => _reposition(context, note),
             ),
           ),
@@ -623,8 +621,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (state.isLoading) {
       items.add(
         const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Center(child: CircularProgressIndicator()),
+          padding: EdgeInsets.symmetric(vertical: AppTokens.spaceMD),
+          child: Center(child: LoadingIndicator.inline()),
         ),
       );
     }
@@ -817,6 +815,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final result = await showInputDialog(
       context: context,
       title: 'שחזור מיקום הערה',
+      icon: FluentIcons.location_24_regular,
       subtitle: note.lastKnownLineNumber != null
           ? 'המיקום האחרון הידוע: שורה ${note.lastKnownLineNumber}'
           : null,
@@ -870,6 +869,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       final choice = await showSelectionDialog<String>(
         context: context,
         title: 'שינוי שיוך הערה',
+        icon: FluentIcons.pin_24_regular,
         items: [
           SelectionItem(
             label: 'שייך לשורה נבחרת ($selectedLineNumber)',
@@ -890,6 +890,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final result = await showInputDialog(
       context: context,
       title: 'שנה שיוך הערה',
+      icon: FluentIcons.pin_24_regular,
       subtitle: note.lineNumber != null
           ? 'מיקום נוכחי: שורה ${note.lineNumber}'
           : null,
@@ -961,6 +962,7 @@ Future<void> openNoteLink(
         context: context,
         builder: (context) => AppDialog.singleAction(
           title: 'הערה מקושרת',
+          icon: FluentIcons.link_24_regular,
           confirmText: 'סגור',
           customContent: PersonalNoteContentView(note: note!),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class PdfZoomBar extends StatelessWidget {
@@ -24,7 +25,6 @@ class PdfZoomBar extends StatelessWidget {
     final divider = Theme.of(context).colorScheme.outlineVariant;
 
     return FloatingPanel(
-      elevation: AppTokens.elevation2,
       color: AppSurfaces.card(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -39,20 +39,7 @@ class PdfZoomBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // כפתור איפוס
-            TextButton(
-              onPressed: onResetZoom,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                minimumSize: const Size(60, 36),
-              ),
-              child: const Text(
-                'אפס',
-                style: TextStyle(fontSize: 14),
-              ),
-            ),
+            ActionButton.ghost(text: 'אפס', onPressed: onResetZoom),
             Container(
               width: 1,
               height: 24,
@@ -61,7 +48,10 @@ class PdfZoomBar extends StatelessWidget {
             ),
             // כפתור הגדלה
             IconButton(
-              icon: const Icon(FluentIcons.add_24_regular, size: 20),
+              icon: const Icon(
+                FluentIcons.add_24_regular,
+                size: AppTokens.iconMD,
+              ),
               onPressed: onZoomIn,
               tooltip: 'הגדל את התצוגה',
               padding: const EdgeInsets.all(8),
@@ -78,7 +68,10 @@ class PdfZoomBar extends StatelessWidget {
             ),
             // כפתור הקטנה
             IconButton(
-              icon: const Icon(FluentIcons.subtract_24_regular, size: 20),
+              icon: const Icon(
+                FluentIcons.subtract_24_regular,
+                size: AppTokens.iconMD,
+              ),
               onPressed: onZoomOut,
               tooltip: 'הקטן את התצוגה',
               padding: const EdgeInsets.all(8),

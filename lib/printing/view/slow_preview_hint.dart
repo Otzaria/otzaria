@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// הערה שמופיעה רק כשהכנת התצוגה המקדימה מתארכת, כדי שהמתנה ארוכה לא תיראה כתקיעה.
 class SlowPreviewHint extends StatefulWidget {
@@ -35,7 +36,7 @@ class SlowPreviewHintState extends State<SlowPreviewHint> {
     final theme = Theme.of(context);
     return AnimatedOpacity(
       opacity: _visible ? 1 : 0,
-      duration: const Duration(milliseconds: 400),
+      duration: AppMotion.duration(context, const Duration(milliseconds: 400)),
       child: Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/plugin_confirmation_dialog.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
 void main() {
@@ -38,7 +39,11 @@ void main() {
       final route =
           ModalRoute.of(tester.element(find.text('לשלוח?')))!
               as DialogRoute<bool>;
-      expect(route.barrierColor, Colors.black54);
+      // בלי dialogTheme: ה־scrim האחיד של האפליקציה (DD-12), לא black54.
+      expect(
+        route.barrierColor,
+        AppSurfaces.scrim(Theme.of(context).colorScheme),
+      );
       expect(route.traversalEdgeBehavior, TraversalEdgeBehavior.closedLoop);
       await tester.pump(const Duration(seconds: 31));
       expect(result, isNull);

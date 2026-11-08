@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/tikkun_korim/bloc/tikkun_korim_bloc.dart';
@@ -25,16 +26,18 @@ import 'package:otzaria/tools/tikkun_korim/view/widgets/tikkun_bookmarks_panel.d
 import 'package:otzaria/tools/tikkun_korim/view/widgets/tikkun_settings_panel.dart';
 import 'package:otzaria/utils/text/numeral_formats.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show showWarningDialog;
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// רוחב בורר בסרגל העליון והריפוד משני צדדיו.
 const double _kSelectorWidth = 150;
@@ -60,9 +63,9 @@ class TikkunKorimScreen extends StatelessWidget {
     final engine = this.engine;
     final data = this.data;
     if (engine == null || data == null) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.book_open_24_regular,
-        message: ToolsMessages.tikkunNoData,
+        title: ToolsMessages.tikkunNoData,
       );
     }
     return BlocProvider(
@@ -154,10 +157,19 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
         )) {
       return;
     }
-    _scrollController.scrollTo(
-      index: line.clamp(0, (state.currentLines.length - 1).clamp(0, 1 << 30)),
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    final index = line.clamp(
+      0,
+      (state.currentLines.length - 1).clamp(0, 1 << 30),
+    );
+    AppMotion.scroll(
+      context,
+      AppTokens.animNormal,
+      animate: (duration) => _scrollController.scrollTo(
+        index: index,
+        duration: duration,
+        curve: Curves.easeOut,
+      ),
+      jump: () => _scrollController.jumpTo(index: index),
     );
   }
 
@@ -546,7 +558,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     double availableWidth,
   ) {
     final bloc = context.read<TikkunKorimBloc>();
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final nav = state.nav;
     final selectors = <Widget>[
       _selector<TikkunSection>(
@@ -593,9 +605,10 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
 
     final pageNav = state.columnCount > 1
         ? [
-            IconButton(
+            BarButton.icon(
+              compact: isCompact,
               tooltip: 'עמוד קודם',
-              icon: const RtlIcon(FluentIcons.chevron_right_24_regular),
+              icon: FluentIcons.chevron_left_24_regular,
               onPressed: state.nav.currentColumnIndex > 0
                   ? () => bloc.add(const TikkunPrevColumn())
                   : null,
@@ -604,9 +617,10 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
               width: _kSelectorWidth,
               child: _PageIndicator(state: state),
             ),
-            IconButton(
+            BarButton.icon(
+              compact: isCompact,
               tooltip: 'עמוד הבא',
-              icon: const RtlIcon(FluentIcons.chevron_left_24_regular),
+              icon: FluentIcons.chevron_right_24_regular,
               onPressed: state.nav.currentColumnIndex < state.columnCount - 1
                   ? () => bloc.add(const TikkunNextColumn())
                   : null,
@@ -618,7 +632,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     // הסרגל מקבל את רוחבם כדי שהבוררים לא יגלשו מתחתיהם.
     double trailingWidthFor(int buttons, {required bool withPageNav}) {
       final count = buttons + (withPageNav ? 2 : 0);
-      return count * kMinInteractiveDimension +
+      return count * BarButton.toolbarWidth(isCompact) +
           (withPageNav ? _kSelectorWidth : 0) +
           AppTopBar.itemSpacing(isCompact) * count;
     }
@@ -658,30 +672,33 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
           for (final item in pageNav) AppTopBarItem(widget: item),
         if (columns.canSwap)
           AppTopBarItem(
-            widget: IconButton(
+            widget: BarButton.icon(
+              compact: isCompact,
               tooltip: state.peekSecondColumn
                   ? 'חזור לטור הראשי'
                   : 'הצג טור שני',
-              isSelected: state.peekSecondColumn,
-              icon: const Icon(FluentIcons.arrow_swap_24_regular),
+              selected: state.peekSecondColumn,
+              icon: FluentIcons.arrow_swap_24_regular,
               onPressed: () => bloc.add(const TikkunPeekToggled()),
             ),
           ),
         AppTopBarItem(
           dividerBefore: true,
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'הדפסה',
-            icon: const Icon(FluentIcons.print_24_regular),
+            icon: FluentIcons.print_24_regular,
             onPressed: state.pages.isEmpty
                 ? null
                 : () => _print(context, state),
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'סימניות',
-            isSelected: _bookmarksOpen,
-            icon: const Icon(FluentIcons.bookmark_24_regular),
+            selected: _bookmarksOpen,
+            icon: FluentIcons.bookmark_24_regular,
             onPressed: () => setState(() {
               _bookmarksOpen = !_bookmarksOpen;
               _settingsOpen = false;
@@ -689,10 +706,11 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: BarButton.icon(
+            compact: isCompact,
             tooltip: 'הגדרות',
-            isSelected: _settingsOpen,
-            icon: const Icon(FluentIcons.settings_24_regular),
+            selected: _settingsOpen,
+            icon: FluentIcons.settings_24_regular,
             onPressed: () => setState(() {
               _settingsOpen = !_settingsOpen;
               _bookmarksOpen = false;
@@ -875,9 +893,9 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     final lines = state.currentLines;
     if (state.error != null || lines.isEmpty) _pageKey = null;
     if (state.error != null) {
-      return ToolEmptyState(
+      return OtzariaEmptyState(
         icon: FluentIcons.error_circle_24_regular,
-        message: state.error!,
+        title: state.error!,
       );
     }
     if (state.isLoading && state.pages.isEmpty) {
@@ -886,9 +904,9 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     if (lines.isEmpty) {
       // ה-BLoC מנסח הודעה מדויקת (למשל "אין הפטרה במנהג זה"); בלעדיה נופלים
       // להודעה הגנרית.
-      return ToolEmptyState(
+      return OtzariaEmptyState(
         icon: FluentIcons.book_open_24_regular,
-        message: state.headerSubtitle ?? ToolsMessages.tikkunNoData,
+        title: state.headerSubtitle ?? ToolsMessages.tikkunNoData,
       );
     }
     final pageKey = ValueKey(

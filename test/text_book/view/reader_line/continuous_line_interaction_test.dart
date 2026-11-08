@@ -32,7 +32,7 @@ import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
-import 'package:otzaria/theme/app_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
@@ -197,9 +197,14 @@ void main() {
       final paragraph = tester.widget<ContinuousReadingParagraph>(
         find.byType(ContinuousReadingParagraph),
       );
+      final mark = AppSurfaces.permanentMark(
+        Theme.of(
+          tester.element(find.byType(ContinuousReadingParagraph)),
+        ).colorScheme,
+      );
       expect(
         [for (final line in paragraph.lines) line.background],
-        [null, null, AppColors.permanentHighlight, null, null],
+        [null, null, mark, null, null],
       );
       final lines = tester.renderObject<RenderReaderParagraphLines>(
         find.byType(ReaderParagraphLines),

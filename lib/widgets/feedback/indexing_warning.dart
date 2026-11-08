@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 /// מצב אזהרת האינדקס המוצג למשתמש.
 enum IndexingWarningMode {
@@ -67,25 +70,39 @@ class IndexingWarning extends StatelessWidget {
       IndexingWarningMode.missing =>
         'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.',
     };
+    // עדכון באמצע: אזהרה. אין אינדקס: שגיאה, כי החיפוש לא אפשרי.
+    final (background, icon, text) = switch (mode) {
+      IndexingWarningMode.inProgress => (
+        AppSurfaces.warningContainer(context),
+        AppSurfaces.warning(context),
+        AppSurfaces.onWarningContainer(context),
+      ),
+      IndexingWarningMode.missing => (
+        colorScheme.errorContainer,
+        colorScheme.error,
+        colorScheme.onErrorContainer,
+      ),
+    };
     return Container(
       padding: const EdgeInsets.all(8.0),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
+        color: background,
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Row(
         children: [
-          Icon(FluentIcons.warning_24_regular, color: colorScheme.error),
+          Icon(FluentIcons.warning_24_regular, color: icon),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
               textAlign: TextAlign.right,
-              style: TextStyle(color: colorScheme.onErrorContainer),
+              style: TextStyle(color: text),
             ),
           ),
           if (onDismiss != null && mode == IndexingWarningMode.inProgress)
-            IconButton(
+            AppIconButton(
+              tooltip: context.settingsText('סגור'),
               icon: const Icon(FluentIcons.dismiss_24_regular),
               onPressed: onDismiss,
             ),

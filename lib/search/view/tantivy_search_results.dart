@@ -1,9 +1,11 @@
 import 'dart:async';
 
-import 'package:otzaria/search/view/search_result_card_frame.dart';
+import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -23,6 +25,7 @@ import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/cross_line_result.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
+import 'package:otzaria/search/utils/search_result_copy.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/utils/search_result_book_display.dart';
@@ -32,7 +35,6 @@ import 'package:otzaria/search/view/external_search_results_section.dart';
 import 'package:otzaria/search/view/search_result_source_tag.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
@@ -42,6 +44,8 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/result_card_frame.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SearchResult, TextStatus;
 
@@ -361,10 +365,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     } else {
       return;
     }
-    _scrollController.animateTo(
+    AppMotion.scrollPosition(
+      position,
       target.clamp(position.minScrollExtent, position.maxScrollExtent),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOut,
+      AppTokens.animFast,
     );
   }
 
@@ -1060,10 +1064,6 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               }
 
               final wrappedTitleText = _formatTitleForWrapping(titleText);
-              final secondaryLineStyle = TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurfaceVariant,
-              );
 
               // ההדגשה מגיעה מוכנה מהמנוע בתוך rawHtml, ולכן המפתח תלוי רק
               // ב-HTML ובסגנון התצוגה — לא בפרמטרי החיפוש.
@@ -1071,7 +1071,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 result.id,
                 result.segment,
                 rawHtml.hashCode,
-                settingsState.fontSize,
+                settingsState.searchResultsFontSize,
                 settingsState.fontFamily,
                 settingsState.replaceHolyNames,
                 colorScheme.onSurface.toARGB32(),
@@ -1087,7 +1087,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                   return SnippetBuilder.fromHighlightedHtml(
                     html: rawHtml,
                     defaultStyle: TextStyle(
-                      fontSize: settingsState.fontSize,
+                      fontSize: settingsState.searchResultsFontSize,
                       fontFamily: AppFonts.renderFontFamily(
                         settingsState.fontFamily,
                       ),
@@ -1096,7 +1096,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     ),
                     highlightStyle: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: settingsState.fontSize + 2,
+                      fontSize: settingsState.searchResultsFontSize + 2,
                       fontFamily: AppFonts.renderFontFamily(
                         settingsState.fontFamily,
                       ),
@@ -1117,7 +1117,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                         segment: result.segment.toInt(),
                         isPdf: result.isPdf,
                       );
-                  return SearchResultCardFrame(
+                  return ResultCardFrame(
                     key: _resultCardKeys.putIfAbsent(index, GlobalKey.new),
                     isPreviewed: isPreviewed,
                     child: child!,
@@ -1157,207 +1157,49 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                           )
                         : null,
                     borderRadius: AppTokens.borderRadiusAll,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // מספר התוצאה
-                          SearchResultRankBadge(rank: index + 1),
-                          const SizedBox(width: AppTokens.spaceMD),
-                          // תוכן התוצאה
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    if (result.isPdf)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 8),
-                                        child: Icon(
-                                          OtzariaIcons.book_pdf_24_regular,
-                                          size: 16,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                      ),
-                                    Expanded(
-                                      child: Text(
-                                        result.title,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                        textAlign: TextAlign.right,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    // תגית מקור מול ספק חיצוני; בלי מדור
-                                    // חיצוני היא רק גוזלת רוחב משם הספר.
-                                    ValueListenableBuilder<
-                                      ExternalSearchStatus?
-                                    >(
-                                      valueListenable:
-                                          widget.tab.externalSearchStatus,
-                                      builder: (context, status, _) =>
-                                          status == null
-                                          ? const SizedBox(width: 4)
-                                          : const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                SizedBox(width: 8),
-                                                SearchResultSourceTag(
-                                                  label: 'אוצריא',
-                                                ),
-                                                SizedBox(width: 4),
-                                              ],
-                                            ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        FluentIcons.copy_24_regular,
-                                        size: 16,
-                                      ),
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                      tooltip: 'העתק טקסט',
-                                      visualDensity: VisualDensity.compact,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 28,
-                                        minHeight: 28,
-                                      ),
-                                      onPressed: !hasCopyableResultText(result)
-                                          ? null
-                                          : () {
-                                              final plainText = utils
-                                                  .stripHtmlPreservingBreaks(
-                                                    rawHtml,
-                                                  );
-                                              // אותה התנהגות כמו העתקה ממסך הקריאה:
-                                              // המקור והכותרת מצורפים לפי ההגדרות.
-                                              // titleText כבר עבר החלפת שמות קודש.
-                                              final bookName =
-                                                  settingsState.replaceHolyNames
-                                                  ? utils.replaceHolyNames(
-                                                      result.title,
-                                                      style: settingsState
-                                                          .holyNameStyle,
-                                                    )
-                                                  : result.title;
-                                              final textToCopy =
-                                                  CopyUtils.formatTextWithHeaders(
-                                                    originalText: plainText,
-                                                    copyWithHeaders:
-                                                        settingsState
-                                                            .copyWithHeaders,
-                                                    copyHeaderFormat:
-                                                        settingsState
-                                                            .copyHeaderFormat,
-                                                    bookName: bookName,
-                                                    currentPath:
-                                                        CopyUtils.referencePath(
-                                                          bookName: bookName,
-                                                          reference: titleText,
-                                                        ),
-                                                  );
-                                              Clipboard.setData(
-                                                ClipboardData(text: textToCopy),
-                                              );
-                                              UiSnack.show(UiSnack.textCopied);
-                                            },
-                                    ),
-                                  ],
-                                ),
-                                if (wrappedTitleText.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      wrappedTitleText,
-                                      style: secondaryLineStyle,
-                                      textAlign: TextAlign.right,
-                                      softWrap: true,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                const SizedBox(height: 8),
-                                // הטקסט שנמצא
-                                if (isResultTextUnavailable(result))
-                                  Text(
-                                    unavailableResultText,
-                                    style: secondaryLineStyle,
-                                  )
-                                else
-                                  RichText(
-                                    textAlign: TextAlign.justify,
-                                    text: TextSpan(
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurface,
-                                        height: 1.5,
-                                      ),
-                                      children: snippetSpans,
-                                    ),
-                                  ),
-                                if (result.continuesToNextLine &&
-                                    !isResultTextUnavailable(result))
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      crossLineResultNote,
-                                      style: secondaryLineStyle,
-                                    ),
-                                  ),
-                                // תוצאות שאוחדו לכרטיס זה (במצב איחוד תוצאות)
-                                if (result.mergedCount > 1)
-                                  MergedSiblingsSection(
-                                    mergedCount: result.mergedCount,
-                                    siblings: result.merged,
-                                    groupingMode: state.resultGrouping,
-                                    onOpenSibling: (sibling) =>
-                                        _openResultLocation(
-                                          title: sibling.title,
-                                          reference: sibling.reference,
-                                          segment: sibling.segment.toInt(),
-                                          isPdf: sibling.isPdf,
-                                          filePath: sibling.filePath,
-                                          effectiveOptions: effectiveOptions,
-                                        ),
-                                    onOpenSiblingInBackground: (sibling) =>
-                                        _openResultLocation(
-                                          title: sibling.title,
-                                          reference: sibling.reference,
-                                          segment: sibling.segment.toInt(),
-                                          isPdf: sibling.isPdf,
-                                          filePath: sibling.filePath,
-                                          effectiveOptions: effectiveOptions,
-                                          inBackground: true,
-                                        ),
-                                    onPreviewSibling: previewEnabled
-                                        ? (sibling) => _togglePreview(
-                                            title: sibling.title,
-                                            reference: sibling.reference,
-                                            segment: sibling.segment.toInt(),
-                                            isPdf: sibling.isPdf,
-                                            filePath: sibling.filePath,
-                                          )
-                                        : null,
-                                  ),
-                              ],
+                    child: EngineResultCard(
+                      result: result,
+                      rank: index + 1,
+                      titleText: titleText,
+                      wrappedTitleText: wrappedTitleText,
+                      snippetSpans: snippetSpans,
+                      externalSearchStatus: widget.tab.externalSearchStatus,
+                      groupingMode: state.resultGrouping,
+                      onCopy: !hasCopyableResultText(result)
+                          ? null
+                          : () => copySearchResultText(
+                              result: result,
+                              rawHtml: rawHtml,
+                              titleText: titleText,
+                              settingsState: settingsState,
                             ),
-                          ),
-                        ],
+                      onOpenSibling: (sibling) => _openResultLocation(
+                        title: sibling.title,
+                        reference: sibling.reference,
+                        segment: sibling.segment.toInt(),
+                        isPdf: sibling.isPdf,
+                        filePath: sibling.filePath,
+                        effectiveOptions: effectiveOptions,
                       ),
+                      onOpenSiblingInBackground: (sibling) =>
+                          _openResultLocation(
+                            title: sibling.title,
+                            reference: sibling.reference,
+                            segment: sibling.segment.toInt(),
+                            isPdf: sibling.isPdf,
+                            filePath: sibling.filePath,
+                            effectiveOptions: effectiveOptions,
+                            inBackground: true,
+                          ),
+                      onPreviewSibling: previewEnabled
+                          ? (sibling) => _togglePreview(
+                              title: sibling.title,
+                              reference: sibling.reference,
+                              segment: sibling.segment.toInt(),
+                              isPdf: sibling.isPdf,
+                              filePath: sibling.filePath,
+                            )
+                          : null,
                     ),
                   ),
                 ),
@@ -1370,17 +1212,16 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   }
 
   Widget _buildTruncatedBanner(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      color: colorScheme.tertiaryContainer,
+      color: AppSurfaces.warningContainer(context),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Icon(
             FluentIcons.warning_24_regular,
-            size: 18,
-            color: colorScheme.onTertiaryContainer,
+            size: AppTokens.iconSM,
+            color: AppSurfaces.warning(context),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1389,7 +1230,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
               style: TextStyle(
                 fontSize: 13,
-                color: colorScheme.onTertiaryContainer,
+                color: AppSurfaces.onWarningContainer(context),
               ),
               textAlign: TextAlign.right,
             ),
@@ -1570,6 +1411,189 @@ class _MergedSiblingsSectionState extends State<MergedSiblingsSection> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// כרטיס תוצאה של המנוע: דירוג, כותרת (עם תגית מקור והעתקה), קטע מודגש,
+/// והתוצאות שאוחדו אליו. הלחיצה והתצוגה המקדימה אצל הרשימה.
+class EngineResultCard extends StatelessWidget {
+  const EngineResultCard({
+    super.key,
+    required this.result,
+    required this.rank,
+    required this.titleText,
+    required this.wrappedTitleText,
+    required this.snippetSpans,
+    required this.externalSearchStatus,
+    required this.groupingMode,
+    required this.onCopy,
+    required this.onOpenSibling,
+    required this.onOpenSiblingInBackground,
+    required this.onPreviewSibling,
+  });
+
+  final SearchResult result;
+  final int rank;
+
+  /// הכותרת אחרי החלפת שמות קודש.
+  final String titleText;
+  final String wrappedTitleText;
+  final List<InlineSpan> snippetSpans;
+  final ValueListenable<ExternalSearchStatus?> externalSearchStatus;
+  final ResultGroupingMode groupingMode;
+
+  /// null: אין טקסט להעתקה, והכפתור מושבת.
+  final VoidCallback? onCopy;
+  final ValueChanged<MergedSibling> onOpenSibling;
+  final ValueChanged<MergedSibling> onOpenSiblingInBackground;
+  final ValueChanged<MergedSibling>? onPreviewSibling;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final secondaryLineStyle = TextStyle(
+      fontSize: 13,
+      color: colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: AppTokens.cardPadding,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // מספר התוצאה
+          SearchResultRankBadge(rank: rank),
+          const SizedBox(width: AppTokens.spaceMD),
+          // תוכן התוצאה
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (result.isPdf)
+                      Padding(
+                        // תוכן התוצאות תמיד RTL: end הוא הצד שבין האייקון לכותרת.
+                        padding: const EdgeInsetsDirectional.only(end: 8),
+                        child: Icon(
+                          OtzariaIcons.book_pdf_24_regular,
+                          size: AppTokens.iconSM,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        result.title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                        ),
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // תגית מקור מול ספק חיצוני; בלי מדור
+                    // חיצוני היא רק גוזלת רוחב משם הספר.
+                    ValueListenableBuilder<ExternalSearchStatus?>(
+                      valueListenable: externalSearchStatus,
+                      builder: (context, status, _) => status == null
+                          ? const SizedBox(width: 4)
+                          : const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(width: 8),
+                                SearchResultSourceTag(
+                                  label: 'אוצריא',
+                                ),
+                                SizedBox(width: 4),
+                              ],
+                            ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        FluentIcons.copy_24_regular,
+                        size: AppTokens.iconSM,
+                      ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant,
+                      tooltip: 'העתק טקסט',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: onCopy,
+                    ),
+                  ],
+                ),
+                if (wrappedTitleText.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      wrappedTitleText,
+                      style: secondaryLineStyle,
+                      textAlign: TextAlign.right,
+                      softWrap: true,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                // הטקסט שנמצא
+                if (isResultTextUnavailable(result))
+                  Text(
+                    unavailableResultText,
+                    style: secondaryLineStyle,
+                  )
+                else
+                  RichText(
+                    textScaler: MediaQuery.textScalerOf(
+                      context,
+                    ),
+                    textAlign: TextAlign.justify,
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface,
+                        height: 1.5,
+                      ),
+                      children: snippetSpans,
+                    ),
+                  ),
+                if (result.continuesToNextLine &&
+                    !isResultTextUnavailable(result))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      crossLineResultNote,
+                      style: secondaryLineStyle,
+                    ),
+                  ),
+                // תוצאות שאוחדו לכרטיס זה (במצב איחוד תוצאות)
+                if (result.mergedCount > 1)
+                  MergedSiblingsSection(
+                    mergedCount: result.mergedCount,
+                    siblings: result.merged,
+                    groupingMode: groupingMode,
+                    onOpenSibling: onOpenSibling,
+                    onOpenSiblingInBackground: onOpenSiblingInBackground,
+                    onPreviewSibling: onPreviewSibling,
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

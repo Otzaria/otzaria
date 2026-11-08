@@ -199,13 +199,13 @@ Future<void> main() async {
   });
 
   for (final width in [1400.0, 700.0]) {
-    testWidgets('התוצאות מונחות על רקע חלונית הניווט (רוחב $width)', (
+    testWidgets('התוצאות מונחות על רקע הלוח של הכלים (רוחב $width)', (
       tester,
     ) async {
       await pumpSearch(tester, width: width, externalProvider: false);
 
       final layout = find.byType(SearchResultsLayout);
-      final backdrop = AppSurfaces.navPanelBackground(tester.element(layout));
+      final backdrop = AppSurfaces.panelBackground(tester.element(layout));
       expect(
         find.descendant(
           of: layout,
@@ -242,7 +242,7 @@ Future<void> main() async {
         ),
       );
       expect(
-        AppSurfaces.navPanelBackground(context),
+        AppSurfaces.panelBackground(context),
         isNot(AppSurfaces.card(context)),
         reason: '$brightness',
       );

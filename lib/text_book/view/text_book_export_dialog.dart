@@ -32,14 +32,12 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
 }) async {
   var holyName = profile.holyName;
   var divineNames = profile.divineNames;
-  final result = await showTwoActionsDialog(
+  final format = await showChoiceDialog<TextBookExportFormat>(
     context: context,
     title: 'בחירת סוג קובץ',
     icon: FluentIcons.document_arrow_right_24_regular,
-    headerBand: true,
-    // מוצג דרך customContent, שמחליף את content.
-    content: '',
-    // רוחב קבוע: AlertDialog מודד רוחב פנימי, ו-segmentedTile בנוי על LayoutBuilder.
+    size: AppDialogSize.medium,
+    // רוחב קבוע: segmentedTile בנוי על LayoutBuilder.
     customContent: StatefulBuilder(
       builder: (context, setDialogState) => SizedBox(
         width: 480,
@@ -56,11 +54,11 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
             const SizedBox(height: 12),
             const _SectionLabel('שמות הקודש בקובץ הזה'),
             const SizedBox(height: 6),
-            ListDialogCard(
+            AppCard(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SettingsActionTile.dropdownTile<HolyNameDisplay>(
+                  SettingsDropdownTile<HolyNameDisplay>(
                     icon: OtzariaIcons.alef_lock_24_filled,
                     title: 'שם הוי"ה',
                     entries: const [
@@ -92,7 +90,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
                       height: 1,
                       color: listDialogRowDivider(context).color,
                     ),
-                    SettingsActionTile.segmentedTile<DivineNamesDisplay>(
+                    SettingsSegmentedTile<DivineNamesDisplay>(
                       icon: OtzariaIcons.alef_crown_24_filled,
                       title: 'שאר שמות הקודש',
                       options: const [
@@ -116,14 +114,19 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
         ),
       ),
     ),
-    cancelText: 'טקסט',
-    confirmText: 'Word',
-    barrierDismissible: true,
+    choices: const [
+      AppDialogChoice(value: TextBookExportFormat.text, label: 'טקסט'),
+      AppDialogChoice(
+        value: TextBookExportFormat.word,
+        label: 'Word',
+        recommended: true,
+      ),
+    ],
   );
 
-  if (result == null) return null;
+  if (format == null) return null;
   return (
-    format: result ? TextBookExportFormat.word : TextBookExportFormat.text,
+    format: format,
     holyName: holyName,
     divineNames: divineNames,
   );

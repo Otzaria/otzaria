@@ -19,6 +19,8 @@ abstract class ReportMessages {
   static const String sentToOtzaria = 'הדיווח נקלט אצל צוות אוצריא. תודה!';
   static const String sentToSefaria = 'הדיווח נקלט ויועבר לספריא. תודה!';
   static const String sentSuccessTitle = 'הדיווח נקלט';
+  static const String sendingTitle = 'שליחת הדיווח';
+  static const String sending = 'שולח את הדיווח…';
 
   static const correctionNotSupportedTemplate =
       'הדיווח נקלט אצל {target}, אך השרת עדיין אינו תומך בהצעת תיקון '

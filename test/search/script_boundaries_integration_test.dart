@@ -77,7 +77,7 @@ void main() {
       raw,
       const RenderSettings(formatParentheses: false, searchText: 'תורה'),
     );
-    expect(highlighted, contains('color: red'));
+    expect(highlighted, contains('color: otzaria-search-hit'));
   });
 
   test('חיפוש ב-worker מוצא אות תלויה מעוצבת', () async {
