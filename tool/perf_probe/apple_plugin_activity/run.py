@@ -196,14 +196,23 @@ class MacApplicationSession:
                 bufsize=0, start_new_session=True)
             self.record["controllerPid"] = self.process.pid
             save(directory / f"{self.prefix}.json", self.record)
-        except OSError as error:
-            if self.process is not None:
-                stop_owned(self.process)
-                self.process.stdin.close()
-                self.process.stdout.close()
-            self.stderr.close()
+        except BaseException as error:
+            self.failed = True
             self.record.update(status="failed", error=str(error))
-            save(directory / f"{self.prefix}.json", self.record)
+            actions = [] if self.process is None else [
+                ("controller", lambda: stop_owned(self.process)),
+                ("stdin", self.process.stdin.close), ("stdout", self.process.stdout.close)]
+            actions.append(("stderr", self.stderr.close))
+            for name, action in actions:
+                try:
+                    action()
+                except Exception as cleanup_error:
+                    self.record.setdefault("cleanupErrors", []).append({"stage": name, "error": str(cleanup_error)})
+            try:
+                save(directory / f"{self.prefix}.json", self.record)
+            except Exception as cleanup_error:
+                self.record["evidenceWriteError"] = str(cleanup_error)
+                warn_cleanup(f"Could not preserve {self.prefix} startup evidence: {cleanup_error}")
             raise
 
     def request(self, action, timeout=10):
@@ -212,6 +221,7 @@ class MacApplicationSession:
         self.record["commands"].append(entry)
         save(self.directory / f"{self.prefix}.json", self.record)
         started, raw = time.monotonic(), bytearray()
+        failure = None
         try:
             self.process.stdin.write((json.dumps({"sequence": sequence, "action": action}) + "\n").encode())
             self.process.stdin.flush()
@@ -243,40 +253,75 @@ class MacApplicationSession:
             self.executable = result["executable"]
             entry["status"] = "passed"
             return result
-        except (OSError, ValueError, TimeoutError) as error:
+        except BaseException as error:
+            failure = error
             self.failed = True
             entry.update(status="failed", error=str(error))
             raise
         finally:
-            path = self.directory / f"{self.prefix}-{sequence:02d}.stdout.log"
-            path.write_bytes(raw[:COMMAND_LOG_LIMIT])
-            entry.update(elapsedMs=(time.monotonic() - started) * 1000, stdout=path.name,
-                         bytes=len(raw), truncated=len(raw) > COMMAND_LOG_LIMIT)
-            save(self.directory / f"{self.prefix}.json", self.record)
+            try:
+                path = self.directory / f"{self.prefix}-{sequence:02d}.stdout.log"
+                path.write_bytes(raw[:COMMAND_LOG_LIMIT])
+                entry.update(elapsedMs=(time.monotonic() - started) * 1000, stdout=path.name,
+                             bytes=len(raw), truncated=len(raw) > COMMAND_LOG_LIMIT)
+                save(self.directory / f"{self.prefix}.json", self.record)
+            except Exception as error:
+                self.failed = True
+                entry.update(status="failed", evidenceWriteError=str(error))
+                if failure is None:
+                    entry["error"] = str(error)
+                    raise
+                warn_cleanup(f"Could not preserve {self.prefix} command evidence: {error}")
 
     def close(self, timeout=5):
         deadline = time.monotonic() + timeout
+        failure = cleanup_failure = None
+        stop_attempted = False
         try:
             if self.failed:
+                stop_attempted = True
                 stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5)
             self.process.stdin.close()
             code = self.process.wait(timeout=max(0, deadline - time.monotonic()))
             if code != 0 and not self.failed:
                 raise subprocess.CalledProcessError(code, self.process.args)
+        except BaseException as error:
+            failure = error
+            self.failed = True
+            self.record.setdefault("error", str(error))
+            raise
         finally:
-            stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5)
-            self.process.stdout.close()
-            self.stderr.close()
-            path = self.directory / f"{self.prefix}.stderr.log"
-            size = path.stat().st_size
-            if size > COMMAND_LOG_LIMIT:
-                with path.open("r+b") as stream:
-                    stream.truncate(COMMAND_LOG_LIMIT)
-            self.record.update(status="failed" if self.failed or self.process.returncode else "passed",
-                               exitCode=self.process.returncode,
-                               stderr={"path": path.name, "bytes": size,
-                                       "truncated": size > COMMAND_LOG_LIMIT})
-            save(self.directory / f"{self.prefix}.json", self.record)
+            actions = [] if stop_attempted else [("controller", lambda: stop_owned(
+                self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5))]
+            actions.extend([("stdin", self.process.stdin.close), ("stdout", self.process.stdout.close),
+                            ("stderr", self.stderr.close)])
+            for name, action in actions:
+                try:
+                    action()
+                except Exception as error:
+                    cleanup_failure = cleanup_failure or error
+                    self.failed = True
+                    self.record.setdefault("cleanupErrors", []).append({"stage": name, "error": str(error)})
+                    self.record.setdefault("error", str(error))
+            try:
+                path = self.directory / f"{self.prefix}.stderr.log"
+                size = path.stat().st_size
+                if size > COMMAND_LOG_LIMIT:
+                    with path.open("r+b") as stream:
+                        stream.truncate(COMMAND_LOG_LIMIT)
+                self.record.update(status="failed" if self.failed or self.process.returncode else "passed",
+                                   exitCode=self.process.returncode,
+                                   stderr={"path": path.name, "bytes": size,
+                                           "truncated": size > COMMAND_LOG_LIMIT})
+                save(self.directory / f"{self.prefix}.json", self.record)
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                self.failed = True
+                self.record.update(status="failed", evidenceWriteError=str(error))
+                self.record.setdefault("error", str(error))
+                warn_cleanup(f"Could not preserve {self.prefix} cleanup evidence: {error}")
+            if failure is None and cleanup_failure is not None:
+                raise cleanup_failure
 
 
 def cpu_seconds(text):

@@ -446,6 +446,32 @@ class MacTransportTests(unittest.TestCase):
         self.assertTrue(process.stdin.closed)
         self.assertTrue(process.stdout.closed)
 
+    def test_startup_failure_survives_signal_receipt_and_stderr_errors(self):
+        helper = self.directory / 'startup-waiting-helper'
+        helper.write_text('#!' + sys.executable + '\nimport sys\nfor line in sys.stdin: pass\n')
+        helper.chmod(0o700)
+        process = subprocess.Popen([str(helper), '42'], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, start_new_session=True)
+        self.addCleanup(runner.stop_owned, process)
+        failure = OSError('initial startup receipt failed')
+        with patch.object(runner.subprocess, 'Popen', return_value=process) as launch, \
+             patch.object(runner, 'save', side_effect=[None, failure, OSError('final startup receipt failed')]) as saving, \
+             patch.object(runner, 'stop_owned', side_effect=PermissionError('signal denied')) as stop, \
+             patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=BrokenPipeError('stderr closed')))):
+            with self.assertRaises(OSError) as captured:
+                runner.MacApplicationSession(helper, 42, self.directory, 'startup-failed')
+        self.assertIs(captured.exception, failure)
+        self.assertEqual(stop.call_count, 1)
+        self.assertTrue(process.stdin.closed)
+        self.assertTrue(process.stdout.closed)
+        self.assertTrue(launch.call_args.kwargs['stderr'].closed)
+        self.assertEqual(process.wait(timeout=3), 0)
+        receipt = saving.call_args.args[1]
+        self.assertEqual(receipt['error'], str(failure))
+        self.assertEqual(receipt['cleanupErrors'], [{'stage': 'controller', 'error': 'signal denied'}])
+        self.assertEqual(receipt['evidenceWriteError'], 'final startup receipt failed')
+        self.assertEqual(receipt['status'], 'failed')
+
     def controller(self, modification=''):
         self.counter += 1
         helper = self.directory / f'helper-{self.counter}'
@@ -499,6 +525,75 @@ for line in sys.stdin:
         receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
         self.assertEqual(receipt['status'], 'failed')
         self.assertEqual(receipt['exitCode'], 1)
+
+    def test_request_preserves_native_failure_when_command_evidence_and_stderr_fail(self):
+        for failing_write in ['receipt', 'stdout']:
+            with self.subTest(failing_write=failing_write):
+                controller = self.controller('print("native hide refused",file=sys.stderr,flush=True);sys.exit(2)')
+                saving = (patch.object(runner, 'save', side_effect=[None, OSError('command receipt failed')])
+                          if failing_write == 'receipt' else nullcontext())
+                stdout = (patch.object(Path, 'write_bytes', side_effect=OSError('command stdout failed'))
+                          if failing_write == 'stdout' else nullcontext())
+                with saving, stdout, patch.object(runner.sys, 'stderr',
+                        Mock(write=Mock(side_effect=BrokenPipeError('stderr closed')))):
+                    with self.assertRaisesRegex(ValueError, 'hide controller closed its output'):
+                        controller.request('hide')
+                self.assertEqual(controller.record['commands'][0]['status'], 'failed')
+                self.assertIn('evidenceWriteError', controller.record['commands'][0])
+
+    def test_command_evidence_failure_alone_cannot_pass(self):
+        controller = self.controller()
+        failure = OSError('command receipt failed')
+        with patch.object(runner, 'save', side_effect=[None, failure]):
+            with self.assertRaises(OSError) as captured:
+                controller.request('info')
+        self.assertIs(captured.exception, failure)
+        self.assertTrue(controller.failed)
+        self.assertEqual(controller.record['commands'][0]['status'], 'failed')
+
+    def test_denied_controller_cleanup_is_not_retried_and_still_closes_streams(self):
+        controller = self.controller()
+        controller.failed = True
+        denied = PermissionError('owned process group signal denied')
+        with patch.object(runner, 'stop_owned', side_effect=denied) as stop:
+            with self.assertRaises(PermissionError) as captured:
+                controller.close()
+        self.assertIs(captured.exception, denied)
+        self.assertEqual(stop.call_count, 1)
+        self.assertTrue(controller.process.stdin.closed)
+        self.assertTrue(controller.process.stdout.closed)
+        self.assertTrue(controller.stderr.closed)
+        # The real child receives EOF; no permission fallback or second signal.
+        self.assertEqual(controller.process.wait(timeout=3), 0)
+        receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['error'], str(denied))
+
+    def test_close_preserves_wait_failure_over_signal_receipt_and_stderr_errors(self):
+        controller = self.controller()
+        failure = subprocess.TimeoutExpired('owned-controller', 5)
+        with patch.object(controller.process, 'wait', side_effect=failure), \
+             patch.object(runner, 'stop_owned', side_effect=PermissionError('signal denied')) as stop, \
+             patch.object(runner, 'save', side_effect=OSError('cleanup receipt failed')), \
+             patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=BrokenPipeError('stderr closed')))):
+            with self.assertRaises(subprocess.TimeoutExpired) as captured:
+                controller.close()
+        self.assertIs(captured.exception, failure)
+        self.assertEqual(stop.call_count, 1)
+        self.assertEqual(controller.record['cleanupErrors'], [{'stage': 'controller', 'error': 'signal denied'}])
+        self.assertEqual(controller.record['status'], 'failed')
+        self.assertEqual(controller.process.wait(timeout=3), 0)
+
+    def test_cleanup_receipt_failure_alone_cannot_pass(self):
+        controller = self.controller()
+        failure = OSError('cleanup receipt failed')
+        with patch.object(runner, 'save', side_effect=failure), patch.object(runner, 'warn_cleanup'):
+            with self.assertRaises(OSError) as captured:
+                controller.close()
+        self.assertIs(captured.exception, failure)
+        self.assertTrue(controller.failed)
+        self.assertEqual(controller.record['status'], 'failed')
+        self.assertEqual(controller.process.poll(), 0)
 
     def test_partial_reply_without_newline_cannot_escape_the_deadline(self):
         controller = self.controller('sys.stdout.write("partial");sys.stdout.flush();time.sleep(0.3);sys.exit(0)')
