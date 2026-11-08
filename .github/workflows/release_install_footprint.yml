@@ -74,6 +74,11 @@ jobs:
               raise SystemExit("fileCount does not match files")
           if manifest.get("installedSize") != total:
               raise SystemExit("installedSize does not match sum(files[].size)")
+          pdfium_files = [
+              {"path": item["path"], "size": item["size"], "sha256": item.get("sha256")}
+              for item in files
+              if "pdfium" in item["path"].lower()
+          ]
           report = {
               "releaseTag": manifest.get("releaseTag"),
               "releaseVersion": manifest.get("releaseVersion"),
@@ -83,6 +88,7 @@ jobs:
               "fileCount": len(files),
               "installRootFileBytes": total,
               "symlinkCount": len(manifest.get("links", [])),
+              "pdfiumFiles": pdfium_files,
               "scope": "application_install_root_files_only",
               "excludes": [
                   "OS/package-manager dependencies installed outside the application root",
