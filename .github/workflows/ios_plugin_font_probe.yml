@@ -14,6 +14,7 @@ on:
       - 'test/tool/perf_probe/macos_font_probe*_test.dart'
       - 'test_driver/ios_plugin_fonts.dart'
       - 'tool/perf_probe/*ios_plugin_fonts*'
+      - 'tool/perf_probe/apple_plugin_activity/run.py'
       - 'lib/plugins/services/plugin_font*.dart'
       - 'lib/plugins/services/plugin_asset_scheme.dart'
       - 'lib/plugins/services/plugin_content_blockers.dart'
@@ -71,13 +72,9 @@ jobs:
             test/plugins/services/plugin_font_scheme_test.dart
 
   simulator:
-    name: Actual iOS Simulator debug (${{ matrix.instances }} views)
+    name: Actual iOS Simulator debug (1, 5 and 10 views)
     runs-on: macos-latest
     timeout-minutes: 75
-    strategy:
-      fail-fast: false
-      matrix:
-        instances: [1, 5, 10]
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Initialize retained evidence
@@ -92,6 +89,8 @@ jobs:
           Path(os.environ['IOS_FONT_PROBE_OUTPUT'], 'workflow.json').write_text(json.dumps({
               'githubSha': os.environ['GITHUB_SHA'], 'runId': os.environ['GITHUB_RUN_ID'],
               'status': 'initialized', 'physicalProfile': 'NOT_RUN', 'physicalRelease': 'NOT_RUN',
+              'buildCache': 'shared-between-counts', 'executionOrder': [1, 5, 10],
+              'appProcessPolicy': 'fresh-per-count',
           }, indent=2) + '\n')
           PY
       - uses: subosito/flutter-action@v2
@@ -109,15 +108,55 @@ jobs:
         run: |
           set -euo pipefail
           flutter pub get --enforce-lockfile 2>&1 | tee "$IOS_FONT_PROBE_OUTPUT/pub-get.log"
-      - name: Run all eighteen cases in actual visible WKWebViews
-        run: >-
-          python3 tool/perf_probe/run_ios_plugin_fonts.py
-          --instances '${{ matrix.instances }}' --output "$IOS_FONT_PROBE_OUTPUT"
-      - name: Retain complete and partial native evidence
+      - name: Run all fifty-four cases in actual visible WKWebViews
+        timeout-minutes: 60
+        run: |
+          set -euo pipefail
+          failed=0
+          for instances in 1 5 10; do
+            output="$IOS_FONT_PROBE_OUTPUT/$instances-views"
+            mkdir -p "$output"
+            cp "$IOS_FONT_PROBE_OUTPUT/workflow.json" \
+              "$IOS_FONT_PROBE_OUTPUT/rust-targets.log" \
+              "$IOS_FONT_PROBE_OUTPUT/pub-get.log" "$output/"
+            if ! python3 tool/perf_probe/run_ios_plugin_fonts.py \
+                --instances "$instances" --output "$output"; then
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Retain setup evidence before any count starts
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: ios-plugin-fonts-debug-${{ matrix.instances }}-views
-          path: ${{ runner.temp }}/ios-plugin-fonts
+          name: ios-plugin-fonts-setup
+          path: |
+            ${{ runner.temp }}/ios-plugin-fonts/workflow.json
+            ${{ runner.temp }}/ios-plugin-fonts/rust-targets.log
+            ${{ runner.temp }}/ios-plugin-fonts/pub-get.log
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain one-view native evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ios-plugin-fonts-debug-1-views
+          path: ${{ runner.temp }}/ios-plugin-fonts/1-views
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain five-view native evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ios-plugin-fonts-debug-5-views
+          path: ${{ runner.temp }}/ios-plugin-fonts/5-views
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain ten-view native evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ios-plugin-fonts-debug-10-views
+          path: ${{ runner.temp }}/ios-plugin-fonts/10-views
           if-no-files-found: error
           retention-days: 14
