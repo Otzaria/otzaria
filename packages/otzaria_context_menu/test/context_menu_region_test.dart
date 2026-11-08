@@ -343,4 +343,35 @@ void main() {
       );
     });
   }
+  testWidgets('rapid context-menu replacement leaves one overlay and handler', (
+    tester,
+  ) async {
+    final key = await _mount(
+      tester,
+      escapes: escapes,
+      entries: () => [AppContextMenuEntry(label: 'Action', onTap: () {})],
+    );
+    for (var i = 0; i < 15; i++) {
+      await key.currentState!.openMenuAt(Offset(100 + i.toDouble(), 100));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsOneWidget);
+    expect(escapes.handlers, hasLength(1));
+    expect(tester.takeException(), isNull);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsNothing);
+    expect(escapes.handlers, isEmpty);
+    expect(tester.takeException(), isNull);
+
+    await key.currentState!.openMenuAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(find.text('Action'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(escapes.handlers, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
 }
