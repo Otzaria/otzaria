@@ -35,6 +35,10 @@ jobs:
       - name: Install ELF tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils zstd
 
+      - name: Run independent symlink, hardlink and SDK safety fixtures
+        shell: bash
+        run: bash tool/release/test_strip_wpe_runtime.sh
+
       - name: Download checksum-pinned WPE SDK fixture
         env:
           GH_TOKEN: ${{ github.token }}
