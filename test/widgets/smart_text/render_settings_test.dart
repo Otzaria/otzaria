@@ -8,6 +8,81 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 
 void main() {
   group('RenderSettings equality', () {
+    test('hashCode is independent of map insertion order', () {
+      final first = RenderSettings(
+        searchText: 'אמר רבי',
+        searchOptions: {
+          'אמר_0': {'סיומות': true, 'תחיליות': false},
+          'רבי_1': {'כתיב': true},
+        },
+        alternativeWords: {
+          0: ['ויאמר', 'אמר'],
+          1: ['רבנו'],
+        },
+        spacingValues: {'0-1': '2', '1-2': '5'},
+      );
+      final reversed = RenderSettings(
+        searchText: 'אמר רבי',
+        searchOptions: {
+          'רבי_1': {'כתיב': true},
+          'אמר_0': {'תחיליות': false, 'סיומות': true},
+        },
+        alternativeWords: {
+          1: ['רבנו'],
+          0: ['ויאמר', 'אמר'],
+        },
+        spacingValues: {'1-2': '5', '0-1': '2'},
+      );
+
+      expect(first, equals(reversed));
+      expect(first.hashCode, reversed.hashCode);
+    });
+
+    test('large maps preserve equality and hash across insertion order', () {
+      final names = List.generate(200, (i) => 'word_$i');
+      final left = RenderSettings(
+        searchOptions: {
+          for (final name in names)
+            name: {'exact': true, 'fuzzy': false},
+        },
+        alternativeWords: {
+          for (var i = 0; i < names.length; i++)
+            i: [names[i], 'alternative_$i'],
+        },
+        spacingValues: {
+          for (var i = 0; i < names.length; i++)
+            'distance_$i': '$i',
+        },
+      );
+      final right = RenderSettings(
+        searchOptions: {
+          for (final name in names.reversed)
+            name: {'fuzzy': false, 'exact': true},
+        },
+        alternativeWords: {
+          for (var i = names.length - 1; i >= 0; i--)
+            i: [names[i], 'alternative_$i'],
+        },
+        spacingValues: {
+          for (var i = names.length - 1; i >= 0; i--)
+            'distance_$i': '$i',
+        },
+      );
+
+      expect(left, equals(right));
+      expect(left.hashCode, right.hashCode);
+    });
+
+    test('alternative word order remains meaningful', () {
+      const left = RenderSettings(alternativeWords: {
+        0: ['אמר', 'ויאמר'],
+      });
+      const right = RenderSettings(alternativeWords: {
+        0: ['ויאמר', 'אמר'],
+      });
+      expect(left, isNot(equals(right)));
+    });
+
     test('changes when spacing values change', () {
       const withSpacing = RenderSettings(
         searchText: 'אמר רבי',
