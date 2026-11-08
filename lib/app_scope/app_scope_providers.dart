@@ -6,7 +6,6 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/update_check_frequency.dart';
-import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
@@ -37,15 +36,14 @@ class AppScopeProviders extends StatelessWidget {
   final SettingsRepository settingsRepository;
   final Widget child;
 
-  /// ה־SettingsBloc של התהליך. כתיבות לקובץ ההגדרות שלא עברו דרך הבלוק (הקורא,
-  /// שירות הגיבוי, שחזור) מגיעות אליו מ־[HiveCache.changedKeys]; בלי זה
-  /// הלשוניות מציגות ערך ישן (q9 Q6).
+  /// ה־SettingsBloc של התהליך מקבל גם כתיבות מהקורא ומשחזור גיבוי,
+  /// דרך ההתראות של ספק האחסון הפעיל.
   @visibleForTesting
   static SettingsBloc createSettingsBloc(SettingsRepository repository) =>
       SettingsBloc(
         repository: repository,
         initialSettings: repository.readSettings(),
-        externalChanges: HiveCache.changedKeys(),
+        externalChanges: Settings.changes,
       )..add(LoadSettings());
 
   @override

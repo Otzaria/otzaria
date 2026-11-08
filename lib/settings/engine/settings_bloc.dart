@@ -18,14 +18,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final Future<void> Function(String fontFamily) _ensureFontLoaded;
   StreamSubscription<String>? _externalChangesSubscription;
 
-  /// [initialSettings] — תמונת ההגדרות השמורות ([SettingsRepository.readSettings]);
-  /// בלעדיה המסך הראשון נבנה מברירות מחדל וקופץ אחרי LoadSettings (issue #1280).
-  ///
-  /// [externalChanges] — שמות המפתחות שנכתבו לקובץ ההגדרות, מכל מקור (חלון
-  /// אחר, הקורא, שחזור גיבוי). על כל מפתח הבלוק קורא מחדש את ההגדרות
-  /// ([ExternalSettingChanged]). מחובר רק ב־AppScopeProviders
-  /// (`HiveCache.changedKeys()`); בלעדיו הבלוק רואה רק את מה שעבר דרכו, וזה
-  /// מה שבדיקות שבונות SettingsBloc ומאגרים מדומים מקבלים.
+  /// [initialSettings] מונע קפיצה מברירות מחדל להגדרות השמורות במסך הראשון.
+  /// [externalChanges] מסנכרן כתיבות חיצוניות; בלעדיו מתקבלים רק אירועי הבלוק.
   SettingsBloc({
     required SettingsRepository repository,
     Map<String, dynamic>? initialSettings,

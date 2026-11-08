@@ -5,15 +5,12 @@ import 'package:hive_ce/hive.dart';
 import 'package:otzaria/app_scope/app_scope_providers.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/data/data_providers/shared_preferences_cache.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// q9 Q6 = C: רק AppScopeProviders מחבר את קובץ ההגדרות (Hive) ל־SettingsBloc.
-/// בלי החיבור, כתיבה שלא עוברת דרך הבלוק (הקורא, חלון אחר, שירות הגיבוי)
-/// משאירה ערך ישן בלשוניות ההגדרות.
-///
-/// `test` ולא `testWidgets`: הכתיבות לקובץ אמיתיות, ובאזור הזמן המדומה של
-/// testWidgets הן לא מסתיימות.
+// הכתיבות לקובץ אמיתיות, ובאזור הזמן המדומה של testWidgets הן לא מסתיימות.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory root;
@@ -70,5 +67,49 @@ void main() {
   test('בלי Hive פתוח הזרם ריק', () async {
     await Hive.close();
     expect(await HiveCache.changedKeys().isEmpty, isTrue);
+  });
+
+  test('כתיבה לאחסון החלופי מסנכרנת נתיבים, פיצול וסעיפי גיבוי', () async {
+    await Hive.close();
+    SharedPreferences.setMockInitialValues({'settings_initialized': true});
+    await Settings.init(cacheProvider: SharePreferenceCache());
+    final bloc = AppScopeProviders.createSettingsBloc(SettingsRepository());
+    addTearDown(bloc.close);
+    await pumpEventQueue();
+
+    await Settings.setValue(SettingsRepository.keyLibraryPath, '/new/books');
+    await Settings.setValue(SettingsRepository.keySplitedView, false);
+    await Settings.setValue(SettingsRepository.keyBackupNotes, false);
+    await Settings.setValue(
+      SettingsRepository.keyHebrewBooksPath,
+      '/hebrewbooks',
+    );
+    await pumpEventQueue();
+
+    expect(bloc.state.libraryPath, '/new/books');
+    expect(bloc.state.splitedView, isFalse);
+    expect(bloc.state.backupIncludesAllSections, isFalse);
+    expect(bloc.state.hebrewBooksPath, '/hebrewbooks');
+
+    await Settings.setValue<String?>(
+      SettingsRepository.keyHebrewBooksPath,
+      null,
+    );
+    await pumpEventQueue();
+    expect(bloc.state.hebrewBooksPath, isEmpty);
+  });
+
+  test('כתיבה ישירה ל־Hive עדיין מסנכרנת שחזור הגדרות', () async {
+    final bloc = AppScopeProviders.createSettingsBloc(SettingsRepository());
+    addTearDown(bloc.close);
+    await pumpEventQueue();
+
+    await Hive.box<dynamic>(HiveCache.keyName).put(
+      SettingsRepository.keyLibraryPath,
+      '/restored/books',
+    );
+    await pumpEventQueue();
+
+    expect(bloc.state.libraryPath, '/restored/books');
   });
 }

@@ -65,6 +65,33 @@ void main() {
     expect(Settings.getValue<int>('integer', defaultValue: 7), 7);
   });
 
+  test('כל דרכי הכתיבה והמחיקה מפרסמות את המפתח אחרי השמירה', () async {
+    final cache = SharePreferenceCache();
+    await cache.init();
+    final changes = <String>[];
+    final subscription = cache.changes.listen(changes.add);
+    addTearDown(subscription.cancel);
+
+    await cache.setBool('boolean', false);
+    await cache.setDouble('decimal', 2.5);
+    await cache.setInt('integer', 13);
+    await cache.setString('text', 'updated');
+    await cache.setObject('new', 'value');
+    await cache.remove('new');
+    await pumpEventQueue();
+    expect(changes, ['boolean', 'decimal', 'integer', 'text', 'new', 'new']);
+    expect(cache.getBool('boolean'), isFalse);
+    expect(cache.getString('text'), 'updated');
+    expect(cache.containsKey('new'), isFalse);
+
+    changes.clear();
+    final keys = cache.getKeys();
+    await cache.removeAll();
+    await pumpEventQueue();
+    expect(changes, unorderedEquals(keys));
+    expect(cache.getKeys(), isEmpty);
+  });
+
   group('SharePreferenceCache.getValue עם סוג nullable', () {
     late SharePreferenceCache cache;
 
