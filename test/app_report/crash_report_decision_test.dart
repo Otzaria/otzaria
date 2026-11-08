@@ -50,6 +50,64 @@ void main() {
     }
   });
 
+  group('התקנה ניידת: תקיעה או 0xc0000006 → המלצה לכונן מהיר', () {
+    const inPageError = CrashSignature(
+      exceptionType: '0xc0000006 sqlite3.dll+0x154bc6',
+      frames: ['sqlite3.dll+0x154bc6'],
+    );
+    const accessViolation = CrashSignature(
+      exceptionType: '0xc0000005 app.so+0x10',
+      frames: ['app.so+0x10'],
+    );
+    const hang = CrashCandidate.hang(signature: null);
+
+    CrashReportAction decide(
+      AppCrashReportMode mode,
+      CrashCandidate candidate, {
+      bool isPortable = true,
+    }) => CrashReportDecision.decide(
+      mode: mode,
+      candidate: candidate,
+      throttleAllows: true,
+      isPortable: isPortable,
+    );
+
+    test('ask ו-always: לא שואל ולא שולח, אלא ממליץ', () {
+      for (final mode in [AppCrashReportMode.ask, AppCrashReportMode.always]) {
+        expect(decide(mode, hang), CrashReportAction.suggestFasterDrive);
+        expect(
+          decide(mode, _candidate(signature: inPageError)),
+          CrashReportAction.suggestFasterDrive,
+        );
+      }
+    });
+
+    test('קריסה אחרת מדווחת כרגיל', () {
+      expect(
+        decide(
+          AppCrashReportMode.always,
+          _candidate(signature: accessViolation),
+        ),
+        CrashReportAction.sendAutomatically,
+      );
+      expect(
+        decide(AppCrashReportMode.ask, _candidate(signature: accessViolation)),
+        CrashReportAction.prompt,
+      );
+    });
+
+    test('never: גם ההמלצה לא מוצגת', () {
+      expect(decide(AppCrashReportMode.never, hang), CrashReportAction.none);
+    });
+
+    test('התקנה רגילה: תקיעה מדווחת כרגיל', () {
+      expect(
+        decide(AppCrashReportMode.always, hang, isPortable: false),
+        CrashReportAction.sendAutomatically,
+      );
+    });
+  });
+
   test('parse: ערך לא מוכר נופל ל-ask', () {
     expect(AppCrashReportMode.parse('always'), AppCrashReportMode.always);
     expect(AppCrashReportMode.parse('never'), AppCrashReportMode.never);

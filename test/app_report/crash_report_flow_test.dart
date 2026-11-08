@@ -45,6 +45,8 @@ void main() {
     FakeAppReportService? service,
     Future<bool> Function(CrashCandidate)? showPrompt,
     String savedEmail = '',
+    bool isPortable = false,
+    void Function()? showFasterDriveHint,
   }) => CrashReportFlow(
     showPrompt: showPrompt ?? (_) async => true,
     service: service ?? FakeAppReportService(),
@@ -55,6 +57,8 @@ void main() {
     savedEmail: () => savedEmail,
     appVersion: '0.9.98',
     clock: () => DateTime.utc(2026, 9, 17, 10),
+    isPortable: () => isPortable,
+    showFasterDriveHint: showFasterDriveHint ?? () {},
   );
 
   test('never: לא שולח ולא שואל', () async {
@@ -144,5 +148,24 @@ void main() {
     ).handle(candidate(sig: null));
     expect(service.sent.single.title, CrashReportDecision.fallbackTitle);
     expect(service.sent.single.signature, isNull);
+  });
+
+  test('נייד: תקיעה לא נשלחת ולא נשאלת — מוצגת המלצה לכונן מהיר', () async {
+    for (final mode in [AppCrashReportMode.ask, AppCrashReportMode.always]) {
+      final service = FakeAppReportService();
+      var prompted = false;
+      var hints = 0;
+      final outcome = await flow(
+        mode: mode,
+        service: service,
+        isPortable: true,
+        showPrompt: (_) async => prompted = true,
+        showFasterDriveHint: () => hints++,
+      ).handle(const CrashCandidate.hang(signature: signature));
+      expect(outcome, CrashReportOutcome.suggestedFasterDrive);
+      expect(service.sent, isEmpty);
+      expect(prompted, isFalse);
+      expect(hints, 1);
+    }
   });
 }
