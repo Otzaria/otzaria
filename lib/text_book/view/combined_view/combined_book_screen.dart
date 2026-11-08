@@ -2681,7 +2681,9 @@ class _CombinedViewState extends State<CombinedView> {
                 coordinationGroup: _commentaryStorage,
                 behavior: HitTestBehavior.translucent,
                 onDragSelectionStart: () {
-                  if (_hasLocalCorrections) return;
+                  // בתצוגה מקדימה בחירת טקסט נשארת ב-SelectionArea,
+                  // אבל אין בחירת שורה או פס סימון שאפשר לפעול עליו.
+                  if (widget.isPreviewMode || _hasLocalCorrections) return;
                   // כניסה למצב בחירה בגלל drag
                   final line = lineAtPointer();
                   if (line != null && !_selectionManager.isInSelectionMode) {
@@ -2694,6 +2696,7 @@ class _CombinedViewState extends State<CombinedView> {
                     _anchorHandledCurrentTap = false;
                     return;
                   }
+                  if (widget.isPreviewMode) return;
                   final line = lineAtPointer();
                   if (line == null) return;
                   _focusNode.requestFocus();
@@ -2718,7 +2721,7 @@ class _CombinedViewState extends State<CombinedView> {
                   }
                 },
                 onDoubleTap: () {
-                  if (_hasLocalCorrections) return;
+                  if (widget.isPreviewMode || _hasLocalCorrections) return;
                   // SelectionArea בוחר את המילה; כאן רק מצב הבחירה של השורה.
                   final line = lineAtPointer();
                   if (line == null) return;
@@ -2726,7 +2729,7 @@ class _CombinedViewState extends State<CombinedView> {
                   _selectionManager.enterDoubleClickMode(line);
                 },
                 onShiftClick: () {
-                  if (_hasLocalCorrections) return;
+                  if (widget.isPreviewMode || _hasLocalCorrections) return;
                   // Shift+Click → בחירת טווח; SelectionArea בוחר את הטקסט.
                   final line = lineAtPointer();
                   if (line == null) return;
@@ -2736,7 +2739,7 @@ class _CombinedViewState extends State<CombinedView> {
                   }
                 },
                 onCtrlClick: () {
-                  if (_hasLocalCorrections) return;
+                  if (widget.isPreviewMode || _hasLocalCorrections) return;
                   // Ctrl+Click → הוספה/הסרה של השורה מבחירה מרובה
                   final line = lineAtPointer();
                   if (line == null) return;

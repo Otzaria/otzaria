@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
@@ -56,8 +57,10 @@ TextBookLoaded _loadedState(List<String> content) {
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
+  final List<TextBookEvent>? eventLog;
+
+  _TestTextBookBloc(super.initialState, {this.eventLog}) {
+    on<TextBookEvent>((event, emit) => eventLog?.add(event));
   }
 
   @override
@@ -100,13 +103,17 @@ void main() {
     Size size = const Size(500, 800),
     // עוטף את התצוגה כמו בספרייה: חלונית צד בצד שמאל (RTL) הניתנת לשינוי רוחב.
     bool inSidePane = false,
+    List<TextBookEvent>? eventLog,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     final content = _variableHeightContent();
-    final textBookBloc = _TestTextBookBloc(_loadedState(content));
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState(content),
+      eventLog: eventLog,
+    );
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
@@ -189,6 +196,41 @@ void main() {
     }
     return samples;
   }
+
+
+  group('בחירת שורה בתצוגה מקדימה (#4509)', () {
+    testWidgets('לחיצה רגילה או Ctrl+לחיצה אינן מוסיפות בחירת שורה', (
+      tester,
+    ) async {
+      final events = <TextBookEvent>[];
+      await pumpPreview(tester, eventLog: events);
+      final paragraph = find.byType(EnhancedGestureDetector).first;
+      expect(paragraph, findsOneWidget);
+
+      await tester.tap(paragraph, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(events.whereType<UpdateSelectedIndex>(), isEmpty);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.tap(paragraph, kind: PointerDeviceKind.mouse);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(events.whereType<UpdateSelectedIndex>(), isEmpty);
+    });
+
+    testWidgets('בקורא רגיל לחיצה עדיין בוחרת שורה', (tester) async {
+      final events = <TextBookEvent>[];
+      await pumpPreview(
+        tester,
+        isPreviewMode: false,
+        eventLog: events,
+      );
+      final paragraph = find.byType(EnhancedGestureDetector).first;
+      await tester.tap(paragraph, kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(events.whereType<UpdateSelectedIndex>(), isNotEmpty);
+    });
+  });
 
   group('מחוון הגלילה בתצוגה המקדימה', () {
     testWidgets('משתמש במחוון של האפליקציה ולא ב-Scrollbar של ListView', (
