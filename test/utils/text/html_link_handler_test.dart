@@ -85,6 +85,26 @@ void main() {
       });
     }
 
+    test('ספר טקסט ישיר עדיף על מסמך בר-המרה בעל אותו שם', () {
+      final convertible = buildBookForFileType(
+        fileType: 'html',
+        title: 'ספר',
+        path: 'C:/ספרים/ספר.html',
+        filePath: 'C:/ספרים/ספר.html',
+        categoryId: 7,
+      );
+      final direct = TextBook(
+        title: 'ספר',
+        filePath: 'C:/ספרים/ספר.txt',
+      );
+      final resolved = HtmlLinkHandler.resolveBookLinkTarget(
+        _libraryWith([convertible, direct]),
+        'ספר',
+      );
+
+      expect(resolved, same(direct));
+    });
+
     test('ספר PDF אינו יעד לקישור טקסט', () {
       final library = _libraryWith([
         PdfBook(title: 'ספר', path: 'C:/ספרים/ספר.pdf'),
