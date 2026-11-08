@@ -46,6 +46,7 @@ Future<Map<String, Object?>> readWebViewProbeWindow(String platform) async {
 Future<Map<String, Object?>> prepareWebViewProbeWindow({
   required String platform,
   required Future<void> Function() pumpFrame,
+  bool closeNativeSplash = true,
   Duration timeout = const Duration(seconds: 10),
 }) async {
   if (!_desktopPlatforms.contains(platform)) {
@@ -65,7 +66,9 @@ Future<Map<String, Object?>> prepareWebViewProbeWindow({
     await bounded(windowManager.show);
     await bounded(windowManager.focus);
     await bounded(pumpFrame);
-    await bounded(() => _splashChannel.invokeMethod<void>('close'));
+    if (closeNativeSplash) {
+      await bounded(() => _splashChannel.invokeMethod<void>('close'));
+    }
     while (true) {
       await bounded(pumpFrame);
       final state = await bounded(() => readWebViewProbeWindow(platform));

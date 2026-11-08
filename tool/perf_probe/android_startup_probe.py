@@ -188,6 +188,28 @@ def validate_report(report, config, pid, *, completion):
                 raise ValueError("The real background dispatcher did not deliver this run's event")
         elif snapshot.get("twoAnimationFrames") is not True:
             raise ValueError("Foreground document did not reach its two-rAF marker")
+        if mode == "foreground":
+            resources = measurement.get("resources")
+            counts = {"registered": 1, "live": 1, "backgroundLive": 0}
+            if (not isinstance(resources, dict) or
+                    any(type(resources.get(key)) is not int or resources[key] != value
+                        for key, value in counts.items())):
+                raise ValueError("Foreground opening must end with exactly one foreground WebView")
+            instances = resources.get("instances")
+            if (resources.get("detailsTruncated") is not False or not isinstance(instances, list)
+                    or len(instances) != 1 or not isinstance(instances[0], dict)
+                    or opened.get("host") != "PluginTabPage"
+                    or not isinstance(opened.get("instanceId"), str) or not opened["instanceId"]
+                    or instances[0].get("pluginId") != snapshot["pluginId"]
+                    or instances[0].get("instanceId") != opened["instanceId"]
+                    or instances[0].get("live") is not True):
+                raise ValueError("Foreground census does not identify the requested plugin instance")
+            marks = timeline.get("marks")
+            if (not isinstance(marks, list)
+                    or any(not isinstance(mark, dict) or not isinstance(mark.get("name"), str) for mark in marks)
+                    or [mark["name"] for mark in marks if mark["name"].startswith("reveal:immediate:")]
+                    != ["reveal:immediate:Null"]):
+                raise ValueError("Foreground opening did not start from the empty fixture at reveal")
     for key in ("nativeMainThreadResponsiveness", "nativeCpu"):
         if measurement.get(key) != {"availability": "notCollected", "value": None}:
             raise ValueError("This probe did not collect native CPU or UI responsiveness")
