@@ -40,6 +40,11 @@ void main() {
           generation: 'fresh-generation',
           nativeFork: 'native-pin',
           firstFrameRasterized: true,
+          vmService: const {
+            'vmServiceUri': 'http://127.0.0.1:1234/auth=/',
+            'vmServiceIsolate': 'isolates/17',
+            'hostPid': -1,
+          },
         ),
         _LoopbackHttpOverrides(),
       );
@@ -50,6 +55,8 @@ void main() {
       expect(body['runId'], 'fresh-generation');
       expect(body['nativeFork'], 'native-pin');
       expect(body['firstFrameRasterized'], isTrue);
+      expect(body['vmServiceUri'], 'http://127.0.0.1:1234/auth=/');
+      expect(body['vmServiceIsolate'], 'isolates/17');
     },
   );
 

@@ -98,6 +98,53 @@ class ProtocolTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=3)
 
+    def test_direct_checkpoint_response_waits_for_identity_and_rejects_aborted_startup(self):
+        for aborted in (False, True):
+            with self.subTest(aborted=aborted):
+                release, entered, answered = threading.Event(), threading.Event(), threading.Event()
+                self.coordinator.startup_release = release
+                self.coordinator.stopping = False
+                server = runner.ThreadingHTTPServer(('127.0.0.1', 0), runner.Handler)
+                server.coordinator = self.coordinator
+                server.daemon_threads = True
+                server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+                server_thread.start()
+                status, errors = [], []
+                def client():
+                    connection = http.client.HTTPConnection('localhost', server.server_port, timeout=3)
+                    try:
+                        connection.request('POST', '/checkpoint', body=json.dumps(self.body),
+                            headers={'X-Apple-Quiet-Token': 'nonce'})
+                        response = connection.getresponse()
+                        status.append(response.status)
+                        response.read()
+                    except Exception as error:
+                        errors.append(error)
+                    finally:
+                        connection.close()
+                        answered.set()
+                original_wait = release.wait
+                def wait(timeout):
+                    entered.set()
+                    return original_wait(timeout)
+                client_thread = threading.Thread(target=client, daemon=True)
+                try:
+                    with patch.object(release, 'wait', side_effect=wait):
+                        client_thread.start()
+                        self.assertTrue(entered.wait(3))
+                        self.assertFalse(answered.is_set())
+                        self.coordinator.stopping = aborted
+                        release.set()
+                        self.assertTrue(answered.wait(3))
+                    self.assertEqual(errors, [])
+                    self.assertEqual(status, [400 if aborted else 200])
+                finally:
+                    release.set()
+                    server.shutdown()
+                    server.server_close()
+                    server_thread.join(timeout=3)
+                    client_thread.join(timeout=3)
+
     def test_physical_completion_requires_final_framework_result(self):
         self.coordinator.physical = True
         report = {**self.body, 'status': 'passed'}
@@ -421,6 +468,51 @@ class SetupEvidenceTests(unittest.TestCase):
                 runner.recorded_output(self.directory, 'original', ['build'], 2)
         self.assertIs(failure.exception, original)
 
+    def test_owned_cleanup_executes_despite_receipt_failure_and_keeps_native_exit(self):
+        for code in (0, 37):
+            with self.subTest(code=code):
+                original_save = runner.save
+                failure = OSError('initial receipt unavailable')
+                calls = []
+                def save(path, value):
+                    calls.append(path)
+                    if len(calls) == 1:
+                        raise failure
+                    original_save(path, value)
+                command = [sys.executable, '-c', f'import sys;print("cleanup completed");sys.exit({code})']
+                with patch.object(runner, 'save', side_effect=save):
+                    with self.assertRaises(OSError if code == 0 else subprocess.CalledProcessError) as caught:
+                        runner.recorded_output(self.directory, 'cleanup', command, 5, must_run=True)
+                if code == 0:
+                    self.assertIs(caught.exception, failure)
+                else:
+                    self.assertEqual(caught.exception.returncode, code)
+                receipt = json.loads((self.directory / 'cleanup.json').read_text())
+                self.assertEqual(receipt['status'], 'failed')
+                self.assertEqual(receipt['exitCode'], code)
+                self.assertEqual(receipt['receiptError'], str(failure))
+                self.assertEqual(receipt['processExitAfterCleanup'], code)
+                self.assertEqual((self.directory / 'cleanup.stdout.log').read_text(), 'cleanup completed\n')
+
+    def test_create_ack_observer_precedes_post_exit_receipt_failure(self):
+        identifier = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+        failure = OSError('create receipt unavailable')
+        observed, writes = [], []
+        original_save = runner.save
+        def save(path, value):
+            writes.append(path)
+            if len(writes) == 2:
+                self.assertEqual(observed, [identifier])
+                raise failure
+            original_save(path, value)
+        command = [sys.executable, '-c', f'print("{identifier}")']
+        with patch.object(runner, 'save', side_effect=save):
+            with self.assertRaises(OSError) as caught:
+                runner.recorded_output(self.directory, 'create', command, 5, on_success=observed.append)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(observed, [identifier])
+        self.assertEqual((self.directory / 'create.stdout.log').read_text().strip(), identifier)
+
     def test_setup_logs_are_bounded_and_truncation_is_explicit(self):
         command = [sys.executable, '-c', 'import sys;sys.stdout.write("x"*100000);sys.stderr.write("y"*100000)']
         runner.recorded_output(self.directory, 'large', command, 5)
@@ -447,81 +539,6 @@ class SetupEvidenceTests(unittest.TestCase):
         config = (control / 'ControlConfig.swift').read_text()
         self.assertIn('http://localhost:1234', config)
         self.assertIn('com.mendelg.otzaria', config)
-
-
-class IosLogStreamTests(unittest.TestCase):
-    def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
-        self.directory = Path(temporary.name)
-        self.application = self.directory / 'Runner.app'
-        self.application.mkdir()
-        (self.application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'Runner'}))
-
-    def fixture(self, program):
-        launch = subprocess.Popen
-        def start(command, **kwargs):
-            self.command = command
-            self.assertTrue(kwargs['start_new_session'])
-            process = launch([sys.executable, '-c', program], **kwargs)
-            self.addCleanup(runner.stop_owned, process, timeout=1, kill_timeout=1)
-            return process
-        return patch.object(runner.subprocess, 'Popen', side_effect=start)
-
-    def test_early_stream_error_preserves_raw_output_and_native_exit(self):
-        with self.fixture('import sys; print("raw output"); print("raw log error",file=sys.stderr);sys.exit(37)'):
-            with self.assertRaises(subprocess.CalledProcessError) as failed:
-                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
-        self.assertEqual(failed.exception.returncode, 37)
-        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
-        self.assertEqual(receipt['status'], 'failed')
-        self.assertEqual(receipt['exitCode'], 37)
-        self.assertEqual(receipt['command'], self.command)
-        self.assertEqual((self.directory / 'ios-log-stream.stdout.log').read_text(), 'raw output\n')
-        self.assertEqual((self.directory / 'ios-log-stream.stderr.log').read_text(), 'raw log error\n')
-
-    def test_native_bounded_stream_must_exit_before_diagnostic_returns(self):
-        with self.fixture('import time; print("stream output",flush=True);time.sleep(0.05)'):
-            runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
-        self.assertEqual(self.command[:8], ['xcrun', 'simctl', 'spawn', 'device-A', 'log', 'stream', '--style', 'json'])
-        self.assertEqual(self.command[-2:], ['--timeout', '3'])
-        self.assertIn('processImagePath ENDSWITH "Runner"', self.command[self.command.index('--predicate') + 1])
-        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
-        self.assertEqual(receipt['status'], 'passed')
-        self.assertEqual(receipt['exitCode'], 0)
-        self.assertEqual(receipt['processExitAfterCleanup'], 0)
-        self.assertGreater(receipt['elapsedMs'], 0)
-
-    def test_stuck_stream_outer_timeout_fails_and_reaps_owned_process(self):
-        with self.fixture('import sys,time;print("stream started",file=sys.stderr,flush=True);time.sleep(30)'):
-            with self.assertRaises(subprocess.TimeoutExpired):
-                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 0.2)
-        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
-        self.assertEqual(receipt['status'], 'timedOut')
-        self.assertIsNone(receipt['exitCode'])
-        self.assertIsNotNone(receipt['processExitAfterCleanup'])
-        self.assertIn('stream started', (self.directory / 'ios-log-stream.stderr.log').read_text())
-
-    def test_stream_cleanup_failure_cannot_be_accepted(self):
-        process = Mock(pid=42)
-        process.wait.return_value = process.poll.return_value = 0
-        failure = PermissionError('cleanup denied')
-        with patch.object(runner.subprocess, 'Popen', return_value=process), \
-             patch.object(runner, 'stop_owned', side_effect=failure):
-            with self.assertRaises(PermissionError) as caught:
-                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
-        self.assertIs(caught.exception, failure)
-        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
-        self.assertEqual(receipt['status'], 'failed')
-        self.assertEqual(receipt['cleanupError'], 'cleanup denied')
-
-    def test_prebuilt_filter_uses_the_bundle_name_like_flutter(self):
-        (self.application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'DifferentExecutable'}))
-        with self.fixture('pass'):
-            runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
-        predicate = self.command[self.command.index('--predicate') + 1]
-        self.assertIn('processImagePath ENDSWITH "Runner"', predicate)
-        self.assertNotIn('DifferentExecutable', predicate)
 
 
 class MacTransportTests(unittest.TestCase):
@@ -1096,7 +1113,7 @@ class RunBudgetTests(unittest.TestCase):
 
 class BuildOrderingTests(unittest.TestCase):
     def run_probe(self, *, budget=3900, build_seconds=0, readiness_seconds=0,
-                  drive_seconds=0, completion_seconds=0, control_seconds=0,
+                  drive_seconds=0, completion_seconds=0, control_seconds=0, driver_exit=0,
                   expected_error=None, cleanup_error=None, final_save_error=None,
                   diagnostic_error=None, uninstall_on_exit=False,
                   info_plist=plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}),
@@ -1121,11 +1138,11 @@ class BuildOrderingTests(unittest.TestCase):
                 original_save(path, value)
             def output(command, **_):
                 if command[:2] == ['flutter', '--version']:
-                    return json.dumps({'frameworkVersion': '3.47.7'})
+                    return json.dumps({'frameworkVersion': '3.47.7', 'flutterRoot': '/pinned/flutter'})
                 if command[:3] == ['xcrun', 'simctl', 'list']:
-                    return json.dumps({'devices': {'iOS': [{'udid': 'device-A', 'state': 'Booted'}]}})
+                    return json.dumps({'devices': {'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [{'udid': 'device-A', 'state': 'Booted', 'deviceTypeIdentifier': 'iPhone-type'}]}})
                 return 'fixture'
-            def recorded(_, label, command, timeout):
+            def recorded(_, label, command, timeout, **kwargs):
                 calls.append(command)
                 limits[label] = timeout
                 if label == 'build-ios-probe':
@@ -1135,12 +1152,8 @@ class BuildOrderingTests(unittest.TestCase):
                         (application / 'Info.plist').write_bytes(info_plist)
                 elif label == 'create-control-project':
                     Path(command[-2]).mkdir()
-                elif label == 'ios-log-stream':
-                    self.assertTrue(coordinator.control_ready.is_set())
-                    self.assertFalse(any(item[:2] == ['flutter', 'drive'] for item in calls))
-                    if log_stream_error is not None:
-                        raise log_stream_error
-                    elapsed[0] += 3
+                elif label == 'ios-log-stream' and log_stream_error is not None:
+                    raise log_stream_error
             def codesign(command, **kwargs):
                 calls.append(command)
                 limits['codesign'] = kwargs['timeout']
@@ -1169,7 +1182,7 @@ class BuildOrderingTests(unittest.TestCase):
                     if command[0] == 'xcodebuild':
                         coordinator.control_session = 'controller-A'
                         coordinator.control_ready.set()
-                    elif uninstall_on_exit and command[:2] == ['flutter', 'drive']:
+                    elif uninstall_on_exit and str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart'):
                         installed.mkdir(parents=True)
                         (installed / 'Info.plist').write_bytes((application / 'Info.plist').read_bytes())
                         coordinator.executable = str(installed / 'Runner')
@@ -1177,10 +1190,11 @@ class BuildOrderingTests(unittest.TestCase):
                     return self.returncode
                 def wait(self, timeout):
                     self.returncode = 0
-                    if self.command[:2] == ['flutter', 'drive']:
+                    if str(self.command[-1]).endswith('/test_driver/apple_plugin_activity.dart'):
                         limits['drive'] = timeout
                         elapsed[0] += drive_seconds
-                        runner.save(directory / 'complete.json', {'status': 'passed'})
+                        self.returncode = driver_exit
+                        runner.save(directory / 'complete.json', {'status': 'passed' if driver_exit == 0 else 'failed'})
                         coordinator.completed.set()
                         if uninstall_on_exit:
                             (installed / 'Info.plist').unlink()
@@ -1188,7 +1202,22 @@ class BuildOrderingTests(unittest.TestCase):
                     else:
                         limits['control completion'] = timeout
                         elapsed[0] += control_seconds
-                    return 0
+                    return self.returncode
+            class DirectDriver:
+                def __init__(self, *args):
+                    self.coordinator = coordinator
+                    self.ownership = {'seed': 'device-A', 'device': 'private-device-A', 'created': True}
+                    self.actual_device = {'udid': 'private-device-A', 'name': 'Actual private iPhone', 'state': 'Booted', 'deviceTypeIdentifier': 'iPhone-type'}
+                    self.actual_runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
+                def prepare(self, seed, runtime):
+                    calls.append(['simctl-create', seed['udid'], runtime])
+                    return 'private-device-A'
+                def start(self, bundle, dart, entrypoint):
+                    self_bundle = str(bundle)
+                    calls.append(['simctl-launch', self_bundle])
+                    return [str(dart), '--packages=' + str(repository / '.dart_tool/package_config.json'), str(repository / entrypoint)], {'VM_SERVICE_URL': 'http://127.0.0.1:1234/auth=/'}
+                def close(self):
+                    calls.append(['simctl-terminate'])
             server = Mock(server_port=12345)
             server.server_close.side_effect = server_close_error
             with patch.object(sys, 'argv', ['run.py', '--platform', 'ios', '--device', 'device-A', '--mode', 'debug', '--seconds', '6', '--output', str(directory)]), \
@@ -1197,7 +1226,7 @@ class BuildOrderingTests(unittest.TestCase):
                  patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner.platform, 'platform', return_value='fixture-Mac'), \
                  patch.object(runner, 'REPO', repository), \
-                 patch.object(runner, 'Coordinator', return_value=coordinator), \
+                 patch.multiple(runner, Coordinator=Mock(return_value=coordinator), SimulatorDriver=DirectDriver), \
                  patch.object(coordinator.control_ready, 'wait', side_effect=ready), \
                  patch.object(coordinator.completed, 'wait', side_effect=complete), \
                  patch.object(runner, 'ThreadingHTTPServer', return_value=server), \
@@ -1220,19 +1249,23 @@ class BuildOrderingTests(unittest.TestCase):
             return calls, limits, environment
 
     def test_controller_starts_after_the_ios_build_and_drive_reuses_the_binary(self):
-        calls, _, _ = self.run_probe()
+        calls, _, environment = self.run_probe()
+        self.assertEqual(environment['simulator']['name'], 'Actual private iPhone')
+        self.assertNotEqual(environment['simulatorSeed']['udid'], environment['simulator']['udid'])
         build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
         control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
-        log_stream = next(i for i, command in enumerate(calls) if command[:3] == ['xcrun', 'simctl', 'spawn'])
-        drive = next(i for i, command in enumerate(calls) if command[:2] == ['flutter', 'drive'])
+        launch = next(i for i, command in enumerate(calls) if command[0] == 'simctl-launch')
+        drive = next(i for i, command in enumerate(calls) if str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart'))
         self.assertLess(build, control)
-        self.assertLess(control, log_stream)
-        self.assertLess(log_stream, drive)
-        self.assertIn('--verbose', calls[drive])
-        self.assertTrue(any(value.endswith('/build/ios/iphonesimulator/Runner.app')
-                            and value.startswith('--use-application-binary=') for value in calls[drive]))
+        self.assertIn('platform=iOS Simulator,id=private-device-A', calls[control])
+        self.assertLess(control, launch)
+        self.assertLess(launch, drive)
+        self.assertEqual(calls[drive][0], '/pinned/flutter/bin/cache/dart-sdk/bin/dart')
+        self.assertTrue(calls[drive][1].startswith('--packages='))
+        self.assertTrue(calls[launch][1].endswith('/build/ios/iphonesimulator/Runner.app'))
+        self.assertFalse(any('stream' in item for item in calls))
 
-    def test_prebuilt_metadata_survives_the_driver_uninstalling_its_simulator_bundle(self):
+    def test_prebuilt_metadata_survives_runtime_bundle_removal(self):
         calls, _, report = self.run_probe(uninstall_on_exit=True)
         build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
         signed = next(i for i, command in enumerate(calls) if command[0] == 'codesign')
@@ -1257,32 +1290,48 @@ class BuildOrderingTests(unittest.TestCase):
             with self.subTest(contents=contents):
                 calls, _, report = self.run_probe(info_plist=contents, expected_error=error)
                 self.assertFalse(any(command[0] in {'xcodebuild', 'codesign'} for command in calls))
-                self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+                self.assertFalse(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
                 self.assertEqual(report['status'], 'failed')
 
     def test_metadata_collection_failure_survives_cleanup_and_starts_no_runtime(self):
         calls, _, report = self.run_probe(codesign_error=OSError('codesign failed to start'),
             server_close_error=RuntimeError('server close failed'), expected_error=OSError)
         self.assertFalse(any(command[0] == 'xcodebuild' for command in calls))
-        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertFalse(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
         self.assertEqual(report['status'], 'failed')
         self.assertEqual(report['error'], 'codesign failed to start')
         self.assertEqual(report['cleanupErrors'], [{'stage': 'server close', 'error': 'server close failed'}])
 
-    def test_log_stream_failure_stops_before_app_and_survives_cleanup_errors(self):
-        failure = subprocess.CalledProcessError(37, ['xcrun', 'simctl', 'spawn'])
-        calls, _, report = self.run_probe(log_stream_error=failure,
-            cleanup_error=RuntimeError('controller cleanup failed'), expected_error=subprocess.CalledProcessError)
-        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+    def test_vm_checkpoint_precedes_plugin_readiness_and_failed_driver_stays_failed(self):
+        source = (runner.REPO / 'integration_test/apple_plugin_activity_probe_test.dart').read_text()
+        reveal = source.index("'actual app reveal'")
+        first_frame = source.index('await binding.waitUntilFirstFrameRasterized', reveal)
+        vm = source.index('report.addAll(await iosSimulatorVmService())', first_frame)
+        checkpoint = source.index("await protocol.post('checkpoint', report)", vm)
+        install = source.index('await scenario.install(appleForegroundId)')
+        ready = source.index("await scenario.ready(foreground, 'foreground')")
+        self.assertLess(checkpoint, install)
+        self.assertLess(checkpoint, ready)
+        self.assertIn('Platform.isIOS', source[reveal:vm])
+        self.assertIn("perfBuildMode == 'debug'", source[reveal:vm])
+        self.assertIn("!const bool.fromEnvironment('APPLE_QUIET_EXTERNAL')", source[reveal:vm])
+        self.assertGreater(source.index("report['settingsAfterStartup'] = settings"), checkpoint)
+        calls, _, report = self.run_probe(driver_exit=1, expected_error=RuntimeError)
+        self.assertTrue(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
         self.assertEqual(report['status'], 'failed')
-        self.assertEqual(report['error'], str(failure))
-        self.assertEqual(report['cleanupErrors'], [{'stage': 'controller', 'error': 'controller cleanup failed'}])
+        self.assertIn('Host driver failed with exit 1', report['error'])
+
+    def test_direct_driver_does_not_invoke_a_broken_os_log_reader(self):
+        calls, _, report = self.run_probe(log_stream_error=subprocess.TimeoutExpired(['log', 'stream'], 10))
+        self.assertEqual(report['status'], 'passed')
+        self.assertFalse(any('log' in command or 'stream' in command for command in calls))
+
 
     def test_build_readiness_drive_and_completion_share_one_deadline(self):
         _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
             readiness_seconds=100, drive_seconds=3, completion_seconds=2, control_seconds=2)
         self.assertEqual(limits, {'build-ios-probe': 2400, 'codesign': 15, 'create-control-project': 110,
-            'readiness': 110, 'ios-log-stream': 10, 'drive': 7, 'completion': 4, 'control completion': 2})
+            'readiness': 110, 'drive': 10, 'completion': 7, 'control completion': 5})
         self.assertEqual(report['status'], 'passed')
         self.assertEqual(report['deadlineMonotonic'], 3500)
         self.assertEqual(report['remainingBudgetAtStartSeconds'], 2500)
@@ -1290,13 +1339,13 @@ class BuildOrderingTests(unittest.TestCase):
     def test_expired_build_cannot_start_a_controller(self):
         calls, _, report = self.run_probe(budget=2400, build_seconds=2400, expected_error=TimeoutError)
         self.assertFalse(any(command[0] == 'xcodebuild' for command in calls))
-        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertFalse(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
         self.assertEqual(report['status'], 'failed')
 
     def test_expired_readiness_cannot_start_drive_and_cleanup_keeps_the_timeout(self):
         calls, _, report = self.run_probe(budget=2410, build_seconds=2400,
             readiness_seconds=10, expected_error=TimeoutError, cleanup_error=RuntimeError('stop failed'))
-        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertFalse(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
         self.assertIn('deadline expired', report['error'])
         self.assertEqual(report['cleanupErrors'], [{'stage': 'controller', 'error': 'stop failed'}])
 

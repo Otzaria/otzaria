@@ -14,6 +14,9 @@ on:
       - 'test/tool/perf_probe/macos_font_probe*_test.dart'
       - 'test_driver/ios_plugin_fonts.dart'
       - 'tool/perf_probe/*ios_plugin_fonts*'
+      - 'tool/perf_probe/ios_simulator_driver.py'
+      - 'tool/perf_probe/test_ios_simulator_driver.py'
+      - 'integration_test/support/ios_simulator_vm_service.dart'
       - 'tool/perf_probe/apple_plugin_activity/run.py'
       - 'lib/plugins/services/plugin_font*.dart'
       - 'lib/plugins/services/plugin_asset_scheme.dart'
@@ -61,6 +64,7 @@ jobs:
           flutter analyze --no-pub
           node --test tool/perf_probe/test_macos_plugin_fonts.mjs tool/perf_probe/test_ios_plugin_fonts.mjs
           python3 -m unittest discover -s tool/perf_probe -p 'test_ios_plugin_fonts*.py' -v
+          python3 -m unittest discover -s tool/perf_probe -p test_ios_simulator_driver.py -v
           python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py -v
           flutter test --no-pub \
             test/tool/perf_probe/ios_font_probe_contract_test.dart \

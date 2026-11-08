@@ -145,23 +145,34 @@ python3 tool/perf_probe/run_ios_plugin_fonts.py --instances 10 --output /tmp/ios
 
 Each output directory must be new. Existing reports are rejected before any
 artifact is written; only the workflow setup logs may already be present. The runner selects an available iPhone,
-records its runtime version/build/UDID, boots it if necessary and opens Simulator.
-The Simulator app is built separately with the same 3,000-second build budget.
-`flutter drive --debug --no-pub --use-application-binary` launches that exact app.
-An authenticated, generation-specific checkpoint after its first rasterized fixture
-frame must arrive within 180 seconds after launch; the existing 20-minute report
-budget is separate from compilation. PID, generation and native fork are bound
-to the final report, so another launch cannot certify the measured process.
-Legacy artifacts without this checkpoint do not satisfy native acceptance.
+records its runtime version/build/UDID and creates a private Simulator with the
+same device type and runtime. The selected seed is never booted, installed into,
+shut down or deleted. Only the returned private UUID is used for native work.
+The actual private device record is queried from simctl after boot and matched
+against its requested UUID, device type and runtime; seed metadata is not reused.
+`open -a Simulator` follows Flutter SDK behavior and does not prove which Mac
+Simulator window is frontmost. Rendering evidence remains the guest WKWebView
+visibility/viewport and native PNGs, not host window selection.
+The app is built separately with the same 3,000-second build budget, installed
+and launched with `simctl`, without pausing Dart or disabling VM authentication.
+An authenticated, generation-specific checkpoint after its first rasterized
+fixture frame must arrive within 180 seconds. Its complete authenticated
+loopback VM URI and UI isolate are checked once with `getVM`; the launch PID,
+checkpoint PID and VM PID must agree before the checkpoint response is released.
+The pinned SDK's Dart executable then runs the existing host driver directly
+with `--packages` and `VM_SERVICE_URL`, as Flutter's `DriveService.startTest` does.
+No OS log stream, Flutter drive or attach reader is required for VM discovery.
+The existing 20-minute report budget remains separate from compilation.
+Legacy artifacts without the authenticated checkpoint are not native acceptance.
 No checkpoint is required by the separate manual physical-device export path.
 
 Only a failed driver on a Simulator booted by this runner triggers a two-minute
 Runner/WebKit/SpringBoard log query before shutdown. It has a ten-second deadline
 and retains at most 64 KiB per stream with explicit truncation metadata. A query
 failure is secondary and cannot replace the driver failure. Successful runs and
-borrowed Simulators are not queried. This is failure evidence, not a fix for the
-unresolved iOS initial-load timeout after controller creation. It shuts down only a Simulator that
-it booted. The workflow installs both Rust Simulator targets; the validator
+the selected seed are not queried. This is failure evidence, not a fix for the
+unresolved iOS initial-load timeout after controller creation. It shuts down and deletes only its created private UUID, including when startup
+fails without a checkpoint. Ownership metadata retains both seed and private IDs. The workflow installs both Rust Simulator targets; the validator
 requires the target that matches the runner architecture.
 
 `environment.json` records the app commit/tree and clean status before/after,

@@ -25,6 +25,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import uuid
 from urllib.parse import unquote, urljoin, urlparse
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ios_simulator_driver import SimulatorDriver
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
@@ -135,13 +138,20 @@ def output(command, timeout=30, *, deadline=None):
                                    stderr=subprocess.STDOUT).strip()
 
 
-def recorded_output(directory, label, command, timeout):
+def recorded_output(directory, label, command, timeout, *, must_run=False, on_success=None):
     started = time.monotonic()
     record = {"command": command, "status": "running", "startedAtMs": now_ms(),
               "timeoutSeconds": timeout, "exitCode": None}
-    save(directory / f"{label}.json", record)
+    receipt_failure = None
+    try:
+        save(directory / f"{label}.json", record)
+    except Exception as error:
+        if not must_run:
+            raise
+        receipt_failure = error
     process = None
-    failure = cleanup_failure = None
+    failure = None
+    cleanup_failure = receipt_failure
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:
             process = subprocess.Popen(command, cwd=REPO, stdout=stdout, stderr=stderr,
@@ -150,6 +160,9 @@ def recorded_output(directory, label, command, timeout):
             record["exitCode"] = process.wait(timeout=timeout)
             if record["exitCode"] != 0:
                 raise subprocess.CalledProcessError(record["exitCode"], command)
+            if on_success is not None:
+                stdout.seek(0)
+                on_success(stdout.read(COMMAND_LOG_LIMIT).decode(errors="replace").strip())
             record["status"] = "passed"
         except subprocess.TimeoutExpired as error:
             failure = error
@@ -163,7 +176,7 @@ def recorded_output(directory, label, command, timeout):
             try:
                 stop_owned(process, timeout=5, kill_timeout=2)
             except Exception as error:
-                cleanup_failure = error
+                cleanup_failure = cleanup_failure or error
                 record["cleanupError"] = str(error)
                 if failure is None:
                     record.update(status="failed", error=str(error))
@@ -176,6 +189,10 @@ def recorded_output(directory, label, command, timeout):
                     path.write_bytes(data)
                     record[name] = {"path": path.name, "bytes": size,
                                     "truncated": size > len(data)}
+                if receipt_failure is not None:
+                    record["receiptError"] = str(receipt_failure)
+                    if failure is None:
+                        record.update(status="failed", error=str(receipt_failure))
                 record["elapsedMs"] = (time.monotonic() - started) * 1000
                 record["processExitAfterCleanup"] = None if process is None else process.poll()
                 save(directory / f"{label}.json", record)
@@ -393,6 +410,7 @@ class Coordinator:
         self.control_result = threading.Event()
         self.completed = threading.Event()
         self.app_checkpoint_at = None
+        self.startup_release = None
         self.terminal = queue.Queue()
         self.native_failure = None
         self.native_failure_signaled = False
@@ -675,7 +693,11 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object")
-            result, after_close = coordinator.request(self.path.lstrip("/"), body, received)
+            endpoint = self.path.lstrip("/")
+            result, after_close = coordinator.request(endpoint, body, received)
+            if endpoint == "checkpoint" and coordinator.startup_release is not None:
+                if not coordinator.startup_release.wait(45) or coordinator.stopping:
+                    raise TimeoutError("The Simulator startup identity was not accepted")
             code = 200
         except (ValueError, KeyError, TypeError, TimeoutError) as error:
             code, result = 400, {"error": str(error)}
@@ -747,8 +769,7 @@ def build_ios_probe(directory, timeout=2400):
 
 
 def ios_build_provenance(application, *, deadline):
-    # flutter drive uninstalls its Simulator package before exiting. Capture
-    # the exact --use-application-binary input before any runtime work starts.
+    # Preserve the exact prebuilt input before runtime or cleanup changes it.
     info_plist = application / "Info.plist"
     contents = info_plist.read_bytes()
     metadata = plistlib.loads(contents)
@@ -781,27 +802,6 @@ def shutdown_server(server, timeout=5):
         raise TimeoutError("The coordinator server did not stop within its cleanup budget")
     if failures:
         raise failures[0]
-
-
-def probe_ios_log_stream(directory, device, application, timeout):
-    app_name = application.name.replace(".app", "")
-    # Match Flutter's Simulator filter, retaining raw stderr that its reader omits.
-    predicate = (
-        'eventType = logEvent AND '
-        f'processImagePath ENDSWITH {json.dumps(app_name)} AND '
-        '(senderImagePath ENDSWITH "/Flutter" OR '
-        'senderImagePath ENDSWITH "/libswiftCore.dylib" OR '
-        'processImageUUID == senderImageUUID OR '
-        'eventMessage CONTAINS "UIScene life cycle is required" OR '
-        'eventMessage CONTAINS "`UIScene` lifecycle will soon be required" OR '
-        'eventMessage CONTAINS "This process does not adopt UIScene lifecycle.") AND '
-        'NOT(eventMessage CONTAINS ": could not find icon for representation -> com.apple.") AND '
-        'NOT(eventMessage BEGINSWITH "assertion failed: ") AND '
-        'NOT(eventMessage CONTAINS " libxpc.dylib ")'
-    )
-    command = ["xcrun", "simctl", "spawn", device, "log", "stream",
-               "--style", "json", "--predicate", predicate, "--timeout", "3"]
-    recorded_output(directory, "ios-log-stream", command, timeout)
 
 
 def wait_for_drive(process, coordinator, timeout):
@@ -849,7 +849,7 @@ def wait_for_drive(process, coordinator, timeout):
             kind = "timeout"
         if kind == "timeout":
             if startup_deadline is not None and startup_deadline < deadline:
-                raise TimeoutError(f"No authenticated iOS app checkpoint within {IOS_APP_STARTUP_SECONDS}s; inspect flutter-drive.log")
+                raise TimeoutError(f"No authenticated iOS app checkpoint within {IOS_APP_STARTUP_SECONDS}s; inspect dart-driver.log")
             raise subprocess.TimeoutExpired(process.args, timeout)
         if result == 0 and startup_deadline is not None:
             raise RuntimeError("Flutter drive exited before the first authenticated iOS app checkpoint")
@@ -860,7 +860,7 @@ def main():
     started = time.monotonic()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", choices=["macos", "ios"], required=True)
-    parser.add_argument("--device", required=True, help="macos or an already booted iOS Simulator UDID")
+    parser.add_argument("--device", required=True, help="macos or an available iOS Simulator seed UDID")
     parser.add_argument("--mode", choices=["profile", "debug", "release"], required=True)
     parser.add_argument("--seconds", type=int, default=12)
     parser.add_argument("--output", type=Path, required=True)
@@ -905,6 +905,7 @@ def main():
                    "remainingBudgetAtStartSeconds": max(0, deadline - time.monotonic()),
                    "observerLimit": "Fixture and XCUITest overhead remain. Physical release has no attached driver; automated runs include Flutter driver/VM service. Simulator debug is functional evidence only."}
     app_process = control_process = None
+    simulator_driver = None
     failure = None
     try:
         environment.update(commit=output(["git", "rev-parse", "HEAD"], deadline=deadline),
@@ -927,10 +928,20 @@ def main():
             # Verify this is a Simulator. Never silently use a physical device
             # with debug and call that background/profile acceptance.
             devices = json.loads(output(["xcrun", "simctl", "list", "devices", "--json"], deadline=deadline))
-            chosen = [d for items in devices["devices"].values() for d in items if d["udid"] == args.device and d["state"] == "Booted"]
+            chosen = [(runtime, d) for runtime, items in devices["devices"].items() for d in items
+                      if d["udid"] == args.device and d.get("isAvailable", True)]
             if len(chosen) != 1:
-                raise ValueError("--device must be an already booted iOS Simulator UDID")
-            environment["simulator"] = chosen[0]
+                raise ValueError("--device must identify an available iOS Simulator seed")
+            runtime, seed = chosen[0]
+            environment["simulatorSeed"] = seed
+            simulator_driver = SimulatorDriver(directory, REPO, args.device, coordinator,
+                lambda label, cmd, timeout, **kwargs: recorded_output(directory, label, cmd, timeout, **kwargs,
+                    must_run=label in {"simulator-shutdown", "simulator-delete"}), deadline)
+            environment["simulatorOwnership"] = simulator_driver.ownership
+            args.device = simulator_driver.prepare(seed, runtime)
+            environment["device"] = args.device
+            environment["simulator"] = simulator_driver.actual_device
+            environment["simulatorRuntime"] = simulator_driver.actual_runtime
         defines = {
             "APPLE_QUIET_COORDINATOR": url, "APPLE_QUIET_TOKEN": token,
             "APPLE_QUIET_RUN_ID": run_id, "APPLE_QUIET_SECONDS": args.seconds,
@@ -973,25 +984,25 @@ def main():
                 if not coordinator.control_ready.wait(remaining_timeout(deadline, 180)):
                     raise TimeoutError("The independent XCUITest controller did not become ready; see xcode-control.log")
                 coordinator.check_control_process()
-            probe_ios_log_stream(directory, args.device, application, timeout=remaining_timeout(deadline, 10))
-            coordinator.check_control_process()
         command = ["flutter", "drive", "--no-pub", f"--{args.mode}", "-d", args.device,
                    "--driver=test_driver/apple_plugin_activity.dart",
                    "--target=integration_test/apple_plugin_activity_probe_test.dart",
                    f"--dart-define-from-file={directory / 'defines.json'}"]
+        driver_environment = {}
         if application is not None:
-            command.append("--verbose")
-            command.append(f"--use-application-binary={application}")
+            dart = Path(environment["flutter"]["flutterRoot"]) / "bin/cache/dart-sdk/bin/dart"
+            command, driver_environment = simulator_driver.start(application, dart, "test_driver/apple_plugin_activity.dart")
         environment["command"] = command
         save(directory / "environment.json", environment)
-        with (directory / "flutter-drive.log").open("w") as log:
+        driver_log = "dart-driver.log" if application is not None else "flutter-drive.log"
+        with (directory / driver_log).open("w") as log:
             remaining_timeout(deadline, 2400)
             app_process = subprocess.Popen(command, cwd=REPO,
-                env={**os.environ, "APPLE_QUIET_OUTPUT": str(directory)},
+                env={**os.environ, **driver_environment, "APPLE_QUIET_OUTPUT": str(directory)},
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             code = wait_for_drive(app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
         if code != 0:
-            raise RuntimeError(f"flutter drive failed with exit {code}; partial reports are retained")
+            raise RuntimeError(f"Host driver failed with exit {code}; partial reports are retained")
         if not coordinator.completed.wait(remaining_timeout(deadline, 10)):
             raise RuntimeError("The app never sent a final completed report")
         complete = json.loads((directory / "complete.json").read_text())
@@ -1022,6 +1033,7 @@ def main():
                 if coordinator.native_failure is not None and control_process is not None else None),
             ("app", lambda: stop_owned(app_process, timeout=5, kill_timeout=2)),
             ("controller", lambda: stop_owned(control_process, timeout=5, kill_timeout=2)),
+            ("Simulator application", lambda: simulator_driver.close() if simulator_driver is not None else None),
             ("server shutdown", lambda: shutdown_server(server)),
             ("server close", server.server_close),
         ]:
