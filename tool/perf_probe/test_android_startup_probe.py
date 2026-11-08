@@ -1,4 +1,5 @@
 import copy
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import socket
@@ -22,7 +23,8 @@ def sample_report(config):
     entries = 0 if config["scenario"] == "noEnabled" else 1
     native = entries if config["prewarmMode"] == "native" else 0
     measurement = {
-        "startupTimeline": {"revealMs": 120}, "registeredEnabledPlugins": entries,
+        "startupTimeline": {"revealMs": 120, "marks": [{"name": "reveal:immediate:Null", "atMs": 100}]},
+        "registeredEnabledPlugins": entries,
         "revealMsAtPrewarmInvocation": [120] if entries else [],
         "prewarm": {"invocations": entries, "nativeInvocations": native, "pending": False,
                     "attemptsTruncated": False,
@@ -36,7 +38,15 @@ def sample_report(config):
     if config["scenario"] in ("foreground", "background", "overlap"):
         background = config["scenario"] == "background"
         measurement["javascriptPolls"] = 3
-        measurement["open"] = {"document": {
+        instance = "instance-" + config["runId"]
+        measurement["resources"] = {
+            "registered": 0 if background else 1, "live": 0 if background else 1,
+            "backgroundLive": 1 if background else 0, "detailsTruncated": False,
+            "instances": [] if background else [{"pluginId": "org.otzaria.android-startup-fixture",
+                                                 "instanceId": instance, "live": True}],
+        }
+        measurement["open"] = {"instanceId": instance,
+                               "host": "PluginBackgroundHost" if background else "PluginTabPage", "document": {
             "boots": 1, "sdkBooted": True, "runMode": "background" if background else "foreground",
             "pluginId": "org.otzaria.android-startup-fixture", "twoAnimationFrames": not background,
             "eventRunId": config["runId"] if background else None, "eventCount": 1 if background else 0,
@@ -136,6 +146,74 @@ class AndroidStartupContracts(unittest.TestCase):
                 probe.validate_report(report, config, 123, completion=True)
                 report["status"] = "awaitingHostSample"
                 probe.validate_report(report, config, 123, completion=False)
+
+    def test_real_reused_foreground_report_with_restored_controller_is_rejected(self):
+        # Original device bytes: run 42412886014, artifact 13591145642, trial dd8c997f1a694e8189e9bf8c24429112.
+        raw = Path(__file__).with_name("fixtures").joinpath("android_startup_foreground_reused.json").read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),
+                         "c99e72642d9315af1c1fc683906be1eca7e079c744c72f02d9b4377cf4de119b")
+        report = probe.json.loads(raw)
+        self.assertEqual(report["status"], "passed")
+        self.assertEqual(report["config"]["fixtureState"], "reused")
+        self.assertEqual(report["measurement"]["resources"]["live"], 2)
+        with self.assertRaisesRegex(ValueError, "exactly one foreground WebView"):
+            probe.validate_report(report, report["config"], report["pid"], completion=True)
+
+    def test_clean_foreground_and_overlap_accept_prepared_and_reused_fixtures(self):
+        for scenario in ("foreground", "overlap"):
+            for mode in ("native", "bypass"):
+                for state in ("prepared", "reused"):
+                    config = dict(sample_config(scenario, mode), fixtureState=state)
+                    report = sample_report(config)
+                    with self.subTest(scenario=scenario, mode=mode, state=state):
+                        probe.validate_report(report, config, 123, completion=True)
+                        report["status"] = "awaitingHostSample"
+                        probe.validate_report(report, config, 123, completion=False)
+
+    def test_foreground_census_must_identify_only_the_requested_instance(self):
+        changes = [
+            lambda m: m.update(resources=None),
+            lambda m: m["resources"].pop("registered"),
+            lambda m: m["resources"].update(registered=2),
+            lambda m: m["resources"].update(registered=True),
+            lambda m: m["resources"].update(live=0),
+            lambda m: m["resources"].update(live=2),
+            lambda m: m["resources"].update(live=1.0),
+            lambda m: m["resources"].update(backgroundLive=1),
+            lambda m: m["resources"].update(backgroundLive=False),
+            lambda m: m["resources"].update(detailsTruncated=True),
+            lambda m: m["resources"].update(instances=[]),
+            lambda m: m["resources"]["instances"].append(copy.deepcopy(m["resources"]["instances"][0])),
+            lambda m: m["resources"]["instances"][0].update(instanceId="another-instance"),
+            lambda m: m["resources"]["instances"][0].update(pluginId="another.plugin"),
+            lambda m: m["resources"]["instances"][0].update(live=False),
+            lambda m: m["open"].pop("instanceId"),
+            lambda m: m["open"].update(host="PluginBackgroundHost"),
+        ]
+        for scenario in ("foreground", "overlap"):
+            config = sample_config(scenario)
+            for completion in (False, True):
+                for index, change in enumerate(changes):
+                    report = sample_report(config)
+                    report["status"] = "passed" if completion else "awaitingHostSample"
+                    change(report["measurement"])
+                    with self.subTest(scenario=scenario, completion=completion, change=index), self.assertRaises(ValueError):
+                        probe.validate_report(report, config, 123, completion=completion)
+
+    def test_foreground_requires_the_empty_fixture_at_startup_reveal(self):
+        invalid = [None, [], [{"name": "reveal:immediate:ToolTab"}],
+                   [{"name": "reveal:immediate:Null"}, {"name": "reveal:immediate:ToolTab"}],
+                   [{"name": "reveal:immediate:Null"}, {"name": "reveal:immediate:Null"}],
+                   [{"name": 17}], ["reveal:immediate:Null"]]
+        for scenario in ("foreground", "overlap"):
+            config = sample_config(scenario)
+            for completion in (False, True):
+                for marks in invalid:
+                    report = sample_report(config)
+                    report["status"] = "passed" if completion else "awaitingHostSample"
+                    report["measurement"]["startupTimeline"]["marks"] = marks
+                    with self.subTest(scenario=scenario, completion=completion, marks=marks), self.assertRaises(ValueError):
+                        probe.validate_report(report, config, 123, completion=completion)
 
     def test_false_success_and_cross_run_reports_are_rejected(self):
         config = sample_config()
