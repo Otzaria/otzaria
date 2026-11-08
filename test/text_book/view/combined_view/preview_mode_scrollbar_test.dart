@@ -198,7 +198,6 @@ void main() {
     return samples;
   }
 
-
   group('בחירת שורה בתצוגה מקדימה (#4509)', () {
     testWidgets('לחיצה רגילה או Ctrl+לחיצה אינן מוסיפות בחירת שורה', (
       tester,
