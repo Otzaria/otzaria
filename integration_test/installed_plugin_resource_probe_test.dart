@@ -39,9 +39,12 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:path/path.dart' as p;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
+import 'support/installed_plugin_android_control.dart';
 import 'support/installed_plugin_catalog.dart';
 import 'support/installed_plugin_completion.dart';
 import 'support/installed_plugin_fixture.dart';
@@ -118,6 +121,7 @@ void main() {
   };
   binding.reportData = {'installedPluginProbe': report};
   File? reportFile;
+  InstalledAndroidControl? androidControl;
   final finished = Completer<void>();
   registerInstalledPluginReportFinalizer(binding, (passed) async {
     await finished.future.timeout(const Duration(seconds: 30));
@@ -127,21 +131,60 @@ void main() {
     report['testFailures'] = [
       for (final failure in binding.failureMethodsDetails) failure.details,
     ];
+    report['frameworkPassed'] = passed;
     (report['platformMatrix'] as Map)[Platform.operatingSystem] = {
       'status': report['status'],
       'runId': report['runId'],
       'buildMode': perfBuildMode,
       'physicalDeviceAcceptance': false,
     };
+    Object? completionFailure;
+    StackTrace? completionStack;
+    void failed(String stage, Object error, StackTrace stack) {
+      report['status'] = 'failed';
+      (report['errors'] as List).add('$stage failed: $error');
+      completionFailure ??= error;
+      completionStack ??= stack;
+    }
+
     try {
       await reportFile?.writeAsString(
         const JsonEncoder.withIndent('  ').convert(report),
         flush: true,
       );
-    } catch (error) {
-      report['status'] = 'failed';
-      (report['errors'] as List).add('Final report write failed: $error');
-      rethrow;
+      if (androidControl != null && reportFile != null) {
+        await androidControl!.finish(reportFile!, frameworkPassed: passed);
+      }
+    } catch (error, stack) {
+      failed('Final report completion', error, stack);
+    }
+    try {
+      await androidControl?.close();
+    } catch (error, stack) {
+      failed('Android control cleanup', error, stack);
+    }
+    if (androidControl != null && reportFile != null) {
+      try {
+        report['frameworkPassed'] = passed && completionFailure == null;
+        ((report['platformMatrix'] as Map)[Platform.operatingSystem]
+                as Map)['status'] =
+            report['status'];
+        await reportFile!.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(report),
+          flush: true,
+        );
+        if (completionFailure == null) {
+          await androidControl!.writeCompletion(
+            reportFile!,
+            frameworkPassed: passed,
+          );
+        }
+      } catch (error, stack) {
+        failed('Android final completion receipt', error, stack);
+      }
+    }
+    if (completionFailure != null) {
+      Error.throwWithStackTrace(completionFailure!, completionStack!);
     }
   });
 
@@ -186,6 +229,20 @@ void main() {
     }
 
     try {
+      String? androidPackage;
+      if (const bool.fromEnvironment('INSTALLED_PROBE_ANDROID_CONTROL')) {
+        if (!Platform.isAndroid || perfBuildMode != 'debug') {
+          throw StateError(
+            'The Android host control requires a debug Android APK',
+          );
+        }
+        androidPackage = (await PackageInfo.fromPlatform()).packageName;
+        if (androidPackage != installedAndroidPackage) {
+          throw StateError(
+            'The Android probe cannot write another application data directory',
+          );
+        }
+      }
       final dataPath = perfOption(
         'INSTALLED_PROBE_DATA',
         const String.fromEnvironment('INSTALLED_PROBE_DATA'),
@@ -258,6 +315,28 @@ void main() {
       }
       await output.create(recursive: true);
       reportFile = File(p.join(output.path, 'installed-plugin-report.json'));
+      if (androidPackage != null) {
+        androidControl = await InstalledAndroidControl.start(
+          support: await getApplicationSupportDirectory(),
+          report: reportFile!,
+          campaignId: const String.fromEnvironment(
+            'INSTALLED_PROBE_ANDROID_CAMPAIGN',
+          ),
+          token: const String.fromEnvironment('INSTALLED_PROBE_ANDROID_TOKEN'),
+          runId: report['runId']! as String,
+          processId: pid,
+          package: androidPackage,
+        );
+        report['androidControl'] = {
+          ...androidControl!.identity,
+          'transport':
+              'Loopback push stream through one explicit-serial ADB forward',
+          'hostObservations':
+              'Setup, requested Home/resume boundaries and final retrieval only; no host polling during any quiet window.',
+          'physicalProfileRelease': 'notRun',
+        };
+        await androidControl!.connected();
+      }
       final fixture = InstalledPluginFixture(root, source);
       await catalog.start();
       await fixture.prepare();
@@ -307,6 +386,7 @@ void main() {
         report,
         reportFile!,
         catalog,
+        androidControl,
       );
       captureErrors();
       await active.phase('startup', () async {
@@ -421,13 +501,20 @@ void main() {
 }
 
 class _Scenario {
-  _Scenario(this.tester, this.fixture, this.report, this.file, this.catalog)
-    : _frameTimings = InstalledPluginFrameTimings(SchedulerBinding.instance);
+  _Scenario(
+    this.tester,
+    this.fixture,
+    this.report,
+    this.file,
+    this.catalog,
+    this.androidControl,
+  ) : _frameTimings = InstalledPluginFrameTimings(SchedulerBinding.instance);
   final WidgetTester tester;
   final InstalledPluginFixture fixture;
   final Map<String, Object?> report;
   final File file;
   final InstalledProbeCatalog catalog;
+  final InstalledAndroidControl? androidControl;
   final dispatcher = PluginRuntimeDispatcher.instance;
   final restoreStore = PluginRestoreStateStore.instance;
   final InstalledPluginFrameTimings _frameTimings;
@@ -708,7 +795,7 @@ class _Scenario {
     });
   }
 
-  Future<void> quiet(String name) async {
+  Future<void> quiet(String name, {Future<void> Function()? waitIdle}) async {
     if (_pendingBoundarySamples != 0 || _pendingNativeProcessLists != 0) {
       throw StateError(
         'A timed-out boundary observation is still pending; this is not a quiet window.',
@@ -717,7 +804,11 @@ class _Scenario {
     final startJs = jsCalls, startNative = nativeQueries;
     final clock = Stopwatch()..start();
     final startUtc = DateTime.now().toUtc().toIso8601String();
-    await Future<void>.delayed(Duration(milliseconds: _quietMs));
+    if (waitIdle == null) {
+      await Future<void>.delayed(Duration(milliseconds: _quietMs));
+    } else {
+      await waitIdle();
+    }
     (report['quietWindows'] as List).add({
       'name': name,
       'startedUtc': startUtc,
@@ -1067,6 +1158,7 @@ class _Scenario {
       });
     });
     await desktopVisibility(first);
+    await androidVisibility(first);
     final eligible = <ToolTab>[first];
     final guards = <ToolTab, String>{};
     late ToolTab keeper;
@@ -1278,6 +1370,95 @@ class _Scenario {
         });
       });
     }
+  }
+
+  Future<void> androidVisibility(ToolTab tab) async {
+    final control = androidControl;
+    if (control == null) return;
+    phaseRecord('osBackground').remove('reason');
+    await phase('osBackground', () async {
+      final original = await before(tab);
+      final observed = original.identity;
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        AppLifecycleState.resumed,
+      );
+      nativeQueries++;
+      final home = await control.request('home', {'identity': observed});
+      await wait(
+        () =>
+            SchedulerBinding.instance.lifecycleState ==
+                AppLifecycleState.paused &&
+            !dispatcher.isInstanceShown(key(tab)) &&
+            instance(tab)['suspensionState'] == 'hidden' &&
+            instance(tab)['discardCandidate'] == true,
+        'Android Home delivered paused lifecycle and hidden real plugin host',
+      );
+      final lifecycleBeforeQuiet =
+          SchedulerBinding.instance.lifecycleState!.name;
+      phaseRecord('osBackground').addAll({
+        'mechanism': 'External ADB Home and same-activity resume',
+        'before': observed,
+        'home': home,
+        'lifecycleBeforeQuiet': lifecycleBeforeQuiet,
+        'dispatcherBeforeQuiet': instance(tab)['suspensionState'],
+        'shownBeforeQuiet': dispatcher.isInstanceShown(key(tab)),
+        'discardCandidateBeforeQuiet': instance(tab)['discardCandidate'],
+      });
+      await checkpoint();
+      Map<String, Object?>? hostQuiet;
+      await quiet(
+        'osBackgroundIdle',
+        waitIdle: () async {
+          hostQuiet = await control.request('quiet', {
+            'identity': observed,
+            'name': 'osBackgroundIdle',
+            'durationMs': _quietMs,
+          }, timeout: Duration(milliseconds: _quietMs + 45000));
+        },
+      );
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        AppLifecycleState.paused,
+      );
+      phaseRecord('osBackground')['hostQuiet'] = hostQuiet;
+      await checkpoint();
+      final resumeClock = Stopwatch()..start();
+      nativeQueries++;
+      final resume = await control.request('resume', {'identity': observed});
+      phaseRecord('osBackground')['resume'] = resume;
+      await wait(
+        () =>
+            SchedulerBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed &&
+            dispatcher.isInstanceShown(key(tab)) &&
+            instance(tab)['suspensionState'] == 'active',
+        'Same Android activity resumed with active real plugin host',
+      );
+      final js = await ready(tab);
+      final after = identity(tab, js);
+      final sameController = identical(original.controller, controller(tab));
+      final sameDocument = after['documentToken'] == observed['documentToken'];
+      final sameView = _sameView(original.js['view'], js['view']);
+      phaseRecord('osBackground').addAll({
+        'after': after,
+        'lifecycleAfterResume': SchedulerBinding.instance.lifecycleState!.name,
+        'dispatcherAfterResume': instance(tab)['suspensionState'],
+        'shownAfterResume': dispatcher.isInstanceShown(key(tab)),
+        'sameControllerAfterResume': sameController,
+        'sameDocumentAfterResume': sameDocument,
+        'visibleStateMatches': sameView,
+        'beforeVisibleState': original.js['view'],
+        'afterVisibleState': js['view'],
+        'resumeMs': resumeClock.elapsedMicroseconds / 1000,
+        'physicalDeviceAcceptance': false,
+      });
+      expect(sameController, true);
+      expect(sameDocument, true);
+      expect(sameView, true);
+      expect(after['instanceId'], observed['instanceId']);
+      expect(after['nativeViewId'], observed['nativeViewId']);
+    });
   }
 
   Future<void> controlledPolicy({required bool age}) async {

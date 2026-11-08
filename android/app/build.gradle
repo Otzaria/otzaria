@@ -98,6 +98,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.gradleProperty('otzariaInstalledProbe').orNull == 'true') {
+                applicationIdSuffix ".installedprobe"
+            }
+        }
         release {
             signingConfig signingConfigs.release
         }
