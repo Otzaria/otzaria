@@ -536,7 +536,7 @@ Future<void> _collectBookFilesRecursive(
         );
         String? conversionError;
         try {
-          book = PreparedExternalBook.prepare(entity.path, stat, format);
+          book = await PreparedExternalBook.prepare(entity.path, stat, format);
         } catch (e) {
           conversionError = e.toString();
         }
