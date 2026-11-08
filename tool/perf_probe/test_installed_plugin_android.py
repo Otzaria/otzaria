@@ -16,6 +16,7 @@ import tempfile
 import textwrap
 import threading
 import time
+import tracemalloc
 import unittest
 from unittest.mock import patch
 
@@ -162,6 +163,24 @@ class ApkDigestTests(unittest.TestCase):
                 self.assertEqual(probe.file_sha256(Path("dedicated.apk")), hashlib.sha256(data).hexdigest())
                 opened.assert_called_once_with("rb")
             self.assertTrue(stream.closed)
+
+    def test_large_file_digest_has_bounded_python_memory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            apk = Path(temporary) / "large.apk"
+            chunk = bytes(range(256)) * 4096
+            expected = hashlib.sha256()
+            with apk.open("wb") as stream:
+                for _ in range(32):
+                    stream.write(chunk)
+                    expected.update(chunk)
+            tracemalloc.start()
+            try:
+                actual = probe.file_sha256(apk)
+                _, peak = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+            self.assertEqual(actual, expected.hexdigest())
+            self.assertLess(peak, 4 * 1024 * 1024)
 
     def test_file_digest_does_not_hide_read_errors(self):
         failure = OSError("APK read failed")
