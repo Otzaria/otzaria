@@ -362,15 +362,21 @@ class TikkunVectorPdfWriter {
     final bytes = await loadFont(family, bold: bold);
     if (bytes != null) {
       final shaper = ShaperFont.register(bytes);
-      font = _ExportFont(
-        shaper,
-        PdfShapedFont(
-          _document,
-          shaper: shaper,
-          fontBytes: bytes,
-          textForExtraction: restoreTikkunVavKetiaText,
-        ),
-      );
+      try {
+        font = _ExportFont(
+          shaper,
+          PdfShapedFont(
+            _document,
+            shaper: shaper,
+            fontBytes: bytes,
+            textForExtraction: restoreTikkunVavKetiaText,
+          ),
+        );
+      } catch (_) {
+        // The map owns the shaper only after construction completes.
+        shaper.dispose();
+        rethrow;
+      }
     }
     return _fonts[key] = font;
   }
