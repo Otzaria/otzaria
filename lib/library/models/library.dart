@@ -1,6 +1,7 @@
 /* a representation of the library , every entry could be a category or a book, and a category can
 contain other categories and books */
 
+import 'package:collection/collection.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -152,17 +153,10 @@ class Library extends Category {
   ///
   /// Returns the first matching [Book] or null if no book is found.
   Book? findBookByTitle(String title, Type? type) {
-    List<Book> allBooks = getAllBooks();
-    try {
-      if (type == null) {
-        return allBooks.firstWhere((book) => book.title == title);
-      }
-      return allBooks.firstWhere(
-        (book) => book.title == title && book.runtimeType == type,
-      );
-    } catch (e) {
-      return null;
-    }
+    return getAllBooks().firstWhereOrNull(
+      (book) =>
+          book.title == title && (type == null || book.runtimeType == type),
+    );
   }
 
   /// מחפש ספר נלווה (Companion Book) כמו גרסת PDF לגרסת טקסט או להיפך.
