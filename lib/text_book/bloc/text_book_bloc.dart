@@ -2820,16 +2820,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     final window = _calculateLinksWindow(visibleIndices);
 
-    if (_isLoadingLinks) {
-      _pendingLinksReload = true;
-      // שמור את ה-indices המבוקשים אם זו טעינה מאולצת (forceLoadAll)
-      if (forceLoadAll) {
-        _pendingForceLoadIndices = List<int>.of(visibleIndices);
-        _pendingForceLoadAll = true;
-      }
-      return;
-    }
-
     List<String>? targetBookTitles;
     var targetBookTitlesSignature = _allTargetBookTitlesSignature;
     if (forceLoadAll) {
@@ -2853,6 +2843,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     if (isClosed || loadGeneration != _linksLoadGeneration) return;
+
+    // נבדק אחרי ה-await, כדי שקריאות שממתינות יחד לפתרון היעדים לא ישלחו
+    // שאילתה זהה.
+    if (_isLoadingLinks) {
+      _pendingLinksReload = true;
+      // שמור את ה-indices המבוקשים אם זו טעינה מאולצת (forceLoadAll)
+      if (forceLoadAll) {
+        _pendingForceLoadIndices = List<int>.of(visibleIndices);
+        _pendingForceLoadAll = true;
+      }
+      return;
+    }
 
     if (!force &&
         _isLinksWindowSufficient(
