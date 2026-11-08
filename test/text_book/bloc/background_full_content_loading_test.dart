@@ -1,4 +1,6 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+import 'dart:collection';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -443,6 +445,64 @@ void main() {
     ],
   );
 
+  test('טווח זהה בספר מלא בודק רק את שורות הטווח', () async {
+    const lineCount = 16384;
+    const rangeSize = 640;
+    final values = List<String>.generate(
+      lineCount,
+      (line) => line.isEven ? '' : 'שורה $line',
+    );
+    final tracked = _ReadCountingLines(values);
+    bloc.emit(buildLoadedState(content: const []));
+
+    final loaded = bloc.stream.firstWhere(
+      (state) => state is TextBookLoaded && identical(state.content, tracked),
+    );
+    bloc.add(ApplyFullBookContent(bookTitle: book.title, content: tracked));
+    await loaded;
+    final full = bloc.state as TextBookLoaded;
+    expect(full.loadedLineFlags?.length, lineCount);
+
+    final start = lineCount - rangeSize;
+    final tail = values.sublist(start);
+    tracked.reads = 0;
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: start,
+        totalLines: lineCount,
+        lines: tail,
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(bloc.state, same(full));
+    expect(tracked.reads, inInclusiveRange(1, rangeSize));
+    expect((bloc.state as TextBookLoaded).contentVersion, full.contentVersion);
+
+    // A genuine change must still emit, increment the revision, and keep
+    // the previously published full-content object unchanged.
+    final changed = List<String>.of(tail)..[0] = 'תוכן מעודכן';
+    final updatedFuture = bloc.stream.firstWhere(
+      (state) =>
+          state is TextBookLoaded &&
+          state.contentVersion == full.contentVersion + 1,
+    );
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: book.title,
+        startLine: start,
+        totalLines: lineCount,
+        lines: changed,
+      ),
+    );
+    final updated = await updatedFuture as TextBookLoaded;
+    expect(updated.content[start], 'תוכן מעודכן');
+    expect(updated.contentVersion, full.contentVersion + 1);
+    expect(full.content[start], values[start]);
+    expect(updated.loadedLineFlags?.every((loaded) => loaded), isTrue);
+  });
+
   test('פסקה רציפה שלא נטענה כולה מבקשת את כל טווח שורותיה', () async {
     // שורות 1..1999 בין שתי כותרות (נחתכות לפריטים); רק סביב שורה 1000 טעון.
     const lineCount = 2100;
@@ -481,6 +541,29 @@ void main() {
     expect(requested.startLine, lessThanOrEqualTo(layout.firstLineOf(item)));
     expect(requested.endLine, greaterThanOrEqualTo(layout.lastLineOf(item)));
   });
+}
+
+class _ReadCountingLines extends ListBase<String> {
+  _ReadCountingLines(this._values);
+
+  final List<String> _values;
+  int reads = 0;
+
+  @override
+  int get length => _values.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('Read-only source');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return _values[index];
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('Read-only source');
 }
 
 class _CountingLink extends Link {
