@@ -157,7 +157,46 @@ void main() {
     });
   });
 
-  group('stripInlineNotes', () {
+    test('רשימה ארוכה של הערות נשמרת כסדרה במעבר אחד', () {
+      final source = StringBuffer('פתיחה');
+      for (var i = 0; i < 120; i++) {
+        source.write(
+          ' קטע$i<sup class="footnote-marker">$i</sup>'
+          '<i class="footnote">גוף$i</i>',
+        );
+      }
+      final input = source.toString();
+      final rendered = addInlineNotePreviewLinks(input, lineIndex: 4);
+      expect(
+        'class="book-note-marker"'.allMatches(rendered).length,
+        120,
+      );
+      for (var i = 0; i < 120; i++) {
+        expect(rendered, contains('line=4&note=$i'));
+        expect(rendered, contains('> $i</a>'), reason: 'marker $i');
+      }
+      expect(rendered, contains('<i class="footnote">גוף119</i>'));
+      expect(rendered, startsWith('פתיחה'));
+    });
+
+    test('קישורי inline וטבלה שומרים את סדר המספור ואת תוכן השורה', () {
+      const input =
+          'פתיחה<sup class="footnote-marker">א</sup>'
+          '<i class="footnote">inline</i>'
+          ' אמצע<sup class="footnote-marker">ב</sup> סוף';
+      final dbNotes = (BookNotesBuilder()..add(0, 0, 'ב', 'db')).build();
+
+      expect(
+        addInlineNotePreviewLinks(input, lineIndex: 0, dbNotes: dbNotes),
+        'פתיחה<a class="book-note-marker" '
+        'href="otzaria://book-note?line=0&note=0">א</a>'
+        '<i class="footnote">inline</i>'
+        ' אמצע<a class="book-note-marker" '
+        'href="otzaria://book-note?line=0&note=1">ב</a> סוף',
+      );
+    });
+
+    group('stripInlineNotes', () {
     test('מסיר <i class="footnote"> מהשורה ומשאיר את <sup>', () {
       const input =
           'גוף הטקסט<sup class="footnote-marker">א</sup><i class="footnote">תוכן ההערה</i>. המשך';
