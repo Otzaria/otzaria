@@ -1,5 +1,6 @@
 import importlib.util
 from contextlib import nullcontext
+import errno
 import hashlib
 import json
 import http.client
@@ -11,7 +12,7 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 SPEC = importlib.util.spec_from_file_location("apple_quiet_runner", Path(__file__).with_name("run.py"))
 runner = importlib.util.module_from_spec(SPEC)
@@ -554,8 +555,8 @@ for line in sys.stdin:
     def test_denied_controller_cleanup_is_not_retried_and_still_closes_streams(self):
         controller = self.controller()
         controller.failed = True
-        denied = PermissionError('owned process group signal denied')
-        with patch.object(runner, 'stop_owned', side_effect=denied) as stop:
+        denied = PermissionError(errno.EPERM, 'owned process group signal denied')
+        with patch.object(runner.os, 'killpg', side_effect=denied) as stop:
             with self.assertRaises(PermissionError) as captured:
                 controller.close()
         self.assertIs(captured.exception, denied)
@@ -568,6 +569,13 @@ for line in sys.stdin:
         receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
         self.assertEqual(receipt['status'], 'failed')
         self.assertEqual(receipt['error'], str(denied))
+        observation = receipt['cleanupProcess']
+        self.assertEqual(observation['pid'], controller.process.pid)
+        self.assertEqual(observation['expectedPgid'], controller.process.pid)
+        self.assertEqual(observation['observedPgid'], controller.process.pid)
+        self.assertIsNone(observation['returnCodeBeforeStop'])
+        self.assertEqual(observation['failure']['errno'], errno.EPERM)
+        self.assertEqual(observation['failure']['stage'], 'SIGTERM')
 
     def test_close_preserves_wait_failure_over_signal_receipt_and_stderr_errors(self):
         controller = self.controller()
@@ -676,6 +684,66 @@ class PinTests(unittest.TestCase):
         self.config.write_text(json.dumps(config))
         with self.assertRaisesRegex(ValueError, 'resolved native package path'):
             runner.native_source_provenance(self.directory)
+
+
+class OwnedCleanupEvidenceTests(unittest.TestCase):
+    def test_denied_signal_keeps_known_target_and_single_pre_stop_observation(self):
+        process = Mock(pid=42)
+        process.poll.return_value = None
+        failure = PermissionError(errno.EPERM, 'signal denied')
+        evidence = {}
+        with patch.object(runner, 'clock_anchor', return_value={'wallMs': 1234, 'monotonicMs': 56}), \
+             patch.object(runner.os, 'getpgid', return_value=41) as observed, \
+             patch.object(runner.os, 'killpg', side_effect=failure) as signal:
+            with self.assertRaises(PermissionError) as captured:
+                runner.stop_owned(process, evidence=evidence)
+        self.assertIs(captured.exception, failure)
+        self.assertEqual(evidence['pid'], 42)
+        self.assertEqual(evidence['expectedPgid'], 42)
+        self.assertEqual(evidence['observedPgid'], 41)
+        self.assertIsNone(evidence['returnCodeBeforeStop'])
+        self.assertEqual((evidence['wallMs'], evidence['monotonicMs']), (1234, 56))
+        self.assertEqual(evidence['failure']['stage'], 'SIGTERM')
+        self.assertEqual(evidence['failure']['errno'], errno.EPERM)
+        observed.assert_called_once_with(42)
+        process.poll.assert_called_once_with()
+        signal.assert_called_once_with(42, runner.signal.SIGTERM)
+        process.wait.assert_not_called()
+
+    def test_observation_error_cannot_replace_denied_signal(self):
+        process = Mock(pid=42)
+        process.poll.return_value = None
+        failure = PermissionError(errno.EPERM, 'signal denied')
+        evidence = {}
+        with patch.object(runner.os, 'getpgid', side_effect=OSError(errno.ESRCH, 'no group')), \
+             patch.object(runner.os, 'killpg', side_effect=failure) as signal:
+            with self.assertRaises(PermissionError) as captured:
+                runner.stop_owned(process, evidence=evidence)
+        self.assertIs(captured.exception, failure)
+        self.assertEqual(evidence['observationError']['errno'], errno.ESRCH)
+        self.assertEqual(evidence['failure']['errno'], errno.EPERM)
+        self.assertEqual(evidence['failure']['stage'], 'SIGTERM')
+        signal.assert_called_once_with(42, runner.signal.SIGTERM)
+        process.wait.assert_not_called()
+
+    def test_second_signal_failure_retains_stage_without_another_observation(self):
+        process = Mock(pid=42)
+        process.poll.return_value = None
+        process.wait.side_effect = subprocess.TimeoutExpired('owned-process', 2)
+        failure = PermissionError(errno.EPERM, 'second signal denied')
+        evidence = {}
+        with patch.object(runner.os, 'getpgid', return_value=42) as observed, \
+             patch.object(runner.os, 'killpg', side_effect=[None, failure]) as signal:
+            with self.assertRaises(PermissionError) as captured:
+                runner.stop_owned(process, timeout=2, evidence=evidence)
+        self.assertIs(captured.exception, failure)
+        self.assertEqual(evidence['failure']['stage'], 'SIGKILL')
+        self.assertEqual(evidence['failure']['errno'], errno.EPERM)
+        observed.assert_called_once_with(42)
+        process.poll.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=2)
+        self.assertEqual(signal.call_args_list,
+                         [call(42, runner.signal.SIGTERM), call(42, runner.signal.SIGKILL)])
 
 
 class DriveCompletionTests(unittest.TestCase):

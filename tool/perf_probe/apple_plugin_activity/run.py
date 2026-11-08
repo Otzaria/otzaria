@@ -200,7 +200,7 @@ class MacApplicationSession:
             self.failed = True
             self.record.update(status="failed", error=str(error))
             actions = [] if self.process is None else [
-                ("controller", lambda: stop_owned(self.process)),
+                ("controller", lambda: stop_owned(self.process, evidence=self.record.setdefault("cleanupProcess", {}))),
                 ("stdin", self.process.stdin.close), ("stdout", self.process.stdout.close)]
             actions.append(("stderr", self.stderr.close))
             for name, action in actions:
@@ -280,7 +280,8 @@ class MacApplicationSession:
         try:
             if self.failed:
                 stop_attempted = True
-                stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5)
+                stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5,
+                           evidence=self.record.setdefault("cleanupProcess", {}))
             self.process.stdin.close()
             code = self.process.wait(timeout=max(0, deadline - time.monotonic()))
             if code != 0 and not self.failed:
@@ -292,7 +293,8 @@ class MacApplicationSession:
             raise
         finally:
             actions = [] if stop_attempted else [("controller", lambda: stop_owned(
-                self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5))]
+                self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5,
+                evidence=self.record.setdefault("cleanupProcess", {})))]
             actions.extend([("stdin", self.process.stdin.close), ("stdout", self.process.stdout.close),
                             ("stderr", self.stderr.close)])
             for name, action in actions:
@@ -683,15 +685,38 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=after_close, daemon=True).start()
 
 
-def stop_owned(process, timeout=15, kill_timeout=5):
-    if process is None or process.poll() is not None:
+def stop_owned(process, timeout=15, kill_timeout=5, evidence=None):
+    if process is None:
         return
-    os.killpg(process.pid, signal.SIGTERM)
+    return_code = process.poll()
+    if evidence is not None:
+        # One cleanup-only observation. Never substitute an observed group for
+        # the session created by our Popen(start_new_session=True).
+        evidence.update(pid=process.pid, expectedPgid=process.pid, returnCodeBeforeStop=return_code)
+        try:
+            evidence.update(clock_anchor())
+            evidence["observedPgid"] = os.getpgid(process.pid)
+        except Exception as error:
+            evidence["observationError"] = {"type": type(error).__name__, "error": str(error),
+                                            "errno": getattr(error, "errno", None)}
+    if return_code is not None:
+        return
+    stage = "SIGTERM"
     try:
-        process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=kill_timeout)
+        os.killpg(process.pid, signal.SIGTERM)
+        stage = "waitAfterSIGTERM"
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stage = "SIGKILL"
+            os.killpg(process.pid, signal.SIGKILL)
+            stage = "waitAfterSIGKILL"
+            process.wait(timeout=kill_timeout)
+    except BaseException as error:
+        if evidence is not None:
+            evidence["failure"] = {"stage": stage, "type": type(error).__name__, "error": str(error),
+                                   "errno": getattr(error, "errno", None)}
+        raise
 
 
 def prepare_control(directory, url, token, timeout=120):
