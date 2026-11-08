@@ -57,6 +57,15 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     _presentation = createAppMenuPresentation(context);
   }
 
+  // A stable instance-method tear-off avoids an unnecessary Escape handler
+  // unregister/register cycle on every unrelated reader rebuild.
+  VoidCallback _registerWindowEscape(OnKeyEventCallback handler) =>
+      _registerMenuEscape(
+        (event) => mounted && !AppWindowKeys.isActiveWindow(context)
+            ? KeyEventResult.ignored
+            : handler(event),
+      );
+
   Future<void> showMenu() async => _menuKey.currentState?.showMenu();
 
   Future<void> openMenuAt(Offset globalPosition) async =>
@@ -69,11 +78,7 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
       key: _menuKey,
       presentation: presentation,
       // ESC מחלון אחר (אותו FocusManager) לא סוגר תפריט בחלון הזה.
-      registerEscape: (handler) => _registerMenuEscape(
-        (event) => mounted && !AppWindowKeys.isActiveWindow(context)
-            ? KeyEventResult.ignored
-            : handler(event),
-      ),
+      registerEscape: _registerWindowEscape,
       menuBuilder: widget.menuBuilder,
       menuItemKeysByLabel: widget.menuItemKeysByLabel,
       onSecondaryTapDown: widget.onSecondaryTapDown,
