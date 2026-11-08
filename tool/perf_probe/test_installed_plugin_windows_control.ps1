@@ -11,7 +11,7 @@ function Assert-Equal($Expected, $Actual, [string]$Message) {
 }
 
 try {
-    foreach ($mode in @('pass', 'missing-stop', 'provider-error', 'throw-stop', 'invalid-report', 'foreign-report', 'startup-error', 'cleanup-failure', 'oversized', 'save-error', 'primary-and-save-error')) {
+    foreach ($mode in @('pass', 'idle', 'missing-stop', 'provider-error', 'throw-stop', 'invalid-report', 'foreign-report', 'startup-error', 'cleanup-failure', 'oversized', 'save-error', 'primary-and-save-error')) {
         $directory = Join-Path $temporary $mode
         New-Item -ItemType Directory -Path $directory | Out-Null
         $reportPath = Join-Path $temporary "$mode.json"
@@ -25,10 +25,11 @@ try {
             $script:childIdentity = $null
             $script:controlProcessTimes = @{}
             function script:Start-InstalledPluginExitTrace {
-                param([string]$ProcessName)
+                param([string]$ProcessName, [uint32]$SubscriptionTimeoutSeconds)
                 $trace = @{
                     source = 'Controlled portable provider, not native CIM'; processName = $ProcessName
                     availability = 'armed'; armedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
+                    subscriptionTimeoutSeconds = $SubscriptionTimeoutSeconds
                     subscriptions = @{}; events = @(); errors = @(); limitPerKind = 64; truncated = $false
                 }
                 foreach ($kind in @('Start', 'Stop')) {
@@ -98,7 +99,9 @@ try {
             }
         } $mode $directory
         $caught = $null
-        try { Invoke-InstalledPluginExitControl -Directory $directory -ReportPath $reportPath | Out-Null }
+        $controlOptions = @{ Directory = $directory; ReportPath = $reportPath }
+        if ($mode -eq 'idle') { $controlOptions.IdleSeconds = 1; $controlOptions.SubscriptionTimeoutSeconds = 30 }
+        try { Invoke-InstalledPluginExitControl @controlOptions | Out-Null }
         catch { $caught = $_ }
         if ($mode -in @('save-error', 'primary-and-save-error')) {
             Assert-Equal $true ($null -ne $caught) 'A report write failure cannot pass the control'
@@ -109,11 +112,17 @@ try {
         } else {
             $saved = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json -AsHashtable
             Assert-Equal $true ((Get-Item -LiteralPath $reportPath).Length -le 256KB) 'The saved control evidence is bounded'
-            if ($mode -eq 'pass') {
+            if ($mode -in @('pass', 'idle')) {
                 Assert-Equal $null $caught 'A fully observed child succeeds'
                 Assert-Equal 'passed' $saved.status 'The successful control report is saved'
                 Assert-Equal 37 $saved.observation.exitStatus 'The observed exit status is preserved'
                 Assert-Equal $saved.child.pid $saved.childReport.pid 'The report identifies the owned child'
+                if ($mode -eq 'idle') {
+                    Assert-Equal 30 $saved.trace.subscriptionTimeoutSeconds 'The subscription response budget is forwarded independently of delivery waits'
+                    Assert-Equal $true ($saved.idle.elapsedMs -ge 1000) 'The controlled child stays alive through the requested idle period'
+                    Assert-Equal $true ([datetime]$saved.idle.startedAtUtc -ge [datetime]$saved.observation.start.nativeIdentity.capturedAtUtc) 'Idling starts only after the native handle has been captured'
+                    Assert-Equal $false $saved.child.terminatedByControl 'The idled child still exits with its own status37'
+                }
             } else {
                 Assert-Equal $true ($null -ne $caught) "The $mode control still fails after saving"
                 Assert-Equal 'failed' $saved.status 'A failed control never becomes a passed report'

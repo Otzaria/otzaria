@@ -40,12 +40,15 @@ function Read-InstalledPluginControlProcessTime {
 }
 
 function Invoke-InstalledPluginExitControl {
-    param([Parameter(Mandatory)][string]$Directory, [Parameter(Mandatory)][string]$ReportPath)
+    param([Parameter(Mandatory)][string]$Directory, [Parameter(Mandatory)][string]$ReportPath,
+        [ValidateRange(0, 40)][int]$IdleSeconds = 0,
+        [ValidateRange(1, 3600)][uint32]$SubscriptionTimeoutSeconds = 3600)
     $result = @{
         schemaVersion = 1; status = 'running'; stage = 'subscribe'; error = $null
         hostPlatform = [Runtime.InteropServices.RuntimeInformation]::OSDescription
         powerShellVersion = $PSVersionTable.PSVersion.ToString()
         startedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
+        idle = @{ requestedSeconds = $IdleSeconds; startedAtUtc = $null; finishedAtUtc = $null; elapsedMs = $null }
         trace = $null; observation = $null; childReport = $null; childReportRaw = $null
         child = @{ pid = $null; started = $false; createdAtUtc = $null; exited = $false; exitedAtUtc = $null; exitCode = $null; terminatedByControl = $false }
         cleanup = @{ childExited = $false; subscriptionsRemaining = @(); eventsRemaining = @(); errors = @() }
@@ -59,7 +62,7 @@ function Invoke-InstalledPluginExitControl {
     try {
         Register-ObjectEvent -InputObject $timer -EventName Elapsed -SourceIdentifier $foreignId | Out-Null
         New-Event -SourceIdentifier $foreignId | Out-Null
-        $result.trace = Start-InstalledPluginExitTrace -ProcessName 'pwsh.exe'
+        $result.trace = Start-InstalledPluginExitTrace -ProcessName 'pwsh.exe' -SubscriptionTimeoutSeconds $SubscriptionTimeoutSeconds
         if ($result.trace.availability -ne 'armed') { throw 'Both actual CIM subscriptions must be ready before the controlled child starts.' }
         $controlPath = Join-Path $Directory 'native-control.ps1'
         @'
@@ -69,7 +72,7 @@ $microseconds = [long](([datetime]::UtcNow.Ticks - [datetime]::UnixEpoch.Ticks) 
 # The observer must retain this instance before it can exit, even on a fast host.
 $deadline = [Diagnostics.Stopwatch]::StartNew()
 while (-not [IO.File]::Exists($args[1])) {
-    if ($deadline.Elapsed.TotalSeconds -ge 20) { throw 'The native observer did not acknowledge this child.' }
+    if ($deadline.Elapsed.TotalSeconds -ge 20 + [int]$args[2]) { throw 'The native observer did not acknowledge this child.' }
     Start-Sleep -Milliseconds 20
 }
 exit 37
@@ -78,12 +81,17 @@ exit 37
         $executable = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
         $child.StartInfo = [Diagnostics.ProcessStartInfo]::new($executable)
         $child.StartInfo.UseShellExecute = $false
-        foreach ($argument in @('-NoLogo', '-NoProfile', '-File', $controlPath, $controlReport, $releasePath)) { $child.StartInfo.ArgumentList.Add($argument) }
+        foreach ($argument in @('-NoLogo', '-NoProfile', '-File', $controlPath, $controlReport, $releasePath, [string]$IdleSeconds)) { $child.StartInfo.ArgumentList.Add($argument) }
         $result.child.started = $child.Start()
         if (-not $result.child.started) { throw 'The native control could not start its child process.' }
         $result.child.pid = $child.Id
         $result.child.createdAtUtc = Read-InstalledPluginControlProcessTime -Process $child -Property StartTime
         Wait-InstalledPluginProcessEvent -Trace $result.trace -Kind Start -ProcessId $child.Id
+        $result.idle.startedAtUtc = [datetime]::UtcNow
+        $idleClock = [Diagnostics.Stopwatch]::StartNew()
+        if ($IdleSeconds -gt 0) { Start-Sleep -Seconds $IdleSeconds }
+        $result.idle.elapsedMs = $idleClock.Elapsed.TotalMilliseconds
+        $result.idle.finishedAtUtc = [datetime]::UtcNow
         [IO.File]::WriteAllText($releasePath, 'observed')
         $result.child.exited = $child.WaitForExit(15000)
         if (-not $result.child.exited) { throw 'The native control child exceeded 15 seconds.' }

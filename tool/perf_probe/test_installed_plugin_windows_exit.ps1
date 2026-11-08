@@ -391,6 +391,65 @@ try {
         $native = Invoke-InstalledPluginExitControl -Directory $temporary -ReportPath $NativeControlReportPath
         Assert-Equal 'passed' $native.status 'The real Windows process control completed'
         Write-Host "Native Windows event control: passed; evidence: $NativeControlReportPath"
+        function Assert-HeldNativeChild($Result) {
+            Assert-Equal $true $Result.child.started 'The idle control actually started its owned child'
+            Assert-Equal $true $Result.child.exited 'The idle control child exited'
+            Assert-Equal $false $Result.child.terminatedByControl 'The child was not killed to manufacture completion'
+            Assert-Equal 37 $Result.child.exitCode 'The owned child retains its explicit exit37'
+            Assert-Equal 35 $Result.idle.requestedSeconds 'The control spans more than the old15-second response budget'
+            Assert-Equal $true ($Result.idle.elapsedMs -ge 35000) 'The controlled idle duration is measured with a monotonic clock'
+            Assert-Equal $Result.child.pid $Result.childReport.pid 'The report belongs to the held child'
+            $starts = @($Result.trace.events | Where-Object { $_.kind -eq 'Start' -and $_.processId -eq $Result.child.pid })
+            Assert-Equal 1 $starts.Count 'Exactly one start belongs to the held child'
+            $held = $starts[0].nativeIdentity
+            Assert-Equal 'collected' $held.availability 'A live-captured native handle supplies the actual lifetime'
+            Assert-Equal $Result.child.pid $held.processId 'The retained handle identifies the owned child'
+            Assert-Equal $Result.child.createdAtUtc $held.createdAtUtc 'The controlled and observed creation times agree exactly'
+            Assert-Equal $Result.child.exitedAtUtc $held.exitedAtUtc 'The controlled and observed exit times agree exactly'
+            Assert-Equal 37 $held.exitStatus 'The retained handle independently observes exit37'
+            Assert-Equal $true ([datetime]$Result.idle.startedAtUtc -ge [datetime]$held.capturedAtUtc) 'Idling begins after the native handle was captured'
+            Assert-Equal $true ([datetime]$held.exitedAtUtc -ge [datetime]$Result.idle.finishedAtUtc) 'The held process remains alive for the whole idle period'
+            Assert-Equal 0 $Result.cleanup.errors.Count 'No cleanup failure is accepted as a timeout regression'
+            Assert-Equal 0 $Result.cleanup.subscriptionsRemaining.Count 'Every owned subscription is removed'
+            Assert-Equal 0 $Result.cleanup.eventsRemaining.Count 'Every owned queued event is removed'
+        }
+        $timeoutDirectory = Join-Path $temporary 'native-timeout'
+        New-Item -ItemType Directory -Path $timeoutDirectory | Out-Null
+        $timeoutReportPath = [IO.Path]::ChangeExtension($NativeControlReportPath, 'timeout.json')
+        $expectedTimeout = $null
+        try {
+            Invoke-InstalledPluginExitControl -Directory $timeoutDirectory -ReportPath $timeoutReportPath `
+                -IdleSeconds 35 -SubscriptionTimeoutSeconds 15 | Out-Null
+        } catch { $expectedTimeout = $_ }
+        Assert-Equal $true ($null -ne $expectedTimeout) 'The legacy subscription budget must fail after an idle child was identified'
+        $timeoutControl = Get-Content -LiteralPath $timeoutReportPath -Raw | ConvertFrom-Json -AsHashtable
+        Assert-HeldNativeChild $timeoutControl
+        Assert-Equal 'failed' $timeoutControl.status 'The legacy response timeout remains a failed control'
+        Assert-Equal 'observe' $timeoutControl.stage 'Bootstrap failures do not count as reproducing the native timeout'
+        Assert-Equal 15 $timeoutControl.trace.subscriptionTimeoutSeconds 'The negative control uses the original response budget'
+        Assert-Equal 'unavailable' $timeoutControl.observation.availability 'A timeout cannot supply native exit evidence'
+        Assert-Equal $null $timeoutControl.observation.exitStatus 'Unavailable evidence has no manufactured exit status'
+        Assert-Equal 1 $timeoutControl.trace.eventErrors.Count 'Only the expected provider indication may fail'
+        $timeoutEvent = $timeoutControl.trace.eventErrors[0]
+        Assert-Equal 'Start' $timeoutEvent.kind 'The legacy response timeout belongs to the Start subscription'
+        Assert-Equal 'Microsoft.Management.Infrastructure.CimCmdlets.CimIndicationEventExceptionEventArgs' $timeoutEvent.eventArgsType 'The provider delivered an exception indication'
+        Assert-Equal 'Microsoft.Management.Infrastructure.CimException' $timeoutEvent.providerException.type 'The original CIM exception type remains visible'
+        Assert-Equal 'HRESULT 0x40004' $timeoutEvent.providerException.MessageId 'Only WBEM_S_TIMEDOUT reproduces the observed failure'
+        $unexpectedErrors = @($timeoutControl.trace.errors | Where-Object {
+            $_ -ne $timeoutEvent.error.message -and $_ -ne 'The process observer failed while waiting for delivery.'
+        })
+        Assert-Equal 0 $unexpectedErrors.Count 'Unrelated observation failures cannot satisfy the negative control'
+        Write-Host "Native Windows legacy response timeout: expected Start WBEM_S_TIMEDOUT; evidence: $timeoutReportPath"
+        $idleDirectory = Join-Path $temporary 'native-idle'
+        New-Item -ItemType Directory -Path $idleDirectory | Out-Null
+        $idleReportPath = [IO.Path]::ChangeExtension($NativeControlReportPath, 'idle.json')
+        $idleControl = Invoke-InstalledPluginExitControl -Directory $idleDirectory -ReportPath $idleReportPath -IdleSeconds 35
+        Assert-HeldNativeChild $idleControl
+        Assert-Equal 'passed' $idleControl.status 'The workflow-sized subscription budget survives the same idle period'
+        Assert-Equal 3600 $idleControl.trace.subscriptionTimeoutSeconds 'The production response budget covers the60-minute workflow'
+        Assert-Equal 37 $idleControl.observation.exitStatus 'The long-lived subscription still requires the actual native exit37'
+        Assert-Equal 0 $idleControl.trace.eventErrors.Count 'No provider error is ignored in the successful idle control'
+        Write-Host "Native Windows idle control: passed; evidence: $idleReportPath"
     } else {
         $missingProvider = Start-InstalledPluginExitTrace
         Stop-InstalledPluginExitTrace $missingProvider

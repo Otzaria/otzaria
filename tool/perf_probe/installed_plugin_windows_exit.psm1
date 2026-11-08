@@ -4,10 +4,11 @@ Set-StrictMode -Version Latest
 $script:traceStates = [Runtime.CompilerServices.ConditionalWeakTable[hashtable, object]]::new()
 
 function Start-InstalledPluginExitTrace {
-    param([ValidatePattern('^[A-Za-z0-9_.-]+\.exe$')][string]$ProcessName = 'otzaria.exe')
+    param([ValidatePattern('^[A-Za-z0-9_.-]+\.exe$')][string]$ProcessName = 'otzaria.exe',
+        [ValidateRange(1, 3600)][uint32]$SubscriptionTimeoutSeconds = 3600)
     $trace = @{
         source = 'Win32_ProcessStartTrace / Win32_ProcessStopTrace with retained native process handle'
-        processName = $ProcessName; availability = 'unavailable'
+        processName = $ProcessName; availability = 'unavailable'; subscriptionTimeoutSeconds = $SubscriptionTimeoutSeconds
         armedAtUtc = [datetime]::UtcNow; finishedAtUtc = $null
         subscriptions = @{}; events = @(); eventErrors = @(); errors = [Collections.Generic.List[string]]::new()
         limitPerKind = 64; truncated = $false
@@ -24,9 +25,11 @@ function Start-InstalledPluginExitTrace {
         foreach ($kind in @('Start', 'Stop')) {
             $source = 'installed-plugin-' + [guid]::NewGuid().ToString('N')
             $trace.subscriptions[$kind] = $source
+            # Cover the 60-minute workflow between subscription responses;
+            # the separate wait for a delivered process event remains 15 seconds.
             $job = Register-CimIndicationEvent -Namespace root/cimv2 `
                 -Query "SELECT * FROM Win32_Process${kind}Trace WHERE ProcessName='$ProcessName'" `
-                -SourceIdentifier $source -OperationTimeoutSec 15 -MaxTriggerCount 65 -ErrorAction Stop `
+                -SourceIdentifier $source -OperationTimeoutSec $SubscriptionTimeoutSeconds -MaxTriggerCount 65 -ErrorAction Stop `
                 -MessageData @{ state = $state; kind = $kind } -Action {
                     $state = $event.MessageData.state
                     $process = $null
