@@ -1,9 +1,11 @@
 // ignore_for_file: implementation_imports
 
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:opentype_shaper/src/bindings.dart';
@@ -190,6 +192,48 @@ void main() {
       anchor.dispose();
     }
     expect(_drainUnexpectedNativeReferences(handle), 0);
+  });
+
+  test('fallback constructor failure after native registration releases its ref', () async {
+    // Parseable SFNT header with missing tables: native register succeeds,
+    // but ShaperFont.register throws while reading metrics in _attach.
+    final malformed = (ByteData(12)..setUint32(0, 0x10000))
+        .buffer
+        .asUint8List();
+    final malformedHandle = using((arena) {
+      final data = arena<Uint8>(malformed.length);
+      data.asTypedList(malformed.length).setAll(0, malformed);
+      return ShaperBindings.instance.registerFont(data, malformed.length, 0);
+    });
+    expect(malformedHandle, greaterThan(0));
+
+    final validAnchor = ShaperFont.register(bytes);
+    final validHandle = validAnchor.handle;
+    try {
+      await expectLater(
+        withShaperFontPair<void>(
+          createPrimary: () => ShaperFont.register(bytes),
+          createFallback: () => ShaperFont.register(malformed),
+          action: (_, _) => fail('must not construct a PDF'),
+        ),
+        throwsA(isA<ShaperException>()),
+      );
+      expect(validAnchor.shape('בדיקה').glyphCount, greaterThan(0));
+      // Exactly one native reference should remain: our raw registration.
+      expect(
+        ShaperBindings.instance.releaseFont(malformedHandle),
+        ShaperStatus.ok,
+      );
+      expect(
+        ShaperBindings.instance.releaseFont(malformedHandle),
+        ShaperStatus.unknownHandle,
+      );
+    } finally {
+      validAnchor.dispose();
+      while (ShaperBindings.instance.releaseFont(malformedHandle) ==
+          ShaperStatus.ok) {}
+    }
+    expect(_drainUnexpectedNativeReferences(validHandle), 0);
   });
 
   test('native registry is freed after repeated save failures and double dispose', () async {
