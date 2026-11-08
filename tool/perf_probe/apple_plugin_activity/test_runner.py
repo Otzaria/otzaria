@@ -4,9 +4,11 @@ import errno
 import hashlib
 import json
 import http.client
+import os
 import plistlib
 from pathlib import Path
 import subprocess
+import signal
 import sys
 import tempfile
 import threading
@@ -527,6 +529,19 @@ for line in sys.stdin:
         self.assertEqual(receipt['status'], 'failed')
         self.assertEqual(receipt['exitCode'], 1)
 
+    def test_eof_controller_can_finish_its_native_failure_without_a_signal(self):
+        controller = self.controller('print("native failed",file=sys.stderr,flush=True);os.close(sys.stdout.fileno());sys.stdin.read();sys.exit(1)')
+        with self.assertRaises(ValueError): controller.request('activate')
+        self.assertIsNone(controller.process.poll())
+        self.assertEqual(os.getpgid(controller.process.pid), controller.process.pid)
+        with patch.object(runner.os, 'killpg', wraps=runner.os.killpg) as signal_group:
+            controller.close()
+        signal_group.assert_not_called()
+        receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['exitCode'], 1)
+        self.assertIn('native failed', (self.directory / f'{controller.prefix}.stderr.log').read_text())
+
     def test_request_preserves_native_failure_when_command_evidence_and_stderr_fail(self):
         for failing_write in ['receipt', 'stdout']:
             with self.subTest(failing_write=failing_write):
@@ -553,22 +568,22 @@ for line in sys.stdin:
         self.assertEqual(controller.record['commands'][0]['status'], 'failed')
 
     def test_denied_controller_cleanup_is_not_retried_and_still_closes_streams(self):
-        controller = self.controller()
+        controller = self.controller('print(json.dumps(result),flush=True);time.sleep(30);sys.exit(0)')
+        controller.request('info')
         controller.failed = True
         denied = PermissionError(errno.EPERM, 'owned process group signal denied')
         with patch.object(runner.os, 'killpg', side_effect=denied) as stop:
-            with self.assertRaises(PermissionError) as captured:
-                controller.close()
-        self.assertIs(captured.exception, denied)
+            with self.assertRaises(subprocess.TimeoutExpired) as captured:
+                controller.close(timeout=0.02)
         self.assertEqual(stop.call_count, 1)
+        self.assertEqual(stop.call_args.args, (controller.process.pid, signal.SIGTERM))
         self.assertTrue(controller.process.stdin.closed)
         self.assertTrue(controller.process.stdout.closed)
         self.assertTrue(controller.stderr.closed)
-        # The real child receives EOF; no permission fallback or second signal.
-        self.assertEqual(controller.process.wait(timeout=3), 0)
         receipt = json.loads((self.directory / f'{controller.prefix}.json').read_text())
         self.assertEqual(receipt['status'], 'failed')
-        self.assertEqual(receipt['error'], str(denied))
+        self.assertEqual(receipt['error'], str(captured.exception))
+        self.assertEqual(receipt['cleanupErrors'], [{'stage': 'controller', 'error': str(denied)}])
         observation = receipt['cleanupProcess']
         self.assertEqual(observation['pid'], controller.process.pid)
         self.assertEqual(observation['expectedPgid'], controller.process.pid)
@@ -576,6 +591,7 @@ for line in sys.stdin:
         self.assertIsNone(observation['returnCodeBeforeStop'])
         self.assertEqual(observation['failure']['errno'], errno.EPERM)
         self.assertEqual(observation['failure']['stage'], 'SIGTERM')
+        runner.stop_owned(controller.process)
 
     def test_close_preserves_wait_failure_over_signal_receipt_and_stderr_errors(self):
         controller = self.controller()

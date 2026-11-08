@@ -284,12 +284,7 @@ class MacApplicationSession:
     def close(self, timeout=5):
         deadline = time.monotonic() + timeout
         failure = cleanup_failure = None
-        stop_attempted = False
         try:
-            if self.failed:
-                stop_attempted = True
-                stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5,
-                           evidence=self.record.setdefault("cleanupProcess", {}))
             self.process.stdin.close()
             code = self.process.wait(timeout=max(0, deadline - time.monotonic()))
             if code != 0 and not self.failed:
@@ -300,7 +295,7 @@ class MacApplicationSession:
             self.record.setdefault("error", str(error))
             raise
         finally:
-            actions = [] if stop_attempted else [("controller", lambda: stop_owned(
+            actions = [("controller", lambda: stop_owned(
                 self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5,
                 evidence=self.record.setdefault("cleanupProcess", {})))]
             actions.extend([("stdin", self.process.stdin.close), ("stdout", self.process.stdout.close),
