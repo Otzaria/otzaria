@@ -52,7 +52,9 @@ def event(sequence, action, payload=None):
 
 def report_fixture(evidence):
     phases = [{"name": name, "status": "passed"} for name in probe.REQUIRED_PHASES]
-    phases.extend({"name": name, "status": "notRun"} for name in ("minimize", "hide"))
+    phases.extend({"name": name, "status": "unsupported",
+                   "reason": "Desktop window_manager action does not apply on android."}
+                  for name in ("minimize", "hide"))
     background = next(phase for phase in phases if phase["name"] == "osBackground")
     background.update(before=dict(DOCUMENT), after=dict(DOCUMENT), lifecycleBeforeQuiet="paused", lifecycleAfterResume="resumed",
                       dispatcherBeforeQuiet="hidden", shownBeforeQuiet=False, discardCandidateBeforeQuiet=True,
@@ -231,6 +233,21 @@ class ReportTests(unittest.TestCase):
 
     def test_complete_controlled_report_is_accepted(self):
         self.assertEqual(self.validate()["status"], "passed")
+
+    def test_desktop_visibility_requires_explicit_unsupported_with_a_reason(self):
+        for name in ("minimize", "hide"):
+            for key, value in (("status", "passed"), ("status", "failed"), ("status", "notRun"),
+                               ("status", None), ("reason", None), ("reason", ""),
+                               ("reason", "  \n\t"), ("reason", True), ("reason", [])):
+                report = copy.deepcopy(self.report)
+                phase = next(item for item in report["phases"] if item["name"] == name)
+                phase[key] = value
+                with self.subTest(phase=name, key=key, value=value), self.assertRaisesRegex(ValueError, "Desktop visibility"):
+                    self.validate(report)
+            report = copy.deepcopy(self.report)
+            report["phases"] = [item for item in report["phases"] if item["name"] != name]
+            with self.subTest(missing=name), self.assertRaisesRegex(ValueError, "Desktop visibility"):
+                self.validate(report)
 
     def test_old_android_not_run_report_cannot_pass_the_new_gate(self):
         original = copy.deepcopy(self.report)

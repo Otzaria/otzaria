@@ -158,7 +158,7 @@ app data clearing in the runner.
 | Python controlled-process and Dart loopback tests | Host protocol, bounded failure handling, stale identity, lifecycle replacement, quiet guards and final report validation. These are not device executions. |
 | `Installed plugin Android lifecycle` native job | Actual app and installed plugins on an Android API 34 x86_64 emulator, debug build. Success requires real OS transition and all original scenario phases. |
 | Physical Android profile/release and performance acceptance | **NOT_RUN** by this runner. No memory, CPU, energy, frame-rate or user-interaction performance threshold is accepted from emulator debug output. |
-| Windows, macOS, Linux and iOS | Remain **NOT_RUN** in this Android report. Desktop minimize/hide are also **NOT_RUN** here. |
+| Windows, macOS, Linux and iOS | Remain **NOT_RUN** in this Android report. Desktop minimize/hide are **unsupported**, with an explicit platform reason. |
 
 The host tests include a controlled subprocess that ignores SIGTERM to verify
 bounded descendant termination, and an executable Android response fixture

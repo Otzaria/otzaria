@@ -197,8 +197,11 @@ def verify_report(raw, complete, bootstrap, evidence, commit):
     by_name = {phase["name"]: phase for phase in phases}
     require(len(by_name) == len(phases) and all(by_name.get(name, {}).get("status") == "passed"
                                               for name in REQUIRED_PHASES), "Missing or failed original scenario phase")
-    require(all(by_name.get(name, {}).get("status") == "notRun" for name in ("minimize", "hide")),
-            "Desktop visibility cannot be claimed by Android Home")
+    for name in ("minimize", "hide"):
+        desktop = by_name.get(name, {})
+        reason = desktop.get("reason")
+        require(desktop.get("status") == "unsupported" and isinstance(reason, str) and reason.strip(),
+                "Desktop visibility must be explicitly unsupported on Android with a reason")
     phase = by_name["osBackground"]
     require(phase.get("lifecycleBeforeQuiet") == "paused" and phase.get("lifecycleAfterResume") == "resumed",
             "Missing real Flutter background/resume acknowledgements")
