@@ -41,20 +41,24 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
   StreamSubscription<Object?>? _refreshSubscription;
   MenuPresentation get presentation => widget.presentation;
 
-  @override
-  void initState() {
-    super.initState();
-    // טעינה מוקדמת של הילדים כדי למנוע תפריט ריק
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _menuChildren == null) {
-        _ensureMenuChildrenLoaded();
-      }
-    });
-    // רענון הילדים בכל פעימה של הסטרים — בונה מחדש מ-entriesBuilder עם נתונים
-    // טריים. הסטרים פולט אחרי עדכון מקור הנתונים, כך שהרשימה מעודכנת.
-    _refreshSubscription = widget.entry.childrenRefreshStream?.listen(
-      (_) => _refreshChildren(),
+  // A closed submenu must not build all of its descendants just because its
+  // parent menu appeared. Subscribe to updates only after the first access;
+  // entriesBuilder then reads the latest state even if events occurred earlier.
+  void _subscribeWhenNeeded() {
+    _refreshSubscription ??= widget.entry.childrenRefreshStream?.listen(
+      (_) => _scheduleStreamRefresh(),
     );
+  }
+
+  bool _streamRefreshScheduled = false;
+
+  void _scheduleStreamRefresh() {
+    if (_streamRefreshScheduled) return;
+    _streamRefreshScheduled = true;
+    scheduleMicrotask(() {
+      _streamRefreshScheduled = false;
+      if (mounted) _refreshChildren();
+    });
   }
 
   @override
@@ -65,10 +69,18 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
 
   void _refreshChildren() {
     if (!mounted) return;
+    final wasDisabled = _hasEnabledChildren == false;
     _entries = null;
     _menuChildren = null;
     _hasEnabledChildren = null;
-    _ensureMenuChildrenLoaded();
+    if (widget.controller?.isOpen ?? false) {
+      // Refresh an open menu immediately, preserving keepOpen semantics.
+      _ensureMenuChildrenLoaded();
+    } else if (wasDisabled) {
+      // A previously empty submenu may now contain actionable children.
+      setState(() {});
+    }
+    // Closed menus with children are rebuilt only when visited again.
   }
 
   @override
@@ -91,6 +103,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
       return;
     }
 
+    _subscribeWhenNeeded();
     final entries = _entries ??= widget.entriesBuilder();
     final hasEnabledChildren = hasEnabledAppContextMenuEntries(entries);
     setState(() {
@@ -106,10 +119,10 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.entry.childrenRefreshStream !=
         widget.entry.childrenRefreshStream) {
+      final wasSubscribed = _refreshSubscription != null;
       _refreshSubscription?.cancel();
-      _refreshSubscription = widget.entry.childrenRefreshStream?.listen(
-        (_) => _refreshChildren(),
-      );
+      _refreshSubscription = null;
+      if (wasSubscribed) _subscribeWhenNeeded();
     }
     if (oldWidget.entry != widget.entry ||
         oldWidget.presentation != widget.presentation ||
@@ -145,10 +158,12 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
         child: row(context, widget.entry.trailing, false),
       );
     }
-    return Listener(
-      behavior: HitTestBehavior.deferToChild,
-      onPointerDown: (_) => _ensureMenuChildrenLoaded(),
-      child: AppSubmenuButton(
+    return MouseRegion(
+      onEnter: (_) => _ensureMenuChildrenLoaded(),
+      child: Listener(
+        behavior: HitTestBehavior.deferToChild,
+        onPointerDown: (_) => _ensureMenuChildrenLoaded(),
+        child: AppSubmenuButton(
         controller: widget.controller!,
         presentation: presentation,
         maxWidth: widget.maxWidth,
@@ -170,7 +185,8 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
               ),
           widget.entry.enabled,
         ),
-        child: const SizedBox.shrink(),
+          child: const SizedBox.shrink(),
+        ),
       ),
     );
   }
