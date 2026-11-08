@@ -31,6 +31,7 @@ PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
           "osBackground", "idleExpiryControl"}
 COMMAND_LOG_LIMIT = 64 * 1024
 RUN_BUDGET_SECONDS = 65 * 60
+IOS_APP_STARTUP_SECONDS = 180
 NATIVE_PACKAGES = {"flutter_inappwebview", "flutter_inappwebview_android",
                    "flutter_inappwebview_web", "flutter_inappwebview_ios",
                    "flutter_inappwebview_linux", "flutter_inappwebview_macos",
@@ -391,6 +392,7 @@ class Coordinator:
         self.native_fork = None
         self.control_result = threading.Event()
         self.completed = threading.Event()
+        self.app_checkpoint_at = None
         self.terminal = queue.Queue()
         self.native_failure = None
         self.native_failure_signaled = False
@@ -465,6 +467,9 @@ class Coordinator:
                     raise ValueError("The app native fork differs from its verified build input")
                 self.executable = body.get("hostExecutable")
                 save(self.directory / ("partial-app.json" if endpoint == "checkpoint" else "complete.json"), body)
+                if endpoint == "checkpoint" and self.app_checkpoint_at is None:
+                    self.app_checkpoint_at = time.monotonic()
+                    self.terminal.put(("appCheckpoint", self.app_checkpoint_at))
                 if endpoint == ("framework-complete" if self.physical else "complete"):
                     self.completed.set()
                 return {}, None
@@ -778,7 +783,32 @@ def shutdown_server(server, timeout=5):
         raise failures[0]
 
 
+def probe_ios_log_stream(directory, device, application, timeout):
+    app_name = application.name.replace(".app", "")
+    # Match Flutter's Simulator filter, retaining raw stderr that its reader omits.
+    predicate = (
+        'eventType = logEvent AND '
+        f'processImagePath ENDSWITH {json.dumps(app_name)} AND '
+        '(senderImagePath ENDSWITH "/Flutter" OR '
+        'senderImagePath ENDSWITH "/libswiftCore.dylib" OR '
+        'processImageUUID == senderImageUUID OR '
+        'eventMessage CONTAINS "UIScene life cycle is required" OR '
+        'eventMessage CONTAINS "`UIScene` lifecycle will soon be required" OR '
+        'eventMessage CONTAINS "This process does not adopt UIScene lifecycle.") AND '
+        'NOT(eventMessage CONTAINS ": could not find icon for representation -> com.apple.") AND '
+        'NOT(eventMessage BEGINSWITH "assertion failed: ") AND '
+        'NOT(eventMessage CONTAINS " libxpc.dylib ")'
+    )
+    command = ["xcrun", "simctl", "spawn", device, "log", "stream",
+               "--style", "json", "--predicate", predicate, "--timeout", "3"]
+    recorded_output(directory, "ios-log-stream", command, timeout)
+
+
 def wait_for_drive(process, coordinator, timeout):
+    started = time.monotonic()
+    deadline = started + timeout
+    startup_deadline = started + IOS_APP_STARTUP_SECONDS if coordinator.target == "ios" else None
+
     def wait_app():
         try:
             coordinator.terminal.put(("drive", process.wait()))
@@ -799,16 +829,31 @@ def wait_for_drive(process, coordinator, timeout):
     threading.Thread(target=wait_app, daemon=True).start()
     if coordinator.control_process is not None:
         threading.Thread(target=wait_controller, daemon=True).start()
-    try:
-        kind, result = coordinator.terminal.get(timeout=timeout)
-    except queue.Empty:
-        raise subprocess.TimeoutExpired(process.args, timeout) from None
-    if coordinator.native_failure is not None:
-        failure = coordinator.native_failure
-        raise RuntimeError(f"Native boundary {failure['phase']} failed: {failure['error']}")
-    if kind == "waitError":
-        raise result
-    return result
+    while True:
+        until = deadline if startup_deadline is None else min(deadline, startup_deadline)
+        try:
+            kind, result = coordinator.terminal.get(timeout=max(0, until - time.monotonic()))
+        except queue.Empty:
+            kind, result = "timeout", None
+        if coordinator.native_failure is not None:
+            failure = coordinator.native_failure
+            raise RuntimeError(f"Native boundary {failure['phase']} failed: {failure['error']}")
+        if kind == "waitError":
+            raise result
+        if time.monotonic() > deadline:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        if kind == "appCheckpoint":
+            if startup_deadline is None or result <= startup_deadline:
+                startup_deadline = None
+                continue
+            kind = "timeout"
+        if kind == "timeout":
+            if startup_deadline is not None and startup_deadline < deadline:
+                raise TimeoutError(f"No authenticated iOS app checkpoint within {IOS_APP_STARTUP_SECONDS}s; inspect flutter-drive.log")
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        if result == 0 and startup_deadline is not None:
+            raise RuntimeError("Flutter drive exited before the first authenticated iOS app checkpoint")
+        return result
 
 
 def main():
@@ -928,11 +973,14 @@ def main():
                 if not coordinator.control_ready.wait(remaining_timeout(deadline, 180)):
                     raise TimeoutError("The independent XCUITest controller did not become ready; see xcode-control.log")
                 coordinator.check_control_process()
+            probe_ios_log_stream(directory, args.device, application, timeout=remaining_timeout(deadline, 10))
+            coordinator.check_control_process()
         command = ["flutter", "drive", "--no-pub", f"--{args.mode}", "-d", args.device,
                    "--driver=test_driver/apple_plugin_activity.dart",
                    "--target=integration_test/apple_plugin_activity_probe_test.dart",
                    f"--dart-define-from-file={directory / 'defines.json'}"]
         if application is not None:
+            command.append("--verbose")
             command.append(f"--use-application-binary={application}")
         environment["command"] = command
         save(directory / "environment.json", environment)

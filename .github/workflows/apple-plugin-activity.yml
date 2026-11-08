@@ -13,6 +13,7 @@ on:
       - 'test_driver/apple_plugin_activity.dart'
       - 'tool/perf_probe/apple_plugin_activity/**'
       - 'test/tool/perf_probe/apple_plugin_activity_contract_test.dart'
+      - 'test/plugins/services/plugin_apple_media_resume_test.dart'
       - 'test/tool/perf_probe/apple_plugin_activity_completion_test.dart'
       - 'test/tool/perf_probe/installed_plugin_completion_test.dart'
       - 'test/tool/perf_probe/perf_fixture_test.dart'
@@ -52,7 +53,14 @@ jobs:
           node --test tool/perf_probe/apple_plugin_activity/test_fixture.mjs
           python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
           ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
+          flutter analyze --no-pub \
+            lib/plugins/services/plugin_runtime_dispatcher.dart \
+            test/plugins/services/plugin_apple_media_resume_test.dart
           flutter test --no-pub \
+            test/plugins/services/plugin_apple_media_resume_test.dart \
+            test/plugins/services/plugin_runtime_dispatcher_lifecycle_test.dart \
+            test/plugins/services/plugin_runtime_dispatcher_regression_test.dart \
+            test/plugins/services/plugin_runtime_dispatcher_test.dart \
             test/tool/perf_probe/apple_plugin_activity_contract_test.dart \
             test/tool/perf_probe/apple_plugin_activity_completion_test.dart \
             test/tool/perf_probe/installed_plugin_completion_test.dart \

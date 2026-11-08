@@ -68,6 +68,36 @@ class ProtocolTests(unittest.TestCase):
                 self.coordinator.request("checkpoint", {**original, field: new}, 1000)
         self.assertEqual(json.loads((self.directory / "partial-app.json").read_text()), original)
 
+    def test_only_authenticated_saved_checkpoints_signal_app_startup_once(self):
+        server = runner.ThreadingHTTPServer(('127.0.0.1', 0), runner.Handler)
+        server.coordinator = self.coordinator
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for token, expected in [('wrong-token', 400), ('nonce', 200), ('nonce', 200)]:
+                connection = http.client.HTTPConnection('localhost', server.server_port, timeout=3)
+                try:
+                    connection.request('POST', '/checkpoint', body=json.dumps(self.body), headers={
+                        'Content-Type': 'application/json', 'X-Apple-Quiet-Token': token})
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, expected)
+                    response.read()
+                finally:
+                    connection.close()
+                if expected == 400:
+                    self.assertIsNone(self.coordinator.app_checkpoint_at)
+                    self.assertTrue(self.coordinator.terminal.empty())
+                else:
+                    self.assertEqual(json.loads((self.directory / 'partial-app.json').read_text()), self.body)
+                    self.assertEqual(self.coordinator.terminal.qsize(), 1)
+            self.assertEqual(self.coordinator.terminal.get_nowait(),
+                             ('appCheckpoint', self.coordinator.app_checkpoint_at))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
     def test_physical_completion_requires_final_framework_result(self):
         self.coordinator.physical = True
         report = {**self.body, 'status': 'passed'}
@@ -417,6 +447,81 @@ class SetupEvidenceTests(unittest.TestCase):
         config = (control / 'ControlConfig.swift').read_text()
         self.assertIn('http://localhost:1234', config)
         self.assertIn('com.mendelg.otzaria', config)
+
+
+class IosLogStreamTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        self.application = self.directory / 'Runner.app'
+        self.application.mkdir()
+        (self.application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'Runner'}))
+
+    def fixture(self, program):
+        launch = subprocess.Popen
+        def start(command, **kwargs):
+            self.command = command
+            self.assertTrue(kwargs['start_new_session'])
+            process = launch([sys.executable, '-c', program], **kwargs)
+            self.addCleanup(runner.stop_owned, process, timeout=1, kill_timeout=1)
+            return process
+        return patch.object(runner.subprocess, 'Popen', side_effect=start)
+
+    def test_early_stream_error_preserves_raw_output_and_native_exit(self):
+        with self.fixture('import sys; print("raw output"); print("raw log error",file=sys.stderr);sys.exit(37)'):
+            with self.assertRaises(subprocess.CalledProcessError) as failed:
+                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
+        self.assertEqual(failed.exception.returncode, 37)
+        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['exitCode'], 37)
+        self.assertEqual(receipt['command'], self.command)
+        self.assertEqual((self.directory / 'ios-log-stream.stdout.log').read_text(), 'raw output\n')
+        self.assertEqual((self.directory / 'ios-log-stream.stderr.log').read_text(), 'raw log error\n')
+
+    def test_native_bounded_stream_must_exit_before_diagnostic_returns(self):
+        with self.fixture('import time; print("stream output",flush=True);time.sleep(0.05)'):
+            runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
+        self.assertEqual(self.command[:8], ['xcrun', 'simctl', 'spawn', 'device-A', 'log', 'stream', '--style', 'json'])
+        self.assertEqual(self.command[-2:], ['--timeout', '3'])
+        self.assertIn('processImagePath ENDSWITH "Runner"', self.command[self.command.index('--predicate') + 1])
+        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
+        self.assertEqual(receipt['status'], 'passed')
+        self.assertEqual(receipt['exitCode'], 0)
+        self.assertEqual(receipt['processExitAfterCleanup'], 0)
+        self.assertGreater(receipt['elapsedMs'], 0)
+
+    def test_stuck_stream_outer_timeout_fails_and_reaps_owned_process(self):
+        with self.fixture('import sys,time;print("stream started",file=sys.stderr,flush=True);time.sleep(30)'):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 0.2)
+        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
+        self.assertEqual(receipt['status'], 'timedOut')
+        self.assertIsNone(receipt['exitCode'])
+        self.assertIsNotNone(receipt['processExitAfterCleanup'])
+        self.assertIn('stream started', (self.directory / 'ios-log-stream.stderr.log').read_text())
+
+    def test_stream_cleanup_failure_cannot_be_accepted(self):
+        process = Mock(pid=42)
+        process.wait.return_value = process.poll.return_value = 0
+        failure = PermissionError('cleanup denied')
+        with patch.object(runner.subprocess, 'Popen', return_value=process), \
+             patch.object(runner, 'stop_owned', side_effect=failure):
+            with self.assertRaises(PermissionError) as caught:
+                runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
+        self.assertIs(caught.exception, failure)
+        receipt = json.loads((self.directory / 'ios-log-stream.json').read_text())
+        self.assertEqual(receipt['status'], 'failed')
+        self.assertEqual(receipt['cleanupError'], 'cleanup denied')
+
+    def test_prebuilt_filter_uses_the_bundle_name_like_flutter(self):
+        (self.application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'DifferentExecutable'}))
+        with self.fixture('pass'):
+            runner.probe_ios_log_stream(self.directory, 'device-A', self.application, 5)
+        predicate = self.command[self.command.index('--predicate') + 1]
+        self.assertIn('processImagePath ENDSWITH "Runner"', predicate)
+        self.assertNotIn('DifferentExecutable', predicate)
 
 
 class MacTransportTests(unittest.TestCase):
@@ -769,11 +874,27 @@ class DriveCompletionTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.coordinator = runner.Coordinator(Path(temporary.name), 'run-A', 'nonce', 'ios', 6)
 
+    def checkpoint(self, **changes):
+        return self.coordinator.request('checkpoint', {
+            'runId': 'run-A', 'hostPid': 42, 'appBootToken': 'boot-A',
+            'nativeFork': 'a' * 40, 'status': 'running', **changes}, runner.now_ms())
+
     def process(self, *, delay=30, code=0):
         process = subprocess.Popen([sys.executable, '-c',
             f'import time;time.sleep({delay});raise SystemExit({code})'], start_new_session=True)
         self.addCleanup(runner.stop_owned, process, timeout=1, kill_timeout=1)
         return process
+
+    def controlled_process(self):
+        exit_ready = threading.Event()
+        self.addCleanup(exit_ready.set)
+        process = Mock(args=['flutter', 'drive'])
+        def wait():
+            if not exit_ready.wait(3):
+                raise TimeoutError('Fixture drive exit was not released')
+            return 0
+        process.wait.side_effect = wait
+        return process, exit_ready
 
     def test_native_failure_releases_a_blocking_drive_wait_without_polling(self):
         process = self.process()
@@ -833,6 +954,106 @@ class DriveCompletionTests(unittest.TestCase):
             runner.wait_for_drive(process, self.coordinator, timeout=0.05)
         self.assertEqual(failure.exception.cmd, process.args)
 
+    def test_controller_readiness_cannot_replace_the_app_checkpoint_deadline(self):
+        process = self.process()
+        self.coordinator.control_session = 'controller-A'
+        self.coordinator.control_ready.set()
+        with patch.object(runner, 'IOS_APP_STARTUP_SECONDS', 0.05):
+            with self.assertRaisesRegex(TimeoutError, 'No authenticated iOS app checkpoint'):
+                runner.wait_for_drive(process, self.coordinator, timeout=3)
+        self.assertIsNone(process.poll())
+
+    def test_app_checkpoint_arrival_releases_only_the_startup_deadline(self):
+        process, exit_ready = self.controlled_process()
+        elapsed = [1000.0]
+        get = self.coordinator.terminal.get
+        def receive(**_):
+            if self.coordinator.app_checkpoint_at is None:
+                elapsed[0] += 0.05
+                self.checkpoint()
+            else:
+                elapsed[0] += 0.4
+                exit_ready.set()
+            return get(timeout=3)
+        with patch.object(runner, 'IOS_APP_STARTUP_SECONDS', 0.2), \
+             patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(self.coordinator.terminal, 'get', side_effect=receive):
+            self.assertEqual(runner.wait_for_drive(process, self.coordinator, timeout=3), 0)
+        self.assertIsNotNone(self.coordinator.app_checkpoint_at)
+        self.assertFalse(self.coordinator.completed.is_set())
+
+    def test_checkpoint_does_not_reset_the_total_drive_budget(self):
+        self.checkpoint()
+        process = self.process()
+        with patch.object(runner, 'IOS_APP_STARTUP_SECONDS', 0.02):
+            with self.assertRaises(subprocess.TimeoutExpired) as failure:
+                runner.wait_for_drive(process, self.coordinator, timeout=0.05)
+        self.assertEqual(failure.exception.cmd, process.args)
+
+    def test_invalid_identity_pin_or_unsaved_checkpoint_cannot_disarm_startup(self):
+        self.coordinator.native_fork = 'a' * 40
+        for changes in [{'runId': 'wrong-run'}, {'hostPid': 0}, {'nativeFork': 'b' * 40}]:
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.checkpoint(**changes)
+        with patch.object(runner, 'save', side_effect=OSError('checkpoint storage failed')):
+            with self.assertRaisesRegex(OSError, 'checkpoint storage failed'):
+                self.checkpoint()
+        self.assertIsNone(self.coordinator.app_checkpoint_at)
+        self.assertTrue(self.coordinator.terminal.empty())
+        with patch.object(runner, 'IOS_APP_STARTUP_SECONDS', 0.05):
+            with self.assertRaisesRegex(TimeoutError, 'No authenticated iOS app checkpoint'):
+                runner.wait_for_drive(self.process(), self.coordinator, timeout=3)
+
+    def test_early_successful_drive_exit_cannot_skip_the_checkpoint(self):
+        self.coordinator.completed.set()
+        with self.assertRaisesRegex(RuntimeError, 'before the first authenticated iOS app checkpoint'):
+            runner.wait_for_drive(self.process(delay=0), self.coordinator, timeout=3)
+
+    def test_native_failure_wins_over_an_already_queued_checkpoint(self):
+        self.checkpoint()
+        self.coordinator.fail_native('osBackground', 'quiet.homeFailed')
+        with self.assertRaisesRegex(RuntimeError, 'osBackground.*quiet.homeFailed'):
+            runner.wait_for_drive(self.process(), self.coordinator, timeout=3)
+
+    def test_native_failure_recorded_at_timeout_keeps_precedence(self):
+        elapsed = [1000.0]
+        def timeout(**_):
+            elapsed[0] += 4
+            self.coordinator.fail_native('osBackground', 'quiet.homeFailed')
+            raise runner.queue.Empty
+        with patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(self.coordinator.terminal, 'get', side_effect=timeout):
+            with self.assertRaisesRegex(RuntimeError, 'osBackground.*quiet.homeFailed'):
+                runner.wait_for_drive(self.process(), self.coordinator, timeout=3)
+
+    def test_checkpoint_after_shorter_total_deadline_cannot_accept_drive_success(self):
+        process, exit_ready = self.controlled_process()
+        elapsed = [1000.0]
+        get = self.coordinator.terminal.get
+        def receive(**_):
+            elapsed[0] += 2
+            self.checkpoint()
+            exit_ready.set()
+            return get(timeout=3)
+        with patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(self.coordinator.terminal, 'get', side_effect=receive):
+            with self.assertRaises(subprocess.TimeoutExpired) as failure:
+                runner.wait_for_drive(process, self.coordinator, timeout=1)
+        self.assertEqual(failure.exception.cmd, ['flutter', 'drive'])
+        self.assertEqual(failure.exception.timeout, 1)
+
+    def test_late_checkpoint_cannot_revive_an_expired_startup_deadline(self):
+        elapsed = [1000.0]
+        get = self.coordinator.terminal.get
+        def late_checkpoint(**kwargs):
+            elapsed[0] += runner.IOS_APP_STARTUP_SECONDS + 1
+            self.checkpoint()
+            return get(**kwargs)
+        with patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(self.coordinator.terminal, 'get', side_effect=late_checkpoint):
+            with self.assertRaisesRegex(TimeoutError, 'No authenticated iOS app checkpoint'):
+                runner.wait_for_drive(self.process(), self.coordinator, timeout=1000)
+
 
 class MacCompilationTests(unittest.TestCase):
     def test_helpers_use_the_apps_deployment_target(self):
@@ -879,7 +1100,7 @@ class BuildOrderingTests(unittest.TestCase):
                   expected_error=None, cleanup_error=None, final_save_error=None,
                   diagnostic_error=None, uninstall_on_exit=False,
                   info_plist=plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}),
-                  codesign_error=None, server_close_error=None):
+                  codesign_error=None, server_close_error=None, log_stream_error=None):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             repository = root / 'repo'
@@ -914,6 +1135,12 @@ class BuildOrderingTests(unittest.TestCase):
                         (application / 'Info.plist').write_bytes(info_plist)
                 elif label == 'create-control-project':
                     Path(command[-2]).mkdir()
+                elif label == 'ios-log-stream':
+                    self.assertTrue(coordinator.control_ready.is_set())
+                    self.assertFalse(any(item[:2] == ['flutter', 'drive'] for item in calls))
+                    if log_stream_error is not None:
+                        raise log_stream_error
+                    elapsed[0] += 3
             def codesign(command, **kwargs):
                 calls.append(command)
                 limits['codesign'] = kwargs['timeout']
@@ -996,9 +1223,12 @@ class BuildOrderingTests(unittest.TestCase):
         calls, _, _ = self.run_probe()
         build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
         control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
+        log_stream = next(i for i, command in enumerate(calls) if command[:3] == ['xcrun', 'simctl', 'spawn'])
         drive = next(i for i, command in enumerate(calls) if command[:2] == ['flutter', 'drive'])
         self.assertLess(build, control)
-        self.assertLess(control, drive)
+        self.assertLess(control, log_stream)
+        self.assertLess(log_stream, drive)
+        self.assertIn('--verbose', calls[drive])
         self.assertTrue(any(value.endswith('/build/ios/iphonesimulator/Runner.app')
                             and value.startswith('--use-application-binary=') for value in calls[drive]))
 
@@ -1039,11 +1269,20 @@ class BuildOrderingTests(unittest.TestCase):
         self.assertEqual(report['error'], 'codesign failed to start')
         self.assertEqual(report['cleanupErrors'], [{'stage': 'server close', 'error': 'server close failed'}])
 
+    def test_log_stream_failure_stops_before_app_and_survives_cleanup_errors(self):
+        failure = subprocess.CalledProcessError(37, ['xcrun', 'simctl', 'spawn'])
+        calls, _, report = self.run_probe(log_stream_error=failure,
+            cleanup_error=RuntimeError('controller cleanup failed'), expected_error=subprocess.CalledProcessError)
+        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertEqual(report['status'], 'failed')
+        self.assertEqual(report['error'], str(failure))
+        self.assertEqual(report['cleanupErrors'], [{'stage': 'controller', 'error': 'controller cleanup failed'}])
+
     def test_build_readiness_drive_and_completion_share_one_deadline(self):
         _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
             readiness_seconds=100, drive_seconds=3, completion_seconds=2, control_seconds=2)
         self.assertEqual(limits, {'build-ios-probe': 2400, 'codesign': 15, 'create-control-project': 110,
-            'readiness': 110, 'drive': 10, 'completion': 7, 'control completion': 5})
+            'readiness': 110, 'ios-log-stream': 10, 'drive': 7, 'completion': 4, 'control completion': 2})
         self.assertEqual(report['status'], 'passed')
         self.assertEqual(report['deadlineMonotonic'], 3500)
         self.assertEqual(report['remainingBudgetAtStartSeconds'], 2500)
