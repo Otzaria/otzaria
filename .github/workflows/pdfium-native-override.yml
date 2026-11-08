@@ -1,0 +1,72 @@
+name: PDFium native asset override contracts
+
+on:
+  pull_request:
+    paths:
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/pdfium-native-override.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lock-and-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.7'
+      - name: Resolve exact locked dependencies without updating pins
+        run: flutter pub get --enforce-lockfile
+      - name: Verify PDFium version, source and pinned reference
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          yaml = Path('pubspec.yaml').read_text()
+          lock = Path('pubspec.lock').read_text()
+          ref = 'f3976775da2865a2a3ef89d1cfd43611073c45f7'
+          target = re.search(r'(?ms)^  pdfium_dart:\n(.*?)(?=^  \w+:|\Z)', lock)
+          if target is None:
+              raise SystemExit('PDFium dependency missing')
+          block = target.group(1)
+          if 'source: git' not in block or 'version: "0.4.1"' not in block:
+              raise SystemExit('PDFium lock version/source mismatch')
+          if block.count(ref) != 2:
+              raise SystemExit('PDFium resolved-ref drift')
+          if 'path: "packages/pdfium_dart"' not in block:
+              raise SystemExit('PDFium workspace path drift')
+          if f'ref: {ref}' not in yaml or 'path: packages/pdfium_dart' not in yaml:
+              raise SystemExit('pubspec override drift')
+          print('pdfium_dart 0.4.1: pinned workspace override matches lockfile')
+          PY
+      - name: Validate checked-out patched PDFium hook version
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_uri="$(jq -r '.packages[] | select(.name == "pdfium_dart") | .rootUri' .dart_tool/package_config.json)"
+          python3 - "$source_uri" <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse, unquote
+          import sys
+          uri = sys.argv[1]
+          if uri.startswith('file:'):
+              root = Path(unquote(urlparse(uri).path))
+          else:
+              root = (Path('.dart_tool') / uri).resolve()
+          hook = root / 'hook/build.dart'
+          downloader = root / 'lib/src/proxy_http_client.dart'
+          code = hook.read_text()
+          assert "chromium%2F8125" in code and "chromium%2F7811" not in code
+          assert "getPdfiumArchiveWithApiFallback" in code
+          assert "getPdfiumArchiveWithApiFallback" in downloader.read_text()
+          print(f'checked-out override is chromium 8125 + API fallback: {root}')
+          PY
