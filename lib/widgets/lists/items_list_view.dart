@@ -159,7 +159,7 @@ class _ItemsListViewState extends State<ItemsListView> {
       widget.searchFocusNode ?? _internalSearchFocusNode;
   String _searchQuery = '';
 
-  int _focusedOriginalIndex = -1;
+  final ValueNotifier<int> _focusedOriginalIndex = ValueNotifier(-1);
   List<MapEntry<int, dynamic>> _displayEntries = [];
   List<_ListRow> _displayRows = const [];
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -404,13 +404,16 @@ class _ItemsListViewState extends State<ItemsListView> {
   /// שהרשימה תישאר וירטואלית.
   Widget _buildCardRow(BuildContext context, _ListRow row) {
     final entry = row.entry!;
-    Widget content = Material(
-      color: AppSurfaces.card(context),
-      child: _buildItemRow(
-        context,
-        entry.value,
-        entry.key,
-        isKeyboardFocused: entry.key == _focusedOriginalIndex,
+    Widget content = ValueListenableBuilder<int>(
+      valueListenable: _focusedOriginalIndex,
+      builder: (context, focusedOriginalIndex, _) => Material(
+        color: AppSurfaces.card(context),
+        child: _buildItemRow(
+          context,
+          entry.value,
+          entry.key,
+          isKeyboardFocused: entry.key == focusedOriginalIndex,
+        ),
       ),
     );
 
@@ -455,9 +458,9 @@ class _ItemsListViewState extends State<ItemsListView> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
+      _focusedOriginalIndex.value = -1;
       setState(() {
         _searchQuery = _searchController.text;
-        _focusedOriginalIndex = -1;
       });
     });
 
@@ -468,40 +471,39 @@ class _ItemsListViewState extends State<ItemsListView> {
 
   void _moveFocusDown() {
     if (_displayEntries.isEmpty) return;
-    setState(() {
-      if (_focusedOriginalIndex == -1) {
-        _focusedOriginalIndex = _displayEntries.first.key;
-      } else {
-        final idx = _displayEntries.indexWhere(
-          (e) => e.key == _focusedOriginalIndex,
-        );
-        if (idx >= 0 && idx < _displayEntries.length - 1) {
-          _focusedOriginalIndex = _displayEntries[idx + 1].key;
-        }
+    final focusedOriginalIndex = _focusedOriginalIndex.value;
+    if (focusedOriginalIndex == -1) {
+      _focusedOriginalIndex.value = _displayEntries.first.key;
+    } else {
+      final idx = _displayEntries.indexWhere(
+        (e) => e.key == focusedOriginalIndex,
+      );
+      if (idx >= 0 && idx < _displayEntries.length - 1) {
+        _focusedOriginalIndex.value = _displayEntries[idx + 1].key;
       }
-    });
+    }
     _ensureFocusedVisible();
   }
 
   void _moveFocusUp() {
-    if (_focusedOriginalIndex == -1) return;
+    final focusedOriginalIndex = _focusedOriginalIndex.value;
+    if (focusedOriginalIndex == -1) return;
     final idx = _displayEntries.indexWhere(
-      (e) => e.key == _focusedOriginalIndex,
+      (e) => e.key == focusedOriginalIndex,
     );
-    setState(() {
-      if (idx <= 0) {
-        _focusedOriginalIndex = -1;
-      } else {
-        _focusedOriginalIndex = _displayEntries[idx - 1].key;
-      }
-    });
+    if (idx <= 0) {
+      _focusedOriginalIndex.value = -1;
+    } else {
+      _focusedOriginalIndex.value = _displayEntries[idx - 1].key;
+    }
     if (idx > 0) _ensureFocusedVisible();
   }
 
   void _activateFocusedItem(BuildContext context) {
-    if (_focusedOriginalIndex == -1) return;
+    final focusedOriginalIndex = _focusedOriginalIndex.value;
+    if (focusedOriginalIndex == -1) return;
     final matches = _displayEntries.where(
-      (e) => e.key == _focusedOriginalIndex,
+      (e) => e.key == focusedOriginalIndex,
     );
     if (matches.isEmpty) return;
     final entry = matches.first;
@@ -512,7 +514,8 @@ class _ItemsListViewState extends State<ItemsListView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_itemScrollController.isAttached) return;
       final rowIndex = _displayRows.indexWhere(
-        (row) => !row.isHeader && row.entry!.key == _focusedOriginalIndex,
+        (row) =>
+            !row.isHeader && row.entry!.key == _focusedOriginalIndex.value,
       );
       if (rowIndex == -1) return;
       // אם השורה כבר נראית במלואה — אין מה לגלול.
@@ -535,6 +538,7 @@ class _ItemsListViewState extends State<ItemsListView> {
   void dispose() {
     _searchController.dispose();
     _internalSearchFocusNode.dispose();
+    _focusedOriginalIndex.dispose();
     super.dispose();
   }
 
@@ -606,9 +610,15 @@ class _ItemsListViewState extends State<ItemsListView> {
       for (final row in _displayRows)
         if (!row.isHeader) row.entry!,
     ];
-    if (_focusedOriginalIndex != -1 &&
-        !displayEntries.any((e) => e.key == _focusedOriginalIndex)) {
-      _focusedOriginalIndex = -1;
+    final focusedOriginalIndex = _focusedOriginalIndex.value;
+    if (focusedOriginalIndex != -1 &&
+        !displayEntries.any((e) => e.key == focusedOriginalIndex)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _focusedOriginalIndex.value != focusedOriginalIndex) {
+          return;
+        }
+        _focusedOriginalIndex.value = -1;
+      });
     }
 
     return Focus(
@@ -626,7 +636,7 @@ class _ItemsListViewState extends State<ItemsListView> {
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.enter &&
-            _focusedOriginalIndex != -1) {
+            _focusedOriginalIndex.value != -1) {
           _activateFocusedItem(context);
           return KeyEventResult.handled;
         }
