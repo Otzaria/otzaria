@@ -169,7 +169,10 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
           maxWidth: widget.maxWidth,
           preserveFocus: true,
           menuStyle: widget.menuStyle,
-          menuChildren: _menuChildren ?? const <Widget>[],
+          // SubmenuButton must have a nonempty child list when the pointer
+          // first enters or taps it. Otherwise Flutter never schedules hover
+          // opening, and taps can open an empty panel before our setState.
+          menuChildren: _menuChildren ?? const <Widget>[SizedBox.shrink()],
           onOpen: () {
             _ensureMenuChildrenLoaded();
             widget.onOpen?.call();
