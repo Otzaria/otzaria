@@ -131,3 +131,28 @@ WPE מדידה נפרדת: x64 ‏172,907,408→130,320,608 (24.63%), ARM64 ‏1
 3. לבצע mixed-PDFium integration/stress לפני שינוי loader/SONAME; לא לשלב עם #4522.
 4. להשלים Android analyze-size על ABI אמיתי, ו־Tesseract worker reuse רק עם parity ו־memory plateau.
 5. למזג לפי סדר נקודתי ובאישור המתחזק; לא לפתוח שינויים כפולים בתחומי #4307, #4416, #4475, #4301 או #4315.
+
+## QA follow-up — 8.11.2026, מעקב לקראת review
+
+### תיקון רגרסיית Markdown
+- רענון #4515 ל־dev הציג כשל חדש: `pubspec.lock` הכיל key בשם `flutter_markdown_plus` אך metadata וגרסה של `flutter_markdown`. הדבר הוכח בלוגי `flutter pub get --enforce-lockfile` של שישה workflows, למרות Lockfile Guard ירוק. **תיקון מדויק ב־[#4515, commit 38c8ac45](https://github.com/Otzaria/otzaria/commit/38c8ac450fcaa817c338d0ebc01abee4cb64f770)** מחזיר name/1.0.12/SHA-256 תקינים בלי שינוי יתר ה־pins; CI של הראש המתוקן בתור.
+- [PR #4565](https://github.com/Otzaria/otzaria/pull/4565): check חדש ללא תלות Flutter שמוודא לכל source: hosted ש־description.name זהה למפתח ויש version; תשע בדיקות, כולל השגיאה ההיסטורית. נבדקו סטטית 243 רשומות hosted נצרכות, כולן התאימו. ה־PR Ready לביקורת; QA עצמאי ב־Actions עדיין נדרש.
+
+### רענון בסיסי PR
+כל שבעת PRי התלויות/אריזה האפליקטיביים הועברו ל־base `dev@e9d23b1` בעזרת Git commits עם שני parents ועדכון refs לפי expected SHA, ללא מיזוג ב־dev. כל diff נבדק ונשאר ממוקד:
+- #4482 `8859d812`
+- #4515 `38c8ac45` (כולל תיקון lock לאחר refresh)
+- #4516 `01d1beca`
+- #4517 `ef1bdff4`
+- #4519 `e849978e`
+- #4521 `8ccd0808`
+- #4522 `b89aa0dd`
+
+### PRים שהועברו מ־Draft ל־Ready for review
+- #4416 (מדיניות אינדוקס): Windows/Linux builds, Analyze, Windows tests וכל shards עברו; macOS integration עדיין חסום ב־ONNX 503.
+- #4307 (קורא מקטעים): **ניסוי שאינו merge-approved** — שיפור פתיחת ספר גדול לצד החמרה בקפיצות/FrameTiming; דורש החלטת reviewer אם לפצל או לתקן.
+- Otzaria/pdfrx #3: fallback לאחר 5xx, Linux/Windows unit/format עברו; builds Android/Windows/Linux/Web עברו; עבודות Apple עדיין בתור בעת עדכון זה.
+- [#4563](https://github.com/Otzaria/otzaria/pull/4563): fallback דרך GitHub CLI להורדת ORT 1.28.0 במק עם SHA-256, כולל בדיקת חוזה offline ו־macOS smoke — נפתח והועבר ל־Ready לביקורת **לפני אישור CI**, כמסומן ב־PR.
+- [#4565](https://github.com/Otzaria/otzaria/pull/4565): metadata guard חדש, Ready לביקורת **לפני אישור CI**, כמסומן ב־PR.
+
+**כל ה־PRים הללו אינם מאושרים למיזוג עד לשערי QA והסקירה הרלוונטיים.** לא נפתחו PRים כפולים לעבודות שכבר מוזגו ב־dev.
