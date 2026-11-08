@@ -1,0 +1,62 @@
+name: ONNX macOS release asset fallback
+
+on:
+  pull_request:
+    paths:
+      - 'tool/onnxruntime/embed_onnxruntime_macos.sh'
+      - 'tool/onnxruntime/onnxruntime_release.txt'
+      - '.github/workflows/onnx_macos_asset_fallback.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Force the browser URL to fail, verify fallback and cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$RUNNER_TEMP/onnx-fallback-test"
+          mkdir -p "$tmp/bin" "$tmp/app/Otzaria.app"
+          # The same build phase is exercised with a reproducible failed curl.
+          cat > "$tmp/bin/curl" <<'SH'
+          #!/bin/bash
+          echo "synthetic HTTP 503 from direct release URL" >&2
+          exit 22
+          SH
+          chmod +x "$tmp/bin/curl"
+          export PATH="$tmp/bin:$PATH"
+          export OTZARIA_BUILD_CACHE="$tmp/cache"
+          export TARGET_BUILD_DIR="$tmp/app"
+          export WRAPPER_NAME="Otzaria.app"
+          export DERIVED_FILE_DIR="$tmp/derived"
+          export CODE_SIGNING_ALLOWED="NO"
+          bash tool/onnxruntime/embed_onnxruntime_macos.sh
+          test -s "$tmp/app/Otzaria.app/Contents/Frameworks/libonnxruntime.dylib"
+          test -f "$tmp/app/Otzaria.app/Contents/Resources/onnxruntime/LICENSE"
+          test -f "$tmp/app/Otzaria.app/Contents/Resources/onnxruntime/ThirdPartyNotices.txt"
+          # The next invocation must use the SHA-verified cache, not curl/gh.
+          cat > "$tmp/bin/gh" <<'SH'
+          #!/bin/bash
+          echo "gh unexpectedly invoked after cache was warmed" >&2
+          exit 99
+          SH
+          chmod +x "$tmp/bin/gh"
+          bash tool/onnxruntime/embed_onnxruntime_macos.sh
+          # Deliberately corrupt the cached archive: checksum validation must
+          # force another download and reject a failing fallback.
+          archive="$tmp/cache/onnxruntime/onnxruntime-osx-arm64-1.28.0.tgz"
+          printf corrupt > "$archive"
+          if bash tool/onnxruntime/embed_onnxruntime_macos.sh; then
+            echo "corrupt archive was accepted" >&2
+            exit 1
+          fi
