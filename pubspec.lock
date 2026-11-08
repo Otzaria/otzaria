@@ -1332,19 +1332,19 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: 942e27bec86e8d480111517c2083eb52817ee032
-      resolved-ref: 942e27bec86e8d480111517c2083eb52817ee032
+      ref: aedd067759f7a1f95573b50ba8240901b849f381
+      resolved-ref: aedd067759f7a1f95573b50ba8240901b849f381
       url: "https://github.com/Otzaria/pdfrx"
     source: git
-    version: "2.11.0"
+    version: "2.12.0"
   pdfrx_engine:
     dependency: transitive
     description:
       name: pdfrx_engine
-      sha256: "08d0d0843807b632f23836d6f021d1ff391b1988e124894067045242f03d7f96"
+      sha256: "4f86165b90c8ae7647747e2d2f9880727f0480caab976a712de1c95076c48762"
       url: "https://pub.dev"
     source: hosted
-    version: "0.9.0"
+    version: "0.9.1"
   petitparser:
     dependency: transitive
     description:
