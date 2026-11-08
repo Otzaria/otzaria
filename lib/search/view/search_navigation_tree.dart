@@ -554,12 +554,20 @@ class SearchNavigationTree extends StatelessWidget {
     }
 
     // רשב"א מול רשב״א — גרשיים אינם חלק מההשוואה.
+    // כל מילות הסינון נדרשות, גם כשמפרידה ביניהן מילת יחס או סדרן שונה.
+    // התאמה רצופה נשארת המסלול המהיר, במיוחד לשאילתה בת מילה אחת.
     final query = normalizeBookTitle(filterQuery).toLowerCase();
+    final words = query.trim().split(RegExp(r'\s+'));
+    final hasMultipleWords = words.length > 1;
     // ספר ללא תוצאות מוסתר כאן בדיוק כמו בעץ: בחירתו הייתה מרוקנת את
     // התוצאות ומשאירה סינון שלא מיוצג בעץ אחרי ניקוי שדה האיתור.
     final matches = <_FilteredBook>[];
     for (final entry in _filterEntries[library] ??= _buildFilterEntries()) {
-      if (!entry.haystack.contains(query)) continue;
+      if (!entry.haystack.contains(query) &&
+          (!hasMultipleWords ||
+              words.any((word) => !entry.haystack.contains(word)))) {
+        continue;
+      }
       final count = facetCounts[entry.facet] ?? 0;
       if (count == 0) continue;
       matches.add(_FilteredBook(entry.book, entry.facet, count));
