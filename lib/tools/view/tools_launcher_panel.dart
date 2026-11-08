@@ -43,15 +43,19 @@ import 'package:url_launcher/url_launcher.dart';
 const String kBuiltInToolsGroupLabel = 'כלים';
 const String kPluginsGroupLabel = 'תוספים';
 
+final RegExp _toolSearchNiqqudRe = RegExp(r'[֑-ׇ]');
+// לא מחרוזת גולמית משולשת-מרכאות: סורק ה-l10n אינו מזהה אותה ובולע
+// את שאר הקובץ, וכל תרגומי הפאנל נחשבים אז "לא בשימוש".
+final RegExp _toolSearchPunctuationRe = RegExp('["\'`׳״\\-–—]');
+final RegExp _toolSearchWhitespaceRe = RegExp(r'\s+');
+
 /// מנרמל טקסט להשוואת חיפוש: גרשיים, מקפים וניקוד אינם אמורים למנוע התאמה.
 @visibleForTesting
 String normalizeToolSearchText(String value) {
   return value
-      .replaceAll(RegExp(r'[֑-ׇ]'), '')
-      // לא מחרוזת גולמית משולשת-מרכאות: סורק ה-l10n אינו מזהה אותה ובולע
-      // את שאר הקובץ, וכל תרגומי הפאנל נחשבים אז "לא בשימוש".
-      .replaceAll(RegExp('["\'`׳״\\-–—]'), '')
-      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_toolSearchNiqqudRe, '')
+      .replaceAll(_toolSearchPunctuationRe, '')
+      .replaceAll(_toolSearchWhitespaceRe, ' ')
       .trim()
       .toLowerCase();
 }
