@@ -242,15 +242,18 @@ class GenerationCache {
     _loadingFuture = null;
   }
 
+  /// סדר הדור לפי שם מנורמל (ללא גרשיים), מחושב פעם אחת. נקרא לכל ספר
+  /// באינדוקס, ונרמול שמות הדורות מראש חוסך חישוב חוזר שלהם בכל שורה.
+  static final Map<String, int> _orderByStrippedGenerationName = {
+    for (final era in CommentaryEra.values)
+      _stripGershayim(era.hebrewName): era.order,
+  };
+
   /// ממפה שם דור מה-DB לסדר ([CommentaryEra]). גרשיים מנורמלים כדי
   /// להתאים בין כתיב ה-DB ל-hebrewName של ה-enum.
-  static int _orderForGenerationName(String name) {
-    final normalized = _stripGershayim(name);
-    for (final era in CommentaryEra.values) {
-      if (_stripGershayim(era.hebrewName) == normalized) return era.order;
-    }
-    return CommentaryEra.other.order;
-  }
+  static int _orderForGenerationName(String name) =>
+      _orderByStrippedGenerationName[_stripGershayim(name)] ??
+      CommentaryEra.other.order;
 
   static String _stripGershayim(String s) => s
       .replaceAll('"', '')
