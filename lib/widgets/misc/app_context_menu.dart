@@ -46,6 +46,16 @@ class AppContextMenuRegion extends StatefulWidget {
 class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   final _menuKey = GlobalKey<menu.ContextMenuRegionState>();
   OverlayScrollAnchor? _menuOpenScrollAnchor;
+  late MenuPresentation _presentation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recreate only when inherited presentation dependencies change.
+    // Rebuilding the reader must not rebuild an open menu's overlay merely
+    // because new callback instances were allocated for the same theme.
+    _presentation = createAppMenuPresentation(context);
+  }
 
   Future<void> showMenu() async => _menuKey.currentState?.showMenu();
 
@@ -54,7 +64,7 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
 
   @override
   Widget build(BuildContext context) {
-    final presentation = createAppMenuPresentation(context);
+    final presentation = _presentation;
     return menu.ContextMenuRegion(
       key: _menuKey,
       presentation: presentation,
