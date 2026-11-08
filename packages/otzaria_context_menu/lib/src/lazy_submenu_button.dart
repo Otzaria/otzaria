@@ -164,27 +164,27 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
         behavior: HitTestBehavior.deferToChild,
         onPointerDown: (_) => _ensureMenuChildrenLoaded(),
         child: AppSubmenuButton(
-        controller: widget.controller!,
-        presentation: presentation,
-        maxWidth: widget.maxWidth,
-        preserveFocus: true,
-        menuStyle: widget.menuStyle,
-        menuChildren: _menuChildren ?? const <Widget>[],
-        onOpen: () {
-          _ensureMenuChildrenLoaded();
-          widget.onOpen?.call();
-        },
-        childBuilder: (context, openToRight) => row(
-          context,
-          widget.entry.trailing ??
-              presentation.submenuArrowBuilder(
-                context,
-                openToRight,
-                widget.metrics.iconSize,
-                null,
-              ),
-          widget.entry.enabled,
-        ),
+          controller: widget.controller!,
+          presentation: presentation,
+          maxWidth: widget.maxWidth,
+          preserveFocus: true,
+          menuStyle: widget.menuStyle,
+          menuChildren: _menuChildren ?? const <Widget>[],
+          onOpen: () {
+            _ensureMenuChildrenLoaded();
+            widget.onOpen?.call();
+          },
+          childBuilder: (context, openToRight) => row(
+            context,
+            widget.entry.trailing ??
+                presentation.submenuArrowBuilder(
+                  context,
+                  openToRight,
+                  widget.metrics.iconSize,
+                  null,
+                ),
+            widget.entry.enabled,
+          ),
           child: const SizedBox.shrink(),
         ),
       ),
