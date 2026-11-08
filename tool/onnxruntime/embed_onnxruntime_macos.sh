@@ -18,7 +18,8 @@ if [ ! -f "$archive" ] || [ "$(shasum -a 256 "$archive" | cut -d ' ' -f 1)" != "
   mkdir -p "$cache_dir"
   url="https://github.com/microsoft/onnxruntime/releases/download/v$version/$asset"
   echo "Downloading ONNX Runtime $version: $url"
-  if ! curl -fsSL --retry 3 --connect-timeout 30 -o "$archive.part" "$url"; then
+  if ! curl -fsSL --retry 3 --connect-timeout 30 --max-time 180 \
+      --retry-max-time 360 -o "$archive.part" "$url"; then
     # Release browser URLs sometimes fail with HTTP 503 on macOS Actions.
     # An authenticated GitHub CLI downloads the same named asset through
     # GitHub's release API. Never trust it without verifying the pinned SHA.
