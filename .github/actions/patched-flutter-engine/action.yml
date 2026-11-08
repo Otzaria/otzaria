@@ -2,7 +2,7 @@ name: Install patched Flutter Windows engine
 description: >
   Replaces the release-mode flutter_windows.dll (with its .pdb, .lib and .exp)
   in the Flutter SDK cache with the build from palmoni5/flutter, which fixes
-  quadratic UI Automation GetVisibleRanges hangs and nested reparenting
+  quadratic UI Automation GetVisibleRanges hangs (flutter/flutter#196183) and nested reparenting
   (flutter/flutter#175041, PR #195448). Fails the job when the download, the
   checksum or the
   Flutter engine revision does not match.
@@ -19,7 +19,7 @@ runs:
       shell: pwsh
       env:
         ENGINE_ARCH: ${{ inputs.arch }}
-        # TODO: כשתיקוני GetVisibleRanges ו-flutter/flutter#195448 ביציב — למחוק פעולה זו, בדיקות hash אחרי
+        # TODO: כשתיקוני flutter/flutter#196183 ו-#195448 ביציב — למחוק פעולה זו, בדיקות hash אחרי
         # flutter build ואת סיומת cache-key ‏-patched-engine ב-build-and-announce.yml.
         ENGINE_REVISION: deb287481e3ce9468f3434937ced4240a70539ca
         ENGINE_RELEASE_URL: https://github.com/palmoni5/flutter/releases/download/otzaria-3.47.7-a11y.1
