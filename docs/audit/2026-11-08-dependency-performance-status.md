@@ -100,6 +100,7 @@ WPE מדידה נפרדת: x64 ‏172,907,408→130,320,608 (24.63%), ARM64 ‏1
 - `flutter_inappwebview`: Windows/Linux lifecycle, suspension ו־multiwindow; upstream PRים נסגרו ללא merge;
 - `window_manager`: HWND/RTL/multi-window patches; שינוי `dev` לנעיצה החדשה כבר קיים;
 - `Otzaria/pdfrx`: #798 פתוח; #789 מוזג upstream ב־2.12.0, ולכן PR #4517 שומר רק את patch #798;
+- [Otzaria/pdfrx #3](https://github.com/Otzaria/pdfrx/pull/3): fallback לאחר HTTP 5xx להורדת אותו PDFium דרך GitHub release-assets API, עם אימות host/asset/binary; Draft, CI מתבצע. הוא אינו pin נצרך עדיין, ולא מחליף את #798;
 - `Otzaria/dart_pdf`: תיקוני פלטפורמות שאינם קיימים ב־pub.dev; PR #4522 עובר ל־HEAD שנבדק;
 - `Otzaria/sentry-dart`: init/scope native מחוץ ל־UI; אין להסיר fork ללא parity;
 - `Otzaria/flutter_widget_from_html`: כל ששת commits #1658–#1663 **כבר** ב־pin `570804...`; אין צורך ב־PR אינטגרציה נוסף; upstream #1658/#1660 טרם מוזגו;
