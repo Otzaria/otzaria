@@ -2165,6 +2165,34 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _ensureLoadedContentTrackingBook(currentState.book);
     _supportsContentRangeLoading = true;
 
+    // Repeating an already-loaded range in a full-book List must not copy the
+    // entire book. A no-op still records range coverage for tab suspension.
+    // Keep the regular path for missing flags, extensions, or changed lines.
+    final content = currentState.content;
+    final flags = _loadedContentFlags;
+    if (flags.length >= content.length &&
+        applicable.every((range) {
+          final end = range.startLine + range.lines.length;
+          if (end > content.length) return false;
+          for (var index = max(0, range.startLine); index < end; index++) {
+            if (!flags[index] ||
+                content[index] != range.lines[index - range.startLine]) {
+              return false;
+            }
+          }
+          return true;
+        })) {
+      for (final range in applicable) {
+        _markLoadedContentRange(
+          currentState.book,
+          range.startLine,
+          range.startLine + range.lines.length - 1,
+          totalLines: range.totalLines,
+        );
+      }
+      return;
+    }
+
     final nextContent = List<String>.of(currentState.content);
     final hasTrackedFlags = identical(
       currentState.loadedLineFlags,
