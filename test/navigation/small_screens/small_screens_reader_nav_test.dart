@@ -1,7 +1,5 @@
-// סרגל הקורא במסכים קטנים (q12 Q8, סקירה שלישית של 4.11): ארבעת חיצי הניווט
-// נשארים בסרגל כל עוד הם נכנסים ברוחב שהמרכז מקבל באמת, וקודמים לכותרת. רק
-// כשאין מקום לארבעתם הם עוברים, כולם, לשורת האייקונים שבראש התפריט "עוד".
-// בכל רוחב הם במקום אחד בדיוק — לא בשניהם ולא באף אחד (#891).
+// חיצי הניווט נמצאים בסרגל אם כולם נכנסים בו, ואחרת בתפריט "עוד".
+// בכל רוחב הם מופיעים במקום אחד בדיוק.
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +11,7 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/golden_fonts.dart';
@@ -71,6 +70,16 @@ Future<void> _pumpReader(
   addTearDown(tester.view.reset);
   String? pdf;
   if (screen == SmallScreen.pdf) {
+    final originalModulePath = Pdfrx.pdfiumModulePath;
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
+    addTearDown(() => Pdfrx.pdfiumModulePath = originalModulePath);
     final pp = Directory.systemTemp.createTempSync('otzaria-reader-nav-pp-');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),

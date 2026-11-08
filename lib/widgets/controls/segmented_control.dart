@@ -409,7 +409,9 @@ class AppSegmentedControl<T> extends StatelessWidget {
         theme.materialTapTargetSize;
     if (tapTarget == MaterialTapTargetSize.shrinkWrap) return 0;
     final dy =
-        (style.visualDensity ?? themeStyle?.visualDensity ?? theme.visualDensity)
+        (style.visualDensity ??
+                themeStyle?.visualDensity ??
+                theme.visualDensity)
             .baseSizeAdjustment
             .dy;
     final padding =

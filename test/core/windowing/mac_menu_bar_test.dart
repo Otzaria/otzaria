@@ -17,7 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/mac_menu_bar.dart';
 
 class _SettingsBloc extends Cubit<SettingsState> implements SettingsBloc {
-  _SettingsBloc() : super(SettingsState.initial());
+  _SettingsBloc()
+    : super(SettingsState.initial().copyWith(settingsLanguageCode: 'he'));
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

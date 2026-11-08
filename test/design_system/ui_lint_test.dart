@@ -25,10 +25,11 @@ String _fixture(String name) =>
 UiLintResult _lint(String name, {String path = _featurePath}) =>
     lintSource(_fixture(name), path, config: _config);
 
-/// השורות שמסומנות `// LINT` בקובץ.
+/// סימוני השורות הצפויות; סימון בלוק נשאר ליד הבנאי גם אחרי פירמוט.
 List<int> _markedLines(String source) => [
   for (final (i, line) in source.split('\n').indexed)
-    if (line.trimRight().endsWith('// LINT')) i + 1,
+    if (line.trimRight().endsWith('// LINT') || line.contains('/* LINT */'))
+      i + 1,
 ];
 
 void main() {
