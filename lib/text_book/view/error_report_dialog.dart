@@ -938,8 +938,8 @@ $detailsSection
       final reportService = DirectErrorReportService();
       final result = await runWithBlockingProgress(
         context: context,
-        title: ReportMessages.sendingTitle,
-        message: ReportMessages.sending,
+        title: reportText(context, ReportMessages.sendingTitle),
+        message: reportText(context, ReportMessages.sending),
         task: () => reportService.submitReport(reportData),
       );
 
@@ -1351,7 +1351,7 @@ $detailsSection
       return;
     }
     try {
-      final result = await showDialog<ReportDialogResult>(
+      final result = await showDialogUntilTornDown<ReportDialogResult>(
         context: context,
         builder: reportDialogBuilder(
           context,
@@ -2000,11 +2000,11 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         'סמנו בציטוט את המילים שבהן נמצאת הטעות. המיקום וההקשר יצורפו לדיווח.',
                       ),
                     ),
-                    TextButton(
+                    ActionButton.ghost(
+                      text: context.settingsText('נקה סימון'),
                       onPressed: _selection == null
                           ? null
                           : _clearQuoteSelection,
-                      child: Text(context.settingsText('נקה סימון')),
                     ),
                     Container(
                       constraints: const BoxConstraints(

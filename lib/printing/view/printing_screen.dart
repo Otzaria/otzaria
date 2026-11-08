@@ -2895,11 +2895,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       aspectRatio: size.width / size.height,
       child: image == null
           ? const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              child: LoadingIndicator(size: AppTokens.iconMD, strokeWidth: 2),
             )
           : RawImage(
               image: image,

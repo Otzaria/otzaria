@@ -83,8 +83,7 @@
       ],
       "lib/printing/view/printing_screen.dart": [
         {"scope":"_PrintingScreenState._buildImagePreview","fp":"8fde4718","n":1},
-        {"scope":"_PrintingScreenState._buildPrintExportFooter","fp":"8fde4718","n":1},
-        {"scope":"_PrintingScreenState._previewFooter","fp":"8fde4718","n":1}
+        {"scope":"_PrintingScreenState._buildPrintExportFooter","fp":"8fde4718","n":1}
       ],
       "lib/search/view/full_text_facet_filtering.dart": [
         {"scope":"_SearchFacetFilteringState._buildFacetTree","fp":"8fde4718","n":2}
@@ -130,9 +129,6 @@
       ],
       "lib/text_book/view/commentators_tab_screen.dart": [
         {"scope":"_CommentatorsTabScreenState.build","fp":"8fde4718","n":1}
-      ],
-      "lib/text_book/view/error_report_dialog.dart": [
-        {"scope":"_TabbedReportDialogState._buildPhoneReportTab","fp":"8fde4718","n":1}
       ],
       "lib/text_book/view/page_shape/page_shape_screen.dart": [
         {"scope":"_CommentaryPaneState.build","fp":"8fde4718","n":1}
@@ -329,15 +325,6 @@
       ],
       "lib/widgets/misc/app_popup_menu.dart": [
         {"scope":"_AnchoredSearchMenuContentState.build","fp":"1faf3a9e","n":1}
-      ],
-      "lib/widgets/misc/commentators_filter_button.dart": [
-        {"scope":"CommentatorsFilterButton.build","fp":"6b016109","n":1}
-      ],
-      "lib/widgets/misc/phone_report_tab.dart": [
-        {"scope":"_PhoneReportTabState._buildErrorTypeSelection","fp":"cb82f756","n":1}
-      ],
-      "lib/widgets/misc/reporting_numbers_widget.dart": [
-        {"scope":"ReportingNumbersWidget._buildPhoneSection","fp":"78f4f6f3","n":1}
       ],
       "lib/widgets/navigation/nav_rail_item.dart": [
         {"scope":"NavRailItem.build","fp":"6bc6c990","n":1}
@@ -919,13 +906,6 @@
       "lib/widgets/misc/font_dropdown_field.dart": [
         {"scope":"_FontEntryLabel.build","fp":"d1a84c0b","n":1}
       ],
-      "lib/widgets/misc/phone_report_tab.dart": [
-        {"scope":"_PhoneReportTabState._buildValidationErrors","fp":"8b836092","n":1}
-      ],
-      "lib/widgets/misc/reporting_numbers_widget.dart": [
-        {"scope":"ReportingNumbersWidget._buildCompactNumberItem","fp":"d1a84c0b","n":1},
-        {"scope":"ReportingNumbersWidget._buildPhoneSection","fp":"ebe52bba","n":1}
-      ],
       "lib/widgets/navigation/commentators_filter_header.dart": [
         {"scope":"CommentatorsFilterHeader.build","fp":"e646cde7","n":1}
       ],
@@ -1106,10 +1086,6 @@
         {"scope":"<top>","fp":"46022cfc","n":1},
         {"scope":"<top>","fp":"fdde402d","n":1}
       ],
-      "lib/widgets/misc/phone_report_tab.dart": [
-        {"scope":"<top>","fp":"6ef7750f","n":1},
-        {"scope":"<top>","fp":"ab161d96","n":1}
-      ],
       "lib/widgets/smart_text/smart_text_widget.dart": [
         {"scope":"<top>","fp":"0976d869","n":1},
         {"scope":"<top>","fp":"41f259d0","n":1},
@@ -1200,12 +1176,6 @@
       "lib/shortcuts/view/shortcut_dropdown_tile.dart": [
         {"scope":"_ShortcutDropDownTileState._handleSelection","fp":"3e6ca19c","n":1}
       ],
-      "lib/text_book/view/error_report_dialog.dart": [
-        {"scope":"ErrorReportHelper.showErrorReportDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/text_book/view/page_shape/simple_text_viewer.dart": [
-        {"scope":"_SimpleTextViewerState._createCommentaryNote","fp":"3e6ca19c","n":1}
-      ],
       "lib/text_book/view/reader_print_actions.dart": [
         {"scope":"showPrintingScreen","fp":"3e6ca19c","n":1}
       ],
@@ -1238,9 +1208,6 @@
       ],
       "lib/update/hebrew_update_widgets.dart": [
         {"scope":"hebrewDefaultDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/utils/ui/context_menu_utils.dart": [
-        {"scope":"ContextMenuUtils._createCommentaryNote","fp":"3e6ca19c","n":1}
       ]
     },
     "UIL-029": {
@@ -1421,12 +1388,6 @@
       ],
       "lib/widgets/misc/font_dropdown_field.dart": [
         {"scope":"_FontEntryLabel.build","fp":"89f0467d","n":1}
-      ],
-      "lib/widgets/misc/phone_report_tab.dart": [
-        {"scope":"_PhoneReportTabState._buildValidationErrors","fp":"f1e89b70","n":1}
-      ],
-      "lib/widgets/misc/reporting_numbers_widget.dart": [
-        {"scope":"ReportingNumbersWidget._buildCompactNumberItem","fp":"89f0467d","n":1}
       ],
       "lib/widgets/navigation/nav_rail_item.dart": [
         {"scope":"NavRailItem._buildIcon","fp":"f5e8a1bc","n":2},

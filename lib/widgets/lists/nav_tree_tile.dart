@@ -381,31 +381,38 @@ class NavTreeHeader extends StatelessWidget {
         kNavTreeSideInset + 12,
         8,
       ),
-      child: Row(
+      child: OverflowBar(
+        alignment: MainAxisAlignment.spaceBetween,
+        spacing: AppTokens.spaceSM,
+        overflowSpacing: AppTokens.spaceXS,
         children: [
-          Expanded(
-            child: OverflowTooltipText(
-              text: title,
-              maxLines: 1,
-              style: AppTextStyles.settingTitle.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: AppTokens.fontMD,
-                color: cs.primary,
-              ),
+          OverflowTooltipText(
+            text: title,
+            maxLines: 1,
+            style: AppTextStyles.settingTitle.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: AppTokens.fontMD,
+              color: cs.primary,
             ),
           ),
-          const SizedBox(width: 8),
-          if (hasFilter)
-            _ClearFilterButton(onTap: onClearFilter!)
-          else if (count != null && count! > 0)
-            Text(
-              '($count)',
-              style: TextStyle(
-                fontSize: AppTokens.fontMD,
-                color: cs.onSurfaceVariant,
-              ),
+          if (hasFilter || (count != null && count! > 0) || trailing != null)
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: AppTokens.spaceXS,
+              children: [
+                if (hasFilter)
+                  _ClearFilterButton(onTap: onClearFilter!)
+                else if (count != null && count! > 0)
+                  Text(
+                    '($count)',
+                    style: TextStyle(
+                      fontSize: AppTokens.fontMD,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ?trailing,
+              ],
             ),
-          ?trailing,
         ],
       ),
     );

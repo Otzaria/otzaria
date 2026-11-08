@@ -33,4 +33,8 @@ class AppColors {
   /// לבן מוחלט — רקע לרינדור דפי PDF, הדפסה וכל תצוגת "דף נייר"
   /// משמש גם כ-int (pageWhite.toARGB32()) עבור פרמטרי backgroundColor ב-pdfrx
   static const Color pageWhite = Colors.white;
+
+  /// הדגשת חיפוש מעל תמונת דף PDF: צהוב באטימות 50%, גם בערכה כהה.
+  /// בשונה מרקע טקסט, ההדגשה נצבעת גם מעל האותיות וצריכה להשאיר אותן קריאות.
+  static const Color pdfSearchHighlight = Color(0x80FFFF00);
 }

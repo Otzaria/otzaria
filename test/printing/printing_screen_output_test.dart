@@ -259,7 +259,7 @@ void main() {
       ),
     );
     bool previewDone() =>
-        find.byType(Image).evaluate().isNotEmpty &&
+        find.byType(RawImage).evaluate().isNotEmpty &&
         find.byType(CircularProgressIndicator).evaluate().isEmpty;
     for (var i = 0; i < 200 && !previewDone(); i++) {
       await tester.runAsync(
@@ -282,5 +282,6 @@ void main() {
 
     await _settle(tester, Future<void>.value());
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

@@ -5313,9 +5313,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ({Rect shown, ({double width, double page}) fits, bool toPage})?
   _fitTargets() {
     final controller = widget.tab.pdfViewerController;
-    if (!controller.isReady) return null;
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null) return null;
     final page = controller.pageNumber ?? widget.tab.pageNumber;
-    final layout = controller.layout;
     final shown = _isBookViewModeActive()
         ? _spreadRectForPageLayout(layout, _spreadStartPageFor(page))
         : (page >= 1 && page <= layout.pageLayouts.length
@@ -6271,7 +6271,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     start: 12,
     end: 12,
     child: Center(
-      child: Card(
+      child: AppCard(
+        margin: const EdgeInsets.all(AppTokens.spaceXS),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Wrap(
@@ -6325,6 +6326,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 );
               }
 
+              // ui-lint: allow UIL-021 — עוגן ההערה מחושב בקואורדינטות הפיזיות של דף ה-PDF, ללא תלות בשפת הממשק (DD-20, §6.1).
               return Positioned(
                 key: ValueKey('pdf-note-${note.id}'),
                 left: offset.dx - 12,
@@ -6351,7 +6353,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       ),
                       child: Icon(
                         FluentIcons.note_24_regular,
-                        size: 16,
+                        size: AppTokens.iconSM,
                         color: selected
                             ? colors.onPrimary
                             : colors.onPrimaryContainer,

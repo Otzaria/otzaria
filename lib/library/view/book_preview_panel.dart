@@ -386,7 +386,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void _paintPdfHighlights(Canvas canvas, Rect pageRect, PdfPage page) {
     final paint = Paint()
       ..color =
-          _pdfController?.params.matchTextColor ?? AppColors.permanentHighlight;
+          _pdfController?.params.matchTextColor ?? AppColors.pdfSearchHighlight;
     for (final match in _pdfHighlights) {
       if (match.pageNumber != page.pageNumber) continue;
       for (final bounds in match.rects) {

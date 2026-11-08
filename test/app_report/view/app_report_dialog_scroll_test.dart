@@ -47,14 +47,21 @@ ScrollPosition _bodyScroll(WidgetTester tester) => tester
     )
     .position;
 
-/// גלגלת מעל החלק העליון של [over] (שדה ארוך גבוה מהמסך).
+/// גלגלת מעל החלק הגלוי של [over] (שדה ארוך גבוה מהמסך).
 Future<void> _wheel(WidgetTester tester, Finder over) async {
+  await tester.ensureVisible(over);
+  await tester.pumpAndSettle();
+  final visible = tester
+      .getRect(over)
+      .intersect(tester.getRect(find.byType(PanelScrollableContent)));
+  expect(visible.isEmpty, isFalse);
+  final body = _bodyScroll(tester);
+  final beforeWheel = body.pixels;
   final pointer = TestPointer(1, PointerDeviceKind.mouse);
-  await tester.sendEventToBinding(
-    pointer.hover(tester.getTopLeft(over) + const Offset(40, 24)),
-  );
+  await tester.sendEventToBinding(pointer.hover(visible.center));
   await tester.sendEventToBinding(pointer.scroll(const Offset(0, 200)));
   await tester.pumpAndSettle();
+  expect(body.pixels, greaterThan(beforeWheel));
 }
 
 /// כל הכפתור בתוך המסך, וגם אחרי הגלילה הוא באותו מקום (קבוע בתחתית).
