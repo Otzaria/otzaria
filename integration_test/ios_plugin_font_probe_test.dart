@@ -84,6 +84,9 @@ void main() {
         'sourceCommit': const String.fromEnvironment(
           'OTZARIA_IOS_FONT_PROBE_SOURCE',
         ),
+        'startupGeneration': const String.fromEnvironment(
+          'IOS_FONT_PROBE_GENERATION',
+        ),
         'lockSha256': const String.fromEnvironment(
           'OTZARIA_IOS_FONT_PROBE_LOCK_SHA256',
         ),
@@ -126,6 +129,15 @@ void main() {
         host.dispose();
         await root.delete(recursive: true);
       });
+      await binding.waitUntilFirstFrameRasterized;
+      report['startupFirstFrameRasterized'] = binding.firstFrameRasterized;
+      await notifyIosFontProbeStarted(
+        coordinator: const String.fromEnvironment('IOS_FONT_PROBE_COORDINATOR'),
+        token: const String.fromEnvironment('IOS_FONT_PROBE_TOKEN'),
+        generation: const String.fromEnvironment('IOS_FONT_PROBE_GENERATION'),
+        nativeFork: const String.fromEnvironment('IOS_FONT_PROBE_NATIVE_FORK'),
+        firstFrameRasterized: binding.firstFrameRasterized,
+      );
       for (final config in iosFontProbeCases) {
         final completed = List.generate(
           _count,

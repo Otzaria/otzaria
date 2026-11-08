@@ -367,6 +367,13 @@ def validate_artifacts(path, environment, provenance_root=None):
     probe = envelope['data']['iosFontProbe']
     require(probe['sourceCommit'] == environment['sourceCommit'] and probe['lockSha256'] == environment['lockSha256'], 'build/source provenance differs')
     validate_environment(environment, probe)
+    require(isinstance(environment.get('startupCheckpoint'), dict), 'authenticated native startup checkpoint missing')
+    startup = environment['startupCheckpoint']
+    require(positive_int(startup['hostPid']) and probe.get('pid') == startup['hostPid'] and
+                startup['runId'] == environment['startupGeneration'] == probe.get('startupGeneration') and
+                startup['nativeFork'] == environment['webviewPin'] and startup['appBootToken'] and
+                startup['hostExecutable'] and startup.get('firstFrameRasterized') is True and
+                probe.get('startupFirstFrameRasterized') is True, 'startup checkpoint differs from the measured native app')
     provenance_root = provenance_root or path.parent
     lock = provenance_root / 'pubspec.lock'
     require(hashlib.sha256(lock.read_bytes()).hexdigest() == probe['lockSha256'], 'retained source lock differs')

@@ -117,13 +117,15 @@ def fixture(count=1, *, javascript_floats=False):
         'framePolicy': 'fullyLive', 'frameDriver': 'fullyLive-value-notifier', 'hostKind': 'visible-flutter-platform-view',
         'decision': 'keep-default-off', 'productionIosExperimentEnabled': False,
         'engineMemory': {'availability': 'unsupported'}, 'engineCpu': {'availability': 'unsupported'},
-        'crossViewCacheSharing': {'availability': 'not-measured'}, 'instances': count, 'theme': copy.deepcopy(THEME), 'cases': cases}
+        'crossViewCacheSharing': {'availability': 'not-measured'}, 'pid': 137, 'startupGeneration': 'fresh-generation', 'startupFirstFrameRasterized': True, 'instances': count, 'theme': copy.deepcopy(THEME), 'cases': cases}
     return {'schemaVersion': 1, 'framework': {'allTestsPassed': True, 'failures': []}, 'data': {'iosFontProbe': report}}
 
 
 def environment_fixture():
     return {'schemaVersion': 1, 'captureStatus': 'complete', 'runStatus': 'completed', 'instances': 1,
         'drive': {'returncode': 0, 'timedOut': False, 'groupDrained': True},
+        'startupGeneration': 'fresh-generation', 'startupCheckpoint': {'hostPid': 137, 'runId': 'fresh-generation',
+            'nativeFork': WEBVIEW_PIN, 'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True},
         'sourceCommit': '1' * 40, 'sourceCommitAfter': '1' * 40, 'sourceTree': '3' * 40, 'sourceTreeAfter': '3' * 40, 'sourceStatus': '', 'sourceStatusAfter': '',
         'lockSha256': LOCK_SHA, 'lockSha256After': LOCK_SHA, 'committedLockSha256': LOCK_SHA,
         'lockSourceCommit': '1' * 40, 'lockSourceBlob': LOCK_BLOB,
@@ -480,6 +482,29 @@ class ArtifactTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_environment(env, probe)
 
+    def test_startup_checkpoint_cannot_belong_to_another_generation_or_process(self):
+        for file in [self.path, self.root / 'framework-response.json']:
+            envelope = read_json(file)
+            envelope['data']['iosFontProbe'].update(pid=137, startupGeneration='fresh-generation')
+            file.write_text(json.dumps(envelope))
+        self.environment.update(startupGeneration='fresh-generation', startupCheckpoint={
+            'hostPid': 137, 'runId': 'fresh-generation', 'nativeFork': self.environment['webviewPin'],
+            'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True})
+        validate_artifacts(self.path, self.environment)
+        checkpoint = self.environment['startupCheckpoint']
+        for key, value in [('hostPid', 138), ('hostPid', True), ('runId', 'old-generation'),
+                           ('nativeFork', '9' * 40), ('appBootToken', ''), ('hostExecutable', ''), ('firstFrameRasterized', False)]:
+            original = checkpoint[key]
+            checkpoint[key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'measured native app'):
+                validate_artifacts(self.path, self.environment)
+            checkpoint[key] = original
+
+    def test_legacy_reports_without_authenticated_startup_are_not_native_acceptance(self):
+        self.environment.pop('startupCheckpoint')
+        with self.assertRaisesRegex(ValueError, 'startup checkpoint missing'):
+            validate_artifacts(self.path, self.environment)
+
     def test_non_json_numbers_fail_before_validation(self):
         self.path.write_text('{"fake": NaN}')
         with self.assertRaisesRegex(ValueError, 'Non-JSON'):
@@ -487,6 +512,7 @@ class ArtifactTests(unittest.TestCase):
 
     def test_changed_native_heads_cannot_rewrite_the_committed_lock_evidence(self):
         self.environment['webviewPin'] = '5' * 40
+        self.environment['startupCheckpoint']['nativeFork'] = '5' * 40
         for name, source in self.environment['nativeSources'].items():
             if name.startswith('flutter_inappwebview'):
                 source.update(head='5' * 40, headAfter='5' * 40, lockPin='5' * 40)

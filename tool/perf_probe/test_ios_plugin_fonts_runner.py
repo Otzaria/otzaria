@@ -20,7 +20,84 @@ from run_ios_plugin_fonts import Commands, ROOT, lock_pin, main, retain_committe
 from validate_ios_plugin_fonts import WEBVIEW_PACKAGES
 
 
+class StartupTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.output = Path(self.temporary.name)
+        self.startup = runner.FontProbeStartup(self.output, '3' * 40)
+        self.startup.start()
+        self.addCleanup(self.startup.server.server_close)
+        self.addCleanup(runner.shutdown_server, self.startup.server)
+
+    def process(self, delay=0.2):
+        process = subprocess.Popen([sys.executable, '-c', f'import time;time.sleep({delay})'],
+                                   start_new_session=True)
+        self.addCleanup(process.wait, timeout=3)
+        self.addCleanup(runner.signal_group, process.pid, signal.SIGTERM)
+        return process
+
+    def checkpoint(self, process, **changes):
+        import urllib.request
+        defines = self.startup.defines
+        body = dict(runId=defines['IOS_FONT_PROBE_GENERATION'], hostPid=process.pid,
+                    appBootToken='original-boot', hostExecutable=sys.executable,
+                    nativeFork=defines['IOS_FONT_PROBE_NATIVE_FORK'], firstFrameRasterized=True)
+        body.update(changes)
+        request = urllib.request.Request(defines['IOS_FONT_PROBE_COORDINATOR'] + '/checkpoint',
+            data=json.dumps(body).encode(), headers={'X-Apple-Quiet-Token': defines['IOS_FONT_PROBE_TOKEN']})
+        return urllib.request.urlopen(request, timeout=3)
+
+    def test_a_stuck_startup_is_bounded_independently_of_the_build_budget(self):
+        commands = Commands(self.output)
+        with patch.dict(runner.wait_for_drive.__globals__, IOS_APP_STARTUP_SECONDS=0.05):
+            with self.assertRaisesRegex(runner.CommandFailure, 'No authenticated iOS app checkpoint'):
+                commands.run('flutter-drive', [sys.executable, '-c', 'import time;time.sleep(30)'],
+                             3, wait_for_exit=self.startup.wait)
+        record = commands.records[-1]
+        self.assertTrue(record['timedOut'])
+        self.assertTrue(record['groupDrained'])
+        self.assertLess(record['elapsedSeconds'], 3)
+
+    def test_authenticated_original_app_releases_only_the_startup_budget(self):
+        process = self.process()
+        with self.checkpoint(process): pass
+        with patch.dict(runner.wait_for_drive.__globals__, IOS_APP_STARTUP_SECONDS=0.05):
+            self.assertEqual(self.startup.wait(process, 3), 0)
+        saved = json.loads((self.output / 'partial-app.json').read_text())
+        self.assertEqual(saved['hostPid'], process.pid)
+        self.assertEqual(saved['runId'], self.startup.coordinator.run_id)
+
+    def test_invalid_generation_pid_or_native_fork_cannot_disarm_startup(self):
+        import urllib.error
+        process = self.process(0.3)
+        for changes in [dict(runId='old-generation'), dict(hostPid=0), dict(nativeFork='4' * 40), dict(firstFrameRasterized=False)]:
+            with self.subTest(changes=changes), self.assertRaises(urllib.error.HTTPError) as rejected:
+                self.checkpoint(process, **changes)
+            rejected.exception.close()
+        self.assertIsNone(self.startup.coordinator.app_checkpoint_at)
+
+    def test_an_early_zero_exit_without_checkpoint_is_not_a_native_success(self):
+        with self.assertRaisesRegex(RuntimeError, 'before the first authenticated'):
+            self.startup.wait(self.process(0), 3)
+
+
 class RunnerTests(unittest.TestCase):
+    def test_native_failure_log_is_bounded_and_retains_the_selected_device(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            launch = subprocess.Popen
+            def start(command, **kwargs):
+                return launch([sys.executable, '-c', 'print("x" * 100000)'], **kwargs)
+            module = runner.recorded_output.__globals__['subprocess']
+            with patch.object(module, 'Popen', side_effect=start):
+                runner.capture_ios_failure_log(output, 'OWNED-SIMULATOR')
+            receipt = json.loads((output / 'ios-failure-log.json').read_text())
+            self.assertEqual(receipt['command'][:4], ['xcrun', 'simctl', 'spawn', 'OWNED-SIMULATOR'])
+            self.assertEqual(receipt['timeoutSeconds'], 10)
+            self.assertTrue(receipt['stdout']['truncated'])
+            self.assertEqual((output / 'ios-failure-log.stdout.log').stat().st_size, 65536)
+
     def test_retained_lock_comes_from_the_exact_git_commit(self):
         with tempfile.TemporaryDirectory() as temp:
             repository, output = Path(temp, 'repo'), Path(temp, 'output')
@@ -213,7 +290,7 @@ sys.exit(9)
 
 class CleanupTests(unittest.TestCase):
     def exercise(self, *, booted=False, source_failure=False, copy_failure=False,
-                 hash_failure=False, shutdown_failure=False, drive_failure=None):
+                 hash_failure=False, shutdown_failure=False, drive_failure=None, log_failure=False):
         with tempfile.TemporaryDirectory() as temp:
             checkout, output = Path(temp, 'checkout'), Path(temp, 'output')
             pods = checkout / 'ios/Podfile.lock'
@@ -221,12 +298,21 @@ class CleanupTests(unittest.TestCase):
             pods.write_bytes(b'Controlled CocoaPods evidence\n')
             calls, state = [], {'running': booted}
 
+            case = self
             class ControlledCommands:
                 def __init__(self, path):
                     self.output = path
 
                 def run(self, label, command, timeout=120, **kwargs):
                     calls.append((label, command, timeout))
+                    if label == 'flutter-build':
+                        case.assertEqual(timeout, 3000)
+                        case.assertTrue({'--simulator', '--no-pub', '--debug', '--no-codesign'} <= set(command))
+                    if label == 'flutter-drive':
+                        self.on_record({'label': label, 'returncode': None})
+                        case.assertEqual(timeout, runner.IOS_APP_STARTUP_SECONDS + runner.FONT_REPORT_SECONDS)
+                        case.assertIsNotNone(kwargs['wait_for_exit'])
+                        case.assertTrue(any(arg.startswith('--use-application-binary=') for arg in command))
                     if label == 'simulator-boot':
                         state['running'] = True
                     elif label == 'simulator-shutdown':
@@ -243,6 +329,11 @@ class CleanupTests(unittest.TestCase):
                     else:
                         text = 'controlled command; no native execution'
                     if label == 'flutter-drive':
+                        defines = json.loads((self.output / 'build-defines.json').read_text())
+                        (self.output / 'partial-app.json').write_text(json.dumps({
+                            'runId': defines['IOS_FONT_PROBE_GENERATION'], 'hostPid': 137,
+                            'appBootToken': 'controlled', 'hostExecutable': '/controlled/Runner',
+                            'nativeFork': defines['IOS_FONT_PROBE_NATIVE_FORK'], 'firstFrameRasterized': True}))
                         if drive_failure is not None:
                             raise drive_failure
                         report = self.output / 'reports/run-control/report.json'
@@ -254,7 +345,12 @@ class CleanupTests(unittest.TestCase):
                 calls.append(('sources-after' if after else 'sources-before', [], None))
                 if after and source_failure:
                     raise ValueError('source verification failed')
-                environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64)
+                environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40)
+
+            def capture_logs(path, device):
+                calls.append(('simulator-failure-log', [device], 10))
+                if log_failure:
+                    raise OSError('native log unavailable')
 
             actual_copy, actual_hash = runner.shutil.copyfile, runner.sha256
 
@@ -273,6 +369,7 @@ class CleanupTests(unittest.TestCase):
             with patch.object(runner, 'ROOT', checkout), patch.object(runner, 'Commands', ControlledCommands), \
                  patch.object(runner, 'capture_sources', capture), patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner.shutil, 'copyfile', copy), patch.object(runner, 'sha256', hash_file), \
+                 patch.object(runner, 'capture_ios_failure_log', side_effect=capture_logs), \
                  patch.object(runner, 'validate_artifacts', return_value={'controlled': True}) as validate, \
                  contextlib.redirect_stdout(io.StringIO()):
                 code = runner.run_probe(['--instances', '1', '--output', str(output)])
@@ -311,8 +408,19 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(environment['cleanupError'], expected[0][1])
         self.assertEqual(environment['error'], expected[0][1] if primary is None else primary)
 
+    def test_failure_logs_are_only_collected_for_the_owned_failed_driver(self):
+        _, success = self.exercise()
+        self.assertNotIn('simulator-failure-log', success)
+        _, borrowed = self.exercise(booted=True, drive_failure=ValueError('original driver failure'))
+        self.assertNotIn('simulator-failure-log', borrowed)
+        environment, owned = self.exercise(drive_failure=ValueError('original driver failure'), log_failure=True)
+        self.assertLess(owned.index('simulator-failure-log'), owned.index('simulator-shutdown'))
+        self.assertEqual(environment['primaryFailure']['error'], 'original driver failure')
+        self.assertTrue(any(e['error'] == 'native log unavailable' for e in environment['secondaryErrors']))
+
     def test_success_shuts_down_only_the_owned_simulator(self):
-        self.exercise()
+        _, calls = self.exercise()
+        self.assertLess(calls.index('flutter-build'), calls.index('flutter-drive'))
 
     def test_success_leaves_a_preexisting_simulator_running(self):
         self.exercise(booted=True)
@@ -413,6 +521,14 @@ if label == 'simulator-boot':
     if scenario.get('bootReceiptFault'):
         block('commands.json')
 if label == 'flutter-drive':
+    import urllib.request
+    defines = json.loads((output / 'build-defines.json').read_text())
+    request = urllib.request.Request(defines['IOS_FONT_PROBE_COORDINATOR'] + '/checkpoint',
+        data=json.dumps({'runId': defines['IOS_FONT_PROBE_GENERATION'], 'hostPid': os.getpid(),
+             'appBootToken': 'controlled-' + str(os.getpid()), 'hostExecutable': sys.executable,
+             'nativeFork': defines['IOS_FONT_PROBE_NATIVE_FORK'], 'firstFrameRasterized': True}).encode(),
+        headers={'X-Apple-Quiet-Token': defines['IOS_FONT_PROBE_TOKEN']})
+    urllib.request.urlopen(request, timeout=3).read()
     report = output / 'reports/run-control/report.json'
     report.parent.mkdir(parents=True)
     report.write_text('{}')
@@ -443,16 +559,16 @@ if label == 'flutter-drive':
                     super().__init__(path)
                     instances.append(self)
 
-                def run(self, label, command, timeout=120, *, cwd=None, env=None, check=True):
+                def run(self, label, command, timeout=120, *, cwd=None, env=None, check=True, wait_for_exit=None):
                     command = [sys.executable, str(child), str(directory), label]
                     if label == 'flutter-drive' and scenario.get('startFault'):
                         command = [str(directory / 'missing-executable')]
                     deadline = 0.2 if label == 'flutter-drive' and scenario.get('driveTimeout') else min(timeout, 5)
-                    return super().run(label, command, deadline, cwd=checkout, env=env, check=check)
+                    return super().run(label, command, deadline, cwd=checkout, env=env, check=check, wait_for_exit=wait_for_exit)
 
             def capture(commands, environment, *, after=False):
                 if not after:
-                    environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64)
+                    environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40)
                 commands.run('source-after' if after else 'source-before', ['controlled source'])
                 if after and scenario.get('sourceChange'):
                     environment['sourceStatusAfter'] = ' M ios/Runner.xcodeproj/project.pbxproj'
@@ -511,6 +627,7 @@ if label == 'flutter-drive':
                  patch.object(runner, 'capture_sources', capture), patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner, 'write_json', write), patch.object(Path, 'open', open_file), \
                  patch.object(runner, 'validate_artifacts', return_value={'controlled': True}) as validate, \
+                 patch.object(runner, 'capture_ios_failure_log'), \
                  contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = runner.run_probe(['--instances', '1', '--output', str(output)])
             records = instances[0].records

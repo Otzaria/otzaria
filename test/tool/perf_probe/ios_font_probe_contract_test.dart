@@ -17,6 +17,81 @@ import '../../../integration_test/support/ios_font_probe_report.dart';
 import '../../../integration_test/support/macos_font_probe.dart';
 
 void main() {
+  test(
+    'startup checkpoint binds the native process and build generation',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final received = Completer<Map<String, dynamic>>();
+      server.listen((request) async {
+        expect(request.uri.path, '/checkpoint');
+        expect(request.headers.value('X-Apple-Quiet-Token'), 'token');
+        received.complete(
+          jsonDecode(await utf8.decoder.bind(request).join())
+              as Map<String, dynamic>,
+        );
+        request.response.write('{}');
+        await request.response.close();
+      });
+      await HttpOverrides.runWithHttpOverrides(
+        () => notifyIosFontProbeStarted(
+          coordinator: 'http://127.0.0.1:${server.port}',
+          token: 'token',
+          generation: 'fresh-generation',
+          nativeFork: 'native-pin',
+          firstFrameRasterized: true,
+        ),
+        _LoopbackHttpOverrides(),
+      );
+      final body = await received.future.timeout(const Duration(seconds: 2));
+      expect(body['hostPid'], pid);
+      expect(body['hostExecutable'], Platform.resolvedExecutable);
+      expect(body['appBootToken'], startsWith('$pid-'));
+      expect(body['runId'], 'fresh-generation');
+      expect(body['nativeFork'], 'native-pin');
+      expect(body['firstFrameRasterized'], isTrue);
+    },
+  );
+
+  test(
+    'startup cannot be certified before the first rasterized frame',
+    () async {
+      await expectLater(
+        notifyIosFontProbeStarted(
+          coordinator: 'not-a-network-url',
+          token: 'token',
+          generation: 'generation',
+          nativeFork: 'pin',
+          firstFrameRasterized: false,
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('a rejected startup checkpoint cannot be ignored', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      await request.drain<void>();
+      request.response.statusCode = HttpStatus.forbidden;
+      await request.response.close();
+    });
+    await expectLater(
+      HttpOverrides.runWithHttpOverrides(
+        () => notifyIosFontProbeStarted(
+          coordinator: 'http://127.0.0.1:${server.port}',
+          token: 'wrong',
+          generation: 'generation',
+          nativeFork: 'pin',
+          firstFrameRasterized: true,
+        ),
+        _LoopbackHttpOverrides(),
+      ),
+      throwsStateError,
+    );
+  });
+
   test('all eighteen cases retain default-off production policy', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -307,3 +382,5 @@ void main() {
     }
   });
 }
+
+class _LoopbackHttpOverrides extends HttpOverrides {}
