@@ -81,7 +81,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export LD_LIBRARY_PATH="$WPE_FIXTURE_LIB:$WPE_FIXTURE_SDK/lib"
+          # Strip contract tests keep unresolved SONAME sets stable where Ubuntu differs.
+          # Never prefer the SDK to bundle files during dependency inspection.
+          export LD_LIBRARY_PATH="$WPE_FIXTURE_LIB"
           # Hosted Ubuntu is newer than the Debian 12 runtime build and lacks
           # several exact SONAMEs. Require strip to preserve that missing set;
           # production bundling keeps the default strict zero-missing policy.
