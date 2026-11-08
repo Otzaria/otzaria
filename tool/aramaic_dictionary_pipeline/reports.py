@@ -24,7 +24,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from common import load_config, read_jsonl, split_senses, work_dir
+from common import load_config, read_jsonl, work_dir
 from merge import load_decisions
 
 LICENSES = [

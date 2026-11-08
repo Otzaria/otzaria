@@ -17,8 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import re
-import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -32,7 +31,6 @@ from common import (
     clean_text,
     load_config,
     normalize_key,
-    stable_id,
     work_dir,
     write_jsonl,
 )
