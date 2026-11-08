@@ -18,7 +18,7 @@ class _HostState extends State<_Host> {
   @override
   Widget build(BuildContext context) => AppContextMenuRegion(
     menuBuilder: (_, _) => [
-      AppContextMenuEntry(
+      menu.AppContextMenuEntry(
         label: 'Copy $_buildCount',
         onTap: () {},
       ),
