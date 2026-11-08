@@ -20,6 +20,7 @@ on:
       - 'integration_test/macos_plugin_font_probe_test.dart'
       - 'integration_test/support/macos_font_probe.dart'
       - 'integration_test/support/apple_font_probe_view.dart'
+      - 'integration_test/support/webview_probe_window.dart'
       - 'test/tool/perf_probe/macos_font_probe_*_test.dart'
       - 'test_driver/macos_plugin_fonts.dart'
       - 'tool/perf_probe/*macos_plugin_fonts*'
@@ -49,19 +50,9 @@ jobs:
           python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py
 
   wkwebview:
-    name: WKWebView fresh processes (${{ matrix.instances }} views)
+    name: WKWebView fresh processes (1, 5 and 10 views)
     runs-on: macos-latest
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - instances: 1
-            order: 'data scheme'
-          - instances: 5
-            order: 'scheme data'
-          - instances: 10
-            order: 'data scheme'
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: subosito/flutter-action@v2
@@ -73,24 +64,31 @@ jobs:
       - name: Resolve locked dependencies
         run: flutter pub get --enforce-lockfile
       - name: Build and run paired visible macOS applications
+        timeout-minutes: 60
         env:
           PLUGIN_FONT_PROBE_REPORTS: ${{ runner.temp }}/plugin-font-reports
-          FONT_PROBE_ORDER: ${{ matrix.order }}
-          FONT_PROBE_INSTANCES: ${{ matrix.instances }}
         run: |
-          set -uo pipefail
-          mkdir -p "$PLUGIN_FONT_PROBE_REPORTS"
+          set -euo pipefail
+          root="$PLUGIN_FONT_PROBE_REPORTS"
           failed=0
-          for mode in $FONT_PROBE_ORDER; do
-            if ! flutter drive --profile -d macos \
-                --driver=test_driver/macos_plugin_fonts.dart \
-                --target=integration_test/macos_plugin_font_probe_test.dart \
-                --dart-define=OTZARIA_EXPERIMENTAL_MACOS_PLUGIN_FONTS=true \
-                --dart-define=OTZARIA_FONT_PROBE_TRANSPORT="$mode" \
-                --dart-define=OTZARIA_FONT_PROBE_INSTANCES="$FONT_PROBE_INSTANCES" \
-                2>&1 | tee "$PLUGIN_FONT_PROBE_REPORTS/$mode.log"; then
-              failed=1
-            fi
+          for instances in 1 5 10; do
+            export PLUGIN_FONT_PROBE_REPORTS="$root/$instances-views"
+            mkdir -p "$PLUGIN_FONT_PROBE_REPORTS"
+            order='data scheme'
+            if [ "$instances" = 5 ]; then order='scheme data'; fi
+            printf '{"instances":%s,"buildCache":"shared-between-counts","appProcessPolicy":"fresh-per-transport","comparison":"within-pair"}\n' \
+              "$instances" > "$PLUGIN_FONT_PROBE_REPORTS/workflow-context.json"
+            for mode in $order; do
+              if ! flutter drive --no-pub --profile -d macos \
+                  --driver=test_driver/macos_plugin_fonts.dart \
+                  --target=integration_test/macos_plugin_font_probe_test.dart \
+                  --dart-define=OTZARIA_EXPERIMENTAL_MACOS_PLUGIN_FONTS=true \
+                  --dart-define=OTZARIA_FONT_PROBE_TRANSPORT="$mode" \
+                  --dart-define=OTZARIA_FONT_PROBE_INSTANCES="$instances" \
+                  2>&1 | tee "$PLUGIN_FONT_PROBE_REPORTS/$mode.log"; then
+                failed=1
+              fi
+            done
           done
           exit "$failed"
       - name: Validate paired font and CSP evidence
@@ -98,13 +96,37 @@ jobs:
         env:
           PLUGIN_FONT_PROBE_REPORTS: ${{ runner.temp }}/plugin-font-reports
         run: |
-          python3 tool/perf_probe/compare_macos_plugin_fonts.py \
-            "$PLUGIN_FONT_PROBE_REPORTS" --output "$PLUGIN_FONT_PROBE_REPORTS/comparison.json"
-      - name: Retain reports, screenshots and build logs
+          set -euo pipefail
+          failed=0
+          for instances in 1 5 10; do
+            output="$PLUGIN_FONT_PROBE_REPORTS/$instances-views"
+            if ! python3 tool/perf_probe/compare_macos_plugin_fonts.py \
+                "$output" --output "$output/comparison.json"; then
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Retain one-view evidence
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: macos-plugin-fonts-${{ matrix.instances }}-views
-          path: ${{ runner.temp }}/plugin-font-reports
+          name: macos-plugin-fonts-1-views
+          path: ${{ runner.temp }}/plugin-font-reports/1-views
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain five-view evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: macos-plugin-fonts-5-views
+          path: ${{ runner.temp }}/plugin-font-reports/5-views
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain ten-view evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: macos-plugin-fonts-10-views
+          path: ${{ runner.temp }}/plugin-font-reports/10-views
           if-no-files-found: error
           retention-days: 14
