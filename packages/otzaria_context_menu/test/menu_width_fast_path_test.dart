@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,28 @@ class _CountingEntries extends ListBase<AppMenuEntry<int>> {
 
   @override
   AppMenuEntry<int> operator [](int index) {
+    reads++;
+    return AppMenuEntry(value: index, label: 'Item $index');
+  }
+
+  @override
+  void operator []=(int index, AppMenuEntry<int> value) =>
+      throw UnsupportedError('read only');
+}
+
+class _SlowEntries extends ListBase<AppMenuEntry<int>> {
+  int reads = 0;
+
+  @override
+  int get length => 5000;
+
+  @override
+  set length(int value) => throw UnsupportedError('read only');
+
+  @override
+  AppMenuEntry<int> operator [](int index) {
+    final timer = Stopwatch()..start();
+    while (timer.elapsedMicroseconds < 30) {}
     reads++;
     return AppMenuEntry(value: index, label: 'Item $index');
   }
@@ -53,6 +76,20 @@ void main() {
     );
     expect(width, metrics.menuMinWidth);
     expect(entries.reads, 0);
+  });
+
+  test('async width calculation yields before preprocessing the entire list', () async {
+    final entries = _SlowEntries();
+    int? readsWhenEventRan;
+    Timer.run(() => readsWhenEventRan = entries.reads);
+    final width = await calculateAppMenuPreferredWidthAsync(
+      metrics,
+      entries,
+      maxWidth: 800,
+    );
+    expect(readsWhenEventRan, isNotNull);
+    expect(readsWhenEventRan, lessThan(entries.length));
+    expect(width, greaterThanOrEqualTo(metrics.menuMinWidth));
   });
 
   testWidgets('leading icons and trailing items retain full width accuracy', (
