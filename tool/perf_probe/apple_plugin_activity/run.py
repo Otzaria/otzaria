@@ -927,7 +927,7 @@ def main():
         elif not args.serve_only:
             # Verify this is a Simulator. Never silently use a physical device
             # with debug and call that background/profile acceptance.
-            devices = json.loads(output(["xcrun", "simctl", "list", "devices", "--json"], deadline=deadline))
+            devices = json.loads(output(["xcrun", "simctl", "list", "devices", "--json"], timeout=120, deadline=deadline))
             chosen = [(runtime, d) for runtime, items in devices["devices"].items() for d in items
                       if d["udid"] == args.device and d.get("isAvailable", True)]
             if len(chosen) != 1:
