@@ -59,7 +59,10 @@ void main() {
     await tester.pumpAndSettle();
     // The current eager submenu loader creates one nested controller ahead
     // of opening; a separate lazy-loading change may defer that work.
-    expect(state.debugTrackedSubmenuControllerCount, inInclusiveRange(1, 2));
+    expect(
+      state.debugTrackedSubmenuControllerCount,
+      inInclusiveRange(1, 2),
+    );
 
     await tester.tap(find.text('Root'));
     await tester.pumpAndSettle();
@@ -70,8 +73,11 @@ void main() {
       index++;
       stream.add(null);
       await tester.pumpAndSettle();
-      expect(state.debugTrackedSubmenuControllerCount, 2,
-          reason: 'Old MenuControllers must be unregistered after refresh $i');
+      expect(
+        state.debugTrackedSubmenuControllerCount,
+        2,
+        reason: 'Old MenuControllers must be unregistered after refresh $i',
+      );
     }
 
     await tester.tap(find.text('Nested'));
@@ -82,7 +88,10 @@ void main() {
     await tester.pumpAndSettle();
     // The current eager submenu loader creates one nested controller ahead
     // of opening; a separate lazy-loading change may defer that work.
-    expect(state.debugTrackedSubmenuControllerCount, inInclusiveRange(1, 2));
+    expect(
+      state.debugTrackedSubmenuControllerCount,
+      inInclusiveRange(1, 2),
+    );
     expect(find.text('Action 12'), findsNothing);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
