@@ -27,7 +27,7 @@ dependencies:
 
 essential: false
 
-icon: assets/icon/icon.png
+icon: assets/icon/icon_256.png
 
 keywords:
   - Hebrew
