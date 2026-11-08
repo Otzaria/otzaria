@@ -454,14 +454,8 @@ class DirectErrorReportService {
     });
   }
 
-  static bool isValidSenderEmail(String email) {
-    final normalized = email.trim();
-    if (normalized.isEmpty) {
-      return false;
-    }
-
-    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(normalized);
-  }
+  /// הכתובת נשמרת בהגדרה המשותפת גם לדיווח על התוכנה, ולכן נבדקת באותו כלל.
+  static bool isValidSenderEmail(String email) => AppReport.isValidEmail(email);
 
   Future<DirectReportDeliveryResult?> _enqueueIfNeeded(
     DirectErrorReport report, {
