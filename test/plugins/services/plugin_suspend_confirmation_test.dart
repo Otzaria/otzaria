@@ -524,7 +524,6 @@ void main() {
     });
   });
 
-
   Future<void> recoveryCommand() => dispatcher.dispatchEventToPlugin(
     pluginId,
     'qa.recovery.targeted',
@@ -550,7 +549,10 @@ void main() {
                 expect(
                   () => store.set(
                     key,
-                    List.filled(PluginRestoreStateStore.maxStateBytes, 'x').join(),
+                    List.filled(
+                      PluginRestoreStateStore.maxStateBytes,
+                      'x',
+                    ).join(),
                   ),
                   throwsArgumentError,
                 );
@@ -593,180 +595,223 @@ void main() {
         });
       }
 
-      test('${platform.name} pins current restore state across $outcome reload', () {
-        debugDefaultTargetPlatformOverride = platform;
-        fakeAsync((async) {
-          final controller = visibleInFakeAsync(async);
-          const snapshot = {'schemaVersion': 3, 'revision': 7, 'draft': 'saved'};
-          try {
-            dispatcher.setVisiblePluginInstances(const {});
-            async.flushMicrotasks();
-            store.set(key, snapshot);
-            controller.deliveryValue = outcome;
-            var finished = false;
-            unawaited(recoveryCommand().then((_) => finished = true));
-            async.flushMicrotasks();
+      test(
+        '${platform.name} pins current restore state across $outcome reload',
+        () {
+          debugDefaultTargetPlatformOverride = platform;
+          fakeAsync((async) {
+            final controller = visibleInFakeAsync(async);
+            const snapshot = {
+              'schemaVersion': 3,
+              'revision': 7,
+              'draft': 'saved',
+            };
+            try {
+              dispatcher.setVisiblePluginInstances(const {});
+              async.flushMicrotasks();
+              store.set(key, snapshot);
+              controller.deliveryValue = outcome;
+              var finished = false;
+              unawaited(recoveryCommand().then((_) => finished = true));
+              async.flushMicrotasks();
 
-            expect(finished, true);
-            expect(controller.calls.where((call) => call == 'reload'), hasLength(1));
-            expect(details()['suspensionState'], 'hidden');
-            for (var i = 0; i < 80; i++) {
-              store.set((pluginId: 'other.$i', instanceId: 'page'), {'value': i});
+              expect(finished, true);
+              expect(
+                controller.calls.where((call) => call == 'reload'),
+                hasLength(1),
+              );
+              expect(details()['suspensionState'], 'hidden');
+              for (var i = 0; i < 80; i++) {
+                store.set(
+                  (pluginId: 'other.$i', instanceId: 'page'),
+                  {'value': i},
+                );
+              }
+              expect(store.stateOf(key), snapshot);
+              expect(
+                dispatcher.takeBootRestore(
+                  pluginId,
+                  instanceId: 'a',
+                  firstBoot: false,
+                ),
+                {'reason': 'reloaded', 'state': snapshot},
+              );
+
+              controller.deliveryValue = true;
+              unawaited(
+                dispatcher.onForegroundInstanceReady(pluginId, instanceId: 'a'),
+              );
+              async.flushMicrotasks();
+              expect(
+                controller.scripts.where(
+                  (script) => script.contains('qa.recovery.targeted'),
+                ),
+                hasLength(1),
+              );
+              store.set(
+                (pluginId: 'other.0', instanceId: 'page'),
+                {'value': 80},
+              );
+              expect(
+                store.has(key),
+                false,
+                reason: 'Boot releases the retention',
+              );
+            } finally {
+              async.flushMicrotasks();
+              dispatcher.resetVisibilityForTesting();
             }
-            expect(store.stateOf(key), snapshot);
-            expect(
-              dispatcher.takeBootRestore(
-                pluginId,
-                instanceId: 'a',
-                firstBoot: false,
-              ),
-              {'reason': 'reloaded', 'state': snapshot},
-            );
-
-            controller.deliveryValue = true;
-            unawaited(
-              dispatcher.onForegroundInstanceReady(pluginId, instanceId: 'a'),
-            );
-            async.flushMicrotasks();
-            expect(
-              controller.scripts.where((script) => script.contains('qa.recovery.targeted')),
-              hasLength(1),
-            );
-            store.set((pluginId: 'other.0', instanceId: 'page'), {'value': 80});
-            expect(store.has(key), false, reason: 'Boot releases the retention');
-          } finally {
-            async.flushMicrotasks();
-            dispatcher.resetVisibilityForTesting();
-          }
-        });
-      });
+          });
+        },
+      );
     }
 
     for (final reply in ['null', 'false', 'error']) {
-      test('${platform.name} preserves the live document after a $reply ack', () {
+      test(
+        '${platform.name} preserves the live document after a $reply ack',
+        () {
+          debugDefaultTargetPlatformOverride = platform;
+          fakeAsync((async) {
+            final controller = visibleInFakeAsync(async);
+            try {
+              dispatcher.setVisiblePluginInstances(const {});
+              async.flushMicrotasks();
+              store.set(key, {'schemaVersion': 3, 'draft': 'before command'});
+              controller.deliveryValue = reply == 'false' ? false : null;
+              if (reply == 'error')
+                controller.deliveryError = StateError('lost ack');
+              var finished = false;
+              unawaited(recoveryCommand().then((_) => finished = true));
+              async.flushMicrotasks();
+
+              expect(finished, true);
+              expect(controller.calls, isNot(contains('reload')));
+              expect(details()['suspensionState'], 'active');
+              expect(store.stateOf(key), {
+                'schemaVersion': 3,
+                'draft': 'before command',
+              });
+
+              unawaited(
+                dispatcher.onForegroundInstanceReady(pluginId, instanceId: 'a'),
+              );
+              async.flushMicrotasks();
+              expect(
+                controller.scripts.where(
+                  (script) => script.contains('qa.recovery.targeted'),
+                ),
+                hasLength(1),
+                reason: 'The failed acknowledgment does not erase redelivery',
+              );
+            } finally {
+              async.flushMicrotasks();
+              dispatcher.resetVisibilityForTesting();
+            }
+          });
+        },
+      );
+    }
+
+    test(
+      '${platform.name} ignores a late preflight reply after delivery timeout',
+      () {
         debugDefaultTargetPlatformOverride = platform;
         fakeAsync((async) {
           final controller = visibleInFakeAsync(async);
+          final gate = Completer<void>();
           try {
             dispatcher.setVisiblePluginInstances(const {});
             async.flushMicrotasks();
             store.set(key, {'schemaVersion': 3, 'draft': 'before command'});
-            controller.deliveryValue = reply == 'false' ? false : null;
-            if (reply == 'error') controller.deliveryError = StateError('lost ack');
+            controller
+              ..deliveryGate = gate
+              ..deliveryValue = 'no-page-world';
             var finished = false;
             unawaited(recoveryCommand().then((_) => finished = true));
             async.flushMicrotasks();
+            expect(finished, false);
 
+            async.elapse(const Duration(seconds: 3));
+            async.flushMicrotasks();
             expect(finished, true);
             expect(controller.calls, isNot(contains('reload')));
             expect(details()['suspensionState'], 'active');
-            expect(store.stateOf(key), {'schemaVersion': 3, 'draft': 'before command'});
-
-            unawaited(
-              dispatcher.onForegroundInstanceReady(pluginId, instanceId: 'a'),
-            );
+            gate.complete();
             async.flushMicrotasks();
-            expect(
-              controller.scripts.where((script) => script.contains('qa.recovery.targeted')),
-              hasLength(1),
-              reason: 'The failed acknowledgment does not erase redelivery',
-            );
+            expect(controller.calls, isNot(contains('reload')));
+            expect(details()['suspensionState'], 'active');
           } finally {
+            if (!gate.isCompleted) gate.complete();
             async.flushMicrotasks();
             dispatcher.resetVisibilityForTesting();
           }
         });
-      });
-    }
-
-    test('${platform.name} ignores a late preflight reply after delivery timeout', () {
-      debugDefaultTargetPlatformOverride = platform;
-      fakeAsync((async) {
-        final controller = visibleInFakeAsync(async);
-        final gate = Completer<void>();
-        try {
-          dispatcher.setVisiblePluginInstances(const {});
-          async.flushMicrotasks();
-          store.set(key, {'schemaVersion': 3, 'draft': 'before command'});
-          controller
-            ..deliveryGate = gate
-            ..deliveryValue = 'no-page-world';
-          var finished = false;
-          unawaited(recoveryCommand().then((_) => finished = true));
-          async.flushMicrotasks();
-          expect(finished, false);
-
-          async.elapse(const Duration(seconds: 3));
-          async.flushMicrotasks();
-          expect(finished, true);
-          expect(controller.calls, isNot(contains('reload')));
-          expect(details()['suspensionState'], 'active');
-          gate.complete();
-          async.flushMicrotasks();
-          expect(controller.calls, isNot(contains('reload')));
-          expect(details()['suspensionState'], 'active');
-        } finally {
-          if (!gate.isCompleted) gate.complete();
-          async.flushMicrotasks();
-          dispatcher.resetVisibilityForTesting();
-        }
-      });
-    });
+      },
+    );
   }
 
-
   for (final replacement in ['controller', 'document']) {
-    test('a stale $replacement reply cannot retain or reload its successor', () {
-      fakeAsync((async) {
-        final controller = visibleInFakeAsync(async);
-        final gate = Completer<void>();
-        try {
-          dispatcher.setVisiblePluginInstances(const {});
-          async.flushMicrotasks();
-          store.set(key, {'schemaVersion': 1, 'draft': 'old'});
-          controller
-            ..deliveryGate = gate
-            ..deliveryValue = 'no-page-world';
-          var finished = false;
-          unawaited(recoveryCommand().then((_) => finished = true));
-          async.flushMicrotasks();
-          expect(finished, false);
+    test(
+      'a stale $replacement reply cannot retain or reload its successor',
+      () {
+        fakeAsync((async) {
+          final controller = visibleInFakeAsync(async);
+          final gate = Completer<void>();
+          try {
+            dispatcher.setVisiblePluginInstances(const {});
+            async.flushMicrotasks();
+            store.set(key, {'schemaVersion': 1, 'draft': 'old'});
+            controller
+              ..deliveryGate = gate
+              ..deliveryValue = 'no-page-world';
+            var finished = false;
+            unawaited(recoveryCommand().then((_) => finished = true));
+            async.flushMicrotasks();
+            expect(finished, false);
 
-          var successor = controller;
-          if (replacement == 'controller') {
-            successor = _Controller();
-            controllers.add(successor);
-            dispatcher.registerController(
-              pluginId,
-              successor,
-              instanceId: 'a',
+            var successor = controller;
+            if (replacement == 'controller') {
+              successor = _Controller();
+              controllers.add(successor);
+              dispatcher.registerController(
+                pluginId,
+                successor,
+                instanceId: 'a',
+              );
+            } else {
+              dispatcher.resetEventOptions(pluginId, instanceId: 'a');
+            }
+            const current = {'schemaVersion': 2, 'draft': 'new'};
+            store.set(key, current);
+            gate.complete();
+            async.flushMicrotasks();
+            expect(finished, true);
+            expect(controller.calls, isNot(contains('reload')));
+            expect(successor.calls, isNot(contains('reload')));
+            expect(
+              dispatcher.controllerOf(pluginId, instanceId: 'a'),
+              same(successor),
             );
-          } else {
-            dispatcher.resetEventOptions(pluginId, instanceId: 'a');
+            expect(store.stateOf(key), current);
+            for (var i = 0; i < 80; i++) {
+              store.set(
+                (pluginId: 'other.$i', instanceId: 'page'),
+                {'value': i},
+              );
+            }
+            expect(
+              store.has(key),
+              false,
+              reason: 'A stale reply must not pin state',
+            );
+          } finally {
+            if (!gate.isCompleted) gate.complete();
+            async.flushMicrotasks();
+            dispatcher.resetVisibilityForTesting();
           }
-          const current = {'schemaVersion': 2, 'draft': 'new'};
-          store.set(key, current);
-          gate.complete();
-          async.flushMicrotasks();
-          expect(finished, true);
-          expect(controller.calls, isNot(contains('reload')));
-          expect(successor.calls, isNot(contains('reload')));
-          expect(
-            dispatcher.controllerOf(pluginId, instanceId: 'a'),
-            same(successor),
-          );
-          expect(store.stateOf(key), current);
-          for (var i = 0; i < 80; i++) {
-            store.set((pluginId: 'other.$i', instanceId: 'page'), {'value': i});
-          }
-          expect(store.has(key), false, reason: 'A stale reply must not pin state');
-        } finally {
-          if (!gate.isCompleted) gate.complete();
-          async.flushMicrotasks();
-          dispatcher.resetVisibilityForTesting();
-        }
-      });
-    });
+        });
+      },
+    );
   }
 
   test('a new recovery snapshot replaces an invalidated retention token', () {
@@ -779,14 +824,20 @@ void main() {
         controller.deliveryValue = 'no-page-world';
         unawaited(recoveryCommand());
         async.flushMicrotasks();
-        expect(controller.calls.where((call) => call == 'reload'), hasLength(1));
+        expect(
+          controller.calls.where((call) => call == 'reload'),
+          hasLength(1),
+        );
 
         store.remove(key);
         const current = {'schemaVersion': 2, 'revision': 9, 'draft': 'current'};
         store.set(key, current);
         unawaited(recoveryCommand());
         async.flushMicrotasks();
-        expect(controller.calls.where((call) => call == 'reload'), hasLength(2));
+        expect(
+          controller.calls.where((call) => call == 'reload'),
+          hasLength(2),
+        );
         for (var i = 0; i < 80; i++) {
           store.set((pluginId: 'other.$i', instanceId: 'page'), {'value': i});
         }
