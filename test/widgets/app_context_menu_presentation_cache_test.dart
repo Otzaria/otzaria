@@ -38,16 +38,19 @@ void main() {
     );
 
     await tester.pumpWidget(app(ThemeData.light()));
-    final first = tester
-        .widget<menu.ContextMenuRegion>(find.byType(menu.ContextMenuRegion))
-        .presentation;
+    final firstRegion = tester.widget<menu.ContextMenuRegion>(
+      find.byType(menu.ContextMenuRegion),
+    );
+    final first = firstRegion.presentation;
 
     key.currentState!.rebuild();
     await tester.pump();
-    final second = tester
-        .widget<menu.ContextMenuRegion>(find.byType(menu.ContextMenuRegion))
-        .presentation;
+    final secondRegion = tester.widget<menu.ContextMenuRegion>(
+      find.byType(menu.ContextMenuRegion),
+    );
+    final second = secondRegion.presentation;
     expect(identical(first, second), isTrue);
+    expect(secondRegion.registerEscape, firstRegion.registerEscape);
 
     await tester.pumpWidget(app(ThemeData.dark()));
     final dark = tester
