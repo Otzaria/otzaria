@@ -5,6 +5,8 @@ import 'dart:isolate';
 import 'package:crypto/crypto.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -18,7 +20,7 @@ import 'package:path/path.dart' as p;
 import 'android_startup_protocol.dart';
 import 'perf_fixture.dart';
 
-const _fixtureVersion = 'android-startup-v1';
+const _fixtureVersion = 'android-startup-v2';
 const androidStartupHtml =
     '''<!doctype html><html lang="he" dir="rtl">
 <meta charset="utf-8"><title>Android startup fixture</title>
@@ -216,6 +218,28 @@ class AndroidStartupFixture {
           }
         } else if (plugins.isNotEmpty || await repository.hasEnabledPlugin()) {
           throw StateError('The no-enabled-plugin control is not empty.');
+        }
+        if (!prepare) {
+          // A force-stopped launch leaves restorable ToolTabs behind. Reset
+          // only fixture window sessions, after every input check succeeded.
+          // Android may have used the internal fallback on the previous run.
+          for (final path in {
+            p.join(databasesPath, 'user_state.db'),
+            p.join(dataPath, 'databases', 'user_state.db'),
+          }) {
+            // Keep first-launch schema creation inside the measured app.
+            if (!await File(path).exists()) continue;
+            final database = UserStateDatabase.openAt(path);
+            try {
+              final sessions = WindowSessionStore(database: database);
+              for (final session in await sessions.loadAll()) {
+                await sessions.delete(session.slot);
+              }
+            } finally {
+              await database.flushWrites();
+              database.close();
+            }
+          }
         }
       } finally {
         await PluginSystemDatabase.instance.close();

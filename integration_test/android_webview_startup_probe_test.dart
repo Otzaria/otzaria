@@ -389,6 +389,9 @@ void main(List<String> arguments) {
           opened['readiness'] = isBackground
               ? 'realSDKBootAndTargetedEvent'
               : 'realSDKBootAndTwoAnimationFrames';
+          if (!isBackground) {
+            expect(dispatcher.describeForegroundResources()['live'], 1);
+          }
         }
         measurement['measurementEndedAtUs'] = clock.elapsedMicroseconds;
         heartbeat.cancel();

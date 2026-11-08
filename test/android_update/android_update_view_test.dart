@@ -15,7 +15,9 @@ void main() {
   late FakeAndroidUpdateRepository repository;
   late AndroidUpdateBloc bloc;
 
-  setUp(() {
+  // Bloc subscribes to events in its creation zone. Construct it inside each
+  // testWidgets callback so pump() can flush its asynchronous continuations.
+  void initializeFixture() {
     repository = FakeAndroidUpdateRepository();
     bloc = AndroidUpdateBloc(
       repository: repository,
@@ -24,8 +26,8 @@ void main() {
       recordSuccessfulCheck: () async {},
       foregroundWork: ForegroundWork(isAndroid: false),
     );
-  });
-  tearDown(() => bloc.close());
+    addTearDown(bloc.close);
+  }
 
   Widget app({
     Widget? child,
@@ -58,9 +60,11 @@ void main() {
   testWidgets(
     'narrow RTL panel supports large text and an explicit install action',
     (tester) async {
+      initializeFixture();
       await tester.binding.setSurfaceSize(const Size(320, 740));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(app(scale: 2));
+      expect(find.text('בדוק עדכונים'), findsOneWidget);
       bloc.add(const AndroidUpdateCheck());
       await tester.pumpAndSettle();
       expect(find.text('הורד עדכון'), findsOneWidget);
@@ -86,6 +90,7 @@ void main() {
   testWidgets(
     'permission denial explains recovery and keeps the verified APK',
     (tester) async {
+      initializeFixture();
       repository.restored = fakePrepared;
       repository.permission = false;
       repository.permissionAnswer = false;
@@ -114,6 +119,7 @@ void main() {
   testWidgets(
     'settings entry opens a dialog with the selected language and direction',
     (tester) async {
+      initializeFixture();
       await tester.pumpWidget(
         app(
           language: SettingsLanguage.english,
@@ -141,6 +147,7 @@ void main() {
   testWidgets(
     'Play presents the store flow and completion without APK permission',
     (tester) async {
+      initializeFixture();
       repository.appEnvironment = playEnvironment;
       repository.native = const AndroidNativeUpdateStatus(stage: 'available');
       await tester.pumpWidget(app());
@@ -175,6 +182,7 @@ void main() {
   testWidgets(
     'title bar indicator is shown for an available update and opens shared state',
     (tester) async {
+      initializeFixture();
       await tester.pumpWidget(app(child: const AndroidUpdateIndicator()));
       expect(find.text('עדכון'), findsNothing);
       bloc.add(const AndroidUpdateCheck());
