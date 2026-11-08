@@ -39,10 +39,10 @@ class InstalledPluginFrameTimings {
   final _frames = <FrameTiming>[];
   var droppedFrames = 0;
   var _lastDelivered = -1;
-  int? _target;
   Completer<void>? _delivered;
 
   void _onTimings(List<FrameTiming> frames) {
+    final previousLastDelivered = _lastDelivered;
     for (final frame in frames) {
       if (_frames.length < 20000) {
         _frames.add(frame);
@@ -56,11 +56,13 @@ class InstalledPluginFrameTimings {
     final delivered = _delivered;
     if (delivered != null &&
         !delivered.isCompleted &&
-        _lastDelivered >= _target!) {
+        _lastDelivered > previousLastDelivered) {
       delivered.complete();
     }
   }
 
+  /// [timeout] מגביל היעדר התקדמות; יעד הפריים וחלון המדידה נשארים קבועים.
+  /// מגבלת הזמן הכוללת של תרחיש הבדיקה ממשיכה לחול על ההמתנה.
   Future<Map<String, Object?>> finish({
     required int startUs,
     required int endUs,
@@ -73,8 +75,7 @@ class InstalledPluginFrameTimings {
     if (_delivered != null) {
       throw StateError('A frame timing drain is already in progress.');
     }
-    if (_lastDelivered < lastFrameNumber) {
-      _target = lastFrameNumber;
+    while (_lastDelivered < lastFrameNumber) {
       _delivered = Completer<void>();
       try {
         await _delivered!.future.timeout(
@@ -91,7 +92,6 @@ class InstalledPluginFrameTimings {
         );
       } finally {
         _delivered = null;
-        _target = null;
       }
     }
     return {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/common.dart';
 import 'package:integration_test/integration_test.dart';
@@ -175,6 +176,102 @@ void main() {
       }
     },
   );
+
+  test('raster progress drains a fixed target beyond five total seconds', () {
+    fakeAsync((clock) {
+      final recorder = InstalledPluginFrameTimings(binding);
+      Map<String, Object?>? result;
+      Object? failure;
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(10, 99999)]);
+        unawaited(
+          recorder
+              .finish(startUs: 100000, endUs: 200000, lastFrameNumber: 30)
+              .then<void>(
+                (value) => result = value,
+                onError: (Object error) => failure = error,
+              ),
+        );
+        clock.elapse(const Duration(seconds: 4));
+        binding.platformDispatcher.onReportTimings!([_frame(20, 150000)]);
+        clock.flushMicrotasks();
+        clock.elapse(const Duration(seconds: 4));
+        expect(failure, isNull);
+        expect(result, isNull);
+        binding.platformDispatcher.onReportTimings!([
+          _frame(31, 199999),
+          _frame(32, 300000),
+        ]);
+        clock.flushMicrotasks();
+        expect(failure, isNull);
+        expect(result!['lastFrameNumber'], 30);
+        expect(result!['deliveredThroughFrameNumber'], 32);
+        expect(result!['count'], 2);
+        expect(result!['totalMs'], [8.0, 8.0]);
+      } finally {
+        recorder.dispose();
+      }
+    });
+  });
+
+  test('duplicate and older timing batches cannot reset the stall timeout', () {
+    fakeAsync((clock) {
+      final recorder = InstalledPluginFrameTimings(binding);
+      Object? failure;
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(20, 99999)]);
+        unawaited(
+          recorder
+              .finish(startUs: 100000, endUs: 200000, lastFrameNumber: 30)
+              .then<void>(
+                (_) => fail('The target timing is still missing'),
+                onError: (Object error) => failure = error,
+              ),
+        );
+        clock.elapse(const Duration(seconds: 4));
+        binding.platformDispatcher.onReportTimings!([
+          _frame(20, 99999),
+          _frame(19, 99998),
+        ]);
+        clock.flushMicrotasks();
+        clock.elapse(const Duration(seconds: 1));
+        expect(failure, isA<TimeoutException>());
+      } finally {
+        recorder.dispose();
+      }
+    });
+  });
+
+  test('a drain fails five seconds after its last genuine progress', () {
+    fakeAsync((clock) {
+      final recorder = InstalledPluginFrameTimings(binding);
+      Object? failure;
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(10, 99999)]);
+        unawaited(
+          recorder
+              .finish(startUs: 100000, endUs: 200000, lastFrameNumber: 30)
+              .then<void>(
+                (_) => fail('The target timing is still missing'),
+                onError: (Object error) => failure = error,
+              ),
+        );
+        clock.elapse(const Duration(seconds: 4));
+        binding.platformDispatcher.onReportTimings!([_frame(20, 150000)]);
+        clock.flushMicrotasks();
+        clock.elapse(const Duration(milliseconds: 4999));
+        expect(failure, isNull);
+        clock.elapse(const Duration(milliseconds: 1));
+        expect(failure, isA<TimeoutException>());
+        expect(
+          (failure as TimeoutException).message,
+          contains('lastDelivered=20'),
+        );
+      } finally {
+        recorder.dispose();
+      }
+    });
+  });
 
   test('missing frame timing retains the observed drain evidence', () async {
     final recorder = InstalledPluginFrameTimings(binding);
