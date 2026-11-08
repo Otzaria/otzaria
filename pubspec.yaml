@@ -159,6 +159,14 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # Chromium 8125 network fallback (Otzaria/pdfrx#4), stacked on pdfrx #798.
+  # Keep the published pdfium_dart 0.4.1 API and archive version. Remove this
+  # override only when a pub.dev release contains the identical fix.
+  pdfium_dart:
+    git:
+      url: https://github.com/Otzaria/pdfrx
+      ref: f3976775da2865a2a3ef89d1cfd43611073c45f7
+      path: packages/pdfium_dart
   # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
