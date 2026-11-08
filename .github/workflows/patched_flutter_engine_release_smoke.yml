@@ -1,0 +1,72 @@
+name: Patched Flutter Windows Release Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - ".github/actions/patched-flutter-engine/**"
+      - ".github/workflows/build-and-announce.yml"
+      - ".github/workflows/patched_flutter_engine_release_smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patched-flutter-release-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Real patched-engine release build (x64)
+    runs-on: windows-2025
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup pinned Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+
+      # Exercise the production composite action against the real Flutter SDK,
+      # not a mocked precache or a source-level implementation of the script.
+      - name: Install patched Windows engine
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: x64
+
+      - name: Build a clean release-mode Windows application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          flutter config --enable-windows-desktop
+          if ($LASTEXITCODE -ne 0) { throw 'Enabling Windows desktop failed' }
+          $app = Join-Path $env:RUNNER_TEMP 'otzaria-patched-engine-smoke'
+          New-Item -ItemType Directory -Force -Path $app | Out-Null
+          Set-Location $app
+          flutter create --empty --platforms=windows --project-name engine_smoke .
+          if ($LASTEXITCODE -ne 0) { throw 'Creating the Flutter smoke app failed' }
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw 'Release build with patched engine failed' }
+
+          $result = Join-Path $app 'build\windows\x64\runner\Release\flutter_windows.dll'
+          if (-not (Test-Path -LiteralPath $result -PathType Leaf)) {
+            throw "Bundled Windows release engine was not found: $result"
+          }
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $result).Hash.ToLowerInvariant()
+          $expected = $env:PATCHED_FLUTTER_DLL_SHA256
+          if ([string]::IsNullOrWhiteSpace($expected) -or $actual -ne $expected) {
+            throw "Bundled release DLL mismatch: got $actual, expected $expected"
+          }
+
+          $sdk = flutter --version --machine | Out-String
+          $sdkInfo = $sdk.Substring($sdk.IndexOf('{')) | ConvertFrom-Json
+          Write-Host "Verified bundled Flutter engine: $actual"
+          Write-Host "Flutter framework: $($sdkInfo.frameworkVersion), engine: $($sdkInfo.engineRevision)"
