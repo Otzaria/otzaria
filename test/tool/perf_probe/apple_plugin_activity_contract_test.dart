@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../tool/perf_probe/apple_plugin_activity/contract.dart';
@@ -46,6 +48,165 @@ Map<String, Object?> analyze(
 );
 
 void main() {
+  final settings = <String, Object?>{
+    'storeInitialized': true,
+    'defaultsInitialized': true,
+    'offlineMode': true,
+    'updatesEnabled': false,
+    'autoUpdateIndex': false,
+    'indexUpdateMode': 'off',
+    'autoSync': false,
+    'appCrashReportMode': 'never',
+    'autoBackupFrequency': 'none',
+    'showLocalHebrewBooks': false,
+    'fontFamily': 'NotoSerifHebrew',
+    'fontSize': 22.0,
+  };
+  test('startup settings audit records the observed fixture values', () {
+    final observed = {...settings, 'observedAtMs': 1234};
+    final report = analyzeAppleFixtureSettings(observed);
+    expect(report['status'], 'passed');
+    expect(report['mismatches'], isEmpty);
+    expect((jsonDecode(jsonEncode(report)) as Map)['observed'], observed);
+  });
+  test('missing or changed startup settings cannot pass the fixture audit', () {
+    for (final entry in settings.entries) {
+      final missing = {...settings}..remove(entry.key);
+      final changed = {
+        ...settings,
+        entry.key: entry.value is bool ? !(entry.value as bool) : 'changed',
+      };
+      for (final observed in [missing, changed]) {
+        final report = analyzeAppleFixtureSettings(observed);
+        expect(report['status'], 'failed', reason: entry.key);
+        expect(report['mismatches'], contains(entry.key));
+        expect(report['observed'], observed);
+      }
+    }
+  });
+  test('startup default overwrite remains visible in the failed audit', () {
+    final observed = {
+      ...settings,
+      'updatesEnabled': true,
+      'indexUpdateMode': 'all',
+      'appCrashReportMode': 'ask',
+      'showLocalHebrewBooks': true,
+      'fontFamily': 'FrankRuhlCLM',
+      'fontSize': 25.0,
+    };
+    final report = analyzeAppleFixtureSettings(observed);
+    expect(report['status'], 'failed');
+    expect(
+      report['mismatches'],
+      unorderedEquals([
+        'updatesEnabled',
+        'indexUpdateMode',
+        'appCrashReportMode',
+        'showLocalHebrewBooks',
+        'fontFamily',
+        'fontSize',
+      ]),
+    );
+    expect((report['observed'] as Map)['offlineMode'], true);
+    expect(observed['updatesEnabled'], true);
+  });
+  for (final platform in ['macos', 'ios']) {
+    for (final frameworkPassed in [true, false]) {
+      test(
+        '$platform final report preserves framework verdict and boolean metadata ($frameworkPassed)',
+        () {
+          final report = <String, dynamic>{
+            'status': 'running',
+            'errors': <String>[],
+            'platformMatrix': createAppleActivityPlatformMatrix(),
+          };
+          final failures = frameworkPassed
+              ? <String?>[]
+              : ['original framework failure', null];
+          finalizeAppleActivityReport(
+            report,
+            frameworkPassed: frameworkPassed,
+            failureDetails: failures,
+            platform: platform,
+            buildMode: 'profile',
+          );
+          final decoded = jsonDecode(jsonEncode(report)) as Map;
+          expect(decoded['status'], frameworkPassed ? 'passed' : 'failed');
+          expect(decoded['testFailures'], failures);
+          final matrix = decoded['platformMatrix'] as Map;
+          expect(matrix[platform], {
+            'status': decoded['status'],
+            'buildMode': 'profile',
+            'physicalDeviceAcceptance': false,
+          });
+          expect(
+            matrix.keys,
+            containsAll(['macos', 'ios', 'windows', 'linux', 'android']),
+          );
+          for (final other in matrix.keys.where((name) => name != platform)) {
+            expect(matrix[other]['status'], 'notRun');
+          }
+        },
+      );
+    }
+  }
+  test(
+    'final report cannot turn a fixture failure into a framework success',
+    () {
+      final report = <String, dynamic>{
+        'status': 'running',
+        'errors': ['original fixture error'],
+        'platformMatrix': createAppleActivityPlatformMatrix(),
+      };
+      finalizeAppleActivityReport(
+        report,
+        frameworkPassed: true,
+        failureDetails: [],
+        platform: 'macos',
+        buildMode: 'profile',
+      );
+      expect(report['status'], 'failed');
+      expect(report['errors'], ['original fixture error']);
+      expect((report['platformMatrix'] as Map)['macos']['status'], 'failed');
+    },
+  );
+  test('unsupported platform completion remains explicitly unsupported', () {
+    final report = <String, dynamic>{
+      'status': 'notSupported',
+      'errors': <String>[],
+      'platformMatrix': createAppleActivityPlatformMatrix(),
+    };
+    finalizeAppleActivityReport(
+      report,
+      frameworkPassed: true,
+      failureDetails: [],
+      platform: 'linux',
+      buildMode: 'debug',
+    );
+    expect(report['status'], 'notSupported');
+    expect(
+      (report['platformMatrix'] as Map)['linux']['physicalDeviceAcceptance'],
+      false,
+    );
+  });
+  test('unsupported platform status cannot conceal a framework failure', () {
+    final report = <String, dynamic>{
+      'status': 'notSupported',
+      'errors': <String>[],
+      'platformMatrix': createAppleActivityPlatformMatrix(),
+    };
+    finalizeAppleActivityReport(
+      report,
+      frameworkPassed: false,
+      failureDetails: ['original framework failure'],
+      platform: 'linux',
+      buildMode: 'debug',
+    );
+    expect(report['status'], 'failed');
+    expect(report['testFailures'], ['original framework failure']);
+    expect((report['platformMatrix'] as Map)['linux']['status'], 'failed');
+  });
+
   test(
     'queued post-resume callbacks and uncertain edges cannot count as background work',
     () {

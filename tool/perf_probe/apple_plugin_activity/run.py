@@ -10,9 +10,11 @@ import os
 from pathlib import Path
 import platform
 import re
+import select
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +26,7 @@ REPO = HERE.parents[2]
 NATIVE_PIN = "53c2dd3300be979a7129281d11ef731a203af24a"
 PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
           "osBackground", "idleExpiryControl"}
+COMMAND_LOG_LIMIT = 64 * 1024
 
 
 def now_ms():
@@ -39,6 +42,143 @@ def save(path, value):
 def output(command, timeout=30):
     return subprocess.check_output(command, cwd=REPO, text=True, timeout=timeout,
                                    stderr=subprocess.STDOUT).strip()
+
+
+def recorded_output(directory, label, command, timeout):
+    started = time.monotonic()
+    record = {"command": command, "status": "running", "startedAtMs": now_ms(),
+              "timeoutSeconds": timeout, "exitCode": None}
+    save(directory / f"{label}.json", record)
+    process = None
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        try:
+            process = subprocess.Popen(command, cwd=REPO, stdout=stdout, stderr=stderr,
+                                       start_new_session=True)
+            record["ownedProcessGroup"] = process.pid
+            record["exitCode"] = process.wait(timeout=timeout)
+            if record["exitCode"] != 0:
+                raise subprocess.CalledProcessError(record["exitCode"], command)
+            record["status"] = "passed"
+        except subprocess.TimeoutExpired:
+            record["status"] = "timedOut"
+            raise
+        except (OSError, subprocess.SubprocessError) as error:
+            record.update(status="failed", error=str(error))
+            raise
+        finally:
+            stop_owned(process)
+            for name, stream in (("stdout", stdout), ("stderr", stderr)):
+                size = stream.seek(0, os.SEEK_END)
+                stream.seek(0)
+                data = stream.read(COMMAND_LOG_LIMIT)
+                path = directory / f"{label}.{name}.log"
+                path.write_bytes(data)
+                record[name] = {"path": path.name, "bytes": size,
+                                "truncated": size > len(data)}
+            record["elapsedMs"] = (time.monotonic() - started) * 1000
+            record["processExitAfterCleanup"] = None if process is None else process.poll()
+            save(directory / f"{label}.json", record)
+        stdout.seek(0)
+        return stdout.read(COMMAND_LOG_LIMIT).decode(errors="replace").strip()
+
+
+class MacApplicationSession:
+    def __init__(self, helper, pid, directory, phase):
+        self.pid, self.directory = pid, directory
+        self.prefix = f"mac-{phase}-controller"
+        self.session_token = None
+        self.executable = None
+        self.failed = False
+        self.record = {"hostPid": pid, "status": "running", "commands": []}
+        save(directory / f"{self.prefix}.json", self.record)
+        self.stderr = (directory / f"{self.prefix}.stderr.log").open("wb")
+        self.process = None
+        try:
+            self.process = subprocess.Popen([str(helper), str(pid)], cwd=REPO,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.stderr,
+                bufsize=0, start_new_session=True)
+            self.record["controllerPid"] = self.process.pid
+            save(directory / f"{self.prefix}.json", self.record)
+        except OSError as error:
+            if self.process is not None:
+                stop_owned(self.process)
+                self.process.stdin.close()
+                self.process.stdout.close()
+            self.stderr.close()
+            self.record.update(status="failed", error=str(error))
+            save(directory / f"{self.prefix}.json", self.record)
+            raise
+
+    def request(self, action, timeout=10):
+        sequence = len(self.record["commands"]) + 1
+        entry = {"sequence": sequence, "action": action, "status": "running", "timeoutSeconds": timeout}
+        self.record["commands"].append(entry)
+        save(self.directory / f"{self.prefix}.json", self.record)
+        started, raw = time.monotonic(), bytearray()
+        try:
+            self.process.stdin.write((json.dumps({"sequence": sequence, "action": action}) + "\n").encode())
+            self.process.stdin.flush()
+            while not raw.endswith(b"\n"):
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0 or not select.select([self.process.stdout], [], [], remaining)[0]:
+                    raise TimeoutError(f"macOS {action} reply timed out; see {self.prefix} logs")
+                chunk = os.read(self.process.stdout.fileno(), min(4096, COMMAND_LOG_LIMIT + 1 - len(raw)))
+                if not chunk:
+                    raise ValueError(f"macOS {action} controller closed its output; see {self.prefix}.stderr.log")
+                raw.extend(chunk)
+                if len(raw) > COMMAND_LOG_LIMIT:
+                    raise ValueError("macOS controller reply exceeded the bounded log size")
+            result = json.loads(raw)
+            if (not isinstance(result, dict) or
+                    type(result.get("pid")) is not int or result["pid"] != self.pid or
+                    type(result.get("controllerPid")) is not int or result["controllerPid"] != self.process.pid or
+                    type(result.get("sequence")) is not int or result["sequence"] != sequence or
+                    result.get("action") != action or result.get("sameApplication") is not True or
+                    result.get("identityMethod") != "NSRunningApplication.isEqual" or
+                    not isinstance(result.get("executable"), str) or not os.path.isabs(result["executable"]) or
+                    not isinstance(result.get("sessionToken"), str) or not result["sessionToken"]):
+                raise ValueError("Invalid retained macOS application identity or command reply")
+            if self.session_token is not None and self.session_token != result["sessionToken"]:
+                raise ValueError("The macOS controller session changed across the interval")
+            if self.executable is not None and self.executable != result["executable"]:
+                raise ValueError("The macOS application executable changed across the interval")
+            self.session_token = result["sessionToken"]
+            self.executable = result["executable"]
+            entry["status"] = "passed"
+            return result
+        except (OSError, ValueError, TimeoutError) as error:
+            self.failed = True
+            entry.update(status="failed", error=str(error))
+            raise
+        finally:
+            path = self.directory / f"{self.prefix}-{sequence:02d}.stdout.log"
+            path.write_bytes(raw[:COMMAND_LOG_LIMIT])
+            entry.update(elapsedMs=(time.monotonic() - started) * 1000, stdout=path.name,
+                         bytes=len(raw), truncated=len(raw) > COMMAND_LOG_LIMIT)
+            save(self.directory / f"{self.prefix}.json", self.record)
+
+    def close(self):
+        try:
+            if self.failed:
+                stop_owned(self.process)
+            self.process.stdin.close()
+            code = self.process.wait(timeout=5)
+            if code != 0 and not self.failed:
+                raise subprocess.CalledProcessError(code, self.process.args)
+        finally:
+            stop_owned(self.process)
+            self.process.stdout.close()
+            self.stderr.close()
+            path = self.directory / f"{self.prefix}.stderr.log"
+            size = path.stat().st_size
+            if size > COMMAND_LOG_LIMIT:
+                with path.open("r+b") as stream:
+                    stream.truncate(COMMAND_LOG_LIMIT)
+            self.record.update(status="failed" if self.failed or self.process.returncode else "passed",
+                               exitCode=self.process.returncode,
+                               stderr={"path": path.name, "bytes": size,
+                                       "truncated": size > COMMAND_LOG_LIMIT})
+            save(self.directory / f"{self.prefix}.json", self.record)
 
 
 def cpu_seconds(text):
@@ -172,10 +312,8 @@ class Coordinator:
                 return {}, None
             raise ValueError("Unknown endpoint")
 
-    def mac(self, action, pid):
-        return json.loads(output([str(self.mac_helper), action, str(pid)], 10))
-
     def run_job(self, job):
+        controller, succeeded = None, False
         try:
             # HTTP handler has closed the arm connection. Let the reply settle
             # before the OS action; nothing reaches the WebView in this gap.
@@ -183,7 +321,8 @@ class Coordinator:
             unavailable = {"status": "unavailable", "reason": "A physical iOS host PID is not a Mac process; no remote CPU sampler was attached"}
             executable = self.executable
             if self.target == "macos":
-                job["applicationIdentityBefore"] = self.mac("info", job["hostPid"])
+                controller = MacApplicationSession(self.mac_helper, job["hostPid"], self.directory, job["phase"])
+                job["applicationIdentityBefore"] = controller.request("info")
                 executable = job["applicationIdentityBefore"]["executable"]
                 job["cpuExecutableSource"] = "NSRunningApplication.executableURL for the app-reported PID"
             else:
@@ -210,7 +349,7 @@ class Coordinator:
                             "boundaryScope": "Conservative host-clock interior of XCUITest quiet/OS boundaries"})
             else:
                 if job["action"] == "macAppHide":
-                    job["applicationBeforeQuiet"] = self.mac("hide", job["hostPid"])
+                    job["applicationBeforeQuiet"] = controller.request("hide")
                 job["quietStartMs"] = now_ms()
                 start = time.monotonic_ns()
                 # NO app IPC, HTTP, JS, command, native state query, process
@@ -219,24 +358,27 @@ class Coordinator:
                 job["quietEndMs"] = now_ms()
                 job["quietElapsedMs"] = (time.monotonic_ns() - start) / 1e6
                 if job["action"] == "macAppHide":
-                    job["applicationAfterQuiet"] = self.mac("activate", job["hostPid"])
-                    a, b = job["applicationBeforeQuiet"], job["applicationAfterQuiet"]
-                    if (a["pid"], a["launchMs"], a["executable"]) != (b["pid"], b["launchMs"], b["executable"]):
-                        raise ValueError("NSRunningApplication identity changed")
+                    job["applicationAfterQuiet"] = controller.request("activate")
             after = unavailable if self.physical else host_sample(job["hostPid"], executable)
             if self.target == "macos":
-                job["applicationIdentityAfter"] = self.mac("info", job["hostPid"])
-                a, b = job["applicationIdentityBefore"], job["applicationIdentityAfter"]
-                if (a["pid"], a["launchMs"], a["executable"]) != (b["pid"], b["launchMs"], b["executable"]):
-                    raise ValueError("The verified application identity changed")
+                job["applicationIdentityAfter"] = controller.request("info")
             job["hostCpuEnvelope"] = cpu_envelope(before, after)
             job["engineCpu"] = {"status": "unavailable", "reason": "No verified public WKWebView-to-WebContent PID mapping"}
             if job["quietEndMs"] <= job["quietStartMs"] or job["quietElapsedMs"] < job["seconds"] * 1000:
                 raise ValueError("Quiet interval is missing or shorter than requested")
-            job["status"] = "passed"
+            succeeded = True
         except (OSError, ValueError, KeyError, TimeoutError, subprocess.SubprocessError) as error:
             job.update(status="failed", error=str(error))
         finally:
+            if controller is not None:
+                try:
+                    controller.close()
+                except (OSError, subprocess.SubprocessError) as error:
+                    job.update(status="failed", controllerCleanupError=str(error))
+                    job.setdefault("error", f"macOS controller cleanup failed: {error}")
+                    succeeded = False
+            if succeeded:
+                job["status"] = "passed"
             save(self.directory / f"driver-{job['phase']}.json", job)
 
 
@@ -290,7 +432,8 @@ def stop_owned(process):
 
 def prepare_control(directory, url, token):
     control = directory / "control"
-    output(["ruby", str(HERE / "create_control_project.rb"), str(control), str(HERE)], 30)
+    recorded_output(directory, "create-control-project",
+                    ["ruby", str(HERE / "create_control_project.rb"), str(control), str(HERE)], 120)
     (control / "ControlConfig.swift").write_text(
         "enum ControlConfig {\n" +
         f"static let url = {json.dumps(url)}\nstatic let token = {json.dumps(token)}\n" +
@@ -353,7 +496,8 @@ def main():
         environment["macProfileEntitlementsSha256"] = hashlib.sha256(entitlements.read_bytes()).hexdigest()
         save(directory / "environment.json", environment)
         if args.platform == "macos":
-            output(["xcrun", "swiftc", str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], 120)
+            recorded_output(directory, "compile-mac-controller",
+                            ["xcrun", "swiftc", str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], 120)
         elif not args.serve_only:
             # Verify this is a Simulator. Never silently use a physical device
             # with debug and call that background/profile acceptance.

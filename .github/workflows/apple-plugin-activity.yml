@@ -12,6 +12,8 @@ on:
       - 'test_driver/apple_plugin_activity.dart'
       - 'tool/perf_probe/apple_plugin_activity/**'
       - 'test/tool/perf_probe/apple_plugin_activity_contract_test.dart'
+      - 'test/tool/perf_probe/perf_fixture_test.dart'
+      - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'lib/plugins/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
@@ -45,7 +47,10 @@ jobs:
           node --test tool/perf_probe/apple_plugin_activity/test_fixture.mjs
           python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
           ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
-          flutter test --no-pub test/tool/perf_probe/apple_plugin_activity_contract_test.dart
+          flutter test --no-pub \
+            test/tool/perf_probe/apple_plugin_activity_contract_test.dart \
+            test/tool/perf_probe/perf_fixture_test.dart \
+            test/tool/perf_probe/perf_fixture_startup_settings_test.dart
 
   actual-app:
     name: Actual app (${{ matrix.platform }} ${{ matrix.mode }})
@@ -99,6 +104,11 @@ jobs:
           PY
             open -a Simulator
           fi
+      - name: Verify public identity for directly launched macOS apps
+        if: matrix.platform == 'macos'
+        env:
+          APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/apple-helper-controls
+        run: python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_macos_controller.py' -v
       - name: Run installed app hosts and quiet OS transitions
         run: >-
           python3 tool/perf_probe/apple_plugin_activity/run.py
@@ -116,5 +126,8 @@ jobs:
             ${{ runner.temp }}/apple-plugin-activity/control/*.swift
             ${{ runner.temp }}/apple-plugin-activity/control/Control.xcodeproj
             ${{ runner.temp }}/apple-plugin-activity/control.xcresult
+            ${{ runner.temp }}/apple-helper-controls/*.json
+            ${{ runner.temp }}/apple-helper-controls/*.log
+            ${{ runner.temp }}/apple-helper-controls/*.swift
           if-no-files-found: warn
           retention-days: 14
