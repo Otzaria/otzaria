@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart' as menu;
 import 'package:otzaria_context_menu/otzaria_context_menu.dart'
@@ -977,6 +978,9 @@ class _AnchoredSearchMenuContentState<T>
                                 padding: widget.metrics.menuPadding,
                                 // בלי גובה קבוע, קפיצה לערך הנבחר בונה כל שורה בדרך.
                                 itemExtent: widget.metrics.itemHeight,
+                                // גופן פגום בתצוגה מקדימה תוקע את DirectWrite (#4505): פורסים רק שורות נראות.
+                                scrollCacheExtent:
+                                    const ScrollCacheExtent.pixels(0),
                                 itemCount: filtered.length,
                                 itemBuilder: (ctx, i) {
                                   final entry = filtered[i];
