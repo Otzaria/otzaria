@@ -188,6 +188,7 @@ const probeSource = readFileSync(new URL('../../integration_test/support/apple_f
 const supportSource = readFileSync(new URL('../../integration_test/support/macos_font_probe.dart', import.meta.url), 'utf8');
 const renderingBody = probeSource.match(/const appleFontProbeMeasureJs = r'''([\s\S]*?)''';/)[1];
 const snapshotBody = supportSource.match(/const fontProbeFailureSnapshotJs = r'''([\s\S]*?)''';/)[1];
+const styleBlockedBody = probeSource.match(/const appleFontProbeStyleBlockedMeasureJs = r'''([\s\S]*?)''';/)[1];
 const settled = () => new Promise(resolve => setImmediate(resolve));
 
 function renderingFixture({pendingFont = false, brokenCanvas = false, brokenCanvasAt = -1, count = 6, pixels} = {}) {
@@ -238,6 +239,40 @@ function renderingFixture({pendingFont = false, brokenCanvas = false, brokenCanv
   const snapshot = () => run(snapshotBody, {...args, documentId: 'probe-document', owner: 'probe-owner'}).then(JSON.parse);
   return {args, frames, snapshot, canvases, fontRequests, releaseFont: () => releaseFont(), fontLoads: () => fontLoads};
 }
+
+test('a style-blocked document waits for platform view layout before reading visibility', async () => {
+  const f = renderingFixture();
+  f.args.document.visibilityState = 'hidden';
+  f.args.window.fontProbeBootTheme = {typography: {fontFamily: 'Probe'}};
+  Object.defineProperty(f.args.document, 'fonts', {get() { throw new Error('blocked fonts read'); }});
+  let completed = false;
+  const result = run(styleBlockedBody, f.args).then(value => { completed = true; return value; });
+  await settled();
+  assert.equal(f.frames.length, 1);
+  assert.equal(completed, false);
+  f.frames.shift()();
+  await settled();
+  assert.equal(f.frames.length, 1);
+  assert.equal(completed, false);
+  f.args.document.visibilityState = 'visible';
+  f.frames.shift()();
+  assert.deepEqual(await result, {
+    bootCount: 1, bootTheme: f.args.window.fontProbeBootTheme, visible: true, samples: [],
+  });
+  assert.equal(f.canvases.length, 0);
+});
+
+test('a style-blocked document that stays hidden cannot claim visibility after layout', async () => {
+  const f = renderingFixture();
+  f.args.document.visibilityState = 'hidden';
+  const result = run(styleBlockedBody, f.args);
+  await settled();
+  assert.equal(f.frames.length, 1);
+  f.frames.shift()();
+  assert.equal(f.frames.length, 1);
+  f.frames.shift()();
+  assert.equal((await result).visible, false);
+});
 
 test('a pending font load is visible before either animation frame', async () => {
   const f = renderingFixture({pendingFont: true});

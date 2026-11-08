@@ -80,6 +80,12 @@ return {samples: samples, fallbackControl: fallback, renderingProgress: progress
   userAgent: navigator.userAgent};
 ''';
 
+// גם בדיקה ללא canvas מחכה לפריסה הראשונה של ה-platform view.
+const appleFontProbeStyleBlockedMeasureJs = r'''
+await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+return {bootCount: window.fontProbeBootCount, bootTheme: window.fontProbeBootTheme, visible: document.visibilityState === "visible", samples: []};
+''';
+
 const appleFontProbePolicyJs = r'''
 return {href: location.href, origin: location.origin,
   secureContext: window.isSecureContext,
@@ -484,7 +490,7 @@ class _AppleFontProbeViewState extends State<AppleFontProbeView> {
           'rendering',
           () => controller.callAsyncJavaScript(
             functionBody: widget.scenario == 'style-src-none'
-                ? 'return {bootCount: window.fontProbeBootCount, bootTheme: window.fontProbeBootTheme, visible: document.visibilityState === "visible", samples: []};'
+                ? appleFontProbeStyleBlockedMeasureJs
                 : appleFontProbeMeasureJs,
             arguments: {'specs': widget.specs},
           ),
