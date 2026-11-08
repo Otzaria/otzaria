@@ -52,6 +52,14 @@ def remaining_timeout(deadline, maximum):
     return min(remaining, maximum)
 
 
+def macos_swift_command(repository=REPO):
+    project = repository / "macos/Runner.xcodeproj/project.pbxproj"
+    targets = set(re.findall(r"\bMACOSX_DEPLOYMENT_TARGET = ([0-9.]+);", project.read_text()))
+    if len(targets) != 1:
+        raise ValueError("The app must declare one macOS deployment target for native probe helpers")
+    return ["xcrun", "swiftc", "-target", f"{platform.machine()}-apple-macosx{targets.pop()}"]
+
+
 def run_deadline(started):
     supplied = os.environ.get("APPLE_PROBE_DEADLINE_MONOTONIC")
     deadline = started + RUN_BUDGET_SECONDS if supplied is None else float(supplied)
@@ -874,7 +882,7 @@ def main():
         save(directory / "environment.json", environment)
         if args.platform == "macos":
             recorded_output(directory, "compile-mac-controller",
-                            ["xcrun", "swiftc", str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], remaining_timeout(deadline, 120))
+                            [*macos_swift_command(), str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], remaining_timeout(deadline, 120))
         elif not args.serve_only:
             # Verify this is a Simulator. Never silently use a physical device
             # with debug and call that background/profile acceptance.

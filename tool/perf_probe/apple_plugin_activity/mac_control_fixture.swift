@@ -16,7 +16,8 @@ try JSONSerialization.data(withJSONObject: launch, options: [.sortedKeys]).write
     to: launchDirectory.appendingPathComponent("fixture-launch-\(launchId).json"), options: .atomic)
 guard arguments.count == 2 || arguments.count == 3,
       arguments.dropFirst().allSatisfy({
-          $0.hasPrefix("/") && URL(fileURLWithPath: $0).deletingLastPathComponent().standardizedFileURL == launchDirectory
+          $0.hasPrefix("/") && URL(fileURLWithPath: $0).deletingLastPathComponent().resolvingSymlinksInPath().path
+              == launchDirectory.resolvingSymlinksInPath().path
       }) else { exit(64) }
 let app = NSApplication.shared
 let policyAccepted = app.setActivationPolicy(.regular)

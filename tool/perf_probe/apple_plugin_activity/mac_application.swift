@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ApplicationServices
 
 func fail(_ stage: String, _ reason: String, _ code: Int32 = 1,
           _ details: [String: Any] = [:]) -> Never {
@@ -23,6 +24,21 @@ guard let executable = app.executableURL else {
 }
 let sessionToken = UUID().uuidString
 var expectedSequence = 1
+var hideRequest: [String: Any] = [:]
+
+func requestHide() -> Bool {
+    let appKitAccepted = app.hide()
+    hideRequest = ["primaryAPI": "NSRunningApplication.hide", "primaryAccepted": appKitAccepted]
+    if appKitAccepted { return true }
+    let trusted = AXIsProcessTrusted()
+    hideRequest["accessibilityTrusted"] = trusted
+    guard trusted else { return false }
+    let result = AXUIElementSetAttributeValue(
+        AXUIElementCreateApplication(pid), kAXHiddenAttribute as CFString, kCFBooleanTrue)
+    hideRequest["fallbackAPI"] = "AXUIElementSetAttributeValue(kAXHiddenAttribute)"
+    hideRequest["fallbackError"] = result.rawValue
+    return result == .success
+}
 
 func applicationState() -> [String: Any] {
     let controllerInitializedBeforeSnapshot = NSApp != nil
@@ -71,11 +87,12 @@ while let line = readLine() {
     verifyIdentity()
     let beforeAction = applicationState()
     if action == "hide" {
-        guard app.hide() else {
+        guard requestHide() else {
             fail("hide", "The application refused hide", 2, [
                 "pid": pid, "controllerPid": ProcessInfo.processInfo.processIdentifier,
                 "sessionToken": sessionToken, "sequence": sequence, "returnValue": false,
-                "beforeAction": beforeAction, "applicationState": applicationState()
+                "beforeAction": beforeAction, "applicationState": applicationState(),
+                "hideRequest": hideRequest
             ])
         }
     } else if action == "activate" {
@@ -108,7 +125,8 @@ while let line = readLine() {
         "executable": executable.path, "isHidden": app.isHidden, "isActive": app.isActive,
         "beforeAction": beforeAction, "applicationState": applicationState(),
         "observedAtMs": Date().timeIntervalSince1970 * 1000,
-        "source": "NSRunningApplication public API"
+        "source": "NSRunningApplication identity and state; hide request API recorded separately",
+        "hideRequest": action == "hide" ? hideRequest : [:]
     ]
     let result = try JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])
     print(String(decoding: result, as: UTF8.self))

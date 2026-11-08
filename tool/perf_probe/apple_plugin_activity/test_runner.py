@@ -604,9 +604,10 @@ for line in sys.stdin:
         self.assertEqual(controller.process.poll(), 0)
 
     def test_partial_reply_without_newline_cannot_escape_the_deadline(self):
-        controller = self.controller('sys.stdout.write("partial");sys.stdout.flush();time.sleep(0.3);sys.exit(0)')
+        controller = self.controller('if command["sequence"] > 1: sys.stdout.write("partial");sys.stdout.flush();time.sleep(0.3);sys.exit(0)')
+        controller.request('info')
         with self.assertRaises(TimeoutError): controller.request('info', timeout=0.1)
-        path = self.directory / f'{controller.prefix}-01.stdout.log'
+        path = self.directory / f'{controller.prefix}-02.stdout.log'
         self.assertEqual(path.read_text(), 'partial')
 
     def test_oversized_reply_is_bounded_and_rejected(self):
@@ -817,6 +818,22 @@ class DriveCompletionTests(unittest.TestCase):
         self.assertEqual(failure.exception.cmd, process.args)
 
 
+class MacCompilationTests(unittest.TestCase):
+    def test_helpers_use_the_apps_deployment_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary)
+            project = repository / 'macos/Runner.xcodeproj/project.pbxproj'
+            project.parent.mkdir(parents=True)
+            project.write_text('MACOSX_DEPLOYMENT_TARGET = 12.0;\n' * 3)
+            with patch.object(runner.platform, 'machine', return_value='arm64'):
+                self.assertEqual(runner.macos_swift_command(repository),
+                    ['xcrun', 'swiftc', '-target', 'arm64-apple-macosx12.0'])
+            for contents in ['', 'MACOSX_DEPLOYMENT_TARGET = 12.0;\nMACOSX_DEPLOYMENT_TARGET = 13.0;']:
+                project.write_text(contents)
+                with self.assertRaises(ValueError):
+                    runner.macos_swift_command(repository)
+
+
 class RunBudgetTests(unittest.TestCase):
     def test_local_budget_and_finite_ci_deadline(self):
         with patch.dict(runner.os.environ, {}, clear=True):
@@ -848,7 +865,7 @@ class BuildOrderingTests(unittest.TestCase):
                   info_plist=plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}),
                   codesign_error=None, server_close_error=None):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             repository = root / 'repo'
             entitlements = repository / 'macos/Runner/DebugProfile.entitlements'
             entitlements.parent.mkdir(parents=True)

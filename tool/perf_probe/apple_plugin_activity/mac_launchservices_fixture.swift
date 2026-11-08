@@ -18,7 +18,8 @@ guard bundleURL.pathExtension == "app",
           $0.resolvingSymlinksInPath() == $0
       }),
       [readyURL, launchReceiptURL, stopReceiptURL].allSatisfy({
-          $0.deletingLastPathComponent() == directory && !files.fileExists(atPath: $0.path)
+          $0.deletingLastPathComponent().resolvingSymlinksInPath().path == directory.resolvingSymlinksInPath().path
+              && !files.fileExists(atPath: $0.path)
       }),
       Set([readyURL.path, launchReceiptURL.path, stopReceiptURL.path]).count == 3,
       let bundle = Bundle(url: bundleURL),

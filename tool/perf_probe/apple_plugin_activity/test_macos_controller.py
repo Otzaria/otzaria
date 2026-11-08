@@ -1,6 +1,5 @@
 import importlib.util
 from contextlib import contextmanager
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -277,7 +276,7 @@ class NativeMacIdentityTests(unittest.TestCase):
             "controllerScope": "Owned fixture processes only; all controls are outside app quiet intervals",
             "productionControllerExplicitlyInitializesAppKit": False,
         })
-        runner.recorded_output(cls.directory, "swift-version", ["xcrun", "swiftc", "--version"], 30)
+        runner.recorded_output(cls.directory, "swift-version", [*runner.macos_swift_command(), "--version"], 30)
         source = cls.directory / "direct_application.swift"
         source.write_text((runner.HERE / "mac_control_fixture.swift").read_text())
         bundle = cls.directory / "DirectIdentity.app"
@@ -286,178 +285,29 @@ class NativeMacIdentityTests(unittest.TestCase):
         (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
             "CFBundleExecutable": "DirectIdentity", "CFBundleIdentifier": "org.otzaria.identitycontrol",
             "CFBundleName": "DirectIdentity", "CFBundlePackageType": "APPL",
-            "LSMinimumSystemVersion": "11.0", "NSHighResolutionCapable": True,
+            "LSMinimumSystemVersion": runner.macos_swift_command()[-1].split("macosx", 1)[1], "NSHighResolutionCapable": True,
         }))
         cls.helper = cls.directory / "mac-application"
         runner.recorded_output(cls.directory, "compile-owned-application",
-            ["xcrun", "swiftc", str(source), "-o", str(cls.executable)], 120)
+            [*runner.macos_swift_command(), str(source), "-o", str(cls.executable)], 120)
         runner.recorded_output(cls.directory, "compile-controller",
-            ["xcrun", "swiftc", str(runner.HERE / "mac_application.swift"), "-o", str(cls.helper)], 120)
+            [*runner.macos_swift_command(), str(runner.HERE / "mac_application.swift"), "-o", str(cls.helper)], 120)
         original = (runner.HERE / "mac_application.swift").read_text()
-        imports = "import AppKit\nimport Foundation\n"
-        assert original.startswith(imports)
-        addition = "\nlet diagnosticApplication = NSApplication.shared\n"
-        initialized = imports + addition + original[len(imports):]
-        initialized_source = cls.directory / "initialized_controller.swift"
-        initialized_source.write_text(initialized)
-        cls.initialized_helper = cls.directory / "mac-application-initialized"
-        runner.save(cls.directory / "initialized-variant.json", {
-            "difference": addition.strip(),
-            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-            "diagnosticSHA256": hashlib.sha256(initialized.encode()).hexdigest(),
-            "scope": "Separate diagnostic binary; never selected as an actual-app fallback or retry",
-        })
-        runner.recorded_output(cls.directory, "compile-initialized-controller",
-            ["xcrun", "swiftc", str(initialized_source), "-o", str(cls.initialized_helper)], 120)
-        event_loop = imports + '''
-let diagnosticApplication = NSApplication.shared
-let diagnosticPolicyAccepted = diagnosticApplication.setActivationPolicy(.accessory)
-var diagnosticLaunchObserved = false
-func serveController() throws {
-''' + original[len(imports):] + '''
-}
-let diagnosticObserver = NotificationCenter.default.addObserver(
-    forName: NSApplication.didFinishLaunchingNotification, object: diagnosticApplication, queue: nil
-) { _ in
-    guard !diagnosticLaunchObserved else { return }
-    diagnosticLaunchObserved = true
-    DispatchQueue.main.async {
-        let ready: [String: Any] = [
-            "didFinishLaunchingObserved": diagnosticLaunchObserved,
-            "isRunning": diagnosticApplication.isRunning, "mainThread": Thread.isMainThread,
-            "policyAccepted": diagnosticPolicyAccepted,
-            "activationPolicy": diagnosticApplication.activationPolicy().rawValue
-        ]
-        let data = try! JSONSerialization.data(withJSONObject: ready, options: [.sortedKeys])
-        fputs(String(decoding: data, as: UTF8.self) + "\\n", stderr)
-        guard diagnosticApplication.isRunning, Thread.isMainThread,
-              diagnosticApplication.activationPolicy() == .accessory else { exit(65) }
-        do { try serveController(); exit(0) }
-        catch { fputs(String(describing: error) + "\\n", stderr); exit(1) }
-    }
-}
-DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-    if !diagnosticLaunchObserved { exit(65) }
-}
-diagnosticApplication.run()
-'''
-        event_loop_source = cls.directory / "event_loop_controller.swift"
-        event_loop_source.write_text(event_loop)
-        cls.event_loop_helper = cls.directory / "mac-application-event-loop"
-        runner.save(cls.directory / "event-loop-variant.json", {
-            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-            "diagnosticSHA256": hashlib.sha256(event_loop.encode()).hexdigest(),
-            "scope": "Retained controller code after actual AppKit launch, with accessory policy; no fallback or changed hide guard",
-        })
-        runner.recorded_output(cls.directory, "compile-event-loop-controller",
-            ["xcrun", "swiftc", str(event_loop_source), "-o", str(cls.event_loop_helper)], 120)
-        assert event_loop.count(".accessory") == 2
-        active = event_loop.replace(".accessory", ".regular")
-        observation = '        result["controllerEventLoopRunning"] = controllerApplication.isRunning\n'
-        assert active.count(observation) == 1
-        active = active.replace(observation, observation + '''
-        result["controllerIsActive"] = controllerApplication.isActive
-        result["controllerOwnsMenuBar"] = NSRunningApplication.current.ownsMenuBar
-        result["controllerBundleIdentifier"] = Bundle.main.bundleIdentifier ?? "unavailable"
-        result["controllerLaunchDateAvailable"] = NSRunningApplication.current.launchDate != nil
-        result["frontmostApplicationPid"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
-''')
-        hide = '    if action == "hide" {\n'
-        assert active.count(hide) == 1
-        active = active.replace(hide, hide + '''
-        diagnosticApplication.activate(ignoringOtherApps: true)
-        let activationDeadline = ProcessInfo.processInfo.systemUptime + 5
-        while !diagnosticApplication.isActive && ProcessInfo.processInfo.systemUptime < activationDeadline {
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.025))
-        }
-        let activation: [String: Any] = [
-            "stage": "controllerActivation", "applicationState": applicationState(),
-            "controllerPid": ProcessInfo.processInfo.processIdentifier
-        ]
-        let activationData = try JSONSerialization.data(withJSONObject: activation, options: [.sortedKeys])
-        fputs(String(decoding: activationData, as: UTF8.self) + "\\n", stderr)
-        guard diagnosticApplication.isActive else {
-            fail("controllerActivation", "The regular controller did not become active", 66,
-                 ["applicationState": applicationState()])
-        }
-''')
-        active_source = cls.directory / "active_regular_controller.swift"
-        active_source.write_text(active)
-        cls.active_helper = cls.directory / "mac-application-active-regular"
-        runner.save(cls.directory / "active-regular-variant.json", {
-            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-            "diagnosticSHA256": hashlib.sha256(active.encode()).hexdigest(),
-            "scope": "Regular caller must become active before the unchanged hide request; separate diagnostic only",
-        })
-        runner.recorded_output(cls.directory, "compile-active-regular-controller",
-            ["xcrun", "swiftc", str(active_source), "-o", str(cls.active_helper)], 120)
-        controller_bundle = cls.directory / "IdentityController.app"
-        cls.bundled_active_helper = controller_bundle / "Contents/MacOS/IdentityController"
-        cls.bundled_active_helper.parent.mkdir(parents=True)
-        shutil.copy2(cls.active_helper, cls.bundled_active_helper)
-        (controller_bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
-            "CFBundleExecutable": "IdentityController", "CFBundleIdentifier": "org.otzaria.identitycontroller",
-            "CFBundleName": "IdentityController", "CFBundlePackageType": "APPL",
-            "LSMinimumSystemVersion": "11.0", "NSHighResolutionCapable": True,
-        }))
-        runner.save(cls.directory / "bundled-active-variant.json", {
-            "binarySHA256": hashlib.sha256(cls.active_helper.read_bytes()).hexdigest(),
-            "bundleIdentifier": "org.otzaria.identitycontroller",
-            "launchMethod": "Direct Popen of the identical active-regular binary inside its own application bundle",
-            "scope": "Caller bundle metadata is the only change from active-regular-execution; not a LaunchServices launch",
-        })
-        marker = "// Keep this object alive across quiet. readLine blocks without a run loop,\n"
-        assert original.count(marker) == 1
-        retained_identity = original.split(marker)[0]
-        assert retained_identity.count(observation) == 1
-        retained_identity = retained_identity.replace(observation, observation + '''
-        result["controllerIsActive"] = controllerApplication.isActive
-        result["controllerOwnsMenuBar"] = NSRunningApplication.current.ownsMenuBar
-        result["controllerBundleIdentifier"] = Bundle.main.bundleIdentifier ?? "unavailable"
-        result["controllerBundleURL"] = Bundle.main.bundleURL.path
-        result["controllerExecutable"] = Bundle.main.executableURL?.path ?? "unavailable"
-#if BUNDLED_CONTROLLER
-        result["controllerLaunchId"] = diagnosticControllerLaunchId
-#endif
-        result["frontmostApplicationPid"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
-''')
-        dispatch_source = cls.directory / "dispatch_controller.swift"
-        dispatch = retained_identity + (runner.HERE / "mac_controller_dispatch_diagnostic.swift").read_text()
-        dispatch_source.write_text(dispatch)
-        cls.dispatch_helper = cls.directory / "mac-application-dispatch"
-        cls.active_dispatch_helper = cls.directory / "mac-application-active-dispatch"
-        for label, executable, flags in [
-                ("dispatch", cls.dispatch_helper, []),
-                ("active-dispatch", cls.active_dispatch_helper, ["-D", "ACTIVE_CONTROLLER"])]:
-            runner.save(cls.directory / f"{label}-variant.json", {
-                "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-                "diagnosticSHA256": hashlib.sha256(dispatch.encode()).hexdigest(),
-                "compilerFlags": flags,
-                "scope": "Worker stdin with asynchronous main-thread commands and acknowledgement continuations; retained production identity and unchanged hide/hidden gates; diagnostic only",
-            })
-            runner.recorded_output(cls.directory, f"compile-{label}-controller",
-                ["xcrun", "swiftc", str(dispatch_source), *flags, "-o", str(executable)], 120)
-        caller_bundle = cls.directory / "DispatchController.app"
-        cls.opened_caller_helper = caller_bundle / "Contents/MacOS/DispatchController"
-        cls.opened_caller_helper.parent.mkdir(parents=True)
-        (caller_bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
-            "CFBundleExecutable": "DispatchController", "CFBundleIdentifier": "org.otzaria.dispatchcontroller",
-            "CFBundleName": "DispatchController", "CFBundlePackageType": "APPL",
-            "LSMinimumSystemVersion": "11.0", "NSHighResolutionCapable": True,
-        }))
-        caller_source = cls.directory / "opened_caller_controller.swift"
-        caller_code = dispatch.replace(imports, imports +
-            (runner.HERE / "mac_controller_launch_diagnostic.swift").read_text(), 1)
-        caller_source.write_text(caller_code)
-        flags = ["-D", "ACTIVE_CONTROLLER", "-D", "BUNDLED_CONTROLLER"]
-        runner.save(cls.directory / "opened-caller-variant.json", {
-            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
-            "diagnosticSHA256": hashlib.sha256(caller_code.encode()).hexdigest(),
-            "compilerFlags": flags, "bundleIdentifier": "org.otzaria.dispatchcontroller",
-            "scope": "Owned async regular caller bundle, Popen then open after info; every launch audited; same target and unchanged hide/hidden gates",
-        })
-        runner.recorded_output(cls.directory, "compile-opened-caller-controller",
-            ["xcrun", "swiftc", str(caller_source), *flags, "-o", str(cls.opened_caller_helper)], 120)
+        cls.rejected_helpers = {}
+        for name, change in [
+                ("untrusted", ("let trusted = AXIsProcessTrusted()", "let trusted = false")),
+                ("rejected", ("AXUIElementSetAttributeValue(\n        AXUIElementCreateApplication(pid), kAXHiddenAttribute as CFString, kCFBooleanTrue)", "AXError.cannotComplete"))]:
+            negative = original.replace("let appKitAccepted = app.hide()", "let appKitAccepted = false")
+            assert negative.count(change[0]) == 1
+            negative = negative.replace(*change)
+            if name == "rejected":
+                negative = negative.replace("let trusted = AXIsProcessTrusted()", "let trusted = true")
+            source = cls.directory / f"{name}_controller.swift"
+            source.write_text(negative)
+            helper = cls.directory / f"mac-application-{name}"
+            runner.recorded_output(cls.directory, f"compile-{name}-controller",
+                [*runner.macos_swift_command(), str(source), "-o", str(helper)], 120)
+            cls.rejected_helpers[name] = helper
         inspector_source = cls.directory / "owned_bundle_instances.swift"
         inspector_source.write_text('''import AppKit
 import Foundation
@@ -473,10 +323,10 @@ print(String(decoding: data, as: UTF8.self))
 ''')
         cls.bundle_inspector = cls.directory / "owned-bundle-instances"
         runner.recorded_output(cls.directory, "compile-bundle-inspector",
-            ["xcrun", "swiftc", str(inspector_source), "-o", str(cls.bundle_inspector)], 120)
+            [*runner.macos_swift_command(), str(inspector_source), "-o", str(cls.bundle_inspector)], 120)
         cls.launchservices_helper = cls.directory / "launchservices-fixture"
         runner.recorded_output(cls.directory, "compile-launchservices-fixture",
-            ["xcrun", "swiftc", str(runner.HERE / "mac_launchservices_fixture.swift"),
+            [*runner.macos_swift_command(), str(runner.HERE / "mac_launchservices_fixture.swift"),
              "-o", str(cls.launchservices_helper)], 120)
         cls.launch_count = 0
 
@@ -595,60 +445,44 @@ print(String(decoding: data, as: UTF8.self))
     def test_direct_execution_retains_public_application_identity(self):
         self.exercise_controller(self.helper, "direct-execution")
 
-    def test_initialized_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.initialized_helper, "initialized-execution", initialized=True)
-
-    def test_event_loop_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.event_loop_helper, "event-loop-execution", initialized=True)
-
-    def test_foreground_prepared_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.event_loop_helper, "foreground-prepared-execution", initialized=True,
-                                 prepare_foreground=True)
-
-    def test_active_regular_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.active_helper, "active-regular-execution", initialized=True,
-                                 prepare_foreground=True, hide_timeout=15)
-
-    def test_bundled_active_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.bundled_active_helper, "bundled-active-execution", initialized=True,
-                                 prepare_foreground=True, hide_timeout=15)
-
-    def test_dispatching_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.dispatch_helper, "dispatch-execution", initialized=True,
-                                 prepare_foreground=True, asynchronous_dispatch=True)
-
-    def test_active_dispatching_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.active_dispatch_helper, "active-dispatch-execution", initialized=True,
-                                 prepare_foreground=True, hide_timeout=15, asynchronous_dispatch=True)
-
-    def test_opened_bundle_with_original_controller_is_an_independent_diagnostic(self):
+    def test_opened_bundle_retains_the_original_controller_and_target(self):
         self.exercise_controller(self.helper, "opened-bundle-execution", open_bundle=True)
 
-    def test_opened_bundle_with_dispatching_controller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.dispatch_helper, "opened-bundle-dispatch-execution", initialized=True,
-                                 asynchronous_dispatch=True, open_bundle=True)
-
-    def test_opened_dispatching_caller_is_an_independent_diagnostic(self):
-        self.exercise_controller(self.opened_caller_helper, "opened-caller-dispatch-execution", initialized=True,
-                                 asynchronous_dispatch=True, prepare_foreground=True, open_caller=True)
+    def test_missing_ax_trust_or_rejected_request_cannot_report_hidden(self):
+        for name, helper in self.rejected_helpers.items():
+            with self.subTest(name=name), native_result(self.directory, f"negative-{name}") as report:
+                app, report["startup"], _ = self.start_owned_app()
+                controller = runner.MacApplicationSession(helper, app.pid, self.directory, f"negative-{name}")
+                self.addCleanup(controller.close)
+                report["before"] = controller.request("info")
+                self.assertFalse(report["before"]["isHidden"])
+                with self.assertRaises(ValueError):
+                    controller.request("hide")
+                controller.close()
+                failure = json.loads((self.directory / f"{controller.prefix}.stderr.log").read_text())
+                self.assertEqual(failure["stage"], "hide")
+                self.assertFalse(failure["hideRequest"]["primaryAccepted"])
+                self.assertFalse(failure["applicationState"]["isHidden"])
+                if name == "untrusted":
+                    self.assertFalse(failure["hideRequest"]["accessibilityTrusted"])
+                    self.assertNotIn("fallbackAPI", failure["hideRequest"])
+                else:
+                    self.assertNotEqual(failure["hideRequest"]["fallbackError"], 0)
+                report["rejectedRequest"] = failure
 
     def test_initial_launchservices_target_uses_the_original_controller(self):
         self.exercise_controller(self.helper, "initial-launchservices-target", launchservices_target=True)
 
-    def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10,
-                            asynchronous_dispatch=False, open_bundle=False, open_caller=False,
-                            launchservices_target=False):
+    def exercise_controller(self, helper, label, open_bundle=False, launchservices_target=False):
         with native_result(self.directory, label,
                            targetLaunchMethod=("Initial NSWorkspace.openApplication of the owned target bundle"
                                                if launchservices_target else
                                                "Popen, ready, then open of the same target bundle, matching Flutter profile onAttached"
                                                if open_bundle else "Popen of the target executable"),
-                           controllerLaunchMethod=("Popen, info, then open of the same owned caller bundle"
-                                                   if open_caller else "Popen of the controller executable"),
-                           diagnosticInitialization=initialized) as report:
+                           controllerLaunchMethod="Popen of the controller executable") as report:
             launchservices = None
             if launchservices_target:
-                self.assertFalse(open_bundle or open_caller, "Isolate initial target launch as the only changed variable")
+                self.assertFalse(open_bundle, "Isolate initial target launch as the only changed variable")
                 prior = report["bundleBeforeLaunch"] = self.owned_bundle_snapshot(f"{label}-before-launch")
                 self.assertEqual(prior["instances"], [], "The private target bundle is already running")
                 launchservices, report["startup"] = self.start_launchservices_app()
@@ -680,37 +514,12 @@ print(String(decoding: data, as: UTF8.self))
                 self.assertIsNone(app.poll(), "open replaced or terminated the original Popen process")
                 snapshot = report["bundleAfterOpen"] = self.owned_bundle_snapshot(f"{label}-after-open")
                 verify_open_target(snapshot, **expected)
-            if prepare_foreground:
-                report["foregroundBeforeControl"] = controller.request("activate")
             before = report["before"] = controller.request("info")
             time.sleep(0.2)
             after = report["after"] = controller.request("info")
             self.assertFalse(after["isHidden"])
             self.assertTrue(after["isActive"])
-            if initialized:
-                self.assertTrue(after["applicationState"]["controllerAppKitInitialized"])
-            if open_caller:
-                self.assertIsNone(controller.process.poll(), "The owned caller exited before open")
-                state = after["applicationState"]
-                self.assertEqual(state["controllerBundleIdentifier"], "org.otzaria.dispatchcontroller")
-                self.assertEqual(state["controllerBundleURL"], str(helper.parents[2]))
-                self.assertEqual(state["controllerExecutable"], str(helper))
-                snapshot = report["callerBeforeOpen"] = self.owned_bundle_snapshot(f"{label}-caller-before-open",
-                    bundle=helper.parents[2], launch_prefix="controller")
-                expected_caller = {"pid": controller.process.pid, "executable": str(helper),
-                    "bundle": str(helper.parents[2]), "launch_id": state["controllerLaunchId"],
-                    "initial_launches": snapshot["launches"]}
-                verify_open_target(snapshot, **expected_caller)
-                report["callerOpenCommandEvidence"] = f"{label}-caller-open.json"
-                runner.recorded_output(self.directory, f"{label}-caller-open", ["open", expected_caller["bundle"]], 10)
-                self.assertIsNone(controller.process.poll(), "open replaced or terminated the owned caller")
-                snapshot = report["callerAfterOpen"] = self.owned_bundle_snapshot(f"{label}-caller-after-open",
-                    bundle=helper.parents[2], launch_prefix="controller")
-                verify_open_target(snapshot, **expected_caller)
-                caller_after = report["afterCallerOpen"] = controller.request("info")
-                extra_observations.append(caller_after)
-                self.assertEqual(caller_after["applicationState"]["controllerLaunchId"], state["controllerLaunchId"])
-            hidden = report["hidden"] = controller.request("hide", timeout=hide_timeout)
+            hidden = report["hidden"] = controller.request("hide")
             resumed = report["resumed"] = controller.request("activate")
             for value in [*extra_observations, before, after, hidden, resumed]:
                 self.assertEqual(value["pid"], target_pid)
@@ -721,20 +530,15 @@ print(String(decoding: data, as: UTF8.self))
                 self.assertEqual(value["executable"], str(self.executable))
                 self.assertEqual(value["applicationState"]["activationPolicy"], 0)
                 self.assertFalse(value["applicationState"]["isTerminated"])
-                if asynchronous_dispatch:
-                    self.assertTrue(value["mainQueueTurnDelivered"])
-                    self.assertEqual(value["controllerBoundaryMode"], "asynchronous-main-dispatch")
-            if asynchronous_dispatch:
-                self.assertTrue(hidden["hideReturnValue"])
+            request = hidden["hideRequest"]
+            self.assertEqual(request["primaryAPI"], "NSRunningApplication.hide")
+            if not request["primaryAccepted"]:
+                self.assertTrue(request["accessibilityTrusted"])
+                self.assertEqual(request["fallbackAPI"], "AXUIElementSetAttributeValue(kAXHiddenAttribute)")
+                self.assertEqual(request["fallbackError"], 0)
             self.assertTrue(hidden["isHidden"])
             self.assertFalse(resumed["isHidden"])
             self.assertTrue(resumed["isActive"])
-            if open_caller:
-                self.assertTrue(hidden["controllerActiveBeforeHide"], "The caller must be active before requesting hide")
-                self.assertIsNone(controller.process.poll(), "The original caller did not survive hide/resume")
-                snapshot = report["callerAfterResume"] = self.owned_bundle_snapshot(f"{label}-caller-after-resume",
-                    bundle=helper.parents[2], launch_prefix="controller")
-                verify_open_target(snapshot, **expected_caller)
             if open_bundle:
                 self.assertIsNone(app.poll(), "The original Popen process did not survive hide/resume")
                 snapshot = report["bundleAfterResume"] = self.owned_bundle_snapshot(f"{label}-after-resume")

@@ -114,51 +114,23 @@ executable, הסתרה והצגה של אותו תהליך, ודחיית זהו�
 הראיות נשמרות ב־`apple-helper-controls`. אלה בקרות של כלי העזר;
 מדידות אוצריא עצמה מופיעות רק בדוחות `apple-plugin-activity`.
 
-בקרות האבחון שומרות גם את תוצאת שינוי מדיניות ההפעלה, מצב החלון,
-`isFinishedLaunching`, `isTerminated` ומצב אתחול AppKit של הבקר. סירוב
-ל־hide שומר את המצבים שלפני הקריאה ואחריה ונשאר כשל. לפי
-[תיעוד Apple](https://developer.apple.com/documentation/appkit/nsrunningapplication/hide()),
-הערך `false` יכול להעיד על תהליך שיצא או סוג אפליקציה שאינו ניתן להסתרה;
-הנתון לבדו אינו מוכיח איזו סיבה התקיימה.
+בקר macOS מנסה תחילה `NSRunningApplication.hide()`. אם הבקשה מסורבת,
+הוא שומר `primaryAccepted=false` ומנסה פעם אחת את מאפיין האפליקציה
+`kAXHiddenAttribute` דרך Accessibility, רק כש־`AXIsProcessTrusted()` כבר
+מאשר הרשאה. אין בקשת הרשאה, retry או שינוי באפליקציה. הראיות שומרות את
+ה־API שנבחר ואת קוד התוצאה; הצלחה מחייבת גם `isHidden` בפועל ואת אותה
+זהות תהליך. חוסר הרשאה או סירוב משני מכשילים את השלב. גבולות השקט,
+ההמתנה החד־פעמית והיעדר תצפיות בזמן השקט נשארים זהים.
 
-אותו fixture נבדק גם בהסתרה עצמית באמצעות `NSApplication.hide(nil)`,
-ובתהליך נפרד מול עותק אבחוני של הבקר שבו נוסף רק `NSApplication.shared`.
-בקרה נוספת מפעילה את אותו גוף בקר רק לאחר סיום אתחול AppKit בלולאת
-אירועים פעילה ובמדיניות accessory. היא שומרת תוצאה נפרדת ואינה מחליפה
-את הצלחת הבקר המקורי; גם בה נדרשים `hide()==true` ו־`isHidden` בפועל.
-Apple מתעדת שהקריאה הזו מאתחלת את
-[החיבור לשרת החלונות](https://developer.apple.com/documentation/appkit/nsapplication).
-העותק האבחוני אינו fallback או retry למדידה: לכל בקרה יש דוח משלה,
-וכישלון הבקר הרגיל אינו מתחלף בהצלחת חלופה. `direct-execution.json`,
-`initialized-execution.json` ו־`self-hide.json` שומרים גם כשל ותצפיות חלקיות.
-אין כאן קביעה שאתחול הבקר הוא סיבת הסירוב; לכך נדרשת הריצה הנייטיבית.
+בקרות נייטיביות מפעילות את הבקר האמיתי מול יעד AppKit מבודד: הפעלה
+ישירה, פתיחת אותו מארז ושימור זהות אחרי hide/resume. הסתרה עצמית היא
+בקרת חיוב נפרדת; יעד שהסתיים חייב להידחות בלי להשפיע על תהליך מחליף.
+שני בקרי שלילה מחייבים סירוב כשחסרה הרשאת Accessibility או כשה־API
+מחזיר שגיאה, ואוסרים דיווח hidden במקרים האלה.
 
-שתי בקרות נוספות בודקות את הקשר ההפעלה של הקורא: בקר במדיניות regular
-שחייב להפוך לפעיל לפני קריאת `hide`, ואותו בינארי בתוך מארז `.app` משלו.
-שתיהן מפעילות תחילה את ה־fixture בחזית, ואז שומרות את בקשת ההפעלה של
-הבקר, מצב החזית, זהות המארז וזמינות תאריך ההפעלה. ההמתנה להפעלת הבקר
-מוגבלת לחמש שניות. `active-regular-execution.json` ו־`bundled-active-execution.json`
-שומרים תוצאות נפרדות; גם בהן סירוב `hide` או אי־קבלת `isHidden` הם כשל.
-`foreground-prepared-execution.json` בודק גם את בקר accessory עם אותה
-הכנת חזית, כדי להפריד בין השפעת ההכנה לבין הפעלת הקורא.
-המארז מופעל ישירות באמצעות `Popen`, ולכן הבקרה אינה טוענת להפעלה דרך
-LaunchServices. אלה בדיקות אבחון של הקורא, בהתאם להבחנה של Apple בין
-[בקשת הפעלה לבין העברת החזית בפועל](https://developer.apple.com/documentation/appkit/passing-control-from-one-app-to-another-with-cooperative-activation).
-
-בקרות `dispatch-execution.json` ו־`active-dispatch-execution.json` קוראות
-stdin ב־thread נפרד בתוך אותו בקר, ומעבירות כל פקודה לתור
-הראשי. ההמתנה לאישור מחזירה שליטה ל־`NSApplication.run()` בין בדיקות,
-ו־`mainQueueTurnDelivered` מוכיח שנמסרה פנייה נוספת לתור הראשי. וריאנט
-regular דורש גם שהבקר יהיה פעיל ממש לפני קריאת `hide`.
-
-בקרות `opened-bundle-execution.json` ו־`opened-bundle-dispatch-execution.json`
-מפעילות `open` על מארז היעד אחרי מוכנות, כמו `onAttached` של Flutter.
-`opened-caller-dispatch-execution.json` בודק בנפרד `open` על מארז הבקר
-האסינכרוני regular אחרי תשובת `info`. הבקר שומר כל launch לפני בדיקת
-הארגומנטים, ולכן גם מופע נוסף שנוצר ויצא מיד פוסל את הבקרה. נדרשים אותו
-PID, executable, מזהה launch והיסטוריית הפעלות לפני `open`, אחריו ואחרי
-hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=true`, נוסף
-על `hide()==true`, מצב hidden בפועל וזהות היעד השמורה.
+כלי Swift נבנים לאותו `MACOSX_DEPLOYMENT_TARGET` המוגדר בפרויקט macOS
+של האפליקציה, כדי שברירת מחדל של קומפיילר חדש לא תייצר כלי שאינו תואם
+למערכת ההפעלה. הגדרות סותרות בפרויקט נדחות לפני הבנייה.
 
 בקרת `initial-launchservices-target.json` מפעילה את היעד מלכתחילה דרך
 `NSWorkspace.openApplication`, עם `createsNewApplicationInstance=true`
@@ -166,7 +138,7 @@ hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=t
 אובייקט `NSRunningApplication` שהתקבל מה־completion; אותו בקר מקורי
 מבצע את `info`, ההסתרה וההצגה. נדרשים מופע יחיד חדש בהיסטוריית ההפעלות,
 אותם PID, executable, מארז ו־launchId, וללא מופע נוסף שחי ויצא בדרך.
-כל דרישות `hide()==true`, מצב hidden ושימור הזהות נשארות מחייבות.
+נדרשים אישור API ההסתרה החיצוני, מצב hidden בפועל ושימור הזהות.
 קבלות ההפעלה והסגירה נקשרות לאותו owner ו־session; הניקוי מוגבל בזמן
 ופועל רק על האובייקט שבבעלות כלי העזר. צורך בסגירה כפויה או כשל ניקוי
 נשארים כשל הבקרה. זהו אבחון נפרד של מקור יצירת היעד, ללא fallback
@@ -195,7 +167,7 @@ hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=t
 | `offstage` | מעבר למסך הספרייה וחזרה לקריאה בלי לסגור את הלשונית | זהות controller, מסמך ו־canary נשמרת מלפני ההסתרה, דרך המצב המוסתר ועד אחרי ההצגה מחדש |
 | `minimize` / `hide` | מזעור/הסתרת החלון דרך `window_manager` ואימות נייטיבי | התנהגות חלון macOS; פעולות אלה מסומנות `notSupported` ב־iOS |
 | `neverShownBackground` | הפעלה עצלה אמיתית דרך `app.startup`, בלי פתיחת לשונית | מופע עם `startup.keepAlive: true` והרשאת `app.background_keep_alive` שמורה ומאומתת |
-| `osBackground` | macOS: `NSRunningApplication.hide`; iOS: `XCUIDevice.press(.home)` | מצב חיצוני בגבולות, חזרה באמצעות API ציבורי ושימור זהות/מצב |
+| `osBackground` | macOS: `NSRunningApplication.hide` או Accessibility מורשה; iOS: `XCUIDevice.press(.home)` | מצב חיצוני בגבולות, חזרה באמצעות API ציבורי ושימור זהות/מצב |
 | `idleExpiryControl` | אותו HTML ברקע, בלי הצהרת keepAlive ובלי ההרשאה, לצד מופע keepAlive | פינוי על ידי טיימר שלוש הדקות של אוצריא, בנפרד מהשהיה של WebKit |
 
 ה־fixture מפעיל `setInterval` כל 250ms, `requestAnimationFrame`, ולולאה
