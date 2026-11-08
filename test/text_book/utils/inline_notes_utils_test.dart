@@ -155,7 +155,6 @@ void main() {
         contains('שנייה'),
       );
     });
-  });
 
     test('רשימה ארוכה של הערות נשמרת כסדרה במעבר אחד', () {
       final source = StringBuffer('פתיחה');
@@ -173,7 +172,7 @@ void main() {
       );
       for (var i = 0; i < 120; i++) {
         expect(rendered, contains('line=4&note=$i'));
-        expect(rendered, contains('> $i</a>'), reason: 'marker $i');
+        expect(rendered, contains('>$i</a>'), reason: 'marker $i');
       }
       expect(rendered, contains('<i class="footnote">גוף119</i>'));
       expect(rendered, startsWith('פתיחה'));
@@ -196,7 +195,9 @@ void main() {
       );
     });
 
-    group('stripInlineNotes', () {
+  });
+
+  group('stripInlineNotes', () {
     test('מסיר <i class="footnote"> מהשורה ומשאיר את <sup>', () {
       const input =
           'גוף הטקסט<sup class="footnote-marker">א</sup><i class="footnote">תוכן ההערה</i>. המשך';
