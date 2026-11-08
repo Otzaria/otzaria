@@ -72,6 +72,12 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
       _menuKey.currentState?.openMenuAt(globalPosition);
 
   @override
+  void dispose() {
+    _menuOpenScrollAnchor = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final presentation = _presentation;
     return menu.ContextMenuRegion(
@@ -90,6 +96,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
         // הלכידה חייבת להקדים את ה-overlay כדי לפגוע בתוכן שמתחתיו.
         _menuOpenScrollAnchor = OverlayScrollAnchor.capture(context, position);
       },
+      // Release the retained RenderBox and ScrollPosition when the menu closes.
+      onMenuClosed: () => _menuOpenScrollAnchor = null,
       previewWrapper: (context, previewBuilder, onPinned, child) =>
           _MenuItemHoverPreview(
             previewBuilder: previewBuilder,
