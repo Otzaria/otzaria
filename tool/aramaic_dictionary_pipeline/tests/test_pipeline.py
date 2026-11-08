@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from classify_senses import best_relation, core_set, decide, grammatical_hint, group_claims, parens_covered, relation  # noqa: E402  (parens_covered נבדק גם להלן)
+from classify_senses import decide, grammatical_hint, group_claims, parens_covered, relation  # noqa: E402  (parens_covered נבדק גם להלן)
 from common import hebrew_sort_key, normalize_gloss, normalize_key, parse_sense, split_senses, split_synonyms  # noqa: E402
 from export import SEP, build_target_list  # noqa: E402
 from extract_pdfs import Piece, clean_gloss, fix_brackets, hebrew_numeral, join_pieces, parse_daf  # noqa: E402

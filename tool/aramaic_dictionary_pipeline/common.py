@@ -9,7 +9,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable
 
 PIPELINE_DIR = Path(__file__).resolve().parent
 
@@ -228,11 +228,3 @@ def split_synonyms(text: str) -> list[str]:
             current.append(ch)
     parts.append("".join(current))
     return [p.strip() for p in parts if p.strip()]
-
-
-def iter_dictionary(data: dict[str, list[dict[str, str]]]) -> Iterator[tuple[str, str, str]]:
-    """(שם מילון, מפתח גולמי, ערך גולמי) לפי סדר הקובץ."""
-    for name, entries in data.items():
-        for entry in entries:
-            for key, value in entry.items():
-                yield name, key, value

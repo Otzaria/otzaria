@@ -23,16 +23,13 @@ from common import (
     normalize_gloss,
     normalize_key,
     parse_sense,
-    iter_dictionary,  # noqa: F401  (ייצוא לשימוש מודולים אחרים)
     load_config,
     read_jsonl,
     stable_id,
-    strip_marks,
     work_dir,
     write_jsonl,
 )
 
-ORIGIN_PRIORITY = {"existing": 0, "siftey": 1, "wiktionary": 2}
 BACKSLASH = chr(92)
 CORRECTIONS_PATH = Path(__file__).resolve().parent / "manual_key_corrections.json"
 
