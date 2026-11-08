@@ -68,6 +68,7 @@ class InstalledPluginFrameTimings {
     required int endUs,
     required int lastFrameNumber,
     Duration timeout = const Duration(seconds: 5),
+    void Function()? requestFrameAfterWindow,
   }) async {
     if (lastFrameNumber < 0) {
       throw StateError('The engine frame number is unavailable.');
@@ -75,9 +76,17 @@ class InstalledPluginFrameTimings {
     if (_delivered != null) {
       throw StateError('A frame timing drain is already in progress.');
     }
+    // A post-window paint can fence a phase-ending frame skipped by raster.
+    // It is requested only once; real raster progress still controls the
+    // timeout, which was made progress-based in #4603.
+    var requestedFrame = false;
     while (_lastDelivered < lastFrameNumber) {
       _delivered = Completer<void>();
       try {
+        if (!requestedFrame) {
+          requestedFrame = true;
+          requestFrameAfterWindow?.call();
+        }
         await _delivered!.future.timeout(
           timeout,
           onTimeout: () {

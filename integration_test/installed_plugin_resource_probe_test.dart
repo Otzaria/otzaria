@@ -6,6 +6,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -641,6 +642,14 @@ class _Scenario {
         startUs: startUs,
         endUs: endUs,
         lastFrameNumber: lastFrameNumber,
+        requestFrameAfterWindow: () {
+          // The new frame must rasterize, not merely be scheduled; forcing
+          // repaint starts only after endUs and cannot enter phase metrics.
+          for (final view in RendererBinding.instance.renderViews) {
+            view.markNeedsPaint();
+          }
+          SchedulerBinding.instance.scheduleFrame();
+        },
       );
     } catch (error, stack) {
       record['flutterFrames'] = {

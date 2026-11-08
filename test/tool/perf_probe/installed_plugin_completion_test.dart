@@ -273,6 +273,56 @@ void main() {
     });
   });
 
+  test(
+    'a post-window frame fences a phase-end frame skipped by raster',
+    () async {
+      final recorder = InstalledPluginFrameTimings(binding);
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(30, 120000)]);
+        var requests = 0;
+        final pending = recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 40,
+          requestFrameAfterWindow: () => requests++,
+        );
+        expect(requests, 1);
+        binding.platformDispatcher.onReportTimings!([_frame(41, 250000)]);
+        final result = await pending;
+        expect(result['count'], 1);
+        expect(result['lastFrameNumber'], 40);
+        expect(result['deliveredThroughFrameNumber'], 41);
+      } finally {
+        recorder.dispose();
+      }
+    },
+  );
+
+  test('a post-window frame request cannot hide a missing timing', () async {
+    final recorder = InstalledPluginFrameTimings(binding);
+    try {
+      var requests = 0;
+      await expectLater(
+        recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 90,
+          timeout: Duration.zero,
+          requestFrameAfterWindow: () => requests++,
+        ),
+        throwsA(
+          isA<TimeoutException>().having(
+            (error) => error.message,
+            'unreported phase frame',
+            contains('target=90'),
+          ),
+        ),
+      );
+      expect(requests, 1);
+    } finally {
+      recorder.dispose();
+    }
+  });
   test('missing frame timing retains the observed drain evidence', () async {
     final recorder = InstalledPluginFrameTimings(binding);
     try {
