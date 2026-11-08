@@ -10,7 +10,7 @@
 - `lib/tour/bloc/tour_cubit.dart` - התחלה, מעבר שלבים, דילוג, סיום ו-autoplay.
 - `lib/tour/tour_target_keys.dart` - `TourTargetKeys`: מזהי `GlobalKey` פר-חלון לאלמנטים שמסומנים בחלון השקוף.
 - `lib/tour/view/tour_overlay_screen.dart` - ציור ה-overlay, מיקום הכרטיס וחישוב rects.
-- `lib/navigation/main_window_screen.dart` - ביצוע פעולות לפני שלב: ניווט, פתיחת דיאלוג, פתיחת תפריט, בחירת טאב.
+- `lib/navigation/view/main_window_screen.dart` - ביצוע פעולות לפני שלב: ניווט, פתיחת דיאלוג, פתיחת תפריט, בחירת טאב.
 
 ## הוספת שלב
 
