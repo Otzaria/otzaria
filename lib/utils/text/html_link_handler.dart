@@ -247,11 +247,31 @@ class HtmlLinkHandler {
   /// אותו דרך אותה לשונית בדיוק, בעטיפת `toTextBook()` (ראו
   /// `OpenedTab.fromBook`). בלי ההשלמה כאן כל קישור `book://` אל ספר כזה
   /// מת, ובקובצי HTML זו הדרך המתועדת לקשר בין ספרים.
-  static TextBook? resolveBookLinkTarget(Library library, String title) {
-    final direct = library.findBookByTitle(title, TextBook);
-    if (direct is TextBook) return direct;
-    final any = library.findBookByTitle(title, null);
-    return any is ConvertibleDocumentBook ? any.toTextBook() : null;
+  static TextBook? resolveBookLinkTarget(Library library, String title) =>
+      _resolveBookLinkTarget(library.getAllBooks(), title).target;
+
+  static ({TextBook? target, Book? anyBook}) _resolveBookLinkTarget(
+    Iterable<Book> books,
+    String title,
+  ) {
+    Book? anyBook;
+    ConvertibleDocumentBook? convertible;
+
+    for (final book in books) {
+      if (book.title != title) continue;
+      anyBook ??= book;
+
+      // כמו findBookByTitle(title, TextBook): ספר טקסט ישיר עדיף גם אם
+      // מסמך בר-המרה בעל אותו שם הופיע קודם בקטלוג.
+      if (book.runtimeType == TextBook) {
+        return (target: book as TextBook, anyBook: anyBook);
+      }
+      if (convertible == null && book is ConvertibleDocumentBook) {
+        convertible = book;
+      }
+    }
+
+    return (target: convertible?.toTextBook(), anyBook: anyBook);
   }
 
   /// מאתר את השורה שמכילה עוגן `id="[fragment]"` בגוף הספר, או null.
@@ -350,8 +370,9 @@ class HtmlLinkHandler {
       // קבלת רשימת כל הספרים לבדיקה
       final allBooks = library.getAllBooks();
 
-      final anyBook = library.findBookByTitle(bookTitle, null);
-      final foundBook = resolveBookLinkTarget(library, bookTitle);
+      final resolvedBook = _resolveBookLinkTarget(allBooks, bookTitle);
+      final anyBook = resolvedBook.anyBook;
+      final foundBook = resolvedBook.target;
 
       if (foundBook == null) {
         if (anyBook != null) {
