@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
@@ -5,6 +8,45 @@ import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
 import 'package:otzaria/plugins/services/plugin_network_policy.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart'
     show buildPluginTabWebViewSettings;
+
+/// מאשר לבקר המקומי שהמופע המקורי הגיע למסגרת הראשונה.
+Future<void> notifyIosFontProbeStarted({
+  required String coordinator,
+  required String token,
+  required String generation,
+  required String nativeFork,
+  required bool firstFrameRasterized,
+}) async {
+  if (coordinator.isEmpty) return;
+  if (!firstFrameRasterized) {
+    throw StateError('Font probe has not rasterized its first frame');
+  }
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  try {
+    final request = await client.postUrl(
+      Uri.parse(coordinator).resolve('/checkpoint'),
+    );
+    request.headers.contentType = ContentType.json;
+    request.headers.set('X-Apple-Quiet-Token', token);
+    request.write(
+      jsonEncode({
+        'runId': generation,
+        'hostPid': pid,
+        'appBootToken': '$pid-${DateTime.now().microsecondsSinceEpoch}',
+        'hostExecutable': Platform.resolvedExecutable,
+        'nativeFork': nativeFork,
+        'firstFrameRasterized': firstFrameRasterized,
+      }),
+    );
+    final response = await request.close().timeout(const Duration(seconds: 10));
+    await response.drain<void>().timeout(const Duration(seconds: 10));
+    if (response.statusCode != HttpStatus.ok) {
+      throw StateError('Font probe startup checkpoint was rejected');
+    }
+  } finally {
+    client.close(force: true);
+  }
+}
 
 const iosFontProbePluginId = 'ios.font.probe';
 const iosFontProbeOrigin = '$pluginAssetScheme://$iosFontProbePluginId';

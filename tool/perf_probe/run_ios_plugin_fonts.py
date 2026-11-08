@@ -11,13 +11,54 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
+import uuid
+from http.server import ThreadingHTTPServer
 from urllib.parse import unquote, urljoin, urlparse
 
 from validate_ios_plugin_fonts import (FLUTTER_REVISION, NATIVE_PACKAGES, lock_pin, read_json,
                                        require, validate_artifacts)
+from apple_plugin_activity.run import (Coordinator, Handler, IOS_APP_STARTUP_SECONDS,
+                                       recorded_output, shutdown_server, wait_for_drive)
 
 ROOT = Path(__file__).resolve().parents[2]
+FONT_REPORT_SECONDS = 20 * 60
+
+
+def capture_ios_failure_log(output, device):
+    recorded_output(output, 'ios-failure-log',
+        ['xcrun', 'simctl', 'spawn', device, 'log', 'show', '--last', '2m', '--style', 'json',
+         '--predicate', 'process == "Runner" OR subsystem BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"'], 10)
+
+
+class FontProbeCoordinator(Coordinator):
+    def check_identity(self, body):
+        require(body.get('firstFrameRasterized') is True, 'The original app has not rasterized its first frame')
+        super().check_identity(body)
+
+
+class FontProbeStartup:
+    def __init__(self, output, native_fork):
+        self.coordinator = FontProbeCoordinator(output, str(uuid.uuid4()), str(uuid.uuid4()), 'ios', 6)
+        self.coordinator.native_fork = native_fork
+        self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        self.server.coordinator = self.coordinator
+        self.server.daemon_threads = True
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    @property
+    def defines(self):
+        return {'IOS_FONT_PROBE_COORDINATOR': f'http://127.0.0.1:{self.server.server_port}',
+                'IOS_FONT_PROBE_TOKEN': self.coordinator.token,
+                'IOS_FONT_PROBE_GENERATION': self.coordinator.run_id,
+                'IOS_FONT_PROBE_NATIVE_FORK': self.coordinator.native_fork}
+
+    def wait(self, process, timeout):
+        return wait_for_drive(process, self.coordinator, timeout)
 
 
 def write_json(path, value):
@@ -70,7 +111,7 @@ class Commands:
         self.on_record = lambda record: None
         self.cleanup_mode = False
 
-    def run(self, label, command, timeout=120, *, cwd=ROOT, env=None, check=True):
+    def run(self, label, command, timeout=120, *, cwd=ROOT, env=None, check=True, wait_for_exit=None):
         log = self.output / (label + '.log')
         record = {'label': label, 'command': command, 'cwd': str(cwd),
                   'timeoutSeconds': timeout, 'timedOut': False, 'returncode': None,
@@ -118,8 +159,8 @@ class Commands:
                                            stderr=subprocess.STDOUT, start_new_session=True)
                 record.update(started=True, pid=process.pid, processGroup=process.pid, groupDrained=False)
                 try:
-                    completed(process.wait(timeout=timeout))
-                except subprocess.TimeoutExpired as error:
+                    completed(process.wait(timeout=timeout) if wait_for_exit is None else wait_for_exit(process, timeout))
+                except (subprocess.TimeoutExpired, TimeoutError) as error:
                     record['timedOut'] = True
                     failure('process-timeout', error, 'execution')
                     attempt('timeout-term', lambda: signal_group(process.pid, signal.SIGTERM), 'cleanup')
@@ -333,7 +374,7 @@ def run_probe(argv=None):
                    'mode': 'debug', 'instances': args.instances, 'physicalProfile': 'NOT_RUN',
                    'physicalRelease': 'NOT_RUN', 'decision': 'keep-default-off', 'commandRecords': []}
     failures = ProbeFailures(environment)
-    shutdown, boot_candidate = None, None
+    shutdown, boot_candidate, startup = None, None, None
 
     def observe(record):
         nonlocal shutdown
@@ -384,24 +425,49 @@ def run_probe(argv=None):
         step = 'environment-ready'
         write_json(output / 'environment.json', environment)
         step = 'driver'
+        startup = FontProbeStartup(output, environment['webviewPin'])
+        startup.start()
+        defines = {**startup.defines, 'OTZARIA_FONT_PROBE_INSTANCES': args.instances,
+                   'OTZARIA_IOS_FONT_PROBE_DEVICE': 'simulator',
+                   'OTZARIA_IOS_FONT_PROBE_SOURCE': environment['sourceCommit'],
+                   'OTZARIA_IOS_FONT_PROBE_LOCK_SHA256': environment['lockSha256']}
+        write_json(output / 'build-defines.json', defines)
+        define_argument = f'--dart-define-from-file={output / "build-defines.json"}'
+        target = '--target=integration_test/ios_plugin_font_probe_test.dart'
+        commands.run('flutter-build', ['flutter', 'build', 'ios', '--simulator', '--debug',
+                     '--no-codesign', '--no-pub', target, define_argument], 3000)
+        application = ROOT / 'build/ios/iphonesimulator/Runner.app'
+        environment['prebuiltApplication'] = str(application)
+        environment['startupGeneration'] = startup.coordinator.run_id
         env = dict(os.environ, IOS_FONT_PROBE_REPORTS=str(output / 'reports'))
         _, drive = commands.run('flutter-drive', [
             'flutter', 'drive', '--no-pub', '--debug', '-d', device,
             '--driver=test_driver/ios_plugin_fonts.dart',
-            '--target=integration_test/ios_plugin_font_probe_test.dart',
-            f'--dart-define=OTZARIA_FONT_PROBE_INSTANCES={args.instances}',
-            '--dart-define=OTZARIA_IOS_FONT_PROBE_DEVICE=simulator',
-            '--dart-define=OTZARIA_IOS_FONT_PROBE_SOURCE=' + environment['sourceCommit'],
-            '--dart-define=OTZARIA_IOS_FONT_PROBE_LOCK_SHA256=' + environment['lockSha256'],
-        ], 3000, env=env, check=False)
+            target, define_argument, '--use-application-binary=' + str(application),
+        ], IOS_APP_STARTUP_SECONDS + FONT_REPORT_SECONDS, env=env, check=False,
+            wait_for_exit=startup.wait)
         environment['drive'] = drive
         if drive.get('failures'):
             raise CommandFailure(drive)
         require(drive['returncode'] == 0 and not drive['timedOut'] and drive['groupDrained'], 'Actual Flutter Driver run failed or exceeded its deadline')
+        environment['startupCheckpoint'] = read_json(output / 'partial-app.json')
         environment['runStatus'] = 'completed'
     except (Exception, KeyboardInterrupt) as failure:
         failures.add(step, failure)
     finally:
+        if startup is not None:
+            startup.coordinator.stopping = True
+            for label, operation in [('startup-server-shutdown', lambda: shutdown_server(startup.server) if startup.thread.is_alive() else None),
+                                     ('startup-server-close', startup.server.server_close)]:
+                try:
+                    operation()
+                except (Exception, KeyboardInterrupt) as cleanup:
+                    failures.add(label, cleanup, cleanup=True)
+        if shutdown and environment.get('drive') and failures.entries:
+            try:
+                capture_ios_failure_log(output, shutdown)
+            except (Exception, KeyboardInterrupt) as cleanup:
+                failures.add('simulator-failure-log', cleanup, cleanup=True)
         try:
             if environment.get('nativeSources') and not environment.get('cancelled'):
                 capture_sources(commands, environment, after=True)
