@@ -64,7 +64,7 @@ dependencies:
   csslib: ^1.0.2
   fwfh_svg: ^0.16.1
   fwfh_url_launcher: ^0.16.1
-  positioned_sliver_list: ^0.2.4
+  positioned_sliver_list: ^0.2.5
   flutter_svg: ^2.3.2  
   fluentui_system_icons: ^1.1.273
   # בעדכון ה-ref יש לרענן את רשימת האייקונים לתוספים
