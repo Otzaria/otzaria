@@ -63,7 +63,7 @@ void main() {
         w is ClipRRect &&
         w.borderRadius is BorderRadius &&
         (w.borderRadius as BorderRadius).topLeft != Radius.zero &&
-        w.child is Material,
+        (w.child is Material || w.child is ValueListenableBuilder<int>),
   );
 
   group('ItemsListView', () {
