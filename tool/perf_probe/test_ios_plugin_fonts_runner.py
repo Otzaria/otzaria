@@ -20,6 +20,14 @@ from run_ios_plugin_fonts import Commands, ROOT, lock_pin, main, retain_committe
 from validate_ios_plugin_fonts import WEBVIEW_PACKAGES
 
 
+class ControlledSimulatorDriver(runner.SimulatorDriver):
+    def start(self, application, dart, entrypoint):
+        self.release.set()
+        assert str(application).endswith('/build/ios/iphonesimulator/Runner.app')
+        return [str(dart), '--packages=' + str(self.repository / '.dart_tool/package_config.json'),
+                str(self.repository / entrypoint)], {'VM_SERVICE_URL': 'http://127.0.0.1:1234/controlled=/'}
+
+
 class StartupTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -52,7 +60,7 @@ class StartupTests(unittest.TestCase):
         commands = Commands(self.output)
         with patch.dict(runner.wait_for_drive.__globals__, IOS_APP_STARTUP_SECONDS=0.05):
             with self.assertRaisesRegex(runner.CommandFailure, 'No authenticated iOS app checkpoint'):
-                commands.run('flutter-drive', [sys.executable, '-c', 'import time;time.sleep(30)'],
+                commands.run('dart-driver', [sys.executable, '-c', 'import time;time.sleep(30)'],
                              3, wait_for_exit=self.startup.wait)
         record = commands.records[-1]
         self.assertTrue(record['timedOut'])
@@ -74,6 +82,7 @@ class StartupTests(unittest.TestCase):
         for changes in [dict(runId='old-generation'), dict(hostPid=0), dict(nativeFork='4' * 40), dict(firstFrameRasterized=False)]:
             with self.subTest(changes=changes), self.assertRaises(urllib.error.HTTPError) as rejected:
                 self.checkpoint(process, **changes)
+            rejected.exception.read()
             rejected.exception.close()
         self.assertIsNone(self.startup.coordinator.app_checkpoint_at)
 
@@ -83,6 +92,28 @@ class StartupTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_create_ack_observer_precedes_post_exit_receipt_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            commands = runner.Commands(output)
+            identifier = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+            observed, writes = [], []
+            original_write = runner.write_json
+            def write(path, value):
+                writes.append(path)
+                if len(writes) == 2:
+                    self.assertEqual(observed, [identifier])
+                    raise OSError('create receipt unavailable')
+                original_write(path, value)
+            with patch.object(runner, 'write_json', side_effect=write):
+                with self.assertRaises(runner.CommandFailure) as caught:
+                    commands.run('create', [sys.executable, '-c', f'print("{identifier}")'],
+                                 5, on_success=observed.append)
+            self.assertEqual(observed, [identifier])
+            self.assertEqual(caught.exception.command_record['returncode'], 0)
+            self.assertIn('create receipt unavailable', str(caught.exception))
+            self.assertTrue(caught.exception.command_record['groupDrained'])
+
     def test_native_failure_log_is_bounded_and_retains_the_selected_device(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
@@ -290,13 +321,13 @@ sys.exit(9)
 
 class CleanupTests(unittest.TestCase):
     def exercise(self, *, booted=False, source_failure=False, copy_failure=False,
-                 hash_failure=False, shutdown_failure=False, drive_failure=None, log_failure=False):
+                 hash_failure=False, shutdown_failure=False, drive_failure=None, log_failure=False, startup_failure=False):
         with tempfile.TemporaryDirectory() as temp:
             checkout, output = Path(temp, 'checkout'), Path(temp, 'output')
             pods = checkout / 'ios/Podfile.lock'
             pods.parent.mkdir(parents=True)
             pods.write_bytes(b'Controlled CocoaPods evidence\n')
-            calls, state = [], {'running': booted}
+            calls, state = [], {'running': booted, 'privateRunning': False}
 
             case = self
             class ControlledCommands:
@@ -308,27 +339,35 @@ class CleanupTests(unittest.TestCase):
                     if label == 'flutter-build':
                         case.assertEqual(timeout, 3000)
                         case.assertTrue({'--simulator', '--no-pub', '--debug', '--no-codesign'} <= set(command))
-                    if label == 'flutter-drive':
-                        self.on_record({'label': label, 'returncode': None})
-                        case.assertEqual(timeout, runner.IOS_APP_STARTUP_SECONDS + runner.FONT_REPORT_SECONDS)
+                    if label in {'dart-driver', 'ios-launch'}:
+                        self.on_record({'label': label, 'returncode': None, 'started': True})
+                    if label == 'dart-driver':
+                        case.assertEqual(timeout, runner.FONT_REPORT_SECONDS)
                         case.assertIsNotNone(kwargs['wait_for_exit'])
-                        case.assertTrue(any(arg.startswith('--use-application-binary=') for arg in command))
+                        case.assertEqual(command[0], '/pinned/flutter/bin/cache/dart-sdk/bin/dart')
+                        case.assertTrue(command[1].startswith('--packages='))
+                        case.assertTrue(command[-1].endswith('/test_driver/ios_plugin_fonts.dart'))
+                        case.assertEqual(kwargs['env']['VM_SERVICE_URL'], 'http://127.0.0.1:1234/controlled=/')
                     if label == 'simulator-boot':
-                        state['running'] = True
+                        state['privateRunning'] = True
                     elif label == 'simulator-shutdown':
                         if shutdown_failure:
                             raise OSError('shutdown failed')
-                        state['running'] = False
-                    if label == 'simulator-devices':
+                        state['privateRunning'] = False
+                    if label == 'simulator-create':
+                        text = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+                    elif label == 'simulator-private-device':
+                        text = json.dumps({'devices': {'com.apple.iOS-26-7': [{'udid': 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name': 'Actual private iPhone', 'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-16', 'state': 'Booted'}]}})
+                    elif label == 'simulator-devices':
                         text = json.dumps({'devices': {'com.apple.iOS-26-7': [{
-                            'udid': 'CONTROLLED-SIMULATOR', 'name': 'iPhone control', 'isAvailable': True,
+                            'udid': 'CONTROLLED-SIMULATOR', 'name': 'iPhone control', 'isAvailable': True, 'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-16',
                             'state': 'Booted' if booted else 'Shutdown'}]}})
                     elif label == 'simulator-runtimes':
                         text = json.dumps({'runtimes': [{'identifier': 'com.apple.iOS-26-7',
                             'version': '26.7', 'buildversion': 'control', 'isAvailable': True}]})
                     else:
                         text = 'controlled command; no native execution'
-                    if label == 'flutter-drive':
+                    if label == 'dart-driver':
                         defines = json.loads((self.output / 'build-defines.json').read_text())
                         (self.output / 'partial-app.json').write_text(json.dumps({
                             'runId': defines['IOS_FONT_PROBE_GENERATION'], 'hostPid': 137,
@@ -339,18 +378,27 @@ class CleanupTests(unittest.TestCase):
                         report = self.output / 'reports/run-control/report.json'
                         report.parent.mkdir(parents=True)
                         report.write_text('{}')
+                    if kwargs.get('on_success') is not None:
+                        kwargs['on_success'](text)
                     return text, {'returncode': 0, 'timedOut': False, 'groupDrained': True}
 
             def capture(commands, environment, *, after=False):
                 calls.append(('sources-after' if after else 'sources-before', [], None))
                 if after and source_failure:
                     raise ValueError('source verification failed')
-                environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40)
+                environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40, flutter={'flutterRoot': '/pinned/flutter'})
 
             def capture_logs(path, device):
                 calls.append(('simulator-failure-log', [device], 10))
                 if log_failure:
                     raise OSError('native log unavailable')
+
+            class Launch(ControlledSimulatorDriver):
+                def start(self, *args):
+                    if startup_failure:
+                        self.run('ios-launch', ['controlled launch failure'], 10)
+                        raise ValueError('authenticated checkpoint VM URI missing')
+                    return super().start(*args)
 
             actual_copy, actual_hash = runner.shutil.copyfile, runner.sha256
 
@@ -366,7 +414,7 @@ class CleanupTests(unittest.TestCase):
                     raise OSError('Podfile.lock hash failed')
                 return actual_hash(path)
 
-            with patch.object(runner, 'ROOT', checkout), patch.object(runner, 'Commands', ControlledCommands), \
+            with patch.object(runner, 'ROOT', checkout), patch.object(runner, 'Commands', ControlledCommands), patch.object(runner, 'SimulatorDriver', Launch), \
                  patch.object(runner, 'capture_sources', capture), patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner.shutil, 'copyfile', copy), patch.object(runner, 'sha256', hash_file), \
                  patch.object(runner, 'capture_ios_failure_log', side_effect=capture_logs), \
@@ -375,7 +423,7 @@ class CleanupTests(unittest.TestCase):
                 code = runner.run_probe(['--instances', '1', '--output', str(output)])
             environment = json.loads((output / 'environment.json').read_text())
             comparison = json.loads((output / 'comparison.json').read_text())
-            if drive_failure is not None or source_failure or copy_failure or hash_failure or shutdown_failure:
+            if drive_failure is not None or source_failure or copy_failure or hash_failure or shutdown_failure or startup_failure:
                 self.assertEqual(code, 1)
                 self.assertEqual(environment['runStatus'], 'failed')
                 self.assertNotEqual(environment['captureStatus'], 'complete')
@@ -391,12 +439,14 @@ class CleanupTests(unittest.TestCase):
                 self.assertNotIn('cleanupError', environment)
                 self.assertNotIn('cleanupErrors', environment)
                 validate.assert_called_once()
+            self.assertEqual(environment['runtime']['device']['name'], 'Actual private iPhone')
+            self.assertEqual(environment['runtime']['seedDevice']['name'], 'iPhone control')
             shutdowns = [call for call in calls if call[0] == 'simulator-shutdown']
-            self.assertEqual(len(shutdowns), 0 if booted else 1)
+            self.assertEqual(len(shutdowns), 1)
             if shutdowns:
-                self.assertEqual(shutdowns[0][1], ['xcrun', 'simctl', 'shutdown', 'CONTROLLED-SIMULATOR'])
-                self.assertEqual(shutdowns[0][2], 10 if isinstance(drive_failure, InterruptedError) else 60)
-            self.assertEqual(state['running'], booted or shutdown_failure)
+                self.assertEqual(shutdowns[0][1], ['xcrun', 'simctl', 'shutdown', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'])
+                self.assertLessEqual(shutdowns[0][2], 60)
+            self.assertEqual(state['running'], booted)
             if not copy_failure:
                 self.assertEqual((output / 'Podfile.lock').read_bytes(), pods.read_bytes())
             if not copy_failure and not hash_failure:
@@ -412,15 +462,22 @@ class CleanupTests(unittest.TestCase):
         _, success = self.exercise()
         self.assertNotIn('simulator-failure-log', success)
         _, borrowed = self.exercise(booted=True, drive_failure=ValueError('original driver failure'))
-        self.assertNotIn('simulator-failure-log', borrowed)
+        self.assertIn('simulator-failure-log', borrowed)
         environment, owned = self.exercise(drive_failure=ValueError('original driver failure'), log_failure=True)
         self.assertLess(owned.index('simulator-failure-log'), owned.index('simulator-shutdown'))
         self.assertEqual(environment['primaryFailure']['error'], 'original driver failure')
         self.assertTrue(any(e['error'] == 'native log unavailable' for e in environment['secondaryErrors']))
 
+    def test_startup_failure_collects_native_evidence_before_private_cleanup(self):
+        environment, calls = self.exercise(startup_failure=True)
+        self.assertNotIn('drive', environment)
+        self.assertEqual(environment['primaryFailure']['error'], 'authenticated checkpoint VM URI missing')
+        self.assertLess(calls.index('simulator-failure-log'), calls.index('simulator-shutdown'))
+        self.assertIn('simulator-delete', calls)
+
     def test_success_shuts_down_only_the_owned_simulator(self):
         _, calls = self.exercise()
-        self.assertLess(calls.index('flutter-build'), calls.index('flutter-drive'))
+        self.assertLess(calls.index('flutter-build'), calls.index('dart-driver'))
 
     def test_success_leaves_a_preexisting_simulator_running(self):
         self.exercise(booted=True)
@@ -507,20 +564,26 @@ def block(name):
     if path.is_file():
         path.unlink()
     path.mkdir(exist_ok=True)
-if label == 'simulator-devices':
+if label == 'simulator-create':
+    print('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
+    if scenario.get('createReceiptFault'):
+        block('commands.json')
+elif label == 'simulator-private-device':
+    print(json.dumps({'devices': {'com.apple.iOS-26-7': [{'udid': 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name': 'Actual private iPhone', 'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-16', 'state': 'Booted'}]}}))
+elif label == 'simulator-devices':
     print(json.dumps({'devices': {'com.apple.iOS-26-7': [{'udid': 'OWNED-IO-CONTROL',
-        'name': 'iPhone control', 'isAvailable': True, 'state': 'Booted' if state['running'] else 'Shutdown'}]}}))
+        'name': 'iPhone control', 'isAvailable': True, 'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-16', 'state': 'Booted' if state['running'] else 'Shutdown'}]}}))
 elif label == 'simulator-runtimes':
     print(json.dumps({'runtimes': [{'identifier': 'com.apple.iOS-26-7',
         'version': '26.7', 'buildversion': 'control', 'isAvailable': True}]}))
 else:
     print('controlled child: ' + label, flush=True)
 if label == 'simulator-boot':
-    state['running'] = True
+    state['privateRunning'] = True
     (directory / 'state.json').write_text(json.dumps(state))
     if scenario.get('bootReceiptFault'):
         block('commands.json')
-if label == 'flutter-drive':
+if label == 'dart-driver':
     import urllib.request
     defines = json.loads((output / 'build-defines.json').read_text())
     request = urllib.request.Request(defines['IOS_FONT_PROBE_COORDINATOR'] + '/checkpoint',
@@ -546,9 +609,9 @@ if label == 'source-after' and scenario.get('sourceExit'):
 if label == 'simulator-shutdown':
     if scenario.get('shutdownExit'):
         sys.exit(scenario['shutdownExit'])
-    state['running'] = False
+    state['privateRunning'] = False
     (directory / 'state.json').write_text(json.dumps(state))
-if label == 'flutter-drive':
+if label == 'dart-driver':
     sys.exit(scenario.get('driveExit', 0))
 ''')
             instances, writes, environment_refs, wrapped_logs = [], [], [], []
@@ -559,16 +622,16 @@ if label == 'flutter-drive':
                     super().__init__(path)
                     instances.append(self)
 
-                def run(self, label, command, timeout=120, *, cwd=None, env=None, check=True, wait_for_exit=None):
+                def run(self, label, command, timeout=120, *, cwd=None, env=None, check=True, wait_for_exit=None, on_success=None):
                     command = [sys.executable, str(child), str(directory), label]
-                    if label == 'flutter-drive' and scenario.get('startFault'):
+                    if label == 'dart-driver' and scenario.get('startFault'):
                         command = [str(directory / 'missing-executable')]
-                    deadline = 0.2 if label == 'flutter-drive' and scenario.get('driveTimeout') else min(timeout, 5)
-                    return super().run(label, command, deadline, cwd=checkout, env=env, check=check, wait_for_exit=wait_for_exit)
+                    deadline = 0.2 if label == 'dart-driver' and scenario.get('driveTimeout') else min(timeout, 5)
+                    return super().run(label, command, deadline, cwd=checkout, env=env, check=check, wait_for_exit=wait_for_exit, on_success=on_success)
 
             def capture(commands, environment, *, after=False):
                 if not after:
-                    environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40)
+                    environment.update(nativeSources={'control': {}}, sourceCommit='1' * 40, lockSha256='2' * 64, webviewPin='3' * 40, flutter={'flutterRoot': '/pinned/flutter'})
                 commands.run('source-after' if after else 'source-before', ['controlled source'])
                 if after and scenario.get('sourceChange'):
                     environment['sourceStatusAfter'] = ' M ios/Runner.xcodeproj/project.pbxproj'
@@ -611,7 +674,7 @@ if label == 'flutter-drive':
 
             def open_file(path, *args, **kwargs):
                 stream = actual_open(path, *args, **kwargs)
-                if scenario.get('closeFault') and path == output / (scenario['closeFault'] + '.log') and args[:1] == ('w',):
+                if scenario.get('closeFault') and path == output / (scenario['closeFault'] + '.log') and args[:1] in {('w',), ('w+',)}:
                     wrapper = CloseFault(stream)
                     wrapped_logs.append(wrapper)
                     return wrapper
@@ -623,7 +686,7 @@ if label == 'flutter-drive':
 
             stdout = BrokenStream() if scenario.get('stdoutFault') else io.StringIO()
             stderr = BrokenStream() if scenario.get('stderrFault') else io.StringIO()
-            with patch.object(runner, 'ROOT', checkout), patch.object(runner, 'Commands', ChildCommands), \
+            with patch.object(runner, 'ROOT', checkout), patch.object(runner, 'Commands', ChildCommands), patch.object(runner, 'SimulatorDriver', ControlledSimulatorDriver), \
                  patch.object(runner, 'capture_sources', capture), patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner, 'write_json', write), patch.object(Path, 'open', open_file), \
                  patch.object(runner, 'validate_artifacts', return_value={'controlled': True}) as validate, \
@@ -642,8 +705,8 @@ if label == 'flutter-drive':
             self.assertTrue(all(record['groupDrained'] for record in records))
             self.assertTrue(all(wrapper.stream.closed for wrapper in wrapped_logs))
             self.assertEqual(len([name for name in labels if name == 'simulator-shutdown']),
-                             1 if 'simulator-boot' in labels else 0)
-            self.assertEqual(state['running'], scenario.get('borrowed', False) or bool(scenario.get('shutdownExit')))
+                             1 if 'simulator-create' in labels else 0)
+            self.assertEqual(state['running'], scenario.get('borrowed', False))
             self.assertEqual(code, 1 if any(value for key, value in scenario.items() if key != 'borrowed') else 0)
             if code:
                 self.assertEqual(environment['runStatus'], 'failed')
@@ -656,12 +719,13 @@ if label == 'flutter-drive':
                     self.assertEqual(comparison['reason'], environment['error'])
             if scenario.get('driveExit') == 23:
                 self.assertEqual(environment['drive']['returncode'], 23)
-                self.assertIn('flutter-drive', environment['error'])
+                self.assertIn('dart-driver', environment['error'])
                 self.assertIn('23', environment['error'])
             if scenario.get('borrowed'):
                 self.assertFalse(environment['simulatorOwnership']['owned'])
-                self.assertNotIn('simulator-boot', labels)
-                self.assertNotIn('simulator-shutdown', labels)
+                self.assertIn('simulator-boot', labels)
+                self.assertIn('simulator-shutdown', labels)
+                self.assertNotEqual(environment['simulatorOwnership']['device'], 'OWNED-IO-CONTROL')
             if 'sourceDiffAfter' in environment:
                 diagnostic = environment['sourceDiffAfter']
                 self.assertEqual(diagnostic['sha256'], hashlib.sha256((output / diagnostic['file']).read_bytes()).hexdigest())
@@ -713,12 +777,25 @@ if label == 'flutter-drive':
             with self.subTest(scenario=scenario):
                 result = self.exercise(**scenario)
                 if scenario.get('bootReceiptFault'):
-                    self.assertTrue(result['environment']['simulatorOwnership']['owned'])
+                    self.assertTrue(result['environment']['simulatorOwnership']['created'])
                     self.assertTrue(result['environment']['simulatorOwnership']['released'])
                     boot = next(item for item in result['records'] if item['label'] == 'simulator-boot')
                     self.assertEqual(boot['returncode'], 0)
                 if scenario.get('bootBeforeReceiptFault'):
-                    self.assertFalse(result['environment']['simulatorOwnership']['owned'])
+                    self.assertTrue(result['environment']['simulatorOwnership']['created'])
+
+    def test_create_ack_survives_receipt_failure_and_releases_only_its_private_device(self):
+        result = self.exercise(createReceiptFault=True)
+        create = next(record for record in result['records'] if record['label'] == 'simulator-create')
+        self.assertEqual(create['returncode'], 0)
+        self.assertTrue(create['failures'])
+        self.assertTrue(result['environment']['simulatorOwnership']['created'])
+        self.assertTrue(result['environment']['simulatorOwnership']['deleted'])
+        for record in result['records']:
+            if record['label'] in {'simulator-shutdown', 'simulator-delete'}:
+                self.assertTrue(record['started'])
+                self.assertEqual(record['returncode'], 0)
+        self.assertEqual(result['environment']['primaryFailure']['step'], 'probe')
 
     def test_shutdown_executes_without_receipt_or_log_storage(self):
         for fault in ({'shutdownReceiptFault': True}, {'shutdownLogFault': True},
@@ -731,15 +808,15 @@ if label == 'flutter-drive':
                 self.assertTrue(shutdown['failures'])
 
     def test_log_close_and_read_failures_cannot_erase_command_outcomes(self):
-        for label in ('simulator-boot', 'flutter-drive'):
+        for label in ('simulator-boot', 'dart-driver'):
             for fault in ('closeFault', 'readFault'):
                 with self.subTest(label=label, fault=fault):
                     scenario = {fault: label}
-                    if label == 'flutter-drive':
+                    if label == 'dart-driver':
                         scenario['driveExit'] = 23
                     result = self.exercise(**scenario)
                     command = next(item for item in result['records'] if item['label'] == label)
-                    self.assertEqual(command['returncode'], 23 if label == 'flutter-drive' else 0)
+                    self.assertEqual(command['returncode'], 23 if label == 'dart-driver' else 0)
                     self.assertTrue(result['environment']['simulatorOwnership']['released'])
 
     def test_final_environment_comparison_and_stdout_fail_independently(self):
@@ -774,7 +851,8 @@ if label == 'flutter-drive':
         self.assertTrue(any('29' in item['error'] for item in errors))
         self.assertTrue(any('31' in item['error'] for item in errors))
         self.assertTrue(any(item['step'] == 'stderr-report' for item in errors))
-        self.assertTrue(result['state']['running'])
+        self.assertFalse(result['state']['running'])
+        self.assertIn('simulator-delete', [record['label'] for record in result['records']])
 
     def test_borrowed_simulator_is_untouched_under_combined_failures(self):
         self.exercise(borrowed=True, driveExit=23, sourceExit=29, podFault=True, driveReceiptFault=True,

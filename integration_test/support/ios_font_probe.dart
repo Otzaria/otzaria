@@ -16,6 +16,7 @@ Future<void> notifyIosFontProbeStarted({
   required String generation,
   required String nativeFork,
   required bool firstFrameRasterized,
+  Map<String, Object?> vmService = const {},
 }) async {
   if (coordinator.isEmpty) return;
   if (!firstFrameRasterized) {
@@ -36,9 +37,11 @@ Future<void> notifyIosFontProbeStarted({
         'hostExecutable': Platform.resolvedExecutable,
         'nativeFork': nativeFork,
         'firstFrameRasterized': firstFrameRasterized,
+        'vmServiceUri': vmService['vmServiceUri'],
+        'vmServiceIsolate': vmService['vmServiceIsolate'],
       }),
     );
-    final response = await request.close().timeout(const Duration(seconds: 10));
+    final response = await request.close().timeout(const Duration(seconds: 45));
     await response.drain<void>().timeout(const Duration(seconds: 10));
     if (response.statusCode != HttpStatus.ok) {
       throw StateError('Font probe startup checkpoint was rejected');

@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import '../test/helpers/memory_settings_cache.dart';
 import 'support/apple_font_probe_view.dart';
 import 'support/ios_font_probe.dart';
+import 'support/ios_simulator_vm_service.dart';
 import 'support/ios_font_probe_case.dart';
 import 'support/ios_font_probe_report.dart';
 import 'support/macos_font_probe.dart';
@@ -137,6 +138,10 @@ void main() {
         generation: const String.fromEnvironment('IOS_FONT_PROBE_GENERATION'),
         nativeFork: const String.fromEnvironment('IOS_FONT_PROBE_NATIVE_FORK'),
         firstFrameRasterized: binding.firstFrameRasterized,
+        vmService:
+            const String.fromEnvironment('IOS_FONT_PROBE_COORDINATOR').isEmpty
+            ? const {}
+            : await iosSimulatorVmService(),
       );
       for (final config in iosFontProbeCases) {
         final completed = List.generate(

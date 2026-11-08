@@ -19,6 +19,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 from validate_ios_plugin_fonts import (FLUTTER_REVISION, NATIVE_PACKAGES, lock_pin, read_json,
                                        require, validate_artifacts)
+from ios_simulator_driver import SimulatorDriver
 from apple_plugin_activity.run import (Coordinator, Handler, IOS_APP_STARTUP_SECONDS,
                                        recorded_output, shutdown_server, wait_for_drive)
 
@@ -52,7 +53,7 @@ class FontProbeStartup:
 
     @property
     def defines(self):
-        return {'IOS_FONT_PROBE_COORDINATOR': f'http://127.0.0.1:{self.server.server_port}',
+        return {'IOS_FONT_PROBE_COORDINATOR': f'http://localhost:{self.server.server_port}',
                 'IOS_FONT_PROBE_TOKEN': self.coordinator.token,
                 'IOS_FONT_PROBE_GENERATION': self.coordinator.run_id,
                 'IOS_FONT_PROBE_NATIVE_FORK': self.coordinator.native_fork}
@@ -111,7 +112,7 @@ class Commands:
         self.on_record = lambda record: None
         self.cleanup_mode = False
 
-    def run(self, label, command, timeout=120, *, cwd=ROOT, env=None, check=True, wait_for_exit=None):
+    def run(self, label, command, timeout=120, *, cwd=ROOT, env=None, check=True, wait_for_exit=None, on_success=None):
         log = self.output / (label + '.log')
         record = {'label': label, 'command': command, 'cwd': str(cwd),
                   'timeoutSeconds': timeout, 'timedOut': False, 'returncode': None,
@@ -144,6 +145,10 @@ class Commands:
             record['returncode'] = returncode
             if returncode is not None and not exit_noted:
                 exit_noted = True
+                if returncode == 0 and on_success is not None:
+                    stream.flush()
+                    stream.seek(0)
+                    on_success(stream.read(64 * 1024).strip())
                 if returncode != 0 and not record['timedOut'] and interrupted is None:
                     failure('process-exit', ValueError(f'{label} failed with exit code {returncode}'), 'execution')
             # Ownership and the driver reference must survive every later I/O operation.
@@ -151,7 +156,7 @@ class Commands:
 
         attempt('receipt-before', lambda: write_json(self.output / 'commands.json', self.records))
         if self.cleanup_mode or not record['failures']:
-            stream = attempt('log-open', lambda: log.open('w'))
+            stream = attempt('log-open', lambda: log.open('w+'))
         try:
             if self.cleanup_mode or not record['failures']:
                 process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
@@ -374,20 +379,17 @@ def run_probe(argv=None):
                    'mode': 'debug', 'instances': args.instances, 'physicalProfile': 'NOT_RUN',
                    'physicalRelease': 'NOT_RUN', 'decision': 'keep-default-off', 'commandRecords': []}
     failures = ProbeFailures(environment)
-    shutdown, boot_candidate, startup = None, None, None
+    startup = simulator_driver = None
 
     def observe(record):
-        nonlocal shutdown
         if not any(item is record for item in environment['commandRecords']):
             environment['commandRecords'].append(record)
-        if record['label'] == 'flutter-drive':
+        if record['label'] == 'dart-driver':
             environment['drive'] = record
-        if record['label'] == 'simulator-boot' and record['returncode'] == 0:
-            shutdown = boot_candidate
-            environment['simulatorOwnership'].update(owned=True, bootReturncode=0)
-        if record['label'] == 'simulator-shutdown' and record['returncode'] == 0:
-            shutdown = None
-            environment['simulatorOwnership'].update(released=True, shutdownReturncode=0)
+        if record['label'] == 'ios-launch':
+            environment['simulatorLaunch'] = record
+        if record['label'] == 'simulator-delete' and record['returncode'] == 0:
+            environment['simulatorOwnership'].update(deleted=True, released=True, owned=False)
 
     commands.on_record = observe
     step = 'environment-initial'
@@ -409,24 +411,20 @@ def run_probe(argv=None):
         devices = json.loads(commands.run('simulator-devices', ['xcrun', 'simctl', 'list', 'devices', 'available', '--json'])[0])
         runtimes = json.loads(commands.run('simulator-runtimes', ['xcrun', 'simctl', 'list', 'runtimes', '--json'])[0])
         runtime = environment['runtime'] = select_simulator(devices, runtimes)
-        device = runtime['device']['udid']
-        environment['simulatorOwnership'] = {'device': device, 'owned': False, 'released': False}
-        if runtime['device']['state'] != 'Booted':
-            boot_candidate = device
-            _, boot = commands.run('simulator-boot', ['xcrun', 'simctl', 'boot', device])
-            if boot['returncode'] == 0:
-                shutdown = device
-                environment['simulatorOwnership'].update(owned=True, bootReturncode=0)
-            require(boot['returncode'] == 0 and not boot['timedOut'] and boot['groupDrained'], 'Simulator boot failed')
-        commands.run('simulator-bootstatus', ['xcrun', 'simctl', 'bootstatus', device, '-b'], 240)
-        commands.run('simulator-visible', ['open', '-a', 'Simulator'], 30)
+        startup = FontProbeStartup(output, environment['webviewPin'])
+        startup.start()
+        simulator_driver = SimulatorDriver(output, ROOT, runtime['device']['udid'], startup.coordinator,
+            lambda label, cmd, timeout, **kwargs: commands.run(label, cmd, timeout, **kwargs)[0], time.monotonic() + 3000 + IOS_APP_STARTUP_SECONDS + FONT_REPORT_SECONDS)
+        environment['simulatorOwnership'] = simulator_driver.ownership
+        device = simulator_driver.prepare(runtime['device'], runtime['identifier'])
+        runtime['seedDevice'] = runtime['device']
+        runtime['device'] = simulator_driver.actual_device
+        runtime['identifier'] = simulator_driver.actual_runtime
         runtime['booted'] = True
         environment['captureStatus'] = 'ready'
         step = 'environment-ready'
         write_json(output / 'environment.json', environment)
         step = 'driver'
-        startup = FontProbeStartup(output, environment['webviewPin'])
-        startup.start()
         defines = {**startup.defines, 'OTZARIA_FONT_PROBE_INSTANCES': args.instances,
                    'OTZARIA_IOS_FONT_PROBE_DEVICE': 'simulator',
                    'OTZARIA_IOS_FONT_PROBE_SOURCE': environment['sourceCommit'],
@@ -439,12 +437,10 @@ def run_probe(argv=None):
         application = ROOT / 'build/ios/iphonesimulator/Runner.app'
         environment['prebuiltApplication'] = str(application)
         environment['startupGeneration'] = startup.coordinator.run_id
-        env = dict(os.environ, IOS_FONT_PROBE_REPORTS=str(output / 'reports'))
-        _, drive = commands.run('flutter-drive', [
-            'flutter', 'drive', '--no-pub', '--debug', '-d', device,
-            '--driver=test_driver/ios_plugin_fonts.dart',
-            target, define_argument, '--use-application-binary=' + str(application),
-        ], IOS_APP_STARTUP_SECONDS + FONT_REPORT_SECONDS, env=env, check=False,
+        dart = Path(environment['flutter']['flutterRoot']) / 'bin/cache/dart-sdk/bin/dart'
+        command, driver_environment = simulator_driver.start(application, dart, 'test_driver/ios_plugin_fonts.dart')
+        env = dict(os.environ, **driver_environment, IOS_FONT_PROBE_REPORTS=str(output / 'reports'))
+        _, drive = commands.run('dart-driver', command, FONT_REPORT_SECONDS, env=env, check=False,
             wait_for_exit=startup.wait)
         environment['drive'] = drive
         if drive.get('failures'):
@@ -457,15 +453,16 @@ def run_probe(argv=None):
     finally:
         if startup is not None:
             startup.coordinator.stopping = True
+        if startup is not None:
             for label, operation in [('startup-server-shutdown', lambda: shutdown_server(startup.server) if startup.thread.is_alive() else None),
                                      ('startup-server-close', startup.server.server_close)]:
                 try:
                     operation()
                 except (Exception, KeyboardInterrupt) as cleanup:
                     failures.add(label, cleanup, cleanup=True)
-        if shutdown and environment.get('drive') and failures.entries:
+        if simulator_driver is not None and simulator_driver.ownership['booted'] and (environment.get('drive') or environment.get('simulatorLaunch', {}).get('started')) and failures.entries:
             try:
-                capture_ios_failure_log(output, shutdown)
+                capture_ios_failure_log(output, simulator_driver.device)
             except (Exception, KeyboardInterrupt) as cleanup:
                 failures.add('simulator-failure-log', cleanup, cleanup=True)
         try:
@@ -486,11 +483,10 @@ def run_probe(argv=None):
         except (Exception, KeyboardInterrupt) as cleanup:
             failures.add('podfile-lock', cleanup, cleanup=True)
         try:
-            if shutdown:
+            if simulator_driver is not None:
                 commands.cleanup_mode = True
                 try:
-                    commands.run('simulator-shutdown', ['xcrun', 'simctl', 'shutdown', shutdown],
-                                 10 if environment.get('cancelled') else 60)
+                    simulator_driver.close()
                 finally:
                     commands.cleanup_mode = False
         except (Exception, KeyboardInterrupt) as cleanup:

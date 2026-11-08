@@ -11,6 +11,9 @@ on:
       - 'integration_test/support/perf_fixture.dart'
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/apple_plugin_activity.dart'
+      - 'tool/perf_probe/ios_simulator_driver.py'
+      - 'tool/perf_probe/test_ios_simulator_driver.py'
+      - 'integration_test/support/ios_simulator_vm_service.dart'
       - 'tool/perf_probe/apple_plugin_activity/**'
       - 'test/tool/perf_probe/apple_plugin_activity_contract_test.dart'
       - 'test/plugins/services/plugin_apple_media_resume_test.dart'
@@ -52,6 +55,7 @@ jobs:
           set -euo pipefail
           node --test tool/perf_probe/apple_plugin_activity/test_fixture.mjs
           python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_*.py' -v
+          python3 -m unittest discover -s tool/perf_probe -p 'test_ios_simulator_driver.py' -v
           ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
           flutter analyze --no-pub \
             lib/plugins/services/plugin_runtime_dispatcher.dart \
@@ -114,7 +118,7 @@ jobs:
             ruby -e 'require "xcodeproj"'
             xcrun simctl list devices available --json > "$RUNNER_TEMP/apple-devices.json"
             python3 - <<'PY'
-          import json, os, subprocess
+          import json, os
           from pathlib import Path
           data = json.loads(Path(os.environ['RUNNER_TEMP'], 'apple-devices.json').read_text())
           candidates = [d for runtime, devices in data['devices'].items() if '.iOS-' in runtime
@@ -122,13 +126,9 @@ jobs:
           if not candidates:
               raise SystemExit('No available iPhone simulator; do not substitute a fake background transition')
           device = next((d for d in candidates if d['state'] == 'Booted'), candidates[0])
-          if device['state'] != 'Booted':
-              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True)
-          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True)
           with open(os.environ['GITHUB_ENV'], 'a') as stream:
               stream.write('APPLE_PROBE_DEVICE=' + device['udid'] + '\n')
           PY
-            open -a Simulator
           fi
       - name: Verify public identity and diagnose native macOS hide
         id: mac_controls

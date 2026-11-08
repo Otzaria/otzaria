@@ -23,7 +23,7 @@ python3 tool/perf_probe/apple_plugin_activity/run.py \
   --platform macos --mode profile --device macos \
   --output "$PWD/build/apple-quiet-macos"
 
-# יש להחליף את המזהה ב־UDID של iPhone Simulator שכבר הופעל.
+# יש להחליף את המזהה ב־UDID של iPhone Simulator זמין שישמש כתבנית.
 python3 tool/perf_probe/apple_plugin_activity/run.py \
   --platform ios --mode debug --device "$APPLE_SIMULATOR_ID" \
   --output "$PWD/build/apple-quiet-ios-simulator"
@@ -47,22 +47,32 @@ polling בזמן השקט או הבטחה שאין פעילות מערכת אח�
 ב־**debug**. Flutter אינו תומך ב־profile ב־Simulator. ה־runner אינו מחליף
 profile ב־debug בשקט ואינו מייחס תוצאת Simulator למכשיר פיזי.
 
-ב־iOS Simulator האפליקציה נבנית לפני הפעלת בקר XCUITest. `flutter drive`
-משתמש באותו app bundle מוכן, עם אותם קלטי `defines.json`, בלי לבנות אותו
-מחדש. `build-ios-probe.json` שומר את תוצאת הבנייה בנפרד מזמן המדידה.
+ב־iOS Simulator נוצר מכשיר פרטי מאותו device type ו־runtime של התבנית שנבחרה;
+התבנית עצמה אינה מופעלת או משתנה. הבנייה קודמת להפעלת בקר XCUITest.
+`simctl install/launch` מפעיל את אותו app bundle עם אותם קלטי `defines.json`.
+ה־checkpoint המאומת מוסר URI מלא עם auth ו־UI isolate. לפני שחרור תשובתו,
+`getVM` יחיד מאמת PID זהה לאישור `simctl` ול־checkpoint, ואת isolate ברירת המחדל.
+Dart מה־SDK הנעול מפעיל ישירות את הדרייבר עם `VM_SERVICE_URL` ו־`--packages`,
+כפי שעושה `DriveService.startTest`; אין תלות בקורא OS logs לגילוי השירות.
+לאחר עצירת הדרייבר והבקר, ה־UUID שנוצר בלבד עובר shutdown/delete, גם ללא
+checkpoint ובכשל הפעלה. מזהי התבנית והמכשיר הפרטי ומצב הניקוי נשמרים בדוח. רשומת המכשיר הפרטי
+נקראת מ־simctl אחרי boot ונבדקת מול UUID, סוג המכשיר וה־runtime שהתבקשו.
+פתיחת Simulator תואמת ל־SDK ואינה מוכיחה איזה חלון Mac נמצא בחזית.
+XCUITest בודק foreground של האפליקציה בתוך האורח ב־UDID הפרטי; אין כאן
+טענה לבחירת חלון Simulator מסוים במארח. `build-ios-probe.json` שומר את תוצאת הבנייה בנפרד מזמן המדידה.
 לאחר העלייה, לפני כל `arm`, האפליקציה מבקשת challenge חדש מהבקר החי.
 אישור מוכנות ישן, בקר שהסתיים, session שהוחלף או תשובה ממוחזרת נדחים.
 תקציב המדידה של הבקר מתחיל באישור הראשון; תקציב ההכנה נפרד ממנו.
 
 ה־job שומר בתחילתו deadline מונוטוני משותף של 65 דקות, כולל התקנת
 התלויות והבנייה. `run.py` מקבל אותו דרך `APPLE_PROBE_DEADLINE_MONOTONIC`
-ומאמת שהוא סופי. הבנייה, מוכנות הבקר, `flutter drive` והסיום חולקים את
+ומאמת שהוא סופי. הבנייה, מוכנות הבקר, הדרייבר והסיום חולקים את
 הזמן שנותר; לכל שלב נשאר גם הגבול המרבי הקיים שלו. בריצה מקומית ללא
 המשתנה, התקציב מתחיל בכניסה ל־runner. ה־CI שומר כך כעשר דקות מתוך
 75 לניקוי ולהעלאת ראיות. הניקוי מקבל גבולות קצרים משלו, ותקלה בו נשמרת
 לצד הכשל הראשון. חלונות המדידה ותנאי הקבלה אינם משתנים.
 
-המתנת `flutter drive` מסתיימת גם באות כשל נייטיבי שנשמר, או ביציאה
+המתנת הדרייבר מסתיימת גם באות כשל נייטיבי שנשמר, או ביציאה
 מוקדמת של בקר XCUITest. ההמתנה משתמשת בהודעת הגבול הקיימת וב־wait
 חוסם לתהליך, בלי להוסיף polling בזמן השקט. כך כשל כגון `quiet.homeFailed`
 נשמר ככשל הראשי ואינו מוחלף כעבור דקות ב־timeout כללי. לפני עצירת בקר

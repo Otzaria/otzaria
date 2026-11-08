@@ -38,6 +38,7 @@ import 'package:window_manager/window_manager.dart';
 import '../tool/perf_probe/apple_plugin_activity/contract.dart';
 import 'support/apple_plugin_activity_fixture.dart';
 import 'support/installed_plugin_completion.dart';
+import 'support/ios_simulator_vm_service.dart';
 import 'support/perf_fixture.dart';
 import 'support/perf_recorder.dart' show perfBuildMode;
 import 'support/webview_probe_window.dart';
@@ -171,6 +172,14 @@ void main() {
         'actual app reveal',
         timeout: const Duration(minutes: 3),
       );
+      if (Platform.isIOS &&
+          perfBuildMode == 'debug' &&
+          !const bool.fromEnvironment('APPLE_QUIET_EXTERNAL')) {
+        await binding.waitUntilFirstFrameRasterized;
+        report['startupFirstFrameRasterized'] = binding.firstFrameRasterized;
+        report.addAll(await iosSimulatorVmService());
+        await protocol.post('checkpoint', report);
+      }
       FlutterError.onError = (details) {
         (report['errors'] as List).add(details.exceptionAsString());
         oldFlutterError?.call(details);
