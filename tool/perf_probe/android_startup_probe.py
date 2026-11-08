@@ -480,7 +480,7 @@ class Runner:
         dirty = bool(self.command(["git", "status", "--porcelain", "--untracked-files=normal"]).stdout)
         self.command([self.args.flutter, "pub", "get", "--enforce-lockfile"], timeout=600, env=env)
         argv = [self.args.flutter, "build", "apk", f"--{self.args.mode}", "--no-pub",
-                "--target", TARGET, "--target-platform", self.target,
+                "--flavor", "direct", "--target", TARGET, "--target-platform", self.target,
                 "--dart-define=OTZARIA_ANDROID_STARTUP_PROBE=true",
                 "--dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false",
                 f"--dart-define=OTZARIA_PROBE_SOURCE_REVISION={revision}",
@@ -490,7 +490,7 @@ class Runner:
         (self.output / "build.log").write_bytes(result.stdout + result.stderr)
         if result.returncode:
             raise RuntimeError("Probe APK build failed; see build.log")
-        apk = ROOT / "build/app/outputs/flutter-apk" / f"app-{self.args.mode}.apk"
+        apk = ROOT / "build/app/outputs/flutter-apk" / f"app-direct-{self.args.mode}.apk"
         aapt = shutil.which("aapt2")
         if not aapt:
             sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")

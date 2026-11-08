@@ -82,6 +82,35 @@ void main() {
   );
 
   group('buildReleaseManifest', () {
+    for (final apkName in ['otzaria-android.apk', 'app-release.apk']) {
+      test('Android preserves the published APK name: $apkName', () {
+        writeFile(apkName, 'signed-apk-fixture');
+        writeJson('otzaria-android.json', {'schemaVersion': 1});
+        final manifest = build();
+        final android = componentById(manifest, 'otzaria-android');
+        final asset = (android['assets'] as List).single as Map;
+        expect(asset['name'], apkName);
+        expect(asset['size'], utf8.encode('signed-apk-fixture').length);
+        expect(
+          asset['sha256'],
+          sha256.convert(utf8.encode('signed-apk-fixture')).toString(),
+        );
+        expect(validateReleaseManifest(manifest), isEmpty);
+        expect(jsonEncode(manifest), isNot(contains('otzaria-android.json')));
+      });
+    }
+
+    test('Android metadata without an APK is not an installer', () {
+      writeJson('otzaria-android.json', {'schemaVersion': 1});
+      expect(build()['components'], isEmpty);
+    });
+
+    test('two APK names cannot silently select an arbitrary version', () {
+      writeFile('otzaria-android.apk', 'new');
+      writeFile('app-release.apk', 'old');
+      expect(build, throwsA(isA<ReleaseManifestException>()));
+    });
+
     test('a realistic 0.9.97 release produces the expected components', () {
       writeRealisticRelease();
       final manifest = build();

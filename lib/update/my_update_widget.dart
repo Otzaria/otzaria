@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ffi' show Abi;
 import 'dart:io';
+import 'package:otzaria/android_update/view/android_update_host.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -602,6 +603,7 @@ class MyUpdatWidget extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
+    if (!kIsWeb && Platform.isAndroid) return AndroidUpdateHost(child: child);
     // אסור שצורת העץ תלויה בהגדרות משתנות (מנותק/עדכונים) — החלפת העוטף
     // בזמן ריצה בונה מחדש את כל תת-העץ וה-PageView מאבד את העמוד הפעיל.
     if (!managesUpdatesHere(duties: ProcessDuties.of(context))) return child;

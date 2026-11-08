@@ -2169,18 +2169,30 @@ jobs:
           # Generate the settings .g.dart files: search index + translation catalog.
           dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
-          flutter build apk --verbose "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
+          flutter build apk --release --flavor direct --verbose "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
           # ניקוי מיידי של קבצים מיותרים מהבנייה (לא ה-APK הסופי)
           rm -rf build/app/intermediates || true
           rm -rf build/app/.transforms || true
           echo "Disk space after intermediate cleanup:"
           df -h
       
+      - name: Prepare Android update artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p build/android-release
+          cp build/app/outputs/flutter-apk/app-direct-release.apk build/android-release/otzaria-android.apk
+          python3 tool/release/android_release_metadata.py \
+            --apk build/android-release/otzaria-android.apk \
+            --output build/android-release/otzaria-android.json \
+            --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0" \
+            --distribution direct
+
       - name: Upload apk
         uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-android.apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/android-release/
+          if-no-files-found: error
 
       # לטיוטת השחרור, לפני שהניקוי מוחק את build.
       - name: Upload release assets
@@ -2188,7 +2200,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ needs.prepare_release.outputs.release_id }}
-        run: bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record build/app/outputs/flutter-apk/app-release.apk
+        run: >-
+          bash tool/release/upload_release_assets.sh "$RELEASE_ID" release-record
+          build/android-release/otzaria-android.apk build/android-release/otzaria-android.json
 
       - name: Upload release record
         if: needs.prepare_release.outputs.release_id != ''
@@ -2243,7 +2257,7 @@ jobs:
           done
           # כלי ההרכבה מיועדים למחשב; בטלפון הייבוא מחבר את החלקים בעצמו.
           rm -f -- "$BUNDLE_ROOT/assemble_split_asset.sh" "$BUNDLE_ROOT/assemble_split_asset.ps1"
-          mv android-apk/app-release.apk "$BUNDLE_ROOT/otzaria-android.apk"
+          mv android-apk/otzaria-android.apk android-apk/otzaria-android.json "$BUNDLE_ROOT/"
           cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
           אוצריא ל-Android — חבילה מלאה
 

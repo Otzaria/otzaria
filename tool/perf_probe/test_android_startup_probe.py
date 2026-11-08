@@ -116,6 +116,45 @@ class AndroidStartupContracts(unittest.TestCase):
             with patch.object(probe.shutil, "which", return_value="aapt2"), self.assertRaises(ValueError):
                 runner.build()
 
+    def test_runner_installs_the_direct_flavor_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            apk = root / "build/app/outputs/flutter-apk/app-direct-profile.apk"
+            apk.parent.mkdir(parents=True)
+            apk.write_bytes(b"direct probe APK")
+            apk.with_name("app-profile.apk").write_bytes(b"stale unflavored APK")
+            calls = []
+
+            class FakeRunner(probe.Runner):
+                def command(self, argv, **kwargs):
+                    calls.append(argv)
+                    if argv[1:3] == ["--version", "--machine"]:
+                        out = b'{"frameworkVersion":"3.47.7"}'
+                    elif argv[:2] == ["git", "rev-parse"]:
+                        out = b"a" * 40
+                    elif argv[1:3] == ["dump", "badging"]:
+                        out = (f"package: name='{probe.PACKAGE}'\n"
+                               f"launchable-activity: name='{probe.ACTIVITY}'\n"
+                               "application-debuggable\n").encode()
+                    else:
+                        out = b""
+                    return probe.subprocess.CompletedProcess(argv, 0, out, b"")
+
+                def adb(self, *args, **kwargs):
+                    calls.append(["adb", *args])
+                    return probe.subprocess.CompletedProcess(args, 0, b"", b"")
+
+            args = probe.argparse.Namespace(output=root / "reports", flutter="flutter", mode="profile")
+            runner = FakeRunner(args)
+            runner.target = "android-arm64"
+            with patch.object(probe, "ROOT", root), patch.object(probe.shutil, "which", return_value="aapt2"):
+                runner.build()
+            build = next(argv for argv in calls if argv[:3] == ["flutter", "build", "apk"])
+            self.assertEqual(build[build.index("--flavor") + 1], "direct")
+            self.assertIn(["aapt2", "dump", "badging", str(apk)], calls)
+            self.assertIn(["adb", "install", "-r", str(apk)], calls)
+            self.assertEqual(runner.apk_hash, probe.hashlib.sha256(apk.read_bytes()).hexdigest())
+
     def test_host_pss_requires_exact_process_and_preserves_measured_zero(self):
         raw = f"** MEMINFO in pid 123 [{probe.PACKAGE}] **\nTOTAL PSS: 0 TOTAL RSS: 8192\n"
         self.assertEqual(probe.host_pss(raw, 123)["value"], 0)

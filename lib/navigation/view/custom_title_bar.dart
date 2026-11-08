@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:otzaria/android_update/view/android_update_view.dart';
 
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
@@ -288,6 +289,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                             settingsState,
                           ),
                         ),
+
+                        if (!kIsWeb && Platform.isAndroid)
+                          const AndroidUpdateIndicator(),
 
                         // כפתורי חלון (רק בדסקטופ)
                         if (!kIsWeb &&
