@@ -111,6 +111,48 @@ class NativeMacIdentityTests(unittest.TestCase):
         })
         runner.recorded_output(cls.directory, "compile-initialized-controller",
             ["xcrun", "swiftc", str(initialized_source), "-o", str(cls.initialized_helper)], 120)
+        event_loop = imports + '''
+let diagnosticApplication = NSApplication.shared
+let diagnosticPolicyAccepted = diagnosticApplication.setActivationPolicy(.accessory)
+var diagnosticLaunchObserved = false
+func serveController() throws {
+''' + original[len(imports):] + '''
+}
+let diagnosticObserver = NotificationCenter.default.addObserver(
+    forName: NSApplication.didFinishLaunchingNotification, object: diagnosticApplication, queue: nil
+) { _ in
+    guard !diagnosticLaunchObserved else { return }
+    diagnosticLaunchObserved = true
+    DispatchQueue.main.async {
+        let ready: [String: Any] = [
+            "didFinishLaunchingObserved": diagnosticLaunchObserved,
+            "isRunning": diagnosticApplication.isRunning, "mainThread": Thread.isMainThread,
+            "policyAccepted": diagnosticPolicyAccepted,
+            "activationPolicy": diagnosticApplication.activationPolicy().rawValue
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: ready, options: [.sortedKeys])
+        fputs(String(decoding: data, as: UTF8.self) + "\\n", stderr)
+        guard diagnosticApplication.isRunning, Thread.isMainThread,
+              diagnosticApplication.activationPolicy() == .accessory else { exit(65) }
+        do { try serveController(); exit(0) }
+        catch { fputs(String(describing: error) + "\\n", stderr); exit(1) }
+    }
+}
+DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+    if !diagnosticLaunchObserved { exit(65) }
+}
+diagnosticApplication.run()
+'''
+        event_loop_source = cls.directory / "event_loop_controller.swift"
+        event_loop_source.write_text(event_loop)
+        cls.event_loop_helper = cls.directory / "mac-application-event-loop"
+        runner.save(cls.directory / "event-loop-variant.json", {
+            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
+            "diagnosticSHA256": hashlib.sha256(event_loop.encode()).hexdigest(),
+            "scope": "Retained controller code after actual AppKit launch, with accessory policy; no fallback or changed hide guard",
+        })
+        runner.recorded_output(cls.directory, "compile-event-loop-controller",
+            ["xcrun", "swiftc", str(event_loop_source), "-o", str(cls.event_loop_helper)], 120)
         cls.launch_count = 0
 
     def wait_for_evidence(self, path, process):
@@ -137,6 +179,12 @@ class NativeMacIdentityTests(unittest.TestCase):
         self.addCleanup(runner.stop_owned, process)
         startup = self.wait_for_evidence(ready, process)
         self.assertEqual(startup["pid"], process.pid)
+        self.assertEqual(startup["stage"], "ready")
+        self.assertTrue(startup["didFinishLaunchingObserved"])
+        self.assertTrue(startup["isRunning"])
+        self.assertTrue(startup["mainThread"])
+        self.assertTrue(startup["isFinishedLaunching"])
+        self.assertGreater(startup["screenCount"], 0)
         self.assertIs(type(startup["policyChangeAccepted"]), bool)
         self.assertEqual(startup["activationPolicy"], 0)
         self.assertTrue(startup["windowCanHide"])
@@ -148,6 +196,9 @@ class NativeMacIdentityTests(unittest.TestCase):
 
     def test_initialized_controller_is_an_independent_diagnostic(self):
         self.exercise_controller(self.initialized_helper, "initialized-execution", initialized=True)
+
+    def test_event_loop_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.event_loop_helper, "event-loop-execution", initialized=True)
 
     def exercise_controller(self, helper, label, initialized=False):
         with native_result(self.directory, label,

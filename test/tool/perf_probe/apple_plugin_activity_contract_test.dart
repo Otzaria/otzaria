@@ -33,6 +33,7 @@ Map<String, dynamic> snapshot({
 Map<String, Object?> analyze(
   Map<String, dynamic> after, {
   Map<String, dynamic>? before,
+  Map<String, dynamic> driver = const {},
 }) => analyzeAppleQuietWindow(
   before: before ?? snapshot(readWall: 900, readMono: 900),
   after: after,
@@ -42,6 +43,12 @@ Map<String, Object?> analyze(
     'quietElapsedMs': 8000,
     'armReceivedMs': 1005,
     'armReplyMs': 1010,
+    'driverClockAnchors': {
+      'armReply': {'wallMs': 1010, 'monotonicMs': 1010},
+      'quietStart': {'wallMs': 2000, 'monotonicMs': 2000},
+      'quietEnd': {'wallMs': 10000, 'monotonicMs': 10000},
+    },
+    ...driver,
   },
   armStartMs: 1000,
   armEndMs: 1020,
@@ -248,6 +255,87 @@ void main() {
     expect(stream['classification'], 'clockUncertain');
     expect(stream['callbacksInsideQuiet'], null);
   });
+
+  for (final jump in [-10000, 10000]) {
+    test(
+      'driver clock step between arm and control invalidates every stream ($jump)',
+      () {
+        final report = analyze(
+          snapshot(callbacks: [15000], readWall: 22000, readMono: 22000),
+          driver: {
+            'platform': 'ios',
+            'quietStartMs': 2000 + jump,
+            'quietEndMs': 10000 + jump,
+            'driverClockAnchors': {
+              'armReply': {'wallMs': 1010, 'monotonicMs': 1010},
+              'controlReply': {'wallMs': 1100 + jump, 'monotonicMs': 1100},
+              'controlResult': {'wallMs': 10100 + jump, 'monotonicMs': 10100},
+            },
+          },
+        );
+        expect(report['driverWallMinusMonotonicDeltaMs'], 0);
+        expect(report['deviceWallMinusMonotonicDeltaMs'], 0);
+        expect(report['clockStable'], false);
+        for (final stream in (report['streams'] as Map).values.cast<Map>()) {
+          expect(stream['classification'], 'clockUncertain');
+          expect(stream['callbacksInsideQuiet'], null);
+          expect(stream['callbacksAfterQuiet'], null);
+          expect(stream['totalSinceArm'], 1);
+        }
+        expect(report['driverCoordinationClockDriftMs'], 10000);
+      },
+    );
+  }
+
+  for (final drift in [-251, -250, 250, 251]) {
+    test('driver coordination preserves the existing 250ms bound ($drift)', () {
+      final report = analyze(
+        snapshot(callbacks: [4000]),
+        driver: {
+          'platform': 'ios',
+          'driverClockAnchors': {
+            'armReply': {'wallMs': 1010, 'monotonicMs': 1010},
+            'controlReply': {'wallMs': 1500 + drift, 'monotonicMs': 1500},
+            'controlResult': {'wallMs': 10100 + drift, 'monotonicMs': 10100},
+          },
+        },
+      );
+      expect(report['driverCoordinationClockDriftMs'], drift.abs());
+      expect(report['clockStable'], drift.abs() <= 250);
+    });
+  }
+
+  test(
+    'missing or reversed driver anchors cannot establish clock stability',
+    () {
+      for (final anchors in [
+        null,
+        <String, Object?>{},
+        {
+          'armReply': {'wallMs': 1010, 'monotonicMs': 1010},
+          'quietStart': {'wallMs': 2000, 'monotonicMs': 2000},
+        },
+        {
+          'armReply': {'wallMs': 1010, 'monotonicMs': 1010},
+          'quietStart': {'wallMs': 2000, 'monotonicMs': 1000},
+          'quietEnd': {'wallMs': 10000, 'monotonicMs': 10000},
+        },
+      ]) {
+        final report = analyze(
+          snapshot(callbacks: [4000]),
+          driver: {'driverClockAnchors': anchors},
+        );
+        expect(report['clockStable'], false);
+        expect(report['driverCoordinationClockDriftMs'], null);
+        expect(report['driverClockAnchorsComplete'], false);
+        expect(
+          ((report['streams'] as Map)['interval']
+              as Map)['callbacksInsideQuiet'],
+          null,
+        );
+      }
+    },
+  );
 
   for (final execution in [
     (wall: 4000, mono: 11000),

@@ -1,11 +1,13 @@
 import importlib.util
 import json
 import http.client
+import plistlib
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -123,11 +125,13 @@ class ProtocolTests(unittest.TestCase):
 
     def test_ios_controller_also_stops_polling_for_non_home_quiet_windows(self):
         self.coordinator.target = "ios"
-        body = {**self.body, "platform": "ios"}
+        self.coordinator.request('control-ready', {'controllerSession': 'controller-A'}, 900)
+        self.coordinator.prepared_challenge = 'fresh-boundary'
+        body = {**self.body, "platform": "ios", 'controllerSession': 'controller-A', 'challenge': 'fresh-boundary'}
         response, _ = self.coordinator.request("arm", body, 1000)
         job = self.coordinator.jobs[response["jobId"]]
         self.coordinator.control_job = job
-        command, _ = self.coordinator.request("control", {}, 1001)
+        command, _ = self.coordinator.request("control", {'controllerSession': 'controller-A'}, 1001)
         self.assertEqual(command["action"], "quiet")
         self.assertEqual(command["jobId"], response["jobId"])
         self.assertIsNone(self.coordinator.control_job)
@@ -139,8 +143,8 @@ class ProtocolTests(unittest.TestCase):
                 self.coordinator = runner.Coordinator(self.directory, "run-A", "nonce", "macos", 6)
                 events = []
                 controller = Mock()
-                controller.request.side_effect = lambda value: events.append(value) or {'executable': '/fixture'}
-                controller.close.side_effect = lambda: events.append('close')
+                controller.request.side_effect = lambda value, **_: events.append(value) or {'executable': '/fixture'}
+                controller.close.side_effect = lambda **_: events.append('close')
                 def sleeping(seconds):
                     events.append(('sleep', seconds))
                 response, work = self.coordinator.request('arm', {**self.body, 'action': action}, 1000)
@@ -161,7 +165,7 @@ class ProtocolTests(unittest.TestCase):
         response, work = self.coordinator.request('arm', self.body, 1000)
         controller = Mock()
         controller.request.return_value = {'executable': '/fixture'}
-        def closing():
+        def closing(**_):
             self.assertEqual(self.coordinator.jobs[response['jobId']]['status'], 'running')
             with self.assertRaises(ValueError):
                 self.coordinator.request('result', {'jobId': response['jobId']}, 2000)
@@ -175,6 +179,112 @@ class ProtocolTests(unittest.TestCase):
         report = self.coordinator.jobs[response['jobId']]
         self.assertEqual(report['status'], 'failed')
         self.assertIn('controllerCleanupError', report)
+
+    def test_dead_ios_controller_cannot_reuse_its_earlier_readiness(self):
+        self.coordinator.target = 'ios'
+        process = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(0.05)'], start_new_session=True)
+        self.addCleanup(runner.stop_owned, process)
+        self.coordinator.control_process = process
+        self.coordinator.request('control-ready', {'controllerSession': 'controller-A'}, 900)
+        process.wait(timeout=3)
+        with self.assertRaisesRegex(ValueError, 'exited after readiness'):
+            self.coordinator.request('arm', {**self.body, 'platform': 'ios'}, 1000)
+        with self.assertRaisesRegex(ValueError, 'exited after readiness'):
+            self.coordinator.request('prepare', self.body, 1000)
+        self.assertFalse(self.coordinator.jobs)
+
+    def test_ios_preparation_requires_a_fresh_reply_from_the_same_session(self):
+        self.coordinator.target = 'ios'
+        self.coordinator.request('control-ready', {'controllerSession': 'controller-A'}, 900)
+        prepared, errors = [], []
+        def prepare():
+            try:
+                prepared.append(self.coordinator.request('prepare', self.body, 1000)[0])
+            except Exception as error:
+                errors.append(error)
+        thread = threading.Thread(target=prepare)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 3
+            while self.coordinator.control_challenge is None and time.monotonic() < deadline:
+                time.sleep(0.001)
+            command, _ = self.coordinator.request('control', {'controllerSession': 'controller-A'}, 1001)
+            self.assertIn('prepare', command)
+            with self.assertRaises(ValueError):
+                self.coordinator.request('control-prepared', {
+                    'controllerSession': 'another-controller', 'challenge': command['prepare']}, 1002)
+            self.assertFalse(self.coordinator.control_prepared.is_set())
+            self.coordinator.request('control-prepared', {
+                'controllerSession': 'controller-A', 'challenge': command['prepare']}, 1002)
+            thread.join(timeout=3)
+            self.assertFalse(thread.is_alive())
+            self.assertFalse(errors)
+            body = {**self.body, 'platform': 'ios', **prepared[0]}
+            reply, _ = self.coordinator.request('arm', body, 1003)
+            self.assertIsNone(self.coordinator.prepared_challenge)
+            self.coordinator.jobs[reply['jobId']]['status'] = 'failed'
+            with self.assertRaisesRegex(ValueError, 'fresh iOS controller preparation'):
+                self.coordinator.request('arm', body, 1004)
+        finally:
+            self.coordinator.control_prepared.set()
+            thread.join(timeout=3)
+
+    def test_slow_macos_preparation_fails_before_quiet_and_before_result(self):
+        elapsed, events = [0.0], []
+        controller = Mock()
+        def request(action, **_):
+            events.append(action)
+            elapsed[0] += 8
+            return {'executable': '/fixture'}
+        def sample(*_, **__):
+            elapsed[0] += 4
+            return {'status': 'unavailable'}
+        def sleeping(seconds):
+            events.append(('sleep', seconds))
+            elapsed[0] += seconds
+        controller.request.side_effect = request
+        with patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(runner.time, 'monotonic_ns', side_effect=lambda: int(elapsed[0] * 1e9)), \
+             patch.object(runner.time, 'sleep', side_effect=sleeping), \
+             patch.object(runner, 'MacApplicationSession', return_value=controller), \
+             patch.object(runner, 'host_sample', side_effect=sample):
+            response, work = self.coordinator.request('arm', self.body, 1000)
+            work()
+            report, _ = self.coordinator.request('result', {'jobId': response['jobId']}, 21000)
+        self.assertEqual(report['status'], 'failed')
+        self.assertIn('Insufficient boundary budget', report['error'])
+        self.assertNotIn(('sleep', 6), events)
+        self.assertLess(elapsed[0], response['waitMs'] / 1000)
+
+    def test_macos_boundary_timeouts_share_the_arm_budget(self):
+        elapsed, limits = [0.0], []
+        controller = Mock()
+        def request(action, timeout):
+            limits.append((action, elapsed[0], timeout))
+            elapsed[0] += 1
+            return {'executable': '/fixture'}
+        def sample(*_, timeout):
+            limits.append(('sample', elapsed[0], timeout))
+            elapsed[0] += 1
+            return {'status': 'unavailable'}
+        controller.request.side_effect = request
+        with patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+             patch.object(runner.time, 'monotonic_ns', side_effect=lambda: int(elapsed[0] * 1e9)), \
+             patch.object(runner, 'now_ms', side_effect=lambda: 1000 + elapsed[0] * 1000), \
+             patch.object(runner.time, 'sleep', side_effect=lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds)), \
+             patch.object(runner, 'MacApplicationSession', return_value=controller), \
+             patch.object(runner, 'host_sample', side_effect=sample):
+            response, work = self.coordinator.request('arm', self.body, 1000)
+            work()
+            report = self.coordinator.jobs[response['jobId']]
+        self.assertEqual(report['status'], 'passed')
+        self.assertEqual(report['quietElapsedMs'], 6000)
+        for _, started, limit in limits[:2]:
+            self.assertLessEqual(started + limit, report['deadlineMonotonic'] - 6)
+        for _, started, limit in limits[2:]:
+            self.assertLessEqual(started + limit, report['resultDeadlineMonotonic'])
+        self.assertLess(elapsed[0], response['waitMs'] / 1000)
+        self.assertEqual(set(report['driverClockAnchors']), {'armReply', 'quietStart', 'quietEnd'})
 
 
 class SetupEvidenceTests(unittest.TestCase):
@@ -336,16 +446,136 @@ for line in sys.stdin:
 
 
 class PinTests(unittest.TestCase):
-    def test_all_eight_resolved_native_packages_share_the_public_pin(self):
-        lock = (runner.REPO / "pubspec.lock").read_text()
-        # Split at package indentation, not at nested YAML indentation.
-        import re
-        native = [section for section in re.split(r"\n(?=  [a-zA-Z0-9_]+:\n)", lock)
-                  if 'url: "https://github.com/Otzaria/flutter_inappwebview"' in section]
-        self.assertEqual(len(native), 8)
-        for section in native:
-            self.assertIn(f'resolved-ref: "{runner.NATIVE_PIN}"', section)
-        self.assertNotIn("c709de98711cf34350c48df4c75e24d0879d5876", (runner.REPO / "pubspec.yaml").read_text())
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.native = self.directory / 'native'
+        self.native.mkdir()
+        subprocess.run(['git', 'init', '-q', str(self.native)], check=True)
+        for name in runner.NATIVE_PACKAGES:
+            package = self.native / name
+            package.mkdir()
+            (package / 'pubspec.yaml').write_text(f'name: {name}\n')
+        subprocess.run(['git', '-C', str(self.native), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(self.native), '-c', 'user.name=Fixture',
+                        '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture source'], check=True)
+        self.revision = runner.output(['git', '-C', str(self.native), 'rev-parse', 'HEAD'])
+        declarations, locked, packages = [], [], []
+        for name in sorted(runner.NATIVE_PACKAGES):
+            location = f'      path: {name}\n      ref: "{self.revision}"\n      url: "https://github.com/Otzaria/flutter_inappwebview"\n'
+            if name != 'flutter_inappwebview_web':
+                declarations.append(f'  {name}:\n    git:\n{location}')
+            locked.append(f'  {name}:\n    description:\n{location}      resolved-ref: "{self.revision}"\n    source: git\n')
+            packages.append({'name': name, 'rootUri': (self.native / name).as_uri()})
+        (self.directory / 'pubspec.yaml').write_text('dependencies:\n' + ''.join(declarations))
+        (self.directory / 'pubspec.lock').write_text('packages:\n' + ''.join(locked))
+        (self.directory / '.dart_tool').mkdir()
+        self.config = self.directory / '.dart_tool/package_config.json'
+        self.config.write_text(json.dumps({'packages': packages}))
+
+    def test_all_eight_lock_and_resolved_source_revisions_are_verified(self):
+        proof = runner.native_source_provenance(self.directory)
+        self.assertEqual(proof['revision'], self.revision)
+        self.assertEqual(set(proof['packages']), runner.NATIVE_PACKAGES)
+        self.assertEqual(len(proof['packages']), 8)
+        for package in proof['packages'].values():
+            self.assertEqual(package['revision'], self.revision)
+        coordinator = runner.Coordinator(self.directory, 'run-A', 'token', 'ios', 6)
+        coordinator.native_fork = proof['revision']
+        report = {'runId': 'run-A', 'hostPid': 42, 'appBootToken': 'boot', 'nativeFork': proof['revision']}
+        coordinator.request('checkpoint', report, 1000)
+        with self.assertRaisesRegex(ValueError, 'app native fork differs'):
+            coordinator.request('checkpoint', {**report, 'nativeFork': '0' * 40}, 1001)
+        self.assertEqual(json.loads((self.directory / 'partial-app.json').read_text())['nativeFork'], self.revision)
+
+    def test_a_single_inconsistent_pin_is_rejected(self):
+        path = self.directory / 'pubspec.lock'
+        path.write_text(path.read_text().replace('resolved-ref: "' + self.revision, 'resolved-ref: "' + '0' * 40, 1))
+        with self.assertRaisesRegex(ValueError, 'inconsistent native fork'):
+            runner.native_source_provenance(self.directory)
+
+    def test_matching_manifests_cannot_hide_a_different_resolved_checkout(self):
+        for name in ['pubspec.yaml', 'pubspec.lock']:
+            path = self.directory / name
+            path.write_text(path.read_text().replace(self.revision, '0' * 40))
+        with self.assertRaisesRegex(ValueError, 'source differs from the lockfile'):
+            runner.native_source_provenance(self.directory)
+
+    def test_dirty_resolved_native_source_is_rejected(self):
+        (self.native / 'flutter_inappwebview_ios/pubspec.yaml').write_text('changed\n')
+        with self.assertRaisesRegex(ValueError, 'source is dirty'):
+            runner.native_source_provenance(self.directory)
+
+    def test_package_config_cannot_redirect_a_package_to_a_sibling(self):
+        config = json.loads(self.config.read_text())
+        config['packages'][0]['rootUri'] = config['packages'][1]['rootUri']
+        self.config.write_text(json.dumps(config))
+        with self.assertRaisesRegex(ValueError, 'resolved native package path'):
+            runner.native_source_provenance(self.directory)
+
+
+class BuildOrderingTests(unittest.TestCase):
+    def test_controller_starts_after_the_ios_build_and_drive_reuses_the_binary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / 'repo'
+            entitlements = repository / 'macos/Runner/DebugProfile.entitlements'
+            entitlements.parent.mkdir(parents=True)
+            entitlements.write_text('<plist/>')
+            directory = root / 'output'
+            coordinator = runner.Coordinator(directory, 'run-A', 'token', 'ios', 6)
+            calls = []
+            def output(command):
+                if command[:2] == ['flutter', '--version']:
+                    return json.dumps({'frameworkVersion': '3.47.7'})
+                if command[:3] == ['xcrun', 'simctl', 'list']:
+                    return json.dumps({'devices': {'iOS': [{'udid': 'device-A', 'state': 'Booted'}]}})
+                return 'fixture'
+            def recorded(_, label, command, timeout):
+                calls.append(command)
+                if label == 'build-ios-probe':
+                    application = repository / 'build/ios/iphonesimulator/Runner.app'
+                    application.mkdir(parents=True)
+                    (application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}))
+                elif label == 'create-control-project':
+                    Path(command[-2]).mkdir()
+            class Process:
+                returncode = None
+                def __init__(self, command, **_):
+                    calls.append(command)
+                    self.command = command
+                    if command[0] == 'xcodebuild':
+                        coordinator.control_session = 'controller-A'
+                        coordinator.control_ready.set()
+                def poll(self):
+                    return self.returncode
+                def wait(self, **_):
+                    self.returncode = 0
+                    if self.command[:2] == ['flutter', 'drive']:
+                        runner.save(directory / 'complete.json', {'status': 'passed'})
+                        coordinator.completed.set()
+                    return 0
+            with patch.object(sys, 'argv', ['run.py', '--platform', 'ios', '--device', 'device-A', '--mode', 'debug', '--seconds', '6', '--output', str(directory)]), \
+                 patch.object(runner.platform, 'system', return_value='Darwin'), \
+                 patch.object(runner.platform, 'platform', return_value='fixture-Mac'), \
+                 patch.object(runner, 'REPO', repository), \
+                 patch.object(runner, 'Coordinator', return_value=coordinator), \
+                 patch.object(runner, 'native_source_provenance', return_value={'revision': 'a' * 40, 'packages': {}}), \
+                 patch.object(runner, 'output', side_effect=output), \
+                 patch.object(runner, 'recorded_output', side_effect=recorded), \
+                 patch.object(runner.subprocess, 'Popen', Process):
+                runner.main()
+            build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
+            control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
+            drive = next(i for i, command in enumerate(calls) if command[:2] == ['flutter', 'drive'])
+            self.assertLess(build, control)
+            self.assertLess(control, drive)
+            self.assertIn('--use-application-binary=' + str(repository / 'build/ios/iphonesimulator/Runner.app'), calls[drive])
+            defines = json.loads((directory / 'defines.json').read_text())
+            environment = json.loads((directory / 'environment.json').read_text())
+            self.assertEqual(defines['APPLE_QUIET_NATIVE_FORK'], environment['nativeFork'])
+            self.assertEqual(defines['APPLE_QUIET_NATIVE_FORK'], 'a' * 40)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import plistlib
 import re
 import select
 import signal
@@ -19,18 +20,77 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import uuid
-from urllib.parse import urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-NATIVE_PIN = "124bb8e63f345ffd0b0f2ea7190c24b19e69897d"
 PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
           "osBackground", "idleExpiryControl"}
 COMMAND_LOG_LIMIT = 64 * 1024
+NATIVE_PACKAGES = {"flutter_inappwebview", "flutter_inappwebview_android",
+                   "flutter_inappwebview_web", "flutter_inappwebview_ios",
+                   "flutter_inappwebview_linux", "flutter_inappwebview_macos",
+                   "flutter_inappwebview_platform_interface", "flutter_inappwebview_windows"}
 
 
 def now_ms():
     return time.time_ns() / 1_000_000
+
+
+def clock_anchor():
+    return {"wallMs": now_ms(), "monotonicMs": time.monotonic_ns() / 1_000_000}
+
+
+def remaining_timeout(deadline, maximum):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("The external boundary deadline expired")
+    return min(remaining, maximum)
+
+
+def native_source_provenance(repository=REPO):
+    repository = repository.resolve()
+    lock = (repository / "pubspec.lock").read_text()
+    manifest = (repository / "pubspec.yaml").read_text()
+    config_path = repository / ".dart_tool/package_config.json"
+    packages = {entry["name"]: entry for entry in json.loads(config_path.read_text())["packages"]}
+    revisions, roots, evidence = set(), {}, {}
+    for name in sorted(NATIVE_PACKAGES):
+        sections = []
+        for index, source in enumerate([lock, manifest]):
+            match = re.search(r"^  " + re.escape(name) + r":\n(.*?)(?=^  \w+:|^\S|\Z)", source, re.M | re.S)
+            if index == 1 and name == "flutter_inappwebview_web" and match is None:
+                continue
+            if match is None or "https://github.com/Otzaria/flutter_inappwebview" not in match[1]:
+                raise ValueError(f"Missing native fork declaration: {name}")
+            sections.append(match[1])
+        refs = [re.search(r'^\s+' + key + r':\s*"?([a-f0-9]{40})"?\s*$', source, re.M)
+                for key, source in [("resolved-ref", sections[0]), *[("ref", section) for section in sections]]]
+        if any(ref is None for ref in refs) or len({ref[1] for ref in refs}) != 1:
+            raise ValueError(f"Unpinned or inconsistent native fork revision: {name}")
+        revision = refs[0][1]
+        revisions.add(revision)
+        package = packages.get(name)
+        if package is None or not isinstance(package.get("rootUri"), str):
+            raise ValueError(f"Missing resolved native package: {name}")
+        uri = urlparse(urljoin(config_path.as_uri(), package["rootUri"]))
+        if uri.scheme != "file" or uri.netloc:
+            raise ValueError(f"Native package source must be a local resolved checkout: {name}")
+        package_root = Path(unquote(uri.path)).resolve()
+        root = Path(output(["git", "-C", str(package_root), "rev-parse", "--show-toplevel"]))
+        relative = re.search(r'^\s+path:\s*"?([^"\n]+)"?\s*$', sections[0], re.M)
+        if relative is None or (root / relative[1]).resolve() != package_root:
+            raise ValueError(f"Unexpected resolved native package path: {name}")
+        if root not in roots:
+            roots[root] = output(["git", "-C", str(root), "rev-parse", "HEAD"])
+            if output(["git", "-C", str(root), "status", "--porcelain"]):
+                raise ValueError("The resolved native fork source is dirty")
+        if roots[root] != revision:
+            raise ValueError(f"Resolved native source differs from the lockfile: {name}")
+        evidence[name] = {"revision": revision, "packageRoot": str(package_root)}
+    if len(revisions) != 1:
+        raise ValueError("The eight native packages do not share one revision")
+    return {"revision": revisions.pop(), "packages": evidence}
 
 
 def save(path, value):
@@ -157,16 +217,17 @@ class MacApplicationSession:
                          bytes=len(raw), truncated=len(raw) > COMMAND_LOG_LIMIT)
             save(self.directory / f"{self.prefix}.json", self.record)
 
-    def close(self):
+    def close(self, timeout=5):
+        deadline = time.monotonic() + timeout
         try:
             if self.failed:
-                stop_owned(self.process)
+                stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5)
             self.process.stdin.close()
-            code = self.process.wait(timeout=5)
+            code = self.process.wait(timeout=max(0, deadline - time.monotonic()))
             if code != 0 and not self.failed:
                 raise subprocess.CalledProcessError(code, self.process.args)
         finally:
-            stop_owned(self.process)
+            stop_owned(self.process, timeout=max(0, deadline - time.monotonic()), kill_timeout=0.5)
             self.process.stdout.close()
             self.stderr.close()
             path = self.directory / f"{self.prefix}.stderr.log"
@@ -190,11 +251,11 @@ def cpu_seconds(text):
     return int(days or 0) * 86400 + int(hours or 0) * 3600 + int(minutes) * 60 + float(seconds)
 
 
-def host_sample(pid, expected_executable):
+def host_sample(pid, expected_executable, timeout=5):
     # Only the PID supplied by this app run. No process-tree search or guessed
     # WebContent PID. Physical iOS processes cannot be queried by the Mac ps.
     try:
-        raw = output(["/bin/ps", "-ww", "-p", str(pid), "-o", "pid=,lstart=,time=,rss=,comm="], 5)
+        raw = output(["/bin/ps", "-ww", "-p", str(pid), "-o", "pid=,lstart=,time=,rss=,comm="], timeout)
         parts = raw.split(None, 8)
         if len(parts) != 9 or int(parts[0]) != pid:
             raise ValueError("Missing or malformed host process row")
@@ -235,11 +296,42 @@ class Coordinator:
         self.jobs = {}
         self.control_job = None
         self.control_ready = threading.Event()
+        self.control_prepared = threading.Event()
+        self.control_session = None
+        self.control_challenge = None
+        self.prepared_challenge = None
+        self.control_process = None
+        self.native_fork = None
         self.control_result = threading.Event()
         self.completed = threading.Event()
         self.lock = threading.Lock()
         self.stopping = False
         self.mac_helper = directory / "mac-application"
+
+    def check_control_process(self):
+        if self.control_process is not None and self.control_process.poll() is not None:
+            raise ValueError("The iOS controller exited after readiness; see xcode-control.log")
+        if not self.control_ready.is_set() or self.control_session is None:
+            raise ValueError("The iOS controller has not identified its live session")
+
+    def prepare_measurement(self, body):
+        with self.lock:
+            self.check_identity(body)
+            if self.target != "ios":
+                return {}, None
+            self.check_control_process()
+            if any(job["status"] == "running" for job in self.jobs.values()):
+                raise ValueError("Cannot prepare during a quiet interval")
+            if self.control_challenge is not None:
+                raise ValueError("An iOS controller preparation is already pending")
+            self.control_challenge = str(uuid.uuid4())
+            self.control_prepared.clear()
+        if not self.control_prepared.wait(30):
+            raise TimeoutError("The iOS controller did not acknowledge the measurement preparation")
+        with self.lock:
+            self.check_control_process()
+            return {"controllerSession": self.control_session,
+                    "challenge": self.prepared_challenge}, None
 
     def check_identity(self, body):
         identity = (body.get("runId"), body.get("hostPid"), body.get("appBootToken"))
@@ -250,9 +342,13 @@ class Coordinator:
         self.identity = identity
 
     def request(self, endpoint, body, received):
+        if endpoint == "prepare":
+            return self.prepare_measurement(body)
         with self.lock:
             if endpoint in {"checkpoint", "complete", "framework-complete"}:
                 self.check_identity(body)
+                if self.native_fork is not None and body.get("nativeFork") != self.native_fork:
+                    raise ValueError("The app native fork differs from its verified build input")
                 self.executable = body.get("hostExecutable")
                 save(self.directory / ("partial-app.json" if endpoint == "checkpoint" else "complete.json"), body)
                 if endpoint == ("framework-complete" if self.physical else "complete"):
@@ -274,13 +370,25 @@ class Coordinator:
                     raise ValueError("OS action/platform mismatch")
                 if any(job["status"] == "running" for job in self.jobs.values()):
                     raise ValueError("A previous quiet job is still running")
+                if self.target == "ios":
+                    self.check_control_process()
+                    if (self.prepared_challenge is None or
+                            body.get("controllerSession") != self.control_session or
+                            body.get("challenge") != self.prepared_challenge):
+                        raise ValueError("A fresh iOS controller preparation is required before arm")
+                    self.prepared_challenge = None
                 job_id = str(uuid.uuid4())
                 extra = (90 if action == "iosHome" else 30) if self.target == "ios" else 45 if action == "macAppHide" else 15
+                anchor = clock_anchor()
+                armed = anchor["monotonicMs"] / 1000
                 job = {**body, "jobId": job_id, "status": "running", "armReceivedMs": received,
-                       "armReplyMs": now_ms(), "waitMs": (seconds + extra) * 1000}
+                       "armReplyMs": anchor["wallMs"], "waitMs": (seconds + extra) * 1000,
+                       "driverClockAnchors": {"armReply": anchor}}
                 # A hard external deadline ensures the app's one-shot wait
                 # cannot reconnect during iOS quiet, even if Home is delayed.
-                job["deadlineMonotonic"] = time.monotonic() + seconds + (60 if action == "iosHome" else 10)
+                margin = 60 if action == "iosHome" else 30 if action == "macAppHide" else 10
+                job["deadlineMonotonic"] = armed + seconds + margin
+                job["resultDeadlineMonotonic"] = armed + seconds + extra - 1
                 self.jobs[job_id] = job
                 save(self.directory / f"driver-{body['phase']}.json", job)
                 return {"jobId": job_id, "waitMs": job["waitMs"]}, lambda: self.run_job(job)
@@ -290,23 +398,43 @@ class Coordinator:
                     raise ValueError("No finished external interval; no polling/retry is allowed")
                 return job, None
             if endpoint == "control-ready":
+                session = body.get("controllerSession")
+                if self.target != "ios" or not isinstance(session, str) or not session or self.control_session is not None:
+                    raise ValueError("Invalid or replaced iOS controller session")
+                self.control_session = session
                 save(self.directory / "ios-controller-environment.json", body)
                 self.control_ready.set()
                 return {}, None
             if endpoint == "control":
+                if body.get("controllerSession") != self.control_session or self.control_session is None:
+                    raise ValueError("The iOS controller session changed")
                 if self.stopping or self.completed.is_set():
                     return {"stop": True}, None
+                if self.control_challenge is not None:
+                    return {"prepare": self.control_challenge, "controllerSession": self.control_session}, None
                 if self.control_job is None:
                     return {}, None
                 job = self.control_job
                 self.control_job = None
+                anchor = clock_anchor()
+                job["driverClockAnchors"]["controlReply"] = anchor
                 return {"jobId": job["jobId"], "seconds": job["seconds"], "action": job["action"],
                         "remainingMs": max(0, (job["deadlineMonotonic"] - time.monotonic()) * 1000),
-                        "serverReceivedMs": received, "serverReplyMs": now_ms()}, None
+                        "serverReceivedMs": received, "serverReplyMs": anchor["wallMs"]}, None
+            if endpoint == "control-prepared":
+                if (body.get("controllerSession") != self.control_session or
+                        self.control_challenge is None or body.get("challenge") != self.control_challenge):
+                    raise ValueError("The iOS controller preparation is stale or belongs to another session")
+                self.prepared_challenge = self.control_challenge
+                self.control_challenge = None
+                self.control_prepared.set()
+                return {}, None
             if endpoint == "control-result":
                 job = self.jobs.get(body.get("jobId"))
-                if job is None or self.target != "ios" or "iosControl" in job:
+                if (job is None or self.target != "ios" or "iosControl" in job or
+                        body.get("controllerSession") != self.control_session):
                     raise ValueError("Unexpected or duplicate iOS controller result")
+                job["driverClockAnchors"]["controlResult"] = clock_anchor()
                 job["iosControl"] = body
                 self.control_result.set()
                 return {}, None
@@ -321,18 +449,22 @@ class Coordinator:
             unavailable = {"status": "unavailable", "reason": "A physical iOS host PID is not a Mac process; no remote CPU sampler was attached"}
             executable = self.executable
             if self.target == "macos":
+                preparation_deadline = job["deadlineMonotonic"] - job["seconds"]
                 controller = MacApplicationSession(self.mac_helper, job["hostPid"], self.directory, job["phase"])
-                job["applicationIdentityBefore"] = controller.request("info")
+                job["applicationIdentityBefore"] = controller.request("info", timeout=remaining_timeout(preparation_deadline, 10))
                 executable = job["applicationIdentityBefore"]["executable"]
                 job["cpuExecutableSource"] = "NSRunningApplication.executableURL for the app-reported PID"
             else:
+                preparation_deadline = job["deadlineMonotonic"] - job["seconds"]
                 job["cpuExecutableSource"] = "Platform.resolvedExecutable from this app run"
-            before = unavailable if self.physical else host_sample(job["hostPid"], executable)
+            before = unavailable if self.physical else host_sample(job["hostPid"], executable,
+                timeout=remaining_timeout(preparation_deadline, 5))
             if self.target == "ios":
+                self.check_control_process()
                 self.control_result.clear()
                 with self.lock:
                     self.control_job = job
-                if not self.control_result.wait(job["seconds"] + 85):
+                if not self.control_result.wait(remaining_timeout(job["resultDeadlineMonotonic"], job["seconds"] + 85)):
                     raise TimeoutError("XCUITest did not return its quiet/OS boundary evidence")
                 control = job["iosControl"]
                 if control["status"] != "passed":
@@ -349,19 +481,27 @@ class Coordinator:
                             "boundaryScope": "Conservative host-clock interior of XCUITest quiet/OS boundaries"})
             else:
                 if job["action"] == "macAppHide":
-                    job["applicationBeforeQuiet"] = controller.request("hide")
-                job["quietStartMs"] = now_ms()
-                start = time.monotonic_ns()
+                    job["applicationBeforeQuiet"] = controller.request("hide", timeout=remaining_timeout(preparation_deadline, 10))
+                if time.monotonic() + job["seconds"] > job["deadlineMonotonic"]:
+                    raise TimeoutError("Insufficient boundary budget before the requested quiet interval")
+                start = clock_anchor()
+                job["driverClockAnchors"]["quietStart"] = start
+                job["quietStartMs"] = start["wallMs"]
                 # NO app IPC, HTTP, JS, command, native state query, process
                 # enumeration or sampler poll in this interval.
                 time.sleep(job["seconds"])
-                job["quietEndMs"] = now_ms()
-                job["quietElapsedMs"] = (time.monotonic_ns() - start) / 1e6
+                end = clock_anchor()
+                job["driverClockAnchors"]["quietEnd"] = end
+                job["quietEndMs"] = end["wallMs"]
+                job["quietElapsedMs"] = end["monotonicMs"] - start["monotonicMs"]
+                if time.monotonic() > job["deadlineMonotonic"]:
+                    raise TimeoutError("The quiet interval exceeded its external deadline")
                 if job["action"] == "macAppHide":
-                    job["applicationAfterQuiet"] = controller.request("activate")
-            after = unavailable if self.physical else host_sample(job["hostPid"], executable)
+                    job["applicationAfterQuiet"] = controller.request("activate", timeout=remaining_timeout(job["resultDeadlineMonotonic"], 10))
+            after = unavailable if self.physical else host_sample(job["hostPid"], executable,
+                timeout=remaining_timeout(job["resultDeadlineMonotonic"], 5))
             if self.target == "macos":
-                job["applicationIdentityAfter"] = controller.request("info")
+                job["applicationIdentityAfter"] = controller.request("info", timeout=remaining_timeout(job["resultDeadlineMonotonic"], 10))
             job["hostCpuEnvelope"] = cpu_envelope(before, after)
             job["engineCpu"] = {"status": "unavailable", "reason": "No verified public WKWebView-to-WebContent PID mapping"}
             if job["quietEndMs"] <= job["quietStartMs"] or job["quietElapsedMs"] < job["seconds"] * 1000:
@@ -372,11 +512,14 @@ class Coordinator:
         finally:
             if controller is not None:
                 try:
-                    controller.close()
+                    controller.close(timeout=max(0, min(5, job["resultDeadlineMonotonic"] - time.monotonic())))
                 except (OSError, subprocess.SubprocessError) as error:
                     job.update(status="failed", controllerCleanupError=str(error))
                     job.setdefault("error", f"macOS controller cleanup failed: {error}")
                     succeeded = False
+            if time.monotonic() > job["resultDeadlineMonotonic"]:
+                job.setdefault("error", "The external boundary work exceeded the publication deadline")
+                job["status"], succeeded = "failed", False
             if succeeded:
                 job["status"] = "passed"
             save(self.directory / f"driver-{job['phase']}.json", job)
@@ -403,7 +546,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Expected a JSON object")
             result, after_close = coordinator.request(self.path.lstrip("/"), body, received)
             code = 200
-        except (ValueError, KeyError, TypeError) as error:
+        except (ValueError, KeyError, TypeError, TimeoutError) as error:
             code, result = 400, {"error": str(error)}
         encoded = json.dumps(result).encode()
         self.send_response(code)
@@ -419,15 +562,15 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=after_close, daemon=True).start()
 
 
-def stop_owned(process):
+def stop_owned(process, timeout=15, kill_timeout=5):
     if process is None or process.poll() is not None:
         return
     os.killpg(process.pid, signal.SIGTERM)
     try:
-        process.wait(timeout=15)
+        process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=5)
+        process.wait(timeout=kill_timeout)
 
 
 def prepare_control(directory, url, token):
@@ -439,6 +582,18 @@ def prepare_control(directory, url, token):
         f"static let url = {json.dumps(url)}\nstatic let token = {json.dumps(token)}\n" +
         'static let bundleIdentifier = "com.mendelg.otzaria"\n}\n')
     return control
+
+
+def build_ios_probe(directory):
+    command = ["flutter", "build", "ios", "--simulator", "--debug", "--no-codesign", "--no-pub",
+               "--target=integration_test/apple_plugin_activity_probe_test.dart",
+               f"--dart-define-from-file={directory / 'defines.json'}"]
+    recorded_output(directory, "build-ios-probe", command, 2400)
+    application = REPO / "build/ios/iphonesimulator/Runner.app"
+    metadata = plistlib.loads((application / "Info.plist").read_bytes())
+    if metadata.get("CFBundleIdentifier") != "com.mendelg.otzaria":
+        raise ValueError("The prebuilt iOS probe has an unexpected application identifier")
+    return application
 
 
 def main():
@@ -479,7 +634,7 @@ def main():
     # make a raw IP URL work on iOS 17+/macOS 14+.
     url = args.public_url.rstrip("/") if args.serve_only else f"http://localhost:{server.server_port}"
     environment = {"runId": run_id, "status": "running", "platform": args.platform,
-                   "mode": args.mode, "device": args.device, "nativeFork": NATIVE_PIN,
+                   "mode": args.mode, "device": args.device,
                    "physicalDevice": args.serve_only, "physicalDeviceAcceptance": False, "hostOS": platform.platform(),
                    "startedAtMs": now_ms(),
                    "observerLimit": "Fixture and XCUITest overhead remain. Physical release has no attached driver; automated runs include Flutter driver/VM service. Simulator debug is functional evidence only."}
@@ -491,6 +646,9 @@ def main():
                            xcode=output(["xcodebuild", "-version"]),
                            sdk=output(["xcrun", "--sdk", "macosx" if args.platform == "macos" else "iphoneos" if args.serve_only else "iphonesimulator", "--show-sdk-version"]),
                            flutter=json.loads(output(["flutter", "--version", "--machine"])))
+        provenance = native_source_provenance()
+        environment["nativeSources"] = provenance["packages"]
+        environment["nativeFork"] = coordinator.native_fork = provenance["revision"]
         entitlements = REPO / "macos/Runner/DebugProfile.entitlements"
         environment["macProfileEntitlementsSource"] = entitlements.read_text()
         environment["macProfileEntitlementsSha256"] = hashlib.sha256(entitlements.read_bytes()).hexdigest()
@@ -506,22 +664,12 @@ def main():
             if len(chosen) != 1:
                 raise ValueError("--device must be an already booted iOS Simulator UDID")
             environment["simulator"] = chosen[0]
-            control = prepare_control(directory, url, token)
-            with (directory / "xcode-control.log").open("w") as log:
-                control_process = subprocess.Popen([
-                    "xcodebuild", "test", "-project", str(control / "Control.xcodeproj"),
-                    "-scheme", "AppleQuietControl", "-destination", f"platform=iOS Simulator,id={args.device}",
-                    "-derivedDataPath", str(directory / "control-build"),
-                    "-resultBundlePath", str(directory / "control.xcresult"),
-                    "-parallel-testing-enabled", "NO", "CODE_SIGNING_ALLOWED=NO"],
-                    cwd=REPO, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-                if not coordinator.control_ready.wait(180):
-                    raise TimeoutError("The independent XCUITest controller did not become ready; see xcode-control.log")
         defines = {
             "APPLE_QUIET_COORDINATOR": url, "APPLE_QUIET_TOKEN": token,
             "APPLE_QUIET_RUN_ID": run_id, "APPLE_QUIET_SECONDS": args.seconds,
             "APPLE_QUIET_COMMIT": environment["commit"],
             "APPLE_QUIET_FLUTTER": environment["flutter"]["frameworkVersion"],
+            "APPLE_QUIET_NATIVE_FORK": provenance["revision"],
             "APPLE_QUIET_EXTERNAL": args.serve_only,
         }
         save(directory / "defines.json", defines)
@@ -536,10 +684,31 @@ def main():
             environment["status"] = "passed"
             environment["builtEntitlements"] = {"status": "unavailable", "reason": "Capture codesign output from the separately signed physical app as documented"}
             return
+        application = None
+        if args.platform == "ios":
+            application = build_ios_probe(directory)
+            if native_source_provenance() != provenance:
+                raise ValueError("The resolved native source changed during the app build")
+            environment["prebuiltApplication"] = str(application)
+            control = prepare_control(directory, url, token)
+            with (directory / "xcode-control.log").open("w") as log:
+                control_process = subprocess.Popen([
+                    "xcodebuild", "test", "-project", str(control / "Control.xcodeproj"),
+                    "-scheme", "AppleQuietControl", "-destination", f"platform=iOS Simulator,id={args.device}",
+                    "-derivedDataPath", str(directory / "control-build"),
+                    "-resultBundlePath", str(directory / "control.xcresult"),
+                    "-parallel-testing-enabled", "NO", "CODE_SIGNING_ALLOWED=NO"],
+                    cwd=REPO, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                coordinator.control_process = control_process
+                if not coordinator.control_ready.wait(180):
+                    raise TimeoutError("The independent XCUITest controller did not become ready; see xcode-control.log")
+                coordinator.check_control_process()
         command = ["flutter", "drive", "--no-pub", f"--{args.mode}", "-d", args.device,
                    "--driver=test_driver/apple_plugin_activity.dart",
                    "--target=integration_test/apple_plugin_activity_probe_test.dart",
                    f"--dart-define-from-file={directory / 'defines.json'}"]
+        if application is not None:
+            command.append(f"--use-application-binary={application}")
         environment["command"] = command
         save(directory / "environment.json", environment)
         with (directory / "flutter-drive.log").open("w") as log:

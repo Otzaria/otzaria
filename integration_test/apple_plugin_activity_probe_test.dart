@@ -69,7 +69,7 @@ void main() {
     'dartVersion': Platform.version,
     'flutterVersion': const String.fromEnvironment('APPLE_QUIET_FLUTTER'),
     'commit': const String.fromEnvironment('APPLE_QUIET_COMMIT'),
-    'nativeFork': '53c2dd3300be979a7129281d11ef731a203af24a',
+    'nativeFork': const String.fromEnvironment('APPLE_QUIET_NATIVE_FORK'),
     'fixtureSha256': appleActivityFixtureSha256,
     'physicalDeviceAcceptance': false,
     'physicalDevice': const bool.fromEnvironment('APPLE_QUIET_EXTERNAL'),
@@ -623,8 +623,15 @@ class _Scenario {
       final duration =
           seconds ??
           const int.fromEnvironment('APPLE_QUIET_SECONDS', defaultValue: 12);
+      final prepared = await protocol.post('prepare', {
+        'hostPid': pid,
+        'appBootToken': appBoot,
+        'runId': report['runId'],
+      });
+      entry['controllerPreparation'] = prepared;
       final armStart = DateTime.now().millisecondsSinceEpoch;
       final arm = await protocol.post('arm', {
+        ...prepared,
         'phase': name,
         'action': action,
         'seconds': duration,

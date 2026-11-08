@@ -70,11 +70,50 @@ Map<String, Object?> analyzeAppleQuietWindow({
   final elapsed = (driver['quietElapsedMs'] as num).toDouble();
   final received = (driver['armReceivedMs'] as num).toDouble();
   final replied = (driver['armReplyMs'] as num).toDouble();
+  final requiredAnchors = driver['platform'] == 'ios'
+      ? ['armReply', 'controlReply', 'controlResult']
+      : ['armReply', 'quietStart', 'quietEnd'];
+  final anchors = driver['driverClockAnchors'] as Map?;
+  double? smallestOffset;
+  double? largestOffset;
+  double? previousMonotonic;
+  var completeDriverClock = true;
+  for (final name in requiredAnchors) {
+    final anchor = anchors?[name];
+    if (anchor is! Map ||
+        anchor['wallMs'] is! num ||
+        anchor['monotonicMs'] is! num) {
+      completeDriverClock = false;
+      continue;
+    }
+    final wall = (anchor['wallMs'] as num).toDouble();
+    final monotonic = (anchor['monotonicMs'] as num).toDouble();
+    if (!wall.isFinite ||
+        !monotonic.isFinite ||
+        (previousMonotonic != null && monotonic < previousMonotonic)) {
+      completeDriverClock = false;
+      continue;
+    }
+    previousMonotonic = monotonic;
+    final offset = wall - monotonic;
+    if (smallestOffset == null || offset < smallestOffset) {
+      smallestOffset = offset;
+    }
+    if (largestOffset == null || offset > largestOffset) {
+      largestOffset = offset;
+    }
+  }
+  final driverClockDrift = completeDriverClock
+      ? largestOffset! - smallestOffset!
+      : null;
+  const clockToleranceMs = 250.0;
+  final stableDriverClock =
+      driverClockDrift != null && driverClockDrift <= clockToleranceMs;
   if (end <= start ||
       elapsed <= 0 ||
       armEndMs < armStartMs ||
       received > replied ||
-      replied > start) {
+      (stableDriverClock && replied > start)) {
     throw StateError('Invalid quiet/coordination boundaries');
   }
   // A request/reply exchange bounds the difference between the device's wall
@@ -88,8 +127,8 @@ Map<String, Object?> analyzeAppleQuietWindow({
   final last = after['readAt'] as Map;
   final wallDelta = (last['wallMs'] as num) - (first['wallMs'] as num);
   final monoDelta = (last['monoMs'] as num) - (first['monoMs'] as num);
-  const clockToleranceMs = 250.0;
   var stableClock =
+      stableDriverClock &&
       (end - start - elapsed).abs() <= 250 &&
       (wallDelta - monoDelta).abs() <= clockToleranceMs &&
       uncertainty <= 1000;
@@ -193,6 +232,8 @@ Map<String, Object?> analyzeAppleQuietWindow({
     'maxCallbackClockDriftMs': maxCallbackClockDriftMs,
     'deviceWallMinusMonotonicDeltaMs': wallDelta - monoDelta,
     'driverWallMinusMonotonicDeltaMs': end - start - elapsed,
+    'driverCoordinationClockDriftMs': driverClockDrift,
+    'driverClockAnchorsComplete': completeDriverClock,
     'lateReadAfterQuietMs': (last['wallMs'] as num) + offsetMin - end,
     'streams': streams,
     'engineSuspension':

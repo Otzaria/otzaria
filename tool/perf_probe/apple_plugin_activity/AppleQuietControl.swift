@@ -33,21 +33,40 @@ final class AppleQuietControl: XCTestCase {
 
     func testHomeAndActivateExistingOtzariaProcess() throws {
         continueAfterFailure = false
-        _ = try post("control-ready", ["osVersion": ProcessInfo.processInfo.operatingSystemVersionString])
-        let overall = ProcessInfo.processInfo.systemUptime + 1800
-        while ProcessInfo.processInfo.systemUptime < overall {
+        let controllerSession = UUID().uuidString
+        _ = try post("control-ready", [
+            "osVersion": ProcessInfo.processInfo.operatingSystemVersionString,
+            "controllerSession": controllerSession
+        ])
+        let preparationDeadline = ProcessInfo.processInfo.systemUptime + 2400
+        var measurementDeadline: TimeInterval?
+        while ProcessInfo.processInfo.systemUptime < (measurementDeadline ?? preparationDeadline) {
             let requestMs = now()
             let requestMonotonic = ProcessInfo.processInfo.systemUptime
-            let command = try post("control", [:])
+            let command = try post("control", ["controllerSession": controllerSession])
             let replyMs = now()
             if command["stop"] as? Bool == true { return }
+            if let challenge = command["prepare"] as? String {
+                guard command["controllerSession"] as? String == controllerSession else {
+                    throw NSError(domain: "quiet.changedController", code: 1)
+                }
+                _ = try post("control-prepared", [
+                    "controllerSession": controllerSession, "challenge": challenge
+                ])
+                if measurementDeadline == nil {
+                    measurementDeadline = ProcessInfo.processInfo.systemUptime + 1800
+                }
+                continue
+            }
             guard let job = command["jobId"] as? String else {
                 Thread.sleep(forTimeInterval: 0.25) // Before any quiet interval.
                 continue
             }
             let app = XCUIApplication(bundleIdentifier: ControlConfig.bundleIdentifier)
             let useHome = command["action"] as? String == "iosHome"
-            var result: [String: Any] = ["jobId": job, "status": "failed"]
+            var result: [String: Any] = [
+                "jobId": job, "status": "failed", "controllerSession": controllerSession
+            ]
             do {
                 guard app.state == .runningForeground else {
                     throw NSError(domain: "quiet.notForeground", code: 1)
