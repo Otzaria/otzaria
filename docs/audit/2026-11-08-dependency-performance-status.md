@@ -63,6 +63,15 @@ PRים נפרדים של forks וכלים:
 
 WPE מדידה נפרדת: x64 ‏172,907,408→130,320,608 (24.63%), ARM64 ‏170,335,920→123,541,680 (27.47%) בסך ELF שנבדקו. PR #4519 מפעיל strip רק ב־package כדי לשמר SDK עם סמלים. בדיקת החוזה בשתי הארכיטקטורות ירוקה.
 
+
+### Android ARM64 — attribution שנמדד בבנייה חדשה
+
+[Flutter analyze-size run 42478124363](https://github.com/Otzaria/otzaria/actions/runs/42478124363) **עבר**, כולל פתרון dependencies, יצירת catalogs, build release עם ABI יחיד, ושמירת JSON ([artifact 13617460399](https://github.com/Otzaria/otzaria/actions/runs/42478124363/artifacts/13617460399)).
+
+ה־APK שנבנה הוא **39.5 MB** (Flutter CLI); ניתוח הגודל מדווח `Dart AOT symbols accounted decompressed size` של **33 MB**. פירוק חבילות בולט בקירוב: `package:otzaria` ‏13 MB, `package:flutter` ‏4 MB, `package:image` ‏817 KB, `package:archive` ‏688 KB, `package:timezone` ‏451 KB, `package:flutter_quill` ‏407 KB, `package:flutter_widget_from_html_core` ‏320 KB, `package:sentry_flutter` ‏313 KB, `package:pdfrx` ‏303 KB.
+
+זהו **release build של ענף המדידה** ל־ARM64 בלבד, לא גרסת הפצה חתומה למשתמש, ולא מספר RAM או שלוש הארכיטקטורות יחד. לפני הסרת חבילות יש למדוד גם tree-shaking, parity ו־download size מול baseline זהה.
+
 ## Linux PDFium — ראיות לסיכון חדש
 
 - `printing/linux/CMakeLists.txt` ב־Otzaria/dart_pdf משתמש ב־`PDFIUM_VERSION=5200`, ו־`pdfium_dart 0.4.1` מוריד `chromium/8125`.
