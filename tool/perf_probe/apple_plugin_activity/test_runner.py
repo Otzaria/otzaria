@@ -1,5 +1,6 @@
 import importlib.util
 from contextlib import nullcontext
+import hashlib
 import json
 import http.client
 import plistlib
@@ -680,7 +681,9 @@ class BuildOrderingTests(unittest.TestCase):
     def run_probe(self, *, budget=3900, build_seconds=0, readiness_seconds=0,
                   drive_seconds=0, completion_seconds=0, control_seconds=0,
                   expected_error=None, cleanup_error=None, final_save_error=None,
-                  diagnostic_error=None):
+                  diagnostic_error=None, uninstall_on_exit=False,
+                  info_plist=plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}),
+                  codesign_error=None, server_close_error=None):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             repository = root / 'repo'
@@ -688,6 +691,8 @@ class BuildOrderingTests(unittest.TestCase):
             entitlements.parent.mkdir(parents=True)
             entitlements.write_text('<plist/>')
             directory = root / 'output'
+            application = repository / 'build/ios/iphonesimulator/Runner.app'
+            installed = root / 'Simulator/installed/Runner.app'
             coordinator = runner.Coordinator(directory, 'run-A', 'token', 'ios', 6)
             calls = []
             limits = {}
@@ -708,11 +713,18 @@ class BuildOrderingTests(unittest.TestCase):
                 limits[label] = timeout
                 if label == 'build-ios-probe':
                     elapsed[0] += build_seconds
-                    application = repository / 'build/ios/iphonesimulator/Runner.app'
                     application.mkdir(parents=True)
-                    (application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}))
+                    if info_plist is not None:
+                        (application / 'Info.plist').write_bytes(info_plist)
                 elif label == 'create-control-project':
                     Path(command[-2]).mkdir()
+            def codesign(command, **kwargs):
+                calls.append(command)
+                limits['codesign'] = kwargs['timeout']
+                self.assertEqual(command, ['codesign', '-d', '--entitlements', ':-', str(application)])
+                if codesign_error is not None:
+                    raise codesign_error
+                return subprocess.CompletedProcess(command, 0, '<plist/>', 'fixture signature')
             def ready(timeout):
                 limits['readiness'] = timeout
                 elapsed[0] += readiness_seconds
@@ -734,6 +746,10 @@ class BuildOrderingTests(unittest.TestCase):
                     if command[0] == 'xcodebuild':
                         coordinator.control_session = 'controller-A'
                         coordinator.control_ready.set()
+                    elif uninstall_on_exit and command[:2] == ['flutter', 'drive']:
+                        installed.mkdir(parents=True)
+                        (installed / 'Info.plist').write_bytes((application / 'Info.plist').read_bytes())
+                        coordinator.executable = str(installed / 'Runner')
                 def poll(self):
                     return self.returncode
                 def wait(self, timeout):
@@ -743,11 +759,15 @@ class BuildOrderingTests(unittest.TestCase):
                         elapsed[0] += drive_seconds
                         runner.save(directory / 'complete.json', {'status': 'passed'})
                         coordinator.completed.set()
+                        if uninstall_on_exit:
+                            (installed / 'Info.plist').unlink()
+                            installed.rmdir()
                     else:
                         limits['control completion'] = timeout
                         elapsed[0] += control_seconds
                     return 0
             server = Mock(server_port=12345)
+            server.server_close.side_effect = server_close_error
             with patch.object(sys, 'argv', ['run.py', '--platform', 'ios', '--device', 'device-A', '--mode', 'debug', '--seconds', '6', '--output', str(directory)]), \
                  patch.dict(runner.os.environ, {'APPLE_PROBE_DEADLINE_MONOTONIC': str(1000 + budget)}), \
                  patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
@@ -765,6 +785,7 @@ class BuildOrderingTests(unittest.TestCase):
                  (patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=diagnostic_error))) if diagnostic_error else nullcontext()), \
                  patch.object(runner, 'stop_owned', side_effect=cleanup), \
                  patch.object(runner, 'wait_for_drive', side_effect=lambda process, _, timeout: process.wait(timeout=timeout)), \
+                 patch.object(runner.subprocess, 'run', side_effect=codesign), \
                  patch.object(runner.subprocess, 'Popen', Process):
                 with self.assertRaises(expected_error) if expected_error else nullcontext():
                     runner.main()
@@ -785,10 +806,47 @@ class BuildOrderingTests(unittest.TestCase):
         self.assertTrue(any(value.endswith('/build/ios/iphonesimulator/Runner.app')
                             and value.startswith('--use-application-binary=') for value in calls[drive]))
 
+    def test_prebuilt_metadata_survives_the_driver_uninstalling_its_simulator_bundle(self):
+        calls, _, report = self.run_probe(uninstall_on_exit=True)
+        build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
+        signed = next(i for i, command in enumerate(calls) if command[0] == 'codesign')
+        control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
+        self.assertLess(build, signed)
+        self.assertLess(signed, control)
+        self.assertEqual(report['status'], 'passed')
+        self.assertEqual(report['builtApplicationProvenance'], {
+            'source': 'prebuiltApplication', 'stage': 'beforeRuntime',
+            'bundle': report['prebuiltApplication'],
+            'infoPlist': report['prebuiltApplication'] + '/Info.plist',
+            'bundleIdentifier': 'com.mendelg.otzaria',
+        })
+        self.assertEqual(report['builtInfoPlistSha256'], hashlib.sha256(
+            plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'})).hexdigest())
+        self.assertEqual(report['builtEntitlements'], {
+            'exitCode': 0, 'stdout': '<plist/>', 'stderr': 'fixture signature'})
+
+    def test_missing_or_invalid_prebuilt_metadata_cannot_start_runtime(self):
+        for contents, error in [(None, FileNotFoundError), (b'not a plist', plistlib.InvalidFileException),
+                                (plistlib.dumps({'CFBundleIdentifier': 'another.app'}), ValueError)]:
+            with self.subTest(contents=contents):
+                calls, _, report = self.run_probe(info_plist=contents, expected_error=error)
+                self.assertFalse(any(command[0] in {'xcodebuild', 'codesign'} for command in calls))
+                self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+                self.assertEqual(report['status'], 'failed')
+
+    def test_metadata_collection_failure_survives_cleanup_and_starts_no_runtime(self):
+        calls, _, report = self.run_probe(codesign_error=OSError('codesign failed to start'),
+            server_close_error=RuntimeError('server close failed'), expected_error=OSError)
+        self.assertFalse(any(command[0] == 'xcodebuild' for command in calls))
+        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertEqual(report['status'], 'failed')
+        self.assertEqual(report['error'], 'codesign failed to start')
+        self.assertEqual(report['cleanupErrors'], [{'stage': 'server close', 'error': 'server close failed'}])
+
     def test_build_readiness_drive_and_completion_share_one_deadline(self):
         _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
             readiness_seconds=100, drive_seconds=3, completion_seconds=2, control_seconds=2)
-        self.assertEqual(limits, {'build-ios-probe': 2400, 'create-control-project': 110,
+        self.assertEqual(limits, {'build-ios-probe': 2400, 'codesign': 15, 'create-control-project': 110,
             'readiness': 110, 'drive': 10, 'completion': 7, 'control completion': 5})
         self.assertEqual(report['status'], 'passed')
         self.assertEqual(report['deadlineMonotonic'], 3500)

@@ -665,11 +665,28 @@ def build_ios_probe(directory, timeout=2400):
                "--target=integration_test/apple_plugin_activity_probe_test.dart",
                f"--dart-define-from-file={directory / 'defines.json'}"]
     recorded_output(directory, "build-ios-probe", command, timeout)
-    application = REPO / "build/ios/iphonesimulator/Runner.app"
-    metadata = plistlib.loads((application / "Info.plist").read_bytes())
+    return REPO / "build/ios/iphonesimulator/Runner.app"
+
+
+def ios_build_provenance(application, *, deadline):
+    # flutter drive uninstalls its Simulator package before exiting. Capture
+    # the exact --use-application-binary input before any runtime work starts.
+    info_plist = application / "Info.plist"
+    contents = info_plist.read_bytes()
+    metadata = plistlib.loads(contents)
     if metadata.get("CFBundleIdentifier") != "com.mendelg.otzaria":
         raise ValueError("The prebuilt iOS probe has an unexpected application identifier")
-    return application
+    signed = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(application)],
+                            text=True, capture_output=True, timeout=remaining_timeout(deadline, 15))
+    return {
+        "builtApplicationProvenance": {
+            "source": "prebuiltApplication", "stage": "beforeRuntime",
+            "bundle": str(application), "infoPlist": str(info_plist),
+            "bundleIdentifier": metadata["CFBundleIdentifier"],
+        },
+        "builtInfoPlistSha256": hashlib.sha256(contents).hexdigest(),
+        "builtEntitlements": {"exitCode": signed.returncode, "stdout": signed.stdout, "stderr": signed.stderr},
+    }
 
 
 def shutdown_server(server, timeout=5):
@@ -822,6 +839,8 @@ def main():
             if native_source_provenance(deadline=deadline) != provenance:
                 raise ValueError("The resolved native source changed during the app build")
             environment["prebuiltApplication"] = str(application)
+            environment.update(ios_build_provenance(application, deadline=deadline))
+            save(directory / "environment.json", environment)
             control = prepare_control(directory, url, token, timeout=remaining_timeout(deadline, 120))
             with (directory / "xcode-control.log").open("w") as log:
                 remaining_timeout(deadline, 180)
@@ -859,10 +878,10 @@ def main():
             raise RuntimeError("The actual-app report failed")
         if control_process is not None and control_process.wait(timeout=remaining_timeout(deadline, 60)) != 0:
             raise RuntimeError("XCUITest failed; inspect control.xcresult")
-        if coordinator.executable:
+        if args.platform == "macos" and coordinator.executable:
             bundle = next((p for p in Path(coordinator.executable).parents if p.suffix == ".app"), None)
             if bundle is not None:
-                environment["builtInfoPlistSha256"] = hashlib.sha256((bundle / ("Contents/Info.plist" if args.platform == "macos" else "Info.plist")).read_bytes()).hexdigest()
+                environment["builtInfoPlistSha256"] = hashlib.sha256((bundle / "Contents/Info.plist").read_bytes()).hexdigest()
                 signed = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(bundle)],
                                         text=True, capture_output=True, timeout=remaining_timeout(deadline, 15))
                 environment["builtEntitlements"] = {"exitCode": signed.returncode, "stdout": signed.stdout, "stderr": signed.stderr}
