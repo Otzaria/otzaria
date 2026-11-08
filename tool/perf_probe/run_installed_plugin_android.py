@@ -462,8 +462,10 @@ class Runner:
 
     def resolve_home(self):
         # Android's --brief also emits ResolveInfo metadata; --components emits only the component.
-        return normalize_component(self.text("shell", "cmd", "package", "resolve-activity", "--components", "--user", "0",
-                                             "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"))
+        component = normalize_component(self.text("shell", "cmd", "package", "resolve-activity", "--components", "--user", "0",
+                                                 "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"))
+        require(not component.startswith(PACKAGE + "/"), "HOME cannot resolve to the probe")
+        return component
 
     def read_process(self):
         value = self.text("shell", "pidof", PACKAGE)
@@ -506,7 +508,6 @@ class Runner:
         abi = self.text("shell", "getprop", "ro.product.cpu.abi")
         require(abi == "x86_64", "This CI probe supports the x86_64 Android emulator")
         self.launcher = self.resolve_home()
-        require(not self.launcher.startswith(PACKAGE + "/"), "HOME cannot resolve to the probe")
         self.result["device"] = {"abi": abi, "sdk": self.text("shell", "getprop", "ro.build.version.sdk"),
                                  "fingerprint": self.text("shell", "getprop", "ro.build.fingerprint"),
                                  "display": self.text("shell", "wm", "size"),
@@ -699,8 +700,16 @@ class Runner:
             try:
                 if action == "home":
                     before = self.wait_native(foreground=True)
+                    # Emulator provisioning may replace its initial HOME handler
+                    # during the APK build. Resolve independently at this boundary,
+                    # then keep the expectation fixed through Home/quiet/resume.
+                    self.launcher = self.resolve_home()
+                    resolution = {"component": self.launcher, "command": self.commands[-1]["number"]}
+                    self.result["homeResolution"] = resolution
+                    self.save()
                     self.adb("shell", "input", "keyevent", "KEYCODE_HOME")
-                    result = {"before": before, "after": self.wait_native(foreground=False)}
+                    result = {"resolvedHome": resolution, "before": before,
+                              "after": self.wait_native(foreground=False)}
                     self.evidence["home"] = result
                 elif action == "quiet":
                     result = self.quiet(payload["durationMs"])

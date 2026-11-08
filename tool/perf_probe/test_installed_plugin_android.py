@@ -322,16 +322,18 @@ class RunnerTests(unittest.TestCase):
                 else:
                     if '--components' not in args:
                         print('priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true')
-                    print(home)
+                    print(state.get('resolvedHome', home))
             elif args == ['shell', '-T', 'run-as', package, 'cat', '/proc/123/stat']:
                 print('123 (probe) S ' + ' '.join(['0'] * 18 + ['1000'] + ['0'] * 10))
             elif args == ['shell', 'dumpsys', 'activity', 'activities']:
                 target = 'ActivityRecord{' + state['token'] + ' u0 ' + component + ' t42}'
-                launcher = 'ActivityRecord{def u0 ' + home + ' t1}'
+                launcher = 'ActivityRecord{def u0 ' + state.get('actualHome', home) + ' t1}'
                 print('* Hist #0: ' + target)
                 print('* Hist #0: ' + launcher)
                 print('topResumedActivity=' + (target if state['foreground'] else launcher))
             elif args == ['shell', 'input', 'keyevent', 'KEYCODE_HOME']:
+                report = root / 'output/host-report.json'
+                state['resolutionAtHome'] = json.loads(report.read_text()).get('homeResolution') if report.exists() else None
                 state['foreground'] = False
             elif args[:4] == ['shell', 'am', 'start', '-W']:
                 if '--activity-single-top' in args:
@@ -474,6 +476,64 @@ class RunnerTests(unittest.TestCase):
         (self.directory / "state.json").write_text(json.dumps({"foreground": True, "token": "abc", "homeMissing": True}))
         with self.assertRaisesRegex(ValueError, "component"):
             self.runner.resolve_home()
+
+    def short_native_waits(self):
+        wait_native = self.runner.wait_native
+
+        def wait(*, foreground):
+            self.runner.action_deadline = min(self.runner.action_deadline or float("inf"), time.monotonic() + 2)
+            return wait_native(foreground=foreground)
+
+        return patch.object(self.runner, "wait_native", side_effect=wait)
+
+    def test_home_is_resolved_again_after_emulator_setup_and_before_keypress(self):
+        # The native API-34 run resolved the setup wizard before its APK build,
+        # while KEYCODE_HOME later resumed the now-provisioned Nexus launcher.
+        self.runner.launcher = "com.google.android.googlesdksetup/com.google.android.googlesdksetup.DefaultActivity"
+        nexus = "com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity"
+        (self.directory / "state.json").write_text(json.dumps(
+            {"foreground": True, "token": "abc", "resolvedHome": nexus, "actualHome": nexus}))
+        replies = self.replies()
+        with self.short_native_waits():
+            self.runner.serve(self.event_stream())
+        self.assertEqual(self.runner.result["status"], "passed")
+        self.assertTrue(all(reply["ok"] for reply in replies))
+        resolution = self.runner.result["homeResolution"]
+        self.assertEqual(resolution["component"], nexus)
+        self.assertEqual(json.loads((self.directory / "state.json").read_text())["resolutionAtHome"], resolution)
+        command = self.runner.commands[resolution["command"]]
+        self.assertIn("resolve-activity", command["argv"])
+        self.assertEqual(command["stage"], "home")
+        keypress = next(command for command in self.runner.commands if "KEYCODE_HOME" in command["argv"])
+        self.assertLessEqual(command["finishedMonotonic"], keypress["startedMonotonic"])
+        home = self.runner.evidence["home"]
+        self.assertEqual(home["resolvedHome"], resolution)
+        self.assertEqual(home["before"]["process"], home["after"]["process"])
+        self.assertEqual(home["before"]["activity"], home["after"]["activity"])
+
+    def test_home_refuses_missing_or_probe_resolution_before_sending_keypress(self):
+        replies = self.replies()
+        for state in ({"homeMissing": True}, {"resolvedHome": probe.PACKAGE + "/.MainActivity"}):
+            with self.subTest(state=state):
+                (self.directory / "state.json").write_text(json.dumps(
+                    {"foreground": True, "token": "abc", **state}))
+                with self.short_native_waits(), self.assertRaisesRegex(ValueError, "component|HOME"):
+                    self.runner.serve(self.event_stream())
+                self.assertFalse(replies[-1]["ok"])
+                self.assertFalse(any("KEYCODE_HOME" in command["argv"] for command in self.runner.commands))
+
+    def test_home_cannot_adopt_an_unexpected_resumed_activity_as_its_expectation(self):
+        (self.directory / "state.json").write_text(json.dumps(
+            {"foreground": True, "token": "abc", "actualHome": "other.package/other.package.Activity"}))
+        replies = self.replies()
+        with self.short_native_waits(), self.assertRaises((TimeoutError, subprocess.TimeoutExpired)):
+            self.runner.serve(self.event_stream())
+        self.assertEqual(self.runner.launcher, LAUNCHER)
+        self.assertEqual(self.runner.result["homeResolution"]["component"], LAUNCHER)
+        self.assertEqual(replies[-1]["action"], "home")
+        self.assertFalse(replies[-1]["ok"])
+        self.assertNotEqual(self.runner.result["status"], "passed")
+        self.assertNotIn("hostQuiet", self.runner.evidence)
 
     def test_same_pid_but_new_activity_fails_before_any_successful_completion(self):
         replies = self.replies()

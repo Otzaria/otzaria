@@ -41,7 +41,7 @@ writing probe data. The Gradle application ID suffix applies only to debug
 builds with `otzariaInstalledProbe=true`.
 
 The runner performs strict lockfile resolution, verifies all eight resolved
-WebView packages at `124bb8e63f345ffd0b0f2ea7190c24b19e69897d`, and records the
+WebView packages at `ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8`, and records the
 source commit, lockfile digest, Flutter/engine identity, verified APK digest,
 device fingerprint, API, ABI, display, density and WebView provider. The Store
 payload is hash-checked before compilation and again when materialized by the
@@ -60,6 +60,15 @@ push stream. The live stream handshake must match that bootstrap. Every
 command and acknowledgement also carries the campaign, PID, run, package,
 monotonic sequence number and action. A stale file or readiness indication
 cannot acknowledge a later command.
+
+The setup-time HOME component remains recorded as `device.home`. Because a
+fresh emulator can finish provisioning during the APK build, the host resolves
+HOME again for user 0 after confirming foreground identity and immediately
+before sending `KEYCODE_HOME`. It saves that independent expectation and its
+command number as `homeResolution`, also included in the Home evidence.
+The resolved component cannot be the probe itself and stays fixed throughout
+Home, quiet and resume. The expected launcher is never inferred from the
+activity that happens to be resumed, and no resolution query occurs during quiet.
 
 | Boundary | Required observation |
 | --- | --- |
