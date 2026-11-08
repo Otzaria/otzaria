@@ -160,6 +160,18 @@ PID, executable, מזהה launch והיסטוריית הפעלות לפני `ope
 hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=true`, נוסף
 על `hide()==true`, מצב hidden בפועל וזהות היעד השמורה.
 
+בקרת `initial-launchservices-target.json` מפעילה את היעד מלכתחילה דרך
+`NSWorkspace.openApplication`, עם `createsNewApplicationInstance=true`
+ו־`allowsRunningApplicationSubstitution=false`. כלי בעלות נפרד שומר את
+אובייקט `NSRunningApplication` שהתקבל מה־completion; אותו בקר מקורי
+מבצע את `info`, ההסתרה וההצגה. נדרשים מופע יחיד חדש בהיסטוריית ההפעלות,
+אותם PID, executable, מארז ו־launchId, וללא מופע נוסף שחי ויצא בדרך.
+כל דרישות `hide()==true`, מצב hidden ושימור הזהות נשארות מחייבות.
+קבלות ההפעלה והסגירה נקשרות לאותו owner ו־session; הניקוי מוגבל בזמן
+ופועל רק על האובייקט שבבעלות כלי העזר. צורך בסגירה כפויה או כשל ניקוי
+נשארים כשל הבקרה. זהו אבחון נפרד של מקור יצירת היעד, ללא fallback
+למדידת האפליקציה וללא החלפת הבקרות הקיימות.
+
 כאשר הכנת macOS הצליחה אך בקרות כלי העזר נכשלו, ה־CI אוסף גם את תוצאת
 האפליקציה האמיתית כדי להשוות בין ה־fixture למוצר. כשל הבקרות נשאר כשל
 בשלב וב־job כולו; הצלחת האפליקציה אינה מכשירה אותו. שני מסלולי הראיות
@@ -195,7 +207,7 @@ hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=t
 לפני השקט ממתינים לסיום boot ועבודת SDK של הרקע, ולמצב dispatcher יציב
 בלשונית. קוראים פעם אחת את מוני הדף ואת הגטר הציבורי
 `getAppleWebViewActivitySnapshot`. כל שמונת רכיבי הפורק מוצמדים ל־
-`124bb8e63f345ffd0b0f2ea7190c24b19e69897d` — reference ציבורי יציב הכולל את
+`ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8` — ה־commit הנעול הכולל את
 הגטר של [native #55](https://github.com/Otzaria/flutter_inappwebview/pull/55)
 ואת תיקון הבעלות על GlobalKey ב־Android של
 [#56](https://github.com/Otzaria/flutter_inappwebview/pull/56), לצד ברירת

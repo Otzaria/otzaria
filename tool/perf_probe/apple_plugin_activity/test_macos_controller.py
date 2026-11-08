@@ -51,7 +51,48 @@ def verify_open_target(snapshot, *, pid, executable, bundle, launch_id, initial_
     original = [entry for entry in launches if entry.get("launchId") == launch_id]
     if (len(original) != 1 or original[0].get("pid") != pid or
             original[0].get("executable") != executable or original[0].get("bundleURL") != bundle):
-        raise ValueError("The original Popen launch identity is missing or inconsistent")
+        raise ValueError("The original owned launch identity is missing or inconsistent")
+
+
+def verify_launchservices_launch(receipt, *, owner_pid, executable, bundle, ready):
+    if (receipt.get("status") != "launched" or receipt.get("source") != "NSWorkspace.openApplication" or
+            receipt.get("ownerPid") != owner_pid or type(receipt.get("pid")) is not int or
+            receipt["pid"] <= 0 or receipt["pid"] == owner_pid or
+            not isinstance(receipt.get("sessionToken"), str) or not receipt["sessionToken"] or
+            receipt.get("executable") != executable or receipt.get("bundleURL") != bundle or
+            receipt.get("bundleIdentifier") != "org.otzaria.identitycontrol" or
+            receipt.get("sameApplication") is not True or receipt.get("isTerminated") is not False):
+        raise ValueError("LaunchServices did not return the owned live target identity")
+    expected = {"createsNewApplicationInstance": True, "allowsRunningApplicationSubstitution": False,
+                "hides": False, "hidesOthers": False, "arguments": [ready]}
+    configuration = receipt.get("configuration")
+    if (not isinstance(configuration, dict) or
+            any(configuration.get(key) is not value for key, value in expected.items() if isinstance(value, bool)) or
+            configuration.get("arguments") != expected["arguments"]):
+        raise ValueError("LaunchServices did not use the required initial-launch configuration")
+
+
+def verify_initial_launch(snapshot, previous_launches, *, pid, executable, bundle, launch_id):
+    launches = snapshot.get("launches")
+    if (not isinstance(launches, list) or len(launches) != len(previous_launches) + 1 or
+            any(launches.count(previous) != 1 for previous in previous_launches)):
+        raise ValueError("Initial LaunchServices launch must create exactly one owned launch")
+    added = [entry for entry in launches if entry not in previous_launches]
+    if len(added) != 1 or added[0].get("launchId") != launch_id:
+        raise ValueError("Initial LaunchServices launch audit does not match fixture readiness")
+    verify_open_target(snapshot, pid=pid, executable=executable, bundle=bundle,
+                       launch_id=launch_id, initial_launches=launches)
+
+
+def verify_launchservices_stop(receipt, launch, *, launch_id=None):
+    for key in ["ownerPid", "sessionToken", "pid", "executable", "bundleURL", "bundleIdentifier", "source"]:
+        if key not in launch or receipt.get(key) != launch[key]:
+            raise ValueError(f"LaunchServices cleanup changed the retained identity: {key}")
+    if launch_id is not None and receipt.get("launchId") != launch_id:
+        raise ValueError("LaunchServices cleanup changed the fixture launch audit identity")
+    if (receipt.get("status") != "passed" or receipt.get("targetExited") is not True or
+            receipt.get("cleanupErrors") != [] or receipt.get("forceTerminateReturnValue") is not None):
+        raise ValueError(f"LaunchServices cleanup did not complete normally: {receipt.get('error')}")
 
 
 class NativeEvidenceTests(unittest.TestCase):
@@ -128,6 +169,90 @@ class NativeEvidenceTests(unittest.TestCase):
         # Enumeration still contains the live original process alone.
         with self.assertRaisesRegex(ValueError, "additional launch"):
             verify_open_target(snapshot, **expected)
+
+    def launchservices_receipt(self):
+        expected = {"owner_pid": 12, "executable": "/private/Owned.app/Contents/MacOS/Owned",
+                    "bundle": "/private/Owned.app", "ready": "/private/ready.json"}
+        receipt = {"status": "launched", "source": "NSWorkspace.openApplication", "ownerPid": 12,
+                   "pid": 17, "sessionToken": "owned-session", "executable": expected["executable"],
+                   "bundleURL": expected["bundle"], "bundleIdentifier": "org.otzaria.identitycontrol",
+                   "sameApplication": True, "isTerminated": False,
+                   "configuration": {"createsNewApplicationInstance": True,
+                                     "allowsRunningApplicationSubstitution": False,
+                                     "hides": False, "hidesOthers": False, "arguments": [expected["ready"]]}}
+        return receipt, expected
+
+    def test_launchservices_requires_completion_identity_and_initial_launch_options(self):
+        receipt, expected = self.launchservices_receipt()
+        verify_launchservices_launch(receipt, **expected)
+        for field, value in [("source", "Popen"), ("ownerPid", 99), ("pid", True), ("pid", 0),
+                             ("pid", 12), ("sessionToken", ""), ("sameApplication", False),
+                             ("isTerminated", True), ("bundleURL", "/other.app"),
+                             ("executable", "/other"), ("bundleIdentifier", "other")]:
+            invalid = {**receipt, field: value}
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "owned live target"):
+                verify_launchservices_launch(invalid, **expected)
+        for field in receipt["configuration"]:
+            invalid = {**receipt, "configuration": {**receipt["configuration"], field: None}}
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "configuration"):
+                verify_launchservices_launch(invalid, **expected)
+
+    def test_initial_launch_rejects_substitution_or_an_extra_launch_that_already_exited(self):
+        snapshot, expected = self.open_snapshot()
+        expected.pop("initial_launches")
+        verify_initial_launch(snapshot, [], **expected)
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            verify_initial_launch(snapshot, snapshot["launches"], **expected)
+        snapshot["launches"].append({**snapshot["launches"][0], "pid": 18, "launchId": "exited-copy"})
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            verify_initial_launch(snapshot, [], **expected)
+
+    def test_launchservices_owner_cleanup_runs_once_and_requires_its_final_receipt(self):
+        launch, _ = self.launchservices_receipt()
+        stopped = {**launch, "status": "passed", "targetExited": True,
+                   "cleanupErrors": [], "forceTerminateReturnValue": None}
+        process = Mock()
+        process.poll.return_value = None
+        process.wait.return_value = 0
+        state = {"process": process, "launch": launch, "closed": False,
+                 "stopPath": Mock(read_text=Mock(return_value=json.dumps(stopped)))}
+        case = NativeMacIdentityTests("test_initial_launchservices_target_uses_the_original_controller")
+        self.assertEqual(case.close_launchservices_app(state), stopped)
+        self.assertEqual(case.close_launchservices_app(state), stopped)
+        process.stdin.write.assert_called_once_with("stop\n")
+        process.stdin.close.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=25)
+
+    def test_launchservices_owner_cleanup_preserves_first_transport_error(self):
+        launch, _ = self.launchservices_receipt()
+        primary = BrokenPipeError("first stop write failed")
+        process = Mock()
+        process.poll.return_value = None
+        process.stdin.write.side_effect = primary
+        process.wait.side_effect = subprocess.TimeoutExpired("owner", 25)
+        state = {"process": process, "launch": launch, "closed": False,
+                 "stopPath": Mock(read_text=Mock(side_effect=OSError("no final receipt")))}
+        case = NativeMacIdentityTests("test_initial_launchservices_target_uses_the_original_controller")
+        with patch.object(runner.sys, "stderr", Mock(write=Mock(side_effect=BrokenPipeError("stderr")))):
+            with self.assertRaises(BrokenPipeError) as captured:
+                case.close_launchservices_app(state)
+        self.assertIs(captured.exception, primary)
+        process.stdin.close.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=25)
+        state["stopPath"].read_text.assert_called_once_with()
+
+    def test_launchservices_cleanup_requires_original_identity_and_normal_termination(self):
+        launch, _ = self.launchservices_receipt()
+        stopped = {**launch, "status": "passed", "targetExited": True,
+                   "cleanupErrors": [], "forceTerminateReturnValue": None}
+        verify_launchservices_stop(stopped, launch)
+        with self.assertRaisesRegex(ValueError, "launch audit identity"):
+            verify_launchservices_stop({**stopped, "launchId": "other"}, launch, launch_id="owned-launch")
+        for field, value in [("pid", 19), ("sessionToken", "other"), ("ownerPid", 99),
+                             ("targetExited", False), ("cleanupErrors", ["refused"]),
+                             ("status", "failed"), ("forceTerminateReturnValue", True)]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                verify_launchservices_stop({**stopped, field: value}, launch)
 
 
 @unittest.skipUnless(sys.platform == "darwin", "Requires real AppKit; not native evidence on other hosts")
@@ -349,6 +474,10 @@ print(String(decoding: data, as: UTF8.self))
         cls.bundle_inspector = cls.directory / "owned-bundle-instances"
         runner.recorded_output(cls.directory, "compile-bundle-inspector",
             ["xcrun", "swiftc", str(inspector_source), "-o", str(cls.bundle_inspector)], 120)
+        cls.launchservices_helper = cls.directory / "launchservices-fixture"
+        runner.recorded_output(cls.directory, "compile-launchservices-fixture",
+            ["xcrun", "swiftc", str(runner.HERE / "mac_launchservices_fixture.swift"),
+             "-o", str(cls.launchservices_helper)], 120)
         cls.launch_count = 0
 
     def owned_bundle_snapshot(self, label, *, bundle=None, launch_prefix="fixture"):
@@ -382,7 +511,11 @@ print(String(decoding: data, as: UTF8.self))
         self.addCleanup(stream.close)
         self.addCleanup(runner.stop_owned, process)
         startup = self.wait_for_evidence(ready, process)
-        self.assertEqual(startup["pid"], process.pid)
+        self.verify_fixture_ready(startup, process.pid)
+        return process, startup, self_hidden
+
+    def verify_fixture_ready(self, startup, pid):
+        self.assertEqual(startup["pid"], pid)
         self.assertEqual(startup["stage"], "ready")
         self.assertTrue(startup["didFinishLaunchingObserved"])
         self.assertTrue(startup["isRunning"])
@@ -393,7 +526,71 @@ print(String(decoding: data, as: UTF8.self))
         self.assertEqual(startup["activationPolicy"], 0)
         self.assertTrue(startup["windowCanHide"])
         self.assertTrue(startup["windowVisible"])
-        return process, startup, self_hidden
+
+    def start_launchservices_app(self):
+        type(self).launch_count += 1
+        index = type(self).launch_count
+        ready = self.directory / f"ready-{index}.json"
+        launch_path = self.directory / f"launchservices-{index}-launch.json"
+        stop_path = self.directory / f"launchservices-{index}-stop.json"
+        stream = (self.directory / f"launchservices-{index}.log").open("w")
+        self.addCleanup(stream.close)
+        bundle = self.executable.parents[2]
+        process = subprocess.Popen([str(self.launchservices_helper), str(bundle), str(ready),
+                                    str(launch_path), str(stop_path)], stdin=subprocess.PIPE,
+                                   stdout=stream, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+        state = {"process": process, "launch": None, "stopPath": stop_path, "closed": False}
+        # The retained NSRunningApplication owner cleans its target first. This
+        # process-group cleanup belongs only to that owner, never the target PID.
+        self.addCleanup(runner.stop_owned, process)
+        self.addCleanup(self.close_launchservices_app, state)
+        launch = state["launch"] = self.wait_for_evidence(launch_path, process)
+        verify_launchservices_launch(launch, owner_pid=process.pid, executable=str(self.executable),
+                                     bundle=str(bundle), ready=str(ready))
+        startup = self.wait_for_evidence(ready, process)
+        self.verify_fixture_ready(startup, launch["pid"])
+        state["launchId"] = startup["launchId"]
+        return state, startup
+
+    def close_launchservices_app(self, state):
+        if state["closed"]:
+            return state.get("stop")
+        state["closed"] = True
+        process = state["process"]
+        failure = None
+        traceback = None
+
+        def remember(error):
+            nonlocal failure, traceback
+            if failure is None:
+                failure, traceback = error, error.__traceback__
+            else:
+                runner.warn_cleanup(f"Additional LaunchServices owner cleanup error: {error}")
+
+        try:
+            if process.poll() is None:
+                process.stdin.write("stop\n")
+                process.stdin.flush()
+        except Exception as error:
+            remember(error)
+        try:
+            process.stdin.close()
+        except Exception as error:
+            remember(error)
+        try:
+            code = process.wait(timeout=25)
+            if code != 0:
+                raise ValueError(f"LaunchServices owner exited {code}; inspect its stop receipt and log")
+        except Exception as error:
+            remember(error)
+        try:
+            stopped = state["stop"] = json.loads(state["stopPath"].read_text())
+            verify_launchservices_stop(stopped, state["launch"] or {}, launch_id=state.get("launchId"))
+        except Exception as error:
+            remember(error)
+        if failure is not None:
+            raise failure.with_traceback(traceback)
+        return state["stop"]
 
     def test_direct_execution_retains_public_application_identity(self):
         self.exercise_controller(self.helper, "direct-execution")
@@ -435,16 +632,38 @@ print(String(decoding: data, as: UTF8.self))
         self.exercise_controller(self.opened_caller_helper, "opened-caller-dispatch-execution", initialized=True,
                                  asynchronous_dispatch=True, prepare_foreground=True, open_caller=True)
 
+    def test_initial_launchservices_target_uses_the_original_controller(self):
+        self.exercise_controller(self.helper, "initial-launchservices-target", launchservices_target=True)
+
     def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10,
-                            asynchronous_dispatch=False, open_bundle=False, open_caller=False):
+                            asynchronous_dispatch=False, open_bundle=False, open_caller=False,
+                            launchservices_target=False):
         with native_result(self.directory, label,
-                           targetLaunchMethod=("Popen, ready, then open of the same target bundle, matching Flutter profile onAttached"
+                           targetLaunchMethod=("Initial NSWorkspace.openApplication of the owned target bundle"
+                                               if launchservices_target else
+                                               "Popen, ready, then open of the same target bundle, matching Flutter profile onAttached"
                                                if open_bundle else "Popen of the target executable"),
                            controllerLaunchMethod=("Popen, info, then open of the same owned caller bundle"
                                                    if open_caller else "Popen of the controller executable"),
                            diagnosticInitialization=initialized) as report:
-            app, report["startup"], _ = self.start_owned_app()
-            controller = runner.MacApplicationSession(helper, app.pid, self.directory, label)
+            launchservices = None
+            if launchservices_target:
+                self.assertFalse(open_bundle or open_caller, "Isolate initial target launch as the only changed variable")
+                prior = report["bundleBeforeLaunch"] = self.owned_bundle_snapshot(f"{label}-before-launch")
+                self.assertEqual(prior["instances"], [], "The private target bundle is already running")
+                launchservices, report["startup"] = self.start_launchservices_app()
+                report["launchServices"] = launchservices["launch"]
+                target_pid = launchservices["launch"]["pid"]
+                snapshot = report["bundleAfterLaunch"] = self.owned_bundle_snapshot(f"{label}-after-launch")
+                expected_launch = {"pid": target_pid, "executable": str(self.executable),
+                                   "bundle": str(self.executable.parents[2]),
+                                   "launch_id": report["startup"]["launchId"]}
+                verify_initial_launch(snapshot, prior["launches"], **expected_launch)
+                expected_launch["initial_launches"] = snapshot["launches"]
+            else:
+                app, report["startup"], _ = self.start_owned_app()
+                target_pid = app.pid
+            controller = runner.MacApplicationSession(helper, target_pid, self.directory, label)
             self.addCleanup(controller.close)
             extra_observations = []
             if open_bundle:
@@ -494,7 +713,7 @@ print(String(decoding: data, as: UTF8.self))
             hidden = report["hidden"] = controller.request("hide", timeout=hide_timeout)
             resumed = report["resumed"] = controller.request("activate")
             for value in [*extra_observations, before, after, hidden, resumed]:
-                self.assertEqual(value["pid"], app.pid)
+                self.assertEqual(value["pid"], target_pid)
                 self.assertTrue(value["sameApplication"])
                 self.assertEqual(value["identityMethod"], "NSRunningApplication.isEqual")
                 self.assertEqual(value["sessionToken"], before["sessionToken"])
@@ -520,7 +739,13 @@ print(String(decoding: data, as: UTF8.self))
                 self.assertIsNone(app.poll(), "The original Popen process did not survive hide/resume")
                 snapshot = report["bundleAfterResume"] = self.owned_bundle_snapshot(f"{label}-after-resume")
                 verify_open_target(snapshot, **expected)
+            if launchservices_target:
+                self.assertIsNone(launchservices["process"].poll(), "The retained LaunchServices owner exited early")
+                snapshot = report["bundleAfterResume"] = self.owned_bundle_snapshot(f"{label}-after-resume")
+                verify_open_target(snapshot, **expected_launch)
             controller.close()
+            if launchservices_target:
+                report["launchServicesCleanup"] = self.close_launchservices_app(launchservices)
 
     def test_owned_application_can_hide_itself(self):
         with native_result(self.directory, "self-hide", action="NSApplication.hide(nil)") as report:
