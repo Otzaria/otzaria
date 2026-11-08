@@ -289,6 +289,11 @@ diagnosticApplication.run()
         result["controllerIsActive"] = controllerApplication.isActive
         result["controllerOwnsMenuBar"] = NSRunningApplication.current.ownsMenuBar
         result["controllerBundleIdentifier"] = Bundle.main.bundleIdentifier ?? "unavailable"
+        result["controllerBundleURL"] = Bundle.main.bundleURL.path
+        result["controllerExecutable"] = Bundle.main.executableURL?.path ?? "unavailable"
+#if BUNDLED_CONTROLLER
+        result["controllerLaunchId"] = diagnosticControllerLaunchId
+#endif
         result["frontmostApplicationPid"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
 ''')
         dispatch_source = cls.directory / "dispatch_controller.swift"
@@ -307,6 +312,27 @@ diagnosticApplication.run()
             })
             runner.recorded_output(cls.directory, f"compile-{label}-controller",
                 ["xcrun", "swiftc", str(dispatch_source), *flags, "-o", str(executable)], 120)
+        caller_bundle = cls.directory / "DispatchController.app"
+        cls.opened_caller_helper = caller_bundle / "Contents/MacOS/DispatchController"
+        cls.opened_caller_helper.parent.mkdir(parents=True)
+        (caller_bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleExecutable": "DispatchController", "CFBundleIdentifier": "org.otzaria.dispatchcontroller",
+            "CFBundleName": "DispatchController", "CFBundlePackageType": "APPL",
+            "LSMinimumSystemVersion": "11.0", "NSHighResolutionCapable": True,
+        }))
+        caller_source = cls.directory / "opened_caller_controller.swift"
+        caller_code = dispatch.replace(imports, imports +
+            (runner.HERE / "mac_controller_launch_diagnostic.swift").read_text(), 1)
+        caller_source.write_text(caller_code)
+        flags = ["-D", "ACTIVE_CONTROLLER", "-D", "BUNDLED_CONTROLLER"]
+        runner.save(cls.directory / "opened-caller-variant.json", {
+            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
+            "diagnosticSHA256": hashlib.sha256(caller_code.encode()).hexdigest(),
+            "compilerFlags": flags, "bundleIdentifier": "org.otzaria.dispatchcontroller",
+            "scope": "Owned async regular caller bundle, Popen then open after info; every launch audited; same target and unchanged hide/hidden gates",
+        })
+        runner.recorded_output(cls.directory, "compile-opened-caller-controller",
+            ["xcrun", "swiftc", str(caller_source), *flags, "-o", str(cls.opened_caller_helper)], 120)
         inspector_source = cls.directory / "owned_bundle_instances.swift"
         inspector_source.write_text('''import AppKit
 import Foundation
@@ -325,13 +351,13 @@ print(String(decoding: data, as: UTF8.self))
             ["xcrun", "swiftc", str(inspector_source), "-o", str(cls.bundle_inspector)], 120)
         cls.launch_count = 0
 
-    def owned_bundle_snapshot(self, label):
-        bundle = self.executable.parents[2]
+    def owned_bundle_snapshot(self, label, *, bundle=None, launch_prefix="fixture"):
+        bundle = self.executable.parents[2] if bundle is None else bundle
         instances = json.loads(runner.recorded_output(self.directory, label,
             [str(self.bundle_inspector), str(bundle)], 10))
         return {"instances": instances,
                 "launches": [json.loads(path.read_text())
-                             for path in sorted(self.directory.glob("fixture-launch-*.json"))]}
+                             for path in sorted(self.directory.glob(f"{launch_prefix}-launch-*.json"))]}
 
     def wait_for_evidence(self, path, process):
         deadline = time.monotonic() + 15
@@ -405,11 +431,17 @@ print(String(decoding: data, as: UTF8.self))
         self.exercise_controller(self.dispatch_helper, "opened-bundle-dispatch-execution", initialized=True,
                                  asynchronous_dispatch=True, open_bundle=True)
 
+    def test_opened_dispatching_caller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.opened_caller_helper, "opened-caller-dispatch-execution", initialized=True,
+                                 asynchronous_dispatch=True, prepare_foreground=True, open_caller=True)
+
     def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10,
-                            asynchronous_dispatch=False, open_bundle=False):
+                            asynchronous_dispatch=False, open_bundle=False, open_caller=False):
         with native_result(self.directory, label,
-                           launchMethod=("Popen, ready, then open of the same bundle, matching Flutter profile onAttached"
-                                         if open_bundle else "Popen of the executable; no open/LaunchServices launch"),
+                           targetLaunchMethod=("Popen, ready, then open of the same target bundle, matching Flutter profile onAttached"
+                                               if open_bundle else "Popen of the target executable"),
+                           controllerLaunchMethod=("Popen, info, then open of the same owned caller bundle"
+                                                   if open_caller else "Popen of the controller executable"),
                            diagnosticInitialization=initialized) as report:
             app, report["startup"], _ = self.start_owned_app()
             controller = runner.MacApplicationSession(helper, app.pid, self.directory, label)
@@ -438,6 +470,27 @@ print(String(decoding: data, as: UTF8.self))
             self.assertTrue(after["isActive"])
             if initialized:
                 self.assertTrue(after["applicationState"]["controllerAppKitInitialized"])
+            if open_caller:
+                self.assertIsNone(controller.process.poll(), "The owned caller exited before open")
+                state = after["applicationState"]
+                self.assertEqual(state["controllerBundleIdentifier"], "org.otzaria.dispatchcontroller")
+                self.assertEqual(state["controllerBundleURL"], str(helper.parents[2]))
+                self.assertEqual(state["controllerExecutable"], str(helper))
+                snapshot = report["callerBeforeOpen"] = self.owned_bundle_snapshot(f"{label}-caller-before-open",
+                    bundle=helper.parents[2], launch_prefix="controller")
+                expected_caller = {"pid": controller.process.pid, "executable": str(helper),
+                    "bundle": str(helper.parents[2]), "launch_id": state["controllerLaunchId"],
+                    "initial_launches": snapshot["launches"]}
+                verify_open_target(snapshot, **expected_caller)
+                report["callerOpenCommandEvidence"] = f"{label}-caller-open.json"
+                runner.recorded_output(self.directory, f"{label}-caller-open", ["open", expected_caller["bundle"]], 10)
+                self.assertIsNone(controller.process.poll(), "open replaced or terminated the owned caller")
+                snapshot = report["callerAfterOpen"] = self.owned_bundle_snapshot(f"{label}-caller-after-open",
+                    bundle=helper.parents[2], launch_prefix="controller")
+                verify_open_target(snapshot, **expected_caller)
+                caller_after = report["afterCallerOpen"] = controller.request("info")
+                extra_observations.append(caller_after)
+                self.assertEqual(caller_after["applicationState"]["controllerLaunchId"], state["controllerLaunchId"])
             hidden = report["hidden"] = controller.request("hide", timeout=hide_timeout)
             resumed = report["resumed"] = controller.request("activate")
             for value in [*extra_observations, before, after, hidden, resumed]:
@@ -457,6 +510,12 @@ print(String(decoding: data, as: UTF8.self))
             self.assertTrue(hidden["isHidden"])
             self.assertFalse(resumed["isHidden"])
             self.assertTrue(resumed["isActive"])
+            if open_caller:
+                self.assertTrue(hidden["controllerActiveBeforeHide"], "The caller must be active before requesting hide")
+                self.assertIsNone(controller.process.poll(), "The original caller did not survive hide/resume")
+                snapshot = report["callerAfterResume"] = self.owned_bundle_snapshot(f"{label}-caller-after-resume",
+                    bundle=helper.parents[2], launch_prefix="controller")
+                verify_open_target(snapshot, **expected_caller)
             if open_bundle:
                 self.assertIsNone(app.poll(), "The original Popen process did not survive hide/resume")
                 snapshot = report["bundleAfterResume"] = self.owned_bundle_snapshot(f"{label}-after-resume")

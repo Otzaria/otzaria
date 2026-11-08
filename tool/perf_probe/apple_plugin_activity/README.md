@@ -145,6 +145,26 @@ Apple מתעדת שהקריאה הזו מאתחלת את
 LaunchServices. אלה בדיקות אבחון של הקורא, בהתאם להבחנה של Apple בין
 [בקשת הפעלה לבין העברת החזית בפועל](https://developer.apple.com/documentation/appkit/passing-control-from-one-app-to-another-with-cooperative-activation).
 
+בקרות `dispatch-execution.json` ו־`active-dispatch-execution.json` קוראות
+stdin ב־thread נפרד בתוך אותו בקר, ומעבירות כל פקודה לתור
+הראשי. ההמתנה לאישור מחזירה שליטה ל־`NSApplication.run()` בין בדיקות,
+ו־`mainQueueTurnDelivered` מוכיח שנמסרה פנייה נוספת לתור הראשי. וריאנט
+regular דורש גם שהבקר יהיה פעיל ממש לפני קריאת `hide`.
+
+בקרות `opened-bundle-execution.json` ו־`opened-bundle-dispatch-execution.json`
+מפעילות `open` על מארז היעד אחרי מוכנות, כמו `onAttached` של Flutter.
+`opened-caller-dispatch-execution.json` בודק בנפרד `open` על מארז הבקר
+האסינכרוני regular אחרי תשובת `info`. הבקר שומר כל launch לפני בדיקת
+הארגומנטים, ולכן גם מופע נוסף שנוצר ויצא מיד פוסל את הבקרה. נדרשים אותו
+PID, executable, מזהה launch והיסטוריית הפעלות לפני `open`, אחריו ואחרי
+hide/resume. הבקרה של הקורא דורשת `controllerActiveBeforeHide=true`, נוסף
+על `hide()==true`, מצב hidden בפועל וזהות היעד השמורה.
+
+כאשר הכנת macOS הצליחה אך בקרות כלי העזר נכשלו, ה־CI אוסף גם את תוצאת
+האפליקציה האמיתית כדי להשוות בין ה־fixture למוצר. כשל הבקרות נשאר כשל
+בשלב וב־job כולו; הצלחת האפליקציה אינה מכשירה אותו. שני מסלולי הראיות
+נשמרים במלואם, וכל דרישות המעברים והזהות של האפליקציה נשארות מחייבות.
+
 שירות ההפעלות החיצוניות בודק `FileSystemEntity.isWatchSupported` לפני
 יצירת watcher ברירת המחדל. כשמעקב קבצים אינו נתמך, כמו בריצת iOS,
 הערוץ הנייטיבי וניקוז התור ממשיכים לפעול. בפלטפורמה שתומכת במעקב נשמרים

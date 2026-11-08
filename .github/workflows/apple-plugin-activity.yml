@@ -95,6 +95,7 @@ jobs:
       - name: Resolve exact dependencies
         run: flutter pub get --enforce-lockfile
       - name: Select actual runtime
+        id: runtime_selection
         env:
           PROBE_PLATFORM: ${{ matrix.platform }}
         run: |
@@ -122,11 +123,14 @@ jobs:
             open -a Simulator
           fi
       - name: Verify public identity and diagnose native macOS hide
+        id: mac_controls
         if: matrix.platform == 'macos'
         env:
           APPLE_HELPER_CONTROL_OUTPUT: ${{ runner.temp }}/apple-helper-controls
         run: python3 -m unittest discover -s tool/perf_probe/apple_plugin_activity -p 'test_macos_controller.py' -v
       - name: Run installed app hosts and quiet OS transitions
+        # Collect product evidence after a helper-control failure; that failure remains fatal to this job.
+        if: ${{ !cancelled() && (success() || (matrix.platform == 'macos' && steps.runtime_selection.outcome == 'success' && steps.mac_controls.outcome == 'failure')) }}
         run: >-
           python3 tool/perf_probe/apple_plugin_activity/run.py
           --platform '${{ matrix.platform }}' --mode '${{ matrix.mode }}'

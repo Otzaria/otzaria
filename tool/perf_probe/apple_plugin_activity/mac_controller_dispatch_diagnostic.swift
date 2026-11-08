@@ -16,6 +16,7 @@ let diagnosticPolicyAccepted = diagnosticApplication.setActivationPolicy(diagnos
 var diagnosticLaunchObserved = false
 var diagnosticMainQueueTurnDelivered = false
 var diagnosticCommandInFlight = false
+var diagnosticActiveBeforeHide = false
 
 func diagnosticRecord(_ details: [String: Any]) {
     let data = try! JSONSerialization.data(withJSONObject: details, options: [.sortedKeys])
@@ -63,7 +64,10 @@ func diagnosticReply(_ action: String, sequence: Int, beforeAction: [String: Any
         "mainQueueTurnDelivered": diagnosticMainQueueTurnDelivered,
         "controllerBoundaryMode": "asynchronous-main-dispatch"
     ]
-    if action == "hide" { observation["hideReturnValue"] = true }
+    if action == "hide" {
+        observation["hideReturnValue"] = true
+        observation["controllerActiveBeforeHide"] = diagnosticActiveBeforeHide
+    }
     let data = try! JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])
     print(String(decoding: data, as: UTF8.self))
     fflush(stdout)
@@ -91,10 +95,16 @@ func diagnosticCommand(_ line: String) {
     let perform = {
         verifyIdentity()
         if action == "hide" {
+            diagnosticActiveBeforeHide = diagnosticApplication.isActive
+            guard !diagnosticRequiresActive || diagnosticActiveBeforeHide else {
+                fail("controllerActivation", "The controller lost activation before hide", 66,
+                     ["applicationState": applicationState()])
+            }
             guard app.hide() else {
                 fail("hide", "The application refused hide", 2, [
                     "pid": pid, "controllerPid": ProcessInfo.processInfo.processIdentifier,
                     "sessionToken": sessionToken, "sequence": sequence, "returnValue": false,
+                    "controllerActiveBeforeHide": diagnosticActiveBeforeHide,
                     "beforeAction": beforeAction, "applicationState": applicationState()
                 ])
             }
