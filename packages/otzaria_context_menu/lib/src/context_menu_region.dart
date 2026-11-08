@@ -133,8 +133,12 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     _unregisterEscape?.call();
     _unregisterEscape = null;
     _submenuControllers.clear();
-    _menuOverlayEntry?.remove();
+    final overlayEntry = _menuOverlayEntry;
     _menuOverlayEntry = null;
+    // OverlayEntry is a Listenable; removing it from the overlay does not
+    // dispose the entry or its listeners.
+    overlayEntry?.remove();
+    overlayEntry?.dispose();
     _currentMenuOffset = null;
     _menuAnchorX = null;
     _isMenuVisible = false;
