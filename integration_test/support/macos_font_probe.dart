@@ -12,6 +12,11 @@ IntegrationTestWidgetsFlutterBinding initializeMacosFontProbeBinding() {
 }
 
 const fontProbeFailureSnapshotJs = r'''
+if (documentId == null) {
+  return JSON.stringify({availability: 'document-identity-unavailable',
+    markerPresent: typeof document.__otzariaFontDocumentId === 'string' && document.__otzariaFontDocumentId.length > 0,
+    claimMatchesOwner: document.__otzariaFontBootAttempt === owner});
+}
 if (document.__otzariaFontDocumentId !== documentId || document.__otzariaFontBootAttempt !== owner) {
   return JSON.stringify({availability: 'stale-document'});
 }

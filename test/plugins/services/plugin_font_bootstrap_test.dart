@@ -604,13 +604,20 @@ console.log(JSON.stringify({value, ready, boots,
     expect(result.outcome['reason'], 'preparation-timeout');
     expect(result.elapsedMicroseconds, lessThan(1000000));
     expect(result.documentId, isNull);
+    expect(result.documentBound, isFalse);
     await expectLater(
       result.evaluateBoot(
         controller,
         source: _bootSource,
         isCurrent: () => true,
       ),
-      throwsStateError,
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Plugin boot: document-identity-unavailable',
+        ),
+      ),
     );
     expect(controller.bootSources, isEmpty);
     controller.pendingReply!.complete();

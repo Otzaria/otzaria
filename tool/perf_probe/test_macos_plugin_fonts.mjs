@@ -302,6 +302,32 @@ test('a queued snapshot cannot read a new document or a replacement owner', asyn
   }
 });
 
+for (const scenario of [
+  {name: 'no marker', markers: [undefined, null, '', 42], claimedOwner: undefined,
+    markerPresent: false, claimMatchesOwner: false},
+  {name: 'a marker claimed by another owner', markers: ['private-document'], claimedOwner: 'private-other-owner',
+    markerPresent: true, claimMatchesOwner: false},
+  {name: 'a marker claimed by the expected owner', markers: ['private-document'], claimedOwner: 'probe-owner',
+    markerPresent: true, claimMatchesOwner: true},
+]) {
+  test(`a missing expected identity retains only booleans for ${scenario.name}`, async () => {
+    for (const documentId of [undefined, null]) {
+      for (const marker of scenario.markers) {
+        const document = Object.freeze({
+          __otzariaFontDocumentId: marker,
+          __otzariaFontBootAttempt: scenario.claimedOwner,
+        });
+        const value = await run('"use strict";\n' + snapshotBody, {document, documentId, owner: 'probe-owner'});
+        assert.deepEqual(JSON.parse(value), {
+          availability: 'document-identity-unavailable',
+          markerPresent: scenario.markerPresent,
+          claimMatchesOwner: scenario.claimMatchesOwner,
+        });
+      }
+    }
+  });
+}
+
 test('a trace from an old owner cannot describe the current rendering', async () => {
   const f = renderingFixture();
   f.args.window.__otzariaFontProbeRendering = {
