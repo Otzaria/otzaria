@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import platform
 import plistlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -153,6 +154,61 @@ diagnosticApplication.run()
         })
         runner.recorded_output(cls.directory, "compile-event-loop-controller",
             ["xcrun", "swiftc", str(event_loop_source), "-o", str(cls.event_loop_helper)], 120)
+        assert event_loop.count(".accessory") == 2
+        active = event_loop.replace(".accessory", ".regular")
+        observation = '        result["controllerEventLoopRunning"] = controllerApplication.isRunning\n'
+        assert active.count(observation) == 1
+        active = active.replace(observation, observation + '''
+        result["controllerIsActive"] = controllerApplication.isActive
+        result["controllerOwnsMenuBar"] = NSRunningApplication.current.ownsMenuBar
+        result["controllerBundleIdentifier"] = Bundle.main.bundleIdentifier ?? "unavailable"
+        result["controllerLaunchDateAvailable"] = NSRunningApplication.current.launchDate != nil
+        result["frontmostApplicationPid"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
+''')
+        hide = '    if action == "hide" {\n'
+        assert active.count(hide) == 1
+        active = active.replace(hide, hide + '''
+        diagnosticApplication.activate(ignoringOtherApps: true)
+        let activationDeadline = ProcessInfo.processInfo.systemUptime + 5
+        while !diagnosticApplication.isActive && ProcessInfo.processInfo.systemUptime < activationDeadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.025))
+        }
+        let activation: [String: Any] = [
+            "stage": "controllerActivation", "applicationState": applicationState(),
+            "controllerPid": ProcessInfo.processInfo.processIdentifier
+        ]
+        let activationData = try JSONSerialization.data(withJSONObject: activation, options: [.sortedKeys])
+        fputs(String(decoding: activationData, as: UTF8.self) + "\\n", stderr)
+        guard diagnosticApplication.isActive else {
+            fail("controllerActivation", "The regular controller did not become active", 66,
+                 ["applicationState": applicationState()])
+        }
+''')
+        active_source = cls.directory / "active_regular_controller.swift"
+        active_source.write_text(active)
+        cls.active_helper = cls.directory / "mac-application-active-regular"
+        runner.save(cls.directory / "active-regular-variant.json", {
+            "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
+            "diagnosticSHA256": hashlib.sha256(active.encode()).hexdigest(),
+            "scope": "Regular caller must become active before the unchanged hide request; separate diagnostic only",
+        })
+        runner.recorded_output(cls.directory, "compile-active-regular-controller",
+            ["xcrun", "swiftc", str(active_source), "-o", str(cls.active_helper)], 120)
+        controller_bundle = cls.directory / "IdentityController.app"
+        cls.bundled_active_helper = controller_bundle / "Contents/MacOS/IdentityController"
+        cls.bundled_active_helper.parent.mkdir(parents=True)
+        shutil.copy2(cls.active_helper, cls.bundled_active_helper)
+        (controller_bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleExecutable": "IdentityController", "CFBundleIdentifier": "org.otzaria.identitycontroller",
+            "CFBundleName": "IdentityController", "CFBundlePackageType": "APPL",
+            "LSMinimumSystemVersion": "11.0", "NSHighResolutionCapable": True,
+        }))
+        runner.save(cls.directory / "bundled-active-variant.json", {
+            "binarySHA256": hashlib.sha256(cls.active_helper.read_bytes()).hexdigest(),
+            "bundleIdentifier": "org.otzaria.identitycontroller",
+            "launchMethod": "Direct Popen of the identical active-regular binary inside its own application bundle",
+            "scope": "Caller bundle metadata is the only change from active-regular-execution; not a LaunchServices launch",
+        })
         cls.launch_count = 0
 
     def wait_for_evidence(self, path, process):
@@ -200,13 +256,27 @@ diagnosticApplication.run()
     def test_event_loop_controller_is_an_independent_diagnostic(self):
         self.exercise_controller(self.event_loop_helper, "event-loop-execution", initialized=True)
 
-    def exercise_controller(self, helper, label, initialized=False):
+    def test_foreground_prepared_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.event_loop_helper, "foreground-prepared-execution", initialized=True,
+                                 prepare_foreground=True)
+
+    def test_active_regular_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.active_helper, "active-regular-execution", initialized=True,
+                                 prepare_foreground=True, hide_timeout=15)
+
+    def test_bundled_active_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.bundled_active_helper, "bundled-active-execution", initialized=True,
+                                 prepare_foreground=True, hide_timeout=15)
+
+    def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10):
         with native_result(self.directory, label,
                            launchMethod="Popen of the executable; no open/LaunchServices launch",
                            diagnosticInitialization=initialized) as report:
             app, report["startup"], _ = self.start_owned_app()
             controller = runner.MacApplicationSession(helper, app.pid, self.directory, label)
             self.addCleanup(controller.close)
+            if prepare_foreground:
+                report["foregroundBeforeControl"] = controller.request("activate")
             before = report["before"] = controller.request("info")
             time.sleep(0.2)
             after = report["after"] = controller.request("info")
@@ -214,7 +284,7 @@ diagnosticApplication.run()
             self.assertTrue(after["isActive"])
             if initialized:
                 self.assertTrue(after["applicationState"]["controllerAppKitInitialized"])
-            hidden = report["hidden"] = controller.request("hide")
+            hidden = report["hidden"] = controller.request("hide", timeout=hide_timeout)
             resumed = report["resumed"] = controller.request("activate")
             for value in [before, after, hidden, resumed]:
                 self.assertEqual(value["pid"], app.pid)
