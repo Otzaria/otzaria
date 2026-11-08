@@ -695,6 +695,47 @@ void main() {
       expect(tapped, 2);
     });
 
+    testWidgets('חצי מקלדת לא מריצים מחדש סינון ומפתחות חיפוש', (
+      tester,
+    ) async {
+      var filterCalls = 0;
+      var searchKeyCalls = 0;
+      final manyItems = List<dynamic>.generate(
+        80,
+        (index) => _Item('ספר $index', workspaceName: 'קבוצה'),
+      );
+
+      await tester.pumpWidget(
+        buildWidget(
+          testItems: manyItems,
+          additionalFilter: (_) {
+            filterCalls++;
+            return true;
+          },
+          searchKeyBuilder: (item) {
+            searchKeyCalls++;
+            return (item as _Item).ref;
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.enterText(find.byType(TextField).first, 'ספר');
+      await tester.pump();
+
+      final filterCallsBeforeArrows = filterCalls;
+      final searchKeyCallsBeforeArrows = searchKeyCalls;
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+
+      expect(filterCalls, filterCallsBeforeArrows);
+      expect(searchKeyCalls, searchKeyCallsBeforeArrows);
+    });
+
     testWidgets('Enter אחרי חץ ראשון פותח את התוצאה העליונה', (tester) async {
       int? tapped;
       await tester.pumpWidget(
