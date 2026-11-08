@@ -263,10 +263,18 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
             .clamp(_contextMenuScreenPadding, double.infinity)
             .toDouble();
 
-    // RTL: right-align menu with anchor X; fall back to left-align if no space
+    // Anchor toward the opener's reading direction, flipping only when
+    // there is insufficient room. RTL grows left; LTR grows right.
     final anchorX = _menuAnchorX ?? currentOffset.dx;
-    final rtlDx = anchorX - panelSize.width;
-    final targetDx = rtlDx >= _contextMenuScreenPadding ? rtlDx : anchorX;
+    final leftDx = anchorX - panelSize.width;
+    final rightDx = anchorX;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final targetDx = isRtl
+        ? (leftDx >= _contextMenuScreenPadding ? leftDx : rightDx)
+        : (rightDx + panelSize.width <=
+                  overlaySize.width - _contextMenuScreenPadding
+              ? rightDx
+              : leftDx);
 
     final adjustedOffset = Offset(
       targetDx.clamp(_contextMenuScreenPadding, maxDx).toDouble(),
