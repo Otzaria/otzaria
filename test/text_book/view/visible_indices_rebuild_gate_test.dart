@@ -1,3 +1,6 @@
+import 'dart:collection';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +109,65 @@ void main() {
       );
 
       expect(shouldRebuildReader(before, after), isTrue);
+    });
+
+    test('benchmark: revision חדש אינו קורא 100,000 שורות לשער הבנייה', () {
+      const lineCount = 100000;
+      final beforeContent = _ReadCountingBook(lineCount, 'סוף הספר');
+      final afterContent = _ReadCountingBook(lineCount, 'סוף הספר');
+      final before = _loaded().copyWith(
+        content: beforeContent,
+        contentVersion: 40,
+      );
+      final after = before.copyWith(
+        content: afterContent,
+        contentVersion: 41,
+        selectedIndex: 90000,
+        selectedIndices: const {90000},
+      );
+
+      // Compare the former preliminary listEquals scan with the revised
+      // rebuild gate; timings are diagnostic, never a flaky pass threshold.
+      final legacyMicros = <int>[];
+      final gateMicros = <int>[];
+      for (var sample = 0; sample < 9; sample++) {
+        beforeContent.reads = 0;
+        afterContent.reads = 0;
+        final legacyTimer = Stopwatch()..start();
+        final identicalValues = listEquals(beforeContent, afterContent);
+        legacyTimer.stop();
+        expect(identicalValues, isTrue);
+        expect(beforeContent.reads + afterContent.reads, lineCount * 2);
+        legacyMicros.add(legacyTimer.elapsedMicroseconds);
+
+        beforeContent.reads = 0;
+        afterContent.reads = 0;
+        final gateTimer = Stopwatch()..start();
+        expect(shouldRebuildReader(before, after), isTrue);
+        expect(shouldRebuildIgnoringSelection(before, after), isTrue);
+        gateTimer.stop();
+        expect(beforeContent.reads + afterContent.reads, 0);
+        gateMicros.add(gateTimer.elapsedMicroseconds);
+      }
+      legacyMicros.sort();
+      gateMicros.sort();
+      // ignore: avoid_print
+      print(
+        'reader_revision_gate_proxy lines=$lineCount samples=9 '
+        'legacy_scan_median_us=${legacyMicros[4]} '
+        'revision_gate_median_us=${gateMicros[4]} '
+        'legacy_line_reads=200000 gate_line_reads=0',
+      );
+    });
+
+    test('אותו revision עדיין מזהה שינוי טקסט בשורה האחרונה', () {
+      final content = _ReadCountingBook(256, 'שורה מקורית');
+      final changed = _ReadCountingBook(256, 'שורה מתוקנת');
+      final before = _loaded().copyWith(content: content, contentVersion: 5);
+      final after = before.copyWith(content: changed, contentVersion: 5);
+
+      expect(shouldRebuildReader(before, after), isTrue);
+      expect(content.reads + changed.reads, greaterThan(0));
     });
 
     test('גרסת תוכן חדשה מצדיקה בנייה גם כשאורך התוכן זהה', () {
@@ -510,3 +572,28 @@ TextBookLoaded _loaded() => TextBookLoaded(
   highlightText: 'הדגשה',
   permanentHighlightLine: 2,
 );
+
+class _ReadCountingBook extends ListBase<String> {
+  _ReadCountingBook(this._lineCount, this.lastLine);
+
+  final int _lineCount;
+  final String lastLine;
+  int reads = 0;
+
+  @override
+  int get length => _lineCount;
+
+  @override
+  set length(int value) => throw UnsupportedError('Read-only benchmark book');
+
+  @override
+  String operator [](int index) {
+    RangeError.checkValidIndex(index, this);
+    reads++;
+    return index == _lineCount - 1 ? lastLine : 'שורת ספר';
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('Read-only benchmark book');
+}
