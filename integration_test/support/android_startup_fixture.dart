@@ -14,6 +14,7 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
 
 import 'android_startup_protocol.dart';
 import 'perf_fixture.dart';
@@ -216,6 +217,17 @@ class AndroidStartupFixture {
           }
         } else if (plugins.isNotEmpty || await repository.hasEnabledPlugin()) {
           throw StateError('The no-enabled-plugin control is not empty.');
+        }
+        // A reused fixture must not restore a plugin before its measured open.
+        // Preserve other state and leave a missing database for actual startup.
+        final stateFile = File(p.join(databasesPath, 'user_state.db'));
+        if (!prepare && await stateFile.exists()) {
+          final state = sqlite3.open(stateFile.path, mode: OpenMode.readWrite);
+          try {
+            state.execute('DELETE FROM window_sessions');
+          } finally {
+            state.close();
+          }
         }
       } finally {
         await PluginSystemDatabase.instance.close();
