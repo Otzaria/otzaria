@@ -1,9 +1,12 @@
+// ignore_for_file: implementation_imports
+
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
+import 'package:opentype_shaper/src/bindings.dart';
 import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 
 bool _isRegistered(int handle) {
@@ -33,6 +36,16 @@ Future<int> _shapeAfterResume(
     }
   },
 );
+
+
+int _drainUnexpectedNativeReferences(int handle) {
+  for (var count = 0; count < 32; count++) {
+    final status = ShaperBindings.instance.releaseFont(handle);
+    if (status == ShaperStatus.unknownHandle) return count;
+    expect(status, ShaperStatus.ok);
+  }
+  throw StateError('Native font reference count exceeded 32');
+}
 
 void main() {
   late Uint8List bytes;
@@ -157,6 +170,61 @@ void main() {
       expect(_isRegistered(handle), isFalse);
     } finally {
       ready.close();
+    }
+  });
+
+  test('native refcount returns to baseline after fallback registration fails', () async {
+    final anchor = ShaperFont.register(bytes);
+    final handle = anchor.handle;
+    try {
+      await expectLater(
+        withShaperFontPair<void>(
+          createPrimary: () => ShaperFont.register(bytes),
+          createFallback: () => ShaperFont.register(Uint8List(0)),
+          action: (_, _) => fail('must not construct a PDF'),
+        ),
+        throwsA(isA<ShaperException>()),
+      );
+      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+    } finally {
+      anchor.dispose();
+    }
+    expect(_drainUnexpectedNativeReferences(handle), 0);
+  });
+
+  test('native registry is freed after repeated save failures and double dispose', () async {
+    for (var cycle = 0; cycle < 16; cycle++) {
+      final anchor = ShaperFont.register(bytes);
+      final handle = anchor.handle;
+      final failure = StateError('pdf.save failed $cycle');
+      try {
+        await expectLater(
+          withShaperFontPair<void>(
+            createPrimary: () => ShaperFont.register(bytes),
+            createFallback: () => ShaperFont.register(bytes),
+            action: (primary, fallback) async {
+              expect(primary.handle, handle);
+              expect(fallback.handle, handle);
+              if (cycle.isEven) {
+                // Both owners may already be disposed by a client.
+                primary.dispose();
+                fallback.dispose();
+              }
+              await Future<void>.delayed(Duration.zero);
+              throw failure;
+            },
+          ),
+          throwsA(same(failure)),
+        );
+        expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+      } finally {
+        anchor.dispose();
+      }
+      expect(
+        _drainUnexpectedNativeReferences(handle),
+        0,
+        reason: 'native reference leak on failure cycle $cycle',
+      );
     }
   });
 }
