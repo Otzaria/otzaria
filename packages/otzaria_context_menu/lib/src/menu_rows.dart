@@ -226,11 +226,18 @@ Iterable<double> _appMenuPreferredWidths<T>(
     yield min(metrics.menuMinWidth, maxWidth);
     return;
   }
+  // The menu cannot be narrower than its floor unless the caller imposes a
+  // smaller maximum. In either case no label measurements are needed.
+  if (maxWidth <= metrics.menuMinWidth) {
+    yield maxWidth;
+    return;
+  }
 
-  final hasIcon = entries.any((entry) => entry.icon != null);
+  var hasIcon = false;
   var maxTrailingWidth = 0.0;
   var hasExtraSlot = false;
   for (final entry in entries) {
+    if (entry.icon != null) hasIcon = true;
     if (entry.trailing != null) {
       final tWidth = entry.trailingReservedWidth > 0
           ? entry.trailingReservedWidth
