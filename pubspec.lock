@@ -1315,10 +1315,11 @@ packages:
   pdfium_dart:
     dependency: "direct main"
     description:
-      name: pdfium_dart
-      sha256: "3e250021b2f462058aae216837902fdc8b2cb7f0657e4ec2bc9ac541f960ff84"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/pdfium_dart"
+      ref: f3976775da2865a2a3ef89d1cfd43611073c45f7
+      resolved-ref: f3976775da2865a2a3ef89d1cfd43611073c45f7
+      url: "https://github.com/Otzaria/pdfrx"
+    source: git
     version: "0.4.1"
   pdfium_flutter:
     dependency: transitive
