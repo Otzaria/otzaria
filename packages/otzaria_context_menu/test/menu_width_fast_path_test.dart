@@ -78,7 +78,7 @@ void main() {
     expect(entries.reads, 0);
   });
 
-  test('async width calculation yields before preprocessing the entire list', () async {
+  test('async yields during preprocessing', () async {
     final entries = _SlowEntries();
     int? readsWhenEventRan;
     Timer.run(() => readsWhenEventRan = entries.reads);
