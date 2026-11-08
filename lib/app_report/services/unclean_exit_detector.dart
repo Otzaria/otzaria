@@ -62,6 +62,7 @@ class CrashCandidate {
     required this.hasStartupStall,
     required this.hasMinidump,
     this.minidump,
+    this.minidumpSignature,
     this.kind = CrashIncidentKind.crash,
   }) : hangDuration = null,
        details = null,
@@ -79,7 +80,8 @@ class CrashCandidate {
   }) : kind = CrashIncidentKind.hang,
        hasStartupStall = false,
        hasMinidump = false,
-       minidump = null;
+       minidump = null,
+       minidumpSignature = null;
 
   final CrashIncidentKind kind;
 
@@ -107,6 +109,9 @@ class CrashCandidate {
 
   /// ה-dump החדש ביותר מאז תחילת ההפעלה הקודמת, לצירוף בהסכמת המשתמש.
   final File? minidump;
+
+  /// חתימת [minidump] גם כש-[signature] נלקחה מרשומה ב-errors.txt.
+  final CrashSignature? minidumpSignature;
 }
 
 /// מזהה יציאה לא נקייה של ההפעלה הקודמת. לוגיקה בלבד — הקריאה מהעלייה
@@ -209,17 +214,17 @@ class UncleanExitDetector {
     if (evidence.isEmpty && !dump.found) return null;
 
     final newestDump = dump.newest;
+    final dumpSignature = newestDump == null
+        ? null
+        : await readMinidumpSignature(newestDump);
     return CrashCandidate(
       previousSession: lock,
       entries: blocks,
-      signature: evidence.isNotEmpty
-          ? evidence.last.signature
-          : newestDump == null
-          ? null
-          : await readMinidumpSignature(newestDump),
+      signature: evidence.isNotEmpty ? evidence.last.signature : dumpSignature,
       hasStartupStall: hasStall,
       hasMinidump: dump.found,
       minidump: newestDump,
+      minidumpSignature: dumpSignature,
       kind: evidence.isNotEmpty && evidence.last.isAppHang
           ? CrashIncidentKind.hang
           : CrashIncidentKind.crash,

@@ -67,7 +67,8 @@ class CrashReportFlow {
   static bool _fasterDriveHintShown = false;
 
   static void _showFasterDriveHintOnce() {
-    if (_fasterDriveHintShown) return;
+    // בלי Navigator ההודעה לא מוצגת; ננסה שוב בתקיעה הבאה.
+    if (_fasterDriveHintShown || navigatorKey.currentContext == null) return;
     _fasterDriveHintShown = true;
     UiSnack.showWarning(
       ReportMessages.portableSlowDriveHint,

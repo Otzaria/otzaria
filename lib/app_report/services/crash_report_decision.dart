@@ -49,7 +49,11 @@ abstract class CrashReportDecision {
   /// תמיד כונן נייד איטי או מנותק, ואין בהם מה לתקן בקוד.
   static bool isLikelySlowDrive(CrashCandidate candidate) =>
       candidate.isHang ||
-      (candidate.signature?.exceptionType.startsWith(_inPageError) ?? false);
+      _isInPageError(candidate.signature) ||
+      _isInPageError(candidate.minidumpSignature);
+
+  static bool _isInPageError(CrashSignature? signature) =>
+      signature?.exceptionType.startsWith(_inPageError) ?? false;
 
   static const String _inPageError = '0xc0000006';
 
