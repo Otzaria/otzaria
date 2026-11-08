@@ -39,6 +39,15 @@ function Read-InstalledPluginControlProcessTime {
     return $Process.$Property.ToUniversalTime()
 }
 
+function Wait-InstalledPluginControlIdle {
+    param([Parameter(Mandatory)]$Clock, [ValidateRange(0, 40)][int]$Seconds)
+    # A Windows wait can return before the monotonic deadline.
+    $deadlineMs = $Seconds * 1000.0
+    while (($remainingMs = $deadlineMs - $Clock.Elapsed.TotalMilliseconds) -gt 0) {
+        Start-Sleep -Milliseconds ([int][Math]::Ceiling($remainingMs))
+    }
+}
+
 function Invoke-InstalledPluginExitControl {
     param([Parameter(Mandatory)][string]$Directory, [Parameter(Mandatory)][string]$ReportPath,
         [ValidateRange(0, 40)][int]$IdleSeconds = 0,
@@ -89,7 +98,7 @@ exit 37
         Wait-InstalledPluginProcessEvent -Trace $result.trace -Kind Start -ProcessId $child.Id
         $result.idle.startedAtUtc = [datetime]::UtcNow
         $idleClock = [Diagnostics.Stopwatch]::StartNew()
-        if ($IdleSeconds -gt 0) { Start-Sleep -Seconds $IdleSeconds }
+        Wait-InstalledPluginControlIdle -Clock $idleClock -Seconds $IdleSeconds
         $result.idle.elapsedMs = $idleClock.Elapsed.TotalMilliseconds
         $result.idle.finishedAtUtc = [datetime]::UtcNow
         [IO.File]::WriteAllText($releasePath, 'observed')
