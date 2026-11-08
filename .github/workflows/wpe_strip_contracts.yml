@@ -71,6 +71,9 @@ jobs:
           find "$sdk" -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' -o -name 'WPEGPUProcess' \) \
             -exec cp -L {} "$bundle/" \;
           chmod 755 "$bundle"/WPE*Process
+          # Hash original SDK objects to prove the strip process only touched copies.
+          find "$sdk" -type f \\( -name 'libWPEWebKit-2.0.so.1.5.12' -o -name 'libWPEPlatform-2.0.so.0.0.0' \\) \\
+            -exec sha256sum {} \\; > "$RUNNER_TEMP/wpe-sdk-originals.sha256"
           echo "WPE_FIXTURE_SDK=$sdk" >> "$GITHUB_ENV"
           echo "WPE_FIXTURE_LIB=$bundle" >> "$GITHUB_ENV"
 
