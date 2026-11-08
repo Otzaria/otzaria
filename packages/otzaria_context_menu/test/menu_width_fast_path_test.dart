@@ -34,8 +34,11 @@ void main() {
       metrics.menuMinWidth - 1,
       metrics.menuMinWidth,
     ]) {
-      final width = calculateAppMenuPreferredWidth(metrics, entries,
-          maxWidth: cap);
+      final width = calculateAppMenuPreferredWidth(
+        metrics,
+        entries,
+        maxWidth: cap,
+      );
       expect(width, cap);
     }
     expect(entries.reads, 0);
