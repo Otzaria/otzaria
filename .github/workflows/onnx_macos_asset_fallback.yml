@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tool/onnxruntime/embed_onnxruntime_macos.sh'
+      - 'tool/onnxruntime/test_embed_onnxruntime_macos.sh'
       - 'tool/onnxruntime/onnxruntime_release.txt'
       - '.github/workflows/onnx_macos_asset_fallback.yml'
   workflow_dispatch:
@@ -12,6 +13,16 @@ permissions:
   contents: read
 
 jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exercise fallback and SHA contracts with controlled fixtures
+        run: bash tool/onnxruntime/test_embed_onnxruntime_macos.sh
+
   test:
     runs-on: macos-latest
     timeout-minutes: 15
