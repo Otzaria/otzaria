@@ -31,7 +31,7 @@ class ReadingSettingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<TabsBloc, TabsState>(
       builder: (context, tabsState) {
-        final currentTab = tabsState.currentTab;
+        final currentTab = tabsState.activePane;
         if (currentTab is TextBookTab) {
           return BlocBuilder<TextBookBloc, TextBookState>(
             bloc: currentTab.bloc,

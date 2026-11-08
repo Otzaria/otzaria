@@ -1,8 +1,4 @@
-// #2826: גודל טקסט נפרד לתוצאות החיפוש, וחלונית הגדרות התצוגה לפי
-// הכרטיסייה הפעילה. רכיב אחד (TextSettingsTab) עם scope:
-//   * all — מסך ההגדרות: הכל, כולל גודל התוצאות.
-//   * book — כרטיסיית ספר: הכל חוץ מגודל התוצאות.
-//   * searchResults — כרטיסיית חיפוש: מה שחל על התוצאות ועל התצוגה המקדימה.
+// חלונית הגדרות הקריאה מציגה את ההגדרות שחלות על החלונית הפעילה.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +14,7 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -144,6 +141,41 @@ void main() {
     expectShown([_book, ..._bookOnly, ..._shared], findsOneWidget);
     expect(find.text(_results), findsNothing);
   });
+
+  testWidgets('בתצוגה מפוצלת ההגדרות מתחלפות לפי החלונית הפעילה', (
+    tester,
+  ) async {
+    final search = SearchingTab('חיפוש', 'בראשית');
+    final book = TextBookTab(book: TextBook(title: 'בראשית'), index: 0);
+    final combined = CombinedTab(rightTab: search, leftTab: book);
+    final tabs = _TestTabsBloc(
+      TabsState(tabs: [combined], currentTabIndex: 0, rawActivePane: search),
+    );
+    addTearDown(() async {
+      await tabs.close();
+      combined.dispose();
+    });
+    await pump(
+      tester,
+      BlocProvider<TabsBloc>.value(
+        value: tabs,
+        child: const ReadingSettingsPanel(),
+      ),
+    );
+
+    expectShown([_results, _book, ..._shared], findsOneWidget);
+    expectShown(_bookOnly, findsNothing);
+
+    tabs.push(tabs.state.copyWith(activePane: ActivePaneUpdate.set(book)));
+    await tester.pumpAndSettle();
+    expectShown([_book, ..._bookOnly, ..._shared], findsOneWidget);
+    expect(find.text(_results), findsNothing);
+
+    tabs.push(tabs.state.copyWith(activePane: ActivePaneUpdate.set(search)));
+    await tester.pumpAndSettle();
+    expect(find.text(_results), findsOneWidget);
+    expectShown(_bookOnly, findsNothing);
+  });
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
@@ -162,6 +194,8 @@ class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
   _TestTabsBloc(super.initialState) {
     on<TabsEvent>((event, emit) {});
   }
+
+  void push(TabsState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
