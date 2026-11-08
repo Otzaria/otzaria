@@ -249,9 +249,8 @@ class _ItemsListViewState extends State<ItemsListView> {
   Widget _buildItemRow(
     BuildContext context,
     dynamic item,
-    int originalIndex, {
-    bool isKeyboardFocused = false,
-  }) {
+    int originalIndex,
+  ) {
     final subtitle = widget.subtitleBuilder?.call(item);
     final subtitleTooltip = widget.subtitleTooltipBuilder?.call(item);
     final titleSpan = widget.titleSpanBuilder?.call(item);
@@ -308,13 +307,6 @@ class _ItemsListViewState extends State<ItemsListView> {
         ),
       ),
     );
-
-    if (isKeyboardFocused) {
-      content = ColoredBox(
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        child: content,
-      );
-    }
 
     final onEdit = widget.onEdit;
     if (onEdit == null) {
@@ -404,16 +396,19 @@ class _ItemsListViewState extends State<ItemsListView> {
   /// שהרשימה תישאר וירטואלית.
   Widget _buildCardRow(BuildContext context, _ListRow row) {
     final entry = row.entry!;
+    final rowContent = _buildItemRow(
+      context,
+      entry.value,
+      entry.key,
+    );
     Widget content = ValueListenableBuilder<int>(
       valueListenable: _focusedOriginalIndex,
-      builder: (context, focusedOriginalIndex, _) => Material(
-        color: AppSurfaces.card(context),
-        child: _buildItemRow(
-          context,
-          entry.value,
-          entry.key,
-          isKeyboardFocused: entry.key == focusedOriginalIndex,
-        ),
+      child: rowContent,
+      builder: (context, focusedOriginalIndex, child) => Material(
+        color: entry.key == focusedOriginalIndex
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : AppSurfaces.card(context),
+        child: child,
       ),
     );
 
