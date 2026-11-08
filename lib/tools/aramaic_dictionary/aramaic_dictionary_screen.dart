@@ -37,10 +37,9 @@ List<Map<String, String>> rankAramaicMatches(
         : 3;
   }
 
-  final ranked =
-      <
-        ({int rank, bool other, int pos, int order, Map<String, String> entry})
-      >[];
+  // בלי ה-Map ב-record (הערך נשלף לפי order): ב-AOT בדיקות הטיפוס של record
+  // עם שדה גנרי מאטות את המיון פי 20.
+  final ranked = <({int rank, bool other, int pos, int length, int order})>[];
   for (final (order, entry) in entries.indexed) {
     final text = entry[field]!;
     final pos = text.indexOf(query);
@@ -53,8 +52,8 @@ List<Map<String, String>> rankAramaicMatches(
       rank: rank,
       other: other,
       pos: pos,
+      length: text.length,
       order: order,
-      entry: entry,
     ));
   }
   ranked.sort((a, b) {
@@ -63,13 +62,11 @@ List<Map<String, String>> rankAramaicMatches(
     if (a.other != b.other) return a.other ? 1 : -1;
     final posCompare = a.pos.compareTo(b.pos);
     if (posCompare != 0) return posCompare;
-    final lengthCompare = a.entry[field]!.length.compareTo(
-      b.entry[field]!.length,
-    );
+    final lengthCompare = a.length.compareTo(b.length);
     if (lengthCompare != 0) return lengthCompare;
     return a.order.compareTo(b.order);
   });
-  return [for (final r in ranked) r.entry];
+  return [for (final r in ranked) entries[r.order]];
 }
 
 /// ממזג תוצאות בעלות אותו מפתח, גם ממילונים שונים, לכרטיס אחד עם כל הפירושים.
