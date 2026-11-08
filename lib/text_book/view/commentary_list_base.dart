@@ -339,8 +339,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   @visibleForTesting
   int get debugFlatItemsRevision => _flatItemsRevision;
   int _searchScrollGeneration = 0;
-  // הערות אישיות פר ספר-מפרש, משותפות לכל הקטעים של אותו מפרש.
-  final Map<String, Future<List<PersonalNote>>> _personalNotesByGroup = {};
+  // הערות אישיות פר ספר-מפרש, מאונדקסות פעם אחת לפי שורה ומשותפות לכל
+  // הקטעים של אותו מפרש.
+  final Map<String, Future<CommentaryNotesByLine>> _personalNotesByGroup = {};
   StreamSubscription<String>? _notesChangesSubscription;
 
   ({
@@ -639,19 +640,22 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
-  Future<List<PersonalNote>> _personalNotesForGroup(CommentaryGroup group) {
+  Future<CommentaryNotesByLine> _personalNotesForGroup(
+    CommentaryGroup group,
+  ) {
     // המפתח כמו בשמירה מתפריט המפרש: לפי מקור ספר היעד.
     final key = personalNotesBookKeyFor(
       group.bookTitle,
       group.links.firstOrNull?.targetSource ?? BookSource.official,
     );
-    return _personalNotesByGroup.putIfAbsent(key, () {
+    return _personalNotesByGroup.putIfAbsent(key, () async {
       final loader = widget.personalNotesLoader;
-      if (loader == null) return Future.value(const <PersonalNote>[]);
-      return loader(
+      if (loader == null) return const <int, List<PersonalNote>>{};
+      final notes = await loader(
         key,
         categoryId: group.links.firstOrNull?.targetCategoryId,
       );
+      return indexCommentaryNotesByLine(notes);
     });
   }
 
@@ -2578,8 +2582,8 @@ class _CommentaryLinkItem extends StatefulWidget {
   final ValueListenable<String?> savedSelectedTextListenable;
   final ValueListenable<Link?> lastSelectedLinkListenable;
 
-  /// הערות ספר המפרש. אותו Future משותף לכל קטעי המפרש בקבוצה.
-  final Future<List<PersonalNote>> personalNotes;
+  /// הערות ספר המפרש, ממופתחות לפי שורה. אותו Future משותף לכל הקטעים.
+  final Future<CommentaryNotesByLine> personalNotes;
 
   /// נקרא בלחיצת עכבר על פריט מפרש — לסימון המפרש הנבחר לייחוס העתקה.
   final void Function(Link link)? onLinkPointerDown;
