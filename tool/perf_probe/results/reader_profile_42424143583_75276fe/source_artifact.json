@@ -1,0 +1,176 @@
+{
+  "runId": 42424143583,
+  "jobId": 128558729625,
+  "artifactId": 13596267839,
+  "artifactName": "reader-profile-42424143583-1",
+  "archiveBytes": 17651148,
+  "archiveSha256": "4619552a142d03d09620e3da8e5b2dd60ec4d6aa61efe19f2db89c89bae8d67a",
+  "archiveSha256Verified": true,
+  "zipMembers": 352,
+  "allZipMembersCrcVerified": true,
+  "archiveUncompressedBytes": 355295228,
+  "baselineSourceCommit": "bfd64c2dabf576c1763b177a87097f74e7469b73",
+  "candidateSourceCommit": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "originalArtifactUnchanged": true,
+  "omitted": "256 reader timeline trace files plus build/launch duplicates; aggregate phase rows preserve raw FrameTiming arrays, parsed pipeline intervals, repository request spans, SmartText counts and per-group heap observations.",
+  "heapValidity": {
+    "validAggregation": true,
+    "aggregation": "unique-application-isolate-groups",
+    "snapshotCountPerSide": 252,
+    "isolateGroupCountInEverySnapshot": 1,
+    "allPerGroupSumsAndIdsVerified": true,
+    "measurement": "current-usage-without-forced-gc",
+    "limitations": [
+      "Current heap usage, not post-GC live retained memory or cumulative allocations.",
+      "Group samples are sequential observations, not an atomic process memory snapshot.",
+      "Old run42417165121 summed shared heaps by isolate and is not comparable; old raw counters were not repaired."
+    ]
+  },
+  "independentAudit": {
+    "harnessBlobsChecked": 13,
+    "verifiedLatencyFrameAggregates": 1204,
+    "measuredBookPhaseCountPerSide": 84,
+    "matchedLaunchOrder": "ABBA",
+    "timelineAvailabilityPerSide": {
+      "available": 76,
+      "No complete layout/paint calls inside the action window.": 4,
+      "Missing phase markers; the timeline may be truncated.": 4
+    },
+    "heapIsolateCountDistribution": {
+      "baseline": {
+        "5": 3,
+        "4": 249
+      },
+      "candidate": {
+        "4": 252
+      }
+    }
+  },
+  "scope": [
+    "Four measured samples per book action and side; action warmups excluded in reports.",
+    "Windows hosted AMD EPYC 9V74 with Microsoft Hyper-V Video; not physical display FPS.",
+    "Long warmup pipeline timelines lack phase markers and are unavailable.",
+    "warmup_complete is remaining wait after prior actions and recorder work, not total warmup time.",
+    "Async repository spans are not physical disk time and overlap UI/layout work.",
+    "Run42417165121/candidate600 used a different source base, Intel CPU and heap method; cross-run observations are descriptive only."
+  ],
+  "entries": [
+    {
+      "originalArtifactMember": "reader-profile/provenance.json",
+      "file": "provenance.json",
+      "originalBytes": 2416,
+      "originalSha256": "44fb76ec42dae11fd02aa93e892bae3f268235d3fca5df4f9cef70482d1aa7ad",
+      "storedBytes": 2416,
+      "storedSha256": "44fb76ec42dae11fd02aa93e892bae3f268235d3fca5df4f9cef70482d1aa7ad",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/manifest.json",
+      "file": "baseline/manifest.json",
+      "originalBytes": 23822,
+      "originalSha256": "c59c540d2641da7fa53494ab15372af43611b44be7f1afe9eb73b2650ae91906",
+      "storedBytes": 23822,
+      "storedSha256": "c59c540d2641da7fa53494ab15372af43611b44be7f1afe9eb73b2650ae91906",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/phases.jsonl",
+      "file": "baseline/phases.jsonl.gz",
+      "originalBytes": 4940493,
+      "originalSha256": "097bb6ace1bb9faa6c2ce6eda40b03ab853fa45df39ba48ca351e6c51472f67b",
+      "storedBytes": 451627,
+      "storedSha256": "4f5f1bb8dec0d0c9949d2dd3019df3a620319e532997eb55cdffbe373b285e83",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/report.json",
+      "file": "baseline/report.json.gz",
+      "originalBytes": 551531,
+      "originalSha256": "db023fa5c774f864d4fdbfee286e48446907ed85b7ae84397e62498571d67f01",
+      "storedBytes": 39942,
+      "storedSha256": "87d56576fb3cf41a85113c13c80dfae349691e8e85db67944084ea1ee9d78f69",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/baseline/samples.csv",
+      "file": "baseline/samples.csv",
+      "originalBytes": 62060,
+      "originalSha256": "046605b39d7f4e75d90948b99f95e663ed8f071518e579ef1e630c9957d223ac",
+      "storedBytes": 62060,
+      "storedSha256": "046605b39d7f4e75d90948b99f95e663ed8f071518e579ef1e630c9957d223ac",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/manifest.json",
+      "file": "candidate/manifest.json",
+      "originalBytes": 23828,
+      "originalSha256": "70db083837b210cdc9b2fe5aa9f8c8eb3b054ff7ba370aa6438556164638ccb3",
+      "storedBytes": 23828,
+      "storedSha256": "70db083837b210cdc9b2fe5aa9f8c8eb3b054ff7ba370aa6438556164638ccb3",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/phases.jsonl",
+      "file": "candidate/phases.jsonl.gz",
+      "originalBytes": 4967573,
+      "originalSha256": "51e4f7cee2d7ba7516ac1cca228f260a3344d9e5a0b997d03ad93978ca8a3fd1",
+      "storedBytes": 454705,
+      "storedSha256": "8c7264ffbe8e705b84029efe3f1172e85a44ba1df891ab5c1b9348028b1a059e",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/report.json",
+      "file": "candidate/report.json.gz",
+      "originalBytes": 680548,
+      "originalSha256": "42bedbe401992f1c4e088e5a87f0fb9f0f971ebcd7ea18da76d2c66bb95d82dc",
+      "storedBytes": 51628,
+      "storedSha256": "ec80468caeeffec00beae8d340089ff6b4c825756a00de086c95a518aaa42e72",
+      "compression": "gzip"
+    },
+    {
+      "originalArtifactMember": "reader-profile/candidate/samples.csv",
+      "file": "candidate/samples.csv",
+      "originalBytes": 55281,
+      "originalSha256": "0a65995095dc4c886e88ab6b60508d0d4ca09b109449cbef58606cdb80834940",
+      "storedBytes": 55281,
+      "storedSha256": "0a65995095dc4c886e88ab6b60508d0d4ca09b109449cbef58606cdb80834940",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-00-baseline/launch-000/completion.json",
+      "file": "completion/step-00-baseline.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-01-candidate/launch-000/completion.json",
+      "file": "completion/step-01-candidate.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-02-candidate/launch-001/completion.json",
+      "file": "completion/step-02-candidate.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    },
+    {
+      "originalArtifactMember": "reader-profile/step-03-baseline/launch-001/completion.json",
+      "file": "completion/step-03-baseline.json",
+      "originalBytes": 166,
+      "originalSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "storedBytes": 166,
+      "storedSha256": "41e0232569b37fe23cb11c625cba449a3729986ff1714d8f1a198943e7ad1c6b",
+      "compression": "none"
+    }
+  ]
+}

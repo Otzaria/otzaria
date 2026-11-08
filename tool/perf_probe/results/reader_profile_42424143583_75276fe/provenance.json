@@ -1,0 +1,50 @@
+{
+  "baselineSourceCommit": "bfd64c2dabf576c1763b177a87097f74e7469b73",
+  "candidateSourceCommit": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "harnessSourceCommit": "75276fe11dcf679f4ffe81eae17f842ba53c6349",
+  "harnessSha256": "6cbc44ac40ee2a130c4848d9e712a42e4fa9daa1333ae733ea4ebef9a7ccf17f",
+  "harnessEntries": [
+    "100644 blob 0aa339d0386e51fbe88503d7bf6e4af5b1679291\ttool/perf_probe/sample_resources.ps1",
+    "100644 blob 3580c99c8ea9b1845e114e90d25de7eeb7cf2efb\ttool/perf_probe/runner.ps1",
+    "100644 blob 3e14e03d1b6522e2275fdb762a77761d9d07b2ba\tintegration_test/support/perf_reader_probe.dart",
+    "100644 blob 521b71142ac35be774ab9d34c36fd10c6b1b4796\ttest/helpers/seforim_fixture_db.dart",
+    "100644 blob 57d81232a5090d4ec266de577d28ed7917cda3aa\tintegration_test/perf_resource_probe_test.dart",
+    "100644 blob 83dade6febd4af1761419e2e09564cab82268162\tintegration_test/support/perf_recorder.dart",
+    "100644 blob 9556a752ada371f35bd99396c251ec44efb8ac00\ttool/perf_probe/analyze.dart",
+    "100644 blob e1c10fc630f57b3c9d5fde8516895b6bdb49d5b4\ttool/perf_probe/run_perf_probe.ps1",
+    "100644 blob ea84e60d67ffd4919f9fd4a6d610ee054c16dd5e\ttool/perf_probe/run_reader_comparison.ps1",
+    "100644 blob eab1ce07d4d9dd09f901bac141e44ba2aee3792f\tintegration_test/support/perf_reader_scroll.dart",
+    "100644 blob ed3d0b499719ce873e3c04ad078bd813663f8f99\ttool/perf_probe/src/report.dart",
+    "100644 blob f652e6b48381b89dc8aa3ffd7cad57a67689aa6f\ttool/perf_probe/lockfile_quoting.ps1",
+    "100644 blob fd609812c5bbb4e75e9366849f4c557a88b57acd\tintegration_test/support/perf_fixture.dart"
+  ],
+  "launchOrder": [
+    {
+      "side": "baseline",
+      "launchIndex": 0,
+      "cycle": 0
+    },
+    {
+      "side": "candidate",
+      "launchIndex": 0,
+      "cycle": 0
+    },
+    {
+      "side": "candidate",
+      "launchIndex": 1,
+      "cycle": 0
+    },
+    {
+      "side": "baseline",
+      "launchIndex": 1,
+      "cycle": 0
+    }
+  ],
+  "cycles": 1,
+  "bookLines": "2000,50000,1000000",
+  "status": "passed",
+  "coldDefinition": "fresh application data; OS file cache is not flushed",
+  "buildTiming": "both builds and all fixture preparation precede their measured process launches",
+  "baselineMeasuredCommit": "6977fcbc786d59b8cb0d2a74c2ba4c22dee40959",
+  "candidateMeasuredCommit": "75276fe11dcf679f4ffe81eae17f842ba53c6349"
+}
