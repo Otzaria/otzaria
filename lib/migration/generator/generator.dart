@@ -322,7 +322,7 @@ class DatabaseGenerator {
     // תמונות: כאן נדרש רק מבנה השורות ותוכן העניינים. אחרת — מטמון ה-RAM.
     final lines = format.requiresConversion
         ? (await Isolate.run(
-            () => convertDocumentFileSync(
+            () => convertDocumentFile(
               bookPath,
               format: format,
               embedImages: false,

@@ -95,12 +95,14 @@ String convertDocumentBytesSync(
 ///
 /// [format] ריק — נגזר מהסיומת. פורמט שדורש זיהוי-תוכן ([DocumentFormat
 /// .needsContentSniffing]) מיושב מול הבייטים בפועל.
-String convertDocumentFileSync(
+Future<String> convertDocumentFile(
   String filePath, {
   DocumentFormat? format,
   bool embedImages = true,
-}) {
-  final bytes = File(filePath).readAsBytesSync();
+}) async {
+  // קריאה סינכרונית מחזיקה את ה-buffer לכל אורך הגישה לדיסק ומעכבת את ה-GC
+  // של כל ה-isolates, כולל ה-UI (#4532).
+  final bytes = await File(filePath).readAsBytes();
   final declared = format ?? documentFormatFromExtension(filePath);
   final resolved = declared != null && declared.needsContentSniffing
       ? resolveDocumentFormat(declared, bytes)
@@ -132,7 +134,7 @@ Future<String> convertDocumentWithCache(
   bool embedImages = true,
 }) async {
   // WBK הוא גיבוי של Word ויכול להיות OOXML או בינארי ישן — רק התוכן מכריע.
-  // אותו יישוב בדיוק כמו ב-[convertDocumentFileSync]: בלעדיו שני מסלולי
+  // אותו יישוב בדיוק כמו ב-[convertDocumentFile]: בלעדיו שני מסלולי
   // הכניסה מתנהגים הפוך זה מזה על אותו קובץ.
   final resolved = format.needsContentSniffing
       ? resolveDocumentFormat(format, await _readSniffWindow(file))

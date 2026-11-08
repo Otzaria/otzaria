@@ -31,12 +31,12 @@ class PreparedExternalBook {
   /// null משמר TOC קיים; רשימה ריקה מוחקת כותרות שכבר אינן בקובץ.
   final List<TocEntry>? tocEntries;
 
-  /// מיועדת ל-worker: ההמרה ופריסת הכותרות סינכרוניות.
-  static PreparedExternalBook prepare(
+  /// מיועדת ל-worker: ההמרה ופריסת הכותרות כבדות.
+  static Future<PreparedExternalBook> prepare(
     String filePath,
     FileStat stat,
     DocumentFormat format,
-  ) {
+  ) async {
     return PreparedExternalBook(
       filePath: filePath,
       title: path.basenameWithoutExtension(filePath),
@@ -46,7 +46,7 @@ class PreparedExternalBook {
       tocEntries: format.isTextual
           ? externalBookTocEntries(
               TocParser.parseEntriesFromContent(
-                convertDocumentFileSync(filePath, embedImages: false),
+                await convertDocumentFile(filePath, embedImages: false),
               ),
             )
           : null,
