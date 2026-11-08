@@ -37,6 +37,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../tool/perf_probe/apple_plugin_activity/contract.dart';
 import 'support/apple_plugin_activity_fixture.dart';
+import 'support/installed_plugin_completion.dart';
 import 'support/perf_fixture.dart';
 import 'support/perf_recorder.dart' show perfBuildMode;
 import 'support/webview_probe_window.dart';
@@ -102,9 +103,9 @@ void main() {
   final protocol = _Protocol();
   File? localReport;
   final finished = Completer<void>();
-  unawaited(
-    binding.allTestsPassed.future.then((passed) async {
-      await finished.future;
+  registerInstalledPluginReportFinalizer(binding, (passed) async {
+    try {
+      await finished.future.timeout(const Duration(seconds: 30));
       finalizeAppleActivityReport(
         report,
         frameworkPassed: passed,
@@ -118,8 +119,20 @@ void main() {
       if (const bool.fromEnvironment('APPLE_QUIET_EXTERNAL')) {
         await protocol.post('framework-complete', report);
       }
-    }),
-  );
+    } catch (error) {
+      (report['errors'] as List).add('Final report completion failed: $error');
+      finalizeAppleActivityReport(
+        report,
+        frameworkPassed: false,
+        failureDetails: binding.failureMethodsDetails.map(
+          (failure) => failure.details,
+        ),
+        platform: Platform.operatingSystem,
+        buildMode: perfBuildMode,
+      );
+      rethrow;
+    }
+  });
 
   testWidgets('Apple scheduling through installed Otzaria plugin hosts', (
     tester,
@@ -135,6 +148,8 @@ void main() {
     final lifecycle = _Lifecycle(
       report['lifecycle'] as List<Map<String, Object?>>,
     );
+    Object? failure;
+    StackTrace? failureStack;
     WidgetsBinding.instance.addObserver(lifecycle);
     try {
       // A new private directory always precedes app.main. No production data,
@@ -315,10 +330,11 @@ void main() {
         );
       }
       report['status'] = 'collected';
-    } catch (error) {
+    } catch (error, stack) {
       report['status'] = 'failed';
       (report['errors'] as List).add('$error');
-      rethrow;
+      failure = error;
+      failureStack = stack;
     } finally {
       WidgetsBinding.instance.removeObserver(lifecycle);
       FlutterError.onError = oldFlutterError;
@@ -338,9 +354,17 @@ void main() {
           await protocol.post('complete', report);
         }
         await localReport?.writeAsString(jsonEncode(report), flush: true);
+      } catch (error, stack) {
+        report['status'] = 'failed';
+        (report['errors'] as List).add('Scenario completion failed: $error');
+        failure ??= error;
+        failureStack ??= stack;
       } finally {
         finished.complete();
       }
+    }
+    if (failure != null) {
+      Error.throwWithStackTrace(failure, failureStack!);
     }
   }, timeout: const Timeout(Duration(minutes: 20)));
 }

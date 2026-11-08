@@ -7,11 +7,14 @@ on:
       - '.github/workflows/apple-plugin-activity.yml'
       - 'integration_test/apple_plugin_activity_probe_test.dart'
       - 'integration_test/support/apple_plugin_activity_fixture.dart'
+      - 'integration_test/support/installed_plugin_completion.dart'
       - 'integration_test/support/perf_fixture.dart'
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/apple_plugin_activity.dart'
       - 'tool/perf_probe/apple_plugin_activity/**'
       - 'test/tool/perf_probe/apple_plugin_activity_contract_test.dart'
+      - 'test/tool/perf_probe/apple_plugin_activity_completion_test.dart'
+      - 'test/tool/perf_probe/installed_plugin_completion_test.dart'
       - 'test/tool/perf_probe/perf_fixture_test.dart'
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'lib/app_scope/external_activation_service.dart'
@@ -51,6 +54,8 @@ jobs:
           ruby -c tool/perf_probe/apple_plugin_activity/create_control_project.rb
           flutter test --no-pub \
             test/tool/perf_probe/apple_plugin_activity_contract_test.dart \
+            test/tool/perf_probe/apple_plugin_activity_completion_test.dart \
+            test/tool/perf_probe/installed_plugin_completion_test.dart \
             test/tool/perf_probe/perf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
             test/app_scope/external_activation_service_test.dart \
@@ -70,6 +75,13 @@ jobs:
           - platform: ios
             mode: debug
     steps:
+      - name: Reserve time for cleanup and evidence
+        run: |
+          python3 - <<'PY'
+          import os, time
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'APPLE_PROBE_DEADLINE_MONOTONIC={time.monotonic() + 65 * 60}\n')
+          PY
       - uses: actions/checkout@v7.0.1
       - uses: subosito/flutter-action@v2
         with:

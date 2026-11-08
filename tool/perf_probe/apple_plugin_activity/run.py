@@ -6,15 +6,18 @@ import argparse
 import hashlib
 import hmac
 import json
+import math
 import os
 from pathlib import Path
 import platform
 import plistlib
+import queue
 import re
 import select
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -27,6 +30,7 @@ REPO = HERE.parents[2]
 PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
           "osBackground", "idleExpiryControl"}
 COMMAND_LOG_LIMIT = 64 * 1024
+RUN_BUDGET_SECONDS = 65 * 60
 NATIVE_PACKAGES = {"flutter_inappwebview", "flutter_inappwebview_android",
                    "flutter_inappwebview_web", "flutter_inappwebview_ios",
                    "flutter_inappwebview_linux", "flutter_inappwebview_macos",
@@ -48,7 +52,15 @@ def remaining_timeout(deadline, maximum):
     return min(remaining, maximum)
 
 
-def native_source_provenance(repository=REPO):
+def run_deadline(started):
+    supplied = os.environ.get("APPLE_PROBE_DEADLINE_MONOTONIC")
+    deadline = started + RUN_BUDGET_SECONDS if supplied is None else float(supplied)
+    if not math.isfinite(deadline):
+        raise ValueError("APPLE_PROBE_DEADLINE_MONOTONIC must be finite")
+    return deadline
+
+
+def native_source_provenance(repository=REPO, *, deadline=None):
     repository = repository.resolve()
     lock = (repository / "pubspec.lock").read_text()
     manifest = (repository / "pubspec.yaml").read_text()
@@ -77,13 +89,13 @@ def native_source_provenance(repository=REPO):
         if uri.scheme != "file" or uri.netloc:
             raise ValueError(f"Native package source must be a local resolved checkout: {name}")
         package_root = Path(unquote(uri.path)).resolve()
-        root = Path(output(["git", "-C", str(package_root), "rev-parse", "--show-toplevel"]))
+        root = Path(output(["git", "-C", str(package_root), "rev-parse", "--show-toplevel"], deadline=deadline))
         relative = re.search(r'^\s+path:\s*"?([^"\n]+)"?\s*$', sections[0], re.M)
         if relative is None or (root / relative[1]).resolve() != package_root:
             raise ValueError(f"Unexpected resolved native package path: {name}")
         if root not in roots:
-            roots[root] = output(["git", "-C", str(root), "rev-parse", "HEAD"])
-            if output(["git", "-C", str(root), "status", "--porcelain"]):
+            roots[root] = output(["git", "-C", str(root), "rev-parse", "HEAD"], deadline=deadline)
+            if output(["git", "-C", str(root), "status", "--porcelain"], deadline=deadline):
                 raise ValueError("The resolved native fork source is dirty")
         if roots[root] != revision:
             raise ValueError(f"Resolved native source differs from the lockfile: {name}")
@@ -99,7 +111,17 @@ def save(path, value):
     temporary.replace(path)
 
 
-def output(command, timeout=30):
+def warn_cleanup(message):
+    try:
+        print(message, file=sys.stderr)
+    except Exception:
+        # A closed diagnostic stream must not replace the original failure.
+        pass
+
+
+def output(command, timeout=30, *, deadline=None):
+    if deadline is not None:
+        timeout = remaining_timeout(deadline, timeout)
     return subprocess.check_output(command, cwd=REPO, text=True, timeout=timeout,
                                    stderr=subprocess.STDOUT).strip()
 
@@ -110,6 +132,7 @@ def recorded_output(directory, label, command, timeout):
               "timeoutSeconds": timeout, "exitCode": None}
     save(directory / f"{label}.json", record)
     process = None
+    failure = cleanup_failure = None
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:
             process = subprocess.Popen(command, cwd=REPO, stdout=stdout, stderr=stderr,
@@ -119,25 +142,39 @@ def recorded_output(directory, label, command, timeout):
             if record["exitCode"] != 0:
                 raise subprocess.CalledProcessError(record["exitCode"], command)
             record["status"] = "passed"
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error:
+            failure = error
             record["status"] = "timedOut"
             raise
-        except (OSError, subprocess.SubprocessError) as error:
+        except BaseException as error:
+            failure = error
             record.update(status="failed", error=str(error))
             raise
         finally:
-            stop_owned(process)
-            for name, stream in (("stdout", stdout), ("stderr", stderr)):
-                size = stream.seek(0, os.SEEK_END)
-                stream.seek(0)
-                data = stream.read(COMMAND_LOG_LIMIT)
-                path = directory / f"{label}.{name}.log"
-                path.write_bytes(data)
-                record[name] = {"path": path.name, "bytes": size,
-                                "truncated": size > len(data)}
-            record["elapsedMs"] = (time.monotonic() - started) * 1000
-            record["processExitAfterCleanup"] = None if process is None else process.poll()
-            save(directory / f"{label}.json", record)
+            try:
+                stop_owned(process, timeout=5, kill_timeout=2)
+            except Exception as error:
+                cleanup_failure = error
+                record["cleanupError"] = str(error)
+                if failure is None:
+                    record.update(status="failed", error=str(error))
+            try:
+                for name, stream in (("stdout", stdout), ("stderr", stderr)):
+                    size = stream.seek(0, os.SEEK_END)
+                    stream.seek(0)
+                    data = stream.read(COMMAND_LOG_LIMIT)
+                    path = directory / f"{label}.{name}.log"
+                    path.write_bytes(data)
+                    record[name] = {"path": path.name, "bytes": size,
+                                    "truncated": size > len(data)}
+                record["elapsedMs"] = (time.monotonic() - started) * 1000
+                record["processExitAfterCleanup"] = None if process is None else process.poll()
+                save(directory / f"{label}.json", record)
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                warn_cleanup(f"Could not preserve {label} setup evidence: {error}")
+            if failure is None and cleanup_failure is not None:
+                raise cleanup_failure
         stdout.seek(0)
         return stdout.read(COMMAND_LOG_LIMIT).decode(errors="replace").strip()
 
@@ -304,9 +341,36 @@ class Coordinator:
         self.native_fork = None
         self.control_result = threading.Event()
         self.completed = threading.Event()
+        self.terminal = queue.Queue()
+        self.native_failure = None
+        self.native_failure_signaled = False
         self.lock = threading.Lock()
         self.stopping = False
         self.mac_helper = directory / "mac-application"
+
+    def _record_native_failure(self, phase, error, evidence_error=None):
+        # The caller holds self.lock, including the control-result ingress.
+        failure = {"phase": phase, "error": str(error)}
+        if self.native_failure is None:
+            self.native_failure = failure
+        elif any(self.native_failure[key] != failure[key] for key in failure):
+            self.native_failure.setdefault("secondaryErrors", []).append(failure)
+        if evidence_error is not None:
+            self.native_failure["evidenceWriteError"] = str(evidence_error)
+
+    def _signal_native_failure(self):
+        if self.native_failure is not None and not self.native_failure_signaled:
+            self.native_failure_signaled = True
+            self.terminal.put(("nativeFailure", self.native_failure))
+
+    def signal_native_failure(self):
+        with self.lock:
+            self._signal_native_failure()
+
+    def fail_native(self, phase, error, evidence_error=None):
+        with self.lock:
+            self._record_native_failure(phase, error, evidence_error)
+            self._signal_native_failure()
 
     def check_control_process(self):
         if self.control_process is not None and self.control_process.poll() is not None:
@@ -436,8 +500,11 @@ class Coordinator:
                     raise ValueError("Unexpected or duplicate iOS controller result")
                 job["driverClockAnchors"]["controlResult"] = clock_anchor()
                 job["iosControl"] = body
+                failed = body.get("status") != "passed"
+                if failed:
+                    self._record_native_failure(job["phase"], f"XCUITest failed: {body.get('error')}")
                 self.control_result.set()
-                return {}, None
+                return {}, self.signal_native_failure if failed else None
             raise ValueError("Unknown endpoint")
 
     def run_job(self, job):
@@ -520,9 +587,18 @@ class Coordinator:
             if time.monotonic() > job["resultDeadlineMonotonic"]:
                 job.setdefault("error", "The external boundary work exceeded the publication deadline")
                 job["status"], succeeded = "failed", False
+            evidence_error = None
+            try:
+                save(self.directory / f"driver-{job['phase']}.json",
+                     {**job, "status": "passed" if succeeded else "failed"})
+            except Exception as error:
+                evidence_error = error
+                job["status"], succeeded = "failed", False
+                job.setdefault("error", f"Native boundary evidence write failed: {error}")
             if succeeded:
                 job["status"] = "passed"
-            save(self.directory / f"driver-{job['phase']}.json", job)
+            if job["status"] == "failed":
+                self.fail_native(job["phase"], job["error"], evidence_error)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -573,10 +649,10 @@ def stop_owned(process, timeout=15, kill_timeout=5):
         process.wait(timeout=kill_timeout)
 
 
-def prepare_control(directory, url, token):
+def prepare_control(directory, url, token, timeout=120):
     control = directory / "control"
     recorded_output(directory, "create-control-project",
-                    ["ruby", str(HERE / "create_control_project.rb"), str(control), str(HERE)], 120)
+                    ["ruby", str(HERE / "create_control_project.rb"), str(control), str(HERE)], timeout)
     (control / "ControlConfig.swift").write_text(
         "enum ControlConfig {\n" +
         f"static let url = {json.dumps(url)}\nstatic let token = {json.dumps(token)}\n" +
@@ -584,11 +660,11 @@ def prepare_control(directory, url, token):
     return control
 
 
-def build_ios_probe(directory):
+def build_ios_probe(directory, timeout=2400):
     command = ["flutter", "build", "ios", "--simulator", "--debug", "--no-codesign", "--no-pub",
                "--target=integration_test/apple_plugin_activity_probe_test.dart",
                f"--dart-define-from-file={directory / 'defines.json'}"]
-    recorded_output(directory, "build-ios-probe", command, 2400)
+    recorded_output(directory, "build-ios-probe", command, timeout)
     application = REPO / "build/ios/iphonesimulator/Runner.app"
     metadata = plistlib.loads((application / "Info.plist").read_bytes())
     if metadata.get("CFBundleIdentifier") != "com.mendelg.otzaria":
@@ -596,7 +672,57 @@ def build_ios_probe(directory):
     return application
 
 
+def shutdown_server(server, timeout=5):
+    failures = []
+    def shutdown():
+        try:
+            server.shutdown()
+        except Exception as error:
+            failures.append(error)
+    thread = threading.Thread(target=shutdown, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        raise TimeoutError("The coordinator server did not stop within its cleanup budget")
+    if failures:
+        raise failures[0]
+
+
+def wait_for_drive(process, coordinator, timeout):
+    def wait_app():
+        try:
+            coordinator.terminal.put(("drive", process.wait()))
+        except Exception as error:
+            coordinator.terminal.put(("waitError", error))
+
+    def wait_controller():
+        try:
+            code = coordinator.control_process.wait()
+            if not coordinator.stopping and (code != 0 or not coordinator.completed.is_set()):
+                coordinator.fail_native("controller exit", f"XCUITest exited with {code} before successful completion; inspect control.xcresult")
+        except Exception as error:
+            if not coordinator.stopping:
+                coordinator.fail_native("controller wait", error)
+
+    # Blocking child waits and the coordinator's existing boundary response are
+    # the only signals. No process/OS/app polling is added during quiet windows.
+    threading.Thread(target=wait_app, daemon=True).start()
+    if coordinator.control_process is not None:
+        threading.Thread(target=wait_controller, daemon=True).start()
+    try:
+        kind, result = coordinator.terminal.get(timeout=timeout)
+    except queue.Empty:
+        raise subprocess.TimeoutExpired(process.args, timeout) from None
+    if coordinator.native_failure is not None:
+        failure = coordinator.native_failure
+        raise RuntimeError(f"Native boundary {failure['phase']} failed: {failure['error']}")
+    if kind == "waitError":
+        raise result
+    return result
+
+
 def main():
+    started = time.monotonic()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", choices=["macos", "ios"], required=True)
     parser.add_argument("--device", required=True, help="macos or an already booted iOS Simulator UDID")
@@ -607,6 +733,10 @@ def main():
     parser.add_argument("--public-url", help="Existing trusted HTTPS lab endpoint forwarding to this loopback coordinator")
     parser.add_argument("--port", type=int, default=0)
     args = parser.parse_args()
+    try:
+        deadline = run_deadline(started)
+    except ValueError as error:
+        parser.error(str(error))
     if platform.system() != "Darwin":
         parser.error("Runtime collection requires a Mac; contract tests run elsewhere")
     if not 6 <= args.seconds <= 60 or not 0 <= args.port <= 65535:
@@ -636,17 +766,19 @@ def main():
     environment = {"runId": run_id, "status": "running", "platform": args.platform,
                    "mode": args.mode, "device": args.device,
                    "physicalDevice": args.serve_only, "physicalDeviceAcceptance": False, "hostOS": platform.platform(),
-                   "startedAtMs": now_ms(),
+                   "startedAtMs": now_ms(), "deadlineMonotonic": deadline,
+                   "remainingBudgetAtStartSeconds": max(0, deadline - time.monotonic()),
                    "observerLimit": "Fixture and XCUITest overhead remain. Physical release has no attached driver; automated runs include Flutter driver/VM service. Simulator debug is functional evidence only."}
     app_process = control_process = None
+    failure = None
     try:
-        environment.update(commit=output(["git", "rev-parse", "HEAD"]),
-                           tree=output(["git", "rev-parse", "HEAD^{tree}"]),
-                           sourceStatus=output(["git", "status", "--porcelain"]),
-                           xcode=output(["xcodebuild", "-version"]),
-                           sdk=output(["xcrun", "--sdk", "macosx" if args.platform == "macos" else "iphoneos" if args.serve_only else "iphonesimulator", "--show-sdk-version"]),
-                           flutter=json.loads(output(["flutter", "--version", "--machine"])))
-        provenance = native_source_provenance()
+        environment.update(commit=output(["git", "rev-parse", "HEAD"], deadline=deadline),
+                           tree=output(["git", "rev-parse", "HEAD^{tree}"], deadline=deadline),
+                           sourceStatus=output(["git", "status", "--porcelain"], deadline=deadline),
+                           xcode=output(["xcodebuild", "-version"], deadline=deadline),
+                           sdk=output(["xcrun", "--sdk", "macosx" if args.platform == "macos" else "iphoneos" if args.serve_only else "iphonesimulator", "--show-sdk-version"], deadline=deadline),
+                           flutter=json.loads(output(["flutter", "--version", "--machine"], deadline=deadline)))
+        provenance = native_source_provenance(deadline=deadline)
         environment["nativeSources"] = provenance["packages"]
         environment["nativeFork"] = coordinator.native_fork = provenance["revision"]
         entitlements = REPO / "macos/Runner/DebugProfile.entitlements"
@@ -655,11 +787,11 @@ def main():
         save(directory / "environment.json", environment)
         if args.platform == "macos":
             recorded_output(directory, "compile-mac-controller",
-                            ["xcrun", "swiftc", str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], 120)
+                            ["xcrun", "swiftc", str(HERE / "mac_application.swift"), "-o", str(coordinator.mac_helper)], remaining_timeout(deadline, 120))
         elif not args.serve_only:
             # Verify this is a Simulator. Never silently use a physical device
             # with debug and call that background/profile acceptance.
-            devices = json.loads(output(["xcrun", "simctl", "list", "devices", "--json"]))
+            devices = json.loads(output(["xcrun", "simctl", "list", "devices", "--json"], deadline=deadline))
             chosen = [d for items in devices["devices"].values() for d in items if d["udid"] == args.device and d["state"] == "Booted"]
             if len(chosen) != 1:
                 raise ValueError("--device must be an already booted iOS Simulator UDID")
@@ -674,9 +806,9 @@ def main():
         }
         save(directory / "defines.json", defines)
         if args.serve_only:
-            prepare_control(directory, url, token)
+            prepare_control(directory, url, token, timeout=remaining_timeout(deadline, 120))
             print(f"Lab inputs ready at {directory}. Run the documented signed XCUITest and physical {args.mode} app commands.", flush=True)
-            if not coordinator.completed.wait(3600):
+            if not coordinator.completed.wait(remaining_timeout(deadline, 3600)):
                 raise TimeoutError("No final framework report from the physical-device run")
             complete = json.loads((directory / "complete.json").read_text())
             if complete["status"] != "passed" or complete["buildMode"] != args.mode:
@@ -686,12 +818,13 @@ def main():
             return
         application = None
         if args.platform == "ios":
-            application = build_ios_probe(directory)
-            if native_source_provenance() != provenance:
+            application = build_ios_probe(directory, timeout=remaining_timeout(deadline, 2400))
+            if native_source_provenance(deadline=deadline) != provenance:
                 raise ValueError("The resolved native source changed during the app build")
             environment["prebuiltApplication"] = str(application)
-            control = prepare_control(directory, url, token)
+            control = prepare_control(directory, url, token, timeout=remaining_timeout(deadline, 120))
             with (directory / "xcode-control.log").open("w") as log:
+                remaining_timeout(deadline, 180)
                 control_process = subprocess.Popen([
                     "xcodebuild", "test", "-project", str(control / "Control.xcodeproj"),
                     "-scheme", "AppleQuietControl", "-destination", f"platform=iOS Simulator,id={args.device}",
@@ -700,7 +833,7 @@ def main():
                     "-parallel-testing-enabled", "NO", "CODE_SIGNING_ALLOWED=NO"],
                     cwd=REPO, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 coordinator.control_process = control_process
-                if not coordinator.control_ready.wait(180):
+                if not coordinator.control_ready.wait(remaining_timeout(deadline, 180)):
                     raise TimeoutError("The independent XCUITest controller did not become ready; see xcode-control.log")
                 coordinator.check_control_process()
         command = ["flutter", "drive", "--no-pub", f"--{args.mode}", "-d", args.device,
@@ -712,37 +845,60 @@ def main():
         environment["command"] = command
         save(directory / "environment.json", environment)
         with (directory / "flutter-drive.log").open("w") as log:
+            remaining_timeout(deadline, 2400)
             app_process = subprocess.Popen(command, cwd=REPO,
                 env={**os.environ, "APPLE_QUIET_OUTPUT": str(directory)},
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-            code = app_process.wait(timeout=2400)
+            code = wait_for_drive(app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
         if code != 0:
             raise RuntimeError(f"flutter drive failed with exit {code}; partial reports are retained")
-        if not coordinator.completed.wait(10):
+        if not coordinator.completed.wait(remaining_timeout(deadline, 10)):
             raise RuntimeError("The app never sent a final completed report")
         complete = json.loads((directory / "complete.json").read_text())
         if complete["status"] != "passed":
             raise RuntimeError("The actual-app report failed")
-        if control_process is not None and control_process.wait(timeout=60) != 0:
+        if control_process is not None and control_process.wait(timeout=remaining_timeout(deadline, 60)) != 0:
             raise RuntimeError("XCUITest failed; inspect control.xcresult")
         if coordinator.executable:
             bundle = next((p for p in Path(coordinator.executable).parents if p.suffix == ".app"), None)
             if bundle is not None:
                 environment["builtInfoPlistSha256"] = hashlib.sha256((bundle / ("Contents/Info.plist" if args.platform == "macos" else "Info.plist")).read_bytes()).hexdigest()
                 signed = subprocess.run(["codesign", "-d", "--entitlements", ":-", str(bundle)],
-                                        text=True, capture_output=True, timeout=15)
+                                        text=True, capture_output=True, timeout=remaining_timeout(deadline, 15))
                 environment["builtEntitlements"] = {"exitCode": signed.returncode, "stdout": signed.stdout, "stderr": signed.stderr}
         environment["status"] = "passed"
-    except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.SubprocessError) as error:
+    except BaseException as error:
+        failure = error
+        if coordinator.native_failure is not None:
+            environment["nativeFailure"] = coordinator.native_failure
         environment.update(status="failed", error=str(error))
         raise
     finally:
         coordinator.stopping = True
-        save(directory / "environment.json", environment)
-        stop_owned(app_process)
-        stop_owned(control_process)
-        server.shutdown()
-        server.server_close()
+        cleanup_failure = None
+        for name, action in [
+            # Preserve the XCTest result bundle after its reported failure.
+            ("controller result", lambda: control_process.wait(timeout=45)
+                if coordinator.native_failure is not None and control_process is not None else None),
+            ("app", lambda: stop_owned(app_process, timeout=5, kill_timeout=2)),
+            ("controller", lambda: stop_owned(control_process, timeout=5, kill_timeout=2)),
+            ("server shutdown", lambda: shutdown_server(server)),
+            ("server close", server.server_close),
+        ]:
+            try:
+                action()
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                environment.setdefault("cleanupErrors", []).append({"stage": name, "error": str(error)})
+                environment["status"] = "failed"
+                environment.setdefault("error", str(error))
+        try:
+            save(directory / "environment.json", environment)
+        except Exception as error:
+            cleanup_failure = cleanup_failure or error
+            warn_cleanup(f"Could not save the final environment report: {error}")
+        if failure is None and cleanup_failure is not None:
+            raise cleanup_failure
 
 
 if __name__ == "__main__":

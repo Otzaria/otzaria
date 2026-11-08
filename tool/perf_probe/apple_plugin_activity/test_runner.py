@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import nullcontext
 import json
 import http.client
 import plistlib
@@ -122,6 +123,44 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("fixture failure", report["error"])
         result, _ = self.coordinator.request("result", {"jobId": response["jobId"]}, 1001)
         self.assertEqual(result["status"], "failed")
+        self.assertEqual(self.coordinator.terminal.get_nowait(), ('nativeFailure', {
+            'phase': 'visible', 'error': 'fixture failure'}))
+
+    def test_native_failure_is_signaled_even_when_its_evidence_write_fails(self):
+        response, work = self.coordinator.request('arm', self.body, 1000)
+        controller = Mock()
+        controller.request.side_effect = ValueError('original native boundary failed')
+        with patch.object(runner, 'MacApplicationSession', return_value=controller), \
+             patch.object(runner.time, 'sleep'), \
+             patch.object(runner, 'save', side_effect=OSError('report write failed')):
+            work()
+        result, _ = self.coordinator.request('result', {'jobId': response['jobId']}, 2000)
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['error'], 'original native boundary failed')
+        kind, failure = self.coordinator.terminal.get_nowait()
+        self.assertEqual(kind, 'nativeFailure')
+        self.assertEqual(failure, {'phase': 'visible', 'error': 'original native boundary failed',
+                                   'evidenceWriteError': 'report write failed'})
+
+    def test_a_phase_cannot_publish_success_before_its_final_evidence_is_saved(self):
+        response, work = self.coordinator.request('arm', self.body, 1000)
+        controller = Mock()
+        controller.request.return_value = {'executable': '/fixture'}
+        original_save = runner.save
+        def saving(path, report):
+            self.assertEqual(report['status'], 'passed')
+            with self.assertRaisesRegex(ValueError, 'No finished external interval'):
+                self.coordinator.request('result', {'jobId': response['jobId']}, 2000)
+            original_save(path, report)
+        with patch.object(runner, 'MacApplicationSession', return_value=controller), \
+             patch.object(runner.time, 'sleep'), \
+             patch.object(runner.time, 'monotonic_ns', side_effect=[1_000_000_000, 7_000_000_000]), \
+             patch.object(runner, 'host_sample', return_value={'status': 'unavailable'}), \
+             patch.object(runner, 'save', side_effect=saving):
+            work()
+        result, _ = self.coordinator.request('result', {'jobId': response['jobId']}, 2001)
+        self.assertEqual(result['status'], 'passed')
+        self.assertEqual(json.loads((self.directory / 'driver-visible.json').read_text())['status'], 'passed')
 
     def test_ios_controller_also_stops_polling_for_non_home_quiet_windows(self):
         self.coordinator.target = "ios"
@@ -320,6 +359,34 @@ class SetupEvidenceTests(unittest.TestCase):
         self.assertIsNotNone(receipt['processExitAfterCleanup'])
         self.assertIn('library-start', (self.directory / 'timeout.stderr.log').read_text())
 
+    def test_setup_cleanup_retains_the_original_timeout_and_partial_evidence(self):
+        original = subprocess.TimeoutExpired(['build'], 2)
+        process = Mock(pid=42)
+        process.wait.side_effect = original
+        process.poll.return_value = None
+        with patch.object(runner.subprocess, 'Popen', return_value=process), \
+             patch.object(runner, 'stop_owned', side_effect=RuntimeError('cleanup failed')):
+            with self.assertRaises(subprocess.TimeoutExpired) as failure:
+                runner.recorded_output(self.directory, 'original', ['build'], 2)
+        self.assertIs(failure.exception, original)
+        receipt = json.loads((self.directory / 'original.json').read_text())
+        self.assertEqual(receipt['status'], 'timedOut')
+        self.assertEqual(receipt['cleanupError'], 'cleanup failed')
+        self.assertTrue((self.directory / 'original.stderr.log').exists())
+
+    def test_setup_evidence_and_diagnostic_write_failures_preserve_the_original_timeout(self):
+        original = subprocess.TimeoutExpired(['build'], 2)
+        process = Mock(pid=42)
+        process.wait.side_effect = original
+        process.poll.return_value = None
+        with patch.object(runner.subprocess, 'Popen', return_value=process), \
+             patch.object(runner, 'stop_owned'), \
+             patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=BrokenPipeError('stderr closed')))), \
+             patch.object(runner, 'save', side_effect=[None, OSError('evidence write failed')]):
+            with self.assertRaises(subprocess.TimeoutExpired) as failure:
+                runner.recorded_output(self.directory, 'original', ['build'], 2)
+        self.assertIs(failure.exception, original)
+
     def test_setup_logs_are_bounded_and_truncation_is_explicit(self):
         command = [sys.executable, '-c', 'import sys;sys.stdout.write("x"*100000);sys.stderr.write("y"*100000)']
         runner.recorded_output(self.directory, 'large', command, 5)
@@ -515,8 +582,105 @@ class PinTests(unittest.TestCase):
             runner.native_source_provenance(self.directory)
 
 
+class DriveCompletionTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.coordinator = runner.Coordinator(Path(temporary.name), 'run-A', 'nonce', 'ios', 6)
+
+    def process(self, *, delay=30, code=0):
+        process = subprocess.Popen([sys.executable, '-c',
+            f'import time;time.sleep({delay});raise SystemExit({code})'], start_new_session=True)
+        self.addCleanup(runner.stop_owned, process, timeout=1, kill_timeout=1)
+        return process
+
+    def test_native_failure_releases_a_blocking_drive_wait_without_polling(self):
+        process = self.process()
+        signal = threading.Timer(0.05, lambda: self.coordinator.fail_native('osBackground', 'quiet.homeFailed'))
+        signal.start()
+        self.addCleanup(signal.join)
+        started = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, 'osBackground.*quiet.homeFailed'):
+            runner.wait_for_drive(process, self.coordinator, timeout=3)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertIsNone(process.poll())
+
+    def test_early_controller_exit_is_a_failure_even_while_drive_is_alive(self):
+        process = self.process()
+        self.coordinator.control_process = self.process(delay=0.05, code=37)
+        with self.assertRaisesRegex(RuntimeError, 'controller exit.*37'):
+            runner.wait_for_drive(process, self.coordinator, timeout=3)
+        self.assertIsNone(process.poll())
+
+    def test_controller_exit_does_not_replace_the_first_native_failure(self):
+        process = self.process()
+        self.coordinator.fail_native('osBackground', 'quiet.homeFailed')
+        self.coordinator.control_process = self.process(delay=0, code=37)
+        with self.assertRaisesRegex(RuntimeError, 'osBackground.*quiet.homeFailed'):
+            runner.wait_for_drive(process, self.coordinator, timeout=3)
+        self.coordinator.control_process.wait(timeout=3)
+        self.assertEqual(self.coordinator.native_failure['phase'], 'osBackground')
+        self.assertEqual(self.coordinator.native_failure['error'], 'quiet.homeFailed')
+
+    def test_failed_control_receipt_wins_over_exit_before_phase_file_publication(self):
+        process = self.process()
+        self.coordinator.control_session = 'controller-A'
+        self.coordinator.jobs['job-A'] = {'phase': 'osBackground', 'driverClockAnchors': {}, 'status': 'running'}
+        _, after_close = self.coordinator.request('control-result', {
+            'jobId': 'job-A', 'controllerSession': 'controller-A',
+            'status': 'failed', 'error': 'quiet.homeFailed'}, 1000)
+        self.assertTrue(self.coordinator.terminal.empty())
+        self.coordinator.control_process = self.process(delay=0, code=37)
+        with self.assertRaisesRegex(RuntimeError, 'osBackground.*quiet.homeFailed'):
+            runner.wait_for_drive(process, self.coordinator, timeout=3)
+        self.assertEqual(self.coordinator.native_failure['phase'], 'osBackground')
+        self.assertEqual(self.coordinator.native_failure['error'], 'XCUITest failed: quiet.homeFailed')
+        self.assertIn('37', self.coordinator.native_failure['secondaryErrors'][0]['error'])
+        after_close()
+        self.assertTrue(self.coordinator.terminal.empty())
+
+    def test_normal_controller_completion_does_not_end_the_drive_early(self):
+        process = self.process(delay=0.1, code=37)
+        self.coordinator.completed.set()
+        self.coordinator.control_process = self.process(delay=0)
+        self.assertEqual(runner.wait_for_drive(process, self.coordinator, timeout=3), 37)
+        self.assertIsNone(self.coordinator.native_failure)
+
+    def test_missing_terminal_signal_expires_with_the_drive_command(self):
+        process = self.process()
+        with self.assertRaises(subprocess.TimeoutExpired) as failure:
+            runner.wait_for_drive(process, self.coordinator, timeout=0.05)
+        self.assertEqual(failure.exception.cmd, process.args)
+
+
+class RunBudgetTests(unittest.TestCase):
+    def test_local_budget_and_finite_ci_deadline(self):
+        with patch.dict(runner.os.environ, {}, clear=True):
+            self.assertEqual(runner.run_deadline(1000), 4900)
+        for invalid in ['nan', 'inf', '-inf', 'not-a-clock']:
+            with self.subTest(invalid=invalid), \
+                 patch.dict(runner.os.environ, {'APPLE_PROBE_DEADLINE_MONOTONIC': invalid}):
+                with self.assertRaises(ValueError):
+                    runner.run_deadline(1000)
+        with patch.dict(runner.os.environ, {'APPLE_PROBE_DEADLINE_MONOTONIC': '1234.5'}):
+            self.assertEqual(runner.run_deadline(1000), 1234.5)
+
+    def test_metadata_command_uses_only_the_remaining_budget(self):
+        with patch.object(runner.time, 'monotonic', return_value=1000), \
+             patch.object(runner.subprocess, 'check_output', return_value='ok') as command:
+            self.assertEqual(runner.output(['fixture'], deadline=1005), 'ok')
+            self.assertEqual(command.call_args.kwargs['timeout'], 5)
+            command.reset_mock()
+            with self.assertRaises(TimeoutError):
+                runner.output(['fixture'], deadline=1000)
+            command.assert_not_called()
+
+
 class BuildOrderingTests(unittest.TestCase):
-    def test_controller_starts_after_the_ios_build_and_drive_reuses_the_binary(self):
+    def run_probe(self, *, budget=3900, build_seconds=0, readiness_seconds=0,
+                  drive_seconds=0, completion_seconds=0, control_seconds=0,
+                  expected_error=None, cleanup_error=None, final_save_error=None,
+                  diagnostic_error=None):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             repository = root / 'repo'
@@ -526,7 +690,14 @@ class BuildOrderingTests(unittest.TestCase):
             directory = root / 'output'
             coordinator = runner.Coordinator(directory, 'run-A', 'token', 'ios', 6)
             calls = []
-            def output(command):
+            limits = {}
+            elapsed = [1000.0]
+            original_save = runner.save
+            def saving(path, value):
+                if final_save_error is not None and coordinator.stopping and path.name == 'environment.json':
+                    raise final_save_error
+                original_save(path, value)
+            def output(command, **_):
                 if command[:2] == ['flutter', '--version']:
                     return json.dumps({'frameworkVersion': '3.47.7'})
                 if command[:3] == ['xcrun', 'simctl', 'list']:
@@ -534,12 +705,27 @@ class BuildOrderingTests(unittest.TestCase):
                 return 'fixture'
             def recorded(_, label, command, timeout):
                 calls.append(command)
+                limits[label] = timeout
                 if label == 'build-ios-probe':
+                    elapsed[0] += build_seconds
                     application = repository / 'build/ios/iphonesimulator/Runner.app'
                     application.mkdir(parents=True)
                     (application / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}))
                 elif label == 'create-control-project':
                     Path(command[-2]).mkdir()
+            def ready(timeout):
+                limits['readiness'] = timeout
+                elapsed[0] += readiness_seconds
+                return True
+            def complete(timeout):
+                limits['completion'] = timeout
+                elapsed[0] += completion_seconds
+                return True
+            def cleanup(process, **_):
+                if process is not None:
+                    if cleanup_error is not None:
+                        raise cleanup_error
+                    process.returncode = 0
             class Process:
                 returncode = None
                 def __init__(self, command, **_):
@@ -550,32 +736,93 @@ class BuildOrderingTests(unittest.TestCase):
                         coordinator.control_ready.set()
                 def poll(self):
                     return self.returncode
-                def wait(self, **_):
+                def wait(self, timeout):
                     self.returncode = 0
                     if self.command[:2] == ['flutter', 'drive']:
+                        limits['drive'] = timeout
+                        elapsed[0] += drive_seconds
                         runner.save(directory / 'complete.json', {'status': 'passed'})
                         coordinator.completed.set()
+                    else:
+                        limits['control completion'] = timeout
+                        elapsed[0] += control_seconds
                     return 0
+            server = Mock(server_port=12345)
             with patch.object(sys, 'argv', ['run.py', '--platform', 'ios', '--device', 'device-A', '--mode', 'debug', '--seconds', '6', '--output', str(directory)]), \
+                 patch.dict(runner.os.environ, {'APPLE_PROBE_DEADLINE_MONOTONIC': str(1000 + budget)}), \
+                 patch.object(runner.time, 'monotonic', side_effect=lambda: elapsed[0]), \
                  patch.object(runner.platform, 'system', return_value='Darwin'), \
                  patch.object(runner.platform, 'platform', return_value='fixture-Mac'), \
                  patch.object(runner, 'REPO', repository), \
                  patch.object(runner, 'Coordinator', return_value=coordinator), \
+                 patch.object(coordinator.control_ready, 'wait', side_effect=ready), \
+                 patch.object(coordinator.completed, 'wait', side_effect=complete), \
+                 patch.object(runner, 'ThreadingHTTPServer', return_value=server), \
                  patch.object(runner, 'native_source_provenance', return_value={'revision': 'a' * 40, 'packages': {}}), \
                  patch.object(runner, 'output', side_effect=output), \
                  patch.object(runner, 'recorded_output', side_effect=recorded), \
+                 patch.object(runner, 'save', side_effect=saving), \
+                 (patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=diagnostic_error))) if diagnostic_error else nullcontext()), \
+                 patch.object(runner, 'stop_owned', side_effect=cleanup), \
+                 patch.object(runner, 'wait_for_drive', side_effect=lambda process, _, timeout: process.wait(timeout=timeout)), \
                  patch.object(runner.subprocess, 'Popen', Process):
-                runner.main()
-            build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
-            control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
-            drive = next(i for i, command in enumerate(calls) if command[:2] == ['flutter', 'drive'])
-            self.assertLess(build, control)
-            self.assertLess(control, drive)
-            self.assertIn('--use-application-binary=' + str(repository / 'build/ios/iphonesimulator/Runner.app'), calls[drive])
+                with self.assertRaises(expected_error) if expected_error else nullcontext():
+                    runner.main()
             defines = json.loads((directory / 'defines.json').read_text())
             environment = json.loads((directory / 'environment.json').read_text())
             self.assertEqual(defines['APPLE_QUIET_NATIVE_FORK'], environment['nativeFork'])
             self.assertEqual(defines['APPLE_QUIET_NATIVE_FORK'], 'a' * 40)
+            server.server_close.assert_called_once()
+            return calls, limits, environment
+
+    def test_controller_starts_after_the_ios_build_and_drive_reuses_the_binary(self):
+        calls, _, _ = self.run_probe()
+        build = next(i for i, command in enumerate(calls) if command[:3] == ['flutter', 'build', 'ios'])
+        control = next(i for i, command in enumerate(calls) if command[0] == 'xcodebuild')
+        drive = next(i for i, command in enumerate(calls) if command[:2] == ['flutter', 'drive'])
+        self.assertLess(build, control)
+        self.assertLess(control, drive)
+        self.assertTrue(any(value.endswith('/build/ios/iphonesimulator/Runner.app')
+                            and value.startswith('--use-application-binary=') for value in calls[drive]))
+
+    def test_build_readiness_drive_and_completion_share_one_deadline(self):
+        _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
+            readiness_seconds=100, drive_seconds=3, completion_seconds=2, control_seconds=2)
+        self.assertEqual(limits, {'build-ios-probe': 2400, 'create-control-project': 110,
+            'readiness': 110, 'drive': 10, 'completion': 7, 'control completion': 5})
+        self.assertEqual(report['status'], 'passed')
+        self.assertEqual(report['deadlineMonotonic'], 3500)
+        self.assertEqual(report['remainingBudgetAtStartSeconds'], 2500)
+
+    def test_expired_build_cannot_start_a_controller(self):
+        calls, _, report = self.run_probe(budget=2400, build_seconds=2400, expected_error=TimeoutError)
+        self.assertFalse(any(command[0] == 'xcodebuild' for command in calls))
+        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertEqual(report['status'], 'failed')
+
+    def test_expired_readiness_cannot_start_drive_and_cleanup_keeps_the_timeout(self):
+        calls, _, report = self.run_probe(budget=2410, build_seconds=2400,
+            readiness_seconds=10, expected_error=TimeoutError, cleanup_error=RuntimeError('stop failed'))
+        self.assertFalse(any(command[:2] == ['flutter', 'drive'] for command in calls))
+        self.assertIn('deadline expired', report['error'])
+        self.assertEqual(report['cleanupErrors'], [{'stage': 'controller', 'error': 'stop failed'}])
+
+    def test_expired_drive_cannot_accept_even_an_already_available_completion(self):
+        _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
+            readiness_seconds=100, drive_seconds=10, expected_error=TimeoutError)
+        self.assertNotIn('completion', limits)
+        self.assertEqual(report['status'], 'failed')
+
+    def test_cleanup_only_failure_cannot_publish_a_success(self):
+        _, _, report = self.run_probe(expected_error=RuntimeError, cleanup_error=RuntimeError('stop failed'))
+        self.assertEqual(report['status'], 'failed')
+        self.assertEqual(report['error'], 'stop failed')
+        self.assertEqual([item['stage'] for item in report['cleanupErrors']], ['app', 'controller'])
+
+    def test_final_save_and_closed_stderr_cannot_replace_the_run_timeout(self):
+        self.run_probe(budget=2410, build_seconds=2400, readiness_seconds=10,
+            expected_error=TimeoutError, final_save_error=OSError('environment write failed'),
+            diagnostic_error=BrokenPipeError('stderr closed'))
 
 
 if __name__ == "__main__":

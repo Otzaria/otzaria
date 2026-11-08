@@ -6,6 +6,37 @@ import XCTest
 final class AppleQuietControl: XCTestCase {
     private func now() -> Double { Date().timeIntervalSince1970 * 1000 }
 
+    private func waitForBackground(timeout: TimeInterval, state: @escaping () -> XCUIApplication.State) -> Bool {
+        let background = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let observed = state()
+            return observed == .runningBackground || observed == .runningBackgroundSuspended
+        }, object: nil)
+        // XCTest delivers application-state updates on the main run loop.
+        // Sleeping on that thread would keep reading the old foreground state.
+        return XCTWaiter.wait(for: [background], timeout: timeout) == .completed
+    }
+
+    func testBackgroundWaitDeliversMainQueueUpdatesWithoutWeakeningStateGate() {
+        XCTAssertTrue(Thread.isMainThread)
+        let accepted: [XCUIApplication.State] = [.runningBackground, .runningBackgroundSuspended]
+        for target in accepted {
+            let delivered = StateDelivery()
+            DispatchQueue.main.async { delivered.state = target }
+            // Negative control: the previous sleep loop starves this delivery.
+            let deadline = ProcessInfo.processInfo.systemUptime + 0.05
+            while delivered.state == .runningForeground && ProcessInfo.processInfo.systemUptime < deadline {
+                Thread.sleep(forTimeInterval: 0.005)
+            }
+            XCTAssertEqual(delivered.state, .runningForeground)
+            XCTAssertTrue(waitForBackground(timeout: 2) { delivered.state })
+            XCTAssertEqual(delivered.state, target)
+        }
+        let excluded: [XCUIApplication.State] = [.unknown, .notRunning, .runningForeground]
+        for rejected in excluded {
+            XCTAssertFalse(waitForBackground(timeout: 0.05) { rejected })
+        }
+    }
+
     private func post(_ endpoint: String, _ value: [String: Any]) throws -> [String: Any] {
         var request = URLRequest(url: URL(string: ControlConfig.url + "/" + endpoint)!)
         request.httpMethod = "POST"
@@ -68,7 +99,9 @@ final class AppleQuietControl: XCTestCase {
                 "jobId": job, "status": "failed", "controllerSession": controllerSession
             ]
             do {
-                guard app.state == .runningForeground else {
+                let stateBeforeAction = app.state
+                result["stateBeforeAction"] = stateBeforeAction.rawValue
+                guard stateBeforeAction == .runningForeground else {
                     throw NSError(domain: "quiet.notForeground", code: 1)
                 }
                 let remaining = command["remainingMs"] as! Double / 1000
@@ -77,13 +110,11 @@ final class AppleQuietControl: XCTestCase {
                 if useHome {
                     result["homeRequestedMs"] = now()
                     XCUIDevice.shared.press(.home)
-                    let transitionDeadline = ProcessInfo.processInfo.systemUptime + 15
-                    while app.state != .runningBackground && app.state != .runningBackgroundSuspended {
-                        guard ProcessInfo.processInfo.systemUptime < transitionDeadline else {
-                            throw NSError(domain: "quiet.homeFailed", code: 1)
-                        }
-                        Thread.sleep(forTimeInterval: 0.05) // Still before quiet.
+                    result["homeReturnedMs"] = now()
+                    guard waitForBackground(timeout: 15, state: { app.state }) else {
+                        throw NSError(domain: "quiet.homeFailed", code: 1)
                     }
+                    result["homeAcknowledgedMs"] = now()
                 }
                 result["stateBeforeQuiet"] = app.state.rawValue
                 result["stateBeforeQuietName"] = String(describing: app.state)
@@ -111,6 +142,7 @@ final class AppleQuietControl: XCTestCase {
                 result["status"] = "passed"
             } catch {
                 result["error"] = String(describing: error)
+                result["stateAtFailure"] = app.state.rawValue
             }
             result["controlClock"] = [
                 "requestMs": requestMs, "replyMs": replyMs,
@@ -118,8 +150,24 @@ final class AppleQuietControl: XCTestCase {
                 "serverReplyMs": command["serverReplyMs"]!
             ]
             _ = try post("control-result", result)
+            if useHome && result["status"] as? String != "passed" {
+                // Publish the primary failure before collecting diagnostics.
+                let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                attachment.name = "Failed Home transition"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
             XCTAssertEqual(result["status"] as? String, "passed", String(describing: result))
         }
         XCTFail("The app did not complete within the controller deadline")
+    }
+}
+
+private final class StateDelivery: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: XCUIApplication.State = .runningForeground
+    var state: XCUIApplication.State {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); defer { lock.unlock() }; stored = newValue }
     }
 }
