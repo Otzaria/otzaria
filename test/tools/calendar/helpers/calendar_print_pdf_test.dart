@@ -1,14 +1,28 @@
+// ignore_for_file: implementation_imports
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opentype_shaper/opentype_shaper.dart';
+import 'package:opentype_shaper/src/bindings.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:pdf/pdf.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
+
+int _drainUnexpectedNativeReferences(int handle) {
+  for (var count = 0; count < 32; count++) {
+    final status = ShaperBindings.instance.releaseFont(handle);
+    if (status == ShaperStatus.unknownHandle) return count;
+    expect(status, ShaperStatus.ok);
+  }
+  throw StateError('Native font reference count exceeded 32');
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -136,5 +150,44 @@ void main() {
 
     final bytes = await createCalendarPdf(state, PdfPageFormat.a4);
     expect(pageCount(bytes), greaterThan(1));
+  });
+
+  test('calendar PDF releases two distinct native font allocations after save', () async {
+    final primaryData = await rootBundle.load(
+      'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
+    );
+    final fallbackData = await rootBundle.load('fonts/Tinos-Regular.ttf');
+    final primaryBytes = primaryData.buffer.asUint8List();
+    final fallbackBytes = fallbackData.buffer.asUint8List();
+    final state = CalendarState.initial().copyWith(
+      calendarView: CalendarView.week,
+    );
+
+    for (var cycle = 0; cycle < 3; cycle++) {
+      final primary = ShaperFont.register(primaryBytes);
+      final fallback = ShaperFont.register(fallbackBytes);
+      final primaryHandle = primary.handle;
+      final fallbackHandle = fallback.handle;
+      expect(primaryHandle, isNot(fallbackHandle));
+      try {
+        final pdf = await createCalendarPdf(state, PdfPageFormat.a4);
+        expect(latin1.decode(pdf, allowInvalid: true), startsWith('%PDF-'));
+        expect(primary.shape('בדיקה').glyphCount, greaterThan(0));
+        expect(fallback.shape('test').glyphCount, greaterThan(0));
+      } finally {
+        fallback.dispose();
+        primary.dispose();
+      }
+      expect(
+        _drainUnexpectedNativeReferences(fallbackHandle),
+        0,
+        reason: 'fallback native allocation retained in cycle $cycle',
+      );
+      expect(
+        _drainUnexpectedNativeReferences(primaryHandle),
+        0,
+        reason: 'primary native allocation retained in cycle $cycle',
+      );
+    }
   });
 }
