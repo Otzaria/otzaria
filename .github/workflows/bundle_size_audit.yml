@@ -41,22 +41,27 @@ jobs:
         include:
           - target: android-universal
             asset: app-release.apk
+            asset_id: 703098241
             sha256: d17c0bfbd84c3848cac03f35781e02fe9845d7053bb4f7b9b6bde2f2305e051b
             format: zip
           - target: macos-universal
             asset: otzaria-macos.zip
+            asset_id: 703134723
             sha256: f23d7a8e3a100a04f6239f4693c47b3721996639b0cc71e1c8a4814fb03a40d3
             format: zip
           - target: linux-x64
             asset: otzaria-0.9.98%2B99803-linux.deb
+            asset_id: 703107518
             sha256: 1e692a7268fd35f21cf190ae927bab4d118d90fc4761d852a8aea9f6bbf0a5ef
             format: deb
           - target: linux-arm64
             asset: otzaria-0.9.98%2B99803-linux-arm64.deb
+            asset_id: 703096966
             sha256: f60eff1be1c4aa5683d62bd8946871ec54a3d626c99059cab0f7250a28f586dc
             format: deb
     env:
       FIXTURE_ASSET: ${{ matrix.asset }}
+      FIXTURE_ASSET_ID: ${{ matrix.asset_id }}
       FIXTURE_SHA256: ${{ matrix.sha256 }}
       FIXTURE_TARGET: ${{ matrix.target }}
       FIXTURE_FORMAT: ${{ matrix.format }}
@@ -69,10 +74,16 @@ jobs:
           python-version: '3.12'
       - name: Fetch checksum-pinned release fixture (not a dev build)
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/size-fixture"
-          curl --fail --location --retry 3 --max-time 300 --max-filesize 200000000 \
-            "https://github.com/Otzaria/otzaria/releases/download/0.9.98.3%2B809/$FIXTURE_ASSET" \
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 3 \
+            --max-time 300 --max-filesize 200000000 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/Otzaria/otzaria/releases/assets/$FIXTURE_ASSET_ID" \
             --output "$RUNNER_TEMP/size-fixture/package"
           printf '%s  package\n' "$FIXTURE_SHA256" \
             | (cd "$RUNNER_TEMP/size-fixture" && sha256sum --check -)
