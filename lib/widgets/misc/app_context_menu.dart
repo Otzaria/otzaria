@@ -46,7 +46,7 @@ class AppContextMenuRegion extends StatefulWidget {
 class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   final _menuKey = GlobalKey<menu.ContextMenuRegionState>();
   OverlayScrollAnchor? _menuOpenScrollAnchor;
-  late MenuPresentation _presentation;
+  late menu.MenuPresentation _presentation;
 
   @override
   void didChangeDependencies() {
