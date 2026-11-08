@@ -23,6 +23,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  metadata:
+    name: hosted package metadata is coherent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unit-test lockfile validation
+        run: python3 -m unittest discover -s tool/release -p test_check_lock_hosted_names.py -v
+      - name: Validate current lockfile hosted package metadata
+        run: python3 tool/release/check_lock_hosted_names.py pubspec.lock
+
   guard:
     name: pubspec.lock changes
     runs-on: ubuntu-latest
