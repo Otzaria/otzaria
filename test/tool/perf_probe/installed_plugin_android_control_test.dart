@@ -22,6 +22,7 @@ void main() {
   Future<InstalledAndroidControl> start({
     String package = installedAndroidPackage,
     File? output,
+    String cache = 'code_cache',
   }) async {
     final created = await InstalledAndroidControl.start(
       support: support,
@@ -48,7 +49,7 @@ void main() {
     base = Uri.parse('http://127.0.0.1:${bootstrap['port']}');
     expect(
       bootstrap['reportPath'],
-      'cache/otzaria-installed-probe-test/output/installed-plugin-report.json',
+      '$cache/otzaria-installed-probe-test/output/installed-plugin-report.json',
     );
     return created;
   }
@@ -104,7 +105,7 @@ void main() {
     report = File(
       p.join(
         root.path,
-        'cache',
+        'code_cache',
         'otzaria-installed-probe-test',
         'output',
         'installed-plugin-report.json',
@@ -137,6 +138,52 @@ void main() {
       await start();
       await expectLater(start(), throwsStateError);
     },
+  );
+
+  test('also accepts the private cache directory', () async {
+    final output = File(
+      p.join(
+        root.path,
+        'cache',
+        'otzaria-installed-probe-test',
+        'output',
+        'installed-plugin-report.json',
+      ),
+    );
+    await output.parent.create(recursive: true);
+    await start(output: output, cache: 'cache');
+  });
+
+  test(
+    'refuses a code cache output directory linked outside private data',
+    () async {
+      final external = await Directory.systemTemp.createTemp('outside-probe-');
+      try {
+        final linked = p.join(
+          root.path,
+          'code_cache',
+          'otzaria-installed-probe-linked',
+          'output',
+        );
+        await Directory(p.dirname(linked)).create(recursive: true);
+        await Link(linked).create(external.path);
+        await expectLater(
+          start(output: File(p.join(linked, 'installed-plugin-report.json'))),
+          throwsArgumentError,
+        );
+        expect(
+          await Directory(
+            p.join(support.path, installedAndroidDirectory),
+          ).exists(),
+          false,
+        );
+      } finally {
+        await external.delete(recursive: true);
+      }
+    },
+    skip: Platform.isWindows
+        ? 'Android cache confinement uses POSIX links.'
+        : false,
   );
 
   test(

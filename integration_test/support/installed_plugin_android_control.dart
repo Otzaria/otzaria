@@ -46,7 +46,7 @@ class InstalledAndroidControl {
       from: dataRoot,
     );
     if (!RegExp(
-      r'^cache/otzaria-installed-probe-[A-Za-z0-9_-]+/output/installed-plugin-report\.json$',
+      r'^(?:cache|code_cache)/otzaria-installed-probe-[A-Za-z0-9_-]+/output/installed-plugin-report\.json$',
     ).hasMatch(relativeReport)) {
       throw ArgumentError(
         'Report must belong to the fresh private probe cache',

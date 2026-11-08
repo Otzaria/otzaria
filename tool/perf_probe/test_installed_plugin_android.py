@@ -134,6 +134,42 @@ class IdentityTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 probe.verify_bootstrap({**BOOTSTRAP, key: value}, CAMPAIGN)
 
+    def test_bootstrap_accepts_only_the_two_private_android_cache_roots(self):
+        suffix = "otzaria-installed-probe-test/output/installed-plugin-report.json"
+        for cache in ("cache", "code_cache"):
+            valid = {**BOOTSTRAP, "reportPath": f"{cache}/{suffix}"}
+            self.assertEqual(probe.verify_bootstrap(valid, CAMPAIGN), valid)
+        for path in (f"/code_cache/{suffix}", f"files/{suffix}", f"external/code_cache/{suffix}",
+                     f"code_cache/../cache/{suffix}", f"code_cache/./{suffix}",
+                     f"code_cache/{suffix}/extra", f"code_cache/{suffix}\n",
+                     f"code_cache\\{suffix}", "code_cache/otzaria-installed-probe-/output/installed-plugin-report.json"):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                probe.verify_bootstrap({**BOOTSTRAP, "reportPath": path}, CAMPAIGN)
+
+
+class ApkDigestTests(unittest.TestCase):
+    def test_file_digest_is_exact_with_bounded_reads_and_closes_the_file(self):
+        class BoundedFile(io.BytesIO):
+            def read(self, size=-1):
+                if size <= 0 or size > 1024 * 1024:
+                    raise AssertionError("APK reads must have a bounded chunk size")
+                return super().read(size)
+
+        for data in (b"", b"small apk", bytes(range(256)) * 9000 + b"partial final chunk"):
+            stream = BoundedFile(data)
+            with self.subTest(size=len(data)), patch.object(Path, "open", return_value=stream) as opened, \
+                    patch.object(Path, "read_bytes", side_effect=AssertionError("Unbounded APK read")):
+                self.assertEqual(probe.file_sha256(Path("dedicated.apk")), hashlib.sha256(data).hexdigest())
+                opened.assert_called_once_with("rb")
+            self.assertTrue(stream.closed)
+
+    def test_file_digest_does_not_hide_read_errors(self):
+        failure = OSError("APK read failed")
+        with patch.object(Path, "open", side_effect=failure):
+            with self.assertRaises(OSError) as result:
+                probe.file_sha256(Path("dedicated.apk"))
+        self.assertIs(result.exception, failure)
+
 
 class ProtocolTests(unittest.TestCase):
     def test_identity_order_and_duration_are_bound_to_one_real_document(self):

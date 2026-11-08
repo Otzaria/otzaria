@@ -55,6 +55,14 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def normalize_component(value):
     require(isinstance(value, str) and re.fullmatch(r"[\w.]+/[\w.$]+", value),
             "Invalid activity component")
@@ -119,7 +127,7 @@ def verify_bootstrap(value, campaign):
     require(type(pid) is int and pid > 0 and re.fullmatch(fr"{pid}-[0-9]+", str(value.get("runId"))),
             "Bootstrap is missing its actual PID/run identity")
     require(type(value.get("port")) is int and 0 < value["port"] < 65536, "Invalid device control port")
-    require(re.fullmatch(r"cache/otzaria-installed-probe-[A-Za-z0-9_-]+/output/installed-plugin-report\.json",
+    require(re.fullmatch(r"(?:cache|code_cache)/otzaria-installed-probe-[A-Za-z0-9_-]+/output/installed-plugin-report\.json",
                          str(value.get("reportPath"))), "Report path is not a private fresh probe output")
     return value
 
@@ -550,7 +558,7 @@ class Runner:
         aapt = shutil.which("aapt2") or (str(candidates[-1]) if candidates else None)
         require(aapt, "aapt2 is needed to verify the dedicated APK before installation")
         badging = self.command([aapt, "dump", "badging", str(apk)]).stdout.decode()
-        self.result["apk"] = {**verify_apk(badging), "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+        self.result["apk"] = {**verify_apk(badging), "sha256": file_sha256(apk),
                               "bytes": apk.stat().st_size}
         self.save()
         self.install(apk)
