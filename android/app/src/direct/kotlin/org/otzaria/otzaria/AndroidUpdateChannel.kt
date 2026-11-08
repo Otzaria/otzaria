@@ -25,7 +25,7 @@ internal class AndroidUpdateChannel(
 ) : MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, "otzaria/android_software_update")
     private val executor = Executors.newSingleThreadExecutor()
-    private val preferences = AndroidUpdateInstallState.preferences(activity)
+    private val preferences by lazy { AndroidUpdateInstallState.preferences(activity) }
     private var permissionResult: MethodChannel.Result? = null
     private var permissionReturned = false
     private var resumed = false

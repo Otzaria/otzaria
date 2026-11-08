@@ -223,8 +223,8 @@ python3 tool/perf_probe/android_startup_probe.py \
   --output build/android-startup-debug
 ```
 
-הבנייה מקבלת את מאפיין Gradle הייעודי `otzariaStartupProbe=true`, בלי להוסיף
-flavor ובלי לשנות את פקודות הבנייה הרגילות. לפני התקנה, הכלי בודק ב־APK עצמו
+הכלי בונה את ה־flavor `direct` עם מאפיין Gradle הייעודי
+`otzariaStartupProbe=true`. לפני התקנה, הכלי בודק ב־APK עצמו
 שה־application ID הוא בדיוק `org.otzaria.otzaria.startupprobe`, שה־Activity
 תואם ושהבנייה מאפשרת `run-as`. הוא מפעיל ועוצר רק חבילה קבועה זו; אין
 פרמטר לבחירת חבילת משתמש ואין `pm clear`. גם יעד ה־Dart בודק את זהות החבילה

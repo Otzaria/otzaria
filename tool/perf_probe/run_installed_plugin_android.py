@@ -562,12 +562,12 @@ class Runner:
         defines_file.write_text(json.dumps(defines) + "\n", encoding="utf-8")
         env = dict(os.environ, ORG_GRADLE_PROJECT_otzariaInstalledProbe="true", CARGO_NET_GIT_FETCH_WITH_CLI="true")
         env.pop("ORG_GRADLE_PROJECT_otzariaStartupProbe", None)
-        self.command([self.args.flutter, "build", "apk", "--debug", "--no-pub", "--target", TARGET,
+        self.command([self.args.flutter, "build", "apk", "--debug", "--no-pub", "--flavor", "direct", "--target", TARGET,
                       "--target-platform", "android-x64", "--dart-define-from-file", str(defines_file)],
                      env=env, timeout=3600, capture=False)
         require(not self.command(["git", "status", "--porcelain", "--untracked-files=no"]).stdout.strip()
                 and lock_before == (ROOT / "pubspec.lock").read_bytes(), "Build changed tracked source or the lockfile")
-        apk = ROOT / "build/app/outputs/flutter-apk/app-debug.apk"
+        apk = ROOT / "build/app/outputs/flutter-apk/app-direct-debug.apk"
         sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")
         candidates = sorted(Path(sdk).glob("build-tools/*/aapt2")) if sdk else []
         aapt = shutil.which("aapt2") or (str(candidates[-1]) if candidates else None)
