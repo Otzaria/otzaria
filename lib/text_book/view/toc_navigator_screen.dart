@@ -60,6 +60,8 @@ class _TocViewerState extends State<TocViewer>
   _TocDisplayData? _flatDisplay;
   List<TocFlatItem>? _flatResult;
   Map<int, int> _flatEntryIndices = const {};
+  // מפת זהות נפרדת לשימור מצב ה-Element כאשר אינדקס שורה משתנה.
+  Map<TocEntry, int> _flatRowIndices = Map<TocEntry, int>.identity();
   int _expandedRevision = 0;
   int _flatExpandedRevision = -1;
 
@@ -317,6 +319,7 @@ class _TocViewerState extends State<TocViewer>
       _flatDisplay = null;
       _flatResult = null;
       _flatEntryIndices = const {};
+      _flatRowIndices = Map<TocEntry, int>.identity();
       _flatExpandedRevision = -1;
     }
     return _displayResult!;
@@ -334,12 +337,16 @@ class _TocViewerState extends State<TocViewer>
       );
       final flat = _flatResult!;
       final entryIndices = <int, int>{};
+      final rowIndices = Map<TocEntry, int>.identity();
       for (var index = 0; index < flat.length; index++) {
+        // המיקום ברשימה כולל את כותרת העץ ב-0.
+        rowIndices[flat[index].entry] = index + 1;
         // indexWhere החזיר תמיד את המופע הראשון; putIfAbsent משמר זאת גם
         // אם קלט פגום מכיל שני ערכים עם אותו index.
         entryIndices.putIfAbsent(flat[index].entry.index, () => index);
       }
       _flatEntryIndices = entryIndices;
+      _flatRowIndices = rowIndices;
     }
     return _flatResult!;
   }
@@ -454,7 +461,7 @@ class _TocViewerState extends State<TocViewer>
       findChildIndexCallback: (key) => key == const ValueKey('toc-tree-header')
           ? 0
           : key is ObjectKey
-          ? _flatEntryIndices[key.value]
+          ? _flatRowIndices[key.value]
           : null,
       itemBuilder: (context, index) {
         if (index == 0) {
