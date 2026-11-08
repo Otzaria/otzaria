@@ -31,6 +31,21 @@ def native_result(directory, label, **details):
         runner.save(directory / f"{label}.json", report)
 
 
+def verify_open_target(snapshot, *, pid, executable, bundle, launch_id, initial_launches):
+    instances = snapshot.get("instances")
+    if (not isinstance(instances, list) or len(instances) != 1 or
+            instances[0].get("pid") != pid or instances[0].get("executable") != executable or
+            instances[0].get("bundleURL") != bundle or instances[0].get("isTerminated") is not False):
+        raise ValueError("open must retain exactly the original live process in the owned bundle")
+    launches = snapshot.get("launches")
+    if launches != initial_launches:
+        raise ValueError("open created an additional launch or changed the owned launch evidence")
+    original = [entry for entry in launches if entry.get("launchId") == launch_id]
+    if (len(original) != 1 or original[0].get("pid") != pid or
+            original[0].get("executable") != executable or original[0].get("bundleURL") != bundle):
+        raise ValueError("The original Popen launch identity is missing or inconsistent")
+
+
 class NativeEvidenceTests(unittest.TestCase):
     def test_failure_preserves_partial_observations_and_original_exception(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -56,6 +71,36 @@ class NativeEvidenceTests(unittest.TestCase):
                 report["isHidden"] = True
             self.assertEqual(json.loads((directory / "production.json").read_text())["status"], "failed")
             self.assertEqual(json.loads((directory / "diagnostic.json").read_text())["status"], "passed")
+
+    def open_snapshot(self):
+        identity = {"pid": 17, "executable": "/private/Owned.app/Contents/MacOS/Owned",
+                    "bundleURL": "/private/Owned.app"}
+        snapshot = {"instances": [{**identity, "isTerminated": False}],
+                    "launches": [{**identity, "launchId": "owned-launch", "arguments": [identity["executable"], "/private/ready.json"]}]}
+        expected = {"pid": 17, "executable": identity["executable"], "bundle": identity["bundleURL"],
+                    "launch_id": "owned-launch", "initial_launches": list(snapshot["launches"])}
+        return snapshot, expected
+
+    def test_open_keeps_the_same_owned_instance_and_launch(self):
+        snapshot, expected = self.open_snapshot()
+        verify_open_target(snapshot, **expected)
+
+    def test_open_cannot_substitute_another_live_instance(self):
+        for change in ["additional", "pid", "executable", "bundleURL", "isTerminated"]:
+            snapshot, expected = self.open_snapshot()
+            if change == "additional":
+                snapshot["instances"].append({**snapshot["instances"][0], "pid": 18})
+            else:
+                snapshot["instances"][0][change] = True if change == "isTerminated" else "different"
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, "original live process"):
+                verify_open_target(snapshot, **expected)
+
+    def test_open_cannot_hide_a_second_instance_that_already_exited(self):
+        snapshot, expected = self.open_snapshot()
+        snapshot["launches"].append({**snapshot["launches"][0], "pid": 18, "launchId": "exited-copy"})
+        # Enumeration still contains the live original process alone.
+        with self.assertRaisesRegex(ValueError, "additional launch"):
+            verify_open_target(snapshot, **expected)
 
 
 @unittest.skipUnless(sys.platform == "darwin", "Requires real AppKit; not native evidence on other hosts")
@@ -235,7 +280,31 @@ diagnosticApplication.run()
             })
             runner.recorded_output(cls.directory, f"compile-{label}-controller",
                 ["xcrun", "swiftc", str(dispatch_source), *flags, "-o", str(executable)], 120)
+        inspector_source = cls.directory / "owned_bundle_instances.swift"
+        inspector_source.write_text('''import AppKit
+import Foundation
+guard CommandLine.arguments.count == 2, CommandLine.arguments[1].hasPrefix("/") else { exit(64) }
+let bundle = URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL
+guard let identifier = Bundle(url: bundle)?.bundleIdentifier else { exit(64) }
+let instances: [[String: Any]] = NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+    .filter { $0.bundleURL?.standardizedFileURL == bundle && !$0.isTerminated }
+    .map { ["pid": $0.processIdentifier, "executable": $0.executableURL?.path ?? "unavailable",
+            "bundleURL": $0.bundleURL?.path ?? "unavailable", "isTerminated": $0.isTerminated] }
+let data = try JSONSerialization.data(withJSONObject: instances, options: [.sortedKeys])
+print(String(decoding: data, as: UTF8.self))
+''')
+        cls.bundle_inspector = cls.directory / "owned-bundle-instances"
+        runner.recorded_output(cls.directory, "compile-bundle-inspector",
+            ["xcrun", "swiftc", str(inspector_source), "-o", str(cls.bundle_inspector)], 120)
         cls.launch_count = 0
+
+    def owned_bundle_snapshot(self, label):
+        bundle = self.executable.parents[2]
+        instances = json.loads(runner.recorded_output(self.directory, label,
+            [str(self.bundle_inspector), str(bundle)], 10))
+        return {"instances": instances,
+                "launches": [json.loads(path.read_text())
+                             for path in sorted(self.directory.glob("fixture-launch-*.json"))]}
 
     def wait_for_evidence(self, path, process):
         deadline = time.monotonic() + 15
@@ -302,14 +371,37 @@ diagnosticApplication.run()
         self.exercise_controller(self.active_dispatch_helper, "active-dispatch-execution", initialized=True,
                                  prepare_foreground=True, hide_timeout=15, asynchronous_dispatch=True)
 
+    def test_opened_bundle_with_original_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.helper, "opened-bundle-execution", open_bundle=True)
+
+    def test_opened_bundle_with_dispatching_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.dispatch_helper, "opened-bundle-dispatch-execution", initialized=True,
+                                 asynchronous_dispatch=True, open_bundle=True)
+
     def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10,
-                            asynchronous_dispatch=False):
+                            asynchronous_dispatch=False, open_bundle=False):
         with native_result(self.directory, label,
-                           launchMethod="Popen of the executable; no open/LaunchServices launch",
+                           launchMethod=("Popen, ready, then open of the same bundle, matching Flutter profile onAttached"
+                                         if open_bundle else "Popen of the executable; no open/LaunchServices launch"),
                            diagnosticInitialization=initialized) as report:
             app, report["startup"], _ = self.start_owned_app()
             controller = runner.MacApplicationSession(helper, app.pid, self.directory, label)
             self.addCleanup(controller.close)
+            extra_observations = []
+            if open_bundle:
+                self.assertIsNone(app.poll(), "The original Popen process exited before open")
+                original = report["beforeOpen"] = controller.request("info")
+                extra_observations.append(original)
+                self.assertFalse(original["isHidden"])
+                snapshot = report["bundleBeforeOpen"] = self.owned_bundle_snapshot(f"{label}-before-open")
+                expected = {"pid": app.pid, "executable": str(self.executable),
+                            "bundle": str(self.executable.parents[2]), "launch_id": report["startup"]["launchId"],
+                            "initial_launches": snapshot["launches"]}
+                report["openCommandEvidence"] = f"{label}-open.json"
+                runner.recorded_output(self.directory, f"{label}-open", ["open", expected["bundle"]], 10)
+                self.assertIsNone(app.poll(), "open replaced or terminated the original Popen process")
+                snapshot = report["bundleAfterOpen"] = self.owned_bundle_snapshot(f"{label}-after-open")
+                verify_open_target(snapshot, **expected)
             if prepare_foreground:
                 report["foregroundBeforeControl"] = controller.request("activate")
             before = report["before"] = controller.request("info")
@@ -321,7 +413,7 @@ diagnosticApplication.run()
                 self.assertTrue(after["applicationState"]["controllerAppKitInitialized"])
             hidden = report["hidden"] = controller.request("hide", timeout=hide_timeout)
             resumed = report["resumed"] = controller.request("activate")
-            for value in [before, after, hidden, resumed]:
+            for value in [*extra_observations, before, after, hidden, resumed]:
                 self.assertEqual(value["pid"], app.pid)
                 self.assertTrue(value["sameApplication"])
                 self.assertEqual(value["identityMethod"], "NSRunningApplication.isEqual")
@@ -338,6 +430,10 @@ diagnosticApplication.run()
             self.assertTrue(hidden["isHidden"])
             self.assertFalse(resumed["isHidden"])
             self.assertTrue(resumed["isActive"])
+            if open_bundle:
+                self.assertIsNone(app.poll(), "The original Popen process did not survive hide/resume")
+                snapshot = report["bundleAfterResume"] = self.owned_bundle_snapshot(f"{label}-after-resume")
+                verify_open_target(snapshot, **expected)
             controller.close()
 
     def test_owned_application_can_hide_itself(self):

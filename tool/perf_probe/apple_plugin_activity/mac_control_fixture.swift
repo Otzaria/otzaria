@@ -2,7 +2,22 @@ import AppKit
 import Foundation
 
 let arguments = CommandLine.arguments
-guard arguments.count == 2 || arguments.count == 3 else { exit(64) }
+let launchDirectory = Bundle.main.bundleURL.deletingLastPathComponent().standardizedFileURL
+let launchId = UUID().uuidString
+let launch: [String: Any] = [
+    "launchId": launchId, "pid": ProcessInfo.processInfo.processIdentifier,
+    "bundleURL": Bundle.main.bundleURL.path,
+    "executable": Bundle.main.executableURL?.path ?? "unavailable",
+    "arguments": arguments, "atMs": Date().timeIntervalSince1970 * 1000
+]
+// Record even an immediately rejected LaunchServices instance. A later open
+// must reuse the retained process, not briefly launch another copy of this bundle.
+try JSONSerialization.data(withJSONObject: launch, options: [.sortedKeys]).write(
+    to: launchDirectory.appendingPathComponent("fixture-launch-\(launchId).json"), options: .atomic)
+guard arguments.count == 2 || arguments.count == 3,
+      arguments.dropFirst().allSatisfy({
+          $0.hasPrefix("/") && URL(fileURLWithPath: $0).deletingLastPathComponent().standardizedFileURL == launchDirectory
+      }) else { exit(64) }
 let app = NSApplication.shared
 let policyAccepted = app.setActivationPolicy(.regular)
 let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 200, height: 100),
@@ -14,7 +29,7 @@ var readyScheduled = false
 func snapshot(_ stage: String) -> [String: Any] {
     let running = NSRunningApplication.current
     return [
-        "stage": stage, "pid": ProcessInfo.processInfo.processIdentifier,
+        "stage": stage, "pid": ProcessInfo.processInfo.processIdentifier, "launchId": launchId,
         "policyChangeAccepted": policyAccepted, "activationPolicy": app.activationPolicy().rawValue,
         "isRunning": app.isRunning, "isHidden": app.isHidden, "isActive": app.isActive,
         "didFinishLaunchingObserved": didFinishLaunchingObserved,
