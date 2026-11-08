@@ -899,7 +899,7 @@ void main() {
         bloc.add(DownloadLibraryRequested());
         await selected.timeout(const Duration(seconds: 5));
 
-        expect(checkedSizes.single, whole.length + parts.last.length + 15);
+        expect(checkedSizes.single, whole.length * 2 + 15);
         expect(extractedDb, whole);
         expect(requested, contains('https://example.com/v31/part1'));
         // רק קובצי הנעילה הקבועים נשארים, כדי לשמור על אותו inode
