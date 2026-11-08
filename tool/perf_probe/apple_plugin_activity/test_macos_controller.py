@@ -209,6 +209,32 @@ diagnosticApplication.run()
             "launchMethod": "Direct Popen of the identical active-regular binary inside its own application bundle",
             "scope": "Caller bundle metadata is the only change from active-regular-execution; not a LaunchServices launch",
         })
+        marker = "// Keep this object alive across quiet. readLine blocks without a run loop,\n"
+        assert original.count(marker) == 1
+        retained_identity = original.split(marker)[0]
+        assert retained_identity.count(observation) == 1
+        retained_identity = retained_identity.replace(observation, observation + '''
+        result["controllerIsActive"] = controllerApplication.isActive
+        result["controllerOwnsMenuBar"] = NSRunningApplication.current.ownsMenuBar
+        result["controllerBundleIdentifier"] = Bundle.main.bundleIdentifier ?? "unavailable"
+        result["frontmostApplicationPid"] = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
+''')
+        dispatch_source = cls.directory / "dispatch_controller.swift"
+        dispatch = retained_identity + (runner.HERE / "mac_controller_dispatch_diagnostic.swift").read_text()
+        dispatch_source.write_text(dispatch)
+        cls.dispatch_helper = cls.directory / "mac-application-dispatch"
+        cls.active_dispatch_helper = cls.directory / "mac-application-active-dispatch"
+        for label, executable, flags in [
+                ("dispatch", cls.dispatch_helper, []),
+                ("active-dispatch", cls.active_dispatch_helper, ["-D", "ACTIVE_CONTROLLER"])]:
+            runner.save(cls.directory / f"{label}-variant.json", {
+                "productionSHA256": hashlib.sha256(original.encode()).hexdigest(),
+                "diagnosticSHA256": hashlib.sha256(dispatch.encode()).hexdigest(),
+                "compilerFlags": flags,
+                "scope": "Worker stdin with asynchronous main-thread commands and acknowledgement continuations; retained production identity and unchanged hide/hidden gates; diagnostic only",
+            })
+            runner.recorded_output(cls.directory, f"compile-{label}-controller",
+                ["xcrun", "swiftc", str(dispatch_source), *flags, "-o", str(executable)], 120)
         cls.launch_count = 0
 
     def wait_for_evidence(self, path, process):
@@ -268,7 +294,16 @@ diagnosticApplication.run()
         self.exercise_controller(self.bundled_active_helper, "bundled-active-execution", initialized=True,
                                  prepare_foreground=True, hide_timeout=15)
 
-    def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10):
+    def test_dispatching_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.dispatch_helper, "dispatch-execution", initialized=True,
+                                 prepare_foreground=True, asynchronous_dispatch=True)
+
+    def test_active_dispatching_controller_is_an_independent_diagnostic(self):
+        self.exercise_controller(self.active_dispatch_helper, "active-dispatch-execution", initialized=True,
+                                 prepare_foreground=True, hide_timeout=15, asynchronous_dispatch=True)
+
+    def exercise_controller(self, helper, label, initialized=False, prepare_foreground=False, hide_timeout=10,
+                            asynchronous_dispatch=False):
         with native_result(self.directory, label,
                            launchMethod="Popen of the executable; no open/LaunchServices launch",
                            diagnosticInitialization=initialized) as report:
@@ -295,6 +330,11 @@ diagnosticApplication.run()
                 self.assertEqual(value["executable"], str(self.executable))
                 self.assertEqual(value["applicationState"]["activationPolicy"], 0)
                 self.assertFalse(value["applicationState"]["isTerminated"])
+                if asynchronous_dispatch:
+                    self.assertTrue(value["mainQueueTurnDelivered"])
+                    self.assertEqual(value["controllerBoundaryMode"], "asynchronous-main-dispatch")
+            if asynchronous_dispatch:
+                self.assertTrue(hidden["hideReturnValue"])
             self.assertTrue(hidden["isHidden"])
             self.assertFalse(resumed["isHidden"])
             self.assertTrue(resumed["isActive"])
