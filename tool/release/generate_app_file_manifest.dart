@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+// הכללים של הלקוח עצמו: נתיב שהוא דוחה היה משבית אצלו את המסלול הדיפרנציאלי
+// לגמרי ובשקט.
+import 'package:otzaria/update/differential/managed_paths.dart'
+    show managedApplicationPathError;
 import 'package:otzaria/update/differential/tree_fs.dart'
     show linkTargetError, pathsThroughLinksErrors;
 
@@ -149,7 +153,7 @@ Map<String, Object?> buildAppFileManifest({
     }
     final relative = absolute.substring(rootPath.length);
     if (exclude.contains(relative)) continue;
-    final error = appFilePathError(relative);
+    final error = managedApplicationPathError(relative);
     if (error != null) {
       throw AppFileManifestException('$error: $relative');
     }
@@ -206,47 +210,6 @@ Map<String, Object?> buildAppFileManifest({
   return manifest;
 }
 
-/// תיקיות נתוני משתמש. חייב להישאר זהה ל-`kUserDataFolderNames` שבלקוח
-/// (`lib/update/differential/managed_paths.dart`) — נעול בבדיקה.
-const Set<String> kAppFileUserDataFolderNames = {
-  'otzaria_data',
-  'books',
-  'index',
-  'databases',
-  'backups',
-  'אוצריא',
-};
-
-/// קבצי נתוני משתמש ליד ה-executable. זהה ל-`kUserDataFileNames` שבלקוח.
-const Set<String> kAppFileUserDataFileNames = {
-  'portable.marker',
-  'library_path.txt',
-  'system_install.marker',
-};
-
-/// מחזיר את הסיבה שהנתיב אינו חוקי, או null אם הוא תקין.
-/// נתיב מנוהל הוא תמיד יחסי לשורש ההתקנה, עם `/` כמפריד.
-String? appFilePathError(String path) {
-  if (path.isEmpty) return 'path is empty';
-  if (path.contains('\\')) return 'path must use forward slashes';
-  if (path.startsWith('/')) return 'path must be relative';
-  if (path.contains('//')) return 'path has an empty segment';
-  if (RegExp(r'^[A-Za-z]:').hasMatch(path)) return 'path must be relative';
-  final segments = path.split('/');
-  for (final segment in segments) {
-    if (segment == '.' || segment == '..') return 'path escapes the root';
-    if (segment.isEmpty) return 'path has an empty segment';
-  }
-  // הלקוח דוחה נתיב כזה על הסף, ולכן מניפסט שמכיל אותו היה משבית את
-  // המסלול הדיפרנציאלי לגמרי ובשקט.
-  if (kAppFileUserDataFolderNames.contains(segments.first) ||
-      (segments.length == 1 &&
-          kAppFileUserDataFileNames.contains(segments.first))) {
-    return 'path is user data and is never managed';
-  }
-  return null;
-}
-
 /// מאמת מניפסט ומחזיר רשימת שגיאות (ריקה = תקין). שדות לא מוכרים נסבלים.
 List<String> validateAppFileManifest(Object? manifest) {
   final errors = <String>[];
@@ -298,7 +261,7 @@ List<String> validateAppFileManifest(Object? manifest) {
       errors.add('a file entry has no path');
       continue;
     }
-    final pathError = appFilePathError(path);
+    final pathError = managedApplicationPathError(path);
     if (pathError != null) {
       errors.add('file $path: $pathError');
     } else if (!seen.add(path)) {
@@ -340,7 +303,7 @@ List<String> validateAppFileManifest(Object? manifest) {
           continue;
         }
         final path = link['path'] as String;
-        final pathError = appFilePathError(path);
+        final pathError = managedApplicationPathError(path);
         if (pathError != null) {
           errors.add('link $path: $pathError');
         } else if (!seen.add(path) || !linkPaths.add(path)) {
