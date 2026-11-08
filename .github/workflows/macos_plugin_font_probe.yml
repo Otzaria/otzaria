@@ -19,6 +19,7 @@ on:
       - 'fonts/**'
       - 'integration_test/macos_plugin_font_probe_test.dart'
       - 'integration_test/support/macos_font_probe.dart'
+      - 'integration_test/support/apple_font_probe_view.dart'
       - 'test/tool/perf_probe/macos_font_probe_*_test.dart'
       - 'test_driver/macos_plugin_fonts.dart'
       - 'tool/perf_probe/*macos_plugin_fonts*'
