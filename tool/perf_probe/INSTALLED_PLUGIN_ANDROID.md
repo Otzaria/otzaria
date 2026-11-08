@@ -87,12 +87,19 @@ zero probe queries is not a claim of zero application work or energy use.
 ## Final verdict and failures
 
 `host-report.json` and `installed-plugin-report.json` belong to the same
-campaign and process. The app sends completion only after
-`IntegrationTestWidgetsFlutterBinding.allTestsPassed` supplies its final
-framework verdict and the final report has been flushed. Completion includes
-the exact report byte count and SHA-256. The host reads that private file once,
-checks the digest, framework verdict, full original scenario contract and the
-native evidence returned during the transition, then acknowledges completion.
+campaign and process. Awaited integration-test teardown captures the framework
+verdict and flushes a preliminary report before sending `complete`. The host
+retains it as `preliminary-installed-plugin-report.json`, verifies its byte count,
+SHA-256, verdict, original scenario contract and native evidence, then acknowledges
+it. That acknowledgement is not success. The app then closes the control, flushes
+the final report including any cleanup failure, and only after a successful close
+and flush atomically publishes `completion.json` in its private campaign directory.
+The receipt binds the bootstrap identity, completed command sequence and exact
+final report bytes. The host requires stream closure and this receipt, rereads and
+validates the report, and only then accepts success. Receipt reads have a 15-second
+deadline and occur solely at this final boundary, after all measured quiet windows.
+An absent receipt, failed close or changed report cannot pass; a late failure report
+is retained as `partial-installed-plugin-report.json` during host cleanup.
 An early framework failure is retained and rejected, including one that occurs
 before the Home phase. An app report alone is not a successful host run.
 

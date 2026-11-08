@@ -10,17 +10,25 @@ const installedAndroidDirectory = 'installed-plugin-android';
 
 /// Push-only control keeps host ADB observations outside the quiet windows.
 class InstalledAndroidControl {
-  InstalledAndroidControl._(this._server, this.identity, this._token);
+  InstalledAndroidControl._(
+    this._server,
+    this.identity,
+    this._token,
+    this._completion,
+  );
 
   final HttpServer _server;
   final Map<String, Object?> identity;
   final String _token;
+  final File _completion;
   final _connected = Completer<void>();
   HttpResponse? _events;
   Completer<Map<String, Object?>>? _reply;
   String? _action;
   int _sequence = 0;
   bool _closed = false;
+  bool _closeCompleted = false;
+  bool _completionAcknowledged = false;
 
   static Future<InstalledAndroidControl> start({
     required Directory support,
@@ -63,13 +71,18 @@ class InstalledAndroidControl {
     }
     await campaign.create(recursive: true);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final control = InstalledAndroidControl._(server, {
-      'protocol': 1,
-      'campaignId': campaignId,
-      'runId': runId,
-      'pid': processId,
-      'package': package,
-    }, token);
+    final control = InstalledAndroidControl._(
+      server,
+      {
+        'protocol': 1,
+        'campaignId': campaignId,
+        'runId': runId,
+        'pid': processId,
+        'package': package,
+      },
+      token,
+      File(p.join(campaign.path, 'completion.json')),
+    );
     server.listen((request) {
       unawaited(control._handle(request));
     });
@@ -205,6 +218,37 @@ class InstalledAndroidControl {
       'reportBytes': bytes.length,
       'reportSha256': sha256.convert(bytes).toString(),
     });
+    _completionAcknowledged = true;
+  }
+
+  Future<void> writeCompletion(
+    File report, {
+    required bool frameworkPassed,
+  }) async {
+    if (!_closeCompleted || !_completionAcknowledged) {
+      throw StateError(
+        'Completion requires acknowledged work and a closed control',
+      );
+    }
+    if (await FileSystemEntity.type(_completion.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw StateError('Control completion already exists');
+    }
+    final bytes = await report.readAsBytes();
+    final pending = File(p.setExtension(_completion.path, '.pending'));
+    await pending.create(exclusive: true);
+    await pending.writeAsString(
+      jsonEncode({
+        ...identity,
+        'sequence': _sequence,
+        'controlClosed': true,
+        'frameworkPassed': frameworkPassed,
+        'reportBytes': bytes.length,
+        'reportSha256': sha256.convert(bytes).toString(),
+      }),
+      flush: true,
+    );
+    await pending.rename(_completion.path);
   }
 
   Future<void> close() async {
@@ -214,5 +258,6 @@ class InstalledAndroidControl {
       reply.completeError(StateError('Control closed before acknowledgement'));
     }
     await _server.close(force: true);
+    _closeCompleted = true;
   }
 }

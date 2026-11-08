@@ -32,8 +32,9 @@ ACTIVITY = "org.otzaria.otzaria.MainActivity"
 COMPONENT = f"{PACKAGE}/{ACTIVITY}"
 DIRECTORY = "installed-plugin-android"
 TARGET = "integration_test/installed_plugin_resource_probe_test.dart"
-NATIVE_PIN = "124bb8e63f345ffd0b0f2ea7190c24b19e69897d"
+NATIVE_PIN = "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
 COMMAND_OUTPUT_LIMIT = 8 * 1024 * 1024
+COMPLETION_TIMEOUT = 15
 PACKAGES = ["flutter_inappwebview" + suffix for suffix in
             ("", "_android", "_ios", "_linux", "_macos", "_platform_interface", "_web", "_windows")]
 REQUIRED_PHASES = {
@@ -238,6 +239,16 @@ def verify_report(raw, complete, bootstrap, evidence, commit):
             and all(guard.get("sameControllerAfterRequest") is True and guard.get("released") is False for guard in guards),
             "Protected controls did not survive the same discard request")
     return report
+
+
+def verify_completion(receipt, event, preliminary):
+    require(isinstance(receipt, dict)
+            and all(receipt.get(key) == event[key] for key in (*IDENTITY_KEYS, "sequence")),
+            "Final completion has stale campaign, process, or command identity")
+    require(receipt.get("controlClosed") is True, "Device control cleanup did not complete")
+    require(all(receipt.get(key) == preliminary[key]
+                for key in ("frameworkPassed", "reportBytes", "reportSha256")),
+            "Report changed after its completion acknowledgement")
 
 
 class Runner:
@@ -616,6 +627,39 @@ class Runner:
         require(line.endswith(b"\n") and len(line) <= 64 * 1024, "Truncated or oversized control event")
         return json.loads(line)
 
+    def wait_completion(self, events, event, preliminary):
+        self.stage = "finalizing"
+        end = min(value for value in (time.monotonic() + COMPLETION_TIMEOUT,
+                                     self.deadline, self.action_deadline) if value is not None)
+        self.action_deadline = end
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Final completion deadline expired")
+        if self.event_connection is not None:
+            self.event_connection.sock.settimeout(remaining)
+        try:
+            trailing = events.read(1)
+        except http.client.IncompleteRead as error:
+            trailing = error.partial
+        require(trailing == b"", "Unexpected control data after completion")
+        # This bounded receipt read starts only after the measured scenario and stream closure.
+        path = f"files/{DIRECTORY}/{self.campaign}/completion.json"
+        while time.monotonic() < end:
+            result = self.adb("shell", "-T", "run-as", PACKAGE, "cat", path, check=False)
+            if result.returncode == 0:
+                require(len(result.stdout) <= 64 * 1024, "Oversized final completion receipt")
+                (self.output / "device-completion.json").write_bytes(result.stdout)
+                receipt = json.loads(result.stdout)
+                self.result["completionReceipt"] = receipt
+                self.save()
+                verify_completion(receipt, event, preliminary)
+                raw = self.adb("shell", "-T", "run-as", PACKAGE, "cat", self.bootstrap["reportPath"]).stdout
+                (self.output / "installed-plugin-report.json").write_bytes(raw)
+                verify_report(raw, receipt, self.bootstrap, self.evidence, self.result["sourceCommit"])
+                return
+            time.sleep(min(0.1, max(0, end - time.monotonic())))
+        raise TimeoutError("Device did not publish its final completion receipt after control close")
+
     def reply(self, event, result, *, ok=True):
         connection = http.client.HTTPConnection("127.0.0.1", self.forward, timeout=10)
         try:
@@ -651,6 +695,7 @@ class Runner:
             action, payload = protocol.accept(event)
             self.stage = action
             self.action_deadline = time.monotonic() + (self.args.quiet_ms / 1000 + 35 if action == "quiet" else 35)
+            acknowledged = False
             try:
                 if action == "home":
                     before = self.wait_native(foreground=True)
@@ -668,7 +713,7 @@ class Runner:
                     self.evidence["resume"] = result
                 else:
                     raw = self.adb("shell", "-T", "run-as", PACKAGE, "cat", self.bootstrap["reportPath"]).stdout
-                    (self.output / "installed-plugin-report.json").write_bytes(raw)
+                    (self.output / "preliminary-installed-plugin-report.json").write_bytes(raw)
                     self.result["completion"] = payload
                     self.save()
                     verify_report(raw, payload, self.bootstrap, self.evidence, self.result["sourceCommit"])
@@ -681,15 +726,19 @@ class Runner:
                     result = {"reportVerified": True}
                 self.save()
                 self.reply(event, result)
-                self.action_deadline = None
+                acknowledged = True
                 if action == "complete":
+                    self.wait_completion(events, event, payload)
                     self.result["status"] = "passed"
+                    self.action_deadline = None
                     return
+                self.action_deadline = None
             except BaseException as error:
-                try:
-                    self.reply(event, {"error": str(error)}, ok=False)
-                except Exception as reply_error:
-                    self.result["replyError"] = str(reply_error)
+                if not acknowledged:
+                    try:
+                        self.reply(event, {"error": str(error)}, ok=False)
+                    except Exception as reply_error:
+                        self.result["replyError"] = str(reply_error)
                 raise
 
     def cleanup(self):

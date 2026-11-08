@@ -85,6 +85,11 @@ def completion(raw):
     return {"frameworkPassed": True, "reportBytes": len(raw), "reportSha256": hashlib.sha256(raw).hexdigest()}
 
 
+def final_completion(raw):
+    return {**{key: BOOTSTRAP[key] for key in probe.IDENTITY_KEYS}, "sequence": 4,
+            "controlClosed": True, **completion(raw)}
+
+
 class IdentityTests(unittest.TestCase):
     def test_native_records_and_process_start_time_are_observed(self):
         foreground = probe.activity_snapshot(dumpsys())
@@ -239,6 +244,19 @@ class ReportTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.validate(**changes)
 
+    def test_final_completion_requires_same_identity_command_closed_control_and_digest(self):
+        raw = json.dumps(self.report).encode()
+        preliminary = completion(raw)
+        message = event(4, "complete", preliminary)
+        receipt = final_completion(raw)
+        probe.verify_completion(receipt, message, preliminary)
+        for key, value in (("campaignId", "previous"), ("pid", 124), ("runId", "123-stale"),
+                           ("package", "org.otzaria.otzaria"), ("protocol", 2), ("sequence", 3),
+                           ("controlClosed", False), ("frameworkPassed", False),
+                           ("reportBytes", len(raw) + 1), ("reportSha256", "0" * 64)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                probe.verify_completion({**receipt, key: value}, message, preliminary)
+
     def test_android_hidden_state_and_observed_identity_cannot_be_replaced_by_claimed_booleans(self):
         for key, value in (("dispatcherBeforeQuiet", "suspendedConfirmed"), ("shownBeforeQuiet", True),
                            ("lifecycleBeforeQuiet", "resumed"), ("dispatcherAfterResume", "hidden"),
@@ -323,6 +341,11 @@ class RunnerTests(unittest.TestCase):
                 state['foreground'] = True
                 if state.get('replaceOnResume'):
                     state['token'] = 'bbb'
+            elif args[:5] == ['shell', '-T', 'run-as', package, 'cat'] and args[-1].endswith('/completion.json'):
+                receipt = root / 'completion.json'
+                if not receipt.exists():
+                    sys.exit(1)
+                sys.stdout.buffer.write(receipt.read_bytes())
             elif args[:5] == ['shell', '-T', 'run-as', package, 'cat']:
                 sys.stdout.buffer.write((root / 'report.json').read_bytes())
             elif args == ['forward', '--list']:
@@ -339,11 +362,12 @@ class RunnerTests(unittest.TestCase):
         self.runner = probe.Runner(argparse.Namespace(output=self.directory / "output", device="emulator-5554",
                                                       adb=str(self.fake_adb), quiet_ms=1000, flutter="unused"))
         self.runner.bootstrap = BOOTSTRAP
+        self.runner.campaign = CAMPAIGN
         self.runner.launcher = LAUNCHER
         self.runner.result["sourceCommit"] = COMMIT
         self.runner.original = self.runner.wait_native(foreground=True)
 
-    def event_stream(self):
+    def event_stream(self, *, close_error=False, changed_after_receipt=False):
         runner, directory = self.runner, self.directory
 
         class Events:
@@ -362,6 +386,20 @@ class RunnerTests(unittest.TestCase):
                 data = json.dumps(event(self.sequence, action, payload)).encode() + b"\n"
                 assert len(data) < maximum
                 return data
+
+            def read(self, maximum):
+                assert maximum == 1 and self.sequence == 4
+                assert runner.result["status"] != "passed"
+                if close_error:
+                    report = report_fixture(runner.evidence)
+                    report.update(status="failed", frameworkPassed=False, errors=["Android control cleanup failed"])
+                    (directory / "report.json").write_text(json.dumps(report))
+                else:
+                    raw = (directory / "report.json").read_bytes()
+                    (directory / "completion.json").write_text(json.dumps(final_completion(raw)))
+                    if changed_after_receipt:
+                        (directory / "report.json").write_bytes(raw + b"\n")
+                return b""
 
         return Events()
 
@@ -400,6 +438,36 @@ class RunnerTests(unittest.TestCase):
                             for command in self.runner.commands))
         self.assertFalse(any("force-stop" in command["argv"] for command in self.runner.commands))
         self.assertTrue((self.runner.output / "installed-plugin-report.json").exists())
+        self.assertTrue((self.runner.output / "preliminary-installed-plugin-report.json").exists())
+        self.assertTrue(self.runner.result["completionReceipt"]["controlClosed"])
+
+    def test_complete_ack_does_not_hide_a_later_device_close_failure(self):
+        replies = self.replies()
+        with patch.object(self.runner, "build"), \
+                patch.object(self.runner, "connect", return_value=self.event_stream(close_error=True)), \
+                patch.object(probe, "COMPLETION_TIMEOUT", 0.5, create=True), \
+                self.assertRaises((TimeoutError, subprocess.TimeoutExpired)) as caught:
+            self.runner.run()
+        self.assertEqual(replies[-1]["action"], "complete")
+        self.assertTrue(replies[-1]["ok"])
+        self.assertEqual(len(replies), 4)
+        self.assertEqual(self.runner.result["status"], "failed")
+        self.assertIs(self.runner.first_error, caught.exception)
+        self.assertFalse((self.runner.output / "installed-plugin-report.json").exists())
+        preliminary = json.loads((self.runner.output / "preliminary-installed-plugin-report.json").read_text())
+        late = json.loads((self.runner.output / "partial-installed-plugin-report.json").read_text())
+        self.assertEqual(preliminary["status"], "passed")
+        self.assertEqual(late["status"], "failed")
+        self.assertIn("Android control cleanup failed", late["errors"])
+
+    def test_final_receipt_revalidates_report_bytes_after_control_close(self):
+        replies = self.replies()
+        with self.assertRaisesRegex(ValueError, "bytes or digest"):
+            self.runner.serve(self.event_stream(changed_after_receipt=True))
+        self.assertEqual(replies[-1]["action"], "complete")
+        self.assertTrue(replies[-1]["ok"])
+        self.assertEqual(len(replies), 4)
+        self.assertNotEqual(self.runner.result["status"], "passed")
 
     def test_home_resolution_uses_android_component_output_instead_of_brief_metadata(self):
         self.assertEqual(self.runner.resolve_home(), LAUNCHER)

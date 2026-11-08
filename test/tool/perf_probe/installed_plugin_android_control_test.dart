@@ -322,4 +322,68 @@ void main() {
       await finish;
     },
   );
+
+  test(
+    'only acknowledged completion and successful close publish a receipt',
+    () async {
+      await start();
+      await connect();
+      final receipt = File(
+        p.join(
+          support.path,
+          installedAndroidDirectory,
+          campaign,
+          'completion.json',
+        ),
+      );
+      final bytes = utf8.encode('{"status":"passed","frameworkPassed":true}\n');
+      await report.writeAsBytes(bytes, flush: true);
+      await expectLater(
+        control!.writeCompletion(report, frameworkPassed: true),
+        throwsStateError,
+      );
+      final finish = control!.finish(report, frameworkPassed: true);
+      final command = await next();
+      await reply(command);
+      await finish;
+      await expectLater(
+        control!.writeCompletion(report, frameworkPassed: true),
+        throwsStateError,
+      );
+      expect(await receipt.exists(), isFalse);
+      await control!.close();
+      await control!.writeCompletion(report, frameworkPassed: true);
+      final raw = await receipt.readAsString();
+      expect(jsonDecode(raw), {
+        ...control!.identity,
+        'sequence': command['sequence'],
+        'controlClosed': true,
+        'frameworkPassed': true,
+        'reportBytes': bytes.length,
+        'reportSha256': sha256.convert(bytes).toString(),
+      });
+      expect(
+        await File(p.setExtension(receipt.path, '.pending')).exists(),
+        isFalse,
+      );
+      await expectLater(
+        control!.writeCompletion(report, frameworkPassed: true),
+        throwsStateError,
+      );
+      expect(await receipt.readAsString(), raw);
+    },
+  );
+
+  test('closing after a lifecycle command cannot publish completion', () async {
+    await start();
+    await connect();
+    final home = control!.request('home', {});
+    await reply(await next());
+    await home;
+    await control!.close();
+    await expectLater(
+      control!.writeCompletion(report, frameworkPassed: true),
+      throwsStateError,
+    );
+  });
 }

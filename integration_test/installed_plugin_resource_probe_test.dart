@@ -140,6 +140,13 @@ void main() {
     };
     Object? completionFailure;
     StackTrace? completionStack;
+    void failed(String stage, Object error, StackTrace stack) {
+      report['status'] = 'failed';
+      (report['errors'] as List).add('$stage failed: $error');
+      completionFailure ??= error;
+      completionStack ??= stack;
+    }
+
     try {
       await reportFile?.writeAsString(
         const JsonEncoder.withIndent('  ').convert(report),
@@ -149,21 +156,35 @@ void main() {
         await androidControl!.finish(reportFile!, frameworkPassed: passed);
       }
     } catch (error, stack) {
-      report['status'] = 'failed';
-      (report['errors'] as List).add('Final report completion failed: $error');
-      completionFailure = error;
-      completionStack = stack;
+      failed('Final report completion', error, stack);
     }
     try {
       await androidControl?.close();
     } catch (error, stack) {
-      report['status'] = 'failed';
-      (report['errors'] as List).add('Android control cleanup failed: $error');
-      completionFailure ??= error;
-      completionStack ??= stack;
+      failed('Android control cleanup', error, stack);
+    }
+    if (androidControl != null && reportFile != null) {
+      try {
+        report['frameworkPassed'] = passed && completionFailure == null;
+        ((report['platformMatrix'] as Map)[Platform.operatingSystem]
+                as Map)['status'] =
+            report['status'];
+        await reportFile!.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(report),
+          flush: true,
+        );
+        if (completionFailure == null) {
+          await androidControl!.writeCompletion(
+            reportFile!,
+            frameworkPassed: passed,
+          );
+        }
+      } catch (error, stack) {
+        failed('Android final completion receipt', error, stack);
+      }
     }
     if (completionFailure != null) {
-      Error.throwWithStackTrace(completionFailure, completionStack!);
+      Error.throwWithStackTrace(completionFailure!, completionStack!);
     }
   });
 
