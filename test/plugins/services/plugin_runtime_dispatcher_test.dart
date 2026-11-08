@@ -18,6 +18,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
+import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
@@ -1196,6 +1197,8 @@ void main() {
       a.jsEvents.clear();
       // מדמה את מצב הזומבי: ההרצה רצה אך לא ב-world של הדף האמיתי.
       a.callAsyncOutcome = 'no-page-world';
+      PluginRestoreStateStore.instance.set(_fg(pidA), {'schemaVersion': 1});
+      addTearDown(() => PluginRestoreStateStore.instance.remove(_fg(pidA)));
 
       await _d.dispatchEventToPlugin(
         pidA,
