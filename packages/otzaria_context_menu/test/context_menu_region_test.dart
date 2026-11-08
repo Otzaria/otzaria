@@ -60,6 +60,7 @@ Future<GlobalKey<ContextMenuRegionState>> _mount(
   FocusNode? focus,
   TextDirection direction = TextDirection.rtl,
   void Function(BuildContext, Offset)? onMenuOpening,
+  bool Function(Offset)? shouldPreserveSelection,
 }) async {
   final key = GlobalKey<ContextMenuRegionState>();
   await tester.pumpWidget(
@@ -76,6 +77,7 @@ Future<GlobalKey<ContextMenuRegionState>> _mount(
               registerEscape: escapes.register,
               menuBuilder: (_, _) => entries(),
               onMenuOpening: onMenuOpening,
+              shouldPreserveSelectionOnSecondaryTap: shouldPreserveSelection,
               child: const SizedBox.expand(),
             ),
           ),
@@ -343,4 +345,81 @@ void main() {
       );
     });
   }
+  for (final device in [PointerDeviceKind.touch, PointerDeviceKind.stylus]) {
+    testWidgets('selected text: a short $device press does not open the menu', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        escapes: escapes,
+        shouldPreserveSelection: (_) => true,
+        entries: () => [
+          AppContextMenuEntry(label: 'Copy', onTap: () {}),
+        ],
+      );
+      final gesture = await tester.startGesture(
+        const Offset(120, 120),
+        kind: device,
+      );
+      // Past the early gesture-arena deadline, before kLongPressTimeout.
+      await tester.pump(const Duration(milliseconds: 180));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Copy'), findsNothing);
+      expect(escapes.handlers, isEmpty);
+    });
+
+    testWidgets('selected text: a full $device long press opens once', (
+      tester,
+    ) async {
+      var opens = 0;
+      await _mount(
+        tester,
+        escapes: escapes,
+        shouldPreserveSelection: (_) => true,
+        onMenuOpening: (_, _) => opens++,
+        entries: () => [
+          AppContextMenuEntry(label: 'Copy', onTap: () {}),
+        ],
+      );
+      final gesture = await tester.startGesture(
+        const Offset(120, 120),
+        kind: device,
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('Copy'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy'), findsOneWidget);
+      expect(opens, 1);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(opens, 1);
+    });
+  }
+
+  testWidgets('a drag of selected text without a scroll target is not a menu', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      escapes: escapes,
+      shouldPreserveSelection: (_) => true,
+      entries: () => [
+        AppContextMenuEntry(label: 'Copy', onTap: () {}),
+      ],
+    );
+    final gesture = await tester.startGesture(
+      const Offset(120, 120),
+      kind: PointerDeviceKind.touch,
+    );
+    await tester.pump(const Duration(milliseconds: 180));
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump(const Duration(milliseconds: 500));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Copy'), findsNothing);
+    expect(escapes.handlers, isEmpty);
+  });
+
 }
