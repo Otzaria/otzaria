@@ -10,34 +10,98 @@ import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
-String _searchOptionsSignature(Map<String, Map<String, bool>> options) {
-  if (options.isEmpty) return '';
+// עטיפות פרטיות ל-Equatable: השוואה לפי תוכן מפה ללא מיון ובניית
+// מחרוזות חתימה בכל פליטת state. כשהמפה זהה (המסלול הרגיל), O(1).
+class _SearchOptionsProp {
+  const _SearchOptionsProp(this.values);
+  final Map<String, Map<String, bool>> values;
 
-  final keys = options.keys.toList()..sort();
-  return keys
-      .map((key) {
-        final inner = options[key]!;
-        final innerKeys = inner.keys.toList()..sort();
-        final innerSignature = innerKeys
-            .map((innerKey) => '$innerKey=${inner[innerKey]}')
-            .join(',');
-        return '$key:{$innerSignature}';
-      })
-      .join('|');
+  @override
+  bool operator ==(Object other) {
+    if (other is! _SearchOptionsProp) return false;
+    final first = values;
+    final second = other.values;
+    if (identical(first, second)) return true;
+    if (first.length != second.length) return false;
+    for (final entry in first.entries) {
+      final a = entry.value;
+      final b = second[entry.key];
+      if (b == null || a.length != b.length) return false;
+      if (identical(a, b)) continue;
+      for (final option in a.entries) {
+        if (b[option.key] != option.value) return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    values.entries.map(
+      (entry) => Object.hash(
+        entry.key,
+        Object.hashAllUnordered(
+          entry.value.entries.map(
+            (option) => Object.hash(option.key, option.value),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
-String _alternativeWordsSignature(Map<int, List<String>> words) {
-  if (words.isEmpty) return '';
+class _AlternativeWordsProp {
+  const _AlternativeWordsProp(this.values);
+  final Map<int, List<String>> values;
 
-  final keys = words.keys.toList()..sort();
-  return keys.map((key) => '$key:${words[key]!.join(',')}').join('|');
+  @override
+  bool operator ==(Object other) {
+    if (other is! _AlternativeWordsProp) return false;
+    final first = values;
+    final second = other.values;
+    if (identical(first, second)) return true;
+    if (first.length != second.length) return false;
+    for (final entry in first.entries) {
+      final a = entry.value;
+      final b = second[entry.key];
+      if (b == null || a.length != b.length) return false;
+      if (identical(a, b)) continue;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    values.entries.map(
+      (entry) => Object.hash(entry.key, Object.hashAll(entry.value)),
+    ),
+  );
 }
 
-String _spacingValuesSignature(Map<String, String> values) {
-  if (values.isEmpty) return '';
+class _SpacingValuesProp {
+  const _SpacingValuesProp(this.values);
+  final Map<String, String> values;
 
-  final keys = values.keys.toList()..sort();
-  return keys.map((key) => '$key=${values[key]}').join('|');
+  @override
+  bool operator ==(Object other) {
+    if (other is! _SpacingValuesProp) return false;
+    final first = values;
+    final second = other.values;
+    if (identical(first, second)) return true;
+    if (first.length != second.length) return false;
+    for (final entry in first.entries) {
+      if (second[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAllUnordered(
+    values.entries.map((entry) => Object.hash(entry.key, entry.value)),
+  );
 }
 
 /// סט ב-props בהשוואה לפי תוכן ב-O(n): equatable משווה סטים ב-O(n²), וסט
@@ -161,9 +225,9 @@ class TextBookInitial extends TextBookState {
     searchText,
     highlightText,
     permanentHighlightLine,
-    _searchOptionsSignature(searchOptions),
-    _alternativeWordsSignature(alternativeWords),
-    _spacingValuesSignature(spacingValues),
+    _SearchOptionsProp(searchOptions),
+    _AlternativeWordsProp(alternativeWords),
+    _SpacingValuesProp(spacingValues),
     searchMode,
     searchDistance,
     matchPolicy,
@@ -845,9 +909,9 @@ class TextBookLoaded extends TextBookState {
     _SetProp(selectedIndices),
     pinLeftPane,
     searchText,
-    _searchOptionsSignature(searchOptions),
-    _alternativeWordsSignature(alternativeWords),
-    _spacingValuesSignature(spacingValues),
+    _SearchOptionsProp(searchOptions),
+    _AlternativeWordsProp(alternativeWords),
+    _SpacingValuesProp(spacingValues),
     searchMode,
     searchDistance,
     matchPolicy,
