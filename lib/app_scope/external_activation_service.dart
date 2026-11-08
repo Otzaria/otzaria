@@ -27,7 +27,11 @@ class ExternalActivationService {
     AppWindowId Function()? lastActiveWindow,
   }) : _queue = queue ?? const ExternalActivationQueue(),
        _channel = channel ?? ExternalActivationChannel(),
-       _watchDirectory = watchDirectory ?? ((dir) => dir.watch()),
+       _watchDirectory =
+           watchDirectory ??
+           ((dir) => FileSystemEntity.isWatchSupported
+               ? dir.watch()
+               : const Stream<FileSystemEvent>.empty()),
        _lastActiveWindow = lastActiveWindow ?? (() => LastActiveWindow.id);
 
   final ExternalActivationQueue _queue;

@@ -72,6 +72,27 @@ executable, הסתרה והצגה של אותו תהליך, ודחיית זהו�
 הראיות נשמרות ב־`apple-helper-controls`. אלה בקרות של כלי העזר;
 מדידות אוצריא עצמה מופיעות רק בדוחות `apple-plugin-activity`.
 
+בקרות האבחון שומרות גם את תוצאת שינוי מדיניות ההפעלה, מצב החלון,
+`isFinishedLaunching`, `isTerminated` ומצב אתחול AppKit של הבקר. סירוב
+ל־hide שומר את המצבים שלפני הקריאה ואחריה ונשאר כשל. לפי
+[תיעוד Apple](https://developer.apple.com/documentation/appkit/nsrunningapplication/hide()),
+הערך `false` יכול להעיד על תהליך שיצא או סוג אפליקציה שאינו ניתן להסתרה;
+הנתון לבדו אינו מוכיח איזו סיבה התקיימה.
+
+אותו fixture נבדק גם בהסתרה עצמית באמצעות `NSApplication.hide(nil)`,
+ובתהליך נפרד מול עותק אבחוני של הבקר שבו נוסף רק `NSApplication.shared`.
+Apple מתעדת שהקריאה הזו מאתחלת את
+[החיבור לשרת החלונות](https://developer.apple.com/documentation/appkit/nsapplication).
+העותק האבחוני אינו fallback או retry למדידה: לכל בקרה יש דוח משלה,
+וכישלון הבקר הרגיל אינו מתחלף בהצלחת חלופה. `direct-execution.json`,
+`initialized-execution.json` ו־`self-hide.json` שומרים גם כשל ותצפיות חלקיות.
+אין כאן קביעה שאתחול הבקר הוא סיבת הסירוב; לכך נדרשת הריצה הנייטיבית.
+
+שירות ההפעלות החיצוניות בודק `FileSystemEntity.isWatchSupported` לפני
+יצירת watcher ברירת המחדל. כשמעקב קבצים אינו נתמך, כמו בריצת iOS,
+הערוץ הנייטיבי וניקוז התור ממשיכים לפעול. בפלטפורמה שתומכת במעקב נשמרים
+אירועי התיקייה הרגילים, ושגיאת יצירה אינה נבלעת.
+
 `--seconds` קובע מינימום שקט של 6–60 שניות לתרחישים הקצרים; ברירת המחדל
 היא 12. בקר iOS עשוי להאריך את החלון בתוך תקציב המעבר המוצהר. משתמשים
 בגבולות שנמדדו, ולא במספר המבוקש, לחישוב התוצאה. בקרת התפוגה משתמשת
@@ -97,9 +118,11 @@ executable, הסתרה והצגה של אותו תהליך, ודחיית זהו�
 לפני השקט ממתינים לסיום boot ועבודת SDK של הרקע, ולמצב dispatcher יציב
 בלשונית. קוראים פעם אחת את מוני הדף ואת הגטר הציבורי
 `getAppleWebViewActivitySnapshot`. כל שמונת רכיבי הפורק מוצמדים ל־
-`53c2dd3300be979a7129281d11ef731a203af24a` — reference ציבורי יציב הכולל את
+`124bb8e63f345ffd0b0f2ea7190c24b19e69897d` — reference ציבורי יציב הכולל את
 הגטר של [native #55](https://github.com/Otzaria/flutter_inappwebview/pull/55)
-ואת ברירת המחדל המאושרת של #53. אין כאן הפעלה של WithReply או שינוי
+ואת תיקון הבעלות על GlobalKey ב־Android של
+[#56](https://github.com/Otzaria/flutter_inappwebview/pull/56), לצד ברירת
+המחדל המאושרת של #53. אין כאן הפעלה של WithReply או שינוי
 `inactiveSchedulingPolicy` / `pauseTimers`.
 
 בקשת `arm` לתיאום מסתיימת ונסגרת לפני תחילת השקט. במהלך החלון אין מצד

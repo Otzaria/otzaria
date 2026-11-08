@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-NATIVE_PIN = "53c2dd3300be979a7129281d11ef731a203af24a"
+NATIVE_PIN = "124bb8e63f345ffd0b0f2ea7190c24b19e69897d"
 PHASES = {"visible", "offstage", "minimize", "hide", "neverShownBackground",
           "osBackground", "idleExpiryControl"}
 COMMAND_LOG_LIMIT = 64 * 1024
