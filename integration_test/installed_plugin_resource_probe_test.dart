@@ -642,14 +642,15 @@ class _Scenario {
         startUs: startUs,
         endUs: endUs,
         lastFrameNumber: lastFrameNumber,
-        requestFrameAfterWindow: () {
-          // The new frame must rasterize, not merely be scheduled; forcing
-          // repaint starts only after endUs and cannot enter phase metrics.
-          for (final view in RendererBinding.instance.renderViews) {
-            view.markNeedsPaint();
-          }
-          SchedulerBinding.instance.scheduleFrame();
-        },
+        requestFrameAfterWindow: () => submitInstalledPluginFrameFence(
+          SchedulerBinding.instance,
+          repaintViews: () {
+            for (final view in RendererBinding.instance.renderViews) {
+              view.markNeedsPaint();
+            }
+          },
+          frameNumber: () => PlatformDispatcher.instance.frameData.frameNumber,
+        ),
       );
     } catch (error, stack) {
       record['flutterFrames'] = {
