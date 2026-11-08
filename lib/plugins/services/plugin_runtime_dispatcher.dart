@@ -1231,9 +1231,23 @@ class PluginRuntimeDispatcher {
       }
       if (!isCurrent()) return false;
       if (_suspendsMediaExplicitly) {
-        await controller
-            .setAllMediaPlaybackSuspended(suspended: suspended)
-            .timeout(_nativeLifecycleTimeout);
+        final media = controller.setAllMediaPlaybackSuspended(
+          suspended: suspended,
+        );
+        if (!suspended &&
+            suspendMode == PluginSuspendMode.eventOnly &&
+            !_desiredForegroundKeys.contains(key)) {
+          // Hidden WebKit media replies may need one JS activity to complete.
+          // Delivery still waits for both real completions.
+          await Future.wait<void>([
+            media,
+            Future.sync(
+              () => controller.evaluateJavascript(source: 'void 0;'),
+            ).then<void>((_) {}),
+          ], eagerError: true).timeout(_nativeLifecycleTimeout);
+        } else {
+          await media.timeout(_nativeLifecycleTimeout);
+        }
       } else if (suspended && defaultTargetPlatform == TargetPlatform.android) {
         // onPause אינו עוצר מדיה; כמו ב-Windows, עוזבים טאב — המדיה נעצרת.
         await controller
