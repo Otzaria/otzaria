@@ -9,11 +9,8 @@ import 'package:otzaria/plugins/services/plugin_correction_session_service.dart'
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 
-/// הפעלה עצלה של מופע רקע לתוסף עם תרומות עלייה (`contributes.startup`).
-///
-/// המנוע של התוסף קם רק כשבאמת צריך אותו: לחיצה על פקד שנרשם דקלרטיבית,
-/// אירוע שהתוסף הצהיר עליו ב-activationEvents, או טריגר `app.startup` דחוי.
-/// אירועים שהגיעו לפני שהמופע סיים boot נשמרים בתור ונמסרים בסיומו.
+/// מרים מופע רקע לפי לחיצה, אירוע מוצהר או `app.startup` דחוי.
+/// אירועים שהגיעו לפני ה־boot נשמרים ונמסרים אחרי מוכנות המופע.
 class PluginLazyActivationService {
   static final PluginLazyActivationService instance =
       PluginLazyActivationService._();
@@ -172,9 +169,8 @@ class PluginLazyActivationService {
     if (wasTracked) backgroundDeactivator?.call(pluginId);
   }
 
-  /// כיבוי מיידי לבקשת התוסף (`plugin.backgroundDone`) — בלי להמתין לשעון
-  /// חוסר-הפעילות. חל רק על מופע רקע שבמעקב; דף התוסף אינו מושפע.
-  /// מחזיר האם הבקשה התקבלה.
+  /// מתזמן כיבוי מיידי למופע רקע שבמעקב, בלי לפגוע בדף הקדמי.
+  /// מחזיר האם בקשת `plugin.backgroundDone` התקבלה.
   bool requestImmediateTeardown(String pluginId, {Object? runtimeToken}) {
     if (!_ownsRuntime(pluginId, runtimeToken)) return false;
     if (!_idleTracked.contains(pluginId)) return false;
@@ -374,6 +370,7 @@ class PluginLazyActivationService {
         (generation != null && !isActivationCurrent(pluginId, generation)) ||
         (isCurrent != null && !isCurrent());
     if (stale()) return;
+    _startupTimers.remove(pluginId)?.cancel();
     _activating.remove(pluginId);
     if (_idleTracked.contains(pluginId) && !_keepAlive.contains(pluginId)) {
       _restartIdleTimer(pluginId);
