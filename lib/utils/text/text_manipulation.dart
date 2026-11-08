@@ -237,12 +237,14 @@ String decodeHtmlEntities(String text) {
   });
 }
 
+final RegExp _htmlWhitespaceEntities = RegExp(
+  r'&(nbsp|thinsp|ensp|emsp);',
+  caseSensitive: false,
+);
+
 /// ממיר ישויות רווח לצורה שההדגשה מזהה, בלי לשנות תגיות או ישויות תוכן.
 String normalizeHtmlWhitespaceEntities(String text) {
-  return text.replaceAll(
-    RegExp(r'&(nbsp|thinsp|ensp|emsp);', caseSensitive: false),
-    ' ',
-  );
+  return text.replaceAll(_htmlWhitespaceEntities, ' ');
 }
 
 /// רגקס להסרת ניקוד וטעמים.
@@ -435,6 +437,8 @@ String removeMarks(String s, {required bool nikud, required bool teamim}) {
 
 final RegExp _htmlBreak = RegExp(r'<br\s*/?>', caseSensitive: false);
 
+final RegExp _carriageReturn = RegExp(r'\r\n?');
+
 /// מקום ה-`.` או ה-`:` שאחריהם רק רווחים עד סוף [s] — כמו `[.:](\s*)$`,
 /// אבל נבדק מהסוף במקום לסרוק את כל השורה.
 int? _trailingAllowedPunctuation(String s) {
@@ -513,7 +517,7 @@ String removePunctuation(String text) {
   final hadHtmlBreaks = _htmlBreak.hasMatch(text);
   // סריקת RegExp של \r איטית גם כשאין התאמה, ורוב הטקסט בלי \r.
   var normalizedText = text.contains('\r')
-      ? text.replaceAll(RegExp(r'\r\n?'), '\n')
+      ? text.replaceAll(_carriageReturn, '\n')
       : text;
   if (hadHtmlBreaks) {
     normalizedText = normalizedText.replaceAll(_htmlBreak, '\n');
@@ -844,17 +848,20 @@ Set<int> removedQuoteOffsets(String text) {
   return result;
 }
 
+final RegExp _htmlHeadingLine = RegExp(
+  r'^<h[1-6][^>]*>.*?</h[1-6]>$',
+  caseSensitive: false,
+);
+final RegExp _markdownHeadingLine = RegExp(r'^#{1,6}\s');
+
 bool isHeadingLine(String line) {
   final trimmedLine = line.trim();
   if (trimmedLine.isEmpty) return false;
   // שני הדפוסים מתחילים ב-`<` או ב-`#`; כך רוב השורות נדחות בלי RegExp.
   final first = trimmedLine.codeUnitAt(0);
   if (first != 0x3C && first != 0x23) return false;
-  return RegExp(
-        r'^<h[1-6][^>]*>.*?</h[1-6]>$',
-        caseSensitive: false,
-      ).hasMatch(trimmedLine) ||
-      RegExp(r'^#{1,6}\s').hasMatch(trimmedLine);
+  return _htmlHeadingLine.hasMatch(trimmedLine) ||
+      _markdownHeadingLine.hasMatch(trimmedLine);
 }
 
 /// בדיקה אם טקסט מכיל ניקוד או טעמים
@@ -2129,6 +2136,7 @@ String formatTextWithParentheses(String text) {
   return result.toString();
 }
 
+final RegExp _whitespaceRun = RegExp(r'\s+');
 final RegExp _linkAnchorOpeningTag = RegExp(r'^<([a-zA-Z][a-zA-Z0-9:-]*)\b');
 final RegExp _linkAnchorClasses = RegExp(
   r'''(?:^|\s)class\s*=\s*(["'])(.*?)\1''',
@@ -2144,7 +2152,7 @@ int _linkAnchorElementEnd(String text, int start) {
   final classes = _linkAnchorClasses.firstMatch(opening)?.group(2);
   if (tag == null ||
       classes == null ||
-      !classes.split(RegExp(r'\s+')).contains('link-anchor')) {
+      !classes.split(_whitespaceRun).contains('link-anchor')) {
     return -1;
   }
   final close = RegExp(
