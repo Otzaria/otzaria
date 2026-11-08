@@ -1370,6 +1370,13 @@ jobs:
               rm -v "$f"
             fi
           done
+
+          # Release bundles do not need static/unneeded ELF symbols. Keep the SDK
+          # itself untouched; strip only WPE-owned files after they reached the
+          # final bundle. Measured on the pinned 2.48.7 SDK: ~42.6 MiB x64 and
+          # ~46.8 MiB arm64 saved before package compression.
+          bash "$GITHUB_WORKSPACE/tool/release/strip_wpe_runtime.sh" "$LIBDIR"
+
           APPDIR="$(dirname "$LIBDIR")"
           if [ -x "$APPDIR/otzaria" ] && [ ! -e "$APPDIR/otzaria.bin" ]; then
             mv "$APPDIR/otzaria" "$APPDIR/otzaria.bin"
