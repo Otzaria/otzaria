@@ -687,8 +687,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_local_notifications_windows
-      ref: ad21cf2cddfa7c79ea7903ad95b38a8d716b5f85
-      resolved-ref: ad21cf2cddfa7c79ea7903ad95b38a8d716b5f85
+      ref: 3a30cafe42c917ce8428f4a2667f7dcfbbd92c70
+      resolved-ref: 3a30cafe42c917ce8428f4a2667f7dcfbbd92c70
       url: "https://github.com/Otzaria/flutter_local_notifications"
     source: git
     version: "3.1.1"
