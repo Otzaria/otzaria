@@ -18,7 +18,28 @@ if [ ! -f "$archive" ] || [ "$(shasum -a 256 "$archive" | cut -d ' ' -f 1)" != "
   mkdir -p "$cache_dir"
   url="https://github.com/microsoft/onnxruntime/releases/download/v$version/$asset"
   echo "Downloading ONNX Runtime $version: $url"
-  curl -fsSL --retry 3 --connect-timeout 30 -o "$archive.part" "$url"
+  if ! curl -fsSL --retry 3 --connect-timeout 30 -o "$archive.part" "$url"; then
+    # Release browser URLs sometimes fail with HTTP 503 on macOS Actions.
+    # An authenticated GitHub CLI downloads the same named asset through
+    # GitHub's release API. Never trust it without verifying the pinned SHA.
+    rm -f "$archive.part"
+    if [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+      gh_tmp="$(mktemp -d "$cache_dir/.onnx-gh.XXXXXXXX")"
+      if gh release download "v$version" \
+        --repo microsoft/onnxruntime --pattern "$asset" \
+        --dir "$gh_tmp" --clobber && [ -f "$gh_tmp/$asset" ]; then
+        mv -f "$gh_tmp/$asset" "$archive.part"
+        rm -rf "$gh_tmp"
+      else
+        rm -rf "$gh_tmp"
+        echo "error: both the release URL and GitHub CLI asset download failed for $asset" >&2
+        exit 1
+      fi
+    else
+      echo "error: failed to download $asset; install gh and set GH_TOKEN to enable API fallback" >&2
+      exit 1
+    fi
+  fi
   actual="$(shasum -a 256 "$archive.part" | cut -d ' ' -f 1)"
   if [ "$actual" != "$sha256" ]; then
     rm -f "$archive.part"
