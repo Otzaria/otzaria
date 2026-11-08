@@ -273,6 +273,68 @@ void main() {
     });
   });
 
+  test(
+    'a drain waits for the new fence instead of the phase-end frame',
+    () async {
+      final recorder = InstalledPluginFrameTimings(binding);
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(30, 120000)]);
+        var requests = 0;
+        final pending = recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 40,
+          requestFrameAfterWindow: () {
+            requests++;
+            return Future.value(41);
+          },
+        );
+        var completed = false;
+        unawaited(pending.then((_) => completed = true));
+        expect(requests, 1);
+        binding.platformDispatcher.onReportTimings!([_frame(40, 180000)]);
+        await Future<void>.delayed(Duration.zero);
+        expect(completed, isFalse);
+        binding.platformDispatcher.onReportTimings!([_frame(41, 250000)]);
+        final result = await pending;
+        expect(result['count'], 2);
+        expect(result['lastFrameNumber'], 40);
+        expect(result['fenceFrameNumber'], 41);
+        expect(result['deliveredThroughFrameNumber'], 41);
+      } finally {
+        recorder.dispose();
+      }
+    },
+  );
+
+  test('a post-window frame request cannot hide a missing timing', () async {
+    final recorder = InstalledPluginFrameTimings(binding);
+    try {
+      var requests = 0;
+      await expectLater(
+        recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 90,
+          timeout: Duration.zero,
+          requestFrameAfterWindow: () {
+            requests++;
+            return Future.value(91);
+          },
+        ),
+        throwsA(
+          isA<TimeoutException>().having(
+            (error) => error.message,
+            'unreported phase frame',
+            contains('target=91'),
+          ),
+        ),
+      );
+      expect(requests, 1);
+    } finally {
+      recorder.dispose();
+    }
+  });
   test('missing frame timing retains the observed drain evidence', () async {
     final recorder = InstalledPluginFrameTimings(binding);
     try {
@@ -338,4 +400,107 @@ void main() {
       }
     },
   );
+  test(
+    'the drain remains exclusive while the fence is being submitted',
+    () async {
+      final recorder = InstalledPluginFrameTimings(binding);
+      final fence = Completer<int>();
+      try {
+        binding.platformDispatcher.onReportTimings!([_frame(30, 120000)]);
+        final pending = recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 30,
+          requestFrameAfterWindow: () => fence.future,
+        );
+        await expectLater(
+          recorder.finish(startUs: 100000, endUs: 200000, lastFrameNumber: 30),
+          throwsStateError,
+        );
+        fence.complete(31);
+        binding.platformDispatcher.onReportTimings!([_frame(31, 250000)]);
+        expect((await pending)['fenceFrameNumber'], 31);
+      } finally {
+        recorder.dispose();
+      }
+    },
+  );
+
+  test('a blocked fence submission fails within the stall deadline', () {
+    fakeAsync((clock) {
+      final recorder = InstalledPluginFrameTimings(binding);
+      final fence = Completer<int>();
+      Object? failure;
+      try {
+        unawaited(
+          recorder
+              .finish(
+                startUs: 100000,
+                endUs: 200000,
+                lastFrameNumber: 30,
+                requestFrameAfterWindow: () => fence.future,
+              )
+              .then<void>(
+                (_) => fail('No fence was submitted'),
+                onError: (Object error) => failure = error,
+              ),
+        );
+        clock.elapse(const Duration(milliseconds: 4999));
+        expect(failure, isNull);
+        clock.elapse(const Duration(milliseconds: 1));
+        expect(failure, isA<TimeoutException>());
+      } finally {
+        recorder.dispose();
+      }
+    });
+  });
+
+  for (final frameNumber in [-1, 30]) {
+    test(
+      'a non-fresh fence ID $frameNumber is fatal and releases the drain',
+      () async {
+        final recorder = InstalledPluginFrameTimings(binding);
+        try {
+          binding.platformDispatcher.onReportTimings!([_frame(30, 120000)]);
+          await expectLater(
+            recorder.finish(
+              startUs: 100000,
+              endUs: 200000,
+              lastFrameNumber: 30,
+              requestFrameAfterWindow: () async => frameNumber,
+            ),
+            throwsStateError,
+          );
+          expect(
+            (await recorder.finish(
+              startUs: 100000,
+              endUs: 200000,
+              lastFrameNumber: 30,
+            ))['count'],
+            1,
+          );
+        } finally {
+          recorder.dispose();
+        }
+      },
+    );
+  }
+
+  test('a fence paint failure remains fatal', () async {
+    final recorder = InstalledPluginFrameTimings(binding);
+    final error = StateError('Paint failed');
+    try {
+      await expectLater(
+        recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 30,
+          requestFrameAfterWindow: () async => throw error,
+        ),
+        throwsA(same(error)),
+      );
+    } finally {
+      recorder.dispose();
+    }
+  });
 }

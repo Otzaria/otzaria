@@ -68,6 +68,7 @@ class InstalledPluginFrameTimings {
     required int endUs,
     required int lastFrameNumber,
     Duration timeout = const Duration(seconds: 5),
+    Future<int> Function()? requestFrameAfterWindow,
   }) async {
     if (lastFrameNumber < 0) {
       throw StateError('The engine frame number is unavailable.');
@@ -75,14 +76,22 @@ class InstalledPluginFrameTimings {
     if (_delivered != null) {
       throw StateError('A frame timing drain is already in progress.');
     }
-    while (_lastDelivered < lastFrameNumber) {
-      _delivered = Completer<void>();
-      try {
+    _delivered = Completer<void>();
+    try {
+      final fenceFrameNumber = requestFrameAfterWindow == null
+          ? null
+          : await requestFrameAfterWindow().timeout(timeout);
+      if (fenceFrameNumber != null && fenceFrameNumber <= lastFrameNumber) {
+        throw StateError('The raster fence must submit a newer engine frame.');
+      }
+      final target = fenceFrameNumber ?? lastFrameNumber;
+      while (_lastDelivered < target) {
+        _delivered = Completer<void>();
         await _delivered!.future.timeout(
           timeout,
           onTimeout: () {
             throw TimeoutException(
-              'Frame timing drain incomplete: target=$lastFrameNumber, '
+              'Frame timing drain incomplete: target=$target, '
               'lastDelivered=$_lastDelivered, received=${_frames.length + droppedFrames}, '
               'inWindow=${framesInWindow(_frames, startUs, endUs).length}, '
               'dropped=$droppedFrames, window=[$startUs, $endUs)',
@@ -90,18 +99,37 @@ class InstalledPluginFrameTimings {
             );
           },
         );
-      } finally {
-        _delivered = null;
       }
+      return {
+        ...frameMeasurements(framesInWindow(_frames, startUs, endUs)),
+        'lastFrameNumber': lastFrameNumber,
+        'fenceFrameNumber': ?fenceFrameNumber,
+        'deliveredThroughFrameNumber': _lastDelivered,
+        'truncated': droppedFrames > 0,
+        'attribution': 'build-start-wall-time',
+      };
+    } finally {
+      _delivered = null;
     }
-    return {
-      ...frameMeasurements(framesInWindow(_frames, startUs, endUs)),
-      'lastFrameNumber': lastFrameNumber,
-      'deliveredThroughFrameNumber': _lastDelivered,
-      'truncated': droppedFrames > 0,
-      'attribution': 'build-start-wall-time',
-    };
   }
 
   void dispose() => binding.removeTimingsCallback(_onTimings);
+}
+
+/// מגיש scene בפריים חדש אחרי שהפריים הנוכחי הסתיים, ומחזיר את מזההו.
+Future<int> submitInstalledPluginFrameFence(
+  SchedulerBinding binding, {
+  required void Function() repaintViews,
+  required int Function() frameNumber,
+}) async {
+  if (binding.schedulerPhase == SchedulerPhase.postFrameCallbacks) {
+    // Let any current-frame endOfFrame completer finish and clear first.
+    await Future<void>.value();
+  } else if (binding.schedulerPhase != SchedulerPhase.idle) {
+    await binding.endOfFrame;
+  }
+  repaintViews();
+  binding.scheduleFrame();
+  await binding.endOfFrame;
+  return frameNumber();
 }

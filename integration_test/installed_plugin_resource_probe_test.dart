@@ -6,6 +6,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -641,6 +642,15 @@ class _Scenario {
         startUs: startUs,
         endUs: endUs,
         lastFrameNumber: lastFrameNumber,
+        requestFrameAfterWindow: () => submitInstalledPluginFrameFence(
+          SchedulerBinding.instance,
+          repaintViews: () {
+            for (final view in RendererBinding.instance.renderViews) {
+              view.markNeedsPaint();
+            }
+          },
+          frameNumber: () => PlatformDispatcher.instance.frameData.frameNumber,
+        ),
       );
     } catch (error, stack) {
       record['flutterFrames'] = {
