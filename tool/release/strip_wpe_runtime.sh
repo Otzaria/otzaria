@@ -45,6 +45,8 @@ for candidate in "${candidates[@]}"; do
 
   before="$(stat -Lc '%s' "$real")"
   dynamic_before="$(readelf -d "$real" 2>/dev/null | grep -E '\((NEEDED|SONAME)\)' | sed 's/^[[:space:]]*//' || true)"
+  ldd_before="$(ldd "$real" 2>&1 || true)"
+  missing_before="$(grep 'not found' <<<"$ldd_before" | sed 's/^[[:space:]]*//' | sort -u || true)"
 
   strip --strip-unneeded -- "$real"
 
@@ -55,10 +57,16 @@ for candidate in "${candidates[@]}"; do
     exit 4
   fi
 
-  ldd_output="$(ldd "$real" 2>&1 || true)"
-  if grep -q 'not found' <<<"$ldd_output"; then
-    echo "unresolved dependency after stripping: $real" >&2
-    echo "$ldd_output" >&2
+  ldd_after="$(ldd "$real" 2>&1 || true)"
+  missing_after="$(grep 'not found' <<<"$ldd_after" | sed 's/^[[:space:]]*//' | sort -u || true)"
+  if [ "$missing_before" != "$missing_after" ]; then
+    echo "dependency resolution changed while stripping: $real" >&2
+    diff -u <(printf '%s\n' "$missing_before") <(printf '%s\n' "$missing_after") || true
+    exit 5
+  fi
+  if [ -n "$missing_after" ] && [ "${WPE_STRIP_ALLOW_PREEXISTING_MISSING:-0}" != "1" ]; then
+    echo "unresolved dependency in packaged WPE runtime: $real" >&2
+    echo "$ldd_after" >&2
     exit 5
   fi
 
