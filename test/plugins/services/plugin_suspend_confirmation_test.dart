@@ -678,8 +678,9 @@ void main() {
               async.flushMicrotasks();
               store.set(key, {'schemaVersion': 3, 'draft': 'before command'});
               controller.deliveryValue = reply == 'false' ? false : null;
-              if (reply == 'error')
+              if (reply == 'error') {
                 controller.deliveryError = StateError('lost ack');
+              }
               var finished = false;
               unawaited(recoveryCommand().then((_) => finished = true));
               async.flushMicrotasks();
