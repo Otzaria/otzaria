@@ -44,27 +44,76 @@ Widget _host({
 
 void main() {
   testWidgets(
-    'hover tracking follows focus policy and is removed on disposal',
-    (
-      tester,
-    ) async {
+    'global pointer tracking is active only while focusable menus are open',
+    (tester) async {
       final controller = MenuController();
       final router = GestureBinding.instance.pointerRouter;
       final routes = router.debugGlobalRouteCount;
       await tester.pumpWidget(
         _host(controller: controller, preserveFocus: false),
       );
+      expect(router.debugGlobalRouteCount, routes);
+
+      controller.open();
+      await tester.pumpAndSettle();
+      expect(router.debugGlobalRouteCount, routes + 1);
+      controller.close();
+      await tester.pumpAndSettle();
+      expect(router.debugGlobalRouteCount, routes);
+
+      controller.open();
+      await tester.pumpAndSettle();
       expect(router.debugGlobalRouteCount, routes + 1);
       await tester.pumpWidget(_host(controller: controller));
       expect(router.debugGlobalRouteCount, routes);
-      await tester.pumpWidget(
-        _host(controller: controller, preserveFocus: false),
-      );
-      expect(router.debugGlobalRouteCount, routes + 1);
+
       await tester.pumpWidget(const SizedBox.shrink());
       expect(router.debugGlobalRouteCount, routes);
     },
   );
+
+  testWidgets('many closed focusable submenus add no global pointer routes', (
+    tester,
+  ) async {
+    final router = GestureBinding.instance.pointerRouter;
+    final baseline = router.debugGlobalRouteCount;
+    final controllers = [for (var i = 0; i < 40; i++) MenuController()];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (var i = 0; i < controllers.length; i++)
+                  AppSubmenuButton(
+                    controller: controllers[i],
+                    presentation: _presentation(),
+                    maxWidth: 200,
+                    preserveFocus: false,
+                    menuChildren: [
+                      MenuItemButton(
+                        onPressed: () {},
+                        child: const Text('Action'),
+                      ),
+                    ],
+                    child: Text('Menu $i'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(router.debugGlobalRouteCount, baseline);
+    controllers.first.open();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, baseline + 1);
+    controllers.first.close();
+    await tester.pumpAndSettle();
+    expect(router.debugGlobalRouteCount, baseline);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(router.debugGlobalRouteCount, baseline);
+  });
 
   testWidgets('shared submenu delays hover without stealing the source focus', (
     tester,
