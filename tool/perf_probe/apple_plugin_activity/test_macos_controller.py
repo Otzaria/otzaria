@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import Mock, patch
 
 SPEC = importlib.util.spec_from_file_location("apple_native_controller_runner", Path(__file__).with_name("run.py"))
 runner = importlib.util.module_from_spec(SPEC)
@@ -20,15 +21,22 @@ SPEC.loader.exec_module(runner)
 @contextmanager
 def native_result(directory, label, **details):
     report = {"status": "running", "scope": "Owned AppKit helper control, not an Otzaria quiet measurement", **details}
+    failure = None
     try:
         yield report
     except BaseException as error:
+        failure = error
         report.update(status="failed", error=str(error), errorType=type(error).__name__)
         raise
     else:
         report["status"] = "passed"
     finally:
-        runner.save(directory / f"{label}.json", report)
+        try:
+            runner.save(directory / f"{label}.json", report)
+        except Exception as error:
+            if failure is None:
+                raise
+            runner.warn_cleanup(f"Could not preserve {label} native control evidence: {error}")
 
 
 def verify_open_target(snapshot, *, pid, executable, bundle, launch_id, initial_launches):
@@ -71,6 +79,25 @@ class NativeEvidenceTests(unittest.TestCase):
                 report["isHidden"] = True
             self.assertEqual(json.loads((directory / "production.json").read_text())["status"], "failed")
             self.assertEqual(json.loads((directory / "diagnostic.json").read_text())["status"], "passed")
+
+    def test_native_failure_survives_evidence_write_and_diagnostic_stream_failures(self):
+        failure = ValueError('native hide refused')
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(runner, 'save', side_effect=OSError('diagnostic evidence write failed')), \
+             patch.object(runner.sys, 'stderr', Mock(write=Mock(side_effect=BrokenPipeError('stderr closed')))):
+            with self.assertRaises(ValueError) as captured:
+                with native_result(Path(temporary), 'failed-control'):
+                    raise failure
+            self.assertIs(captured.exception, failure)
+
+    def test_evidence_write_failure_alone_cannot_pass_a_native_control(self):
+        failure = OSError('diagnostic evidence write failed')
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(runner, 'save', side_effect=failure):
+            with self.assertRaises(OSError) as captured:
+                with native_result(Path(temporary), 'completed-control') as report:
+                    report['isHidden'] = True
+            self.assertIs(captured.exception, failure)
 
     def open_snapshot(self):
         identity = {"pid": 17, "executable": "/private/Owned.app/Contents/MacOS/Owned",
