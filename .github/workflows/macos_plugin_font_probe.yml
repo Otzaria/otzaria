@@ -1,0 +1,110 @@
+name: macOS plugin font experiment
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, dev, 'y-ploni/webview-*']
+    paths:
+      - '.github/workflows/macos_plugin_font_probe.yml'
+      - 'lib/plugins/services/plugin_font*.dart'
+      - 'lib/plugins/services/plugin_asset_scheme.dart'
+      - 'lib/plugins/services/plugin_content_blockers.dart'
+      - 'lib/plugins/services/plugin_content_security_policy.dart'
+      - 'lib/plugins/services/plugin_network_policy.dart'
+      - 'lib/plugins/view/plugin_tab_page.dart'
+      - 'lib/plugins/view/plugin_webview_host.dart'
+      - 'lib/plugins/view/plugin_sdk_scripts.dart'
+      - 'lib/theme/app_fonts.dart'
+      - 'lib/plugins/bridge/plugin_bridge_adapter.dart'
+      - 'fonts/**'
+      - 'integration_test/macos_plugin_font_probe_test.dart'
+      - 'integration_test/support/macos_font_probe.dart'
+      - 'integration_test/support/apple_font_probe_view.dart'
+      - 'test/tool/perf_probe/macos_font_probe_*_test.dart'
+      - 'test_driver/macos_plugin_fonts.dart'
+      - 'tool/perf_probe/*macos_plugin_fonts*'
+      - 'test/plugins/services/plugin_font*.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-plugin-fonts-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Bootstrap negative controls and report validator
+        run: |
+          node --test tool/perf_probe/test_macos_plugin_fonts.mjs
+          python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py
+
+  wkwebview:
+    name: WKWebView fresh processes (${{ matrix.instances }} views)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - instances: 1
+            order: 'data scheme'
+          - instances: 5
+            order: 'scheme data'
+          - instances: 10
+            order: 'data scheme'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Build and run paired visible macOS applications
+        env:
+          PLUGIN_FONT_PROBE_REPORTS: ${{ runner.temp }}/plugin-font-reports
+          FONT_PROBE_ORDER: ${{ matrix.order }}
+          FONT_PROBE_INSTANCES: ${{ matrix.instances }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$PLUGIN_FONT_PROBE_REPORTS"
+          failed=0
+          for mode in $FONT_PROBE_ORDER; do
+            if ! flutter drive --profile -d macos \
+                --driver=test_driver/macos_plugin_fonts.dart \
+                --target=integration_test/macos_plugin_font_probe_test.dart \
+                --dart-define=OTZARIA_EXPERIMENTAL_MACOS_PLUGIN_FONTS=true \
+                --dart-define=OTZARIA_FONT_PROBE_TRANSPORT="$mode" \
+                --dart-define=OTZARIA_FONT_PROBE_INSTANCES="$FONT_PROBE_INSTANCES" \
+                2>&1 | tee "$PLUGIN_FONT_PROBE_REPORTS/$mode.log"; then
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Validate paired font and CSP evidence
+        if: always()
+        env:
+          PLUGIN_FONT_PROBE_REPORTS: ${{ runner.temp }}/plugin-font-reports
+        run: |
+          python3 tool/perf_probe/compare_macos_plugin_fonts.py \
+            "$PLUGIN_FONT_PROBE_REPORTS" --output "$PLUGIN_FONT_PROBE_REPORTS/comparison.json"
+      - name: Retain reports, screenshots and build logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: macos-plugin-fonts-${{ matrix.instances }}-views
+          path: ${{ runner.temp }}/plugin-font-reports
+          if-no-files-found: error
+          retention-days: 14

@@ -1231,9 +1231,23 @@ class PluginRuntimeDispatcher {
       }
       if (!isCurrent()) return false;
       if (_suspendsMediaExplicitly) {
-        await controller
-            .setAllMediaPlaybackSuspended(suspended: suspended)
-            .timeout(_nativeLifecycleTimeout);
+        final media = controller.setAllMediaPlaybackSuspended(
+          suspended: suspended,
+        );
+        if (!suspended &&
+            suspendMode == PluginSuspendMode.eventOnly &&
+            !_desiredForegroundKeys.contains(key)) {
+          // Hidden WebKit media replies may need one JS activity to complete.
+          // Delivery still waits for both real completions.
+          await Future.wait<void>([
+            media,
+            Future.sync(
+              () => controller.evaluateJavascript(source: 'void 0;'),
+            ).then<void>((_) {}),
+          ], eagerError: true).timeout(_nativeLifecycleTimeout);
+        } else {
+          await media.timeout(_nativeLifecycleTimeout);
+        }
       } else if (suspended && defaultTargetPlatform == TargetPlatform.android) {
         // onPause אינו עוצר מדיה; כמו ב-Windows, עוזבים טאב — המדיה נעצרת.
         await controller
@@ -2174,14 +2188,8 @@ class PluginRuntimeDispatcher {
               .timeout(const Duration(seconds: 3));
           return;
         }
-        // בדיקה ומסירה בקריאה אסינכרונית אחת (תקציב זמן אחד): השעיה נייטיבית
-        // עלולה להשאיר את הדף קפוא, מרוקן, או — המקרה הערמומי — context חדש
-        // שבו eval רץ ומחזיר ערכים אבל מאזיני הדף האמיתי לא רואים את האירוע
-        // (נצפה בפועל דרך CDP). לכן: (א) מוודאים שההרצה רואה את ה-world שבו
-        // התוסף באמת נטען (window.Otzaria._booted מוצב רק ב-_boot); (ב)
-        // משגרים את האירוע; (ג) מחזירים round-trip דרך ערוץ הגשר JS→Dart —
-        // ערוץ מת משאיר את ה-Promise תלוי וה-timeout מטפל. כל כשל → reload,
-        // והאירוע יימסר במסירה החוזרת אחרי ה-boot (onForegroundInstanceReady).
+        // האימות והמסירה משתמשים באותו עולם JS. אובדן ack אחרי dispatch
+        // אינו מוכיח שהפקודה לא טופלה או שאין במסמך מידע חי.
         Object? outcome;
         try {
           final result = await controller
@@ -2194,8 +2202,8 @@ class PluginRuntimeDispatcher {
                     "{ return 'no-page-world'; } "
                     "window.dispatchEvent(new CustomEvent('$topic', "
                     "{ detail: $jsonPayload })); "
-                    "return await window.flutter_inappwebview"
-                    ".callHandler('otzaria_bridge_ping');",
+                    "return (await window.flutter_inappwebview"
+                    ".callHandler('otzaria_bridge_ping')) === true;",
               )
               .timeout(const Duration(seconds: 3));
           outcome = result?.value;
@@ -2204,6 +2212,17 @@ class PluginRuntimeDispatcher {
         }
         if (!_ownsLifecycle(key, instance, controller, generation)) return;
         if (outcome != true) {
+          final restoreStates = PluginRestoreStateStore.instance;
+          if ((outcome != 'no-bridge' && outcome != 'no-page-world') ||
+              !restoreStates.canDiscard(key) ||
+              PluginUnsavedChangesRegistry.instance.hasUnsavedChanges(key)) {
+            debugPrint(
+              'PluginRuntimeDispatcher: $topic delivery to $pluginId not '
+              'confirmed ($outcome) — preserving the live document',
+            );
+            return;
+          }
+          instance.restoreRetentionToken = restoreStates.retain(key);
           debugPrint(
             'PluginRuntimeDispatcher: $topic delivery to $pluginId not '
             'confirmed ($outcome) — reloading',

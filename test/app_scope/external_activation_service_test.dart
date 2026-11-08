@@ -152,6 +152,117 @@ void main() {
     expect(delivered, [_a]);
   });
 
+  test(
+    'unsupported file watching preserves channel and queued delivery',
+    () async {
+      const channel = MethodChannel(
+        'test/external_activation_unsupported_watch',
+      );
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      var pendingReads = 0;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method ==
+            ExternalActivationChannel.getPendingUriStringsMethod) {
+          return pendingReads++ == 0 ? [_a] : <String>[];
+        }
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await queue.enqueueUriString(_b);
+      var watchCalls = 0;
+
+      await IOOverrides.runZoned(
+        () async {
+          final svc = service(
+            channel: ExternalActivationChannel(channel: channel),
+          )..attachWindow(handler);
+          addTearDown(svc.dispose);
+          await svc.start();
+          await svc.start();
+          expect(delivered, [_a, _b]);
+
+          await messenger.handlePlatformMessage(
+            channel.name,
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall(
+                ExternalActivationChannel.externalActivationMethod,
+                [_c],
+              ),
+            ),
+            (_) {},
+          );
+          await pumpEventQueue();
+          expect(delivered, [_a, _b, _c]);
+          await queue.enqueueUriString(_newWindow);
+          await svc.processPending();
+          expect(delivered, [_a, _b, _c, _newWindow]);
+          expect(watchCalls, 0);
+        },
+        fsWatchIsSupported: () => false,
+        fsWatch: (path, events, recursive) {
+          watchCalls++;
+          throw const FileSystemException(
+            'File system watching is not supported on this platform',
+          );
+        },
+      );
+    },
+  );
+
+  test(
+    'supported default watcher still drains matching directory events',
+    () async {
+      final events = StreamController<FileSystemEvent>();
+      addTearDown(events.close);
+      final watched = <String>[];
+      await IOOverrides.runZoned(
+        () async {
+          final svc = service()..attachWindow(handler);
+          addTearDown(svc.dispose);
+          await svc.start();
+          expect(watched, [tempDir.path]);
+          await queue.enqueueUriString(_a);
+          events.add(
+            FileSystemModifyEvent(p.join(tempDir.path, 'other'), false, true),
+          );
+          await pumpEventQueue();
+          expect(delivered, isEmpty);
+          events.add(
+            FileSystemModifyEvent(
+              p.join(tempDir.path, 'pending.jsonl'),
+              false,
+              true,
+            ),
+          );
+          await pumpEventQueue();
+          await svc.processPending();
+          expect(delivered, [_a]);
+        },
+        fsWatchIsSupported: () => true,
+        fsWatch: (path, mask, recursive) {
+          watched.add(path);
+          expect(mask, FileSystemEvent.all);
+          expect(recursive, isFalse);
+          return events.stream;
+        },
+      );
+    },
+  );
+
+  test('a supported watcher setup failure is still reported', () async {
+    const failure = FileSystemException('Controlled watch setup failure');
+    await IOOverrides.runZoned(
+      () async {
+        final svc = service()..attachWindow(handler);
+        addTearDown(svc.dispose);
+        await expectLater(svc.start(), throwsA(same(failure)));
+      },
+      fsWatchIsSupported: () => true,
+      fsWatch: (path, events, recursive) => throw failure,
+    );
+  });
+
   group('Dart windows in one isolate', () {
     const viewA = AppWindowId('window-view-2');
     const viewB = AppWindowId('window-view-3');

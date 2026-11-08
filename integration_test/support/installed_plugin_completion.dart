@@ -77,7 +77,18 @@ class InstalledPluginFrameTimings {
       _target = lastFrameNumber;
       _delivered = Completer<void>();
       try {
-        await _delivered!.future.timeout(timeout);
+        await _delivered!.future.timeout(
+          timeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'Frame timing drain incomplete: target=$lastFrameNumber, '
+              'lastDelivered=$_lastDelivered, received=${_frames.length + droppedFrames}, '
+              'inWindow=${framesInWindow(_frames, startUs, endUs).length}, '
+              'dropped=$droppedFrames, window=[$startUs, $endUs)',
+              timeout,
+            );
+          },
+        );
       } finally {
         _delivered = null;
         _target = null;

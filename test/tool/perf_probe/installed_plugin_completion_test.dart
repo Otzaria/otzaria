@@ -176,6 +176,39 @@ void main() {
     },
   );
 
+  test('missing frame timing retains the observed drain evidence', () async {
+    final recorder = InstalledPluginFrameTimings(binding);
+    try {
+      binding.platformDispatcher.onReportTimings!([_frame(20, 99999)]);
+      await expectLater(
+        recorder.finish(
+          startUs: 100000,
+          endUs: 200000,
+          lastFrameNumber: 30,
+          timeout: Duration.zero,
+        ),
+        throwsA(
+          isA<TimeoutException>()
+              .having((error) => error.duration, 'deadline', Duration.zero)
+              .having(
+                (error) => error.message,
+                'drain evidence',
+                allOf(
+                  contains('target=30'),
+                  contains('lastDelivered=20'),
+                  contains('received=1'),
+                  contains('inWindow=0'),
+                  contains('dropped=0'),
+                  contains('window=[100000, 200000)'),
+                ),
+              ),
+        ),
+      );
+    } finally {
+      recorder.dispose();
+    }
+  });
+
   test(
     'missing final timing fails and releases the drain for later phases',
     () async {

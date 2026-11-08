@@ -187,6 +187,128 @@ void main() {
     },
     skip: !Platform.isWindows,
   );
+
+  testWidgets(
+    'WebView2 keeps a visible peer alive across suspend and disposal',
+    (tester) async {
+      final dataDir = await Directory.systemTemp.createTemp('wv2_pair_check');
+      final first = _IsolationProbe('first', 101);
+      final peer = _IsolationProbe('peer', 102);
+      AppPaths.debugOverrideDataRootPath(dataDir.path);
+      addTearDown(() async {
+        try {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+        } finally {
+          try {
+            await WebViewEnvironmentHolder.disposeForAppRestart().timeout(
+              _nativeDeadline,
+            );
+          } finally {
+            AppPaths.debugOverrideDataRootPath(null);
+            try {
+              await dataDir.delete(recursive: true);
+            } catch (_) {}
+          }
+        }
+      });
+
+      await WebViewEnvironmentHolder.initialize().timeout(_nativeDeadline);
+      final environment = WebViewEnvironmentHolder.environment!;
+      final firstWidget = first.widget(environment);
+      final peerWidget = peer.widget(environment);
+      Future<void> mount({bool includeFirst = true}) => tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                Expanded(
+                  key: const ValueKey('isolation-pane-first'),
+                  child: includeFirst ? firstWidget : const SizedBox.shrink(),
+                ),
+                Expanded(
+                  key: const ValueKey('isolation-pane-peer'),
+                  child: peerWidget,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await mount();
+      final firstView = await first.ready(tester);
+      final peerView = await peer.ready(tester);
+      expect(
+        firstView.controller.getViewId(),
+        isNot(peerView.controller.getViewId()),
+      );
+      final firstBounds = tester.getRect(find.byKey(first.key));
+      final peerBounds = tester.getRect(find.byKey(peer.key));
+      expect(firstBounds.isEmpty, isFalse);
+      expect(peerBounds.isEmpty, isFalse);
+      expect(firstBounds.overlaps(peerBounds), isFalse);
+      final browsers = (await _processes(
+        environment,
+      )).values.where((process) => process.kind == 'BROWSER').toList();
+      expect(
+        browsers,
+        hasLength(1),
+        reason: 'שני המופעים חייבים לחלוק browser',
+      );
+
+      await first.initialize(firstView);
+      await peer.initialize(peerView);
+      for (final view in [firstView, peerView]) {
+        await view.controller.resume().timeout(_nativeDeadline);
+        expect(
+          await view.controller
+              .evaluateJavascript(
+                source:
+                    '!document.hidden && document.visibilityState === "visible"',
+              )
+              .timeout(_nativeDeadline),
+          isTrue,
+        );
+      }
+      await _expectIsolationProgress(first, firstView);
+      await _expectIsolationProgress(peer, peerView);
+
+      expect(await _pauseOutcome(firstView.controller), isNull);
+      await _expectIsolationProgress(peer, peerView);
+      await firstView.controller.resume().timeout(_nativeDeadline);
+      await _expectIsolationProgress(first, firstView);
+
+      await mount(includeFirst: false);
+      await tester.pump();
+      expect(tester.getRect(find.byKey(peer.key)), peerBounds);
+      await _waitForProbeClosed(tester, firstView.nativeChannel);
+      await _expectIsolationProgress(peer, peerView);
+
+      // pause/resume מפעילים את ה-browser gate גם אחרי סגירת הבעלים האחר.
+      expect(await _pauseOutcome(peerView.controller), isNull);
+      await peerView.controller.resume().timeout(_nativeDeadline);
+      await _expectIsolationProgress(peer, peerView);
+      await _closeProbe(tester, peerView.nativeChannel);
+      await WebViewEnvironmentHolder.disposeForAppRestart().timeout(
+        _nativeDeadline,
+      );
+      expect(WebViewEnvironmentHolder.environment, isNull);
+      final summary = jsonEncode({
+        'sharedBrowserProcessId': browsers.single.pid,
+        'hostsCreated': first.creations + peer.creations,
+        'nativeHostsClosed': 2,
+        'initiallyVisibleViews': 2,
+        'firstLoads': first.loads,
+        'peerLoads': peer.loads,
+        'peerProgressAfterFirstSuspend': true,
+        'peerProgressAfterFirstClose': true,
+        'peerPauseResumeAfterFirstClose': true,
+      });
+      debugPrint('[WebView2 isolation] $summary');
+    },
+    skip: !Platform.isWindows,
+  );
 }
 
 Future<String?> _pauseOutcome(InAppWebViewController controller) async {
@@ -350,6 +472,13 @@ Future<_RenderedProbe> _renderProbe(
 Future<void> _closeProbe(WidgetTester tester, MethodChannel channel) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
+  await _waitForProbeClosed(tester, channel);
+}
+
+Future<void> _waitForProbeClosed(
+  WidgetTester tester,
+  MethodChannel channel,
+) async {
   final deadline = Stopwatch()..start();
   while (deadline.elapsed < _nativeDeadline) {
     try {
@@ -364,6 +493,139 @@ Future<void> _closeProbe(WidgetTester tester, MethodChannel channel) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   fail('ערוץ המופע הנייטיבי נשאר רשום אחרי הסרת ה-widget');
+}
+
+class _IsolationProbe {
+  _IsolationProbe(this.name, this.revision)
+    : key = ValueKey('isolation-view-$name'),
+      documentId = '$name-${DateTime.now().microsecondsSinceEpoch}';
+
+  final String name;
+  final int revision;
+  final Key key;
+  final String documentId;
+  final created = Completer<InAppWebViewController>();
+  final loaded = Completer<void>();
+  final events = <String>[];
+  InAppWebViewController? currentController;
+  int creations = 0;
+  int loads = 0;
+  String get draft => 'draft-$name: טיוטה עצמאית';
+
+  Widget widget(WebViewEnvironment environment) => InAppWebView(
+    key: key,
+    webViewEnvironment: environment,
+    initialData: InAppWebViewInitialData(data: _probeHtml),
+    onWebViewCreated: (controller) {
+      creations++;
+      currentController = controller;
+      if (!created.isCompleted) created.complete(controller);
+    },
+    onLoadStop: (controller, url) {
+      loads++;
+      if (!loaded.isCompleted) loaded.complete();
+    },
+    onReceivedError: (controller, request, error) => events.add(
+      '${request.url}: ${error.type}: ${error.description}',
+    ),
+    onProcessFailed: (controller, detail) => events.add(
+      '${detail.kind}: ${detail.reason}, exitCode=${detail.exitCode}',
+    ),
+  );
+
+  Future<_RenderedProbe> ready(WidgetTester tester) async {
+    final deadline = Stopwatch()..start();
+    while (!loaded.isCompleted &&
+        deadline.elapsed < const Duration(seconds: 30)) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(
+      loaded.isCompleted,
+      isTrue,
+      reason: 'מופע $name לא נטען תוך 30 שניות: $events',
+    );
+    final controller = await created.future.timeout(_nativeDeadline);
+    final channel = MethodChannel(
+      'com.pichillilorenzo/flutter_inappwebview_${controller.getViewId()}',
+    );
+    await channel.invokeMethod<Object?>('getUrl', {}).timeout(_nativeDeadline);
+    return (
+      controller: controller,
+      nativeChannel: channel,
+      loadCount: () => loads,
+    );
+  }
+
+  Future<void> initialize(_RenderedProbe view) async {
+    final values = jsonEncode({
+      'revision': revision,
+      'draft': draft,
+      'documentId': documentId,
+    });
+    await view.controller
+        .evaluateJavascript(
+          source:
+              '''(() => {
+      const values = $values;
+      window.probeState.revision = values.revision;
+      document.getElementById('draft').value = values.draft;
+      window.probeDocumentId = values.documentId;
+      window.probeProgress = [];
+      setInterval(() => {
+        window.probeProgress.push({at: Date.now(), ticks: window.probeTicks});
+        if (window.probeProgress.length > 100) window.probeProgress.shift();
+      }, 50);
+    })()''',
+        )
+        .timeout(_nativeDeadline);
+  }
+}
+
+Future<void> _expectIsolationProgress(
+  _IsolationProbe probe,
+  _RenderedProbe view,
+) async {
+  // קריאת JS עלולה להעיר מופע מושהה; סופרים רק טיקים שקדמו לקריאה.
+  final startMs = DateTime.now().millisecondsSinceEpoch;
+  await Future<void>.delayed(const Duration(seconds: 1));
+  final endMs = DateTime.now().millisecondsSinceEpoch;
+  final encoded = await view.controller
+      .evaluateJavascript(source: 'JSON.stringify(window.probeProgress)')
+      .timeout(_nativeDeadline);
+  final samples = (jsonDecode(encoded as String) as List)
+      .cast<Map<String, dynamic>>()
+      .where(
+        (sample) =>
+            (sample['at'] as num) > startMs && (sample['at'] as num) < endMs,
+      )
+      .toList();
+  final midpointMs = startMs + (endMs - startMs) ~/ 2;
+  for (final half in [
+    samples.where((sample) => (sample['at'] as num) < midpointMs).toList(),
+    samples.where((sample) => (sample['at'] as num) >= midpointMs).toList(),
+  ]) {
+    expect(
+      half.length,
+      greaterThanOrEqualTo(2),
+      reason: 'מופע ${probe.name} לא דגם התקדמות בכל חצי של החלון השקט',
+    );
+    expect(
+      half.last['ticks'],
+      greaterThan(half.first['ticks'] as num),
+      reason: 'טיימר ${probe.name} נעצר במהלך החלון השקט',
+    );
+  }
+  await _checkState(view.controller, probe.revision, probe.draft);
+  expect(
+    await view.controller
+        .evaluateJavascript(source: 'window.probeDocumentId')
+        .timeout(_nativeDeadline),
+    probe.documentId,
+  );
+  expect(probe.currentController, same(view.controller));
+  expect(probe.creations, 1);
+  expect(view.loadCount(), 1);
 }
 
 typedef _IdentifiedWebViewProcess = ({String kind, int pid, String? page});

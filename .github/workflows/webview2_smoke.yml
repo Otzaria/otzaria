@@ -56,6 +56,23 @@ jobs:
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
 
+      - name: Check lifecycle fixture formatting
+        shell: pwsh
+        run: |
+          $fixture = 'integration_test/webview_render_check_test.dart'
+          dart format --set-exit-if-changed $fixture
+          $formatExitCode = $LASTEXITCODE
+          if ($formatExitCode -ne 0) {
+            $output = Join-Path $env:RUNNER_TEMP 'webview2-smoke-diagnostics'
+            New-Item -ItemType Directory -Force $output | Out-Null
+            Copy-Item -LiteralPath $fixture -Destination (Join-Path $output 'webview_render_check_test.formatted.dart')
+          }
+          exit $formatExitCode
+
+      - name: Analyze lifecycle fixture
+        shell: pwsh
+        run: flutter analyze --no-pub integration_test/webview_render_check_test.dart
+
       - name: Record native log baseline
         continue-on-error: true
         shell: pwsh
@@ -101,9 +118,14 @@ jobs:
 
       - name: Run live WebView2 smoke test
         id: webview_smoke
-        run: >-
-          flutter test integration_test/webview_render_check_test.dart
-          -d windows --timeout 3m
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'webview2-smoke-diagnostics'
+          New-Item -ItemType Directory -Force $output | Out-Null
+          flutter test integration_test/webview_render_check_test.dart -d windows --timeout 3m 2>&1 |
+            Tee-Object -FilePath (Join-Path $output 'lifecycle-smoke.log')
+          $testExitCode = $LASTEXITCODE
+          exit $testExitCode
 
       - name: Collect native log additions
         if: always()

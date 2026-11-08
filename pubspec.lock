@@ -527,8 +527,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "6.2.0-beta.3"
@@ -536,8 +536,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_android
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -553,8 +553,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_ios
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -562,8 +562,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_linux
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.1.0-beta.1"
@@ -571,8 +571,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_macos
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -580,8 +580,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_platform_interface
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.4.0-beta.3"
@@ -589,8 +589,8 @@ packages:
     dependency: transitive
     description:
       path: flutter_inappwebview_web
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -598,8 +598,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_windows
-      ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
-      resolved-ref: "ce3a8ba720081d9f0ad1f5dcf77e80a354b97cd8"
+      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.7.0-beta.3"
@@ -1162,11 +1162,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "461902c049b412d64dc4dfa7b547fedbf751211d"
-      resolved-ref: "461902c049b412d64dc4dfa7b547fedbf751211d"
+      ref: "v0.3.3"
+      resolved-ref: "93fe233d884b8d9f2ed490c98f50579561883c2f"
       url: "https://github.com/Otzaria/opentype_shaper"
     source: git
-    version: "0.3.2"
+    version: "0.3.3"
   otzaria_ashurit:
     dependency: "direct main"
     description:
