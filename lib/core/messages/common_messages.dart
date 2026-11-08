@@ -64,10 +64,6 @@ abstract class CommonMessages {
   static const String diagnosticsSaveError =
       'שמירת האבחון נכשלה. האיסוף הופסק והנתונים נשמרו בזיכרון.';
 
-  // ── טלפון ───────────────────────────────────────────────────────────────
-  static const String cannotOpenPhoneApp = 'לא ניתן לפתוח את אפליקציית הטלפון';
-  static const String phoneAppOpenError = 'שגיאה בפתיחת אפליקציית הטלפון';
-
   // ── ניווט ───────────────────────────────────────────────────────────────
   static const String pressBackAgainToExit = 'לחץ שוב על חזרה ליציאה';
 

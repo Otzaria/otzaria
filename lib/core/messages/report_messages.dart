@@ -1,6 +1,6 @@
 /// ריכוז כל ההודעות למשתמש של מנגנון דיווח הטעויות.
 ///
-/// כל טקסט שמוצג למשתמש בתהליך שליחת דיווח (ישיר, טלפוני, מייל וניהול
+/// כל טקסט שמוצג למשתמש בתהליך שליחת דיווח (ישיר, מייל וניהול
 /// התור) מוגדר כאן בלבד — אין לכתוב מחרוזות דיווח בקבצי הפיצ'רים.
 abstract class ReportMessages {
   static const extendedReportQueued =
@@ -121,9 +121,6 @@ abstract class ReportMessages {
 
   static String handleError(Object error) => 'שגיאה בטיפול בדיווח: $error';
 
-  static String savedForLater(int pendingCount) =>
-      'הדיווח נשמר להמשך. יש כרגע $pendingCount דיווחים ממתינים בתור, וניתן לנהל את הדיווחים השמורים בהגדרות.';
-
   // ── ניהול התור בהגדרות (system_settings_tab) ───────────────────────────
 
   static const String markedAsSent = 'הדיווח סומן כנשלח.';
@@ -162,15 +159,6 @@ abstract class ReportMessages {
       ? 'הדיווח צורף לדיווח קיים על אותה תקלה. תודה!'
       : 'הדיווח צורף לדיווח קיים מספר $issueNumber על אותה תקלה. תודה!';
 
-  static const String appReportQueued =
-      'לא ניתן לשלוח כעת. הדיווח נשמר ויישלח אוטומטית בהמשך. '
-      'ניתן לנהל את הדיווחים השמורים בהגדרות.';
-
-  static String appReportRejected(String? field) => field == null
-      ? 'השרת דחה את הדיווח, ולכן הוא לא נשמר לשליחה חוזרת.'
-      : 'השרת דחה את הדיווח בגלל השדה "$field", ולכן הוא לא נשמר '
-            'לשליחה חוזרת.';
-
   static const String appReportTitleRequired = 'יש למלא כותרת לדיווח.';
   static const String appReportDescriptionRequired =
       'יש לתאר את התקלה כדי שנוכל לטפל בה.';
@@ -178,10 +166,6 @@ abstract class ReportMessages {
       'יש למלא כתובת דואר אלקטרוני תקינה — בלעדיה לא נוכל לחזור אליכם.';
   static const String appReportInvalidEmail =
       'כתובת הדואר האלקטרוני אינה תקינה.';
-  static const String appReportCrashDismissed =
-      'הדיווח על הקריסה לא נשלח. ניתן לדווח בכל עת דרך ההגדרות.';
-  static const String appReportHangDismissed =
-      'הדיווח על התקיעה לא נשלח. ניתן לדווח בכל עת דרך ההגדרות.';
   static const String appReportDraftSaved =
       'הטיוטה נשמרה. היא תיפתח שוב בפעם הבאה שתפתחו את טופס הדיווח.';
   static const String appReportDraftDiscarded = 'הטיוטה נמחקה.';
@@ -194,14 +178,5 @@ abstract class ReportMessages {
   static const String appReportAttachmentsTooLargeTemplate =
       'הגודל הכולל של הצרופות מוגבל ל-{limit} MiB.';
   static const String appReportNoClipboardImage = 'אין תמונה נתמכת בלוח.';
-  static String appReportImageTooLarge(int maxMegabytes) =>
-      appReportImageTooLargeTemplate.replaceAll('{limit}', '$maxMegabytes');
-  static String appReportTooManyImages(int maxCount) =>
-      appReportTooManyImagesTemplate.replaceAll('{count}', '$maxCount');
-  static String appReportImagesTotalTooLarge(int maxMegabytes) =>
-      appReportAttachmentsTooLargeTemplate.replaceAll(
-        '{limit}',
-        '$maxMegabytes',
-      );
   static const String appReportImageReadFailed = 'לא ניתן היה לקרוא את התמונה.';
 }

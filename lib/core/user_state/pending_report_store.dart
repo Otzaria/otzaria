@@ -44,25 +44,6 @@ class PendingReportStore {
     return db.lastInsertRowId;
   }
 
-  /// מחליף את כל הרשומות מסוג [kind] ברשומה אחת, באותה עסקה.
-  Future<void> replaceKind(String kind, Map<String, dynamic> payload) async {
-    final db = await _database.database;
-    final encoded = jsonEncode(payload);
-    db.execute('BEGIN IMMEDIATE');
-    try {
-      db.execute('DELETE FROM pending_reports WHERE kind = ?', [kind]);
-      db.execute(
-        'INSERT INTO pending_reports (kind, payload_json, created_at) '
-        'VALUES (?, ?, ?)',
-        [kind, encoded, DateTime.now().millisecondsSinceEpoch],
-      );
-      db.execute('COMMIT');
-    } catch (_) {
-      db.execute('ROLLBACK');
-      rethrow;
-    }
-  }
-
   Future<Map<String, dynamic>> addIfAbsent(
     String kind,
     Map<String, dynamic> payload,
