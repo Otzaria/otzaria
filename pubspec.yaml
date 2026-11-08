@@ -140,7 +140,8 @@ dependencies:
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1
-  flutter_markdown: ^0.7.7+1
+  # המשך מתוחזק של flutter_markdown המקורי, עם API תואם.
+  flutter_markdown_plus: ^1.0.12
   flutter_quill: ^11.6.0
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
