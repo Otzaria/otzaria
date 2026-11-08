@@ -169,9 +169,9 @@ double? calculateAppMenuLabelMaxWidth(
       trailingSlot +
       (hasExtraSlot ? metrics.iconSize + 8 : 0);
   final availableWidth = maxWidth - occupiedWidth;
-  if (availableWidth <= 0) return null;
-
-  return availableWidth;
+  // A nonpositive remainder still means "no room for the label". Returning
+  // null here would *remove* the constraint and let a long label overflow.
+  return max(0.0, availableWidth);
 }
 
 /// רוחב התפריט או הכפתור הנדרש להצגת כל [entries], עד לתקרה [maxWidth].
