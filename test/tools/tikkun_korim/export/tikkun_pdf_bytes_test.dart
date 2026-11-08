@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:opentype_shaper/src/bindings.dart';
+import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_pdf_exporter.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_pdf_writer.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_vector_ops.dart';
@@ -297,6 +298,58 @@ void main() {
         throwsA(same(failure)),
       );
       expect(builderCalls, 1);
+      expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
+    } finally {
+      anchor.dispose();
+    }
+    expect(_drainUnexpectedNativeReferences(handle), 0);
+  });
+
+  test('failed second PDF font rolls back while first font is cached', () async {
+    final fontBytes = File(_fontPath).readAsBytesSync();
+    final anchor = ShaperFont.register(fontBytes);
+    final handle = anchor.handle;
+    final failure = StateError('second PDF font construction failed');
+    var builderCalls = 0;
+    try {
+      final writer = TikkunVectorPdfWriter(
+        pageFormat: PdfPageFormat.a4,
+        loadFont: (_, {required bool bold}) async => fontBytes,
+        fallbackFamilies: const [],
+        buildPdfFont: (document, shaper, bytes) {
+          builderCalls++;
+          expect(shaper.handle, handle);
+          if (builderCalls == 2) throw failure;
+          return PdfShapedFont(
+            document,
+            shaper: shaper,
+            fontBytes: bytes,
+            textForExtraction: restoreTikkunVavKetiaText,
+          );
+        },
+      );
+      final page = TikkunVectorPage(
+        texts: [
+          _text('בְּרֵאשִׁית'),
+          TikkunTextOp(
+            text: 'בָּרָא',
+            style: const TextStyle(fontFamily: 'second-family', fontSize: 25),
+            left: 170,
+            width: 60,
+            baseline: 50,
+            rtl: true,
+          ),
+        ],
+        rects: const [],
+        width: 400,
+        height: 200,
+      );
+
+      await expectLater(
+        writer.write([page], unifyScale: false),
+        throwsA(same(failure)),
+      );
+      expect(builderCalls, 2);
       expect(anchor.shape('בדיקה').glyphCount, greaterThan(0));
     } finally {
       anchor.dispose();
