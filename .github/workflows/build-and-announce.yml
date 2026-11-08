@@ -377,6 +377,13 @@ jobs:
           channel: stable
           flutter-version: 3.47.7
           cache: true
+          # מפתח נפרד: ה-SDK כאן נשמר עם ה-DLL המתוקן ואסור שיגיע ל-jobs אחרים.
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:-patched-engine'
+
+      - name: Install patched Flutter Windows engine
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: x64
 
       - name: Create Google Calendar Credentials
         shell: pwsh
@@ -563,6 +570,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path build\dart-symbols | Out-Null
           $symbols = Join-Path $PWD 'build\dart-symbols\otzaria-dart-symbols-windows-x64.debug'
           flutter build windows --release --verbose "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)" "--extra-gen-snapshot-options=--save-debugging-info=$symbols"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bundledSha = (Get-FileHash -Algorithm SHA256 -LiteralPath 'build\windows\x64\runner\Release\flutter_windows.dll').Hash.ToLowerInvariant()
+          if ($bundledSha -ne $env:PATCHED_FLUTTER_DLL_SHA256) {
+            throw "Bundled flutter_windows.dll ($bundledSha) is not the patched engine ($env:PATCHED_FLUTTER_DLL_SHA256)"
+          }
 
       # המעדכן העצמאי נכנס לתיקיית הבנייה לפני האריזה, ולכן הוא נארז ל-ZIP,
       # למתקין ולמניפסט קובצי ההתקנה בלי שינוי ב-otzaria.iss.
@@ -832,6 +844,11 @@ jobs:
             throw "Expected a native arm64 Dart SDK — got: $dartVersion"
           }
 
+      - name: Install patched Flutter Windows engine
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: arm64
+
       - name: Create Google Calendar Credentials
         shell: pwsh
         run: |
@@ -933,6 +950,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path build\dart-symbols | Out-Null
           $symbols = Join-Path $PWD 'build\dart-symbols\otzaria-dart-symbols-windows-arm64.debug'
           flutter build windows --release --verbose "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)" "--extra-gen-snapshot-options=--save-debugging-info=$symbols"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bundledSha = (Get-FileHash -Algorithm SHA256 -LiteralPath 'build\windows\arm64\runner\Release\flutter_windows.dll').Hash.ToLowerInvariant()
+          if ($bundledSha -ne $env:PATCHED_FLUTTER_DLL_SHA256) {
+            throw "Bundled flutter_windows.dll ($bundledSha) is not the patched engine ($env:PATCHED_FLUTTER_DLL_SHA256)"
+          }
           if (-not (Test-Path 'build\windows\arm64\runner\Release\otzaria.exe')) {
             throw 'Expected an arm64 build output — the tool built a different architecture'
           }
