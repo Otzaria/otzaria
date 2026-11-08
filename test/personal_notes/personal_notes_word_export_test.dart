@@ -244,6 +244,42 @@ void main() {
       }
     });
 
+    test('גרשיים בבחירה נשמרים בייצוא כשהעוגן המנורמל תואם', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'quote',
+            bookId: 'ספר בדיקה',
+            lineNumber: 1,
+            displayTitle: 'אב״ג',
+            anchorText: 'אבג',
+            content: 'פירוט',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(blocks.last.text, '<b>אב״ג.</b> פירוט');
+    });
+
+    test('גרש בבחירה נשמר אף שהעוגן המנורמל חסר אותו', () {
+      final blocks = service.buildWordExportBlocks(
+        notes: [
+          _note(
+            id: 'geresh',
+            bookId: 'ספר בדיקה',
+            lineNumber: 1,
+            displayTitle: "ג׳",
+            anchorText: 'ג',
+            content: 'פירוט',
+          ),
+        ],
+        locationRef: (_) => null,
+      );
+
+      expect(blocks.last.text, '<b>ג׳.</b> פירוט');
+    });
+
     test('בחירת המילים עדיפה על כותרת התצוגה', () {
       final blocks = service.buildWordExportBlocks(
         notes: [
