@@ -11,6 +11,7 @@ class MainActivity : FlutterActivity() {
     private var folderImportChannel: FolderImportChannel? = null
     private var appExitInfoChannel: AppExitInfoChannel? = null
     private var foregroundWorkChannel: ForegroundWorkChannel? = null
+    private var androidUpdateChannel: AndroidUpdateChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -38,13 +39,25 @@ class MainActivity : FlutterActivity() {
         folderImportChannel = FolderImportChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         appExitInfoChannel = AppExitInfoChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         foregroundWorkChannel = ForegroundWorkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        androidUpdateChannel = AndroidUpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         enqueueIntentUriIfNeeded(intent)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (androidUpdateChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         if (folderImportChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        androidUpdateChannel?.onResume()
+    }
+
+    override fun onPause() {
+        androidUpdateChannel?.onPause()
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -72,6 +85,8 @@ class MainActivity : FlutterActivity() {
         appExitInfoChannel = null
         foregroundWorkChannel?.dispose()
         foregroundWorkChannel = null
+        androidUpdateChannel?.dispose()
+        androidUpdateChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }

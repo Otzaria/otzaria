@@ -1,0 +1,106 @@
+name: Android app update contracts
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '.github/workflows/android_app_updates.yml'
+      - '.github/workflows/build-and-announce.yml'
+      - '.github/workflows/deploy-google-play.yml'
+      - 'android/**'
+      - 'lib/android_update/**'
+      - 'lib/update/**'
+      - 'test/android_update/**'
+      - 'test/update/**'
+      - 'tool/release/android_release_metadata.py'
+      - 'tool/release/test_android_release_metadata.py'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-app-updates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    name: APK metadata contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: python3 -m unittest tool.release.test_android_release_metadata -v
+
+  android:
+    name: Native Android / ${{ matrix.flavor }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: direct
+            gradle_flavor: Direct
+          - flavor: play
+            gradle_flavor: Play
+    env:
+      CARGO_BUILD_JOBS: 2
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Free disk space for NDK and native engine
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+      - name: Install Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Generate settings catalogs
+        run: |
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+      - name: Build the actual app flavor without release secrets
+        run: flutter build apk --debug --no-pub --flavor ${{ matrix.flavor }} --target-platform android-arm64
+      - name: Run native unit tests
+        working-directory: android
+        run: ./gradlew :app:test${{ matrix.gradle_flavor }}DebugUnitTest --no-daemon
+      - name: Verify merged permissions, signature and APK metadata
+        run: |
+          set -euo pipefail
+          mkdir -p build/android-update-contracts
+          cp "build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-debug.apk" \
+            build/android-update-contracts/otzaria-android.apk
+          python3 tool/release/android_release_metadata.py \
+            --apk build/android-update-contracts/otzaria-android.apk \
+            --output build/android-update-contracts/otzaria-android.json \
+            --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0" \
+            --distribution '${{ matrix.flavor }}' --allow-debug
+      - name: Retain native test and metadata evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: android-update-contracts-${{ matrix.flavor }}
+          path: |
+            build/android-update-contracts/*.json
+            build/app/reports/tests/test${{ matrix.gradle_flavor }}DebugUnitTest/
+            build/app/test-results/test${{ matrix.gradle_flavor }}DebugUnitTest/
+          if-no-files-found: warn
