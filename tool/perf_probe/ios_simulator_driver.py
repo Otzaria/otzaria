@@ -70,9 +70,9 @@ class SimulatorDriver:
         self.run('simulator-boot', ['xcrun', 'simctl', 'boot', created], self.remaining(60))
         self.ownership['booted'] = True
         self.run('simulator-bootstatus', ['xcrun', 'simctl', 'bootstatus', created, '-b'], self.remaining(240))
-        text = self.run('simulator-private-device', ['xcrun', 'simctl', 'list', 'devices', '--json'], self.remaining(15))
+        text = self.run('simulator-private-device', ['xcrun', 'simctl', 'list', 'devices', '--json'], self.remaining(120))
         matches = [(key, device) for key, devices in json.loads(text)['devices'].items()
-                   for device in devices if device['udid'] == created]
+                   for device in devices if uuid.UUID(device['udid']) == uuid.UUID(created)]
         require(len(matches) == 1 and matches[0][0] == runtime and
                 matches[0][1].get('deviceTypeIdentifier') == seed['deviceTypeIdentifier'] and
                 matches[0][1].get('state') == 'Booted', 'The private Simulator OS identity differs from its creation request')

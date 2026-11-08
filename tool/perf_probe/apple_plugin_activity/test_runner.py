@@ -1136,10 +1136,11 @@ class BuildOrderingTests(unittest.TestCase):
                 if final_save_error is not None and coordinator.stopping and path.name == 'environment.json':
                     raise final_save_error
                 original_save(path, value)
-            def output(command, **_):
+            def output(command, **kwargs):
                 if command[:2] == ['flutter', '--version']:
                     return json.dumps({'frameworkVersion': '3.47.7', 'flutterRoot': '/pinned/flutter'})
                 if command[:3] == ['xcrun', 'simctl', 'list']:
+                    limits['simulator-inventory'] = runner.remaining_timeout(kwargs['deadline'], kwargs.get('timeout', 30))
                     return json.dumps({'devices': {'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [{'udid': 'device-A', 'state': 'Booted', 'deviceTypeIdentifier': 'iPhone-type'}]}})
                 return 'fixture'
             def recorded(_, label, command, timeout, **kwargs):
@@ -1302,6 +1303,13 @@ class BuildOrderingTests(unittest.TestCase):
         self.assertEqual(report['error'], 'codesign failed to start')
         self.assertEqual(report['cleanupErrors'], [{'stage': 'server close', 'error': 'server close failed'}])
 
+    def test_initial_inventory_uses_shared_query_budget_within_the_remaining_deadline(self):
+        for budget, expected in [(3900, 120), (45, 45)]:
+            with self.subTest(budget=budget):
+                _, limits, report = self.run_probe(budget=budget)
+                self.assertEqual(limits['simulator-inventory'], expected)
+                self.assertEqual(report['status'], 'passed')
+
     def test_vm_checkpoint_precedes_plugin_readiness_and_failed_driver_stays_failed(self):
         source = (runner.REPO / 'integration_test/apple_plugin_activity_probe_test.dart').read_text()
         reveal = source.index("'actual app reveal'")
@@ -1330,7 +1338,7 @@ class BuildOrderingTests(unittest.TestCase):
     def test_build_readiness_drive_and_completion_share_one_deadline(self):
         _, limits, report = self.run_probe(budget=2500, build_seconds=2390,
             readiness_seconds=100, drive_seconds=3, completion_seconds=2, control_seconds=2)
-        self.assertEqual(limits, {'build-ios-probe': 2400, 'codesign': 15, 'create-control-project': 110,
+        self.assertEqual(limits, {'simulator-inventory': 120, 'build-ios-probe': 2400, 'codesign': 15, 'create-control-project': 110,
             'readiness': 110, 'drive': 10, 'completion': 7, 'control completion': 5})
         self.assertEqual(report['status'], 'passed')
         self.assertEqual(report['deadlineMonotonic'], 3500)

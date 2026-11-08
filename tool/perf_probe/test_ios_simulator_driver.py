@@ -3,6 +3,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import queue
+import subprocess
 import tempfile
 import threading
 import time
@@ -358,6 +359,58 @@ class PrivateSimulatorOwnershipTest(unittest.TestCase):
         self.assertEqual(query, ['xcrun', 'simctl', 'list', 'devices', '--json'])
         self.driver.close()
         self.assert_seed_untouched()
+
+    def test_uuid_case_variations_preserve_the_raw_os_record(self):
+        for ack in (PRIVATE_UDID, PRIVATE_UDID.upper()):
+            for listed in (PRIVATE_UDID, PRIVATE_UDID.upper()):
+                with self.subTest(ack=ack, listed=listed):
+                    self.calls.clear()
+                    self.create_output = ack
+                    raw = {**private_record(), 'udid': listed}
+                    self.private_devices = {RUNTIME: [seed_record(), raw]}
+                    self.driver = self.new_driver()
+                    self.assertEqual(self.driver.prepare(seed_record(), RUNTIME), PRIVATE_UDID)
+                    self.assertEqual(self.driver.actual_device, raw)
+                    self.assertEqual(self.driver.actual_device['udid'], listed)
+                    self.driver.close()
+                    self.assert_seed_untouched()
+
+    def test_duplicate_uuid_case_aliases_are_not_one_os_device(self):
+        self.private_devices = {RUNTIME: [private_record(), {**private_record(), 'udid': PRIVATE_UDID.upper()}]}
+        with self.assertRaisesRegex(ValueError, 'OS identity differs'):
+            self.driver.prepare(seed_record(), RUNTIME)
+        self.driver.close()
+        self.assertTrue(self.driver.ownership['deleted'])
+        self.assert_seed_untouched()
+
+    def test_inventory_budget_accepts_observed_latency_but_preserves_deadlines(self):
+        original = self.run
+        for seconds, budget, expected_timeout in [(31, 300, None), (36, 300, None),
+                                                   (121, 300, 120), (36, 20, 20)]:
+            with self.subTest(seconds=seconds, budget=budget):
+                self.calls.clear()
+                clock = [1000.0]
+                def timed(label, command, timeout, **kwargs):
+                    result = original(label, command, timeout, **kwargs)
+                    if label == 'simulator-private-device':
+                        clock[0] += min(seconds, timeout)
+                        if seconds > timeout:
+                            raise subprocess.TimeoutExpired(command, timeout)
+                    return result
+                with mock.patch('ios_simulator_driver.time.monotonic', side_effect=lambda: clock[0]):
+                    self.driver = self.new_driver()
+                    self.driver.run = timed
+                    self.driver.deadline = clock[0] + budget
+                    if expected_timeout is not None:
+                        with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                            self.driver.prepare(seed_record(), RUNTIME)
+                        self.assertEqual(caught.exception.timeout, expected_timeout)
+                    else:
+                        self.driver.prepare(seed_record(), RUNTIME)
+                        self.assertEqual(self.driver.actual_device, private_record())
+                    self.driver.close()
+                self.assertTrue(self.driver.ownership['deleted'])
+                self.assert_seed_untouched()
 
     def test_missing_or_mismatched_os_identity_rejects_and_cleans_up_private_device(self):
         cases = {
