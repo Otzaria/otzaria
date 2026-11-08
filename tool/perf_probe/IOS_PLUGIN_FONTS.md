@@ -5,14 +5,14 @@ file-origin boundary separately from the [macOS experiment](MACOS_PLUGIN_FONTS.m
 It does not enable a production iOS font path, change ATS, change the origin of
 installed plugins, alter dependency pins, or claim a CPU/RAM reduction.
 
-The implementation was validated with Linux Dart, Node and Python contract tests.
-At this source checkpoint, native iOS execution is **NOT_RUN**. The committed
-workflow supplies the actual debug Simulator runs; their artifacts, exact source
-commit and validator result must be reviewed before recording native coverage.
+The [native Simulator workflow for #4427](https://github.com/Otzaria/otzaria/actions/runs/42332655349)
+passed 54 cases across 1/5/10 views on source `ca0adb7a9`. This is historical
+functional evidence; inspect the exact source and retained validator results,
+and rerun the workflow when relevant sources or dependencies change.
 
 | Coverage | Status at this checkpoint | What a future passing run establishes |
 | --- | --- | --- |
-| iOS Simulator debug, 1/5/10 visible WebViews | NOT_RUN | Functional font, CSP, boot and ownership behavior on the recorded runtime |
+| iOS Simulator debug, 1/5/10 visible WebViews | Historical PASS; see workflow above | Functional font, CSP, boot and ownership behavior on the recorded runtime |
 | Physical iOS, profile | NOT_RUN | No device or performance conclusion yet |
 | Physical iOS, release | NOT_RUN | No release-build conclusion yet |
 | WKWebView process CPU / RAM | Unsupported by this collector | Host RSS cannot substitute for engine measurements |
@@ -22,8 +22,8 @@ The base macOS head `293d8e1bc2d6c287bb76f2702e0fe7a055dd3edb` passed
 [run 42293498985](https://github.com/Otzaria/otzaria/actions/runs/42293498985):
 data/scheme, all three CSP cases and 1/5/10 views on macOS 26.7.2. That is
 functional evidence for the base Mac implementation. The extracted shared
-widget still needs the Mac workflow on this PR, and Mac results do not establish
-iOS compatibility or representative resource savings.
+widget also passed the [Mac workflow on #4427](https://github.com/Otzaria/otzaria/actions/runs/42332655407).
+Mac results do not establish iOS compatibility or representative resource savings.
 
 ## The three routes
 

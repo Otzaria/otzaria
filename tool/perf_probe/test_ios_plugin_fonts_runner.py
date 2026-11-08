@@ -377,7 +377,7 @@ class RunnerIoTests(unittest.TestCase):
 
     def exercise(self, **scenario):
         with tempfile.TemporaryDirectory() as temp:
-            directory = Path(temp)
+            directory = Path(temp).resolve()
             checkout, output = directory / 'checkout', directory / 'output'
             pods = checkout / 'ios/Podfile.lock'
             pods.parent.mkdir(parents=True)

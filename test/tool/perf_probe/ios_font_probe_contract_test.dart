@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/common.dart';
+import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_font_bootstrap.dart';
 import 'package:otzaria/plugins/services/plugin_network_policy.dart';
@@ -16,7 +17,7 @@ import '../../../integration_test/support/ios_font_probe_report.dart';
 import '../../../integration_test/support/macos_font_probe.dart';
 
 void main() {
-  test('all eighteen cases retain default-off production file policy', () {
+  test('all eighteen cases retain default-off production policy', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final cases = iosFontProbeCases.toList();
@@ -29,7 +30,14 @@ void main() {
       fileServerPort: 1,
     ).map((b) => b.toMap()).toList();
     expect(production, hasLength(13));
-    expect((production[4]['trigger'] as Map)['url-filter'], '^file:');
+    expect(pluginAssetSchemeEnabled, Platform.isMacOS);
+    // The real host's dart:io policy is independent of the widget override.
+    expect(
+      (production[4]['trigger'] as Map)['url-filter'],
+      pluginAssetSchemeEnabled
+          ? r'^otzaria-plugin://ios\.font\.probe/'
+          : '^file:',
+    );
     final baseSettings = buildPluginTabWebViewSettings(isDevelopment: false);
     for (final config in cases) {
       final policy = config.policyReport;
