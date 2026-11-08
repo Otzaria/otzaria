@@ -343,6 +343,7 @@ void main() {
       );
     });
   }
+
   testWidgets('rapid context-menu replacement leaves one overlay and handler', (
     tester,
   ) async {
@@ -373,5 +374,4 @@ void main() {
     expect(escapes.handlers, isEmpty);
     expect(tester.takeException(), isNull);
   });
-
 }
