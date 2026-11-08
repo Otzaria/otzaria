@@ -97,6 +97,7 @@ jobs:
           # The measured release fixtures save 42-47 MiB. Keep the regression
           # floor deliberately lower so toolchain noise cannot make this flaky.
           test "$savings" -gt 30000000
+          sha256sum -c "$RUNNER_TEMP/wpe-sdk-originals.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
