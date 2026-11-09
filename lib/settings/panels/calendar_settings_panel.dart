@@ -156,7 +156,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   Widget build(BuildContext context) {
     return BlocBuilder<CalendarCubit, CalendarState>(
       builder: (context, state) {
-        final isOfflineMode = context.watch<SettingsBloc>().state.isOfflineMode;
+        final isOfflineMode = context.select<SettingsBloc, bool>(
+          (bloc) => bloc.state.isOfflineMode,
+        );
         // בלי גלילה משלו: ToolsSettingsTab ו-CalendarSettingsPanel גוללים אותו
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
