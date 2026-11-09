@@ -31,6 +31,7 @@ import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/utils/search_result_book_display.dart';
 import 'package:otzaria/search/utils/search_result_opener.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
+import 'package:otzaria/search/utils/title_break_opportunities.dart';
 import 'package:otzaria/search/view/external_search_results_section.dart';
 import 'package:otzaria/search/view/search_result_source_tag.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -248,26 +249,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     return title.split(' ').map(_insertBreakOpportunities).join(' ');
   }
 
-  String _insertBreakOpportunities(String word) {
-    if (word.characters.length <= _maxUnbrokenWordLength) {
-      return word;
-    }
-
-    final buffer = StringBuffer();
-    var currentLength = 0;
-
-    for (final character in word.characters) {
-      buffer.write(character);
-      currentLength++;
-
-      if (currentLength >= _maxUnbrokenWordLength) {
-        buffer.write('\u200B');
-        currentLength = 0;
-      }
-    }
-
-    return buffer.toString();
-  }
+  String _insertBreakOpportunities(String word) =>
+      insertGraphemeBreakOpportunities(word, _maxUnbrokenWordLength);
 
   @override
   void dispose() {
