@@ -243,6 +243,43 @@ dependency_overrides:
       ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       path: flutter_inappwebview_android
 
+  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור תיקוני file_picker ב-upstream.
+  file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker
+  file_picker_platform_interface:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_platform_interface
+  android_file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_android
+  file_picker_darwin:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_darwin
+  file_picker_linux:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_linux
+  windows_file_picker:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_windows
+  file_picker_web:
+    git:
+      url: https://github.com/Otzaria/flutter_file_picker
+      ref: codex/integrated-fixes
+      path: packages/file_picker_web
+
 flutter_launcher_icons:
   android: true
   ios: true
