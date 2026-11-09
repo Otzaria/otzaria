@@ -1,6 +1,9 @@
 """The Apple font workflows' macOS-runner gate and time budgets."""
+import os
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
 
 import apple_font_probe_changes as changes
@@ -24,6 +27,9 @@ LOCK = '''packages:
   sqlite3:
     dependency: transitive
     version: "{sqlite}"
+  opentype_shaper:
+    dependency: "direct main"
+    version: "{shaper}"
 sdks:
   dart: ">=3.12.0 <4.0.0"
 '''
@@ -51,8 +57,8 @@ flutter:
 '''
 
 
-def lock(webview='a', sqlite='3.8.0'):
-    return LOCK.format(webview=webview, sqlite=sqlite)
+def lock(webview='a', sqlite='3.8.0', shaper='0.3.4'):
+    return LOCK.format(webview=webview, sqlite=sqlite, shaper=shaper)
 
 
 def pubspec(webview='a', sqlite='^3.8.0', asset='logo.png', font='FrankRuehlCLM-Medium.ttf'):
@@ -93,6 +99,39 @@ class ChangesGateTests(unittest.TestCase):
         head = {'pubspec.lock': lock().replace('"0.5.0"', '"0.6.0"')}
         self.assertFalse(decide(['pubspec.lock'], base, head, 'ios')[0])
         self.assertTrue(decide(['pubspec.lock'], base, head, 'macos')[0])
+
+    def test_native_build_hook_packages_need_both_probes(self):
+        base = {'pubspec.lock': lock()}
+        head = {'pubspec.lock': lock(shaper='0.3.5')}
+        for probe in ('ios', 'macos'):
+            with self.subTest(probe=probe):
+                self.assertEqual(decide(['pubspec.lock'], base, head, probe),
+                                 (True, {'dependencies': ['opentype_shaper']}))
+        for name in ('otzaria_search_engine', 'objective_c', 'hooks', 'code_assets', 'native_toolchain_c'):
+            self.assertTrue(changes.relevant_package(name, 'ios'), name)
+
+    def test_a_file_moved_out_of_a_probe_path_still_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t',
+                       GIT_COMMITTER_NAME='t', GIT_COMMITTER_EMAIL='t@t')
+            def git(*args):
+                subprocess.run(['git', *args], cwd=directory, env=env, check=True, capture_output=True)
+            git('init', '-q')
+            Path(directory, 'fonts').mkdir()
+            Path(directory, 'fonts/a.ttf').write_text('\n'.join(map(str, range(50))))
+            git('add', '-A')
+            git('commit', '-qm', 'base')
+            Path(directory, 'other').mkdir()
+            git('mv', 'fonts/a.ttf', 'other/a.ttf')
+            git('commit', '-qm', 'move')
+            cwd = os.getcwd()
+            os.chdir(directory)
+            try:
+                files = changes.changed_files('HEAD^1', 'HEAD')
+            finally:
+                os.chdir(cwd)
+        self.assertEqual(files, {'fonts/a.ttf', 'other/a.ttf'})
+        self.assertTrue(decide(files, {}, {})[0])
 
     def test_comments_cannot_split_a_section_into_false_changes(self):
         base = {'pubspec.yaml': pubspec().replace('  # comment\n', '# column-zero comment\n')}

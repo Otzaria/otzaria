@@ -8,11 +8,14 @@ import sys
 DEPENDENCY_FILES = ('pubspec.yaml', 'pubspec.lock')
 DEPENDENCY_SECTIONS = ('dependencies', 'dev_dependencies', 'dependency_overrides')
 EXTRA_PACKAGES = {'ios': (), 'macos': ('window_manager',)}
+# Native build hooks compile into the probe app; opentype_shaper shapes its text.
+NATIVE_HOOK_PACKAGES = ('otzaria_search_engine', 'opentype_shaper', 'objective_c', 'hooks',
+                        'code_assets', 'native_toolchain_c')
 
 
 def relevant_package(name, probe):
     return (name.startswith(('flutter_inappwebview', 'path_provider')) or 'webview' in name
-            or name in EXTRA_PACKAGES[probe])
+            or name in NATIVE_HOOK_PACKAGES or name in EXTRA_PACKAGES[probe])
 
 
 def glob_regex(pattern):
@@ -90,6 +93,11 @@ def git(*args):
     return subprocess.run(['git', *args], check=True, capture_output=True, text=True).stdout
 
 
+def changed_files(base, head):
+    # Without --no-renames a file moved out of a probe path lists only its new path.
+    return set(git('diff', '--name-only', '--no-renames', base, head).splitlines())
+
+
 def git_file(revision, path):
     result = subprocess.run(['git', 'show', f'{revision}:{path}'], capture_output=True, text=True)
     return result.stdout if result.returncode == 0 else ''
@@ -104,7 +112,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     with open(args.workflow, encoding='utf-8') as stream:
         paths = workflow_paths(stream.read())
-    changed = set(git('diff', '--name-only', args.base, args.head).splitlines())
+    changed = changed_files(args.base, args.head)
     run, reasons = decide(changed, paths, lambda path: git_file(args.base, path),
                           lambda path: git_file(args.head, path), args.probe)
     print(f'{args.probe} font probe {"required" if run else "skipped"}: {reasons}', file=sys.stderr)
