@@ -300,6 +300,14 @@ LibraryBackspaceAction resolveLibraryBackspaceAction({
       : LibraryBackspaceAction.clearSearch;
 }
 
+/// האם התצוגה המקדימה מראה משהו אחר מהתיקייה הנוכחית (תיקייה שנבחרה בלחיצה
+/// אחת, או ספר). בתוצאות חיפוש הספר שנבחר הוא התוצאה עצמה, ואין לאן לחזור.
+@visibleForTesting
+bool libraryPreviewCanReturnToCurrent(LibraryState state) =>
+    state.currentCategory != null &&
+    state.searchResults == null &&
+    state.previewCategory != state.currentCategory;
+
 /// נתיב האב של קטגוריה לתצוגה בתוצאות ('תנך, ראשונים'); ריק לקטגוריית שורש.
 /// [Library] היא ההורה של עצמה — בלי בדיקת הזהות הטיפוס למעלה לא מסתיים.
 @visibleForTesting
@@ -395,6 +403,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _showPreviewPanel(SettingsState s) => _setPreviewPanel(true);
 
   void _hidePreviewPanel(SettingsState s) => _setPreviewPanel(false);
+
+  /// מחזיר את התצוגה המקדימה לתיקייה הנוכחית; false כשאין מה להחזיר.
+  bool _returnPreviewToCurrent() {
+    final libraryState = context.read<LibraryBloc>().state;
+    if (!_isPreviewPanelVisible(context.read<SettingsBloc>().state) ||
+        !libraryPreviewCanReturnToCurrent(libraryState)) {
+      return false;
+    }
+    context.read<LibraryBloc>().add(
+      SelectCategoryForPreview(libraryState.currentCategory!),
+    );
+    return true;
+  }
 
   void _togglePreviewPanel(SettingsState s) =>
       _setPreviewPanel(!s.libraryShowPreviewFor(isShortWindow: _isShortWindow));
@@ -1322,7 +1343,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   };
 
   /// קיצורי המקלדת של מסך הספרייה: Backspace = עלייה תיקייה (כמו בסייר של
-  /// Windows), וחץ מחוץ לרשת מחזיר את הפוקוס לספרים במקום לטייל בין לחצנים.
+  /// Windows), Esc מחזיר את התצוגה המקדימה לתיקייה הנוכחית (מחוץ לשדה טקסט),
+  /// וחץ מחוץ לרשת מחזיר את הפוקוס לספרים במקום לטייל בין לחצנים.
   ///
   /// בשדה טקסט Backspace נשאר מחיקת תו; רק בשדה החיפוש של הספרייה, כשהוא
   /// ריק (ובלחיצה חדשה, לא בחזרת-מקש), הוא עולה תיקייה.
@@ -1344,6 +1366,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     final repo = context.read<FocusRepository>();
     final isEditableTextFocused = isEditableTextFocusTarget();
+
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      return !isEditableTextFocused && _returnPreviewToCurrent()
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
 
     if (_arrowKeys.contains(event.logicalKey)) {
       if (isEditableTextFocused) return KeyEventResult.ignored;
@@ -1599,7 +1628,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         attachedTourKey = true;
       }
     }
-    return MyGridView(
+    final grid = MyGridView(
       key: PageStorageKey(category),
       items: allItems,
       // בחלון קטן (טלפון, AppDensity.isSmallWindow) כרטיסי התיקייה נמוכים
@@ -1610,6 +1639,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       onExitTop: () => _refocusSearchBar(selectAll: true),
       scrollable: true,
       controller: _categoryGridController,
+    );
+    // לחיצה על רקע ריק (בין כרטיסים או מתחתם): כרטיס שנלחץ מנצח בזירת המחוות.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _returnPreviewToCurrent,
+      child: grid,
     );
   }
 
