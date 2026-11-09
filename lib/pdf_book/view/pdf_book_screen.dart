@@ -4131,36 +4131,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           categoryId: textBook.categoryId,
           fileType: textBook.fileType ?? 'txt',
         );
-        ({List<otz_links.LinkTargetSummary> targets, int maxSourceLine})?
-        summary;
         if ((provider is DatabaseLibraryProvider ||
                 textBook.source.isAttached) &&
             textBook.categoryId != null) {
-          summary = await DatabaseLibraryProvider.instance
-              .getBookLinkTargetsSummary(
-                textBook.title,
-                textBook.categoryId!,
-                source: textBook.source,
-              );
-        }
-        final Set<String> commentators;
-        if (summary != null) {
           _linksTextBook = textBook;
-          // טעינת דורות מראש כדי שמיון הקישורים לפי דורות יעבוד סינכרונית
-          // (תפריט הקשר + פאנל קישורים)
-          CommentaryService.preloadEras({
-            for (final target in summary.targets)
-              if (!LinkTypes.isDependentTextLink(target.connectionType))
-                utils.getTitleFromPath(target.targetTitle),
-          });
-          commentators = {
-            for (final target in summary.targets)
-              if (LinkTypes.isDependentTextLink(target.connectionType))
-                utils.getTitleFromPath(target.targetTitle),
-          };
         } else {
-          // ספר שאינו במסד, או ששאילתת הסיכום נכשלה — הטעינה המלאה הישנה,
-          // כדי שכשל נקודתי לא ייראה כמו ספר בלי מפרשים.
           final loadedLinks = await textBook.links
             ..sort((a, b) => a.index1.compareTo(b.index1));
           widget.tab.links = loadedLinks;
@@ -4170,24 +4145,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 .where((l) => !LinkTypes.isDependentTextLink(l.connectionType))
                 .map((l) => utils.getTitleFromPath(l.path2)),
           );
-          commentators = {
+          final commentators = {
             for (final link in loadedLinks)
               if (LinkTypes.isDependentTextLink(link.connectionType))
                 utils.getTitleFromPath(link.path2),
           };
-        }
-        _bookHasCommentaryLinks = commentators.isNotEmpty;
-        await _loadCommentatorGroups(
-          commentators,
-          sourceByTitle: {
-            if (summary != null)
-              for (final target in summary.targets)
-                utils.getTitleFromPath(target.targetTitle): ?target.targetSource
-            else
-              for (final link in widget.tab.links)
+          _bookHasCommentaryLinks = commentators.isNotEmpty;
+          await _loadCommentatorGroups(
+            commentators,
+            sourceByTitle: {
+              for (final link in loadedLinks)
                 utils.getTitleFromPath(link.path2): link.targetSource,
-          },
-        );
+            },
+          );
+        }
       }
 
       final currentPage = widget.tab.pdfViewerController.isReady
@@ -4337,13 +4308,48 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         startIndex: window.startLine - 1,
         endIndex: window.endLine - 1,
       );
+      if (!mounted ||
+          requestId != _linksWindowRequestId ||
+          widget.tab.linksAreComplete) {
+        return;
+      }
+      // סיכום וקבוצות נשמרים יחד עם החלון הראשון; כשל משאיר את כולם לטעינה חוזרת.
+      if (_linksWindowStart == null) {
+        final summary = await DatabaseLibraryProvider.instance
+            .getBookLinkTargetsSummary(
+              textBook.title,
+              textBook.categoryId!,
+              source: textBook.source,
+            );
+        if (!mounted || requestId != _linksWindowRequestId || summary == null) {
+          return;
+        }
+        CommentaryService.preloadEras({
+          for (final target in summary.targets)
+            if (!LinkTypes.isDependentTextLink(target.connectionType))
+              utils.getTitleFromPath(target.targetTitle),
+        });
+        final commentators = {
+          for (final target in summary.targets)
+            if (LinkTypes.isDependentTextLink(target.connectionType))
+              utils.getTitleFromPath(target.targetTitle),
+        };
+        _bookHasCommentaryLinks = commentators.isNotEmpty;
+        await _loadCommentatorGroups(
+          commentators,
+          sourceByTitle: {
+            for (final target in summary.targets)
+              utils.getTitleFromPath(target.targetTitle): ?target.targetSource,
+          },
+        );
+        if (!mounted ||
+            requestId != _linksWindowRequestId ||
+            widget.tab.linksAreComplete) {
+          return;
+        }
+      }
     } catch (e, stackTrace) {
       debugPrint('Failed to load PDF links window: $e\n$stackTrace');
-      return;
-    }
-    if (!mounted ||
-        requestId != _linksWindowRequestId ||
-        widget.tab.linksAreComplete) {
       return;
     }
     // הצרכנים (פאנל מפרשים, תפריט הקשר) מסתמכים על מיון לפי index1.
@@ -4352,6 +4358,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _linksWindowStart = window.startLine;
     _linksWindowEnd = window.endLine;
     if (!shownRangeCovered) _pageDataRevision.value++;
+    _maybeRegisterPdfCommentaryOpportunity();
   }
 
   void _onPdfViewerControllerUpdate() async {

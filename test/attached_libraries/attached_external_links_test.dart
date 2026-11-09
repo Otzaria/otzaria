@@ -3,7 +3,25 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+// ignore: depend_on_referenced_packages
+import 'package:material_ui/material_ui.dart' as mui;
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
@@ -23,6 +41,7 @@ import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -33,6 +52,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../helpers/seforim_fixture_db.dart';
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/pdf_document_dispose.dart';
 
 /// כותרות גנריות לספרי המסד המצורף — שלא יתנגשו בכותרות הספרייה הרשמית.
 const _commentaryTitle = 'ספר א';
@@ -257,6 +277,171 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
+  });
+
+  testWidgets('קישורי PDF חוזרים בדפדוף אחרי שחרור נעילת יעד באותו טאב', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => tempDir.path);
+    final previousLibrary = await tester.runAsync(
+      () async =>
+          (value: DataRepository.instance.cachedLibraryFutureForTesting),
+    );
+    addTearDown(() {
+      if (previousLibrary!.value == null) {
+        DataRepository.instance.invalidateLibraryCache();
+      } else {
+        DataRepository.instance.library = previousLibrary.value!;
+      }
+    });
+    final modulePath = Pdfrx.pdfiumModulePath;
+    final moduleName = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$moduleName',
+    ).absolute.path;
+    addTearDown(() {
+      Pdfrx.pdfiumModulePath = modulePath;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    late TextBook book;
+    final file = File(p.join(tempDir.path, 'book.pdf'));
+    await tester.runAsync(() async {
+      final library = await attach(
+        attachedDb(
+          'pdf-lock',
+          rows: [
+            _row(1, targetLineIndex: 1, connectionType: LinkTypes.commentary),
+          ],
+        ),
+      );
+      await links.sync();
+      book = await bookOf(BookSource.attached(library.slug), _commentaryTitle);
+      DataRepository.instance.library = buildCatalog();
+      await DataRepository.instance.library;
+      await pdfrxFlutterInitialize();
+      final pdf = pw.Document();
+      for (var page = 0; page < 3; page++) {
+        pdf.addPage(pw.Page(build: (_) => pw.Text('page ${page + 1}')));
+      }
+      await file.writeAsBytes(await pdf.save());
+    });
+    final tab = PdfBookTab(
+      pageNumber: 1,
+      book: PdfBook(
+        title: book.title,
+        path: file.path,
+        categoryId: book.categoryId,
+        source: book.source,
+      ),
+    );
+    final tabs = TabsBloc(repository: _PdfTabsRepository());
+    // ignore: invalid_use_of_visible_for_testing_member
+    tabs.emit(TabsState(tabs: [tab], currentTabIndex: 0));
+    final settings = _PdfSettingsBloc();
+    final tour = TourCubit();
+    addTearDown(tabs.close);
+    addTearDown(settings.close);
+    addTearDown(tour.close);
+    final ready = ReceivePort();
+    late Future<void> writer;
+    SendPort? release;
+    await tester.runAsync(() async {
+      writer = _holdExclusiveWriter(officialPath, ready.sendPort);
+      release = await ready.first as SendPort;
+    });
+    addTearDown(() async {
+      release?.send(null);
+      ready.close();
+      await writer;
+    });
+    Future<void> pumpUntil(bool Function() condition) async {
+      for (var attempt = 0; attempt < 200 && !condition(); attempt++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(condition(), isTrue);
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<TabsBloc>.value(value: tabs),
+            BlocProvider<TourCubit>.value(value: tour),
+          ],
+          child: PdfBookScreen(tab: tab),
+        ),
+      ),
+    );
+    await pumpUntil(
+      () => tab.pdfViewerController.isReady && !tab.linksLoadingNotifier.value,
+    );
+    final screen = tester.state(find.byType(PdfBookScreen));
+    final document = tab.pdfViewerController.document;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    });
+    expect(
+      tab.links.where((link) => link.targetSource != book.source),
+      isEmpty,
+    );
+    await tester.runAsync(() async {
+      release!.send(null);
+      release = null;
+      await writer;
+      await tab.pdfViewerController.goToPage(
+        pageNumber: 2,
+        duration: Duration.zero,
+      );
+    });
+    await pumpUntil(
+      () => tab.links.any((link) => link.targetSource == BookSource.official),
+    );
+    final viewer = find.byType(PdfViewer);
+    final menu = tester.widget<AppContextMenuRegion>(
+      find.descendant(of: viewer, matching: find.byType(AppContextMenuRegion)),
+    );
+    final commentators = menu
+        .menuBuilder(tester.element(viewer), tester.getCenter(viewer))
+        .firstWhere((entry) => entry.label == 'מפרשים')
+        .children!;
+    expect(
+      commentators.map((entry) => entry.label),
+      contains(SeforimFixtureIds.bereshitTitle),
+    );
+    expect(
+      commentators.where(
+        (entry) =>
+            entry.label?.startsWith('הצג את כל ') == true &&
+            entry.label != 'הצג את כל המפרשים',
+      ),
+      hasLength(1),
+    );
+    expect(tour.hasRegisteredCommentaryOpportunity, isTrue);
+    expect(tester.state(find.byType(PdfBookScreen)), same(screen));
+    expect(tab.pageNumber, 2);
+    expect(tab.linksAreComplete, isFalse);
+    expect(
+      tab.links.where((link) => link.targetSource == BookSource.official),
+      hasLength(1),
+    );
   });
 
   test('מפרשי PDF משני מסדים בעלי אותה כותרת נשארים נפרדים', () async {
@@ -1903,4 +2088,23 @@ void main() {
       expect(await externalIn(book), hasLength(1));
     });
   });
+}
+
+class _PdfTabsRepository implements TabsRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #loadTabs) return [];
+    if (invocation.memberName == #loadCurrentTabIndex) return 0;
+    return Future<void>.value();
+  }
+}
+
+class _PdfSettingsBloc extends Bloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {
+  _PdfSettingsBloc() : super(SettingsState.initial()) {
+    on<SettingsEvent>((_, _) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
