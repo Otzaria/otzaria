@@ -27,6 +27,7 @@ const _count = int.fromEnvironment(
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  pinIosSimulatorSemantics(binding);
   if (Platform.isIOS &&
       const bool.fromEnvironment('OTZARIA_IOS_FONT_PROBE_EXPORT')) {
     // Physical release has no VM service/Flutter Driver. The fixture alone can
@@ -215,7 +216,9 @@ void main() {
               eagerError: true,
             );
             host.value = grid();
-            final results = await pending.timeout(const Duration(seconds: 60));
+            // Simulator WebContent sometimes stalls 30-50s before the first
+            // navigation of a fresh batch.
+            final results = await pending.timeout(const Duration(seconds: 150));
             entry['hostRssAfterBytes'] = ProcessInfo.currentRss;
             for (final result in results) {
               final prep = result.preparation;

@@ -2,12 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_content_blockers.dart';
 import 'package:otzaria/plugins/services/plugin_content_security_policy.dart';
 import 'package:otzaria/plugins/services/plugin_network_policy.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart'
     show buildPluginTabWebViewSettings;
+
+/// מקבע את הנגישות לפני הבדיקה: מנוע הסימולטור מפעיל אותה ברגע שרירותי,
+/// והפעלה באמצע הבדיקה משאירה SemanticsHandle פתוח שמכשיל את testWidgets.
+void pinIosSimulatorSemantics(TestWidgetsFlutterBinding binding) {
+  binding.platformDispatcher.semanticsEnabledTestValue = true;
+}
 
 /// מאשר לבקר המקומי שהמופע המקורי הגיע למסגרת הראשונה.
 Future<void> notifyIosFontProbeStarted({
