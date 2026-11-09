@@ -164,6 +164,13 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור flutter/packages#13595–#13600.
+  # תיקוני סקירה חייבים להישמר גם בענף המשולב וגם בענפי ה-PRים באפסטרים.
+  flutter_svg:
+    git:
+      url: https://github.com/Otzaria/packages
+      ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
+      path: third_party/packages/flutter_svg
   # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
   pdfrx_engine:
     git:
