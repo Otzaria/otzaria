@@ -65,6 +65,19 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateSide());
+  }
+
+  // כיוון הפתיחה נקבע כבר בפריים הראשון, כדי שהחץ לא יתהפך בפתיחה.
+  void _updateSide() {
+    if (!mounted) return;
+    final side = _shouldOpenToRight();
+    if (_openToRight != side) setState(() => _openToRight = side);
+  }
+
+  @override
   void didUpdateWidget(AppSubmenuButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.preserveFocus != widget.preserveFocus) {
@@ -154,6 +167,7 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     } else {
       _hoverTimer ??= Timer(const Duration(milliseconds: 400), () {
         widget.controller.close();
+        _focusNode.unfocus();
       });
     }
   }
@@ -172,14 +186,15 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
         onEnter: (_) => _scheduleOpen(),
         onExit: (_) {
           if (widget.preserveFocus) _cancelOpen();
+          // SubmenuButton מבקש פוקוס בריחוף, והשורה נשארת מודגשת אחרי שהסמן עזב.
+          if (!widget.controller.isOpen) _focusNode.unfocus();
         },
         child: SubmenuButton(
           controller: widget.controller,
           focusNode: _focusNode,
           hoverOpenDelay: _hoverDelay,
           onOpen: () {
-            final side = _shouldOpenToRight();
-            if (_openToRight != side) setState(() => _openToRight = side);
+            _updateSide();
             _setTrackingPointer(!widget.preserveFocus);
             widget.onOpen?.call();
           },

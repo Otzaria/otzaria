@@ -97,10 +97,7 @@ Future<TestGesture> _mouseOver(
   return mouse;
 }
 
-void _expectArrowPointsToChild(WidgetTester tester) {
-  final parent = tester.getRect(find.text('אפשרויות'));
-  final child = tester.getRect(find.text('פעולה פנימית'));
-  final openToRight = child.center.dx > parent.center.dx;
+bool _arrowPointsRight(WidgetTester tester) {
   final arrowFinder = find.byWidgetPredicate(
     (widget) =>
         widget is Icon &&
@@ -114,10 +111,15 @@ void _expectArrowPointsToChild(WidgetTester tester) {
   final glyphPointsRight = icon.icon == FluentIcons.chevron_right_16_regular;
   final isMirrored =
       icon.icon!.matchTextDirection && direction == TextDirection.rtl;
-  final drawnPointsRight = glyphPointsRight != isMirrored;
+  return glyphPointsRight != isMirrored;
+}
+
+void _expectArrowPointsToChild(WidgetTester tester) {
+  final parent = tester.getRect(find.text('אפשרויות'));
+  final child = tester.getRect(find.text('פעולה פנימית'));
   expect(
-    drawnPointsRight,
-    openToRight,
+    _arrowPointsRight(tester),
+    child.center.dx > parent.center.dx,
     reason: 'כיוון החץ המצויר, לאחר שיקוף RTL, חייב להצביע אל הילד',
   );
 }
@@ -371,6 +373,67 @@ void main() {
 
       expect(find.text('פעולה פנימית'), findsOneWidget);
     });
+  }
+
+  // issue #4479
+  for (final direction in TextDirection.values) {
+    for (final alignment in [Alignment.centerLeft, Alignment.centerRight]) {
+      testWidgets('החץ כבר מצביע לכיוון הפתיחה לפני שהתת-תפריט נפתח, '
+          'והוא לא מתהפך אחר כך: $direction, $alignment', (tester) async {
+        await _pumpMenu(tester, direction: direction, alignment: alignment);
+        final before = _arrowPointsRight(tester);
+
+        await _mouseOver(tester, find.text('אפשרויות'));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        _expectArrowPointsToChild(tester);
+        expect(_arrowPointsRight(tester), before);
+      });
+    }
+
+    for (final alignment in [Alignment.centerLeft, Alignment.centerRight]) {
+      testWidgets('הסמן עובר אל התת-תפריט הפתוח: הוא נשאר פתוח והחץ לא משתנה, '
+          '$direction, $alignment', (tester) async {
+        await _pumpMenu(tester, direction: direction, alignment: alignment);
+        final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        final before = _arrowPointsRight(tester);
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה פנימית')));
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsOneWidget);
+        _expectArrowPointsToChild(tester);
+        expect(_arrowPointsRight(tester), before);
+      });
+    }
+
+    for (final opened in [false, true]) {
+      testWidgets('הסמן עוזב את שורת התת-תפריט: השורה לא נשארת בפוקוס, '
+          '$direction, נפתח=$opened', (tester) async {
+        await _pumpMenu(tester, direction: direction);
+        final submenu = find.ancestor(
+          of: find.text('אפשרויות'),
+          matching: find.byType(SubmenuButton),
+        );
+        final mouse = await _mouseOver(tester, find.text('אפשרויות'));
+        await tester.pump(Duration(milliseconds: opened ? 600 : 100));
+        expect(
+          tester.widget<SubmenuButton>(submenu).focusNode!.hasFocus,
+          isTrue,
+        );
+
+        await mouse.moveTo(tester.getCenter(find.text('פעולה אחרת')));
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(find.text('פעולה פנימית'), findsNothing);
+        expect(
+          tester.widget<SubmenuButton>(submenu).focusNode!.hasFocus,
+          isFalse,
+        );
+      });
+    }
   }
 
   testWidgets('לחיצה אחת על אח פועלת גם כאשר תת-תפריט פתוח', (tester) async {

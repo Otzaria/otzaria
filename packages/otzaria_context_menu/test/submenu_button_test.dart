@@ -472,4 +472,28 @@ void main() {
     expect(find.text('שמאלה'), findsOneWidget);
     expect(find.text('ימינה'), findsNothing);
   });
+
+  testWidgets('context-menu submenu never takes or drops outside focus on '
+      'pointer enter and leave', (tester) async {
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(_host(controller: MenuController(), focus: focus));
+    focus.requestFocus();
+    await tester.pump();
+    expect(focus.hasPrimaryFocus, isTrue);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.text('אפשרויות')));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+    expect(find.text('פעולה פנימית'), findsOneWidget);
+    expect(focus.hasPrimaryFocus, isTrue);
+
+    await mouse.moveTo(const Offset(5, 5));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+    expect(focus.hasPrimaryFocus, isTrue);
+  });
 }
