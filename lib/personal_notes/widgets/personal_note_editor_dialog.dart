@@ -16,6 +16,7 @@ import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
 class PersonalNoteEditorDialog extends StatefulWidget {
   final String initialContent;
+  final String? initialContentPlain;
   final PersonalNoteContentFormat initialContentFormat;
   final String title;
   final String? referenceText;
@@ -31,6 +32,7 @@ class PersonalNoteEditorDialog extends StatefulWidget {
   const PersonalNoteEditorDialog({
     super.key,
     this.initialContent = '',
+    this.initialContentPlain,
     this.initialContentFormat = PersonalNoteContentFormat.plain,
     this.title = 'הערה חדשה',
     this.referenceText,
@@ -70,6 +72,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     _editorController = buildPersonalNoteEditorController(
       initialContent: widget.initialContent,
       initialFormat: widget.initialContentFormat,
+      initialContentPlain: widget.initialContentPlain,
     );
     _initialResult = _editorController.buildResult();
     registerDialogFocusRestorer(_textFieldFocusNode);

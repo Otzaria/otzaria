@@ -77,13 +77,22 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   void initState() {
     super.initState();
     _draftVersion = _currentDraftVersion();
+    final initialContent = widget.initialContent.isNotEmpty
+        ? widget.initialContent
+        : (widget.note?.content ?? '');
+    final initialFormat = widget.initialContent.isNotEmpty
+        ? widget.initialFormat
+        : (widget.note?.contentFormat ?? PersonalNoteContentFormat.plain);
+    final originalNote = widget.note;
     _controller = buildPersonalNoteEditorController(
-      initialContent: widget.initialContent.isNotEmpty
-          ? widget.initialContent
-          : (widget.note?.content ?? ''),
-      initialFormat: widget.initialContent.isNotEmpty
-          ? widget.initialFormat
-          : (widget.note?.contentFormat ?? PersonalNoteContentFormat.plain),
+      initialContent: initialContent,
+      initialFormat: initialFormat,
+      initialContentPlain:
+          originalNote != null &&
+              initialContent == originalNote.content &&
+              initialFormat == originalNote.contentFormat
+          ? originalNote.contentPlain
+          : null,
     );
     _draftResult = _controller.buildResult();
     // _initialResult מייצג את המצב ה"נקי" לפני עריכה — לא תוכן הטיוטה.
@@ -92,6 +101,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       initialContent: widget.note?.content ?? '',
       initialFormat:
           widget.note?.contentFormat ?? PersonalNoteContentFormat.plain,
+      initialContentPlain: widget.note?.contentPlain,
     );
     try {
       _initialResult = originalController.buildResult();
