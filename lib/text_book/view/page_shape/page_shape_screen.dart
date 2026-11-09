@@ -416,7 +416,11 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
         _isLoadingConfig = false;
       });
-      _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
+      // לפני שהרשימה נטענה השאילתה יוצאת בלי המפרשים, וה-bloc טוען בעצמו
+      // כשהרשימה מגיעה.
+      if (state.commentatorsLoaded) {
+        _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
+      }
     }
   }
 
