@@ -33,9 +33,19 @@ class NotificationService {
 
   /// טוען את ה-DLL של ההתראות ב-Windows לפני `initialize` של התוסף.
   @visibleForTesting
-  static Future<void> Function() windowsLibraryPreload = () => Isolate.run(
-    () => preloadWindowsLibrary('flutter_local_notifications_windows.dll'),
-  );
+  static Future<void> Function() windowsLibraryPreload = _preloadWindowsLibrary;
+
+  static Future<void> _preloadWindowsLibrary() async {
+    if (!Platform.isWindows) return;
+    try {
+      await Isolate.run(
+        () => preloadWindowsLibrary('flutter_local_notifications_windows.dll'),
+      );
+    } catch (error) {
+      // אופטימיזציה בלבד: אם ה-DLL באמת חסר, initialize ידווח על כך.
+      debugPrint('Notifications DLL preload failed: $error');
+    }
+  }
 
   @visibleForTesting
   void resetForTesting() {

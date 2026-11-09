@@ -89,6 +89,11 @@ void main() {
     expect(calls, ['preload', 'initialize']);
   });
 
+  test('הטעינה מראש של ברירת המחדל לא זורקת בשום מערכת', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await expectLater(originalPreload(), completes);
+  });
+
   test('בלי Windows אין טעינה מראש', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     NotificationService.windowsLibraryPreload = () async {
