@@ -452,6 +452,12 @@ export interface ProviderBook {
   author?: string;
   /** `/`-separated, in the form `library.getTree` uses: `/שו"ת/אחרונים`. */
   categoryPath?: string;
+  /**
+   * Plain text shown in the book's "about" dialog and info tooltip. Up to
+   * 2,000 characters per book and 5,000,000 across the provider's list; line
+   * breaks are kept. Available from 0.9.99; older hosts ignore it.
+   */
+  description?: string;
 }
 
 /** Arguments to `library.setProviderBooks`: replaces the provider's whole list. */
