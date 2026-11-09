@@ -277,7 +277,7 @@ String _inlineNoteHtml(String line, Match iMatch) {
     if (tail.trim().isEmpty) {
       final openIdx = line.lastIndexOf('<sup', closeIdx);
       if (openIdx >= 0) {
-        final supTag = before.substring(
+        final supTag = line.substring(
           openIdx,
           closeIdx + _supCloseTag.length,
         );
