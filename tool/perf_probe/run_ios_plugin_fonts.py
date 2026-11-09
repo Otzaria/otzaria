@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -21,10 +22,57 @@ from validate_ios_plugin_fonts import (FLUTTER_REVISION, NATIVE_PACKAGES, lock_p
                                        require, validate_artifacts)
 from ios_simulator_driver import SimulatorDriver
 from apple_plugin_activity.run import (Coordinator, Handler, IOS_APP_STARTUP_SECONDS,
-                                       recorded_output, shutdown_server, wait_for_drive)
+                                       recorded_output, shutdown_server,
+                                       transient_swiftpm_download_failure, wait_for_drive)
 
 ROOT = Path(__file__).resolve().parents[2]
+BUILD_SECONDS = 3000
 FONT_REPORT_SECONDS = 20 * 60
+# Install, launch and the authenticated checkpoint follow every build.
+LAUNCH_SECONDS = 150 + IOS_APP_STARTUP_SECONDS
+CLEANUP_RESERVE_SECONDS = 180
+MINIMUM_COUNT_SECONDS = 600
+BUILD_RETRY_DELAYS = (30, 90)
+
+
+def transient_build_failure(log):
+    """An external download failed before any app code ran; the same build may be retried."""
+    resolving = ('Could not resolve package dependencies:' in log or
+                 'Xcode failed to resolve Swift Package Manager dependencies:' in log)
+    if transient_swiftpm_download_failure(log) or (resolving and re.search(
+            r"failed downloading 'https://github\.com/[^']+'.*badResponseStatusCode\(50[234]\)", log)):
+        return 'swiftpm-download'
+    # A hook that hashes an HTTP error page reports the same wrong hash for every file.
+    if 'Building assets for package:' in log and re.search(
+            r'Hash of downloaded file \S+ is [0-9a-f]{64}, expected [0-9a-f]{64}\.', log):
+        return 'native-asset-download'
+    return None
+
+
+class CountBudget:
+    """One view count's share of the workflow step; cleanup always keeps its reserve."""
+
+    def __init__(self, deadline_epoch=None, *, clock=time.monotonic, wall=time.time):
+        self.clock = clock
+        available = BUILD_SECONDS + IOS_APP_STARTUP_SECONDS + FONT_REPORT_SECONDS
+        if deadline_epoch is not None:
+            available = min(available, deadline_epoch - wall() - CLEANUP_RESERVE_SECONDS)
+        require(available >= MINIMUM_COUNT_SECONDS,
+                f'Only {max(0, int(available))}s remain for this view count; it is NOT_RUN')
+        self.end = clock() + available
+
+    def left(self):
+        return self.end - self.clock()
+
+    def build(self):
+        seconds = min(BUILD_SECONDS, self.left() - LAUNCH_SECONDS)
+        require(seconds > 0, 'No time remains to build the iOS application')
+        return seconds
+
+    def report(self):
+        seconds = min(FONT_REPORT_SECONDS, self.left())
+        require(seconds > 0, 'No time remains for the framework report')
+        return seconds
 
 
 def capture_ios_failure_log(output, device):
@@ -34,15 +82,20 @@ def capture_ios_failure_log(output, device):
 
 
 class FontProbeCoordinator(Coordinator):
+    build_id = None
+
     def check_identity(self, body):
         require(body.get('firstFrameRasterized') is True, 'The original app has not rasterized its first frame')
+        require(self.build_id is None or body.get('buildId') == self.build_id,
+                'The app was not built with this run\'s build identity')
         super().check_identity(body)
 
 
 class FontProbeStartup:
-    def __init__(self, output, native_fork):
+    def __init__(self, output, native_fork, build_id=None):
         self.coordinator = FontProbeCoordinator(output, str(uuid.uuid4()), str(uuid.uuid4()), 'ios', 6)
         self.coordinator.native_fork = native_fork
+        self.coordinator.build_id = build_id
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         self.server.coordinator = self.coordinator
         self.server.daemon_threads = True
@@ -53,10 +106,15 @@ class FontProbeStartup:
 
     @property
     def defines(self):
+        """Build-time values; they are identical for every view count of one run."""
+        return {'IOS_FONT_PROBE_NATIVE_FORK': self.coordinator.native_fork,
+                'IOS_FONT_PROBE_BUILD': self.coordinator.build_id or ''}
+
+    def launch_environment(self, instances):
         return {'IOS_FONT_PROBE_COORDINATOR': f'http://localhost:{self.server.server_port}',
                 'IOS_FONT_PROBE_TOKEN': self.coordinator.token,
                 'IOS_FONT_PROBE_GENERATION': self.coordinator.run_id,
-                'IOS_FONT_PROBE_NATIVE_FORK': self.coordinator.native_fork}
+                'OTZARIA_FONT_PROBE_INSTANCES': str(instances)}
 
     def wait(self, process, timeout):
         return wait_for_drive(process, self.coordinator, timeout)
@@ -364,10 +422,29 @@ def retain_source_diff(commands, environment):
                                       'file': path.name, 'sha256': sha256(path)}
 
 
+def build_application(commands, environment, command, budget, env):
+    for attempt in range(len(BUILD_RETRY_DELAYS) + 1):
+        label = 'flutter-build' if attempt == 0 else f'flutter-build-retry-{attempt}'
+        _, record = commands.run(label, command, budget.build(), env=env, check=False)
+        if not record.get('failures'):
+            return
+        log = commands.output / (label + '.log')
+        reason = None if record['timedOut'] or attempt == len(BUILD_RETRY_DELAYS) else \
+            transient_build_failure(log.read_text(errors='replace') if log.exists() else '')
+        if reason is None or budget.left() - BUILD_RETRY_DELAYS[attempt] < MINIMUM_COUNT_SECONDS:
+            raise CommandFailure(record)
+        environment.setdefault('buildRetries', []).append(
+            {'failedLabel': label, 'reason': reason, 'delaySeconds': BUILD_RETRY_DELAYS[attempt]})
+        write_json(commands.output / 'environment.json', environment)
+        time.sleep(BUILD_RETRY_DELAYS[attempt])
+
+
 def run_probe(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--instances', type=int, choices=(1, 5, 10), required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--build-id', default='')
+    parser.add_argument('--deadline-epoch', type=float)
     args = parser.parse_args(argv)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -377,7 +454,8 @@ def run_probe(argv=None):
     commands = Commands(output)
     environment = {'schemaVersion': 1, 'captureStatus': 'pending', 'runStatus': 'not-run',
                    'mode': 'debug', 'instances': args.instances, 'physicalProfile': 'NOT_RUN',
-                   'physicalRelease': 'NOT_RUN', 'decision': 'keep-default-off', 'commandRecords': []}
+                   'physicalRelease': 'NOT_RUN', 'decision': 'keep-default-off', 'commandRecords': [],
+                   'buildId': args.build_id or str(uuid.uuid4()), 'deadlineEpoch': args.deadline_epoch}
     failures = ProbeFailures(environment)
     startup = simulator_driver = None
 
@@ -396,6 +474,7 @@ def run_probe(argv=None):
     try:
         write_json(output / 'environment.json', environment)
         step = 'probe'
+        budget = CountBudget(args.deadline_epoch)
         require(platform.system() == 'Darwin', 'Actual iOS Simulator requires macOS and Xcode')
         capture_sources(commands, environment)
         for key, command in {
@@ -411,10 +490,10 @@ def run_probe(argv=None):
         devices = json.loads(commands.run('simulator-devices', ['xcrun', 'simctl', 'list', 'devices', 'available', '--json'])[0])
         runtimes = json.loads(commands.run('simulator-runtimes', ['xcrun', 'simctl', 'list', 'runtimes', '--json'])[0])
         runtime = environment['runtime'] = select_simulator(devices, runtimes)
-        startup = FontProbeStartup(output, environment['webviewPin'])
+        startup = FontProbeStartup(output, environment['webviewPin'], environment['buildId'])
         startup.start()
         simulator_driver = SimulatorDriver(output, ROOT, runtime['device']['udid'], startup.coordinator,
-            lambda label, cmd, timeout, **kwargs: commands.run(label, cmd, timeout, **kwargs)[0], time.monotonic() + 3000 + IOS_APP_STARTUP_SECONDS + FONT_REPORT_SECONDS)
+            lambda label, cmd, timeout, **kwargs: commands.run(label, cmd, timeout, **kwargs)[0], budget.end)
         environment['simulatorOwnership'] = simulator_driver.ownership
         device = simulator_driver.prepare(runtime['device'], runtime['identifier'])
         runtime['seedDevice'] = runtime['device']
@@ -425,22 +504,28 @@ def run_probe(argv=None):
         step = 'environment-ready'
         write_json(output / 'environment.json', environment)
         step = 'driver'
-        defines = {**startup.defines, 'OTZARIA_FONT_PROBE_INSTANCES': args.instances,
-                   'OTZARIA_IOS_FONT_PROBE_DEVICE': 'simulator',
+        # Per-count values go to the launch environment, so later counts reuse the build.
+        defines = {**startup.defines, 'OTZARIA_IOS_FONT_PROBE_DEVICE': 'simulator',
                    'OTZARIA_IOS_FONT_PROBE_SOURCE': environment['sourceCommit'],
                    'OTZARIA_IOS_FONT_PROBE_LOCK_SHA256': environment['lockSha256']}
         write_json(output / 'build-defines.json', defines)
+        launch = startup.launch_environment(args.instances)
+        write_json(output / 'launch-environment.json', launch)
         define_argument = f'--dart-define-from-file={output / "build-defines.json"}'
         target = '--target=integration_test/ios_plugin_font_probe_test.dart'
-        commands.run('flutter-build', ['flutter', 'build', 'ios', '--simulator', '--debug',
-                     '--no-codesign', '--no-pub', target, define_argument], 3000)
+        architecture = 'arm64' if environment['hostArchitecture'] == 'arm64' else 'x86_64'
+        environment['simulatorArchitecture'] = architecture
+        build_application(commands, environment, ['flutter', 'build', 'ios', '--simulator', '--debug',
+                          '--no-codesign', '--no-pub', target, define_argument], budget,
+                          dict(os.environ, FLUTTER_XCODE_ARCHS=architecture))
         application = ROOT / 'build/ios/iphonesimulator/Runner.app'
         environment['prebuiltApplication'] = str(application)
         environment['startupGeneration'] = startup.coordinator.run_id
         dart = Path(environment['flutter']['flutterRoot']) / 'bin/cache/dart-sdk/bin/dart'
-        command, driver_environment = simulator_driver.start(application, dart, 'test_driver/ios_plugin_fonts.dart')
+        command, driver_environment = simulator_driver.start(application, dart, 'test_driver/ios_plugin_fonts.dart',
+                                                             launch_environment=launch)
         env = dict(os.environ, **driver_environment, IOS_FONT_PROBE_REPORTS=str(output / 'reports'))
-        _, drive = commands.run('dart-driver', command, FONT_REPORT_SECONDS, env=env, check=False,
+        _, drive = commands.run('dart-driver', command, budget.report(), env=env, check=False,
             wait_for_exit=startup.wait)
         environment['drive'] = drive
         if drive.get('failures'):

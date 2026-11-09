@@ -23,6 +23,7 @@ Future<void> notifyIosFontProbeStarted({
   required String generation,
   required String nativeFork,
   required bool firstFrameRasterized,
+  String buildId = '',
   Map<String, Object?> vmService = const {},
 }) async {
   if (coordinator.isEmpty) return;
@@ -43,6 +44,7 @@ Future<void> notifyIosFontProbeStarted({
         'appBootToken': '$pid-${DateTime.now().microsecondsSinceEpoch}',
         'hostExecutable': Platform.resolvedExecutable,
         'nativeFork': nativeFork,
+        'buildId': buildId,
         'firstFrameRasterized': firstFrameRasterized,
         'vmServiceUri': vmService['vmServiceUri'],
         'vmServiceIsolate': vmService['vmServiceIsolate'],

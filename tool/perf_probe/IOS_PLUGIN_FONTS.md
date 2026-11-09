@@ -105,8 +105,9 @@ The old lease must become inactive; its guarded SDK source must return
 ## Deadlines and failure evidence
 
 The shared widget preserves the base Mac six-second preparation and five-second
-boot bounds, ten-second operation bound, sixty-second view-batch bound and
-fullyLive frame policy. Case disposal has a separate ten-second deadline. Before
+boot bounds, ten-second operation bound and fullyLive frame policy. The iOS
+view batch has a 150-second bound: on CI the Simulator's first navigation of a
+fresh batch sometimes stalls for 30-50 seconds in every view at once. Case disposal has a separate ten-second deadline. Before
 failed views are removed, the existing diagnostic snapshots run concurrently,
 with two seconds per view and a 16 KiB JSON limit. They retain font/canvas/frame
 progress and widget bounds while checking the original document owner.
@@ -115,10 +116,23 @@ Late callbacks remain failed; they cannot turn into passing samples.
 
 The test has a nineteen-minute overall bound and the driver waits at most twenty
 minutes for the framework response. The host runner bounds Simulator boot,
-metadata commands and the complete build/drive command; the latter has a
-fifty-minute limit. It records command arguments, deadlines, exit status,
-timeouts and logs before proceeding. The workflow has a seventy-five-minute
-job limit and uploads partial artifacts with `if: always()`.
+metadata commands, the build (3,000 seconds) and the drive. It records command
+arguments, deadlines, exit status, timeouts and logs before proceeding.
+The workflow gives the three counts one shared 95-minute deadline
+(`--deadline-epoch`) inside a 100-minute step. Each count keeps three minutes
+for cleanup and is NOT_RUN, not killed, when less than ten minutes remain.
+Artifacts are uploaded with `if: always()`.
+
+Only an external download failure is retried, at most twice (30 and 90 seconds
+apart): a SwiftPM release download that returned an HTTP 502/503/504 or no
+connection, or a build hook whose download hash differs from its pin (an error
+page). Each attempt keeps its own `flutter-build*.log` and `buildRetries` entry.
+Compiler errors, timeouts and app failures are never retried.
+
+Pull requests run the macOS job only when a probe file changed, or when
+`pubspec.yaml`/`pubspec.lock` changed a WebView, `path_provider` or bundled-font
+entry (`tool/perf_probe/apple_font_probe_changes.py`). A nightly schedule covers
+every other dependency and `ios/` change.
 
 `framework-response.json` preserves Flutter's unmodified response, including its
 actual verdict and failures. `report.partial.json` is saved before image
@@ -136,7 +150,7 @@ Flutter **3.47.7** (framework `abaf9c523780a608bd46686fd5e53740a07077f8`, Dart
 3.13.5) and Rust. Do not use profile or release mode on a Simulator.
 
 ```sh
-rustup target add aarch64-apple-ios-sim x86_64-apple-ios
+rustup target add aarch64-apple-ios-sim  # x86_64-apple-ios on an Intel Mac
 flutter pub get --enforce-lockfile
 python3 tool/perf_probe/run_ios_plugin_fonts.py --instances 1 --output /tmp/ios-fonts-1
 python3 tool/perf_probe/run_ios_plugin_fonts.py --instances 5 --output /tmp/ios-fonts-5
@@ -153,10 +167,15 @@ against its requested UUID, device type and runtime; seed metadata is not reused
 `open -a Simulator` follows Flutter SDK behavior and does not prove which Mac
 Simulator window is frontmost. Rendering evidence remains the guest WKWebView
 visibility/viewport and native PNGs, not host window selection.
-The app is built separately with the same 3,000-second build budget, installed
-and launched with `simctl`, without pausing Dart or disabling VM authentication.
+The app is built separately with the same 3,000-second build budget, for the
+host's Simulator architecture only (`FLUTTER_XCODE_ARCHS`), installed and
+launched with `simctl`, without pausing Dart or disabling VM authentication.
+The build-time defines are the same for every count (`build-defines.json`); the
+coordinator URL, token, generation and view count are passed at launch as
+`SIMCTL_CHILD_*` variables (`launch-environment.json`), so later counts reuse
+the incremental build. The workflow's `--build-id` is compiled into the app.
 An authenticated, generation-specific checkpoint after its first rasterized
-fixture frame must arrive within 180 seconds. Its complete authenticated
+fixture frame must arrive within 180 seconds and must echo that build ID. Its complete authenticated
 loopback VM URI and UI isolate are checked once with `getVM`; the launch PID,
 checkpoint PID and VM PID must agree before the checkpoint response is released.
 The pinned SDK's Dart executable then runs the existing host driver directly
@@ -172,8 +191,8 @@ and retains at most 64 KiB per stream with explicit truncation metadata. A query
 failure is secondary and cannot replace the driver failure. Successful runs and
 the selected seed are not queried. This is failure evidence, not a fix for the
 unresolved iOS initial-load timeout after controller creation. It shuts down and deletes only its created private UUID, including when startup
-fails without a checkpoint. Ownership metadata retains both seed and private IDs. The workflow installs both Rust Simulator targets; the validator
-requires the target that matches the runner architecture.
+fails without a checkpoint. Ownership metadata retains both seed and private IDs. The workflow installs only the arm64 Rust Simulator target; the
+validator requires the target that matches the runner architecture.
 
 `environment.json` records the app commit/tree and clean status before/after,
 lock SHA-256, official Flutter framework/engine/Dart identities and SDK clean

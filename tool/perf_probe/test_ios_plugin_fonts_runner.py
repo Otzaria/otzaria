@@ -21,8 +21,9 @@ from validate_ios_plugin_fonts import WEBVIEW_PACKAGES
 
 
 class ControlledSimulatorDriver(runner.SimulatorDriver):
-    def start(self, application, dart, entrypoint):
+    def start(self, application, dart, entrypoint, launch_environment=None):
         self.release.set()
+        assert launch_environment['OTZARIA_FONT_PROBE_INSTANCES'] in {'1', '5', '10'}
         assert str(application).endswith('/build/ios/iphonesimulator/Runner.app')
         return [str(dart), '--packages=' + str(self.repository / '.dart_tool/package_config.json'),
                 str(self.repository / entrypoint)], {'VM_SERVICE_URL': 'http://127.0.0.1:1234/controlled=/'}
@@ -47,7 +48,7 @@ class StartupTests(unittest.TestCase):
 
     def checkpoint(self, process, **changes):
         import urllib.request
-        defines = self.startup.defines
+        defines = {**self.startup.defines, **self.startup.launch_environment(1)}
         body = dict(runId=defines['IOS_FONT_PROBE_GENERATION'], hostPid=process.pid,
                     appBootToken='original-boot', hostExecutable=sys.executable,
                     nativeFork=defines['IOS_FONT_PROBE_NATIVE_FORK'], firstFrameRasterized=True)
@@ -368,7 +369,8 @@ class CleanupTests(unittest.TestCase):
                     else:
                         text = 'controlled command; no native execution'
                     if label == 'dart-driver':
-                        defines = json.loads((self.output / 'build-defines.json').read_text())
+                        defines = {**json.loads((self.output / 'build-defines.json').read_text()),
+                                   **json.loads((self.output / 'launch-environment.json').read_text())}
                         (self.output / 'partial-app.json').write_text(json.dumps({
                             'runId': defines['IOS_FONT_PROBE_GENERATION'], 'hostPid': 137,
                             'appBootToken': 'controlled', 'hostExecutable': '/controlled/Runner',
@@ -394,11 +396,11 @@ class CleanupTests(unittest.TestCase):
                     raise OSError('native log unavailable')
 
             class Launch(ControlledSimulatorDriver):
-                def start(self, *args):
+                def start(self, *args, **kwargs):
                     if startup_failure:
                         self.run('ios-launch', ['controlled launch failure'], 10)
                         raise ValueError('authenticated checkpoint VM URI missing')
-                    return super().start(*args)
+                    return super().start(*args, **kwargs)
 
             actual_copy, actual_hash = runner.shutil.copyfile, runner.sha256
 
@@ -585,11 +587,13 @@ if label == 'simulator-boot':
         block('commands.json')
 if label == 'dart-driver':
     import urllib.request
-    defines = json.loads((output / 'build-defines.json').read_text())
+    defines = {**json.loads((output / 'build-defines.json').read_text()),
+               **json.loads((output / 'launch-environment.json').read_text())}
     request = urllib.request.Request(defines['IOS_FONT_PROBE_COORDINATOR'] + '/checkpoint',
         data=json.dumps({'runId': defines['IOS_FONT_PROBE_GENERATION'], 'hostPid': os.getpid(),
              'appBootToken': 'controlled-' + str(os.getpid()), 'hostExecutable': sys.executable,
-             'nativeFork': defines['IOS_FONT_PROBE_NATIVE_FORK'], 'firstFrameRasterized': True}).encode(),
+             'nativeFork': defines['IOS_FONT_PROBE_NATIVE_FORK'], 'buildId': defines['IOS_FONT_PROBE_BUILD'],
+             'firstFrameRasterized': True}).encode(),
         headers={'X-Apple-Quiet-Token': defines['IOS_FONT_PROBE_TOKEN']})
     urllib.request.urlopen(request, timeout=3).read()
     report = output / 'reports/run-control/report.json'

@@ -117,15 +117,16 @@ def fixture(count=1, *, javascript_floats=False):
         'framePolicy': 'fullyLive', 'frameDriver': 'fullyLive-value-notifier', 'hostKind': 'visible-flutter-platform-view',
         'decision': 'keep-default-off', 'productionIosExperimentEnabled': False,
         'engineMemory': {'availability': 'unsupported'}, 'engineCpu': {'availability': 'unsupported'},
-        'crossViewCacheSharing': {'availability': 'not-measured'}, 'pid': 137, 'startupGeneration': 'fresh-generation', 'startupFirstFrameRasterized': True, 'instances': count, 'theme': copy.deepcopy(THEME), 'cases': cases}
+        'crossViewCacheSharing': {'availability': 'not-measured'}, 'pid': 137, 'startupGeneration': 'fresh-generation', 'buildId': 'shared-build', 'startupFirstFrameRasterized': True, 'instances': count, 'theme': copy.deepcopy(THEME), 'cases': cases}
     return {'schemaVersion': 1, 'framework': {'allTestsPassed': True, 'failures': []}, 'data': {'iosFontProbe': report}}
 
 
 def environment_fixture():
     return {'schemaVersion': 1, 'captureStatus': 'complete', 'runStatus': 'completed', 'instances': 1,
         'drive': {'returncode': 0, 'timedOut': False, 'groupDrained': True},
-        'startupGeneration': 'fresh-generation', 'startupCheckpoint': {'hostPid': 137, 'runId': 'fresh-generation',
-            'nativeFork': WEBVIEW_PIN, 'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True},
+        'startupGeneration': 'fresh-generation', 'buildId': 'shared-build', 'startupCheckpoint': {'hostPid': 137, 'runId': 'fresh-generation',
+            'nativeFork': WEBVIEW_PIN, 'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True,
+            'buildId': 'shared-build'},
         'sourceCommit': '1' * 40, 'sourceCommitAfter': '1' * 40, 'sourceTree': '3' * 40, 'sourceTreeAfter': '3' * 40, 'sourceStatus': '', 'sourceStatusAfter': '',
         'lockSha256': LOCK_SHA, 'lockSha256After': LOCK_SHA, 'committedLockSha256': LOCK_SHA,
         'lockSourceCommit': '1' * 40, 'lockSourceBlob': LOCK_BLOB,
@@ -489,11 +490,13 @@ class ArtifactTests(unittest.TestCase):
             file.write_text(json.dumps(envelope))
         self.environment.update(startupGeneration='fresh-generation', startupCheckpoint={
             'hostPid': 137, 'runId': 'fresh-generation', 'nativeFork': self.environment['webviewPin'],
-            'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True})
+            'appBootToken': 'original-boot', 'hostExecutable': '/original/Runner', 'firstFrameRasterized': True,
+            'buildId': 'shared-build'})
         validate_artifacts(self.path, self.environment)
         checkpoint = self.environment['startupCheckpoint']
         for key, value in [('hostPid', 138), ('hostPid', True), ('runId', 'old-generation'),
-                           ('nativeFork', '9' * 40), ('appBootToken', ''), ('hostExecutable', ''), ('firstFrameRasterized', False)]:
+                           ('nativeFork', '9' * 40), ('appBootToken', ''), ('hostExecutable', ''), ('firstFrameRasterized', False),
+                           ('buildId', 'another-build'), ('buildId', None)]:
             original = checkpoint[key]
             checkpoint[key] = value
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'measured native app'):

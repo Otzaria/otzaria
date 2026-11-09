@@ -371,6 +371,8 @@ def validate_artifacts(path, environment, provenance_root=None):
     startup = environment['startupCheckpoint']
     require(positive_int(startup['hostPid']) and probe.get('pid') == startup['hostPid'] and
                 startup['runId'] == environment['startupGeneration'] == probe.get('startupGeneration') and
+                isinstance(environment.get('buildId'), str) and environment['buildId'] and
+                startup.get('buildId') == environment['buildId'] == probe.get('buildId') and
                 startup['nativeFork'] == environment['webviewPin'] and startup['appBootToken'] and
                 startup['hostExecutable'] and startup.get('firstFrameRasterized') is True and
                 probe.get('startupFirstFrameRasterized') is True, 'startup checkpoint differs from the measured native app')

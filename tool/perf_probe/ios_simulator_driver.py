@@ -1,6 +1,7 @@
 """Launch the prebuilt Simulator app without Flutter's OS log reader."""
 import http.client
 import json
+import os
 from pathlib import Path
 import queue
 import re
@@ -79,15 +80,19 @@ class SimulatorDriver:
         self.actual_runtime, self.actual_device = matches[0]
         self.device = self.actual_device['udid']
         self.ownership['device'] = self.device
-        self.run('simulator-visible', ['open', '-a', 'Simulator'], self.remaining(30))
+        self.run('simulator-visible', ['open', '-a', 'Simulator'], self.remaining(90))
         return self.device
 
-    def start(self, application, dart, entrypoint):
+    def start(self, application, dart, entrypoint, launch_environment=None):
         require(self.ownership['created'] and self.ownership['booted'], 'The application requires an owned private Simulator')
         self.run('ios-install', ['xcrun', 'simctl', 'install', self.device, str(application)], self.remaining(120))
         self.deadline = min(self.deadline, time.monotonic() + 180)
+        # simctl passes SIMCTL_CHILD_<NAME> to the launched app as <NAME>.
+        launch = {} if launch_environment is None else {'env': dict(os.environ, **{
+            'SIMCTL_CHILD_' + name: value for name, value in launch_environment.items()})}
         text = self.run('ios-launch', ['xcrun', 'simctl', 'launch', self.device, 'com.mendelg.otzaria',
-                        '--enable-checked-mode', '--verify-entry-points', '--disable-vm-service-publication'], self.remaining(30))
+                        '--enable-checked-mode', '--verify-entry-points', '--disable-vm-service-publication'],
+                        self.remaining(30), **launch)
         match = re.fullmatch(r'com\.mendelg\.otzaria: ([1-9][0-9]*)', text.strip())
         require(match, 'simctl did not acknowledge the launched application PID')
         self.pid = int(match[1])

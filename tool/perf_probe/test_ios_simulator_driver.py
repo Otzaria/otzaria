@@ -197,6 +197,26 @@ class SimulatorCheckpointTest(unittest.TestCase):
             self.assertNotIn('--disable-service-auth-codes', launch)
             self.assertEqual(fixture.paths, ['/probe_auth-123=/getVM'])
 
+    def test_launch_values_reach_only_the_launched_app_environment(self):
+        received, original = {}, self.driver.run
+
+        def run(label, command, timeout, **kwargs):
+            received[label] = kwargs.pop('env', None)
+            return original(label, command, timeout, **kwargs)
+
+        self.driver.run = run
+        with VmFixture() as fixture:
+            self.checkpoint(fixture.uri)
+            self.driver.start(self.directory / 'Runner.app', self.directory / 'flutter-sdk/bin/dart',
+                              'test_driver/ios_plugin_fonts.dart',
+                              launch_environment={'IOS_FONT_PROBE_TOKEN': 'launch-secret',
+                                                  'OTZARIA_FONT_PROBE_INSTANCES': '5'})
+        self.assertEqual(received['ios-launch']['SIMCTL_CHILD_IOS_FONT_PROBE_TOKEN'], 'launch-secret')
+        self.assertEqual(received['ios-launch']['SIMCTL_CHILD_OTZARIA_FONT_PROBE_INSTANCES'], '5')
+        self.assertIsNone(received['ios-install'])
+        launch = next(command for label, command, _ in self.calls if label == 'ios-launch')
+        self.assertNotIn('launch-secret', ' '.join(launch))
+
     def test_wrong_checkpoint_identity_cannot_release_or_contact_the_vm(self):
         cases = [
             {'hostPid': 4243}, {'runId': 'stale-generation'},

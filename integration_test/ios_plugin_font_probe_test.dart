@@ -19,10 +19,31 @@ import 'support/ios_font_probe_case.dart';
 import 'support/ios_font_probe_report.dart';
 import 'support/macos_font_probe.dart';
 
-const _count = int.fromEnvironment(
-  'OTZARIA_FONT_PROBE_INSTANCES',
-  defaultValue: 1,
+/// Per-count values arrive at launch (SIMCTL_CHILD_*), so one build serves
+/// every view count.
+String _launchValue(String name, String compiled) {
+  final value = Platform.environment[name];
+  return value == null || value.isEmpty ? compiled : value;
+}
+
+final _count = int.parse(
+  _launchValue(
+    'OTZARIA_FONT_PROBE_INSTANCES',
+    const String.fromEnvironment(
+      'OTZARIA_FONT_PROBE_INSTANCES',
+      defaultValue: '1',
+    ),
+  ),
 );
+final _coordinator = _launchValue(
+  'IOS_FONT_PROBE_COORDINATOR',
+  const String.fromEnvironment('IOS_FONT_PROBE_COORDINATOR'),
+);
+final _generation = _launchValue(
+  'IOS_FONT_PROBE_GENERATION',
+  const String.fromEnvironment('IOS_FONT_PROBE_GENERATION'),
+);
+const _buildId = String.fromEnvironment('IOS_FONT_PROBE_BUILD');
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
@@ -86,9 +107,8 @@ void main() {
         'sourceCommit': const String.fromEnvironment(
           'OTZARIA_IOS_FONT_PROBE_SOURCE',
         ),
-        'startupGeneration': const String.fromEnvironment(
-          'IOS_FONT_PROBE_GENERATION',
-        ),
+        'startupGeneration': _generation,
+        'buildId': _buildId,
         'lockSha256': const String.fromEnvironment(
           'OTZARIA_IOS_FONT_PROBE_LOCK_SHA256',
         ),
@@ -134,13 +154,16 @@ void main() {
       await binding.waitUntilFirstFrameRasterized;
       report['startupFirstFrameRasterized'] = binding.firstFrameRasterized;
       await notifyIosFontProbeStarted(
-        coordinator: const String.fromEnvironment('IOS_FONT_PROBE_COORDINATOR'),
-        token: const String.fromEnvironment('IOS_FONT_PROBE_TOKEN'),
-        generation: const String.fromEnvironment('IOS_FONT_PROBE_GENERATION'),
+        coordinator: _coordinator,
+        token: _launchValue(
+          'IOS_FONT_PROBE_TOKEN',
+          const String.fromEnvironment('IOS_FONT_PROBE_TOKEN'),
+        ),
+        generation: _generation,
         nativeFork: const String.fromEnvironment('IOS_FONT_PROBE_NATIVE_FORK'),
+        buildId: _buildId,
         firstFrameRasterized: binding.firstFrameRasterized,
-        vmService:
-            const String.fromEnvironment('IOS_FONT_PROBE_COORDINATOR').isEmpty
+        vmService: _coordinator.isEmpty
             ? const {}
             : await iosSimulatorVmService(),
       );
