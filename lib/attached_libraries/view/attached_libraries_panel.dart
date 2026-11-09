@@ -64,21 +64,23 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
 
   Future<void> _importFile() async {
     final bloc = context.read<AttachedLibrariesBloc>();
-    final files =
-        (await withFilePickerOwner(
-          context,
-          (picker) => picker.pickFiles(
-            // בורר המערכת במובייל אינו מכיר את הסיומת db; הקובץ נבדק לפי תוכנו.
-            type: widget.supportsLinking ? FileType.custom : FileType.any,
-            allowedExtensions: widget.supportsLinking ? const ['db'] : null,
-            dialogTitle: context.settingsText('בחר קובץ מסד ספרים'),
-            windowsOptions: modalWindowsOptions(context),
-            linuxOptions: kModalLinuxOptions,
-          ),
-        )) ??
-        [];
-    final path = files.map((f) => f.path).whereType<String>().firstOrNull;
-    if (path != null) bloc.add(ImportAttachedLibraryFile(path));
+    // Only one attached library can be imported by this action. A multi-file
+    // dialog previously allowed several selections but silently discarded
+    // everything except the first, unnecessarily creating platform handles.
+    final file = await withFilePickerOwner(
+      context,
+      (picker) => picker.pickFile(
+        // בורר המערכת במובייל אינו מכיר את הסיומת db; הקובץ נבדק לפי תוכנו.
+        type: widget.supportsLinking ? FileType.custom : FileType.any,
+        allowedExtensions: widget.supportsLinking ? const ['db'] : null,
+        dialogTitle: context.settingsText('בחר קובץ מסד ספרים'),
+        windowsOptions: modalWindowsOptions(context),
+        linuxOptions: kModalLinuxOptions,
+      ),
+    );
+    if (file?.path case final String path) {
+      bloc.add(ImportAttachedLibraryFile(path));
+    }
   }
 
   Future<void> _addFolder() async {
