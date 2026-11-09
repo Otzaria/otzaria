@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
 PersonalNote _note({
@@ -32,6 +34,15 @@ PersonalNote _note({
     createdAt: createdAt ?? DateTime(2025, 1, 1),
     updatedAt: updatedAt ?? DateTime(2025, 3, 7),
   );
+}
+
+class _CapturedNotesDatabase extends Fake implements PersonalNotesDatabase {
+  PersonalNote? inserted;
+
+  @override
+  Future<void> insertNote(PersonalNote note) async {
+    inserted = note;
+  }
 }
 
 void main() {
@@ -217,6 +228,65 @@ void main() {
       );
 
       expect(blocks, isEmpty);
+    });
+  });
+
+  group('QA: יצירה עד ייצוא דיבור המתחיל', () {
+    test('גרש, גרשיים, מרכאות ASCII וניקוד עוברים יצירה וייצוא', () async {
+      for (final (selected, expectedTitle, expectedAnchor) in [
+        ('רש"י', 'רש"י', 'רשי'),
+        ('רש״י', 'רש״י', 'רשי'),
+        ('ר׳', 'ר׳', 'ר'),
+        ('רַשּׁ״י', 'רש״י', 'רשי'),
+      ]) {
+        final database = _CapturedNotesDatabase();
+        final note = await PersonalNotesService(database: database).createNote(
+          bookId: 'ספר בדיקה',
+          bookContent: 'פירוש $selected כאן',
+          lineNumber: 1,
+          selectedText: selected,
+          sourceSelectedText: selected,
+          content: 'פירוט',
+          contentPlain: 'פירוט',
+          contentFormat: PersonalNoteContentFormat.plain,
+        );
+
+        expect(database.inserted, note);
+        expect(note.anchorText, expectedAnchor, reason: selected);
+        expect(note.displayTitle, expectedTitle, reason: selected);
+        final blocks = service.buildWordExportBlocks(
+          notes: [note],
+          locationRef: (_) => null,
+        );
+        expect(
+          blocks.last.text,
+          '<b>$expectedTitle.</b> פירוט',
+          reason: selected,
+        );
+      }
+    });
+
+    test('כותרת שונה בשל החלפה בתצוגה אינה גוברת על עוגן המקור', () async {
+      final database = _CapturedNotesDatabase();
+      final note = await PersonalNotesService(database: database).createNote(
+        bookId: 'ספר בדיקה',
+        bookContent: 'פתיחה מקור ארוך ומסקנה',
+        lineNumber: 1,
+        selectedText: 'תצוגה',
+        sourceSelectedText: 'מקור',
+        sourceSelectionOffset: 7,
+        content: 'פירוט',
+        contentPlain: 'פירוט',
+        contentFormat: PersonalNoteContentFormat.plain,
+      );
+
+      expect(note.anchorText, 'מקור');
+      expect(note.displayTitle, 'תצוגה');
+      final blocks = service.buildWordExportBlocks(
+        notes: [note],
+        locationRef: (_) => null,
+      );
+      expect(blocks.last.text, '<b>מקור.</b> פירוט');
     });
   });
 
