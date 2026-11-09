@@ -114,18 +114,26 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       return false;
     }
     if (_controller == null) {
-      _controller = PluginCorrectionController(widget.sourceText);
+      _controller = PluginCorrectionController(
+        widget.sourceText,
+        hideNikud: widget.settings.removeNikud,
+      );
       _focus = FocusNode()..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
+    // ספר שהוגדר ללא ניקוד מוצג כך גם בעורך; הניקוד נשמר במקור.
+    controller.hideNikud = widget.settings.removeNikud;
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
       widget.sectionIndex,
       widget.sourceText,
     );
-    if (controller.forService(controller.text) == canonical) return false;
+    if (controller.forService(controller.text) == canonical) {
+      controller.adopt(canonical);
+      return false;
+    }
     final text = controller.forEditor(canonical);
     if (controller.text == text) return false;
     final selection = controller.selection;
