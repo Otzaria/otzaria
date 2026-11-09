@@ -164,6 +164,13 @@ Future<Map<String, Object>> _measure(
       debugName: asynchronous ? 'async-book-probe' : 'sync-book-probe',
     );
   } finally {
+    // A stalled UI isolate may process the worker-completion message before
+    // its overdue Timer callbacks. Include the tail interval explicitly, so
+    // cancelling the timer cannot hide a last-second safepoint stall.
+    final tailGapMs = (clock.elapsedMicroseconds - previousUs) / 1000.0;
+    maximumGapMs = math.max(maximumGapMs, tailGapMs);
+    if (gaps.length < 50000) gaps.add(tailGapMs);
+    peakRss = math.max(peakRss, ProcessInfo.currentRss);
     timer.cancel();
     clock.stop();
   }
