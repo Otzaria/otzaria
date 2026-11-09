@@ -194,17 +194,16 @@ dependency_overrides:
   # AGP 9 / Gradle 9 (superlistapp/super_native_extensions#565). See UPSTREAM.md.
   super_native_extensions:
     path: packages/super_native_extensions
-  # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
-  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ו-#2862 (טעינת ה-DLL
-  # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
+  # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו MaikuB/flutter_local_notifications#2826 (WinRT
+  # ב-thread ייעודי), #2869, #2870, #2871, #2872, #2873 ו-#2874 (שאילתות ב-isolate עזר).
+  # החזרה מחייבת גם 23.x (AGP 9.1.1, compileSdk 37). עד אז: הפורק Otzaria, הענף המשולב
+  # windows-worker-thread-lazy-library (בסיס 3.1.1), מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
-  # כולל תיקון memory ownership (#4), helper isolates ו-native teardown (#5).
-  # נעיצה ל-SHA המדויק שנבדק ב-Windows, ללא שינוי public Dart API.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
+      ref: 29ca6d58a08e81711c5e9e0fad8b73a0b185ba86
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו getsentry/sentry-dart#4094 ו-#4126 (ה-backport ל-9.x בענף
   # fix/9.x-windows-scope-sync-worker: טעינת sentry.dll, sentry_init ועדכוני ה-scope ב-isolate עזר ב-Windows).
