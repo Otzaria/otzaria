@@ -394,10 +394,6 @@ void main() {
     );
     final screen = tester.state(find.byType(PdfBookScreen));
     final document = tab.pdfViewerController.document;
-    addTearDown(() async {
-      await tester.pumpWidget(const SizedBox.shrink());
-      await disposePdfDocument(tester, document);
-    });
     expect(
       tab.links.where((link) => link.targetSource != book.source),
       isEmpty,
@@ -442,6 +438,12 @@ void main() {
       tab.links.where((link) => link.targetSource == BookSource.official),
       hasLength(1),
     );
+
+    // בדיקת הטיימרים התלויים רצה לפני addTearDown,
+    // ו-pdfrx ממתין 100ms לפני טעינת שאר העמודים.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await disposePdfDocument(tester, document);
+    await tester.pump(const Duration(milliseconds: 200));
   });
 
   test('מפרשי PDF משני מסדים בעלי אותה כותרת נשארים נפרדים', () async {
