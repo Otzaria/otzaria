@@ -70,10 +70,9 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
     if (oldWidget.preserveFocus != widget.preserveFocus) {
       _cancelOpen();
       _focusNode.canRequestFocus = !widget.preserveFocus;
-    }
-    if (oldWidget.preserveFocus != widget.preserveFocus ||
-        oldWidget.controller != widget.controller) {
-      _setTrackingPointer(!widget.preserveFocus && widget.controller.isOpen);
+      // Changing the FocusScope wrapper recreates the closed menu anchor.
+      // Controller replacement alone retains its open state and tracking.
+      _setTrackingPointer(false);
     }
   }
 
