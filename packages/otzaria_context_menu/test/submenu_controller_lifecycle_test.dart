@@ -24,13 +24,32 @@ void main() {
     final stream = StreamController<Object?>.broadcast(sync: true);
     addTearDown(stream.close);
     var index = 0;
+    OnKeyEventCallback? escapeHandler;
+
+    Future<void> pressEscape() async {
+      expect(
+        escapeHandler!(
+          const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.escape,
+            logicalKey: LogicalKeyboardKey.escape,
+            timeStamp: Duration.zero,
+          ),
+        ),
+        KeyEventResult.handled,
+      );
+      await tester.pumpAndSettle();
+    }
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: ContextMenuRegion(
             key: key,
             presentation: _presentation(),
-            registerEscape: (_) => () {},
+            registerEscape: (handler) {
+              escapeHandler = handler;
+              return () => escapeHandler = null;
+            },
             menuBuilder: (_, _) => [
               AppContextMenuEntry(
                 label: 'Root',
@@ -39,10 +58,7 @@ void main() {
                   AppContextMenuEntry(
                     label: 'Nested',
                     children: [
-                      AppContextMenuEntry(
-                        label: 'Action $index',
-                        onTap: () {},
-                      ),
+                      AppContextMenuEntry(label: 'Action $index', onTap: () {}),
                     ],
                   ),
                 ],
@@ -59,10 +75,7 @@ void main() {
     await tester.pumpAndSettle();
     // The current eager submenu loader creates one nested controller ahead
     // of opening; a separate lazy-loading change may defer that work.
-    expect(
-      state.debugTrackedSubmenuControllerCount,
-      inInclusiveRange(1, 2),
-    );
+    expect(state.debugTrackedSubmenuControllerCount, inInclusiveRange(1, 2));
 
     await tester.tap(find.text('Root'));
     await tester.pumpAndSettle();
@@ -86,16 +99,24 @@ void main() {
 
     await state.openMenuAt(const Offset(250, 100));
     await tester.pumpAndSettle();
-    // The current eager submenu loader creates one nested controller ahead
-    // of opening; a separate lazy-loading change may defer that work.
-    expect(
-      state.debugTrackedSubmenuControllerCount,
-      inInclusiveRange(1, 2),
-    );
-    expect(find.text('Action 12'), findsNothing);
+    expect(state.debugTrackedSubmenuControllerCount, 2);
+    expect(find.text('Action 12'), findsOneWidget);
+    expect(find.text('Nested'), findsOneWidget);
+    expect(find.text('Root'), findsOneWidget);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
+    await pressEscape();
+    expect(find.text('Action 12'), findsNothing);
+    expect(find.text('Nested'), findsOneWidget);
+    expect(state.debugTrackedSubmenuControllerCount, 2);
+
+    await pressEscape();
+    expect(find.text('Nested'), findsNothing);
+    expect(find.text('Root'), findsOneWidget);
+    expect(state.debugTrackedSubmenuControllerCount, 1);
+
+    await pressEscape();
+    expect(find.text('Root'), findsNothing);
     expect(state.debugTrackedSubmenuControllerCount, 0);
+    expect(escapeHandler, isNull);
   });
 }
