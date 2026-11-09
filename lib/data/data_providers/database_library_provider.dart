@@ -458,14 +458,19 @@ Future<List<_DiscoveredBook>> _scanExternalFolderInIsolate(
   }
 
   final books = <_DiscoveredBook>[];
-  await _collectBookFilesRecursive(
-    Directory(args.$1),
-    ['ספרים אישיים', args.$2],
-    books,
-    db,
-  );
-  db?.close();
-  return books;
+  try {
+    await _collectBookFilesRecursive(
+      Directory(args.$1),
+      ['ספרים אישיים', args.$2],
+      books,
+      db,
+    );
+    return books;
+  } finally {
+    // Directory.list may fail between yielded entries (removed folder,
+    // inaccessible network share). Close the read-only DB on every exit.
+    db?.close();
+  }
 }
 
 Future<void> _collectBookFilesRecursive(
