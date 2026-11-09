@@ -369,11 +369,46 @@ class PrivateSimulatorOwnershipTest(unittest.TestCase):
                     raw = {**private_record(), 'udid': listed}
                     self.private_devices = {RUNTIME: [seed_record(), raw]}
                     self.driver = self.new_driver()
-                    self.assertEqual(self.driver.prepare(seed_record(), RUNTIME), PRIVATE_UDID)
+                    self.assertEqual(self.driver.prepare(seed_record(), RUNTIME), listed)
+                    self.assertEqual(self.driver.device, listed)
+                    self.assertEqual(self.driver.ownership['device'], listed)
                     self.assertEqual(self.driver.actual_device, raw)
                     self.assertEqual(self.driver.actual_device['udid'], listed)
                     self.driver.close()
                     self.assert_seed_untouched()
+
+    def test_case_sensitive_xcode_destination_uses_the_verified_os_spelling(self):
+        listed = PRIVATE_UDID.upper()
+        raw = {**private_record(), 'udid': listed}
+        self.private_devices = {RUNTIME: [seed_record(), raw]}
+        destination = self.driver.prepare(seed_record(), RUNTIME)
+        def xcodebuild(device):
+            if device != raw['udid']:
+                raise subprocess.CalledProcessError(70, ['xcodebuild', '-destination',
+                    'platform=iOS Simulator,id=' + device], output='No available device matched the destination')
+        xcodebuild(destination)
+        self.assertEqual(self.driver.actual_device, raw)
+        self.driver.close()
+        self.assertEqual(self.operations()[-2:], [
+            ('simulator-shutdown', ['xcrun', 'simctl', 'shutdown', listed]),
+            ('simulator-delete', ['xcrun', 'simctl', 'delete', listed]),
+        ])
+        self.assert_seed_untouched()
+
+    def test_post_validation_failure_retains_the_verified_os_spelling_for_cleanup(self):
+        listed = PRIVATE_UDID.upper()
+        self.private_devices = {RUNTIME: [{**private_record(), 'udid': listed}]}
+        failure = subprocess.TimeoutExpired(['open', '-a', 'Simulator'], 30)
+        self.failures['simulator-visible'] = failure
+        with self.assertRaises(subprocess.TimeoutExpired) as caught:
+            self.driver.prepare(seed_record(), RUNTIME)
+        self.assertIs(caught.exception, failure)
+        self.driver.close()
+        self.assertEqual(self.operations()[-2:], [
+            ('simulator-shutdown', ['xcrun', 'simctl', 'shutdown', listed]),
+            ('simulator-delete', ['xcrun', 'simctl', 'delete', listed]),
+        ])
+        self.assert_seed_untouched()
 
     def test_duplicate_uuid_case_aliases_are_not_one_os_device(self):
         self.private_devices = {RUNTIME: [private_record(), {**private_record(), 'udid': PRIVATE_UDID.upper()}]}
@@ -418,6 +453,8 @@ class PrivateSimulatorOwnershipTest(unittest.TestCase):
             'wrong-runtime': {RUNTIME + '-other': [private_record()]},
             'wrong-type': {RUNTIME: [{**private_record(),
                                     'deviceTypeIdentifier': DEVICE_TYPE + '-other'}]},
+            'wrong-type-uppercase': {RUNTIME: [{**private_record(), 'udid': PRIVATE_UDID.upper(),
+                                              'deviceTypeIdentifier': DEVICE_TYPE + '-other'}]},
             'not-booted': {RUNTIME: [{**private_record(), 'state': 'Shutdown'}]},
             'duplicate': {RUNTIME: [private_record(), private_record()]},
         }

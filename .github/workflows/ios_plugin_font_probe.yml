@@ -68,6 +68,7 @@ jobs:
           python3 -m unittest discover -s tool/perf_probe -p test_macos_plugin_fonts_report.py -v
           flutter test --no-pub \
             test/tool/perf_probe/ios_font_probe_contract_test.dart \
+            test/tool/perf_probe/ios_font_probe_startup_test.dart \
             test/tool/perf_probe/ios_font_probe_navigation_test.dart \
             test/tool/perf_probe/macos_font_probe_navigation_test.dart \
             test/tool/perf_probe/macos_font_probe_progress_test.dart \
