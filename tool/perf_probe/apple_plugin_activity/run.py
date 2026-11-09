@@ -49,9 +49,28 @@ def transient_swiftpm_download_failure(output):
     if ("https://github.com/" not in output or
             not any(marker in output for marker in ("downloadError(", "failed downloading"))):
         return False
-    return any(marker in output for marker in
-               ("HTTP 503", "HTTP 502", "HTTP 504", "returned error: 503",
-                "Could not connect to the server", "connection reset", "timed out"))
+    return (re.search(r"HTTP 50[0234]\b|returned error: 50[0234]\b|badResponseStatusCode\(50[0234]\)",
+                      output) is not None
+            or any(marker in output for marker in
+                   ("Could not connect to the server", "connection reset", "timed out")))
+
+
+SWIFTPM_RETRY_DELAYS = (15, 45)
+
+
+def swiftpm_attempt_label(prefix, attempt):
+    return prefix if attempt == 0 else f"{prefix}-retry" if attempt == 1 else f"{prefix}-retry-{attempt}"
+
+
+def back_off_swiftpm_retry(environment, directory, stage, previous_log, attempt, deadline):
+    """Record and wait before another attempt; False once the retries are spent."""
+    if attempt >= len(SWIFTPM_RETRY_DELAYS):
+        return False
+    environment.setdefault("swiftpmRetries", []).append({
+        "stage": stage, "reason": "external SwiftPM download failure", "previousLog": previous_log})
+    save(directory / "environment.json", environment)
+    time.sleep(min(SWIFTPM_RETRY_DELAYS[attempt], remaining_timeout(deadline, 60)))
+    return True
 
 
 def swiftpm_log(directory, prefix):
@@ -790,6 +809,19 @@ def build_ios_probe(directory, timeout=2400, *, label="build-ios-probe"):
     return REPO / "build/ios/iphonesimulator/Runner.app"
 
 
+def build_ios_probe_with_retries(directory, environment, deadline):
+    for attempt in range(len(SWIFTPM_RETRY_DELAYS) + 1):
+        label = swiftpm_attempt_label("build-ios-probe", attempt)
+        try:
+            return build_ios_probe(directory, timeout=remaining_timeout(deadline, 2400), label=label)
+        except subprocess.CalledProcessError:
+            # Only package resolution failed; no app launch or native lifecycle occurred.
+            if not (transient_swiftpm_download_failure(swiftpm_log(directory, label)) and
+                    back_off_swiftpm_retry(environment, directory, "iosBuild",
+                                           f"{label}.stdout.log", attempt, deadline)):
+                raise
+
+
 def ios_build_provenance(application, *, deadline):
     # Preserve the exact prebuilt input before runtime or cleanup changes it.
     info_plist = application / "Info.plist"
@@ -986,20 +1018,7 @@ def main():
             return
         application = None
         if args.platform == "ios":
-            try:
-                application = build_ios_probe(directory, timeout=remaining_timeout(deadline, 2400))
-            except subprocess.CalledProcessError:
-                if not transient_swiftpm_download_failure(swiftpm_log(directory, "build-ios-probe")):
-                    raise
-                # Only package resolution failed; no app launch or native lifecycle occurred.
-                environment.setdefault("swiftpmRetries", []).append({
-                    "stage": "iosBuild", "reason": "external SwiftPM download failure",
-                    "previousLog": "build-ios-probe.stdout.log"})
-                save(directory / "environment.json", environment)
-                time.sleep(min(5, remaining_timeout(deadline, 60)))
-                application = build_ios_probe(
-                    directory, timeout=remaining_timeout(deadline, 2400),
-                    label="build-ios-probe-retry")
+            application = build_ios_probe_with_retries(directory, environment, deadline)
             if native_source_provenance(deadline=deadline) != provenance:
                 raise ValueError("The resolved native source changed during the app build")
             environment["prebuiltApplication"] = str(application)
@@ -1036,18 +1055,18 @@ def main():
                 env={**os.environ, **driver_environment, "APPLE_QUIET_OUTPUT": str(directory)},
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             code = wait_for_drive(app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
-        if (args.platform == "macos" and code != 0 and coordinator.app_checkpoint_at is None
+        attempt = 0
+        # A build-time HTTP failure before any authenticated app checkpoint.
+        # Each failed output is preserved; app failures are never retried.
+        while (args.platform == "macos" and code != 0 and coordinator.app_checkpoint_at is None
                 and not coordinator.completed.is_set()
                 and transient_swiftpm_download_failure(
-                    (directory / "flutter-drive.log").read_text(encoding="utf-8", errors="replace"))):
-            # A build-time HTTP failure occurred before any authenticated app
-            # checkpoint. Preserve the failed output; do not retry app failures.
-            environment.setdefault("swiftpmRetries", []).append({
-                "stage": "macosDrive", "reason": "external SwiftPM download failure",
-                "previousLog": "flutter-drive.log"})
-            save(directory / "environment.json", environment)
-            time.sleep(min(5, remaining_timeout(deadline, 60)))
-            with (directory / "flutter-drive-swiftpm-retry.log").open("w") as log:
+                    (directory / driver_log).read_text(encoding="utf-8", errors="replace"))
+                and back_off_swiftpm_retry(environment, directory, "macosDrive", driver_log,
+                                           attempt, deadline)):
+            attempt += 1
+            driver_log = swiftpm_attempt_label("flutter-drive", attempt) + ".log"
+            with (directory / driver_log).open("w") as log:
                 app_process = subprocess.Popen(command, cwd=REPO,
                     env={**os.environ, "APPLE_QUIET_OUTPUT": str(directory)},
                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
