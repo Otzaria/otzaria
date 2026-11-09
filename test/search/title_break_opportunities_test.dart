@@ -34,7 +34,7 @@ void main() {
 
   test('supplementary Unicode grapheme clusters are preserved', () {
     const flag = '\u{1F1EE}\u{1F1F1}';
-    const twoFlags = flag + flag;
+    final twoFlags = flag + flag;
     expect(
       insertGraphemeBreakOpportunities(twoFlags + 'ג', 2),
       twoFlags + '\u200Bג',
