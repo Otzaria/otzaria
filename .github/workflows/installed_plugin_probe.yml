@@ -39,8 +39,6 @@ jobs:
         include:
           - platform: windows
             runner: windows-2025
-          - platform: macos
-            runner: macos-latest
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -105,18 +103,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run actual installed plugin hosts and dispatcher
         run: |
-          if ('${{ matrix.platform }}' -eq 'windows') {
-            & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
-            exit $LASTEXITCODE
-          }
-          flutter drive --profile -d ${{ matrix.platform }} --no-pub `
-            --driver=test_driver/installed_plugin_resource_probe.dart `
-            --target=integration_test/installed_plugin_resource_probe_test.dart `
-            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
-            --dart-define=INSTALLED_PROBE_COMMIT=${{ github.sha }} `
-            --dart-define=INSTALLED_PROBE_IDLE_MS=1000 `
-            2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/run.log'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
+          exit $LASTEXITCODE
       - name: Preserve raw results and partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2

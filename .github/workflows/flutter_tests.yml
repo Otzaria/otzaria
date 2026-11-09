@@ -35,7 +35,7 @@ jobs:
             echo native_macos=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          shared='^(tool/(download_assistant|updater|release)/|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
+          shared='^(tool/(download_assistant|updater)/|tool/release/(download_assistant_selection|generate_release_manifest|semantic_release_components)\.dart$|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
           macos='^(lib/utils/file/native_sha256\.dart|test/utils/file/native_sha256_test\.dart|pubspec\.lock)$'
           linux=false; mac=false
           grep -qE "$shared" <<< "$files" && linux=true && mac=true

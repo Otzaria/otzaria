@@ -328,8 +328,7 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 ב-iOS 17 וב-macOS 14 ומעלה, Apple מתעדת שמדיניות
 [`inactiveSchedulingPolicy`](https://developer.apple.com/documentation/webkit/wkpreferences/inactiveschedulingpolicy-swift.property)
 חלה על WebView שאינו בחלון, ושברירת המחדל שלה היא `suspend` בכפוף לחריגים
-שהמערכת מגדירה. אוצריא אינה משנה את המדיניות בניסוי
-[מדידת הפעילות בתוך מארחי התוספים](../../tool/perf_probe/apple_plugin_activity/README.md).
+שהמערכת מגדירה. אוצריא אינה משנה את המדיניות הזו.
 צילום מצב נייטיבי הוא תיאור של רגע הקריאה; קריאת JavaScript או פקודה אחרי
 החזרה אינן הוכחה שהקוד התקדם בזמן הרקע. יש לבדוק את מערכת ההפעלה, גרסת
 WebKit, מצב הבנייה והתרחיש הרלוונטיים, ולתכנן חידוש עבודה בטוח.
