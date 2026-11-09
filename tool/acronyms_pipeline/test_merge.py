@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import merge  # noqa: E402
@@ -22,6 +23,49 @@ class Apply(unittest.TestCase):
         merged, stats = merge.apply(base, [])
         self.assertEqual(merged, base)
         self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (0, 0))
+
+    def test_removals_drop_pairs_and_empty_keys_but_nothing_else(self):
+        base = {'א"א': ["אברהם אבינו", 'א"א'], 'רמ"בם': ["רמבם"], 'ט"ו': ["חמישה עשר"]}
+        merged, stats = merge.apply(base, [], removals={('א"א', 'א"א'), ('רמ"בם', "רמבם")})
+        self.assertEqual(merged, {'א"א': ["אברהם אבינו"], 'ט"ו': ["חמישה עשר"]})
+        self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (2, 1))
+
+    def test_gematria_suggestions_are_not_removed(self):
+        import csv, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.csv")
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write("\n".join(["key,expansion,reason", 'ט"ו,חמישה עשר,gematria_number',
+                                   'רמ"בם,רמבם,same_as_key', ""]))
+            self.assertEqual(merge.read_removals(path), {('רמ"בם', "רמבם")})
+
+    def test_shipped_removals_are_gone_from_the_dictionary_and_fail_the_filters(self):
+        import filters
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "..", "..", "assets", "Acronyms.json"), encoding="utf-8") as f:
+            shipped = json.load(f)
+        for key, meaning in merge.read_removals():
+            self.assertNotIn(meaning, shipped.get(key, []), (key, meaning))
+            self.assertTrue(filters.check_expansion(key, meaning)[0], (key, meaning))
+
+    def test_agent_rows_enter_only_from_flagged_sources(self):
+        agent = dict(status="agent_approved", reviewer="agent:claude-sonnet-5-5")
+        rows = [row('א"ח', "אורח חיים", source="stern-ref", **agent),
+                row('ב"ח', "בית חדש", source="agent-verified-reference", **agent)]
+        sources = {"stern-ref": {"merge_agent_checked": True}, "agent-verified-reference": {}}
+        merged, stats = merge.apply(BASE, rows, sources=sources)
+        self.assertIn('א"ח', merged)
+        self.assertNotIn('ב"ח', merged)
+        self.assertEqual((stats["human_approved_rows"], stats["agent_approved_rows"]), (0, 1))
+        self.assertNotIn('א"ח', merge.apply(BASE, rows, sources=None)[0])
+        self.assertNotIn('א"ח', merge.apply(BASE, rows, human_only=True, sources=sources)[0])
+
+    def test_shipped_flags_are_only_on_sources_that_exist_in_the_ledger(self):
+        flagged = {k for k, v in SOURCES.items() if v.get("merge_agent_checked")}
+        used = {r["source"] for r in merge.read_ledger() if r["status"] == "agent_approved"}
+        self.assertTrue(flagged <= used, flagged - used)
+        for k in flagged:
+            self.assertEqual(SOURCES[k]["status"], "allowed")
 
     def test_shipped_dictionary_has_no_multi_word_keys(self):
         # a Stern line like "דע\"ד בל\"ד" is two acronyms; its meaning must never be filed under the first one
@@ -146,6 +190,36 @@ class AgentApproved(unittest.TestCase):
 
     def test_a_human_row_cannot_use_an_agent_reviewer_id(self):
         self.assertTrue(merge.validate([row('ב"ה', "בית הלל", reviewer="agent:claude-sonnet-5-5")], SOURCES))
+
+
+class SearchAsset(unittest.TestCase):
+    def test_search_keeps_baseline_while_dictionary_changes_and_check_covers_both(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            baseline, target, search = [os.path.join(d, name) for name in ["base.json", "dictionary.json", "search.json"]]
+            with open(baseline, "w", encoding="utf-8") as f:
+                json.dump(BASE, f, ensure_ascii=False)
+            args = ["merge.py", "--baseline", baseline, "--target", target, "--search-target", search]
+            with patch.object(merge, "read_ledger", return_value=[row('ב"ה', "בית הלל")]), \
+                    patch.object(merge, "read_removals", return_value={('א"א', "אשת איש")}), \
+                    patch("builtins.print"):
+                with patch.object(sys, "argv", args + ["--out", target, "--search-out", search]):
+                    merge.main()
+                with open(search, encoding="utf-8") as f:
+                    frozen = json.load(f)
+                self.assertEqual(list(frozen.items()), list(BASE.items()))
+                with open(target, encoding="utf-8") as f:
+                    self.assertEqual(json.load(f), {'א"א': ["אברהם אבינו"], 'ב"ד': ["בית דין"],
+                                                   'ב"ה': ["בית הלל"], 'ג"ש': ["גזירה שווה"]})
+                with patch.object(sys, "argv", args + ["--check"]), self.assertRaises(SystemExit) as result:
+                    merge.main()
+                self.assertEqual(result.exception.code, 0)
+                with open(search, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+                with patch.object(sys, "argv", args + ["--check"]), self.assertRaises(SystemExit) as result:
+                    merge.main()
+                self.assertEqual(result.exception.code, 1)
 
 
 class Imports(unittest.TestCase):
