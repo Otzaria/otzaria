@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 class _Book {
   final String title;
@@ -63,7 +64,7 @@ void main() {
         w is ClipRRect &&
         w.borderRadius is BorderRadius &&
         (w.borderRadius as BorderRadius).topLeft != Radius.zero &&
-        w.child is Material,
+        (w.child is Material || w.child is ValueListenableBuilder<int>),
   );
 
   group('ItemsListView', () {
@@ -693,6 +694,133 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(tapped, 2);
+    });
+
+    testWidgets('Down באחרונה מחזיר אותה לתצוגה גם כשהמסך במנוחה', (
+      tester,
+    ) async {
+      EditableText.debugDeterministicCursor = true;
+      addTearDown(() => EditableText.debugDeterministicCursor = false);
+      int? tapped;
+      await tester.pumpWidget(
+        buildSearchable(
+          List.generate(20, (index) => _Item('ספר $index')),
+          onTap: (index) => tapped = index,
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (var index = 0; index < 20; index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 19);
+
+      // גלילה בלי שינוי הבחירה או איבוד המיקוד בשדה החיפוש.
+      final list = tester.widget<ScrollablePositionedList>(
+        find.byType(ScrollablePositionedList),
+      );
+      list.itemScrollController!.jumpTo(index: 0);
+      await tester.pumpAndSettle();
+      // ממתינים לסיום הבהוב הסמן, כדי שרק הניווט יוכל לתזמן פריים
+      // שיריץ את בדיקת הנראות.
+      for (var tick = 0; tick < 20; tick++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue,
+      );
+      expect(find.text('ספר 19').hitTestable(), findsNothing);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('ספר 19').hitTestable(), findsOneWidget);
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 19);
+    });
+
+    testWidgets('סינון שמסיר את הבחירה מאפס אותה ומאפשר ניווט מחדש', (
+      tester,
+    ) async {
+      int? tapped;
+      Widget build({bool filtered = false}) => buildWidget(
+        additionalFilter: filtered ? (item) => item.ref != 'הלכות שבת' : null,
+        onItemTap: (_, _, index) => tapped = index,
+      );
+      await tester.pumpWidget(build());
+      await tester.pump();
+      for (var index = 0; index < 3; index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 2);
+
+      await tester.pumpWidget(build(filtered: true));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 0);
+    });
+
+    testWidgets('חצי מקלדת לא מריצים מחדש סינון ומפתחות חיפוש', (
+      tester,
+    ) async {
+      var filterCalls = 0;
+      var searchKeyCalls = 0;
+      var subtitleCalls = 0;
+      final manyItems = List<dynamic>.generate(
+        80,
+        (index) => _Item('ספר $index', workspaceName: 'קבוצה'),
+      );
+
+      await tester.pumpWidget(
+        buildWidget(
+          testItems: manyItems,
+          additionalFilter: (_) {
+            filterCalls++;
+            return true;
+          },
+          searchKeyBuilder: (item) {
+            searchKeyCalls++;
+            return (item as _Item).ref;
+          },
+          subtitleBuilder: (_) {
+            subtitleCalls++;
+            return 'תיאור';
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.enterText(find.byType(TextField).first, 'ספר');
+      await tester.pump();
+
+      final filterCallsBeforeArrows = filterCalls;
+      final searchKeyCallsBeforeArrows = searchKeyCalls;
+      final subtitleCallsBeforeArrows = subtitleCalls;
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+
+      expect(filterCalls, filterCallsBeforeArrows);
+      expect(searchKeyCalls, searchKeyCallsBeforeArrows);
+      expect(subtitleCalls, subtitleCallsBeforeArrows);
     });
 
     testWidgets('Enter אחרי חץ ראשון פותח את התוצאה העליונה', (tester) async {
