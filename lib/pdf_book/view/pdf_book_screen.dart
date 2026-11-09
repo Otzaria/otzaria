@@ -108,6 +108,7 @@ import 'pdf_thumbnails_screen.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
@@ -5166,7 +5167,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             takeCenterMatchPage:
                                 widget.tab.takeCenterSearchMatchPage,
                           )
-                        : const Center(child: CircularProgressIndicator()),
+                        : const LoadingIndicator(),
                   ),
                 ),
                 NavPanelSearchSlot(
