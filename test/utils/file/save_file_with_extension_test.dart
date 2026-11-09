@@ -133,6 +133,29 @@ void main() {
       expect(await ensureFileExtension(file.path, 'pdf'), file.path);
     });
 
+    test('סיומת עם נקודה — לא מוסיף סיומת כפולה', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book.json');
+      await file.writeAsBytes([1, 2, 3]);
+      final result = await ensureFileExtension(file.path, '.json');
+      expect(result, file.path);
+      expect(await file.readAsBytes(), [1, 2, 3]);
+    });
+
+    test('סיומת עם נקודה וקובץ חסר סיומת — מוסיף נקודה אחת', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book');
+      await file.writeAsBytes([4, 5]);
+      final result = await ensureFileExtension(file.path, '.csv');
+      expect(result, '${file.path}.csv');
+      expect(await File(result).readAsBytes(), [4, 5]);
+      expect(await file.exists(), isFalse);
+    });
+
+    test('דחיית סיומת ריקה', () async {
+      final file = File('${tempDir.path}${Platform.pathSeparator}book');
+      await file.writeAsBytes([1]);
+      await expectLater(ensureFileExtension(file.path, '.'), throwsArgumentError);
+    });
+
     test('סיומת אחרת — מוסיף את המבוקשת בסוף', () async {
       final file = File('${tempDir.path}${Platform.pathSeparator}doc.txt');
       await file.writeAsBytes([1]);
