@@ -1304,19 +1304,21 @@ packages:
   pdf:
     dependency: "direct main"
     description:
-      name: pdf
-      sha256: "6e40827f370d196e97c6611724d923a3d86c431ce8e2ce1e59edd03a67a1a6e6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.13.1"
+      path: pdf
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      resolved-ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      url: "https://github.com/Otzaria/dart_pdf"
+    source: git
+    version: "3.13.2"
   pdf_widget_wrapper:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: pdf_widget_wrapper
-      sha256: c930860d987213a3d58c7ec3b7ecf8085c3897f773e8dc23da9cae60a5d6d0f5
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.4"
+      path: widget_wrapper
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      resolved-ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      url: "https://github.com/Otzaria/dart_pdf"
+    source: git
+    version: "1.0.5"
   pdfium_dart:
     dependency: "direct main"
     description:
@@ -1420,11 +1422,11 @@ packages:
     dependency: "direct main"
     description:
       path: printing
-      ref: f7f992b49370307143a4f82f59341bb1e6189792
-      resolved-ref: f7f992b49370307143a4f82f59341bb1e6189792
+      ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
+      resolved-ref: fb1bcbd6a43a5510462b949fcdf2526cd8abe422
       url: "https://github.com/Otzaria/dart_pdf"
     source: git
-    version: "5.15.1"
+    version: "5.15.2"
   process:
     dependency: transitive
     description:
