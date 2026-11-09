@@ -539,27 +539,28 @@ Future<List<Link>> getLinksforIndexs({
     return [];
   }
 
-  // קישורים נקודתיים נבדקים ב-Set; לטווחים מחפשים את השורה הנראית הראשונה
-  // שאחרי תחילת הטווח בחיפוש בינארי, גם כשהשורות הנראות אינן רציפות.
+  // קישורים נקודתיים נבדקים ב-Set; רק אם נדרש טווח מקור, בונים
+  // עצלנית רשימה ממוינת אחת עבור חיפוש בינארי בשורות לא רציפות.
   final indexSet = indexes.map((i) => i + 1).toSet();
-  final sortedIndexes = indexSet.toList()..sort();
+  List<int>? sortedIndexes;
   final commentatorsSet = commentatorsToShow.toSet();
 
   bool containsSourceLine(Link link) {
     if (indexSet.contains(link.index1)) return true;
     final end = link.index1End;
     if (end == null) return false;
+    final orderedIndexes = sortedIndexes ??= (indexSet.toList()..sort());
     var low = 0;
-    var high = sortedIndexes.length;
+    var high = orderedIndexes.length;
     while (low < high) {
       final mid = (low + high) ~/ 2;
-      if (sortedIndexes[mid] < link.index1) {
+      if (orderedIndexes[mid] < link.index1) {
         low = mid + 1;
       } else {
         high = mid;
       }
     }
-    return low < sortedIndexes.length && sortedIndexes[low] <= end;
+    return low < orderedIndexes.length && orderedIndexes[low] <= end;
   }
 
   // סינון אחד במקום לולאה עם סינונים מרובים

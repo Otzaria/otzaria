@@ -109,6 +109,53 @@ void main() {
     );
   });
 
+  test('סריקה מעורבת של קישורים נקודתיים וטווחים עם שורות לא רציפות', () async {
+    Link link(String name, int start, int? end, int target) => Link(
+      heRef: name,
+      index1: start,
+      index1End: end,
+      path2: 'מפרש',
+      index2: target,
+      connectionType: LinkTypes.commentary,
+    );
+
+    final point = link('נקודתי', 5, null, 7);
+    final beforeRange = link('טווח קודם', 1, 3, 3);
+    final middleRange = link('טווח ללא התאמה', 9, 19, 6);
+    final lastRange = link('טווח אחרון', 19, 21, 10);
+    final noMatch = link('ללא התאמה', 6, null, 1);
+
+    // האינדקסים 0-based, לא ממוינים ומכילים כפילות; שורות המקור 1-based.
+    final found = await getLinksforIndexs(
+      indexes: const [7, 2, 7, 20, 4],
+      links: [lastRange, noMatch, middleRange, point, beforeRange],
+      commentatorsToShow: const ['מפרש'],
+    );
+
+    expect(found, [same(beforeRange), same(point), same(lastRange)]);
+  });
+
+  test('רק קישורים נקודתיים, עם רשימת שורות גדולה ולא מסודרת', () async {
+    final links = [
+      for (var i = 0; i < 400; i++)
+        _link(heRef: 'מפרש $i', index1: i + 1, index2: i + 1),
+    ];
+    final found = await getLinksforIndexs(
+      indexes: [
+        for (var i = 399; i >= 0; i--)
+          if (i.isEven) i,
+      ],
+      links: links,
+      commentatorsToShow: const ['משנה ברורה'],
+    );
+
+    expect(found.length, 200);
+    expect(found.map((link) => link.index1), [
+      for (var i = 1; i <= 400; i++)
+        if (i.isOdd) i,
+    ]);
+  });
+
   test('Link.fromJson קולט סוף טווח מקור כשקיים בקובץ', () {
     final link = Link.fromJson({
       'heRef_2': 'מפרש, א',
