@@ -1,0 +1,133 @@
+name: Published Linux DEB RPM icon payload audit
+
+on:
+  pull_request:
+    paths:
+      - 'linux/packaging/deb/make_config.yaml'
+      - 'linux/packaging/rpm/make_config.yaml'
+      - 'assets/icon/icon_256.png'
+      - '.github/workflows/linux_package_icon_release_audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-package-fixture:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: deb
+            arch: x86_64
+            asset_id: 703107518
+            sha256: 1e692a7268fd35f21cf190ae927bab4d118d90fc4761d852a8aea9f6bbf0a5ef
+          - kind: deb
+            arch: aarch64
+            asset_id: 703096966
+            sha256: f60eff1be1c4aa5683d62bd8946871ec54a3d626c99059cab0f7250a28f586dc
+          - kind: rpm
+            arch: x86_64
+            asset_id: 703096313
+            sha256: 977b6cb7ead56ec4e2d20907080f178a56bdcb1aebea4225a2e21799b50ae7bb
+          - kind: rpm
+            arch: aarch64
+            asset_id: 703094395
+            sha256: 6ed865b846fed5122621af9c9bf1344d6557e8f38892bdfeb43f6bdd08347671
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install archive extraction tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm2cpio cpio
+      - name: Download and verify immutable released package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA256: ${{ matrix.sha256 }}
+          ASSET_ID: ${{ matrix.asset_id }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-all-errors --retry-delay 3 --max-time 300 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/Otzaria/otzaria/releases/assets/$ASSET_ID" \
+            -o "$RUNNER_TEMP/released-package"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$RUNNER_TEMP/released-package" | sha256sum --check -
+      - name: Extract only, never install or execute maintainer scripts
+        shell: bash
+        env:
+          KIND: ${{ matrix.kind }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/payload"
+          if [ "$KIND" = deb ]; then
+            dpkg-deb --extract "$RUNNER_TEMP/released-package" "$RUNNER_TEMP/payload"
+          else
+            (cd "$RUNNER_TEMP/payload" && rpm2cpio "$RUNNER_TEMP/released-package" | cpio -idm --quiet --no-absolute-filenames)
+          fi
+      - name: Measure published icon duplication and hypothetical source replacement
+        shell: bash
+        env:
+          KIND: ${{ matrix.kind }}
+          ARCH: ${{ matrix.arch }}
+          EXPECTED_SHA256: ${{ matrix.sha256 }}
+        run: |
+          python3 - "$RUNNER_TEMP/payload" "$RUNNER_TEMP/released-package" "$RUNNER_TEMP/icon-size.json" <<'PY'
+          import hashlib, json, os, pathlib, struct, sys
+
+          root, package, output = map(pathlib.Path, sys.argv[1:])
+          current = pathlib.Path('assets/icon/icon.png').read_bytes()
+          compact = pathlib.Path('assets/icon/icon_256.png').read_bytes()
+          assert compact[:8] == b'\x89PNG\r\n\x1a\n'
+          assert struct.unpack_from('>II', compact, 16) == (256, 256)
+          # Debian and RPM packagers can install different numbers/paths of icons.
+          # Count only original, byte-identical icon copies; do not invent RPM savings.
+          dirs = [root / 'usr/share/icons', root / 'usr/share/pixmaps']
+          icons = sorted(p for d in dirs if d.exists() for p in d.rglob('otzaria.png'))
+          if not icons:
+              raise SystemExit('published package contains no discoverable Otzaria icon')
+          if any(not p.is_file() or p.is_symlink() for p in icons):
+              raise SystemExit('ambiguous/symlinked icon path in released archive')
+          identical = [p for p in icons if p.read_bytes() == current]
+          if not identical:
+              raise SystemExit('published package has no full-size source icon copy')
+          if os.environ['KIND'] == 'deb':
+              required = {
+                  root / 'usr/share/icons/hicolor/128x128/apps/otzaria.png',
+                  root / 'usr/share/icons/hicolor/256x256/apps/otzaria.png',
+              }
+              if not required.issubset(set(identical)):
+                  raise SystemExit('DEB no longer matches its two known full-size hicolor icons')
+          before = sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and not p.is_symlink())
+          delta = len(identical) * (len(current) - len(compact))
+          report = {
+              'scope': 'published_unmodified_release_0.9.98.3+809',
+              'package': os.environ['KIND'],
+              'arch': os.environ['ARCH'],
+              'publishedSHA256': os.environ['EXPECTED_SHA256'],
+              'downloadBytes': package.stat().st_size,
+              'baselineExtractedRegularFileBytes': before,
+              'publishedOtzariaIconPaths': [str(p.relative_to(root)) for p in icons],
+              'publishedIconsByteIdenticalToSource': len(identical),
+              'sourceIconBytesSavedIfEachMatchingCopyReplaced': delta,
+              'publishedIconBytesEach': len(current),
+              'proposedSourceIconBytesEach': len(compact),
+              'hypotheticalLogicalPayloadSavingsBytes': delta,
+              'hypotheticalLogicalPayloadAfterIconOnlyBytes': before - delta,
+              'measuredNewCompressedPackageBytes': None,
+              'allocatedDiskBytes': None,
+              'installedSizeBytes': None,
+              'renderedIconSmoketest': False,
+          }
+          output.write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: published-icon-audit-${{ matrix.kind }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/icon-size.json
+          if-no-files-found: error
+          retention-days: 30
