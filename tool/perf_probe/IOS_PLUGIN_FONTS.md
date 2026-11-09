@@ -129,10 +129,10 @@ connection, or a build hook whose download hash differs from its pin (an error
 page). Each attempt keeps its own `flutter-build*.log` and `buildRetries` entry.
 Compiler errors, timeouts and app failures are never retried.
 
-Pull requests run the macOS job only when a probe file changed, or when
-`pubspec.yaml`/`pubspec.lock` changed a WebView, `path_provider` or bundled-font
-entry (`tool/perf_probe/apple_font_probe_changes.py`). A nightly schedule covers
-every other dependency and `ios/` change.
+Pull requests run the macOS job only when a probe file or `ios/` changed, or when
+`pubspec.yaml`/`pubspec.lock` changed a WebView, `path_provider`, native
+build-hook or bundled-font entry (`tool/perf_probe/apple_font_probe_changes.py`).
+A nightly schedule covers every other dependency change.
 
 `framework-response.json` preserves Flutter's unmodified response, including its
 actual verdict and failures. `report.partial.json` is saved before image

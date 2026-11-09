@@ -30,6 +30,7 @@ on:
       - 'lib/plugins/view/plugin_sdk_scripts.dart'
       - 'lib/theme/app_fonts.dart'
       - 'fonts/**'
+      - 'ios/**'
       - 'tool/perf_probe/apple_font_probe_changes.py'
       - 'tool/perf_probe/test_apple_font_probe_ci.py'
       # The changes job runs the simulator only for Apple/font dependency changes.

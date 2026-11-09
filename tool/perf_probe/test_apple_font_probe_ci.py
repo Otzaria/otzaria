@@ -151,7 +151,8 @@ class ChangesGateTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn('.github/workflows/' + name, paths)
                 self.assertIn('pubspec.lock', paths)
-                self.assertNotIn('ios/**', paths)
+                # Info.plist, the Podfile and AppDelegate shape the iOS WKWebView host.
+                self.assertEqual('ios/**' in paths, name.startswith('ios'))
                 self.assertIn('tool/perf_probe/apple_font_probe_changes.py', paths)
         self.assertTrue(changes.glob_regex('fonts/**').match('fonts/a/b.ttf'))
         self.assertFalse(changes.glob_regex('lib/*.dart').match('lib/a/b.dart'))
