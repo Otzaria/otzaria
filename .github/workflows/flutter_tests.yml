@@ -635,12 +635,12 @@ jobs:
         env:
           WPE_RUNTIME_SHA256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
           WPE_RUNTIME_VERSION: 2.48.7
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
-          base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/wpe-2.48.7-print-to-pdf"
-          curl -fSL --retry 3 --retry-delay 5 -o "/tmp/$asset" "$base/$asset"
-          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "/tmp/$asset" | sha256sum -c -
+          bash tool/ci/download_verified_wpe_sdk.sh \
+            x86_64 "$WPE_RUNTIME_VERSION" "$WPE_RUNTIME_SHA256" "/tmp/$asset"
           mkdir -p /opt
           tar -C /opt -I zstd -xf "/tmp/$asset"
           test -f "$WPE_SDK/lib/pkgconfig/wpe-webkit-2.0.pc"

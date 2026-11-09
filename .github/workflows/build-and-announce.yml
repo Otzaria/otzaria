@@ -1241,16 +1241,14 @@ jobs:
           # digest שמפרסם GitHub לנכס של tag זה, לפי ארכיטקטורה. עדכון גרסה מחייב
           # עדכון מפורש של ה-hash, כדי שנכס שהוחלף ב-release לא ייכנס לבנייה בשקט.
           WPE_RUNTIME_SHA256: ${{ matrix.arch == 'aarch64' && 'd59f7c7a00d2d15370afc805dfa3a2e017c04833320805f5299989865913dc3d' || 'ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # pin ל-tag מפורש (לא latest) — גרסת ה-SDK נגזרת רק מ-WPE_RUNTIME_VERSION.
-          # מוסכמת ה-tag בריפו otzaria-wpe-runtime: wpe-<version>.
-          tag="wpe-2.48.7-print-to-pdf"
+          # The shared helper pins the asset ID for this version/architecture;
+          # both API and release URL downloads must match this independent digest.
           asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-${{ matrix.arch }}.tar.zst"
-          base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/${tag}"
-          echo "Downloading ${asset} ..."
-          curl -fSL --retry 3 --retry-delay 5 -o "/tmp/${asset}" "${base}/${asset}"
-          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "/tmp/${asset}" | sha256sum -c -
+          bash tool/ci/download_verified_wpe_sdk.sh \
+            "${{ matrix.arch }}" "$WPE_RUNTIME_VERSION" "$WPE_RUNTIME_SHA256" "/tmp/${asset}"
           mkdir -p /opt
           # ה-tarball נארז מ-$(dirname PREFIX) עם basename → מכיל תיקיית wpe-sdk/ עליונה.
           tar -C /opt -I zstd -xf "/tmp/${asset}"
