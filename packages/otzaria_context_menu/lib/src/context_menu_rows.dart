@@ -226,19 +226,23 @@ class _AppContextMenuIconRow extends StatelessWidget {
       // Center ממרכז את שורת האייקונים בלי להפוך את ה-Row ל-mainAxisSize.max
       // (max בתוך פאנל IntrinsicWidth שבר את הבחירה בעת פתיחת התפריט).
       child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (i, action) in actions.indexed)
-              _IconRowButton(
-                presentation: presentation,
-                action: action,
-                metrics: metrics,
-                menuStyle: menuStyle,
-                closeMenu: closeMenu,
-                submenuController: submenuControllers[i],
-              ),
-          ],
+        child: SingleChildScrollView(
+          key: const ValueKey('context-icon-row-scroll'),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (i, action) in actions.indexed)
+                _IconRowButton(
+                  presentation: presentation,
+                  action: action,
+                  metrics: metrics,
+                  menuStyle: menuStyle,
+                  closeMenu: closeMenu,
+                  submenuController: submenuControllers[i],
+                ),
+            ],
+          ),
         ),
       ),
     );
