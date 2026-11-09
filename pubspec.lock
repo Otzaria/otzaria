@@ -181,11 +181,12 @@ packages:
   characters:
     dependency: "direct main"
     description:
-      name: characters
-      sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.1"
+      path: "pkgs/characters"
+      ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      resolved-ref: "7ad4f4708c223668fb6c3a05170d436431c69e26"
+      url: "https://github.com/Otzaria/core"
+    source: git
+    version: "1.4.2-wip"
   charcode:
     dependency: transitive
     description:
