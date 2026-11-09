@@ -24,6 +24,27 @@ import 'package:pdf/pdf.dart';
 typedef TikkunFontLoader =
     Future<Uint8List?> Function(String family, {required bool bold});
 
+/// Allows ownership tests to inject a failure during PDF font construction.
+typedef TikkunPdfFontBuilder =
+    PdfShapedFont Function(PdfDocument document, ShaperFont shaper, Uint8List bytes);
+
+/// Allows ownership tests to inject an asynchronous PDF save failure.
+typedef TikkunPdfSaver = Future<Uint8List> Function(PdfDocument document);
+
+PdfShapedFont _buildTikkunPdfFont(
+  PdfDocument document,
+  ShaperFont shaper,
+  Uint8List bytes,
+) => PdfShapedFont(
+  document,
+  shaper: shaper,
+  fontBytes: bytes,
+  textForExtraction: restoreTikkunVavKetiaText,
+);
+
+Future<Uint8List> _saveTikkunPdf(PdfDocument document) =>
+    document.save(enableEventLoopBalancing: true);
+
 /// טוען גופן מוטמע (נכס) או גופן מערכת שהסריקה מכירה. בולד מוחזר רק כשקיים
 /// לו face אמיתי — אחרת הכותב מסנתז אותו ממשיחה.
 Future<Uint8List?> loadTikkunExportFont(
@@ -87,6 +108,11 @@ class TikkunVectorPdfWriter {
   final PdfPageFormat pageFormat;
   final TikkunFontLoader loadFont;
 
+  /// Default implementations produce the same PDF; overrides are for failure
+  /// injection in ownership tests.
+  final TikkunPdfFontBuilder buildPdfFont;
+  final TikkunPdfSaver savePdf;
+
   /// משפחות שמנסים כשגופן המילה חסר גליף — קודם גופן הטור השני, ואז גופן
   /// ברירת המחדל של התוכנה שמכסה ספרות ואותיות לטיניות.
   final List<String> fallbackFamilies;
@@ -98,6 +124,8 @@ class TikkunVectorPdfWriter {
     required this.pageFormat,
     this.loadFont = loadTikkunExportFont,
     this.fallbackFamilies = const [AppFonts.defaultFont],
+    this.buildPdfFont = _buildTikkunPdfFont,
+    this.savePdf = _saveTikkunPdf,
   });
 
   double get _usableWidth => pageFormat.width - 2 * kTikkunExportMarginPt;
@@ -142,7 +170,7 @@ class TikkunVectorPdfWriter {
         );
       }
       throwIfCancelled?.call();
-      return await _document.save(enableEventLoopBalancing: true);
+      return await savePdf(_document);
     } finally {
       for (final font in _fonts.values) {
         font?.shaper.dispose();
@@ -362,15 +390,16 @@ class TikkunVectorPdfWriter {
     final bytes = await loadFont(family, bold: bold);
     if (bytes != null) {
       final shaper = ShaperFont.register(bytes);
-      font = _ExportFont(
-        shaper,
-        PdfShapedFont(
-          _document,
-          shaper: shaper,
-          fontBytes: bytes,
-          textForExtraction: restoreTikkunVavKetiaText,
-        ),
-      );
+      try {
+        font = _ExportFont(
+          shaper,
+          buildPdfFont(_document, shaper, bytes),
+        );
+      } catch (_) {
+        // The map owns the shaper only after construction completes.
+        shaper.dispose();
+        rethrow;
+      }
     }
     return _fonts[key] = font;
   }
