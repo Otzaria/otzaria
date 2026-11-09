@@ -31,6 +31,12 @@ final RegExp _footnoteBodyStartRegExp = RegExp(
 
 const String _supCloseTag = '</sup>';
 
+// נמנע מהקצאת קידומת של כל השורה עבור כל הערה.
+int _precedingSupClose(String html, int bodyStart) {
+  final lastStart = bodyStart - _supCloseTag.length;
+  return lastStart < 0 ? -1 : html.lastIndexOf(_supCloseTag, lastStart);
+}
+
 /// סימוני ה-<sup> שגוף ההערה שלהם הוצא לטבלה — כל אחד בלי גוף צמוד אחריו.
 /// לפי החוזה, ה-k-י מהם שייך להערה ה-k-ית שיש לה marker.
 List<Match> _strippedMarkers(String html) => [
@@ -87,14 +93,16 @@ String addInlineNotePreviewLinks(
   final replacements = <({int start, int end, String value})>[];
   var noteIndex = 0;
   for (final bodyMatch in _footnoteBodies(html)) {
-    final before = html.substring(0, bodyMatch.start);
-    final closeIndex = before.lastIndexOf(_supCloseTag);
+    final closeIndex = _precedingSupClose(html, bodyMatch.start);
     if (closeIndex < 0 ||
-        before.substring(closeIndex + _supCloseTag.length).trim().isNotEmpty) {
+        html
+            .substring(closeIndex + _supCloseTag.length, bodyMatch.start)
+            .trim()
+            .isNotEmpty) {
       noteIndex++;
       continue;
     }
-    final openIndex = before.lastIndexOf('<sup', closeIndex);
+    final openIndex = html.lastIndexOf('<sup', closeIndex);
     final contentStart = openIndex < 0 ? -1 : html.indexOf('>', openIndex) + 1;
     if (openIndex < 0 || contentStart <= openIndex) {
       noteIndex++;
@@ -132,15 +140,27 @@ String addInlineNotePreviewLinks(
     replacements.sort((a, b) => a.start.compareTo(b.start));
   }
 
-  var result = html;
-  for (final replacement in replacements.reversed) {
-    result = result.replaceRange(
-      replacement.start,
-      replacement.end,
-      replacement.value,
-    );
+  if (replacements.isEmpty) return html;
+
+  // החלפה קדימה במעבר יחיד, בלי לייצר מחרוזת חדשה לכל הערה.
+  final result = StringBuffer();
+  var writtenUntil = 0;
+  for (final replacement in replacements) {
+    if (replacement.start < writtenUntil) {
+      // HTML פגום עם מקטעי החלפה חופפים: לשמור את מסלול התאימות.
+      var fallback = html;
+      for (final item in replacements.reversed) {
+        fallback = fallback.replaceRange(item.start, item.end, item.value);
+      }
+      return fallback;
+    }
+    result
+      ..write(html.substring(writtenUntil, replacement.start))
+      ..write(replacement.value);
+    writtenUntil = replacement.end;
   }
-  return result;
+  result.write(html.substring(writtenUntil));
+  return result.toString();
 }
 
 /// עיבוד גוף ההערה [note] (מיקום ב-`notesAt`) של שורה [lineIndex] מהטבלה, למשל
@@ -251,14 +271,13 @@ List<String> notesForLines(
 // lastIndexOf ולא regex עם $: אחרת נצמד רצף של <sup>-ים קודמים עם התוכן שביניהם.
 String _inlineNoteHtml(String line, Match iMatch) {
   final body = iMatch.group(1) ?? '';
-  final before = line.substring(0, iMatch.start);
-  final closeIdx = before.lastIndexOf(_supCloseTag);
+  final closeIdx = _precedingSupClose(line, iMatch.start);
   if (closeIdx >= 0) {
-    final tail = before.substring(closeIdx + _supCloseTag.length);
+    final tail = line.substring(closeIdx + _supCloseTag.length, iMatch.start);
     if (tail.trim().isEmpty) {
-      final openIdx = before.lastIndexOf('<sup', closeIdx);
+      final openIdx = line.lastIndexOf('<sup', closeIdx);
       if (openIdx >= 0) {
-        final supTag = before.substring(
+        final supTag = line.substring(
           openIdx,
           closeIdx + _supCloseTag.length,
         );
