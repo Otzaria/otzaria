@@ -410,6 +410,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final pluginBooks = PluginLibraryBooksRegistry.instance;
     pluginBooks.addListener(_onPluginBooksChanged);
     pluginBooks.sourceFilter.addListener(_onPluginBooksChanged);
+    _focusRepository = context.read<FocusRepository>()
+      ..registerLibraryHomeHandler(_onLibraryHomeRequested);
+  }
+
+  late final FocusRepository _focusRepository;
+
+  /// קיצור "בית הספרייה" — אותה פעולה כמו כפתור הבית.
+  void _onLibraryHomeRequested() {
+    if (mounted) navigateHome();
   }
 
   @override
@@ -423,6 +432,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final pluginBooks = PluginLibraryBooksRegistry.instance;
     pluginBooks.removeListener(_onPluginBooksChanged);
     pluginBooks.sourceFilter.removeListener(_onPluginBooksChanged);
+    _focusRepository.unregisterLibraryHomeHandler(_onLibraryHomeRequested);
     _firstGridItemFocusNode.dispose();
     _categoryGridController.dispose();
     _scrollDebounce?.cancel();

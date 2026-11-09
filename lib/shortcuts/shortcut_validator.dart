@@ -55,6 +55,10 @@ class ShortcutValidator {
     'key-shortcut-open-tool-acronyms-dictionary': 'builtin.acronyms_dictionary',
   };
 
+  /// "בית הספרייה" — אופציונלי, ללא ברירת מחדל. מעביר לספרייה ומפעיל את אותה
+  /// פעולה כמו כפתור הבית שבה (חזרה לשורש, ניקוי חיפוש וכיווץ קטגוריות).
+  static const String openLibraryHomeKey = 'key-shortcut-open-library-home';
+
   /// קיצורי "העתק קישור" אופציונליים. הקיצור פועל לפי הטאב הפעיל: קישור למקטע
   /// בספר טקסט, וקישור לעמוד ב-PDF — שניהם תחת אותו מפתח. שני האחרונים רלוונטיים
   /// לספר טקסט בלבד (PDF אינו תומך בהדגשת מקטע/טקסט).
@@ -185,6 +189,8 @@ class ShortcutValidator {
 
   static const List<String> _baseShortcutKeys = [
     'key-shortcut-open-library-browser',
+    // בית הספרייה — אופציונלי, ללא ברירת מחדל (ראה openLibraryHomeKey).
+    openLibraryHomeKey,
     currentWindowSearchKey,
     'key-shortcut-open-find-ref',
     'key-shortcut-close-tab',
@@ -263,6 +269,7 @@ class ShortcutValidator {
 
   static const Map<String, String> _defaultShortcuts = {
     'key-shortcut-open-library-browser': 'ctrl+l',
+    openLibraryHomeKey: '',
     currentWindowSearchKey: 'ctrl+f',
     'key-shortcut-open-find-ref': 'ctrl+o',
     'key-shortcut-close-tab': 'ctrl+w',
@@ -330,6 +337,7 @@ class ShortcutValidator {
 
   static const Map<String, String> _baseShortcutNames = {
     'key-shortcut-open-library-browser': 'ספרייה',
+    openLibraryHomeKey: 'בית הספרייה',
     currentWindowSearchKey: 'חיפוש בספר הפתוח',
     'key-shortcut-open-find-ref': 'איתור',
     'key-shortcut-close-tab': 'סגור ספר נוכחי',

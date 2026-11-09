@@ -58,6 +58,15 @@ class ShortcutsSettingsTab extends StatefulWidget {
       keywords: ['ספרייה', 'ctrl+l', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.nav.library_home',
+      title: 'קיצור לבית הספרייה',
+      subtitle: 'חזרה לשורש הספרייה, ניקוי החיפוש וכיווץ הקטגוריות',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.nav',
+      expandSection: ShortcutValidator.openLibraryHomeKey,
+      keywords: ['בית', 'ספרייה', 'שורש', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.nav.find_ref',
       title: 'קיצור לאיתור',
       subtitle: 'פתיחת מסך איתור מהיר',
@@ -755,6 +764,15 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               settingKey: 'key-shortcut-open-library-browser',
               label: context.settingsText('ספרייה'),
               icon: FluentIcons.library_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.openLibraryHomeKey,
+              label: context.settingsText('בית הספרייה'),
+              subtitle: context.settingsText(
+                'חזרה לשורש הספרייה, ניקוי החיפוש וכיווץ הקטגוריות',
+              ),
+              icon: FluentIcons.home_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
