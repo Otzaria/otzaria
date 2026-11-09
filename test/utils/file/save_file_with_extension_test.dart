@@ -164,7 +164,7 @@ void main() {
       expect(result, '${file.path}.pdf');
     });
 
-    test('יעד קיים — נדרס בשם החדש', () async {
+    test('יעד קיים — נשמר תחת שם חדש בלי לדרוס קובץ אחר', () async {
       final source = File('${tempDir.path}${Platform.pathSeparator}calendar');
       await source.writeAsBytes([7, 7]);
       final existing = File(
@@ -174,8 +174,23 @@ void main() {
 
       final result = await ensureFileExtension(source.path, 'pdf');
 
-      expect(result, existing.path);
+      expect(result, '${source.path} (1).pdf');
       expect(await File(result).readAsBytes(), [7, 7]);
+      expect(await existing.readAsBytes(), [1]);
+    });
+
+    test('יעד קיים כמה פעמים — משתמש במספר הפנוי הבא', () async {
+      final source = File('${tempDir.path}${Platform.pathSeparator}report');
+      await source.writeAsBytes([5, 6]);
+      await File('${source.path}.pdf').writeAsBytes([1]);
+      await File('${source.path} (1).pdf').writeAsBytes([2]);
+
+      final result = await ensureFileExtension(source.path, 'pdf');
+
+      expect(result, '${source.path} (2).pdf');
+      expect(await File(result).readAsBytes(), [5, 6]);
+      expect(await File('${source.path}.pdf').readAsBytes(), [1]);
+      expect(await File('${source.path} (1).pdf').readAsBytes(), [2]);
     });
 
     test('הקובץ לא קיים — הנתיב מוחזר בלי שינוי', () async {
