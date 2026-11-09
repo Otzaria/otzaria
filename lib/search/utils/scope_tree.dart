@@ -13,7 +13,7 @@ class ScopeTree {
   final List<ScopeNode> rootNodes;
   final Map<String, ScopeNode> nodesByFacet;
 
-  const ScopeTree._(this.rootNodes, this.nodesByFacet);
+  ScopeTree._(this.rootNodes, this.nodesByFacet);
 
   // מפתח חלש מונע מהמטמון להאריך את חיי הספרייה והעץ לאחר רענון.
   static final Expando<ScopeTree> _cache = Expando<ScopeTree>('scopeTree');
@@ -372,15 +372,40 @@ class ScopeTree {
   @visibleForTesting
   static int debugSearchScans = 0;
 
+  /// הצמתים בסדר העץ: המיון אינו יציב, ולכן סדר הסריקה קובע את סדר השווים.
+  late final List<ScopeNode> _nodesInTreeOrder = () {
+    final nodes = <ScopeNode>[];
+    void visit(ScopeNode node) {
+      nodes.add(node);
+      for (final child in node.children) {
+        visit(child);
+      }
+    }
+
+    for (final node in rootNodes) {
+      visit(node);
+    }
+    return nodes;
+  }();
+
+  /// ההתאמות של החיפוש האחרון: הקשה שמאריכה את השאילתה בודקת רק אותן — נכון
+  /// כל עוד [findNormalizedTextMatches] מתאים לתחילת כל שאילתה שהוא מתאים לה.
+  ({String query, List<ScopeNode> matches})? _lastSearch;
+
   List<ScopeSearchResultItem> search(String normalizedQuery) {
     if (normalizedQuery.isEmpty) {
       return const [];
     }
 
     debugSearchScans++;
+    final last = _lastSearch;
+    final candidates = last != null && normalizedQuery.startsWith(last.query)
+        ? last.matches
+        : _nodesInTreeOrder;
+    final matchedNodes = <ScopeNode>[];
     final results = <ScopeSearchResultItem>[];
 
-    void visit(ScopeNode node) {
+    for (final node in candidates) {
       final normalizedTitle = node.normalizedTitle;
       final normalizedSubtitle = node.normalizedSubtitle;
       final matches = findNormalizedTextMatches(
@@ -390,6 +415,7 @@ class ScopeTree {
       );
 
       if (matches) {
+        matchedNodes.add(node);
         results.add(
           ScopeSearchResultItem(
             facet: node.facet,
@@ -409,15 +435,8 @@ class ScopeTree {
           ),
         );
       }
-
-      for (final child in node.children) {
-        visit(child);
-      }
     }
-
-    for (final node in rootNodes) {
-      visit(node);
-    }
+    _lastSearch = (query: normalizedQuery, matches: matchedNodes);
 
     results.sort((a, b) {
       final scoreCompare = a.score.compareTo(b.score);
