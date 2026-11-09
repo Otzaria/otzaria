@@ -171,6 +171,12 @@ dependency_overrides:
       url: https://github.com/Otzaria/packages
       ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
       path: third_party/packages/flutter_svg
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
+  provider:
+    git:
+      url: https://github.com/Otzaria/provider
+      ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
+      path: packages/provider
   # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
   pdfrx_engine:
     git:

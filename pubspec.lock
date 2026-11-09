@@ -1448,10 +1448,11 @@ packages:
   provider:
     dependency: "direct main"
     description:
-      name: provider
-      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/provider"
+      ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
+      resolved-ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
+      url: "https://github.com/Otzaria/provider"
+    source: git
     version: "6.1.5+1"
   pub_semver:
     dependency: transitive
