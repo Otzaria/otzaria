@@ -2407,6 +2407,8 @@ jobs:
           dart run tool/generate_settings_l10n.dart
 
       - name: Build Flutter macOS app (Universal Binary, with retry)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Build Universal Binary that supports both Intel (x86_64) and Apple Silicon (arm64)
           # xcodebuild לעיתים נכשל ב-"Internal inconsistency error: never received
