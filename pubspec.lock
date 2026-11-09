@@ -1599,11 +1599,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "6bfd33c3bc14392c1a6bb0887fdb23209068eab5"
-      resolved-ref: "6bfd33c3bc14392c1a6bb0887fdb23209068eab5"
+      ref: "effdc651635a18c719b52a79d840b5aa27b1968e"
+      resolved-ref: "effdc651635a18c719b52a79d840b5aa27b1968e"
       url: "https://github.com/Otzaria/otzaria_library_updater"
     source: git
-    version: "0.9.0"
+    version: "0.9.1"
   sentry:
     dependency: transitive
     description:

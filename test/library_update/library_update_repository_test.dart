@@ -829,7 +829,7 @@ void main() {
       ).writeAsStringSync('https://x/manifest|2000|||part-0|$hash');
       final repository = repo(
         (_) async =>
-            const DiskSpaceInfo(volumeId: 'same', freeBytes: 6979321856 + 2000),
+            const DiskSpaceInfo(volumeId: 'same', freeBytes: 6979321856 + 3000),
         dbPath,
       );
       final downloadPlan = LibraryUpdatePlan.fullDownload(
