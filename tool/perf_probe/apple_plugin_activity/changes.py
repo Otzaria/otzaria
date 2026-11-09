@@ -12,9 +12,8 @@ import subprocess
 WORKFLOW = ".github/workflows/apple-plugin-activity.yml"
 PUBSPEC_FILES = {"pubspec.yaml", "pubspec.lock"}
 
-# Native or harness code the actual-app scenario runs on Apple: the WebView hosts,
-# window transitions, startup crash SDK, SwiftPM binary targets, plugin boot and
-# registry, and the iOS VM service connection.
+# Native or harness code the Apple scenario runs: WebView hosts, window transitions,
+# crash SDK, SwiftPM binary targets, plugin registry and the iOS VM service.
 SCENARIO_PACKAGES = (
     "flutter_inappwebview*",
     "window_manager*",
@@ -142,8 +141,13 @@ def decide(changed_files, workflow_text, read_base, read_head):
     return contracts, apple, reasons
 
 
-def git(*args):
-    return subprocess.run(["git", *args], check=True, text=True, capture_output=True).stdout
+def git(*args, cwd=None):
+    return subprocess.run(["git", *args], check=True, text=True, capture_output=True, cwd=cwd).stdout
+
+
+def changed_files(base, head, cwd=None):
+    # With rename detection a file moved out of a trigger path lists only its new path.
+    return set(git("diff", "--name-only", "--no-renames", base, head, cwd=cwd).splitlines())
 
 
 def git_file(revision, path):
@@ -156,7 +160,7 @@ def main():
     parser.add_argument("--base", required=True)
     parser.add_argument("--head", required=True)
     args = parser.parse_args()
-    files = set(git("diff", "--name-only", args.base, args.head).split())
+    files = changed_files(args.base, args.head)
     contracts, apple, reasons = decide(
         files, Path(WORKFLOW).read_text(),
         lambda path: git_file(args.base, path), lambda path: git_file(args.head, path))

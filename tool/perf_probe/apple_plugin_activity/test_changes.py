@@ -104,6 +104,26 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual((contracts, apple), (True, True))
         self.assertEqual(reasons, ["native build hook settings in pubspec.yaml"])
 
+    def test_file_moved_out_of_a_trigger_path_runs_every_job(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as name:
+            def run(*args):
+                subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                               cwd=name, check=True, capture_output=True)
+            source = Path(name, "lib/plugins/services/runtime.dart")
+            source.parent.mkdir(parents=True)
+            source.write_text("".join(f"line {i}\n" for i in range(50)))
+            run("init", "-q")
+            run("add", ".")
+            run("commit", "-qm", "base")
+            Path(name, "lib/core").mkdir()
+            run("mv", "lib/plugins/services/runtime.dart", "lib/core/runtime.dart")
+            run("commit", "-qm", "move")
+            files = changes.changed_files("HEAD^1", "HEAD", cwd=name)
+        self.assertIn("lib/plugins/services/runtime.dart", files)
+        self.assertEqual(decide(files)[:2], (True, True))
+
     def test_actual_lockfile_parses_scenario_packages(self):
         text = (Path(__file__).resolve().parents[3] / "pubspec.lock").read_text()
         packages = changes.lock_packages(text)
