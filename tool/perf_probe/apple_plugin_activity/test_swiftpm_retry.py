@@ -19,7 +19,7 @@ class SwiftPMRetryClassificationTests(unittest.TestCase):
             'Xcode failed to resolve Swift Package Manager dependencies:\n'
             "failed downloading 'https://github.com/getsentry/sentry-cocoa/releases/download/8.58.4/asset.zip' "
             'downloadError("HTTP 503")',
-            # Run 42582694810: the gateway status arrives without an "HTTP" prefix.
+            # The gateway status can arrive without an "HTTP" prefix.
             'An error occurred when adding Swift Package Manager integration:\n'
             '  Error: Xcode failed to resolve Swift Package Manager dependencies:\n'
             'xcodebuild: error: Could not resolve package dependencies:\n'
