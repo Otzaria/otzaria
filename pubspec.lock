@@ -1449,8 +1449,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/provider"
-      ref: "9518c7a29ff61f673c9ac4530a844a86ffed8a54"
-      resolved-ref: "9518c7a29ff61f673c9ac4530a844a86ffed8a54"
+      ref: bf3930e454494525017b94641632577360ca7098
+      resolved-ref: bf3930e454494525017b94641632577360ca7098
       url: "https://github.com/Otzaria/provider"
     source: git
     version: "6.1.5+1"
