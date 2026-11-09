@@ -234,7 +234,7 @@ dependency_overrides:
   provider:
     git:
       url: https://github.com/Otzaria/provider
-      ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
+      ref: 9518c7a29ff61f673c9ac4530a844a86ffed8a54
       path: packages/provider
   analyzer: ^14.7.0
   device_info_plus: ^13.3.0
