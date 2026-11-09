@@ -1,0 +1,97 @@
+name: Archive performance comparison
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+permissions:
+  contents: read
+jobs:
+  bench:
+    name: Archive ${{ matrix.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        ref:
+          - main
+          - qa/archive-integrated-20261110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: ${{ matrix.ref }}
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1
+      - name: Get dependencies
+        run: dart pub get
+      - name: Prepare microbenchmarks
+        shell: bash
+        run: |
+          cat > archive_bench.dart <<'DART'
+          import 'dart:io';
+          import 'dart:typed_data';
+          
+          import 'package:archive/archive_io.dart';
+          
+          Future<double> timed(Future<void> Function() action) async {
+            final watch = Stopwatch()..start();
+            await action();
+            watch.stop();
+            return watch.elapsedMicroseconds / 1000.0;
+          }
+          
+          Future<void> main() async {
+            final dir = await Directory.systemTemp.createTemp('archive-perf-');
+            try {
+              final invalid = File('${dir.path}/invalid.zip');
+              await invalid.writeAsBytes(Uint8List(16 * 1024 * 1024), flush: true);
+          
+              Future<void> scan() async {
+                final input = InputFileStream(invalid.path);
+                try {
+                  if (ZipDecoder().decodeStream(input).isNotEmpty) {
+                    throw StateError('Unexpected ZIP payload');
+                  }
+                } finally {
+                  input.closeSync();
+                }
+              }
+          
+              final scans = <double>[];
+              for (var i = 0; i < 4; i++) {
+                scans.add(await timed(scan));
+              }
+              scans.sort();
+              stdout.writeln('RESULT zip_eocd_invalid_16mb_median_ms ${(scans[1] + scans[2]) / 2}');
+          
+              final content = Directory('${dir.path}/source')..createSync();
+              for (var i = 0; i < 2000; i++) {
+                File('${content.path}/${i.toString().padLeft(5, '0')}.txt')
+                    .writeAsBytesSync(Uint8List(512));
+              }
+          
+              final zipTimes = <double>[];
+              final tarTimes = <double>[];
+              for (var i = 0; i < 3; i++) {
+                zipTimes.add(await timed(() => ZipFileEncoder().zipDirectory(
+                      content,
+                      filename: '${dir.path}/out.zip',
+                      level: ZipFileEncoder.store,
+                    )));
+                tarTimes.add(await timed(() => TarFileEncoder().tarDirectory(
+                      content,
+                      filename: '${dir.path}/out.tar',
+                    )));
+              }
+              zipTimes.sort();
+              tarTimes.sort();
+              stdout.writeln('RESULT zip_create_2000_files_median_ms ${zipTimes[1]}');
+              stdout.writeln('RESULT tar_create_2000_files_median_ms ${tarTimes[1]}');
+            } finally {
+              await dir.delete(recursive: true);
+            }
+          }
+          DART
+      - name: Run comparative microbenchmarks
+        run: dart run archive_bench.dart
