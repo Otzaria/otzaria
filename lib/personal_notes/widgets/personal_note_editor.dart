@@ -115,11 +115,33 @@ typedef PersonalNoteSaveCallback =
 /// בעל בקר Quill והמסמך שלו; יוצר העורך משחרר אותם ב-[dispose].
 class PersonalNoteEditorController {
   final quill.QuillController quillController;
+  final PersonalNoteEditorResult _initialResult;
+  final String _initialDeltaJson;
 
-  PersonalNoteEditorController({required this.quillController});
+  PersonalNoteEditorController({
+    required this.quillController,
+    required String initialContent,
+    required PersonalNoteContentFormat initialFormat,
+    String? initialContentPlain,
+  }) : _initialResult = PersonalNoteEditorResult(
+         content: initialContent,
+         contentPlain:
+             initialContentPlain ??
+             (initialFormat == PersonalNoteContentFormat.plain
+                 ? initialContent
+                 : quillController.document.toPlainText().trimRight()),
+         contentFormat: initialFormat,
+       ),
+       _initialDeltaJson = jsonEncode(
+         quillController.document.toDelta().toJson(),
+       );
 
   PersonalNoteEditorResult buildResult() {
     final deltaJson = jsonEncode(quillController.document.toDelta().toJson());
+    // Opening a plain note (or an older Delta representation) is not an edit.
+    // Undo to the original document must restore the stored representation.
+    if (deltaJson == _initialDeltaJson) return _initialResult;
+
     final plain = quillController.document.toPlainText().trimRight();
     return PersonalNoteEditorResult(
       content: deltaJson,
@@ -585,6 +607,7 @@ class _PersonalNoteQuillController extends quill.QuillController {
 PersonalNoteEditorController buildPersonalNoteEditorController({
   required String initialContent,
   required PersonalNoteContentFormat initialFormat,
+  String? initialContentPlain,
 }) {
   if (initialFormat == PersonalNoteContentFormat.quillDelta &&
       initialContent.trim().isNotEmpty) {
@@ -593,6 +616,9 @@ PersonalNoteEditorController buildPersonalNoteEditorController({
       final document = quill.Document.fromJson(decoded);
       return PersonalNoteEditorController(
         quillController: _PersonalNoteQuillController(document),
+        initialContent: initialContent,
+        initialFormat: initialFormat,
+        initialContentPlain: initialContentPlain,
       );
     } catch (_) {}
   }
@@ -601,6 +627,9 @@ PersonalNoteEditorController buildPersonalNoteEditorController({
     ..insert(0, initialContent.trimRight().isEmpty ? '' : '$initialContent\n');
   return PersonalNoteEditorController(
     quillController: _PersonalNoteQuillController(document),
+    initialContent: initialContent,
+    initialFormat: initialFormat,
+    initialContentPlain: initialContentPlain,
   );
 }
 

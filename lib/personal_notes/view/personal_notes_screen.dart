@@ -1493,6 +1493,7 @@ class _PersonalNotesManagerScreenState
       builder: (context) => PersonalNoteEditorDialog(
         title: 'ערוך הערה',
         initialContent: draft?.content ?? note.content,
+        initialContentPlain: draft?.contentPlain ?? note.contentPlain,
         initialContentFormat: draft?.contentFormat ?? note.contentFormat,
         referenceText: note.displayTitle,
         icon: FluentIcons.edit_24_regular,
