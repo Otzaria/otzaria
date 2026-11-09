@@ -15,6 +15,7 @@ const int _kLabelsPerMeasurement = 64;
 const int _kMaxBatchedLabelLength = 2048;
 const int _kMaxBatchedTextLength = 8192;
 const int _kSortLabelsThreshold = 1024;
+const int _kPreprocessingEntriesPerYield = 1024;
 // תווי בקרה דורשים פסקה עצמאית כדי שלא ישפיעו על מדידת תוויות אחרות.
 final _independentParagraphLabel = RegExp(
   r'[\p{C}\p{Zl}\p{Zp}\u{10000}-\u{10ffff}]',
@@ -226,17 +227,30 @@ Iterable<double> _appMenuPreferredWidths<T>(
     yield min(metrics.menuMinWidth, maxWidth);
     return;
   }
+  // The menu cannot be narrower than its floor unless the caller imposes a
+  // smaller maximum. In either case no label measurements are needed.
+  if (maxWidth <= metrics.menuMinWidth) {
+    yield maxWidth;
+    return;
+  }
 
-  final hasIcon = entries.any((entry) => entry.icon != null);
+  var hasIcon = false;
   var maxTrailingWidth = 0.0;
   var hasExtraSlot = false;
+  var inspectedEntries = 0;
   for (final entry in entries) {
+    if (entry.icon != null) hasIcon = true;
     if (entry.trailing != null) {
       final tWidth = entry.trailingReservedWidth > 0
           ? entry.trailingReservedWidth
           : metrics.iconSize + 8;
       if (tWidth > maxTrailingWidth) maxTrailingWidth = tWidth;
       if (entry.reserveTrailingGap) hasExtraSlot = true;
+    }
+    // Let the async caller yield during metadata scanning, not only after
+    // all entries have been deduplicated and text layout has begun.
+    if (++inspectedEntries % _kPreprocessingEntriesPerYield == 0) {
+      yield min(metrics.menuMinWidth, maxWidth);
     }
   }
 
@@ -261,7 +275,15 @@ Iterable<double> _appMenuPreferredWidths<T>(
     fontWeight: _kSelectedItemFontWeight,
   );
 
-  final labels = entries.map((entry) => entry.label).toSet().toList();
+  final uniqueLabels = <String>{};
+  inspectedEntries = 0;
+  for (final entry in entries) {
+    uniqueLabels.add(entry.label);
+    if (++inspectedEntries % _kPreprocessingEntriesPerYield == 0) {
+      yield min(metrics.menuMinWidth, maxWidth);
+    }
+  }
+  final labels = uniqueLabels.toList();
   // ארוכות תחילה כדי להגיע מהר לתקרת רוחב התפריט; אורך לבדו אינו חסם רוחב.
   if (maxWidth.isFinite && labels.length > _kSortLabelsThreshold) {
     labels.sort((a, b) => b.length.compareTo(a.length));
