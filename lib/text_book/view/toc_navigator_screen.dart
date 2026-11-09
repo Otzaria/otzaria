@@ -59,7 +59,9 @@ class _TocViewerState extends State<TocViewer>
   // השיטוח משתנה רק כשהתצוגה או מצב ההרחבה משתנים.
   _TocDisplayData? _flatDisplay;
   List<TocFlatItem>? _flatResult;
-  Map<TocEntry, int> _flatEntryIndices = Map<TocEntry, int>.identity();
+  Map<int, int> _flatEntryIndices = const {};
+  // מפת זהות נפרדת לשימור מצב ה-Element כאשר אינדקס שורה משתנה.
+  Map<TocEntry, int> _flatRowIndices = Map<TocEntry, int>.identity();
   int _expandedRevision = 0;
   int _flatExpandedRevision = -1;
 
@@ -131,7 +133,7 @@ class _TocViewerState extends State<TocViewer>
 
     final current = _highlightedEntryIndex == null
         ? -1
-        : flat.indexWhere((item) => item.entry.index == _highlightedEntryIndex);
+        : (_flatEntryIndices[_highlightedEntryIndex!] ?? -1);
     final start = current >= 0 ? current : (delta >= 0 ? -1 : flat.length);
     final next = (start + delta).clamp(0, flat.length - 1);
     if (next == current) return;
@@ -264,11 +266,9 @@ class _TocViewerState extends State<TocViewer>
     required _TocDisplayData display,
   }) {
     if (!_virtualScrollController.isAttached) return false;
-    final flat = _flatItemsFor(display);
-    final flatEntryIndex = flat.indexWhere(
-      (item) => item.entry.index == targetIndex,
-    );
-    if (flatEntryIndex < 0) return false;
+    _flatItemsFor(display);
+    final flatEntryIndex = _flatEntryIndices[targetIndex];
+    if (flatEntryIndex == null) return false;
     // +1: פריט 0 ברשימה הוא הכותרת הראשית.
     final flatIndex = flatEntryIndex + 1;
 
@@ -318,7 +318,8 @@ class _TocViewerState extends State<TocViewer>
       _displayResult = _TocDisplayData(entries, isSearching);
       _flatDisplay = null;
       _flatResult = null;
-      _flatEntryIndices.clear();
+      _flatEntryIndices = const {};
+      _flatRowIndices = Map<TocEntry, int>.identity();
       _flatExpandedRevision = -1;
     }
     return _displayResult!;
@@ -334,11 +335,18 @@ class _TocViewerState extends State<TocViewer>
         _expanded,
         expandByDefault: display.isSearching,
       );
-      _flatEntryIndices = Map<TocEntry, int>.identity();
       final flat = _flatResult!;
+      final entryIndices = <int, int>{};
+      final rowIndices = Map<TocEntry, int>.identity();
       for (var index = 0; index < flat.length; index++) {
-        _flatEntryIndices[flat[index].entry] = index + 1;
+        // המיקום ברשימה כולל את כותרת העץ ב-0.
+        rowIndices[flat[index].entry] = index + 1;
+        // indexWhere החזיר תמיד את המופע הראשון; putIfAbsent משמר זאת גם
+        // אם קלט פגום מכיל שני ערכים עם אותו index.
+        entryIndices.putIfAbsent(flat[index].entry.index, () => index);
       }
+      _flatEntryIndices = entryIndices;
+      _flatRowIndices = rowIndices;
     }
     return _flatResult!;
   }
@@ -453,7 +461,7 @@ class _TocViewerState extends State<TocViewer>
       findChildIndexCallback: (key) => key == const ValueKey('toc-tree-header')
           ? 0
           : key is ObjectKey
-          ? _flatEntryIndices[key.value]
+          ? _flatRowIndices[key.value]
           : null,
       itemBuilder: (context, index) {
         if (index == 0) {
