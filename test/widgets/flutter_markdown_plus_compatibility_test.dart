@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 
-Widget _app(Widget child) => MaterialApp(
-      home: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(body: child),
-      ),
-    );
+Widget _app(Widget child, {ThemeData? theme}) => MaterialApp(
+  theme: theme,
+  home: Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(body: child),
+  ),
+);
 
 Iterable<RichText> _richText(WidgetTester tester) => find
     .byType(RichText)
@@ -37,13 +39,19 @@ void main() {
     );
 
     expect(find.byType(MarkdownBody), findsOneWidget);
-    final rendered = _richText(tester).map((text) => text.text.toPlainText()).join(' ');
+    final rendered = _richText(
+      tester,
+    ).map((text) => text.text.toPlainText()).join(' ');
     expect(rendered, contains('שלום'));
     expect(rendered, contains('עולם'));
     expect(rendered, contains('פריט ראשון'));
-    final hebrew = find.byType(RichText).evaluate().firstWhere(
-      (element) => (element.widget as RichText).text.toPlainText().contains('שלום'),
-    );
+    final hebrew = find
+        .byType(RichText)
+        .evaluate()
+        .firstWhere(
+          (element) =>
+              (element.widget as RichText).text.toPlainText().contains('שלום'),
+        );
     expect(Directionality.of(hebrew), TextDirection.rtl);
     expect(tester.takeException(), isNull);
   });
@@ -70,11 +78,18 @@ void main() {
   testWidgets('MarkdownBody respects an explicit paragraph style', (
     tester,
   ) async {
-    final style = MarkdownStyleSheet.fromTheme(ThemeData.light()).copyWith(
-      p: const TextStyle(fontSize: 23, color: Color(0xFF123456)),
-    );
     await tester.pumpWidget(
-      _app(MarkdownBody(data: 'משפט בדיקה', styleSheet: style)),
+      _app(
+        Builder(
+          builder: (context) => MarkdownBody(
+            data: 'משפט בדיקה',
+            styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                .copyWith(
+                  p: const TextStyle(fontSize: 23, color: Color(0xFF123456)),
+                ),
+          ),
+        ),
+      ),
     );
 
     expect(
@@ -83,6 +98,56 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets('changelog styles preserve Hebrew blocks in $brightness', (
+      tester,
+    ) async {
+      late MarkdownStyleSheet style;
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) {
+              style = changelogMarkdownStyle(Theme.of(context));
+              return SizedBox(
+                width: 280,
+                child: MarkdownBody(
+                  data:
+                      '# כותרת **מודגשת**\n\n> ציטוט **חשוב**\n\n'
+                      '1. פריט ראשון\n2. פריט שני',
+                  styleSheet: style,
+                ),
+              );
+            },
+          ),
+          theme: ThemeData(brightness: brightness),
+        ),
+      );
+
+      for (final content in [
+        'כותרת מודגשת',
+        'ציטוט חשוב',
+        'פריט ראשון',
+        'פריט שני',
+      ]) {
+        final finder = find.text(content, findRichText: true);
+        expect(finder, findsOneWidget);
+        expect(Directionality.of(tester.element(finder)), TextDirection.rtl);
+      }
+      final heading = _richText(tester).singleWhere(
+        (text) => text.text.toPlainText() == 'כותרת מודגשת',
+      );
+      final quote = _richText(tester).singleWhere(
+        (text) => text.text.toPlainText() == 'ציטוט חשוב',
+      );
+      expect(_hasFontSize(heading.text, style.h1!.fontSize!), isTrue);
+      expect(_hasFontSize(quote.text, style.blockquote!.fontSize!), isTrue);
+      expect(style.h1!.fontSize, greaterThan(style.p!.fontSize!));
+      expect(find.text('1.', findRichText: true), findsOneWidget);
+      expect(find.text('2.', findRichText: true), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('long Hebrew changelog scrolls in its parent without overflow', (
     tester,
@@ -107,7 +172,10 @@ void main() {
 
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
     expect(scrollable.position.maxScrollExtent, greaterThan(0));
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -160));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -160),
+    );
     await tester.pumpAndSettle();
     expect(scrollable.position.pixels, greaterThan(0));
     expect(tester.takeException(), isNull);
