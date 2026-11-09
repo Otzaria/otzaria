@@ -120,6 +120,10 @@ class SearchingTab extends OpenedTab {
           initialConfiguration:
               initialConfiguration ?? SearchDefaults.withResultPreferences(),
         );
+    // מקצרים כותרת נגזרת גם בשחזור, בלי להחליף כותרת מפורשת אחרת.
+    if (searchText != null && title == 'חיפוש: ${searchText.trim()}') {
+      title = titleForQuery(searchText);
+    }
     titleNotifier = ValueNotifier(title);
     if (searchText != null) {
       queryController.text = searchText;
