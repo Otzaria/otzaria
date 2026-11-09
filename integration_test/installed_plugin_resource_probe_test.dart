@@ -42,7 +42,7 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_android_control.dart';

@@ -530,6 +530,16 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
+        // nativeapi Window.id is not a Win32 HWND. The runner owns the
+        // real native handle used for modal dialogs and child windows.
+        if (call.method_name() == "mainWindowHandle") {
+          const HWND self = GetHandle();
+          result->Success(
+              self ? flutter::EncodableValue(static_cast<int64_t>(
+                         reinterpret_cast<intptr_t>(self)))
+                   : flutter::EncodableValue());
+          return;
+        }
         // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
         //
         // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול

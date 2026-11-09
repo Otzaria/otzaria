@@ -51,6 +51,11 @@ class RunnerWindowChannel {
 
   static const MethodChannel channel = MethodChannel('otzaria/multiwindow');
 
+  /// Real native pointer for the primary window; nativeapi's Window.id
+  /// is not an HWND (Windows) or GtkWindow* (Linux).
+  Future<int?> mainWindowHandle() =>
+      channel.invokeMethod<int>('mainWindowHandle');
+
   /// האם אפשר לפתוח חלונות נוספים: ריבוי תצוגות פעיל. בלעדיו (macOS בלי
   /// handshake, בלי בעלים) התוכנה בחלון יחיד והאפשרויות מוסתרות.
   static bool get canOpenWindows =>

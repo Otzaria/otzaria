@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -6,6 +7,21 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('mainWindowHandle preserves a 64-bit window pointer', () async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const handle = 0x123456789;
+    messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, (call) async {
+      expect(call.method, 'mainWindowHandle');
+      return handle;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(RunnerWindowChannel.channel, null),
+    );
+
+    expect(await const RunnerWindowChannel().mainWindowHandle(), handle);
+  });
 
   group('canTransfer', () {
     test('כרטיסיית כלי ניתנת להעברה', () {
