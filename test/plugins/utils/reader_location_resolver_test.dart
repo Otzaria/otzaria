@@ -6,11 +6,13 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
+import '../../test_helpers/memory_cache_provider.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
-    await Settings.init(cacheProvider: _MemoryCacheProvider());
+    await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
   group('ReaderLocationSnapshot', () {
@@ -285,65 +287,4 @@ void main() {
       expect(result!.currentRef, 'פרק ב');
     });
   });
-}
-
-class _MemoryCacheProvider extends CacheProvider {
-  final Map<String, Object?> _values = {};
-
-  @override
-  Future<void> init() async {}
-
-  @override
-  bool containsKey(String key) => _values.containsKey(key);
-
-  @override
-  Set getKeys() => _values.keys.toSet();
-
-  @override
-  bool? getBool(String key, {bool? defaultValue}) =>
-      _values[key] as bool? ?? defaultValue;
-
-  @override
-  double? getDouble(String key, {double? defaultValue}) =>
-      _values[key] as double? ?? defaultValue;
-
-  @override
-  int? getInt(String key, {int? defaultValue}) =>
-      _values[key] as int? ?? defaultValue;
-
-  @override
-  String? getString(String key, {String? defaultValue}) =>
-      _values[key] as String? ?? defaultValue;
-
-  @override
-  T? getValue<T>(String key, {T? defaultValue}) {
-    final value = _values[key];
-    if (value is T) return value;
-    return defaultValue;
-  }
-
-  @override
-  Future<void> setObject<T>(String key, T? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setBool(String key, bool? value) async => _values[key] = value;
-
-  @override
-  Future<void> setDouble(String key, double? value) async =>
-      _values[key] = value;
-
-  @override
-  Future<void> setInt(String key, int? value) async => _values[key] = value;
-
-  @override
-  Future<void> setString(String key, String? value) async =>
-      _values[key] = value;
-
-  @override
-  Future<void> remove(String key) async => _values.remove(key);
-
-  @override
-  Future<void> removeAll() async => _values.clear();
 }
