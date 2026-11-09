@@ -109,6 +109,38 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     });
   }
 
+  /// חץ מעלה/מטה בשורה הראשונה/האחרונה של הפסקה עובר לפסקה הסמוכה, כדי
+  /// שאפשר יהיה לנוע בין פסקאות במקלדת ולא רק לצדדים.
+  KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final up = key == LogicalKeyboardKey.arrowUp;
+    if (!up && key != LogicalKeyboardKey.arrowDown) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    final controller = _controller;
+    final editor = node.context?.findAncestorStateOfType<EditableTextState>();
+    if (controller == null ||
+        editor == null ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed ||
+        !controller.selection.isValid ||
+        !controller.selection.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    final render = editor.renderEditable;
+    final caret = render.getLocalRectForCaret(controller.selection.extent);
+    final atEdge = up ? caret.top < 1 : caret.bottom > render.size.height - 1;
+    if (!atEdge) return KeyEventResult.ignored;
+    final moved = FocusScope.of(node.context!).focusInDirection(
+      up ? TraversalDirection.up : TraversalDirection.down,
+    );
+    return moved ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
   bool _syncText() {
     if (!_registry.canEditParagraph(widget.tabId, widget.sourceText)) {
       return false;
@@ -118,7 +150,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.sourceText,
         hideNikud: widget.settings.removeNikud,
       );
-      _focus = FocusNode()..addListener(_focusChanged);
+      _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
@@ -262,6 +294,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     return RtlTextField(
       controller: _controller!,
       focusNode: _focus!,
+      highlightText: settings.searchText,
       maxLines: null,
       minLines: 1,
       textInputAction: TextInputAction.done,
