@@ -15,6 +15,9 @@ class AppDropdownField<T> extends StatefulWidget {
   final bool enabled;
   final bool isExpanded;
   final bool enableSearch;
+
+  /// מעביר לשורות תפריט החיפוש את [AppMenuItemVisibility] לדחיית תצוגות יקרות.
+  final bool trackItemVisibility;
   final Widget Function(BuildContext context, T? value)? selectedBuilder;
   final String Function(T value)? labelBuilder;
   final List<String>? filterLabels;
@@ -41,6 +44,7 @@ class AppDropdownField<T> extends StatefulWidget {
     this.enabled = true,
     this.isExpanded = true,
     this.enableSearch = false,
+    this.trackItemVisibility = false,
     this.selectedBuilder,
     this.labelBuilder,
     this.filterLabels,
@@ -114,6 +118,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
               anchorContext: anchorContext,
               entries: widget.entries,
               initialValue: widget.value,
+              trackItemVisibility: widget.trackItemVisibility,
               searchHint:
                   widget.decoration?.hintText ??
                   widget.decoration?.labelText ??

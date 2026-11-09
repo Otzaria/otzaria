@@ -109,6 +109,7 @@ class FontDropdownField extends StatelessWidget {
       value: value,
       enabled: enabled,
       enableSearch: true,
+      trackItemVisibility: true,
       decoration: decoration ?? const InputDecoration(),
       entries: fontEntries,
       filterLabels: [context.settingsText('הכל'), 'Serif', 'Sans'],
@@ -220,8 +221,8 @@ class _FontPreviewTextState extends State<_FontPreviewText> {
   bool _loaded = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _resolveFont();
   }
 
@@ -235,6 +236,10 @@ class _FontPreviewTextState extends State<_FontPreviewText> {
   }
 
   void _resolveFont() {
+    if (!AppMenuItemVisibility.isVisibleOf(context)) {
+      _loaded = false;
+      return;
+    }
     if (widget.isBundled) {
       _loaded = true;
       return;
@@ -250,7 +255,9 @@ class _FontPreviewTextState extends State<_FontPreviewText> {
 
   @override
   Widget build(BuildContext context) {
-    final family = _loaded ? widget.fontFamily : null;
+    final family = _loaded && AppMenuItemVisibility.isVisibleOf(context)
+        ? widget.fontFamily
+        : null;
     return Text(
       widget.name,
       maxLines: 1,
