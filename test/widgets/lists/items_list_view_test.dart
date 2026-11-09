@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 class _Book {
   final String title;
@@ -693,6 +694,85 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(tapped, 2);
+    });
+
+    testWidgets('Down באחרונה מחזיר אותה לתצוגה גם כשהמסך במנוחה', (
+      tester,
+    ) async {
+      EditableText.debugDeterministicCursor = true;
+      addTearDown(() => EditableText.debugDeterministicCursor = false);
+      int? tapped;
+      await tester.pumpWidget(
+        buildSearchable(
+          List.generate(20, (index) => _Item('ספר $index')),
+          onTap: (index) => tapped = index,
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (var index = 0; index < 20; index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 19);
+
+      // גלילה בלי שינוי הבחירה או איבוד המיקוד בשדה החיפוש.
+      final list = tester.widget<ScrollablePositionedList>(
+        find.byType(ScrollablePositionedList),
+      );
+      list.itemScrollController!.jumpTo(index: 0);
+      await tester.pumpAndSettle();
+      // ממתינים לסיום הבהוב הסמן, כדי שרק הניווט יוכל לתזמן פריים
+      // שיריץ את בדיקת הנראות.
+      for (var tick = 0; tick < 20; tick++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue,
+      );
+      expect(find.text('ספר 19').hitTestable(), findsNothing);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('ספר 19').hitTestable(), findsOneWidget);
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 19);
+    });
+
+    testWidgets('סינון שמסיר את הבחירה מאפס אותה ומאפשר ניווט מחדש', (
+      tester,
+    ) async {
+      int? tapped;
+      Widget build({bool filtered = false}) => buildWidget(
+        additionalFilter: filtered ? (item) => item.ref != 'הלכות שבת' : null,
+        onItemTap: (_, _, index) => tapped = index,
+      );
+      await tester.pumpWidget(build());
+      await tester.pump();
+      for (var index = 0; index < 3; index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 2);
+
+      await tester.pumpWidget(build(filtered: true));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      tapped = null;
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(tapped, 0);
     });
 
     testWidgets('חצי מקלדת לא מריצים מחדש סינון ומפתחות חיפוש', (

@@ -509,8 +509,7 @@ class _ItemsListViewState extends State<ItemsListView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_itemScrollController.isAttached) return;
       final rowIndex = _displayRows.indexWhere(
-        (row) =>
-            !row.isHeader && row.entry!.key == _focusedOriginalIndex.value,
+        (row) => !row.isHeader && row.entry!.key == _focusedOriginalIndex.value,
       );
       if (rowIndex == -1) return;
       // אם השורה כבר נראית במלואה — אין מה לגלול.
@@ -527,6 +526,8 @@ class _ItemsListViewState extends State<ItemsListView> {
         duration: const Duration(milliseconds: 150),
       );
     });
+    // גם באחרונה הבחירה עלולה להיות מחוץ לתצוגה, בלי שינוי שיתזמן פריים.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   @override
