@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:otzaria/indexing/models/indexing_resource_policy.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -14,12 +16,14 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final SettingsRepository _repository;
   final Future<void> Function(String fontFamily) _ensureFontLoaded;
+  StreamSubscription<String>? _externalChangesSubscription;
 
-  /// [initialSettings] — תמונת ההגדרות השמורות ([SettingsRepository.readSettings]);
-  /// בלעדיה המסך הראשון נבנה מברירות מחדל וקופץ אחרי LoadSettings (issue #1280).
+  /// [initialSettings] מונע קפיצה מברירות מחדל להגדרות השמורות במסך הראשון.
+  /// [externalChanges] מסנכרן כתיבות חיצוניות; בלעדיו מתקבלים רק אירועי הבלוק.
   SettingsBloc({
     required SettingsRepository repository,
     Map<String, dynamic>? initialSettings,
+    Stream<String>? externalChanges,
     @visibleForTesting
     Future<void> Function(String fontFamily)? ensureFontLoaded,
   }) : _repository = repository,
@@ -36,6 +40,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<LoadSettings>(_onLoadSettings);
     on<UpdateDarkMode>(_onUpdateDarkMode);
     on<UpdateFollowSystemTheme>(_onUpdateFollowSystemTheme);
+    on<UpdateThemeMode>(_onUpdateThemeMode);
     on<UpdateSeedColor>(_onUpdateSeedColor);
     on<UpdateDarkSeedColor>(_onUpdateDarkSeedColor);
     on<UpdateTextMaxWidth>(_onUpdateTextMaxWidth);
@@ -48,6 +53,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       _onCommentatorsFontSizeChanged,
       transformer: sequential(),
     );
+    on<UpdateSearchResultsFontSize>(_onUpdateSearchResultsFontSize);
     on<UpdateLineHeight>(_onUpdateLineHeight);
     on<UpdateShowOtzarHachochma>(_onUpdateShowOtzarHachochma);
     on<UpdateShowHebrewBooks>(_onUpdateShowHebrewBooks);
@@ -87,6 +93,19 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       _onUpdatePersonalNotesCollapsedByDefault,
     );
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
+    on<UpdateAutoSync>(_onUpdateAutoSync);
+    on<UpdateUpdateCheckFrequency>(_onUpdateUpdateCheckFrequency);
+    on<UpdateRestoreAllWindows>(_onUpdateRestoreAllWindows);
+    on<UpdateBackupPath>(_onUpdateBackupPath);
+    on<UpdateAutoBackupFrequency>(_onUpdateAutoBackupFrequency);
+    on<UpdateBackupRetentionProfile>(_onUpdateBackupRetentionProfile);
+    on<UpdateBackupSection>(_onUpdateBackupSection, transformer: sequential());
+    on<IncludeAllBackupSections>(
+      _onIncludeAllBackupSections,
+      transformer: sequential(),
+    );
+    on<UpdateSplitedView>(_onUpdateSplitedView);
+    on<ExternalSettingChanged>(_onExternalSettingChanged);
     on<UpdateReadingTabsPlacement>(_onUpdateReadingTabsPlacement);
     on<UpdateReadingTabsColumnWidth>(_onUpdateReadingTabsColumnWidth);
     on<UpdateReadingTabsColumnCollapsed>(_onUpdateReadingTabsColumnCollapsed);
@@ -101,6 +120,37 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       transformer: sequential(),
     );
     on<UpdateSettingsLanguageCode>(_onUpdateSettingsLanguageCode);
+    _externalChangesSubscription = externalChanges?.listen(
+      (key) => add(ExternalSettingChanged(key)),
+    );
+  }
+
+  @override
+  Future<void> close() async {
+    await _externalChangesSubscription?.cancel();
+    return super.close();
+  }
+
+  /// כתיבה לקובץ ההגדרות, גם של הבלוק עצמו: קוראים הכל מחדש, כמו בטעינה.
+  /// מצב זהה לא נפלט (Equatable), ולכן הכתיבות של הבלוק עצמו לא מרעננות.
+  Future<void> _onExternalSettingChanged(
+    ExternalSettingChanged event,
+    Emitter<SettingsState> emit,
+  ) async {
+    final settings = _repository.readSettings();
+    final fresh = _stateFromSettings(
+      settings,
+      protectedModePasswordSet: _repository.hasProtectedModePassword(),
+    );
+    if (fresh == state) return;
+    final fontChanged =
+        fresh.fontFamily != state.fontFamily ||
+        fresh.commentatorsFontFamily != state.commentatorsFontFamily;
+    emit(fresh);
+    if (fontChanged) {
+      await _ensureFontLoaded(fresh.fontFamily);
+      await _ensureFontLoaded(fresh.commentatorsFontFamily);
+    }
   }
 
   Future<void> _onLoadSettings(
@@ -143,6 +193,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       fontBold: settings['fontBold'] ?? false,
       commentatorsFontBold: settings['commentatorsFontBold'] ?? false,
       commentatorsFontSize: settings['commentatorsFontSize'],
+      searchResultsFontSize: settings['searchResultsFontSize'],
       lineHeight: settings['lineHeight'],
       showOtzarHachochma: settings['showOtzarHachochma'],
       showHebrewBooks: settings['showHebrewBooks'],
@@ -165,6 +216,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       copyHeaderFormat: settings['copyHeaderFormat'],
       libraryViewMode: settings['libraryViewMode'],
       libraryShowPreview: settings['libraryShowPreview'],
+      libraryShowPreviewShortWindow: settings['libraryShowPreviewShortWindow'],
       searchShowPreview: settings['searchShowPreview'] ?? true,
       shortcuts: Map<String, String>.unmodifiable(
         Map<String, String>.from(settings['shortcuts'] as Map),
@@ -179,6 +231,19 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
+      compactMenuModeIsSet: settings['compactMenuMode'] != null,
+      autoSync: settings['autoSync'] ?? true,
+      updateCheckFrequency: settings['updateCheckFrequency'] ?? '',
+      restoreAllWindows: settings['restoreAllWindows'] ?? false,
+      backupPath: settings['backupPath'] ?? '',
+      autoBackupFrequency: settings['autoBackupFrequency'] ?? 'weekly',
+      backupRetentionProfile: settings['backupRetentionProfile'] ?? '',
+      backupSections: Map<String, bool>.unmodifiable(
+        settings['backupSections'] as Map<String, bool>? ?? const {},
+      ),
+      splitedView: settings['splitedView'] ?? true,
+      libraryPath: settings['libraryPath'] ?? '',
+      hebrewBooksPath: settings['hebrewBooksPath'] ?? '',
       readingTabsPlacement:
           settings['readingTabsPlacement'] ??
           SettingsRepository.readingTabsPlacementTop,
@@ -263,12 +328,108 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
   }
 
+  Future<void> _onUpdateAutoSync(
+    UpdateAutoSync event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateAutoSync(event.enabled);
+    emit(state.copyWith(autoSync: event.enabled));
+  }
+
+  Future<void> _onUpdateUpdateCheckFrequency(
+    UpdateUpdateCheckFrequency event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateUpdateCheckFrequency(event.value);
+    emit(state.copyWith(updateCheckFrequency: event.value));
+  }
+
+  Future<void> _onUpdateRestoreAllWindows(
+    UpdateRestoreAllWindows event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateRestoreAllWindows(event.enabled);
+    emit(state.copyWith(restoreAllWindows: event.enabled));
+  }
+
+  Future<void> _onUpdateBackupPath(
+    UpdateBackupPath event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateBackupPath(event.path);
+    emit(state.copyWith(backupPath: event.path));
+  }
+
+  Future<void> _onUpdateAutoBackupFrequency(
+    UpdateAutoBackupFrequency event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateAutoBackupFrequency(event.frequency);
+    emit(state.copyWith(autoBackupFrequency: event.frequency));
+  }
+
+  Future<void> _onUpdateBackupRetentionProfile(
+    UpdateBackupRetentionProfile event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateBackupRetentionProfile(event.profile);
+    emit(state.copyWith(backupRetentionProfile: event.profile));
+  }
+
+  Future<void> _onUpdateBackupSection(
+    UpdateBackupSection event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateBackupSection(event.key, event.include);
+    emit(
+      state.copyWith(
+        backupSections: Map.unmodifiable({
+          ...state.backupSections,
+          event.key: event.include,
+        }),
+      ),
+    );
+  }
+
+  Future<void> _onIncludeAllBackupSections(
+    IncludeAllBackupSections event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await Future.wait(
+      SettingsRepository.backupSectionKeys.map(
+        (key) => _repository.updateBackupSection(key, true),
+      ),
+    );
+    emit(
+      state.copyWith(
+        backupSections: Map.unmodifiable({
+          for (final key in SettingsRepository.backupSectionKeys) key: true,
+        }),
+      ),
+    );
+  }
+
+  Future<void> _onUpdateSplitedView(
+    UpdateSplitedView event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateSplitedView(event.splitedView);
+    emit(state.copyWith(splitedView: event.splitedView));
+    _cleanupRedundantPerBookSettings();
+  }
+
   Future<void> _onUpdateCompactMenuMode(
     UpdateCompactMenuMode event,
     Emitter<SettingsState> emit,
   ) async {
-    await _repository.updateCompactMenuMode(event.compactMenuMode);
-    emit(state.copyWith(compactMenuMode: event.compactMenuMode));
+    final value = event.compactMenuMode;
+    await _repository.updateCompactMenuMode(value);
+    emit(
+      state.copyWith(
+        compactMenuMode: value ?? false,
+        compactMenuModeIsSet: value != null,
+      ),
+    );
   }
 
   Future<void> _onUpdateReadingTabsPlacement(
@@ -385,6 +546,21 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(state.copyWith(followSystemTheme: event.followSystemTheme));
   }
 
+  Future<void> _onUpdateThemeMode(
+    UpdateThemeMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    final followSystem = event.mode == ThemeMode.system;
+    await _repository.updateFollowSystemTheme(followSystem);
+    if (followSystem) {
+      emit(state.copyWith(followSystemTheme: true));
+      return;
+    }
+    final isDark = event.mode == ThemeMode.dark;
+    await _repository.updateDarkMode(isDark);
+    emit(state.copyWith(followSystemTheme: false, isDarkMode: isDark));
+  }
+
   Future<void> _onUpdateSeedColor(
     UpdateSeedColor event,
     Emitter<SettingsState> emit,
@@ -469,6 +645,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     if (next == state.commentatorsFontSize) return;
     await _repository.updateCommentatorsFontSize(next);
     emit(state.copyWith(commentatorsFontSize: next));
+  }
+
+  Future<void> _onUpdateSearchResultsFontSize(
+    UpdateSearchResultsFontSize event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateSearchResultsFontSize(event.searchResultsFontSize);
+    emit(state.copyWith(searchResultsFontSize: event.searchResultsFontSize));
   }
 
   Future<void> _onUpdateLineHeight(
@@ -628,6 +812,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     UpdateLibraryShowPreview event,
     Emitter<SettingsState> emit,
   ) async {
+    if (event.shortWindow) {
+      await _repository.updateLibraryShowPreviewShortWindow(
+        event.libraryShowPreview,
+      );
+      emit(
+        state.copyWith(libraryShowPreviewShortWindow: event.libraryShowPreview),
+      );
+      return;
+    }
     await _repository.updateLibraryShowPreview(event.libraryShowPreview);
     emit(state.copyWith(libraryShowPreview: event.libraryShowPreview));
   }
@@ -697,8 +890,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         defaultRemoveNikud: state.defaultRemoveNikud,
         removeNikudFromTanach: state.removeNikudFromTanach,
         defaultRemovePunctuation: state.defaultRemovePunctuation,
-        defaultShowSplitView:
-            Settings.getValue<bool>('key-splited-view') ?? true,
+        defaultShowSplitView: state.splitedView,
         defaultContinuousReadingMode: state.defaultContinuousReadingMode,
       );
     } catch (e) {

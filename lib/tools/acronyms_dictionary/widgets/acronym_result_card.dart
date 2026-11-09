@@ -60,9 +60,6 @@ class AcronymResultCard extends StatelessWidget {
     );
 
     return ToolResultCardShell(
-      outlined: true,
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      bottomGap: AppTokens.spaceSM + AppTokens.spaceXS,
       child: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= _wideBreakpoint) {

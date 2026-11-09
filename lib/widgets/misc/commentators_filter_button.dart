@@ -24,9 +24,7 @@ class CommentatorsFilterButton extends StatelessWidget {
         OtzariaIcons.apps_list_24_regular,
         color: isActive
             ? Theme.of(context).colorScheme.primary
-            : Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            : Theme.of(context).colorScheme.onSurfaceVariant,
         size: iconSize,
       ),
       tooltip: 'בחירת מפרשים',

@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -12,8 +15,10 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/multiview/host_window_app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -348,8 +353,9 @@ void main() {
     /// שורת כותרת עם כרטיסיה אחת, במיקום הכרטיסיות הנתון.
     Future<void> pumpWithPlacement(
       WidgetTester tester,
-      String placement,
-    ) async {
+      String placement, {
+      ThemeData? theme,
+    }) async {
       final tab = _makeTextTab('ספר א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -374,6 +380,7 @@ void main() {
         tabsBloc: tabsBloc,
         navigationBloc: navigationBloc,
         settingsBloc: settingsBloc,
+        theme: theme,
       );
       await tester.pumpAndSettle();
     }
@@ -398,6 +405,86 @@ void main() {
 
       expect(find.byType(ReadingTabStrip), findsOneWidget);
       expect(find.text('ספר א'), findsOneWidget);
+    });
+
+    BoxDecoration barDecoration(WidgetTester tester) => tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byType(CustomTitleBar),
+            matching: find.byType(Container),
+          ),
+        )
+        .map((c) => c.decoration)
+        .whereType<BoxDecoration>()
+        .first;
+
+    testWidgets('במצב "בצד" השורה ברקע הלוח ועם קו, כמו בספרייה (#1939)', (
+      tester,
+    ) async {
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementSide,
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.panelBackground(context));
+      expect(
+        (decoration.border! as Border).bottom.color,
+        AppSurfaces.subtleDivider(Theme.of(context).colorScheme),
+      );
+    });
+
+    testWidgets('בערכת "לבן" הקו של השורה במצב "בצד" כהה (#1939)', (
+      tester,
+    ) async {
+      ThemeData theme(Color seed) => AppThemeData.light(
+        AppThemeData.createColorScheme(seed, Brightness.light),
+        compactMenuMode: false,
+        variant: AppThemeVariant.ofSeed(seed),
+      );
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementSide,
+        theme: theme(AppSeedColors.white),
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final line = (barDecoration(tester).border! as Border).bottom;
+      expect(line.color, AppSurfaces.regionBorder(context));
+      expect(line.color, isNotNull);
+      expect(line.width, 1);
+    });
+
+    testWidgets('בערכת "לבן" גם במצב "למעלה" יש קו כהה בתחתית השורה (#2850)', (
+      tester,
+    ) async {
+      const white = AppSeedColors.white;
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementTop,
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(white, Brightness.light),
+          compactMenuMode: false,
+          variant: AppThemeVariant.ofSeed(white),
+        ),
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.readerBackground(context));
+      expect(
+        (decoration.border! as Border).bottom.color,
+        AppSurfaces.regionBorder(context),
+      );
+    });
+
+    testWidgets('במצב "למעלה" השורה ברקע הקריאה ובלי קו', (tester) async {
+      await pumpWithPlacement(
+        tester,
+        SettingsRepository.readingTabsPlacementTop,
+      );
+      final context = tester.element(find.byType(CustomTitleBar));
+      final decoration = barDecoration(tester);
+      expect(decoration.color, AppSurfaces.readerBackground(context));
+      expect(decoration.border, isNull);
     });
   });
 
@@ -571,6 +658,74 @@ void main() {
       expect(find.text('ספר 100'), findsNothing);
     });
 
+    testWidgets('כרטיסיה נבחרת במקלדת (Enter) ובפעולת ההקשה של קורא מסך', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final tabs = [_makeTextTab('ספר א'), _makeTextTab('ספר ב')];
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // צומת הכרטיסיה הוא ה-Semantics של TabActivationRegion, מעל ה-DecoratedBox.
+      Finder node(String title) => find
+          .descendant(
+            of: find.ancestor(
+              of: find.text(title),
+              matching: find.byType(TabActivationRegion),
+            ),
+            matching: find.byType(DecoratedBox),
+          )
+          .first;
+      final second = node('ספר ב');
+      expect(
+        tester.getSemantics(second),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: false,
+          hasTapAction: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(node('ספר א')),
+        isSemantics(
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: true,
+          hasTapAction: true,
+        ),
+      );
+
+      Focus.of(tester.element(second)).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>().map((e) => e.index),
+        [1],
+      );
+
+      semantics.dispose();
+    });
+
     testWidgets('לחיצה על כרטיסיה צרה עדיין בוחרת אותה', (tester) async {
       final tabsBloc = await pumpCrowdedStrip(tester);
 
@@ -582,6 +737,87 @@ void main() {
       final selection = tabsBloc.addedEvents.whereType<SetCurrentTab>();
       expect(selection, isNotEmpty);
       expect(selection.last.index, greaterThan(0));
+    });
+  });
+
+  // הערת בעל הפרויקט (4.11): בטלפון "מסך מלא" למעלה בשמאל, ליד ההגדרות,
+  // כשיש בשורת הכותרת מקום; אחרת בסרגל הקורא.
+  group('מסך מלא בטלפון בשורת הכותרת', () {
+    Future<WindowFullscreenCubit> pumpPhone(
+      WidgetTester tester,
+      Size size, {
+      bool fullscreen = false,
+    }) async {
+      DeviceChrome.debugMobileOverride = true;
+      addTearDown(() => DeviceChrome.debugMobileOverride = null);
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final cubit = WindowFullscreenCubit(
+        initial: fullscreen,
+        persist: (_) async {},
+      );
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await cubit.close();
+      });
+      await _setSurfaceSize(tester, size);
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        fullscreenCubit: cubit,
+      );
+      await tester.pumpAndSettle();
+      return cubit;
+    }
+
+    for (final size in const [Size(360, 640), Size(844, 390)]) {
+      testWidgets('${size.width.toInt()}×${size.height.toInt()}: הכפתור משמאל '
+          'להגדרות, ונכנס למסך מלא', (tester) async {
+        final cubit = await pumpPhone(tester, size);
+        final button = find.byTooltip('מסך מלא');
+        expect(button, findsOneWidget);
+        final settings = find.byTooltip('הגדרות תצוגת הספרים');
+        // סוף השורה, אחרי ההגדרות: באפליקציה (RTL) זו הפינה השמאלית.
+        final settingsX = tester.getCenter(settings).dx;
+        expect(
+          tester.getCenter(button).dx,
+          Directionality.of(tester.element(settings)) == TextDirection.rtl
+              ? lessThan(settingsX)
+              : greaterThan(settingsX),
+        );
+        expect(
+          tester.getCenter(button).dy,
+          tester.getCenter(settings).dy,
+        );
+        await tester.tap(button);
+        // אזור הגרירה מזהה גם לחיצה כפולה: הלחיצה הבודדת מוכרעת אחריה.
+        await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+        expect(cubit.state, isTrue);
+      });
+    }
+
+    testWidgets('בלי מקום (420×390, הכרטיסיות בשורה) אין כפתור בכותרת', (
+      tester,
+    ) async {
+      await pumpPhone(tester, const Size(420, 390));
+      expect(find.byTooltip('הגדרות תצוגת הספרים'), findsOneWidget);
+      expect(find.byTooltip('מסך מלא'), findsNothing);
+    });
+
+    testWidgets('במסך מלא אין כפתור כניסה', (tester) async {
+      await pumpPhone(tester, const Size(360, 640), fullscreen: true);
+      expect(find.byTooltip('מסך מלא'), findsNothing);
     });
   });
 
@@ -617,6 +853,70 @@ void main() {
       ),
       findsOneWidget,
     );
+    // הריחוף של כפתור הנעץ (בגודל הכפתור) לא נוגע בכותרת.
+    final pin = tester.getRect(
+      find.ancestor(
+        of: find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == FluentIcons.pin_24_filled,
+        ),
+        matching: find.byType(IconButton),
+      ),
+    );
+    final title = tester.getRect(find.text('ספר א').first);
+    expect(
+      math.max(pin.left - title.right, title.left - pin.right),
+      greaterThanOrEqualTo(4),
+      reason: 'רווח בין הנעץ לכותרת',
+    );
+  });
+
+  testWidgets('הרבה כרטיסיות: הנעץ נצמד לכותרת (LQ-14)', (tester) async {
+    final tabs = [
+      for (var i = 1; i <= 16; i++) _makeTextTab('ספר $i')..isPinned = true,
+    ];
+    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      for (final t in tabs) {
+        t.dispose();
+      }
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    final pinButtons = find.byType(TabPinButton);
+    expect(pinButtons, findsNWidgets(tabs.length));
+    // בכרטיסיה צרה הרווחים סביב הנעץ מתכווצים כמו הריפודים: 2 אחריו (עיגול
+    // הריחוף לא נוגע בכותרת), ולא 4 כמו בכרטיסיה רחבה.
+    for (var i = 0; i < tabs.length; i++) {
+      final padding =
+          tester
+                  .widget<Padding>(
+                    find
+                        .ancestor(
+                          of: pinButtons.at(i),
+                          matching: find.byType(Padding),
+                        )
+                        .first,
+                  )
+                  .padding
+              as EdgeInsetsDirectional;
+      expect(padding.end, inInclusiveRange(2, 3), reason: 'אחרי נעץ $i');
+      expect(padding.start, lessThanOrEqualTo(2), reason: 'לפני נעץ $i');
+    }
   });
 
   testWidgets('ב-Mac ה-tooltip של כפתורי הכותרת מציג ⌘ ולא CTRL', (
@@ -3007,6 +3307,141 @@ void main() {
     await tester.pump();
     expect(closes, 1);
   });
+
+  group('רצועת הכרטיסיות מעל דיאלוג (R6-4)', () {
+    late _RecordingWindow window;
+
+    Future<void> pumpWithDialog(
+      WidgetTester tester, {
+      bool dismissible = false,
+    }) async {
+      window = _RecordingWindow();
+      addTearDown(window.changes.dispose);
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        controller: window,
+        captionScope: true,
+      );
+      showDialog<void>(
+        context: tester.element(find.byType(CustomTitleBar)),
+        barrierDismissible: dismissible,
+        builder: (_) => const Center(
+          child: Material(
+            child: SizedBox(key: Key('dialog'), width: 200, height: 80),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Rect tabRect(WidgetTester tester) => tester.getRect(
+      find
+          .ancestor(of: find.text('ספר א'), matching: find.byType(MetaData))
+          .first,
+    );
+
+    /// נקודה ברצועה, בקצה הרחוק מהכרטיסיה.
+    Offset emptyStripPoint(WidgetTester tester) {
+      final strip = tester.getRect(find.byType(ReadingTabStrip));
+      final tab = tabRect(tester);
+      final left = Offset(strip.left + 12, strip.center.dy);
+      final right = Offset(strip.right - 12, strip.center.dy);
+      return (tab.center - left).distance > (tab.center - right).distance
+          ? left
+          : right;
+    }
+
+    testWidgets('גרירה מהאזור הריק ברצועה מזיזה את החלון', (tester) async {
+      await pumpWithDialog(tester);
+      final at = emptyStripPoint(tester);
+      expect(tabRect(tester).contains(at), isFalse);
+      await tester.dragFrom(at, const Offset(40, 0));
+      await tester.pumpAndSettle(kDoubleTapTimeout);
+      expect(window.calls, contains('startDragging'));
+    });
+
+    testWidgets('גרירה מכרטיסיה אינה מזיזה את החלון, והכרטיסיה חסומה', (
+      tester,
+    ) async {
+      await pumpWithDialog(tester);
+      await tester.dragFrom(tabRect(tester).center, const Offset(40, 0));
+      await tester.pumpAndSettle(kDoubleTapTimeout);
+      expect(window.calls, isNot(contains('startDragging')));
+    });
+
+    testWidgets('לחיצה על האזור הריק ברצועה סוגרת דיאלוג שנסגר בלחיצה בחוץ', (
+      tester,
+    ) async {
+      await pumpWithDialog(tester, dismissible: true);
+      await tester.tapAt(emptyStripPoint(tester));
+      await tester.pumpAndSettle(kDoubleTapTimeout);
+      expect(find.byKey(const Key('dialog')), findsNothing);
+    });
+
+    testWidgets('לחיצה כפולה על האזור הריק ברצועה מגדילה', (tester) async {
+      await pumpWithDialog(tester);
+      await _doubleTapAt(tester, emptyStripPoint(tester));
+      expect(window.calls, contains('maximize'));
+    });
+
+    testWidgets('בלי דיאלוג: גרירה מהאזור הריק ברצועה מזיזה פעם אחת', (
+      tester,
+    ) async {
+      await pumpWithDialog(tester);
+      Navigator.of(tester.element(find.byType(CustomTitleBar))).pop();
+      await tester.pumpAndSettle();
+      await tester.dragFrom(emptyStripPoint(tester), const Offset(40, 0));
+      await tester.pumpAndSettle(kDoubleTapTimeout);
+      expect(window.calls.where((c) => c == 'startDragging'), hasLength(1));
+    });
+  });
+}
+
+class _RecordingWindow extends Fake implements AppWindowController {
+  final calls = <String>[];
+  final changes = ChangeNotifier();
+
+  @override
+  Listenable get stateChanges => changes;
+
+  @override
+  Future<void> startDragging() async => calls.add('startDragging');
+
+  @override
+  Future<bool> isMaximized() async => false;
+
+  @override
+  Future<bool> isFullScreen() async => false;
+
+  @override
+  Future<void> maximize() async => calls.add('maximize');
+
+  @override
+  Future<void> unmaximize() async => calls.add('unmaximize');
+
+  @override
+  Future<void> minimize() async => calls.add('minimize');
+
+  @override
+  Future<void> close() async => calls.add('close');
 }
 
 /// לחיצה כפולה במיקום נתון: שתי הקשות עם השהיה תקפה ל-double-tap, ואז המתנה
@@ -3023,11 +3458,13 @@ Future<void> _pumpTitleBar(
   required TabsBloc tabsBloc,
   required NavigationBloc navigationBloc,
   required SettingsBloc settingsBloc,
+  ThemeData? theme,
   HistoryBloc? historyBloc,
   WorkspaceBloc? workspaceBloc,
   WindowFullscreenCubit? fullscreenCubit,
   AppWindowRole? role,
   AppWindowController? controller,
+  bool captionScope = false,
 }) async {
   await tester.pumpWidget(
     // CustomTitleBar שולף את החלון מ-[AppWindowScope] (maximize בלחיצה
@@ -3057,6 +3494,9 @@ Future<void> _pumpTitleBar(
             BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
         ],
         child: MaterialApp(
+          builder: captionScope
+              ? (context, child) => WindowCaptionHitTestScope(child: child!)
+              : null,
           home: Scaffold(
             body: SizedBox(
               width: 900,
@@ -3065,6 +3505,7 @@ Future<void> _pumpTitleBar(
               ),
             ),
           ),
+          theme: theme,
         ),
       ),
     ),

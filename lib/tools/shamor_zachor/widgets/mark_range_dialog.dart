@@ -57,8 +57,7 @@ Future<MarkRangeSelection?> showMarkRangeDialog({
     context: context,
     title: 'סימון טווח בעמודה "$columnLabel"',
     icon: FluentIcons.checkmark_circle_24_regular,
-    headerBand: true,
-    content: '',
+    size: AppDialogSize.medium,
     confirmText: 'החל',
     customContent: _MarkRangeForm(bookDetails: bookDetails, draft: draft),
   );
@@ -166,7 +165,7 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
               marking
                   ? FluentIcons.checkbox_checked_24_regular
                   : FluentIcons.checkbox_unchecked_24_regular,
-              size: AppTokens.fontXL,
+              size: AppTokens.iconSM,
               color: cs.onSecondaryContainer,
             ),
             const SizedBox(width: AppTokens.spaceSM),

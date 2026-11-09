@@ -628,6 +628,20 @@ void main() {
       expect(colored!.style?.color, const Color(0xFFFF8800));
     });
 
+    test('צבעי ספר נפרסים כמו בתצוגה הרגילה: rgb, hsl, שם, #rrggbbaa', () {
+      Color? colorOf(String css) => _findColoredSpan(
+        buildInlineHtmlSpans(
+          '<span style="color: $css">x</span>',
+          const TextStyle(fontSize: 20),
+        ),
+      )?.style?.color;
+      expect(colorOf('rgb(0, 128, 0)'), const Color(0xFF008000));
+      expect(colorOf('hsl(0, 100%, 50%)'), const Color(0xFFFF0000));
+      expect(colorOf('purple'), const Color(0xFF800080));
+      expect(colorOf('#ff880080'), const Color(0x80FF8800));
+      expect(colorOf('transparent'), const Color(0x00000000));
+    });
+
     test('הטקסט עצמו נשמר ב-spans', () {
       // רגרסיה: אם תיקון הצביעה משנה משהו בפירוש ה-HTML, גוף הטקסט
       // ישבר. החיפוש לא רק צובע — הוא גם חייב להציג את המילה.

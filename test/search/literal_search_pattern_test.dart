@@ -358,7 +358,7 @@ Future<void> main() async {
               partialWordHighlight: true,
             ),
           ),
-          contains('color: red'),
+          contains('color: otzaria-search-hit'),
           reason: 'רינדור: "$query"',
         );
         expect(
@@ -368,7 +368,7 @@ Future<void> main() async {
             partialWordMatch: true,
             punctuationHidden: true,
           ),
-          contains('color: red'),
+          contains('color: otzaria-search-hit'),
           reason: '"$query"',
         );
         expect(

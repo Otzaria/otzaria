@@ -11,7 +11,14 @@ class AppDropdownField<T> extends StatefulWidget {
   final T? value;
   final List<AppMenuEntry<T>> entries;
   final ValueChanged<T?>? onSelected;
+
+  /// [InputDecoration.labelText] מוצג כתווית מעל השדה ונקרא יחד עמו בקורא
+  /// מסך; [InputDecoration.hintText] משמש רמז לחיפוש בתפריט.
   final InputDecoration? decoration;
+
+  /// שם השדה בלי תווית גלויה — לקורא מסך וכ-tooltip. לשדה בסרגל, שאין בו
+  /// גובה לתווית מעל הכפתור.
+  final String? semanticLabel;
   final bool enabled;
   final bool isExpanded;
   final bool enableSearch;
@@ -41,6 +48,7 @@ class AppDropdownField<T> extends StatefulWidget {
     required this.entries,
     required this.onSelected,
     this.decoration,
+    this.semanticLabel,
     this.enabled = true,
     this.isExpanded = true,
     this.enableSearch = false,
@@ -122,6 +130,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
               searchHint:
                   widget.decoration?.hintText ??
                   widget.decoration?.labelText ??
+                  widget.semanticLabel ??
                   context.settingsText('חיפוש'),
               filterLabels: widget.filterLabels,
               filterPredicates: widget.filterPredicates,
@@ -219,21 +228,63 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     );
 
     if (widget.isExpanded) {
-      return KeyedSubtree(key: _anchorKey, child: button);
+      return _withLabel(context, KeyedSubtree(key: _anchorKey, child: button));
     }
 
     // ללא isExpanded: הכפתור רחב כמו התפריט הנפתח (לפי הפריט הארוך ביותר),
     // אך לא יותר מהמקום שההורה מקצה לו.
     final preferredWidth = _preferredMenuWidth(context);
-    return KeyedSubtree(
-      key: _anchorKey,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.hasBoundedWidth
-              ? min(preferredWidth, constraints.maxWidth)
-              : preferredWidth;
-          return SizedBox(width: width, child: button);
-        },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.hasBoundedWidth
+            ? min(preferredWidth, constraints.maxWidth)
+            : preferredWidth;
+        return SizedBox(
+          width: width,
+          child: _withLabel(
+            context,
+            KeyedSubtree(key: _anchorKey, child: button),
+          ),
+        );
+      },
+    );
+  }
+
+  /// התווית מעל הכפתור; התפריט נפתח מהכפתור עצמו ([_anchorKey]).
+  Widget _withLabel(BuildContext context, Widget field) {
+    final semanticLabel = widget.semanticLabel;
+    if (semanticLabel != null) {
+      return Tooltip(
+        message: semanticLabel,
+        child: MergeSemantics(
+          child: Semantics(label: semanticLabel, child: field),
+        ),
+      );
+    }
+    final label = widget.decoration?.labelText;
+    if (label == null || label.isEmpty) return field;
+    final theme = Theme.of(context);
+    return MergeSemantics(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+              start: AppTokens.spaceXS,
+              bottom: AppTokens.spaceXS,
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          field,
+        ],
       ),
     );
   }

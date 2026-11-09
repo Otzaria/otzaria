@@ -41,6 +41,7 @@ import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
@@ -897,12 +898,22 @@ void main() {
         );
         expect(save.hitTestable(), findsOneWidget);
         expect(cancel.hitTestable(), findsOneWidget);
-        final editScroll = find.byKey(const ValueKey('app-report-edit-scroll'));
-        final scrollbar = tester.widget<Scrollbar>(
-          find.descendant(of: editScroll, matching: find.byType(Scrollbar)),
+        final editScroll = find.ancestor(
+          of: find.byType(AppReportEditFields),
+          matching: find.byType(PanelScrollableContent),
         );
-        expect(scrollbar.thumbVisibility, isTrue);
-        final outerPosition = scrollbar.controller!.position;
+        expect(editScroll, findsOneWidget);
+        expect(
+          tester.widget<PanelScrollableContent>(editScroll).thumbVisibility,
+          isTrue,
+        );
+        final outerPosition = tester
+            .state<ScrollableState>(
+              find
+                  .descendant(of: editScroll, matching: find.byType(Scrollable))
+                  .first,
+            )
+            .position;
         expect(outerPosition.maxScrollExtent, greaterThan(0));
         for (final fieldName in ['title', 'description', 'steps', 'email']) {
           final field = find.byKey(ValueKey('app-report-edit-$fieldName'));

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -11,12 +9,15 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
 import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class TocViewer extends StatefulWidget {
   const TocViewer({
@@ -26,6 +27,7 @@ class TocViewer extends StatefulWidget {
     required this.focusNode,
   });
 
+  /// נקרא אחרי מעבר לשורה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final LineScrollController lines;
   final FocusNode focusNode;
@@ -165,18 +167,14 @@ class _TocViewerState extends State<TocViewer>
       duration: const Duration(milliseconds: 250),
       curve: Curves.ease,
     );
-    if (Platform.isAndroid) {
-      unawaited(
-        closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ),
-      );
-    } else {
-      unawaited(navigation);
-    }
+    unawaited(
+      closePaneAfterNavigation(
+        navigation: navigation,
+        closePane: () {
+          if (mounted) widget.closeLeftPaneCallback();
+        },
+      ),
+    );
   }
 
   /// אנטר בשדה החיפוש: פתיחת התוצאה המסומנת, ובהיעדר סימון — הראשונה.
@@ -295,11 +293,20 @@ class _TocViewerState extends State<TocViewer>
                   positions
                       .map((p) => p.index)
                       .reduce((a, b) => a > b ? a : b));
-    _virtualScrollController.scrollTo(
-      index: flatIndex,
-      alignment: below ? 0.85 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+    final alignment = below ? 0.85 : 0.0;
+    AppMotion.scroll(
+      context,
+      AppTokens.animPanelSlide,
+      animate: (duration) => _virtualScrollController.scrollTo(
+        index: flatIndex,
+        alignment: alignment,
+        duration: duration,
+        curve: Curves.easeInOut,
+      ),
+      jump: () => _virtualScrollController.jumpTo(
+        index: flatIndex,
+        alignment: alignment,
+      ),
     );
     return true;
   }
@@ -394,7 +401,8 @@ class _TocViewerState extends State<TocViewer>
     );
   }
 
-  /// כותרת העץ עם כפתור "כווץ/הרחב הכל", שמוצג רק כשיש מה לכווץ.
+  /// כותרת העץ עם הכפתור המשותף "הרחב הכל / כווץ הכל"
+  /// ([NavTreeCollapseAllButton]), שמוצג רק כשיש בעץ ענף שאפשר לכווץ.
   Widget _buildTreeHeader(String title, _TocDisplayData display) {
     Widget? toggle;
     if (!display.isSearching) {
@@ -403,36 +411,22 @@ class _TocViewerState extends State<TocViewer>
         _collapsedExpansion = collapsedTocExpansion(display.entries);
       }
       if (_collapsedExpansion.containsValue(false)) {
-        final collapsed = isTocCollapsed(
-          _flatItemsFor(display),
-          _collapsedExpansion,
-        );
-        toggle = SizedBox.square(
-          dimension: 28,
-          child: IconButton(
-            tooltip: collapsed ? 'הרחב הכל' : 'כווץ הכל',
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              collapsed
-                  ? FluentIcons.arrow_expand_all_24_regular
-                  : FluentIcons.arrow_collapse_all_24_regular,
-              size: 18,
-            ),
-            onPressed: () => setState(() {
-              if (_virtualScrollController.isAttached) {
-                _virtualScrollController.jumpTo(index: 0);
-              }
-              _expanded
-                ..clear()
-                ..addAll(
-                  collapsed
-                      ? expandedTocExpansion(display.entries)
-                      : _collapsedExpansion,
-                );
-              _expandedRevision++;
-            }),
+        void apply(Map<int, bool> expansion) => setState(() {
+          if (_virtualScrollController.isAttached) {
+            _virtualScrollController.jumpTo(index: 0);
+          }
+          _expanded
+            ..clear()
+            ..addAll(expansion);
+          _expandedRevision++;
+        });
+        toggle = NavTreeCollapseAllButton(
+          isCollapsed: isTocCollapsed(
+            _flatItemsFor(display),
+            _collapsedExpansion,
           ),
+          onCollapseAll: () => apply(_collapsedExpansion),
+          onExpandAll: () => apply(expandedTocExpansion(display.entries)),
         );
       }
     }

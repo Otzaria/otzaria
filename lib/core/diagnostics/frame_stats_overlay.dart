@@ -9,6 +9,7 @@ import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// Wraps the app, toggles developer mode on Ctrl+Shift+I, and shows the
 /// diagnostics panel in a corner while it is on.
@@ -138,7 +139,7 @@ class _FrameStatsPanelState extends State<FrameStatsPanel> {
     final colors = Theme.of(context).colorScheme;
     final textStyle = TextStyle(
       color: colors.onInverseSurface,
-      fontFamily: 'monospace',
+      fontFamily: AppTextStyles.monospaceFamily,
       fontSize: 11,
       height: 1.3,
     );
@@ -151,7 +152,7 @@ class _FrameStatsPanelState extends State<FrameStatsPanel> {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: colors.inverseSurface.withValues(alpha: 0.88),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: AppTokens.borderRadiusAll,
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 4, 6),

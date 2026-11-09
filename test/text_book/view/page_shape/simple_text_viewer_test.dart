@@ -2555,6 +2555,91 @@ void main() {
     otherButtonFocusNode.dispose();
   });
 
+  testWidgets('דיאלוג שנפתח מעל צורת הדף שומר על הפוקוס, ו-Escape סוגר אותו', (
+    tester,
+  ) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: const [],
+        missingNotes: const [],
+        errorMessage: null,
+        filteredLocatedNotes: const [],
+        filteredMissingNotes: const [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final dialogFocusNode = FocusNode(debugLabel: 'DialogBody');
+    addTearDown(dialogFocusNode.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: SizedBox(
+              height: 200,
+              child: SimpleTextViewer(
+                content: const ['שורה א'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'PageShapeContentFocus',
+    );
+
+    // כמו מסך ההדפסה: לא נסגר בלחיצה בחוץ, והפוקוס בגוף הדיאלוג.
+    unawaited(
+      showDialog<void>(
+        context: tester.element(find.byType(SimpleTextViewer)),
+        barrierDismissible: false,
+        builder: (_) => Actions(
+          actions: {
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => Navigator.of(
+                tester.element(find.byType(SimpleTextViewer)),
+              ).maybePop(),
+            ),
+          },
+          child: Focus(
+            focusNode: dialogFocusNode,
+            autofocus: true,
+            child: const Dialog(child: Text('דיאלוג')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      dialogFocusNode.hasFocus,
+      isTrue,
+      reason: 'הקורא שמתחת לדיאלוג אינו מחזיר אליו את הפוקוס',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('דיאלוג'), findsNothing);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'PageShapeContentFocus',
+      reason: 'אחרי הסגירה הפוקוס חוזר לטקסט',
+    );
+  });
+
   testWidgets(
     'SelectableRegion לא נבנה מחדש כשאזור חיצוני נעשה פעיל ואין לנו בחירה משלנו '
     '(מונע טעינה מחדש של תוכן בעת בחירה במפרש בצורת הדף)',

@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
@@ -653,7 +654,7 @@ class _CombinedViewState extends State<CombinedView> {
 
     final previewLink = anchor?.link ?? inlineLinkFromPreviewUrl(url);
     if (previewLink != null) prefetchLinkPreview(previewLink);
-    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
+    _anchorHoverTimer = Timer(AppTokens.hoverPreviewDelay, () {
       if (!_disposed && mounted) {
         _showUrlPreview(url, globalPosition, hoverMode: true);
       }
@@ -2630,7 +2631,7 @@ class _CombinedViewState extends State<CombinedView> {
     // ברקע ובסמן של פריט רב-שורתי מטפלות השורות עצמן.
     final backgroundColor = isMultiLine
         ? null
-        : readerLineBackgroundColor(marks.background, theme.colorScheme);
+        : readerLineBackgroundColor(marks.background, theme);
     final sectionHeadings = isMultiLine
         ? null
         : _sectionHeadingsByLine[primaryLineIndex];
@@ -3424,13 +3425,9 @@ class _CommentaryCardState extends State<_CommentaryCard> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             borderRadius: AppTokens.borderRadiusAll,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: ClipRRect(
             borderRadius: AppTokens.borderRadiusAll,
@@ -3509,43 +3506,14 @@ class _CommentarySearchNavBar extends StatelessWidget {
           builder: (context, current, _) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'במפרשים: ${current + 1}/$total',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        FluentIcons.chevron_up_24_regular,
-                        size: 16,
-                      ),
-                      onPressed: current > 0 ? onPrev : null,
-                      tooltip: 'תוצאה קודמת במפרשים',
-                    ),
-                  ),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        FluentIcons.chevron_down_24_regular,
-                        size: 16,
-                      ),
-                      onPressed: current < total - 1 ? onNext : null,
-                      tooltip: 'תוצאה הבאה במפרשים',
-                    ),
-                  ),
-                ],
+              child: SearchResultNavigator(
+                label: 'במפרשים',
+                current: current + 1,
+                total: total,
+                previousTooltip: 'תוצאה קודמת במפרשים',
+                nextTooltip: 'תוצאה הבאה במפרשים',
+                onPrevious: current > 0 ? onPrev : null,
+                onNext: current < total - 1 ? onNext : null,
               ),
             );
           },

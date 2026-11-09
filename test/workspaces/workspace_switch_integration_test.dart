@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/user_state_list_store.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
@@ -544,7 +545,7 @@ void main() {
 
 Finder _tile(String name) => find
     .descendant(
-      of: find.ancestor(of: find.text(name), matching: find.byType(Card)),
+      of: find.ancestor(of: find.text(name), matching: find.byType(AppCard)),
       matching: find.byType(InkWell),
     )
     .first;

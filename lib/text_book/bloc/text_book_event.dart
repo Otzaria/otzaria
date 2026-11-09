@@ -386,82 +386,6 @@ class UpdateSelectedTextForNote extends TextBookEvent {
   List<Object?> get props => [text, sectionIndex, start, end];
 }
 
-// Editor Events
-class OpenEditor extends TextBookEvent {
-  final int index;
-
-  const OpenEditor({required this.index});
-
-  @override
-  List<Object?> get props => [index];
-}
-
-class SaveEditedSection extends TextBookEvent {
-  final int index;
-  final String sectionId;
-  final String markdown;
-
-  const SaveEditedSection({
-    required this.index,
-    required this.sectionId,
-    required this.markdown,
-  });
-
-  @override
-  List<Object?> get props => [index, sectionId, markdown];
-}
-
-class LoadDraftIfAny extends TextBookEvent {
-  final int index;
-  final String sectionId;
-
-  const LoadDraftIfAny({required this.index, required this.sectionId});
-
-  @override
-  List<Object?> get props => [index, sectionId];
-}
-
-class DiscardDraft extends TextBookEvent {
-  final int index;
-  final String sectionId;
-
-  const DiscardDraft({required this.index, required this.sectionId});
-
-  @override
-  List<Object?> get props => [index, sectionId];
-}
-
-class CloseEditor extends TextBookEvent {
-  const CloseEditor();
-
-  @override
-  List<Object?> get props => [];
-}
-
-class UpdateEditorText extends TextBookEvent {
-  final String text;
-
-  const UpdateEditorText(this.text);
-
-  @override
-  List<Object?> get props => [text];
-}
-
-class AutoSaveDraft extends TextBookEvent {
-  final int index;
-  final String sectionId;
-  final String markdown;
-
-  const AutoSaveDraft({
-    required this.index,
-    required this.sectionId,
-    required this.markdown,
-  });
-
-  @override
-  List<Object?> get props => [index, sectionId, markdown];
-}
-
 /// Event to update links after they're loaded in background
 class UpdateLinks extends TextBookEvent {
   final List<dynamic> links;
@@ -526,13 +450,6 @@ class RefreshLinksForCurrentWindow extends TextBookEvent {
 
   @override
   List<Object?> get props => [reason, workspaceId];
-}
-
-class OpenFullFileEditor extends TextBookEvent {
-  const OpenFullFileEditor();
-
-  @override
-  List<Object?> get props => [];
 }
 
 /// טוען את כל הקישורים (ללא סינון מפרשים) עבור טווח שורות נתון.

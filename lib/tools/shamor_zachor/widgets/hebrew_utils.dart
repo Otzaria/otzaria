@@ -10,6 +10,14 @@ class HebrewUtils {
     return formatter.format(JewishCalendar.fromDateTime(date));
   }
 
+  /// Hebrew day and month, without the year ("כ״א טבת").
+  static String hebrewDayMonth(DateTime date) {
+    final formatter = HebrewDateFormatter()..hebrewFormat = true;
+    final jewish = JewishCalendar.fromDateTime(date);
+    return '${formatter.formatHebrewNumber(jewish.getJewishDayOfMonth())} '
+        '${formatter.formatMonth(jewish)}';
+  }
+
   /// Numeric day.month.year.
   static String gregorianDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}.'

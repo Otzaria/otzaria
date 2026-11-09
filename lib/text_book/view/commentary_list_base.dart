@@ -1,3 +1,6 @@
+import 'package:otzaria/text_book/view/reader_print_actions.dart';
+import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
+import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/book_identity.dart';
@@ -12,15 +15,13 @@ import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show buildCorrectionTemplate;
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_theme_data.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -62,7 +63,6 @@ import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
-import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -92,6 +92,9 @@ import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -171,7 +174,6 @@ class CommentaryListBase extends StatefulWidget {
   final double fontSize;
   final List<int>? indexes;
   final bool showSearch;
-  final VoidCallback? onClosePane;
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
   final List<String>? selectedCommentatorsOverride;
@@ -243,7 +245,6 @@ class CommentaryListBase extends StatefulWidget {
     required this.fontSize,
     this.indexes,
     required this.showSearch,
-    this.onClosePane,
     this.shrinkWrap = true,
     this.itemPositionsListener,
     this.selectedCommentatorsOverride,
@@ -820,92 +821,15 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     setState(() => _showSearchField = false);
   }
 
-  Widget _buildClosePaneButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-        borderRadius: AppTokens.borderRadiusAll,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        iconSize: 18,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-        icon: const Icon(FluentIcons.dismiss_24_regular),
-        onPressed: widget.onClosePane,
-      ),
-    );
-  }
-
   Widget _buildButtonsRow(List<String> selectedCommentators) {
-    const double gap = 16;
-    // גובה 36 כשדה החיפוש המצומצם, כדי שפתיחת החיפוש לא תזיז את הרשימה.
-    return IconButtonTheme(
-      data: IconButtonThemeData(
-        style: (Theme.of(context).iconButtonTheme.style ?? const ButtonStyle())
-            .copyWith(
-              visualDensity:
-                  Theme.of(context).extension<AppMenuMetrics>()?.compactMenus ==
-                      true
-                  ? const VisualDensity(vertical: -1)
-                  : null,
-            ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 1. בחירת מפרשים
-          CommentatorsFilterButton(
-            isActive: false,
-            onPressed: _openCommentatorsFilter,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            iconSize: 20,
-          ),
-          // 2. הרחב/כווץ הכל — רק כשיש מפרשים נבחרים (לוגיקה מקורית)
-          if (selectedCommentators.isNotEmpty) ...[
-            const SizedBox(width: gap),
-            IconButton(
-              icon: Icon(
-                _allExpanded
-                    ? FluentIcons.arrow_collapse_all_24_regular
-                    : FluentIcons.arrow_expand_all_24_regular,
-              ),
-              tooltip: _allExpanded
-                  ? 'כווץ את כל המפרשים'
-                  : 'הרחב את כל המפרשים',
-              onPressed: toggleAllExpanded,
-            ),
-          ],
-          // 3. פתיחה בכרטיסייה חדשה
-          if (widget.onOpenInNewTab != null) ...[
-            const SizedBox(width: gap),
-            IconButton(
-              icon: const Icon(FluentIcons.open_24_regular),
-              tooltip: 'פתח כרטסיית מפרשים',
-              onPressed: widget.onOpenInNewTab,
-            ),
-          ],
-          const SizedBox(width: gap),
-          // 4. הפעלת שדה החיפוש
-          IconButton(
-            icon: const Icon(FluentIcons.search_24_regular),
-            tooltip: 'חיפוש',
-            onPressed: _openInlineSearch,
-          ),
-          // לחצן סגירת הפאנל — נשאר רק אם הקולבק קיים
-          if (widget.onClosePane != null) ...[
-            const SizedBox(width: gap),
-            _buildClosePaneButton(),
-          ],
-        ],
-      ),
+    return CommentaryPanelToolbar(
+      onOpenFilter: _openCommentatorsFilter,
+      allExpanded: _allExpanded,
+      onToggleAllExpanded: selectedCommentators.isNotEmpty
+          ? toggleAllExpanded
+          : null,
+      onOpenInNewTab: widget.onOpenInNewTab,
+      onOpenSearch: _openInlineSearch,
     );
   }
 
@@ -953,10 +877,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (!mounted) return;
     final bookTitle = _bookTitle(blocState);
     final profile = blocState.commentaryDisplayProfile;
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PrintingScreen(
+    await showPrintingScreen(
+      context,
+      PrintingScreen(
         data: Future.value(''),
         bookId: bookTitle,
         documentTitle: bookTitle,
@@ -997,24 +920,20 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                         // הכל בקבלת פוקוס הייתה מוחקת את השאילתה בתו הבא.
                         selectAllOnFocus: false,
                         trailingActions: [
-                          if (query.isNotEmpty && total > 1) ...[
-                            if (currentIndex >= 0)
-                              OtzariaSearchAction.resultCounter(
-                                current: currentIndex + 1,
-                                total: total,
-                                context: context,
-                              ),
-                            OtzariaSearchAction.prevResult(
-                              onPressed: currentIndex > 0
+                          if (query.isNotEmpty && total > 1)
+                            SearchResultNavigator(
+                              current: currentIndex >= 0
+                                  ? currentIndex + 1
+                                  : null,
+                              total: total,
+                              onPrevious: currentIndex > 0
                                   ? () {
                                       _currentSearchIndexNotifier.value =
                                           currentIndex - 1;
                                       _scrollToSearchResult();
                                     }
                                   : null,
-                            ),
-                            OtzariaSearchAction.nextResult(
-                              onPressed: currentIndex < total - 1
+                              onNext: currentIndex < total - 1
                                   ? () {
                                       _currentSearchIndexNotifier.value =
                                           currentIndex + 1;
@@ -1022,7 +941,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                                     }
                                   : null,
                             ),
-                          ],
                           OtzariaSearchAction.icon(
                             iconData: FluentIcons.dismiss_24_regular,
                             tooltip: 'סגור חיפוש',
@@ -1049,10 +967,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             },
           ),
         ),
-        if (widget.onClosePane != null) ...[
-          const SizedBox(width: 8),
-          _buildClosePaneButton(),
-        ],
       ],
     );
   }
@@ -1438,11 +1352,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       }
     }
     if (pos == null || pos.itemLeadingEdge <= 0.5) return;
-    _itemScrollController.scrollTo(
-      index: headerIndex,
-      alignment: 0.05,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    AppMotion.scroll(
+      context,
+      AppTokens.animNormal,
+      animate: (duration) => _itemScrollController.scrollTo(
+        index: headerIndex,
+        alignment: 0.05,
+        duration: duration,
+        curve: Curves.easeOut,
+      ),
+      jump: () =>
+          _itemScrollController.jumpTo(index: headerIndex, alignment: 0.05),
     );
   }
 
@@ -2042,7 +1962,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                         'טוען מפרשים...',
                         style: TextStyle(
                           fontSize: widget.fontSize * 0.7,
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -2390,12 +2310,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.1),
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                      ),
                       icon: Icon(
                         _allExpanded
                             ? FluentIcons.arrow_collapse_all_24_regular
@@ -2419,74 +2333,21 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   /// בניית skeleton loading לפרשנות - מספר פרשנויות עם כותרת ושלוש שורות
   Widget _buildSkeletonLoading() {
-    final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: 4, // מציג 4 שלדים של פרשנויות
-      itemBuilder: (context, index) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // כותרת הפרשן
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: _SkeletonLine(width: 0.3, height: 20, color: baseColor),
-              ),
-            ),
+            SkeletonLines(widths: [0.3], lineHeight: 20, spacing: 12),
             // שלוש שורות תוכן
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.95, height: 16, color: baseColor),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.92, height: 16, color: baseColor),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SkeletonLine(width: 0.88, height: 16, color: baseColor),
-              ),
-            ),
+            SkeletonLines(widths: [0.95, 0.92, 0.88]),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Widget של שורה סטטית לשלד טעינה
-class _SkeletonLine extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-
-  const _SkeletonLine({
-    required this.width,
-    required this.color,
-    this.height = 16,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: MediaQuery.of(context).size.width * width,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppTokens.borderRadiusAll,
       ),
     );
   }
@@ -2516,16 +2377,13 @@ class _CommentaryGroupHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
           children: [
-            AnimatedRotation(
-              turns: isExpanded ? -0.25 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: RtlIcon(
-                FluentIcons.chevron_left_24_regular,
-                size: 20,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
+            ExpandingChevron(
+              isExpanded: isExpanded,
+              style: ExpandingChevronStyle.tree,
+              size: 20,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -3184,7 +3042,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                   if (showCopyWithoutNikud(_selectedText))
                     AppContextMenuEntry(
                       label: 'העתק בלי ניקוד',
-                      icon: FluentIcons.text_clear_formatting_24_regular,
+                      icon: OtzariaIcons.alef_eraser_24_filled,
                       onTap: () => ContextMenuUtils.copyFormattedText(
                         context: menuCtx,
                         savedSelectedText: _selectedText,

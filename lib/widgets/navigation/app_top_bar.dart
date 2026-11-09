@@ -1,26 +1,11 @@
 // lib/widgets/navigation/app_top_bar.dart
 //
 // AppTopBar — סרגל עליון בסגנון Chrome / M3.
-//
-// שינויים v3:
-// • תוקן: Colors.black → cs.shadow (לא hardcoded colors, עמידה ב-AGENTS.md)
-// • תוקן: shadowColor משתמש ב-cs.shadow בהתאמה לבהיר/כהה
-// • ללא שינוי ב-API.
-//
-// שינויים v4:
-// • הוספת תלות אוטומטית ב-SettingsBloc לקביעת isCompact
-// • הסרת הצורך להעביר isCompact מכל מסך
 
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
-import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +25,85 @@ class AppTopBarItem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  AppTopBarScope
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// בונה פריטים ל-[AppTopBar]. נקרא מתוך build של הסרגל עם ה-context שלו,
+/// כך שתלות שנרשמת בו (InheritedWidget, `context.select`) בונה אותו מחדש.
+typedef AppTopBarItemsBuilder =
+    List<AppTopBarItem> Function(BuildContext context, bool compact);
+
+/// פריטים שהסביבה מוסיפה לכל [AppTopBar] שמתחתיה, בלי שהסרגל יכיר את
+/// מקורם — למשל ידית גרירה בחלונית מפוצלת, או יציאה ממסך מלא.
+///
+/// scope פנימי מצטרף לחיצוני: פריטי ההתחלה של החיצוני קודמים, ופריטי הסיום
+/// שלו אחרונים. כדאי להעביר פונקציות קבועות (top-level/static), כדי שבנייה
+/// מחדש של ה-scope לא תבנה מחדש את הסרגלים.
+class AppTopBarScope extends StatelessWidget {
+  final AppTopBarItemsBuilder? leading;
+  final AppTopBarItemsBuilder? trailing;
+  final Widget child;
+
+  const AppTopBarScope({
+    super.key,
+    this.leading,
+    this.trailing,
+    required this.child,
+  });
+
+  static List<AppTopBarItem> _collect(
+    BuildContext context,
+    bool compact, {
+    required bool leading,
+  }) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>();
+    if (scope == null) return const [];
+    final items = <AppTopBarItem>[];
+    for (_AppTopBarScopeData? s = scope; s != null; s = s.parent) {
+      final builder = leading ? s.leading : s.trailing;
+      if (builder == null) continue;
+      final built = builder(context, compact);
+      if (leading) {
+        items.insertAll(0, built);
+      } else {
+        items.addAll(built);
+      }
+    }
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppTopBarScopeData(
+      parent: context.dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>(),
+      leading: leading,
+      trailing: trailing,
+      child: child,
+    );
+  }
+}
+
+class _AppTopBarScopeData extends InheritedWidget {
+  final _AppTopBarScopeData? parent;
+  final AppTopBarItemsBuilder? leading;
+  final AppTopBarItemsBuilder? trailing;
+
+  const _AppTopBarScopeData({
+    required this.parent,
+    required this.leading,
+    required this.trailing,
+    required super.child,
+  });
+
+  @override
+  bool updateShouldNotify(_AppTopBarScopeData oldWidget) =>
+      parent != oldWidget.parent ||
+      leading != oldWidget.leading ||
+      trailing != oldWidget.trailing;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  AppTopBar
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -48,7 +112,7 @@ class AppTopBarItem {
 /// תכונות:
 /// - שורה ראשית: [leadingItems] | [center] | [trailingItems]
 /// - שורה שניה אופציונלית עם אנימציית גלילה (SizeTransition + FadeTransition)
-/// - [isCompact] מתקבל אוטומטית מ-SettingsBloc (compactMenuMode)
+/// - הצפיפות נקראת מ-[AppDensity] שב-Theme
 /// - [secondaryRowVisible] – ValueNotifier חיצוני לשליטה בשורה שניה
 /// - [scrollDebounceMs] – debounce למניעת flicker בגלילה (ברירת מחדל: 80ms)
 class AppTopBar extends StatefulWidget {
@@ -91,7 +155,7 @@ class AppTopBar extends StatefulWidget {
 
   /// גובה הסרגל לפי מצב compact
   static double barHeight(bool isCompact) =>
-      isCompact ? _kCompactHeight : _kTouchHeight;
+      AppDensity(isCompact: isCompact).topBarHeight;
 
   /// הריווח האופקי בקצות הסרגל. ווידג'ט שצריך להתיישר לתוכן שמתחתיו
   /// (כמו סרגל חלונית הניווט) מפחית אותו מהרוחב/מהשוליים שלו.
@@ -100,21 +164,19 @@ class AppTopBar extends StatefulWidget {
   /// הרווח בין פריטים סמוכים בסרגל.
   static double itemSpacing(bool isCompact) => isCompact ? 4.0 : 8.0;
 
-  /// סגנון טקסט אחיד לכותרת הסרגל העליון — ישמש בכל מסכי הקריאה.
+  /// סגנון טקסט אחיד לכותרת הסרגל העליון (titleLarge) — בכל מסכי הקריאה.
   static TextStyle titleStyle(BuildContext context) {
-    return TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: Theme.of(context).colorScheme.onSurface,
+    final theme = Theme.of(context);
+    return (theme.textTheme.titleLarge ?? const TextStyle()).copyWith(
+      color: theme.colorScheme.onSurface,
     );
   }
 
-  /// סגנון טקסט אחיד לכותרת משנה/מחבר בסרגל העליון.
+  /// סגנון טקסט אחיד לכותרת משנה/מחבר בסרגל העליון (bodySmall).
   static TextStyle subtitleStyle(BuildContext context) {
-    return TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+    return (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
     );
   }
 
@@ -122,7 +184,7 @@ class AppTopBar extends StatefulWidget {
   State<AppTopBar> createState() => _AppTopBarState();
 }
 
-/// מרחב לצל התחתון, גדול מטווח הצל של `elevation: 2`.
+/// מרחב לצל התחתון, גדול מטווח הצל של הסרגל.
 const double _kShadowReach = 12.0;
 
 /// חותך את הצל שמעל הסרגל ומשאיר את הצל שמתחתיו ולצדדיו.
@@ -141,8 +203,6 @@ class _ShadowBelowOnlyClipper extends CustomClipper<Rect> {
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
 }
 
-const double _kTouchHeight = 56.0;
-const double _kCompactHeight = 44.0;
 const Duration _kAnimDuration = Duration(milliseconds: 220);
 
 class _AppTopBarState extends State<AppTopBar>
@@ -152,6 +212,7 @@ class _AppTopBarState extends State<AppTopBar>
   final GlobalKey _secondaryRowKey = GlobalKey();
   Timer? _debounceTimer;
   bool _pendingVisible = true;
+  bool? _isCompact;
 
   @override
   void initState() {
@@ -167,6 +228,18 @@ class _AppTopBarState extends State<AppTopBar>
     _pendingVisible = widget.secondaryRowVisible?.value ?? true;
     widget.secondaryRowVisible?.addListener(_onVisibilityChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _notifyHeight());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _anim.duration = AppMotion.duration(context, _kAnimDuration);
+    final isCompact = AppDensity.of(context).isCompact;
+    // גובה הסרגל השתנה — מעדכנים את totalHeightNotifier אחרי ה-frame.
+    if (_isCompact != null && _isCompact != isCompact) {
+      _scheduleHeightSync(_notifyHeight);
+    }
+    _isCompact = isCompact;
   }
 
   @override
@@ -197,9 +270,7 @@ class _AppTopBarState extends State<AppTopBar>
     final notifier = widget.totalHeightNotifier;
     if (notifier == null) return;
 
-    // קבלת isCompact מה-context
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
-    final mainBarHeight = AppTopBar.barHeight(isCompact);
+    final mainBarHeight = AppDensity.of(context).topBarHeight;
     double secondaryRowHeight = 0;
     if (widget.secondaryRow != null) {
       final renderObject = _secondaryRowKey.currentContext?.findRenderObject();
@@ -249,7 +320,7 @@ class _AppTopBarState extends State<AppTopBar>
     BuildContext context,
     List<AppTopBarItem> items,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     final List<Widget> result = [];
     final double buttonSpacing = AppTopBar.itemSpacing(isCompact);
     for (int i = 0; i < items.length; i++) {
@@ -281,7 +352,7 @@ class _AppTopBarState extends State<AppTopBar>
         child: VerticalDivider(
           width: 1.0,
           thickness: 1.0,
-          color: cs.outlineVariant.withValues(alpha: 0.5),
+          color: AppSurfaces.subtleDivider(cs),
         ),
       ),
     );
@@ -289,139 +360,119 @@ class _AppTopBarState extends State<AppTopBar>
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<SettingsBloc, SettingsState>(
-      listenWhen: (prev, next) => prev.compactMenuMode != next.compactMenuMode,
-      listener: (context, _) {
-        // גובה הסרגל השתנה — מעדכנים את totalHeightNotifier אחרי הframe
-        _scheduleHeightSync(_notifyHeight);
-      },
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
-        // סרגל משותף לעשרות מסכים; מחוץ להיקף חלון (בדיקות מסך) אין מסך מלא.
-        final isFullscreen = context.select(
-          (WindowFullscreenCubit? cubit) => cubit?.state ?? false,
-        );
-        final cs = Theme.of(context).colorScheme;
-        final barColor =
-            widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
-        final shadowColor = cs.shadow.withValues(alpha: 0.14);
-        final barH = isCompact ? _kCompactHeight : _kTouchHeight;
-        final hPad = AppTopBar.horizontalPadding(isCompact);
-        final vPad = isCompact ? 4.0 : 8.0;
-
-        // בחלונית של טאב מפוצל הפריט הראשון הוא ידית גרירה שמחזירה את
-        // החלונית לשורת הכרטיסיות.
-        final dragPane = PaneDragHandleScope.paneOf(context);
-
-        final leadingItems = [
-          if (dragPane != null)
-            AppTopBarItem(widget: PaneDragHandleButton(pane: dragPane)),
-          ...widget.leadingItems,
-        ];
-
-        // במסך מלא לחצן היציאה משולב כפריט האחרון בסרגל (ולא כלחצן צף) —
-        // בקצה השמאלי, באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
-        final trailingItems = [
-          ...widget.trailingItems,
-          if (isFullscreen)
-            AppTopBarItem(
-              widget: BarButton.icon(
-                tooltip: 'צא ממסך מלא',
-                icon: FluentIcons.full_screen_minimize_24_regular,
-                compact: isCompact,
-                onPressed: () => FullscreenHelper.toggleFullscreen(
-                  context,
-                  false,
-                ),
-              ),
+    final density = AppDensity.of(context);
+    final isCompact = density.isCompact;
+    final cs = Theme.of(context).colorScheme;
+    final barColor =
+        widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
+    final shadowColor = AppShadows.color(cs);
+    // "לבן" (#2850): קו כהה דק בתחתית הסרגל, בין הסרגל לתוכן.
+    final regionBorder = AppSurfaces.regionBorder(context);
+    final barShape = regionBorder == null
+        ? null
+        : Border(
+            bottom: BorderSide(
+              color: regionBorder,
+              width: AppTokens.borderThin,
             ),
-        ];
+          );
+    final barH = density.topBarHeight;
+    final hPad = AppTopBar.horizontalPadding(isCompact);
+    final vPad = isCompact ? 4.0 : 8.0;
 
-        final leadingWidget = leadingItems.isEmpty
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: _itemsToWidgets(context, leadingItems),
-              );
+    final leadingItems = [
+      ...AppTopBarScope._collect(context, isCompact, leading: true),
+      ...widget.leadingItems,
+    ];
+    final trailingItems = [
+      ...widget.trailingItems,
+      ...AppTopBarScope._collect(context, isCompact, leading: false),
+    ];
 
-        final trailingWidget = trailingItems.isEmpty
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: _itemsToWidgets(
-                  context,
-                  trailingItems,
+    final leadingWidget = leadingItems.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: _itemsToWidgets(context, leadingItems),
+          );
+
+    final trailingWidget = trailingItems.isEmpty
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: _itemsToWidgets(
+              context,
+              trailingItems,
+            ),
+          );
+
+    final Widget toolbar =
+        widget.minCenterWidth == null && widget.minTrailingWidth == null
+        ? NavigationToolbar(
+            middleSpacing: 8.0,
+            leading: leadingWidget,
+            middle: widget.center,
+            trailing: trailingWidget,
+          )
+        : _AdaptiveTopBarToolbar(
+            leading: leadingWidget,
+            middle: widget.center,
+            trailing: trailingWidget,
+            middleSpacing: 8.0,
+            minMiddleWidth: widget.minCenterWidth ?? 0.0,
+            minTrailingWidth: trailingWidget == null
+                ? 0.0
+                : widget.minTrailingWidth ?? BarButton.toolbarWidth(isCompact),
+          );
+
+    final mainBar = ClipRect(
+      clipper: const _ShadowBelowOnlyClipper(),
+      child: Material(
+        color: barColor,
+        elevation: AppTokens.elevation1,
+        shadowColor: shadowColor,
+        surfaceTintColor: Colors.transparent,
+        shape: barShape,
+        child: SizedBox(
+          height: barH,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+            child: toolbar,
+          ),
+        ),
+      ),
+    );
+
+    // תמיד מחזירים Column כדי לשמור על מיקום יציב של mainBar (position 0).
+    // שינוי מ-Material ישיר ל-Column גורם ל-Flutter למחוק ולאחזר את mainBar
+    // (ולאבד פוקוס מקלדת). עם Column קבוע, mainBar תמיד ב-position 0
+    // ו-Flutter שומר על ה-element (ועל הפוקוס) גם כשהשורה השניה מופיעה/נעלמת.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        mainBar,
+        if (widget.secondaryRow != null)
+          SizeTransition(
+            sizeFactor: _progress,
+            alignment: AlignmentDirectional.topStart,
+            child: FadeTransition(
+              opacity: _progress,
+              child: SizedBox(
+                width: double.infinity,
+                child: Material(
+                  key: _secondaryRowKey,
+                  color: barColor,
+                  elevation: AppTokens.elevation1,
+                  shadowColor: shadowColor,
+                  surfaceTintColor: Colors.transparent,
+                  shape: barShape,
+                  child: widget.secondaryRow!,
                 ),
-              );
-
-        final Widget toolbar =
-            widget.minCenterWidth == null && widget.minTrailingWidth == null
-            ? NavigationToolbar(
-                middleSpacing: 8.0,
-                leading: leadingWidget,
-                middle: widget.center,
-                trailing: trailingWidget,
-              )
-            : _AdaptiveTopBarToolbar(
-                leading: leadingWidget,
-                middle: widget.center,
-                trailing: trailingWidget,
-                middleSpacing: 8.0,
-                minMiddleWidth: widget.minCenterWidth ?? 0.0,
-                minTrailingWidth: trailingWidget == null
-                    ? 0.0
-                    : widget.minTrailingWidth ??
-                          BarButton.toolbarWidth(isCompact),
-              );
-
-        final mainBar = ClipRect(
-          clipper: const _ShadowBelowOnlyClipper(),
-          child: Material(
-            color: barColor,
-            elevation: 2.0,
-            shadowColor: shadowColor,
-            surfaceTintColor: Colors.transparent,
-            child: SizedBox(
-              height: barH,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-                child: toolbar,
               ),
             ),
           ),
-        );
-
-        // תמיד מחזירים Column כדי לשמור על מיקום יציב של mainBar (position 0).
-        // שינוי מ-Material ישיר ל-Column גורם ל-Flutter למחוק ולאחזר את mainBar
-        // (ולאבד פוקוס מקלדת). עם Column קבוע, mainBar תמיד ב-position 0
-        // ו-Flutter שומר על ה-element (ועל הפוקוס) גם כשהשורה השניה מופיעה/נעלמת.
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            mainBar,
-            if (widget.secondaryRow != null)
-              SizeTransition(
-                sizeFactor: _progress,
-                alignment: AlignmentDirectional.topStart,
-                child: FadeTransition(
-                  opacity: _progress,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Material(
-                      key: _secondaryRowKey,
-                      color: barColor,
-                      elevation: 1.0,
-                      shadowColor: cs.shadow.withValues(alpha: 0.08),
-                      surfaceTintColor: Colors.transparent,
-                      child: widget.secondaryRow!,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+      ],
     );
   }
 }

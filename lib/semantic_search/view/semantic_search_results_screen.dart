@@ -763,14 +763,14 @@ class _SemanticSearchResultsScreenState
       item.id,
       item.segment,
       html.hashCode,
-      settings.fontSize,
+      settings.searchResultsFontSize,
       settings.fontFamily,
       colorScheme.onSurface.toARGB32(),
     ].join('|');
     final spans = _snippetCache.putIfAbsent(cacheKey, () {
       if (_snippetCache.length > 300) _snippetCache.clear();
       final defaultStyle = TextStyle(
-        fontSize: settings.fontSize,
+        fontSize: settings.searchResultsFontSize,
         fontFamily: AppFonts.renderFontFamily(settings.fontFamily),
         color: colorScheme.onSurface,
         height: 1.5,
@@ -780,7 +780,7 @@ class _SemanticSearchResultsScreenState
         defaultStyle: defaultStyle,
         highlightStyle: TextStyle(
           fontWeight: FontWeight.bold,
-          fontSize: settings.fontSize + 2,
+          fontSize: settings.searchResultsFontSize + 2,
           fontFamily: AppFonts.renderFontFamily(settings.fontFamily),
           color: colorScheme.error,
         ),

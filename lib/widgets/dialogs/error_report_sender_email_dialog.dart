@@ -273,11 +273,14 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
       child: CompositedTransformFollower(
         link: _layerLink,
         showWhenUnlinked: false,
+        // ui-lint: allow UIL-021 — גאומטריה: הרשימה ברוחב השדה, ו־CompositedTransformFollower מקבל רק Alignment (q10 Q17 A)
         targetAnchor: Alignment.bottomLeft,
+        // ui-lint: allow UIL-021 — גאומטריה: הרשימה ברוחב השדה, ו־CompositedTransformFollower מקבל רק Alignment (q10 Q17 A)
         followerAnchor: Alignment.topLeft,
         offset: const Offset(0, 4),
         child: Material(
-          elevation: 4,
+          elevation: AppTokens.elevation2,
+          shadowColor: AppShadows.color(theme.colorScheme),
           color: theme.colorScheme.surface,
           borderRadius: AppTokens.borderRadiusAll,
           clipBehavior: Clip.antiAlias,

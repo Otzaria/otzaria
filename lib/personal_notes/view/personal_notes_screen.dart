@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -6,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -37,7 +37,6 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -51,6 +50,9 @@ import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -352,23 +354,15 @@ class _PersonalNotesManagerScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingBooks) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_isLoadingBooks) return const LoadingIndicator();
 
     if (_booksError != null && _books.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'אירעה שגיאה בעת טעינת רשימת ההערות:\n${_booksError!}',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ActionButton.recommended(text: 'נסה שוב', onPressed: _loadBooks),
-          ],
-        ),
+      return OtzariaErrorState(
+        title: 'אירעה שגיאה בעת טעינת רשימת ההערות',
+        details: _booksError,
+        actions: [
+          ActionButton.recommended(text: 'נסה שוב', onPressed: _loadBooks),
+        ],
       );
     }
 
@@ -444,9 +438,9 @@ class _PersonalNotesManagerScreenState
   }
 
   Widget _buildTopBar() {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
+    return Builder(
+      builder: (context) {
+        final isCompact = AppDensity.of(context).isCompact;
         return AppTopBar(
           leadingItems: [
             AppTopBarItem(
@@ -770,13 +764,12 @@ class _PersonalNotesManagerScreenState
 
     final strategy = await showDialog<NotesImportConflictStrategy>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const AppDialogTitle(
-          'ייבוא הערות - טיפול בהתנגשויות',
-          icon: FluentIcons.warning_24_regular,
-          tone: AppDialogHeaderTone.error,
-        ),
-        content: const Text('כיצד לטפל בהערות קיימות עם אותו מזהה?'),
+      builder: (context) => AppDialogFrame(
+        // ארבע פעולות לא נכנסות בשורה אחת ברוחב small.
+        size: AppDialogSize.medium,
+        title: 'ייבוא הערות - טיפול בהתנגשויות',
+        icon: FluentIcons.warning_24_regular,
+        tone: AppDialogHeaderTone.error,
         actions: [
           ActionButton.neutral(
             text: 'מזג',
@@ -801,6 +794,14 @@ class _PersonalNotesManagerScreenState
             ).pop(NotesImportConflictStrategy.overwrite),
           ),
         ],
+        child: Text(
+          'כיצד לטפל בהערות קיימות עם אותו מזהה?',
+          style:
+              Theme.of(context).dialogTheme.contentTextStyle ??
+              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
       ),
     );
     if (!mounted) return;
@@ -841,9 +842,7 @@ class _PersonalNotesManagerScreenState
     return BlocBuilder<LibraryBloc, LibraryState>(
       buildWhen: LibraryState.catalogChanged,
       builder: (context, libraryState) {
-        if (libraryState.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        if (libraryState.isLoading) return const LoadingIndicator();
 
         if (libraryState.error != null) {
           return OtzariaErrorState(
@@ -1165,9 +1164,9 @@ class _PersonalNotesManagerScreenState
       ..sort((a, b) => _sortOrder.compare(a.note, b.note));
 
     if (displayNotes.isEmpty) {
-      return const ToolEmptyState(
+      return const OtzariaEmptyState(
         icon: FluentIcons.note_24_regular,
-        message: 'אין הערות להצגה',
+        title: 'אין הערות להצגה',
       );
     }
 
@@ -1293,7 +1292,7 @@ class _PersonalNotesManagerScreenState
         children: [
           Icon(
             OtzariaIcons.calendar_24_regular,
-            size: 18,
+            size: AppTokens.iconSM,
             color: cs.onSecondaryContainer,
           ),
           const SizedBox(width: 8),
@@ -1308,7 +1307,10 @@ class _PersonalNotesManagerScreenState
           ),
           IconButton(
             tooltip: 'נקה סינון תאריך',
-            icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
+            icon: const Icon(
+              FluentIcons.dismiss_24_regular,
+              size: AppTokens.iconSM,
+            ),
             color: cs.onSecondaryContainer,
             onPressed: _clearDateRange,
           ),
@@ -1346,7 +1348,7 @@ class _PersonalNotesManagerScreenState
 
     return AppCard(
       onTap: isMissing ? () => _repositionMissing(note) : null,
-      padding: const EdgeInsets.all(12),
+      padding: AppTokens.cardPadding,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1407,23 +1409,17 @@ class _PersonalNotesManagerScreenState
                   children: [
                     Tooltip(
                       message: '$dateLabel: $hebrewDate $time',
-                      child: _InfoChip(
+                      child: MetaChip(
                         icon: OtzariaIcons.calendar_24_regular,
-                        text: _sortOrder == PersonalNotesSortOrder.bookLocation
+                        label: _sortOrder == PersonalNotesSortOrder.bookLocation
                             ? hebrewDate
                             : '$hebrewDate $time',
-                        backgroundColor: cs.secondaryContainer.withValues(
-                          alpha: 0.45,
-                        ),
-                        foregroundColor: cs.onSecondaryContainer,
                       ),
                     ),
                     if (isMissing && note.lastKnownLineNumber != null)
-                      _InfoChip(
+                      MetaChip(
                         icon: FluentIcons.location_24_regular,
-                        text: 'שורה קודמת: ${note.lastKnownLineNumber}',
-                        backgroundColor: cs.surfaceContainerHighest,
-                        foregroundColor: cs.onSurfaceVariant,
+                        label: 'שורה קודמת: ${note.lastKnownLineNumber}',
                       ),
                   ],
                 ),
@@ -1431,35 +1427,46 @@ class _PersonalNotesManagerScreenState
             ),
           ),
           const SizedBox(width: 8),
-          // כל כפתור במסגרת משלו (כמו כפתור ההעתקה במילון ראשי התיבות).
+          // אותם כפתורים כמו בכרטיס ההערה ליד הספר (q10 שאלה 25). הטור בגובה
+          // הכרטיס, ולכן אזור המגע בגודל הכפתור, כמו קודם.
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SecondaryIconButton(
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'עריכה',
-                  icon: FluentIcons.edit_24_regular,
+                  icon: const Icon(FluentIcons.edit_24_regular),
                   onPressed: () => _editNote(note),
                 ),
                 const SizedBox(height: 6),
                 if (isMissing)
-                  SecondaryIconButton(
+                  AppIconButton(
+                    size: AppIconButtonSize.small,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: note.pdfAnchor != null
                         ? 'פתח PDF לשינוי המיקום'
                         : 'מיקום מחדש',
-                    icon: FluentIcons.location_24_regular,
+                    icon: const Icon(FluentIcons.location_24_regular),
                     onPressed: () => _repositionMissing(note),
                   )
                 else
-                  SecondaryIconButton(
+                  AppIconButton(
+                    size: AppIconButtonSize.small,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     tooltip: 'פתח ספר בשורה',
-                    icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
+                    icon: const Icon(
+                      OtzariaIcons.otzaria_icon_2_page_24_regular,
+                    ),
                     onPressed: () => _openNoteInBook(note),
                   ),
                 const SizedBox(height: 6),
-                SecondaryIconButton(
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   tooltip: 'מחיקה',
-                  icon: FluentIcons.delete_24_regular,
+                  icon: const Icon(FluentIcons.delete_24_regular),
                   onPressed: () => _deleteNote(note),
                 ),
               ],
@@ -1533,6 +1540,7 @@ class _PersonalNotesManagerScreenState
     final result = await showInputDialog(
       context: context,
       title: 'מיקום מחדש של הערה',
+      icon: FluentIcons.location_24_regular,
       subtitle: note.lastKnownLineNumber != null
           ? 'שורה קודמת: ${note.lastKnownLineNumber}'
           : null,
@@ -1639,51 +1647,6 @@ class _PersonalNotesManagerScreenState
         Settings.setValue<int>('key-sidebar-tab-index-combined', 0);
       }
     });
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color backgroundColor;
-  final Color foregroundColor;
-
-  const _InfoChip({
-    required this.icon,
-    required this.text,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RtlIcon(icon, size: 12, color: foregroundColor),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

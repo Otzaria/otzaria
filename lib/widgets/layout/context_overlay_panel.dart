@@ -9,7 +9,7 @@
 // • פתיחה וסגירה באנימציית slide מהצד
 // • scrim לחיץ לסגירה
 // • גובה מלא של אזור התוכן
-// • צבע רקע לפי AppTopBar (surfaceContainerHigh)
+// • רקע חלונית (navPanelBackground), כמו AppTopBar
 // • תמיכה בימין/שמאל
 //
 // **שימוש:**
@@ -39,6 +39,8 @@ import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/escape_layers.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
 class ContextOverlayPanel extends StatefulWidget {
   /// האם הפאנל פתוח
@@ -56,7 +58,7 @@ class ContextOverlayPanel extends StatefulWidget {
   /// יישור הפאנל (ברירת מחדל: start - ימין בעברית)
   final AlignmentDirectional alignment;
 
-  /// צבע רקע (ברירת מחדל: surfaceContainerHigh)
+  /// צבע רקע (ברירת מחדל: AppSurfaces.navPanelBackground)
   final Color? backgroundColor;
 
   /// ריפוד פנימי אחיד לתוכן הפאנל
@@ -173,14 +175,17 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     }
 
     _disposeChildTimer?.cancel();
-    _disposeChildTimer = Timer(AppTokens.animPanelSlide, () {
-      if (!mounted || widget.isOpen) {
-        return;
-      }
-      setState(() {
-        _shouldBuildChild = false;
-      });
-    });
+    _disposeChildTimer = Timer(
+      AppMotion.duration(context, AppTokens.animPanelSlide),
+      () {
+        if (!mounted || widget.isOpen) {
+          return;
+        }
+        setState(() {
+          _shouldBuildChild = false;
+        });
+      },
+    );
   }
 
   @override
@@ -268,11 +273,13 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   /// וימין ב-LTR.
   bool _isLeft(BuildContext context) =>
       widget.alignment.resolve(Directionality.of(context)) ==
+      // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
       Alignment.centerLeft;
 
   /// כותרת הפאנל עם כפתור סגירה (X) בקצה
   Widget _buildTitleBar(BuildContext context, EdgeInsets horizontal) {
     return Padding(
+      // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
       padding: EdgeInsets.only(
         left: horizontal.left,
         right: horizontal.right,
@@ -291,10 +298,10 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
           ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-              tooltip: 'סגור',
-              visualDensity: VisualDensity.compact,
+            child: AppIconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              size: AppIconButtonSize.medium,
+              tooltip: context.settingsText('סגור'),
               onPressed: widget.onClose,
             ),
           ),
@@ -320,18 +327,19 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
       top: resolved.top,
       bottom: resolved.bottom,
     );
+    // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
     final horizontalPadding = EdgeInsets.only(
       left: resolved.left,
       right: resolved.right,
     );
 
-    // פאנל בשמאל → ידית בקצה ימין, פס גלילה נשאר בשמאל (ללא חפיפה).
-    // פאנל בימין → ידית בקצה שמאל; פס הגלילה חייב לעבור לימין.
-    final isLeft = _isLeft(context);
-
+    // הפס בקצה החיצוני, הרחק מהידית שבקצה הפנימי: פאנל בשמאל → פס בשמאל
+    // (חריג מתועד מהימין הקבוע, q10 Q17), פאנל בימין → פס בימין.
     final scrollableChild = PanelScrollableContent(
       padding: horizontalPadding,
-      scrollbarOnOppositeSide: !isLeft,
+      scrollbarSide: _isLeft(context)
+          ? ScrollbarOrientation.left
+          : ScrollbarOrientation.right,
       child: widget.child,
     );
 
@@ -363,7 +371,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   Widget _buildPanel(BuildContext context, BoxConstraints constraints) {
     final cs = Theme.of(context).colorScheme;
     final effectiveBackgroundColor =
-        widget.backgroundColor ?? cs.surfaceContainerHigh;
+        widget.backgroundColor ?? AppSurfaces.navPanelBackground(context);
     final isLeft = _isLeft(context);
     final showHandle = widget.isOpen;
     final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
@@ -391,32 +399,33 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
             child: GestureDetector(
               onTap: widget.onClose,
               child: AnimatedOpacity(
-                duration: AppTokens.animPanelOpacity,
-                opacity: widget.isOpen ? 1.0 : 0.0,
-                child: ColoredBox(
-                  color: cs.scrim.withValues(alpha: 0.30),
+                duration: AppMotion.duration(
+                  context,
+                  AppTokens.animPanelOpacity,
                 ),
+                opacity: widget.isOpen ? 1.0 : 0.0,
+                child: ColoredBox(color: AppSurfaces.scrim(cs)),
               ),
             ),
           ),
           // ── הפאנל ──────────────────────────────────────────────────────
+          // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
           Positioned(
             top: 10,
             bottom: 12,
             left: isLeft ? sideMargin : null,
             right: isLeft ? null : sideMargin,
             child: AnimatedOpacity(
-              duration: AppTokens.animPanelOpacity,
+              duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
               opacity: widget.isOpen ? 1.0 : 0.0,
               child: AnimatedSlide(
-                duration: AppTokens.animPanelSlide,
+                duration: AppMotion.duration(context, AppTokens.animPanelSlide),
                 curve: Curves.easeInOut,
                 offset: widget.isOpen
                     ? Offset.zero
                     : (isLeft ? const Offset(-1, 0) : const Offset(1, 0)),
                 child: FloatingPanel(
                   key: _panelKey,
-                  elevation: 8,
                   color: effectiveBackgroundColor,
                   child: SizedBox(
                     width: effectiveWidth,
@@ -444,6 +453,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
           ),
           // ── הוו גרירה (מעל ה-scrim) ────────────────────────────────────
           if (showHandle)
+            // ui-lint: allow UIL-021 — הצד הפיזי כבר מחושב מהכיווניות ב־_isLeft (q10 Q17 A)
             Positioned(
               top: 10,
               bottom: 12,

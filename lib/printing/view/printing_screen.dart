@@ -45,6 +45,7 @@ import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
@@ -58,26 +59,57 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 enum _AnchorKind { header, altHeader, line }
+
+/// פריסת מסך ההדפסה: התצוגה המקדימה, ולצידה חלונית ההגדרות ברוחב קבוע עם
+/// שורת הפעולות. במסך צר החלונית היא החצי התחתון, כדי שהתצוגה לא תתכווץ.
+class _PrintLayout extends StatelessWidget {
+  const _PrintLayout({
+    required this.narrow,
+    required this.preview,
+    required this.settings,
+    required this.footer,
+  });
+
+  final bool narrow;
+  final Widget preview;
+  final List<Widget> settings;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final pane = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: settings,
+            ),
+          ),
+        ),
+        footer,
+      ],
+    );
+    return Flex(
+      direction: narrow ? Axis.vertical : Axis.horizontal,
+      children: [
+        Expanded(flex: narrow ? 5 : 1, child: preview),
+        narrow
+            ? Expanded(flex: 6, child: pane)
+            : SizedBox(width: 320, child: pane),
+      ],
+    );
+  }
+}
 
 /// נקודת קצה לטווח ההדפסה — כותרת, כותרת משנה, או מספר שורה.
 /// שתי נקודות הקצה (התחלה/עד) עצמאיות בסוגן, כך שניתן להתחיל בכותרת ולסיים בשורה.
 @immutable
-/// פאנל ההגדרות של מסך ההדפסה: עמודה צדדית ברוחב קבוע, ובמסך צר — חצי תחתון
-/// של המסך, כדי שהתצוגה המקדימה לא תתכווץ לרוחב של כמה פיקסלים.
-class _SettingsPane extends StatelessWidget {
-  const _SettingsPane({required this.narrow, required this.child});
-
-  final bool narrow;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => narrow
-      ? Expanded(flex: 6, child: child)
-      : SizedBox(width: 320, child: child);
-}
-
 class _RangeAnchor {
   final _AnchorKind kind;
   final int index;
@@ -181,7 +213,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// מתחת לרוחב הזה פאנל ההגדרות עובר מתחת לתצוגה המקדימה.
   bool _isNarrowLayout(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < 760;
+      MediaQuery.sizeOf(context).width < _narrowLayoutBelow;
+
+  static const double _narrowLayoutBelow = 760;
 
   double fontSize = 15.0;
   String fontName =
@@ -1981,515 +2015,57 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final isCustomPdfMode = _isPdfSource;
     final isPrebuiltMode = widget.prebuiltBlocks != null;
 
-    final dialog = Dialog(
-      insetPadding: const EdgeInsets.fromLTRB(12, 40, 12, 12),
-      clipBehavior: Clip.antiAlias,
-      child: Scaffold(
-        // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
-        backgroundColor: colorScheme.brightness == Brightness.dark
-            ? colorScheme.surface
-            : AppSurfaces.solidPanelBackground(context),
-        body: Column(
+    // הקוראים פותחים עם barrierDismissible: false — לחיצה בחוץ לא סוגרת, ESC כן.
+    // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent יגיע למסגרת.
+    final dialog = AnimatedBuilder(
+      animation: _preview,
+      builder: (context, body) {
+        final sheetCount = _navigableSheetCount();
+        return AppDialogFrame(
+          icon: FluentIcons.print_24_regular,
+          title: 'הדפסה — ${widget.book?.title ?? widget.bookId}',
+          fitTitle: true,
+          leading: sheetCount == null ? null : _buildTopBarNav(sheetCount),
+          size: AppDialogSize.full,
+          padding: EdgeInsets.zero,
+          backgroundColor: AppSurfaces.panelBackground(context),
+          closeEnabled: !_isPrinting,
+          child: body!,
+        );
+      },
+      child: Focus(
+        autofocus: true,
+        skipTraversal: true,
+        child: Column(
           children: [
-            PrintingAppBar(
-              title: 'הדפסה — ${widget.book?.title ?? widget.bookId}',
-              leading: _buildTopBarNav(),
-              closeEnabled: !_isPrinting,
-            ),
             Expanded(
               child: FutureBuilder(
                 future: _dataFuture,
                 builder: (context, snapshot) {
                   if (isCustomPdfMode) {
-                    final narrow = _isNarrowLayout(context);
-                    return Flex(
-                      direction: narrow ? Axis.vertical : Axis.horizontal,
-                      children: [
-                        // תצוגה מקדימה (תמונות מרוסטרות)
-                        Expanded(
-                          flex: narrow ? 5 : 1,
-                          child: _buildImagePreview(colorScheme),
-                        ),
-                        // פאנל הגדרות בצד (ברוחב טלפון: מתחת לתצוגה)
-                        _SettingsPane(
-                          narrow: narrow,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildDestinationCard(context),
-                                      if (_totalPdfPages > 0) ...[
-                                        PrintingSectionCard(
-                                          title: 'טווח עמודים',
-                                          icon: FluentIcons
-                                              .document_page_number_24_regular,
-                                          children: [
-                                            PrintingDropdownRow(
-                                              label: 'מעמוד',
-                                              child: AppDropdownField<int>(
-                                                value: _pdfStartPage,
-                                                enableSearch: true,
-                                                entries: List.generate(
-                                                  _pdfEndPage,
-                                                  (i) => AppMenuEntry(
-                                                    value: i + 1,
-                                                    label: _labelForPage(i + 1),
-                                                  ),
-                                                ),
-                                                onSelected: (int? value) {
-                                                  if (value == null) return;
-                                                  setState(() {
-                                                    _pdfStartPage = value;
-                                                    if (_pdfEndPage <
-                                                        _pdfStartPage) {
-                                                      _pdfEndPage =
-                                                          _pdfStartPage;
-                                                    }
-                                                    _refreshPreview();
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                            PrintingDropdownRow(
-                                              label: 'עד עמוד',
-                                              child: AppDropdownField<int>(
-                                                value: _pdfEndPage,
-                                                enableSearch: true,
-                                                entries: List.generate(
-                                                  _totalPdfPages -
-                                                      _pdfStartPage +
-                                                      1,
-                                                  (i) => AppMenuEntry(
-                                                    value: _pdfStartPage + i,
-                                                    label: _labelForPage(
-                                                      _pdfStartPage + i,
-                                                    ),
-                                                  ),
-                                                ),
-                                                onSelected: (int? value) {
-                                                  if (value == null) return;
-                                                  setState(() {
-                                                    _pdfEndPage = value;
-                                                    _refreshPreview();
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: kPrintingRowPadding,
-                                              child: Text(
-                                                pdfPageRangeSummary(
-                                                  startPage: _pdfStartPage,
-                                                  endPage: _pdfEndPage,
-                                                  totalPages: _totalPdfPages,
-                                                  pagesPerSheet: _pagesPerSheet,
-                                                ),
-                                                style: TextStyle(
-                                                  color: colorScheme.primary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                      PrintingSectionCard(
-                                        title: 'הגדרות דף',
-                                        icon: FluentIcons.options_24_regular,
-                                        children: [
-                                          PrintingDropdownRow(
-                                            label: 'גודל דף',
-                                            child:
-                                                AppDropdownField<PdfPageFormat>(
-                                                  value: format,
-                                                  entries:
-                                                      const {
-                                                        'A4': PdfPageFormat.a4,
-                                                        'Letter': PdfPageFormat
-                                                            .letter,
-                                                        'A5': PdfPageFormat.a5,
-                                                      }.entries.map((entry) {
-                                                        return AppMenuEntry(
-                                                          value: entry.value,
-                                                          label: entry.key,
-                                                        );
-                                                      }).toList(),
-                                                  onSelected:
-                                                      (PdfPageFormat? value) {
-                                                        if (value == null) {
-                                                          return;
-                                                        }
-                                                        setState(() {
-                                                          format = value;
-                                                          _refreshPreview();
-                                                        });
-                                                      },
-                                                ),
-                                          ),
-                                          PrintingOrientationDropdownRow(
-                                            value: orientation,
-                                            onChanged: (value) {
-                                              orientation = value;
-                                              setState(_refreshPreview);
-                                            },
-                                          ),
-                                          PrintingPagesPerSheetDropdownRow(
-                                            value: _pagesPerSheet,
-                                            onChanged: _setPagesPerSheet,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              _buildPrintExportFooter(context),
-                            ],
-                          ),
-                        ),
-                      ],
+                    return _PrintLayout(
+                      narrow: _isNarrowLayout(context),
+                      preview: _buildImagePreview(colorScheme),
+                      settings: _buildCustomPdfSettings(colorScheme),
+                      footer: _buildPrintExportFooter(context),
                     );
                   }
 
                   if (snapshot.connectionState == ConnectionState.done) {
                     final totalLines = _lineCounts.of(snapshot.data!);
-                    final narrow = _isNarrowLayout(context);
-                    return Flex(
-                      direction: narrow ? Axis.vertical : Axis.horizontal,
-                      children: [
-                        // תצוגה מקדימה (תמונות מרוסטרות)
-                        Expanded(
-                          flex: narrow ? 5 : 1,
-                          child: _buildImagePreview(colorScheme),
-                        ),
-                        // פאנל הגדרות בצד (ברוחב טלפון: מתחת לתצוגה)
-                        _SettingsPane(
-                          narrow: narrow,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildDestinationCard(context),
-
-                                      // כותרת טווח הדפסה — מוסתר במצב בלוקים מוכנים (מפרשים)
-                                      if (!isPrebuiltMode) ...[
-                                        PrintingSectionCard(
-                                          title: 'טווח הדפסה',
-                                          icon: FluentIcons
-                                              .document_page_number_24_regular,
-                                          children: [
-                                            Padding(
-                                              padding: kPrintingRowPadding,
-                                              child: Align(
-                                                alignment: AlignmentDirectional
-                                                    .centerStart,
-                                                child: Text(
-                                                  '${(_limitPrintEnd(startLine, endLine) - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
-                                                  style: TextStyle(
-                                                    color: colorScheme.primary,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            _buildAnchorDropdownRow(
-                                              label: 'התחלה',
-                                              anchor: _startAnchor,
-                                              isStart: true,
-                                              totalLines: totalLines,
-                                            ),
-                                            _buildAnchorDropdownRow(
-                                              label: 'עד',
-                                              anchor: _endAnchor,
-                                              isStart: false,
-                                              totalLines: totalLines,
-                                            ),
-                                            ?_buildPrintLimitHint(colorScheme),
-                                            PrintingSwitchRow(
-                                              label: 'כלול מפרשים',
-                                              value: _includeCommentaries,
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  _includeCommentaries = value;
-                                                  _syncDestinationWithProtection();
-                                                  _refreshPreview();
-                                                });
-                                              },
-                                            ),
-                                            if (_includeCommentaries &&
-                                                widget
-                                                        .availableCommentators
-                                                        ?.isNotEmpty ==
-                                                    true)
-                                              FilterChipsWidget<String>(
-                                                items: widget
-                                                    .availableCommentators!,
-                                                selectedItems:
-                                                    _selectedCommentators,
-                                                labelBuilder: (name) => name,
-                                                onSelectionChanged:
-                                                    (selected) => setState(() {
-                                                      _selectedCommentators =
-                                                          List.of(selected);
-                                                      _syncDestinationWithProtection();
-                                                      _refreshPreview();
-                                                    }),
-                                              ),
-                                            PrintingSwitchRow(
-                                              label: 'כלול הערות אישיות',
-                                              value: _includePersonalNotes,
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  _includePersonalNotes = value;
-                                                  if (!value) {
-                                                    _personalNotesCache = null;
-                                                  }
-                                                  _refreshPreview();
-                                                });
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-
-                                      // הגדרות טקסט
-                                      PrintingSectionCard(
-                                        title: 'הגדרות טקסט',
-                                        icon: FluentIcons.text_font_24_regular,
-                                        children: [
-                                          // גופן/גודל גופן לא משפיעים על ייצוא
-                                          // Word — מוסתרים כשהיעד Word.
-                                          if (_destination !=
-                                              _PrintDestination.word) ...[
-                                            PrintingSliderRow(
-                                              label: 'גודל גופן',
-                                              value: fontSize,
-                                              min: 10,
-                                              max: 50,
-                                              displayValue: fontSize
-                                                  .toInt()
-                                                  .toString(),
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  fontSize = value;
-                                                });
-                                              },
-                                              onChangeEnd: (value) {
-                                                fontSize = value;
-                                                setState(_refreshPreview);
-                                              },
-                                            ),
-                                            PrintingDropdownRow(
-                                              label: 'גופן',
-                                              child: AppDropdownField<String>(
-                                                value: fontName,
-                                                enableSearch: true,
-                                                decoration:
-                                                    const InputDecoration(
-                                                      hintText: 'חיפוש גופן',
-                                                    ),
-                                                entries: fontNames.entries
-                                                    .map(
-                                                      (entry) => AppMenuEntry(
-                                                        value: entry.key,
-                                                        label: entry.value,
-                                                      ),
-                                                    )
-                                                    .toList(),
-                                                onSelected: (value) {
-                                                  if (value == null) return;
-                                                  setState(() {
-                                                    fontName = value;
-                                                    _refreshPreview();
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                          PrintingSwitchRow(
-                                            label: 'הדפסה עם ניקוד',
-                                            value: !_removeNikud,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _removeNikud = !value;
-                                                _refreshPreview();
-                                              });
-                                            },
-                                          ),
-                                          PrintingSwitchRow(
-                                            label: 'הדפסה עם טעמים',
-                                            value: !_removeTaamim,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _removeTaamim = !value;
-                                                _refreshPreview();
-                                              });
-                                            },
-                                          ),
-                                          PrintingDropdownRow(
-                                            label: 'שם הוי"ה',
-                                            child:
-                                                AppDropdownField<
-                                                  HolyNameDisplay
-                                                >(
-                                                  value: _holyName,
-                                                  entries: [
-                                                    AppMenuEntry(
-                                                      value:
-                                                          HolyNameDisplay.asIs,
-                                                      label: 'ככתבו',
-                                                    ),
-                                                    AppMenuEntry(
-                                                      value: HolyNameDisplay
-                                                          .kufKuf,
-                                                      label: 'יקוק',
-                                                    ),
-                                                    AppMenuEntry(
-                                                      value: HolyNameDisplay
-                                                          .daletDalet,
-                                                      label: 'ידוד',
-                                                    ),
-                                                    AppMenuEntry(
-                                                      value: HolyNameDisplay
-                                                          .hehApostrophe,
-                                                      label: "ה'",
-                                                    ),
-                                                    AppMenuEntry(
-                                                      value: HolyNameDisplay
-                                                          .doubleYod,
-                                                      label: 'יי',
-                                                    ),
-                                                  ],
-                                                  onSelected: (value) {
-                                                    if (value == null) return;
-                                                    setState(() {
-                                                      _holyName = value;
-                                                      _refreshPreview();
-                                                    });
-                                                  },
-                                                ),
-                                          ),
-                                          if (!_divineNames.isEmpty)
-                                            PrintingSwitchRow(
-                                              label: 'שאר שמות הקודש בכינוי',
-                                              value: _substituteDivineNames,
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  _divineNamesDisplay = value
-                                                      ? DivineNamesDisplay
-                                                            .substitute
-                                                      : DivineNamesDisplay.asIs;
-                                                  _refreshPreview();
-                                                });
-                                              },
-                                            ),
-                                        ],
-                                      ),
-
-                                      // הגדרות עמוד
-                                      PrintingSectionCard(
-                                        title: 'הגדרות עמוד',
-                                        icon: FluentIcons.document_24_regular,
-                                        children: [
-                                          PrintingSliderRow(
-                                            label: 'שוליים',
-                                            value: pageMargin,
-                                            min: 10,
-                                            max: 100,
-                                            displayValue:
-                                                '${pageMargin.toInt()} px',
-                                            onChanged: (value) {
-                                              setState(() {
-                                                pageMargin = value;
-                                              });
-                                            },
-                                            onChangeEnd: (value) {
-                                              pageMargin = value;
-                                              setState(_refreshPreview);
-                                            },
-                                          ),
-                                          PrintingDropdownRow(
-                                            label: 'גודל עמוד',
-                                            child:
-                                                AppDropdownField<PdfPageFormat>(
-                                                  value: format,
-                                                  entries: formats.entries
-                                                      .map(
-                                                        (entry) => AppMenuEntry(
-                                                          value: entry.key,
-                                                          label: entry.value,
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                                  onSelected:
-                                                      (PdfPageFormat? value) {
-                                                        if (value == null) {
-                                                          return;
-                                                        }
-                                                        setState(() {
-                                                          format = value;
-                                                          _refreshPreview();
-                                                        });
-                                                      },
-                                                ),
-                                          ),
-                                          PrintingOrientationDropdownRow(
-                                            value: orientation,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                orientation = value;
-                                                _refreshPreview();
-                                              });
-                                            },
-                                          ),
-                                          // N-up לא רלוונטי לייצוא Word.
-                                          if (_destination !=
-                                              _PrintDestination.word)
-                                            PrintingPagesPerSheetDropdownRow(
-                                              value: _pagesPerSheet,
-                                              onChanged: _setPagesPerSheet,
-                                            ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              _buildPrintExportFooter(context),
-                            ],
-                          ),
-                        ),
-                      ],
+                    return _PrintLayout(
+                      narrow: _isNarrowLayout(context),
+                      preview: _buildImagePreview(colorScheme),
+                      settings: _buildTextSettings(
+                        colorScheme,
+                        totalLines: totalLines,
+                        isPrebuiltMode: isPrebuiltMode,
+                      ),
+                      footer: _buildPrintExportFooter(context),
                     );
                   }
 
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: colorScheme.primary),
-                        const SizedBox(height: 16),
-                        Text(
-                          'טוען נתונים...',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  );
+                  return const LoadingIndicator(message: 'טוען נתונים...');
                 },
               ),
             ),
@@ -2497,27 +2073,396 @@ class _PrintingScreenState extends State<PrintingScreen> {
         ),
       ),
     );
-    // הקוראים פותחים עם barrierDismissible: false — לחיצה בחוץ לא סוגרת, ESC כן.
-    // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent הגלובלי יגיע לכאן.
+    // המסגרת שומרת על הרשאת הסגירה; עוצרים את הרינדור מיד כשהנתיב נסגר,
+    // לפני dispose שמגיע רק בסוף אנימציית הסגירה.
     return PopScope(
-      canPop: !_isPrinting,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return;
         _renderGeneration++;
         _previewRefreshTimer?.cancel();
         _preview.stop();
       },
-      child: Actions(
-        actions: {
-          DismissIntent: CallbackAction<DismissIntent>(
-            onInvoke: (_) =>
-                _isPrinting ? null : Navigator.of(context).maybePop(),
-          ),
-        },
-        child: Focus(autofocus: true, skipTraversal: true, child: dialog),
-      ),
+      child: dialog,
     );
   }
+
+  /// הגדרות ההדפסה של PDF מוכן: טווח עמודים והגדרות דף.
+  List<Widget> _buildCustomPdfSettings(ColorScheme colorScheme) => [
+    _buildDestinationCard(context),
+    if (_totalPdfPages > 0) ...[
+      PrintingSectionCard(
+        title: 'טווח עמודים',
+        icon: FluentIcons.document_page_number_24_regular,
+        children: [
+          PrintingDropdownRow(
+            label: 'מעמוד',
+            child: AppDropdownField<int>(
+              value: _pdfStartPage,
+              enableSearch: true,
+              entries: List.generate(
+                _pdfEndPage,
+                (i) => AppMenuEntry(
+                  value: i + 1,
+                  label: _labelForPage(i + 1),
+                ),
+              ),
+              onSelected: (int? value) {
+                if (value == null) return;
+                setState(() {
+                  _pdfStartPage = value;
+                  if (_pdfEndPage < _pdfStartPage) {
+                    _pdfEndPage = _pdfStartPage;
+                  }
+                  _refreshPreview();
+                });
+              },
+            ),
+          ),
+          PrintingDropdownRow(
+            label: 'עד עמוד',
+            child: AppDropdownField<int>(
+              value: _pdfEndPage,
+              enableSearch: true,
+              entries: List.generate(
+                _totalPdfPages - _pdfStartPage + 1,
+                (i) => AppMenuEntry(
+                  value: _pdfStartPage + i,
+                  label: _labelForPage(
+                    _pdfStartPage + i,
+                  ),
+                ),
+              ),
+              onSelected: (int? value) {
+                if (value == null) return;
+                setState(() {
+                  _pdfEndPage = value;
+                  _refreshPreview();
+                });
+              },
+            ),
+          ),
+          Padding(
+            padding: kPrintingRowPadding,
+            child: Text(
+              pdfPageRangeSummary(
+                startPage: _pdfStartPage,
+                endPage: _pdfEndPage,
+                totalPages: _totalPdfPages,
+                pagesPerSheet: _pagesPerSheet,
+              ),
+              style: TextStyle(
+                color: colorScheme.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+    PrintingSectionCard(
+      title: 'הגדרות דף',
+      icon: FluentIcons.options_24_regular,
+      children: [
+        PrintingDropdownRow(
+          label: 'גודל דף',
+          child: AppDropdownField<PdfPageFormat>(
+            value: format,
+            entries: formats.entries
+                .map(
+                  (entry) => AppMenuEntry(value: entry.key, label: entry.value),
+                )
+                .toList(),
+            onSelected: (PdfPageFormat? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                format = value;
+                _refreshPreview();
+              });
+            },
+          ),
+        ),
+        PrintingOrientationDropdownRow(
+          value: orientation,
+          onChanged: (value) {
+            orientation = value;
+            setState(_refreshPreview);
+          },
+        ),
+        PrintingPagesPerSheetDropdownRow(
+          value: _pagesPerSheet,
+          onChanged: _setPagesPerSheet,
+        ),
+      ],
+    ),
+  ];
+
+  /// הגדרות ההדפסה של טקסט: טווח, טקסט ועמוד.
+  List<Widget> _buildTextSettings(
+    ColorScheme colorScheme, {
+    required int totalLines,
+    required bool isPrebuiltMode,
+  }) => [
+    _buildDestinationCard(context),
+
+    // כותרת טווח הדפסה — מוסתר במצב בלוקים מוכנים (מפרשים)
+    if (!isPrebuiltMode) ...[
+      PrintingSectionCard(
+        title: 'טווח הדפסה',
+        icon: FluentIcons.document_page_number_24_regular,
+        children: [
+          Padding(
+            padding: kPrintingRowPadding,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                '${(_limitPrintEnd(startLine, endLine) - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
+                style: TextStyle(
+                  color: colorScheme.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          _buildAnchorDropdownRow(
+            label: 'התחלה',
+            anchor: _startAnchor,
+            isStart: true,
+            totalLines: totalLines,
+          ),
+          _buildAnchorDropdownRow(
+            label: 'עד',
+            anchor: _endAnchor,
+            isStart: false,
+            totalLines: totalLines,
+          ),
+          ?_buildPrintLimitHint(colorScheme),
+          PrintingSwitchRow(
+            label: 'כלול מפרשים',
+            value: _includeCommentaries,
+            onChanged: (value) {
+              setState(() {
+                _includeCommentaries = value;
+                _syncDestinationWithProtection();
+                _refreshPreview();
+              });
+            },
+          ),
+          if (_includeCommentaries &&
+              widget.availableCommentators?.isNotEmpty == true)
+            FilterChipsSelector<String>(
+              items: widget.availableCommentators!,
+              selectedItems: _selectedCommentators,
+              labelBuilder: (name) => name,
+              onSelectionChanged: (selected) => setState(() {
+                _selectedCommentators = List.of(selected);
+                _syncDestinationWithProtection();
+                _refreshPreview();
+              }),
+            ),
+          PrintingSwitchRow(
+            label: 'כלול הערות אישיות',
+            value: _includePersonalNotes,
+            onChanged: (value) {
+              setState(() {
+                _includePersonalNotes = value;
+                if (!value) {
+                  _personalNotesCache = null;
+                }
+                _refreshPreview();
+              });
+            },
+          ),
+        ],
+      ),
+    ],
+
+    // הגדרות טקסט
+    PrintingSectionCard(
+      title: 'הגדרות טקסט',
+      icon: FluentIcons.text_font_24_regular,
+      children: [
+        // גופן/גודל גופן לא משפיעים על ייצוא
+        // Word — מוסתרים כשהיעד Word.
+        if (_destination != _PrintDestination.word) ...[
+          PrintingSliderRow(
+            label: 'גודל גופן',
+            value: fontSize,
+            min: 10,
+            max: 50,
+            displayValue: fontSize.toInt().toString(),
+            onChanged: (value) {
+              setState(() {
+                fontSize = value;
+              });
+            },
+            onChangeEnd: (value) {
+              fontSize = value;
+              setState(_refreshPreview);
+            },
+          ),
+          PrintingDropdownRow(
+            label: 'גופן',
+            child: AppDropdownField<String>(
+              value: fontName,
+              enableSearch: true,
+              decoration: const InputDecoration(
+                hintText: 'חיפוש גופן',
+              ),
+              entries: fontNames.entries
+                  .map(
+                    (entry) => AppMenuEntry(
+                      value: entry.key,
+                      label: entry.value,
+                    ),
+                  )
+                  .toList(),
+              onSelected: (value) {
+                if (value == null) return;
+                setState(() {
+                  fontName = value;
+                  _refreshPreview();
+                });
+              },
+            ),
+          ),
+        ],
+        PrintingSwitchRow(
+          label: 'הדפסה עם ניקוד',
+          value: !_removeNikud,
+          onChanged: (value) {
+            setState(() {
+              _removeNikud = !value;
+              _refreshPreview();
+            });
+          },
+        ),
+        PrintingSwitchRow(
+          label: 'הדפסה עם טעמים',
+          value: !_removeTaamim,
+          onChanged: (value) {
+            setState(() {
+              _removeTaamim = !value;
+              _refreshPreview();
+            });
+          },
+        ),
+        PrintingDropdownRow(
+          label: 'שם הוי"ה',
+          child: AppDropdownField<HolyNameDisplay>(
+            value: _holyName,
+            entries: [
+              AppMenuEntry(
+                value: HolyNameDisplay.asIs,
+                label: 'ככתבו',
+              ),
+              AppMenuEntry(
+                value: HolyNameDisplay.kufKuf,
+                label: 'יקוק',
+              ),
+              AppMenuEntry(
+                value: HolyNameDisplay.daletDalet,
+                label: 'ידוד',
+              ),
+              AppMenuEntry(
+                value: HolyNameDisplay.hehApostrophe,
+                label: "ה'",
+              ),
+              AppMenuEntry(
+                value: HolyNameDisplay.doubleYod,
+                label: 'יי',
+              ),
+            ],
+            onSelected: (value) {
+              if (value == null) return;
+              setState(() {
+                _holyName = value;
+                _refreshPreview();
+              });
+            },
+          ),
+        ),
+        if (!_divineNames.isEmpty)
+          PrintingSwitchRow(
+            label: 'שאר שמות הקודש בכינוי',
+            value: _substituteDivineNames,
+            onChanged: (value) {
+              setState(() {
+                _divineNamesDisplay = value
+                    ? DivineNamesDisplay.substitute
+                    : DivineNamesDisplay.asIs;
+                _refreshPreview();
+              });
+            },
+          ),
+      ],
+    ),
+
+    // הגדרות עמוד
+    PrintingSectionCard(
+      title: 'הגדרות עמוד',
+      icon: FluentIcons.document_24_regular,
+      children: [
+        PrintingSliderRow(
+          label: 'שוליים',
+          value: pageMargin,
+          min: 10,
+          max: 100,
+          displayValue: '${pageMargin.toInt()} px',
+          onChanged: (value) {
+            setState(() {
+              pageMargin = value;
+            });
+          },
+          onChangeEnd: (value) {
+            pageMargin = value;
+            setState(_refreshPreview);
+          },
+        ),
+        PrintingDropdownRow(
+          label: 'גודל עמוד',
+          child: AppDropdownField<PdfPageFormat>(
+            value: format,
+            entries: formats.entries
+                .map(
+                  (entry) => AppMenuEntry(
+                    value: entry.key,
+                    label: entry.value,
+                  ),
+                )
+                .toList(),
+            onSelected: (PdfPageFormat? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                format = value;
+                _refreshPreview();
+              });
+            },
+          ),
+        ),
+        PrintingOrientationDropdownRow(
+          value: orientation,
+          onChanged: (value) {
+            setState(() {
+              orientation = value;
+              _refreshPreview();
+            });
+          },
+        ),
+        // N-up לא רלוונטי לייצוא Word.
+        if (_destination != _PrintDestination.word)
+          PrintingPagesPerSheetDropdownRow(
+            value: _pagesPerSheet,
+            onChanged: _setPagesPerSheet,
+          ),
+      ],
+    ),
+  ];
 
   /// שורת הפעולות (ייצא/הדפסה) בתחתית פאנל ההגדרות — קבועה מחוץ לאזור הגלילה.
   Widget _buildPrintExportFooter(BuildContext context) {
@@ -2699,7 +2644,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
             children: [
               // חלונית הניווט נפתחת/נסגרת ברוחב מונפש.
               AnimatedSize(
-                duration: AppTokens.animNormal,
+                duration: AppMotion.duration(context, AppTokens.animNormal),
                 curve: Curves.easeInOut,
                 child: _showThumbnails
                     ? Row(
@@ -2726,81 +2671,84 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
   }
 
-  /// פקדי ניווט בסרגל העליון: כפתור "ניווט" (מחליף תצוגה מוקטנת) ובורר "עמוד".
+  /// מספר הגיליונות בתצוגה המקדימה, או null כשאין בין מה לנווט.
   /// הניווט זמין ברגע שמספר הגיליונות ידוע, גם לפני רינדורם.
-  Widget _buildTopBarNav() {
-    return AnimatedBuilder(
-      animation: _preview,
-      builder: (context, _) {
-        final cells = switch (_pagesPerSheet) {
-          2 => 2,
-          4 => 4,
-          _ => 1,
-        };
-        final pageCount = _preview.pageCount;
-        final sheetCount = cells <= 1
-            ? pageCount
-            : (pageCount + cells - 1) ~/ cells;
-        final hasNav = sheetCount > 1;
-        if (!hasNav) return const SizedBox.shrink();
-        final currentSheet = _currentPreviewItem.clamp(
-          0,
-          sheetCount > 0 ? sheetCount - 1 : 0,
-        );
-        final colorScheme = Theme.of(context).colorScheme;
+  int? _navigableSheetCount() {
+    final cells = switch (_pagesPerSheet) {
+      2 => 2,
+      4 => 4,
+      _ => 1,
+    };
+    final pageCount = _preview.pageCount;
+    final sheetCount = cells <= 1
+        ? pageCount
+        : (pageCount + cells - 1) ~/ cells;
+    return sheetCount > 1 ? sheetCount : null;
+  }
 
-        void toggleThumbnails() {
-          setState(() => _showThumbnails = !_showThumbnails);
-          if (!_showThumbnails) _preview.showSheets({}, thumbnails: true);
-        }
+  /// פקדי ניווט בסרגל העליון: כפתור "ניווט" (מחליף תצוגה מוקטנת) ובורר "עמוד".
+  Widget _buildTopBarNav(int sheetCount) {
+    final currentSheet = _currentPreviewItem.clamp(
+      0,
+      sheetCount > 0 ? sheetCount - 1 : 0,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _showThumbnails
-                ? ActionButton.recommended(
-                    text: 'ניווט',
-                    icon: FluentIcons.navigation_24_regular,
-                    onPressed: toggleThumbnails,
-                  )
-                : ActionButton.neutral(
-                    text: 'ניווט',
-                    icon: FluentIcons.navigation_24_regular,
-                    onPressed: toggleThumbnails,
-                  ),
-            const SizedBox(width: 12),
-            Text(
-              'עמוד',
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: AppTokens.fontMD,
+    void toggleThumbnails() {
+      setState(() => _showThumbnails = !_showThumbnails);
+      if (!_showThumbnails) _preview.showSheets({}, thumbnails: true);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _showThumbnails
+            ? ActionButton.recommended(
+                text: 'ניווט',
+                icon: FluentIcons.navigation_24_regular,
+                onPressed: toggleThumbnails,
+              )
+            : ActionButton.neutral(
+                text: 'ניווט',
+                icon: FluentIcons.navigation_24_regular,
+                onPressed: toggleThumbnails,
               ),
+        const SizedBox(width: 12),
+        Text(
+          'עמוד',
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: AppTokens.fontMD,
+          ),
+        ),
+        const SizedBox(width: AppTokens.spaceSM),
+        SizedBox(
+          width: 96,
+          child: AppDropdownField<int>(
+            value: currentSheet + 1,
+            enableSearch: true,
+            entries: List.generate(
+              sheetCount,
+              (i) => AppMenuEntry(value: i + 1, label: '${i + 1}'),
             ),
-            const SizedBox(width: AppTokens.spaceSM),
-            SizedBox(
-              width: 96,
-              child: AppDropdownField<int>(
-                value: currentSheet + 1,
-                enableSearch: true,
-                entries: List.generate(
-                  sheetCount,
-                  (i) => AppMenuEntry(value: i + 1, label: '${i + 1}'),
+            onSelected: (value) {
+              if (value == null || !_itemScrollController.isAttached) {
+                return;
+              }
+              AppMotion.scroll(
+                context,
+                AppTokens.animPanelSlide,
+                animate: (duration) => _itemScrollController.scrollTo(
+                  index: value - 1,
+                  duration: duration,
+                  curve: Curves.easeInOut,
                 ),
-                onSelected: (value) {
-                  if (value == null || !_itemScrollController.isAttached) {
-                    return;
-                  }
-                  _itemScrollController.scrollTo(
-                    index: value - 1,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+                jump: () => _itemScrollController.jumpTo(index: value - 1),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -2830,10 +2778,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
             return GestureDetector(
               onTap: () {
                 if (!_itemScrollController.isAttached) return;
-                _itemScrollController.scrollTo(
-                  index: i,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
+                AppMotion.scroll(
+                  context,
+                  AppTokens.animPanelSlide,
+                  animate: (duration) => _itemScrollController.scrollTo(
+                    index: i,
+                    duration: duration,
+                    curve: Curves.easeInOut,
+                  ),
+                  jump: () => _itemScrollController.jumpTo(index: i),
                 );
               },
               child: Column(
@@ -2942,11 +2895,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       aspectRatio: size.width / size.height,
       child: image == null
           ? const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              child: LoadingIndicator(size: AppTokens.iconMD, strokeWidth: 2),
             )
           : RawImage(
               image: image,
@@ -2967,6 +2916,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return allFonts;
   }
 
+  /// גדלי הדף, אותם בהדפסת PDF מוכן ובהדפסת טקסט.
   final Map<PdfPageFormat, String> formats = {
     PdfPageFormat.a4: 'A4',
     PdfPageFormat.letter: 'Letter',

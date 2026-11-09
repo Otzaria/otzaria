@@ -152,7 +152,9 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final maxWidth = size.width < 600 ? size.width * 0.95 : 560.0;
+    final maxWidth = WindowClass.of(context).isCompact
+        ? size.width * 0.95
+        : 560.0;
 
     return PopScope(
       canPop: false,

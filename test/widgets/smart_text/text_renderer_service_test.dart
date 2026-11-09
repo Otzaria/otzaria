@@ -267,7 +267,7 @@ Future<void> main() async {
         );
         expect(
           TextRendererService.processText(text, settings),
-          isNot(contains('<span style="color: red">')),
+          isNot(contains('<span style="color: otzaria-search-hit">')),
         );
       });
 
@@ -283,8 +283,14 @@ Future<void> main() async {
           isSearchResultLine: true,
         );
         final out = TextRendererService.processText(text, settings);
-        expect(out, contains('<span style="color: red">תדע</span>'));
-        expect(out, contains('<span style="color: red">זרעך</span>'));
+        expect(
+          out,
+          contains('<span style="color: otzaria-search-hit">תדע</span>'),
+        );
+        expect(
+          out,
+          contains('<span style="color: otzaria-search-hit">זרעך</span>'),
+        );
       });
 
       test('שורה שאינה תוצאה אינה מודגשת גם במדיניות מפוזרת', () {
@@ -297,7 +303,7 @@ Future<void> main() async {
         );
         expect(
           TextRendererService.processText(text, settings),
-          isNot(contains('<span style="color: red">')),
+          isNot(contains('<span style="color: otzaria-search-hit">')),
         );
       });
 

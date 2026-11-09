@@ -22,7 +22,6 @@ typedef ShamorZachorCategoryTreeLoader =
     });
 
 /// Provider for managing book data in Shamor Zachor
-/// This provider is scoped locally within the ShamorZachorWidget
 class ShamorZachorDataProvider with ChangeNotifier {
   static final Logger _logger = Logger('ShamorZachorDataProvider');
 

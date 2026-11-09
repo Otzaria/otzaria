@@ -108,7 +108,7 @@ class _TikkunKorimSettingsTabState extends State<TikkunKorimSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               icon: FluentIcons.book_open_24_regular,
               title: context.settingsText('פתיחה בהפעלה'),
               options: [
@@ -130,7 +130,7 @@ class _TikkunKorimSettingsTabState extends State<TikkunKorimSettingsTab> {
                 );
               },
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               rtlIcon: FluentIcons.book_24_regular,
               title: context.settingsText('נוסח הפטרה'),
               options: [
@@ -149,7 +149,7 @@ class _TikkunKorimSettingsTabState extends State<TikkunKorimSettingsTab> {
                 Settings.setValue<String>(TikkunSettingsKeys.nusach, value);
               },
             ),
-            SettingsActionTile.segmentedTile<String>(
+            SettingsSegmentedTile<String>(
               icon: OtzariaIcons.shabbat_candles_24_regular,
               title: context.settingsText('מנהג לקריאות חגים ומועדים'),
               options: [
@@ -168,7 +168,7 @@ class _TikkunKorimSettingsTabState extends State<TikkunKorimSettingsTab> {
                 Settings.setValue<String>(TikkunSettingsKeys.nusachLand, value);
               },
             ),
-            SettingsActionTile.switchTile(
+            SettingsSwitchTile(
               icon: OtzariaIcons.alef_lock_24_filled,
               title: context.settingsText('הסתרת שם השם'),
               subtitle: hideDivineName

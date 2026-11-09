@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 class WorkStatusOverlay extends StatelessWidget {
   const WorkStatusOverlay({super.key});
@@ -43,13 +44,7 @@ class WorkStatusOverlay extends StatelessWidget {
                   color: colorScheme.surface.withValues(alpha: 0.96),
                   borderRadius: AppTokens.borderRadiusAll,
                   border: Border.all(color: colorScheme.outlineVariant),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.shadow.withValues(alpha: 0.12),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  boxShadow: AppShadows.floating(colorScheme),
                 ),
                 child: Stack(
                   children: [
@@ -369,7 +364,7 @@ class _LeadingIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8),
-      child: Icon(icon, size: 18, color: color),
+      child: Icon(icon, size: AppTokens.iconSM, color: color),
     );
   }
 }

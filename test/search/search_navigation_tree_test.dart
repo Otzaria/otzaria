@@ -8,6 +8,7 @@ import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/view/search_navigation_tree.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 
 void main() {
   Category makeCategory(
@@ -923,34 +924,70 @@ void main() {
       expect(find.text('נקה סינון'), findsOneWidget);
     });
 
-    testWidgets('כשאין ענף פתוח אין כפתור "כווץ הכל"', (tester) async {
+    // #3103 (q12 Q4): כמו בתוכן העניינים. כשהכל מכווץ הכפתור הוא "הרחב הכל",
+    // וכשמשהו פתוח הוא "כווץ הכל".
+    testWidgets('כשאין ענף פתוח הכפתור הוא "הרחב הכל"', (tester) async {
       await pumpTree(
         tester,
         library: nestedLibrary(),
         facetCounts: nestedCounts,
       );
 
+      expect(find.byType(NavTreeCollapseAllButton), findsOneWidget);
+      expect(find.byTooltip('הרחב הכל'), findsOneWidget);
       expect(find.byTooltip('כווץ הכל'), findsNothing);
     });
 
-    for (final (language, tooltip) in [
-      (SettingsLanguage.hebrew, 'כווץ הכל'),
-      (SettingsLanguage.english, 'Collapse all'),
-    ]) {
-      testWidgets('תיאור כפתור הכיווץ בשפת הממשק: ${language.code}', (
+    testWidgets('כשאין ענף שאפשר לפתוח אין כפתור', (tester) async {
+      await pumpTree(
         tester,
-      ) async {
-        await pumpTree(
-          tester,
-          library: nestedLibrary(),
-          facetCounts: nestedCounts,
-          expansion: const {'/תנ"ך': true},
-          language: language,
-        );
+        library: nestedLibrary(),
+        facetCounts: const {'/': 2, '/משנה': 2},
+      );
 
-        expect(find.byTooltip(tooltip), findsOneWidget);
-      });
+      expect(find.text('משנה'), findsOneWidget);
+      expect(find.byType(NavTreeCollapseAllButton), findsNothing);
+    });
+
+    for (final (language, expanded, tooltip) in [
+      (SettingsLanguage.hebrew, true, 'כווץ הכל'),
+      (SettingsLanguage.english, true, 'Collapse all'),
+      (SettingsLanguage.hebrew, false, 'הרחב הכל'),
+      (SettingsLanguage.english, false, 'Expand all'),
+    ]) {
+      testWidgets(
+        'תיאור הכפתור בשפת הממשק: ${language.code}, ${expanded ? 'פתוח' : 'מכווץ'}',
+        (tester) async {
+          await pumpTree(
+            tester,
+            library: nestedLibrary(),
+            facetCounts: nestedCounts,
+            expansion: {'/תנ"ך': expanded},
+            language: language,
+          );
+
+          expect(find.byTooltip(tooltip), findsOneWidget);
+        },
+      );
     }
+
+    testWidgets('"הרחב הכל" פותח כל ענף, גם ענפים מתחת להורה סגור', (
+      tester,
+    ) async {
+      final toggles = <(String, bool)>[];
+      await pumpTree(
+        tester,
+        library: nestedLibrary(),
+        facetCounts: nestedCounts,
+        onToggleExpand: (path, isExpanded) => toggles.add((path, isExpanded)),
+      );
+
+      await tester.tap(find.byTooltip('הרחב הכל'));
+      await tester.pump();
+
+      // משנה בלי ילדים, ולכן אין לה מה לפתוח.
+      expect(toggles.toSet(), {('/תנ"ך', false), ('/תנ"ך/כתובים', false)});
+    });
 
     testWidgets('"כווץ הכל" סוגר גם ענפים שנפתחו אוטומטית וגם מוסתרים', (
       tester,
@@ -973,6 +1010,110 @@ void main() {
         ('/תנ"ך/כתובים', true),
         ('/משנה', true),
       });
+    });
+
+    // #3103: כמו בעץ האמיתי (FullTextFacetFiltering), מפת הפתיחה נשמרת מעל
+    // העץ ומתעדכנת ב־onToggleExpand. הכפתור הולך לפי מצב העץ אחרי כל שינוי.
+    Future<void> pumpLiveTree(
+      WidgetTester tester, {
+      Set<String> selectedFacets = const {},
+    }) {
+      final expansion = <String, bool>{};
+      final library = nestedLibrary();
+      return tester.pumpWidget(
+        MaterialApp(
+          builder: (_, child) => SettingsTextScope(
+            language: SettingsLanguage.hebrew,
+            child: child!,
+          ),
+          home: Scaffold(
+            body: SizedBox(
+              width: 320,
+              height: 600,
+              child: StatefulBuilder(
+                builder: (context, setState) => SearchNavigationTree(
+                  library: library,
+                  facetCounts: nestedCounts,
+                  selectedFacets: selectedFacets,
+                  expansion: expansion,
+                  filterQuery: '',
+                  isLoading: false,
+                  hasResults: true,
+                  onSetFacet: (_) {},
+                  onToggleFacet: (_) {},
+                  onToggleExpand: (path, isExpanded) =>
+                      setState(() => expansion[path] = !isExpanded),
+                  onClearAll: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Future<void> tapChevron(WidgetTester tester, String title) async {
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text(title),
+            matching: find.byType(NavTreeTile),
+          ),
+          matching: find.byType(IconButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    void expectButton(String tooltip) {
+      const other = {'כווץ הכל': 'הרחב הכל', 'הרחב הכל': 'כווץ הכל'};
+      expect(find.byTooltip(tooltip), findsOneWidget);
+      expect(find.byTooltip(other[tooltip]!), findsNothing);
+      expect(
+        find.byIcon(
+          tooltip == 'כווץ הכל'
+              ? NavTreeCollapseAllButton.collapseIcon
+              : NavTreeCollapseAllButton.expandIcon,
+        ),
+        findsOneWidget,
+      );
+    }
+
+    testWidgets('פתיחה ידנית: "כווץ הכל"; סגירה ידנית: שוב "הרחב הכל"', (
+      tester,
+    ) async {
+      await pumpLiveTree(tester);
+      expectButton('הרחב הכל');
+
+      await tapChevron(tester, 'תנ"ך');
+      expect(find.text('תהילים'), findsOneWidget);
+      expectButton('כווץ הכל');
+
+      await tapChevron(tester, 'תנ"ך');
+      expect(find.text('כתובים'), findsNothing);
+      expectButton('הרחב הכל');
+    });
+
+    testWidgets('נפתח עם ענף הבחירה פתוח: "כווץ הכל"; סגירתו: "הרחב הכל"', (
+      tester,
+    ) async {
+      await pumpLiveTree(tester, selectedFacets: {'/תנ"ך/כתובים/id:7'});
+      expect(find.text('תהילים'), findsOneWidget);
+      expectButton('כווץ הכל');
+
+      await tapChevron(tester, 'תנ"ך');
+      expect(find.text('כתובים'), findsNothing);
+      expectButton('הרחב הכל');
+
+      await tester.tap(find.byTooltip('הרחב הכל'));
+      await tester.pumpAndSettle();
+      expect(find.text('תהילים'), findsOneWidget);
+      expectButton('כווץ הכל');
+
+      await tester.tap(find.byTooltip('כווץ הכל'));
+      await tester.pumpAndSettle();
+      expect(find.text('כתובים'), findsNothing);
+      expectButton('הרחב הכל');
     });
   });
 

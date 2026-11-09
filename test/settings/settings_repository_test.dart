@@ -590,6 +590,13 @@ void main() {
             defaultValue: null,
           ),
         ).thenReturn('FrankRuhlCLM');
+        // גודל התוצאות כבר נשמר, ולכן גם ההעברה של #2826 לא כותבת.
+        when(
+          mockSettingsWrapper.getValue<double?>(
+            SettingsRepository.keySearchResultsFontSize,
+            defaultValue: null,
+          ),
+        ).thenReturn(20.0);
 
         // Setup mock to return values for loadSettings
         when(
@@ -1089,5 +1096,121 @@ void main() {
         expect(repository.hasProtectedModePassword(), isFalse);
       },
     );
+
+    // ─── גודל הטקסט בתוצאות החיפוש (#2826) ─────────────────────────────────
+
+    group('searchResultsFontSize', () {
+      void stubInitialized() {
+        when(
+          mockSettingsWrapper.getValue<bool>(
+            'settings_initialized',
+            defaultValue: false,
+          ),
+        ).thenReturn(true);
+        when(
+          mockSettingsWrapper.getValue<double>(
+            SettingsRepository.keyFontSize,
+            defaultValue: 25,
+          ),
+        ).thenReturn(34.0);
+      }
+
+      test('בשדרוג מקבל פעם אחת את גודל הספר הנוכחי', () async {
+        stubInitialized();
+        when(
+          mockSettingsWrapper.getValue<double?>(
+            SettingsRepository.keySearchResultsFontSize,
+            defaultValue: null,
+          ),
+        ).thenReturn(null);
+
+        await repository.loadSettings();
+
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keySearchResultsFontSize,
+            34.0,
+          ),
+        ).called(1);
+      });
+
+      test('ערך שמור נשאר, ואינו נדרס בגודל הספר', () async {
+        stubInitialized();
+        when(
+          mockSettingsWrapper.getValue<double?>(
+            SettingsRepository.keySearchResultsFontSize,
+            defaultValue: null,
+          ),
+        ).thenReturn(20.0);
+        when(
+          mockSettingsWrapper.getValue<double>(
+            SettingsRepository.keySearchResultsFontSize,
+            defaultValue: 34.0,
+          ),
+        ).thenReturn(20.0);
+
+        final settings = await repository.loadSettings();
+
+        verifyNever(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keySearchResultsFontSize,
+            any,
+          ),
+        );
+        expect(settings['searchResultsFontSize'], 20.0);
+      });
+
+      test('בלי ערך שמור, הקריאה נופלת לגודל הספר', () {
+        stubInitialized();
+        when(
+          mockSettingsWrapper.getValue<double>(
+            SettingsRepository.keySearchResultsFontSize,
+            defaultValue: 34.0,
+          ),
+        ).thenReturn(34.0);
+
+        expect(repository.readSettings()['searchResultsFontSize'], 34.0);
+      });
+
+      test('updateSearchResultsFontSize שומר במפתח שלו', () async {
+        await repository.updateSearchResultsFontSize(18);
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keySearchResultsFontSize,
+            18.0,
+          ),
+        ).called(1);
+      });
+    });
+
+    // "צפיפות ממשק": null ("אוטומטי") מוחק את המפתח, ובלי מפתח הצפיפות לפי
+    // גודל החלון. "רגיל"/"מצומצם" נשמרים כמו קודם.
+    group('updateCompactMenuMode', () {
+      test('null מוחק את המפתח', () async {
+        await repository.updateCompactMenuMode(null);
+        verify(
+          mockSettingsWrapper.remove(SettingsRepository.keyCompactMenuMode),
+        ).called(1);
+        verifyNever(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyCompactMenuMode,
+            any,
+          ),
+        );
+      });
+
+      test('ערך מפורש נשמר', () async {
+        await repository.updateCompactMenuMode(true);
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyCompactMenuMode,
+            true,
+          ),
+        ).called(1);
+        verifyNever(
+          mockSettingsWrapper.remove(SettingsRepository.keyCompactMenuMode),
+        );
+      });
+    });
   });
 }

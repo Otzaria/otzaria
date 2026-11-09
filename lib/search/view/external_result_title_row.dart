@@ -1,6 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/search/view/search_result_source_tag.dart';
@@ -111,27 +111,11 @@ class ExternalResultTitleRow extends StatelessWidget {
   /// מספר המופעים בספר, לצד שמו: מספר עירום בקצה הכרטיס לא אמר מה הוא סופר.
   /// בשורה צרה נשאר המספר בלבד, עם הכיתוב המלא בהצבעה.
   Widget _buildHitCountPill(BuildContext context, {required bool compact}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final label = hitCount == 1 ? 'תוצאה אחת בספר' : '$hitCount תוצאות בספר';
-    return Tooltip(
-      message: label,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: cs.secondaryContainer,
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: Text(
-          compact ? '$hitCount' : label,
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: cs.onSecondaryContainer,
-          ),
-        ),
-      ),
+    return MetaChip(
+      size: MetaChipSize.small,
+      label: compact ? '$hitCount' : label,
+      tooltip: label,
     );
   }
 

@@ -128,10 +128,19 @@ Future<void> main() async {
             matchPolicy: sameParagraph,
             isSearchResultLine: true,
           );
-          expect(marked, contains('<span style="color: red">תדע</span>'));
-          expect(marked, contains('<span style="color: red">זרעך</span>'));
+          expect(
+            marked,
+            contains('<span style="color: otzaria-search-hit">תדע</span>'),
+          );
+          expect(
+            marked,
+            contains('<span style="color: otzaria-search-hit">זרעך</span>'),
+          );
           // המילים שבין מילות השאילתה נשארות בלי הדגשה.
-          expect(marked, isNot(contains('<span style="color: red">שלוש')));
+          expect(
+            marked,
+            isNot(contains('<span style="color: otzaria-search-hit">שלוש')),
+          );
 
           expect(
             highLight(farApart, 'תדע זרעך', matchPolicy: sameParagraph),

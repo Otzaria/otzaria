@@ -620,11 +620,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
                       ),
                     ),
                     if (!_paneOpen)
-                      Positioned(
-                        left: 0,
-                        top: MediaQuery.of(context).size.height * 0.10,
-                        child: PanelOpenHandle(onTap: _togglePane),
-                      ),
+                      PositionedPanelOpenHandle(onTap: _togglePane),
                   ],
                 ),
                 isResizable: true,

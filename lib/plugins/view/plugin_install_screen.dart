@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,8 +11,9 @@ import 'package:otzaria/plugins/models/plugin_permission_labels.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 /// מסך אישור התקנת/עדכון תוסף — מאפשר למשתמש לבחור אילו הרשאות להעניק
 class PluginInstallScreen extends StatefulWidget {
@@ -145,7 +146,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
         !isTemporarilyUnavailable && (_permissionToggles[permission] ?? true);
     final isSensitive = permission == pluginRunOnStartupPermission;
     final isCritical = permission == pluginBackgroundKeepAlivePermission;
-    return SettingsActionTile.switchTile(
+    return SettingsSwitchTile(
       icon: pluginPermissionIcon(
         permission,
         isGranted: isGranted,
@@ -154,7 +155,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
       iconColor: isCritical
           ? colorScheme.error
           : isSensitive
-          ? colorScheme.tertiary
+          ? AppSurfaces.warning(context)
           : (isGranted ? colorScheme.primary : colorScheme.error),
       title: info.label,
       subtitle: isTemporarilyUnavailable
@@ -177,6 +178,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     final isUpdate = widget.isUpdate;
 
     return AppDialogFrame(
+      size: AppDialogSize.medium,
       scrollable: true,
       titleMaxLines: 2,
       icon: isUpdate
@@ -224,22 +226,19 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
 
           // ===== באנר בולט: בקשת טעינה אוטומטית עם עליית האפליקציה =====
           if (_requestsRunOnStartup) ...[
-            _BackgroundActivationBanner(
-              colorScheme: colorScheme,
-              manifest: widget.manifest,
-            ),
+            _BackgroundActivationBanner(manifest: widget.manifest),
             const SizedBox(height: 16),
           ],
 
           if (widget.manifest.headless &&
               (_requestsRunOnStartup ||
                   _showsPermission(pluginStartupContributionsPermission))) ...[
-            _HeadlessBanner(colorScheme: colorScheme),
+            const _HeadlessBanner(),
             const SizedBox(height: 16),
           ],
 
           if (_requestsKeepAlive) ...[
-            _KeepAliveBanner(colorScheme: colorScheme),
+            const _KeepAliveBanner(),
             const SizedBox(height: 16),
           ],
 
@@ -309,13 +308,9 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
 }
 
 class _BackgroundActivationBanner extends StatelessWidget {
-  final ColorScheme colorScheme;
   final PluginManifest manifest;
 
-  const _BackgroundActivationBanner({
-    required this.colorScheme,
-    required this.manifest,
-  });
+  const _BackgroundActivationBanner({required this.manifest});
 
   @override
   Widget build(BuildContext context) {
@@ -324,175 +319,58 @@ class _BackgroundActivationBanner extends StatelessWidget {
     final hasBackgroundTrigger =
         startup?.hasBackgroundActivationTrigger == true;
     final reasons = pluginBackgroundActivationReasons(manifest).join(', ');
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.tertiaryContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(
-          color: colorScheme.tertiary,
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            FluentIcons.warning_24_filled,
-            color: colorScheme.tertiary,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isDeclarative && !hasBackgroundTrigger
-                      ? 'הרשאת הרקע אינה בשימוש בגרסה זו של התוסף'
-                      : isDeclarative
-                      ? 'התוסף מבקש לפעול ברקע כאשר: $reasons'
-                      : 'התוסף מבקש לפעול ברקע עם עליית האפליקציה',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: colorScheme.onTertiaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  isDeclarative && !hasBackgroundTrigger
-                      ? 'לא הוגדר אירוע שמפעיל מנוע רקע. פקדים שפותחים את '
-                            'דף התוסף ונתונים סטטיים אינם מפעילים WebView.'
-                      : isDeclarative
-                      ? 'בעת אחד מהאירועים האלה אוצריא תפעיל WebView נסתר '
-                            'עבור התוסף. הוא יכובה לאחר 3 דקות ללא פעילות. '
-                            'ההרשאה כבויה כברירת מחדל.'
-                      : 'מסלול תאימות זה טוען WebView נסתר עם עליית אוצריא '
-                            'ומשאיר אותו פעיל כל עוד התוכנה פתוחה. ההרשאה '
-                            'כבויה כברירת מחדל.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onTertiaryContainer,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return AppInfoBanner(
+      tone: AppInfoBannerTone.warning,
+      icon: FluentIcons.warning_24_filled,
+      title: isDeclarative && !hasBackgroundTrigger
+          ? 'הרשאת הרקע אינה בשימוש בגרסה זו של התוסף'
+          : isDeclarative
+          ? 'התוסף מבקש לפעול ברקע כאשר: $reasons'
+          : 'התוסף מבקש לפעול ברקע עם עליית האפליקציה',
+      message: isDeclarative && !hasBackgroundTrigger
+          ? 'לא הוגדר אירוע שמפעיל מנוע רקע. פקדים שפותחים את '
+                'דף התוסף ונתונים סטטיים אינם מפעילים WebView.'
+          : isDeclarative
+          ? 'בעת אחד מהאירועים האלה אוצריא תפעיל WebView נסתר '
+                'עבור התוסף. הוא יכובה לאחר 3 דקות ללא פעילות. '
+                'ההרשאה כבויה כברירת מחדל.'
+          : 'מסלול תאימות זה טוען WebView נסתר עם עליית אוצריא '
+                'ומשאיר אותו פעיל כל עוד התוכנה פתוחה. ההרשאה '
+                'כבויה כברירת מחדל.',
     );
   }
 }
 
 /// תוסף ללא ממשק אינו יכול ליפול לפתיחת דף, ולכן כיבוי הרשאות הרקע משבית אותו.
 class _HeadlessBanner extends StatelessWidget {
-  final ColorScheme colorScheme;
-
-  const _HeadlessBanner({required this.colorScheme});
+  const _HeadlessBanner();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: colorScheme.secondary, width: 1.5),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            FluentIcons.info_24_filled,
-            color: colorScheme.secondary,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'זהו תוסף ללא ממשק',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: colorScheme.onSecondaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'אין לו דף משלו, והוא פועל רק ברקע. בלי ההרשאות '
-                  '"${getPermissionInfo(pluginStartupContributionsPermission).label}" '
-                  'ו-"${getPermissionInfo(pluginRunOnStartupPermission).label}" '
-                  'התוסף לא יפעל כראוי.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSecondaryContainer,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return AppInfoBanner(
+      icon: FluentIcons.info_24_filled,
+      title: 'זהו תוסף ללא ממשק',
+      message:
+          'אין לו דף משלו, והוא פועל רק ברקע. בלי ההרשאות '
+          '"${getPermissionInfo(pluginStartupContributionsPermission).label}" '
+          'ו-"${getPermissionInfo(pluginRunOnStartupPermission).label}" '
+          'התוסף לא יפעל כראוי.',
     );
   }
 }
 
 class _KeepAliveBanner extends StatelessWidget {
-  final ColorScheme colorScheme;
-
-  const _KeepAliveBanner({required this.colorScheme});
+  const _KeepAliveBanner();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: colorScheme.error, width: 1.5),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            FluentIcons.warning_24_filled,
-            color: colorScheme.error,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'התוסף מבקש שלא יכבו אותו ברקע',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: colorScheme.onErrorContainer,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'אישור הבקשה ישאיר WebView פעיל ללא הגבלת זמן ויגדיל את '
-                  'צריכת הזיכרון והמעבד. אפשרות זו כבויה כברירת מחדל.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onErrorContainer,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return const AppInfoBanner(
+      tone: AppInfoBannerTone.error,
+      icon: FluentIcons.warning_24_filled,
+      title: 'התוסף מבקש שלא יכבו אותו ברקע',
+      message:
+          'אישור הבקשה ישאיר WebView פעיל ללא הגבלת זמן ויגדיל את '
+          'צריכת הזיכרון והמעבד. אפשרות זו כבויה כברירת מחדל.',
     );
   }
 }

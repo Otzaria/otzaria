@@ -6,8 +6,8 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// שדה בחירת קיצור דרך שמסנן קיצורים שכבר נמצאים בשימוש.
 class ShortcutDropDownTile extends StatefulWidget {
@@ -100,7 +100,8 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 620;
+          const compactBelow = 620.0;
+          final isCompact = constraints.maxWidth < compactBelow;
           final field = SizedBox(
             width: isCompact ? double.infinity : 220,
             child: AppDropdownField<String>(
@@ -130,11 +131,14 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.title, style: kSettingsTitleStyle),
+                      Text(widget.title, style: AppTextStyles.settingTitle),
                       if (widget.subtitle != null &&
                           widget.subtitle!.trim().isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Text(widget.subtitle!, style: kSettingsSubtitleStyle),
+                        Text(
+                          widget.subtitle!,
+                          style: AppTextStyles.settingSubtitle,
+                        ),
                       ],
                     ],
                   ),
@@ -160,7 +164,10 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
               titleSection,
               const SizedBox(width: 16),
               Flexible(
-                child: Align(alignment: Alignment.centerLeft, child: field),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: field,
+                ),
               ),
             ],
           );

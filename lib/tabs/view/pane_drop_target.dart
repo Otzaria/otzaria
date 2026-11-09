@@ -109,7 +109,10 @@ class _DropPreview extends StatelessWidget {
         return Stack(
           children: [
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 140),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 140),
+              ),
               curve: Curves.easeOutCubic,
               left: rect.left,
               top: rect.top,
@@ -122,7 +125,7 @@ class _DropPreview extends StatelessWidget {
                     color: AppSurfaces.paneDropPreviewBorder(colorScheme),
                     width: 2,
                   ),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppTokens.borderRadiusAll,
                 ),
               ),
             ),

@@ -3,11 +3,15 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:otzaria/android_update/view/android_update_view.dart';
 
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/core/windowing/app_drag_to_move_area.dart';
 import 'package:otzaria/core/windowing/app_window_caption.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
+import 'package:otzaria/core/windowing/window_caption_hit_test.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -51,6 +55,27 @@ import 'package:otzaria/plugins/services/plugin_new_tab_page_registry.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
+
+/// שורת הכותרת בסגנון הקריאה, ברקע הקריאה ובלי קו: בעיון עם כרטיסייה פתוחה
+/// ובחיפוש, כשהכרטיסיות ברצועה שבשורה והפעילה מתמזגת עם הקריאה. במצב
+/// "כרטיסיות בצד" אין בשורה כרטיסיות, והיא כרום כמו בכל מסך אחר (DD-18). בחלון
+/// צר הכרטיסיות חוזרות לשורה שנייה, ולכן גם הסגנון. חלון צר ונמוך (טלפון
+/// לרוחב) נשאר כמו חלון רחב ([WindowClass.usesSideNavigationOf]).
+///
+/// משותף לשורה עצמה ולצבע שורת הסטטוס ב-Android (`_EdgeToEdgeShell`).
+bool titleBarUsesReaderStyle(
+  BuildContext context, {
+  required Screen screen,
+  required bool hasOpenTabs,
+  required bool readingTabsOnSide,
+}) {
+  final showsReading =
+      screen == Screen.search || (screen == Screen.reading && hasOpenTabs);
+  final sideTabs =
+      readingTabsOnSide && WindowClass.usesSideNavigationOf(context);
+  return showsReading && !sideTabs;
+}
 
 class CustomTitleBar extends StatefulWidget {
   final VoidCallback? onReadingSettingsPressed;
@@ -76,7 +101,6 @@ const String _kTabCloseButtonHitMarker = 'custom-title-bar-tab-close';
 
 const double _kAppBarControlsWidth = 105.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
-const double _kWindowCaptionButtonWidth = 46.0;
 
 /// רוחב מרבי לטאב בודד: טאב לא נמתח מעבר לזה גם כשיש מעט טאבים ומלא מקום.
 const double _kTabMaxWidth = 140.0;
@@ -87,16 +111,31 @@ const double _kTabCloseHideBelowWidth = 80.0;
 /// רוחב כפתור ה-X בכרטיסיה. בכרטיסיה צרה הוא מצטמצם (ראו [_kTabCloseMaxShare]).
 const double _kTabCloseExtent = 25.0;
 
-/// רוחב אייקון ה-X עצמו — מתחת לזה הוא נחתך, ולכן אינו מוצג גם בריחוף.
+/// הרוחב המזערי של אזור הלחיצה של ה-X. מתחתיו ה-X אינו מוצג גם בריחוף.
+///
+/// ⚠️ נשאר 10 גם כשהאייקון 12 ([_kTabCloseIconSize]): הגליף גולש פיקסל לכל צד
+/// בכרטיסיה הצרה ביותר, אבל אזור הסגירה לא גדל. אזור גדול יותר היה הופך לחיצה
+/// במרכז כרטיסיה צרה לסגירה במקום בחירה (issue #3276), ושני ה-X של לשונית
+/// מפוצלת היו תופסים יותר מחצי ממנה.
 const double _kTabCloseMinExtent = 10.0;
+
+/// גודל אייקון ה-X, כמו בעמודה האנכית (q10 Q14 C).
+const double _kTabCloseIconSize = 12.0;
 
 /// החלק המרבי של ה-X מרוחב התוכן (בלשונית מפוצלת — מחצי שלה), כדי שלחיצה על
 /// כרטיסיה צרה תבחר אותה ולא תסגור. לא פחות מ-[_kTabCloseMinExtent].
 const double _kTabCloseMaxShare = 1 / 3;
 
-/// מידות האייקונים שלצד הכותרת — הנעץ ואייקון סוג הכרטיסיה, כולל הרווח שאחריהם.
-const double _kTabPinExtent = 18.0;
+/// מידת אייקון סוג הכרטיסיה שלצד הכותרת, כולל הרווח שאחריו. הנעץ מחושב לפי
+/// רוחב הכרטיסיה ([_tabPinGaps]).
 const double _kTabLeadingIconExtent = 18.0;
+
+/// הרווחים לפני הנעץ ואחריו: 4 ו-4 בכרטיסיה רחבה, ובכרטיסיה צרה 0 ו-2, כך
+/// שהנעץ נצמד לכותרת כשיש הרבה כרטיסיות (LQ-14). [padScale] כמו בריפודי
+/// הכרטיסיה: 1 ברוחב מלא, 0 בצרה ביותר. 2 אחרי הנעץ נשאר גם בצרה: עיגול
+/// הריחוף של הנעץ לא נוגע באות הראשונה.
+({double start, double end}) _tabPinGaps(double padScale) =>
+    (start: 4 * padScale, end: 2 + 2 * padScale);
 
 /// רוחב מזערי לטאב הנבחר: מבטיח שכפתור ה-X שלו תמיד נכנס (כמו כרום).
 /// כשהחלוקה השווה יורדת מתחת לזה, שאר הטאבים מתחלקים ביתרה.
@@ -106,27 +145,26 @@ const double _kTabSelectedMinWidth = 60.0;
 /// לכותרת, לאייקונים או ל-X — ולכן התוכן שלה אינו נבנה כלל.
 const double _kTabContentMinWidth = 12.0;
 
+/// מתחת לרוחב הזה כרטיסייה לא מציגה אייקון סוג (PDF, כלי) ופסים מפרידים.
+const double _kTabIconMinWidth = 100.0;
+
 /// גובה גוף הכרטיסיה, בלי המפריד שלצדה.
 const double _kTabBodyHeight = 32.0;
 
 /// הכרטיסייה מציירת בתוך כל גובה הסרגל, כדי שגלילה לא תחתוך את רקעה.
 /// גוף הכרטיסייה ממורכז, והרקע נמשך עד לתוכן שמתחתיה.
-const double _kTopBarHeight = 40.0;
+const double _kTopBarHeight = LayoutConstraints.windowCaptionHeight;
 
 /// הרקע של הכרטיסיה ממשיך מתחת לסרגל בפיקסל אחד: התוכן שמתחתיו מכסה אותו, וקצהו
 /// המוחלק ברוחב שברירי נמהל בצבע הכרטיסיה ולא ברקע הסרגל (קו בהיר דק).
 const double _kTabBottomBleed = 1.0;
 
+/// רדיוס הקשת שמחברת את תחתית הכרטיסייה הנבחרת לסרגל. זו צורת הכרטיסייה ולא
+/// פינת רכיב, ולכן אינה ברדיוס 8.
+const double _kTabFlareRadius = 15.0;
+
 /// רוחבי הטאבים בשורה: הנבחר עשוי להיות רחב מהשאר (ראה [_kTabSelectedMinWidth]).
 typedef _TabWidths = ({double selected, double unselected});
-
-/// סגנון משותף לכפתורי האייקון בשורת הכותרת
-final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
-  minimumSize: const Size(32, 32),
-  padding: EdgeInsets.zero,
-  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  shape: RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
-);
 
 class _CustomTitleBarState extends State<CustomTitleBar> {
   // האם העכבר נמצא כרגע מעל שורת הטאבים. בעת סגירת טאב כשהעכבר בפנים מקפיאים
@@ -147,6 +185,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   // הטאב שהעכבר מעליו. שדה ולא משתנה מקומי ב-_buildTab: rebuild של ההורה היה
   // מאפס אותו, וה-X שמוצג רק בריחוף היה נמחק מתחת לסמן לפני שהלחיצה נורית.
   final _hoveredTab = ValueNotifier<OpenedTab?>(null);
+
+  // רצועת הכרטיסיות, לבדיקה ישירה אם נקודה מעל כרטיסיה כשדיאלוג פתוח.
+  final _tabStripKey = GlobalKey();
 
   // רוחב אזור הטאבים שנמדד בפריים הקודם (ע"י LayoutBuilder נפרד). הרשימה
   // נבנית עם הערך הזה ולא תחת ה-LayoutBuilder — אחרת Tooltip/OverlayPortal
@@ -199,13 +240,15 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       navState.currentScreen == Screen.reading ||
       navState.currentScreen == Screen.search;
 
+  /// בחלון צר הכרטיסיות בשורה שנייה. בחלון צר ונמוך (טלפון קטן לרוחב) הן
+  /// נשארות בשורת הכותרת: שורה שנייה שם הייתה עוד 40 מ־320 (q12 Q8).
   bool _useStackedTabs(BuildContext context, NavigationState navState) {
     if (!_isReadingScreen(navState)) return false;
-    return MediaQuery.of(context).orientation == Orientation.portrait;
+    return !WindowClass.usesSideNavigationOf(context);
   }
 
   /// במצב "בצד" הכרטיסיות מוצגות בעמודה אנכית שבמסך הראשי, ולכן הרצועה
-  /// שבכותרת אינה נבנית כלל. במסך לאורך נשמרת ההתנהגות הקיימת (שורה שנייה).
+  /// שבכותרת אינה נבנית כלל. בחלון צר — שורה שנייה, כמו בלי "בצד".
   bool _useSideTabs(
     BuildContext context,
     NavigationState navState,
@@ -214,7 +257,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     if (!_isReadingScreen(navState) || !settingsState.readingTabsOnSide) {
       return false;
     }
-    return MediaQuery.of(context).orientation == Orientation.landscape;
+    return WindowClass.usesSideNavigationOf(context);
   }
 
   @override
@@ -232,15 +275,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
               (WindowFullscreenCubit cubit) => cubit.state,
             );
             final stackedTabs = _useStackedTabs(context, navState);
-            // במסך עיון ללא טאבים פתוחים אין תוכן קריאה אמיתי, ולכן המסגרת
-            // העליונה נצבעת כשאר מסכי הלוח (רקע לוח + גבול תחתון) במקום ברקע
-            // מסך העיון. בחיפוש תמיד קיים טאב, לכן נשאר בסגנון הקריאה.
-            final useReaderStyle =
-                navState.currentScreen == Screen.search ||
-                (navState.currentScreen == Screen.reading &&
-                    context.select(
-                      (TabsBloc bloc) => bloc.state.hasOpenTabs,
-                    ));
+            final useReaderStyle = titleBarUsesReaderStyle(
+              context,
+              screen: navState.currentScreen,
+              hasOpenTabs: context.select(
+                (TabsBloc bloc) => bloc.state.hasOpenTabs,
+              ),
+              readingTabsOnSide: settingsState.readingTabsOnSide,
+            );
             // ⚠️ **גובה אחד, בלי "גשר".** גרסה קודמת הוסיפה כאן חמשה
             // פיקסלים כדי שהכרטיסיה תוכל לצייר מתחת לעצמה, והתוצאה הייתה
             // ההפוכה: הסרגל התארך, התוכן נדחף למטה, והרצועה שבין הכרטיסיות
@@ -250,6 +292,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // וזה בתוך הגבולות
             // הקיימים — ולכן שום דבר אינו צריך להזמין מקום, ושום דבר אינו
             // נצבע מעליה.
+            // "לבן" (#2850): קו כהה דק בתחתית השורה גם בסגנון הקריאה. הכרטיסיה
+            // הפעילה מכסה אותו מתחתיה ומוקפת באותו קו (_TabBackgroundPainter),
+            // ולכן היא ממשיכה לתוך סרגל הספר כמו לשונית.
+            final regionBorder = AppSurfaces.regionBorder(context);
             final topBar = SizedBox(
               height: _kTopBarHeight,
               child: Stack(
@@ -260,16 +306,16 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     decoration: BoxDecoration(
                       color: useReaderStyle
                           ? AppSurfaces.readerBackground(context)
-                          : AppSurfaces.solidPanelBackground(context),
-                      border: useReaderStyle
+                          : AppSurfaces.panelBackground(context),
+                      border: useReaderStyle && regionBorder == null
                           ? null
                           : Border(
                               bottom: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant
-                                    .withValues(alpha: 0.6),
-                                width: 1,
+                                color:
+                                    regionBorder ??
+                                    AppSurfaces.subtleDivider(
+                                      Theme.of(context).colorScheme,
+                                    ),
                               ),
                             ),
                     ),
@@ -277,7 +323,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                       children: [
                         // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
                         SizedBox(
-                          height: 40,
+                          height: _kTopBarHeight,
                           child: Center(child: _buildActionButtons(context)),
                         ),
 
@@ -294,12 +340,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                           const AndroidUpdateIndicator(),
 
                         // כפתורי חלון (רק בדסקטופ)
-                        if (!kIsWeb &&
-                            (Platform.isWindows ||
-                                Platform.isLinux ||
-                                Platform.isMacOS))
+                        if (DeviceChrome.hasWindowCaption)
                           SizedBox(
-                            height: 50,
+                            height: _kTopBarHeight,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -309,44 +352,36 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                   context,
                                   isFullscreen,
                                 ),
-                                if (isFullscreen)
-                                  _CaptionActionButton(
+                                SizedBox(
+                                  width: isFullscreen
+                                      ? null
+                                      : _kWindowCaptionButtonsWidth,
+                                  child: AppWindowCaption(
                                     brightness: Theme.of(context).brightness,
-                                    tooltip: 'מזער',
-                                    icon: FluentIcons.subtract_24_regular,
-                                    onPressed: () async {
-                                      // נלקח לפני ה-await: אחריו ה-context
-                                      // עלול כבר לא להיות מותקן.
-                                      final window =
-                                          AppWindowScope.controllerOf(context);
-                                      await FullscreenHelper.toggleFullscreen(
-                                        context,
-                                        false,
-                                      );
-                                      await window.minimize();
-                                    },
-                                  ),
-                                if (isFullscreen)
-                                  _CaptionActionButton(
-                                    brightness: Theme.of(context).brightness,
-                                    tooltip: 'סגור',
-                                    icon: FluentIcons.dismiss_24_regular,
-                                    // סגירה מנומסת — עוברת דרך ה-handshake
-                                    // של onWindowClose ולא הורגת מיד.
-                                    onPressed: () =>
-                                        AppWindowScope.controllerOf(
-                                          context,
-                                        ).close(),
-                                  ),
-                                if (!isFullscreen)
-                                  SizedBox(
-                                    width: _kWindowCaptionButtonsWidth,
-                                    height: 50,
-                                    child: AppWindowCaption(
-                                      brightness: Theme.of(context).brightness,
-                                      backgroundColor: Colors.transparent,
+                                    fullscreen: isFullscreen,
+                                    tooltips: AppWindowCaptionTooltips(
+                                      minimize: context.settingsText('מזער'),
+                                      maximize: context.settingsText('הגדל'),
+                                      restore: context.settingsText('שחזר'),
+                                      close: context.settingsText('סגור'),
                                     ),
+                                    onMinimize: isFullscreen
+                                        ? () async {
+                                            // נלקח לפני ה-await: אחריו ה-context
+                                            // עלול כבר לא להיות מותקן.
+                                            final window =
+                                                AppWindowScope.controllerOf(
+                                                  context,
+                                                );
+                                            await FullscreenHelper.toggleFullscreen(
+                                              context,
+                                              false,
+                                            );
+                                            await window.minimize();
+                                          }
+                                        : null,
                                   ),
+                                ),
                               ],
                             ),
                           ),
@@ -390,28 +425,49 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
+                AppIconButton(
                   key: TourTargetKeys.of(context).titleBarHistoryButton,
-                  icon: const Icon(FluentIcons.history_24_regular, size: 18),
-                  tooltip:
-                      'הצג היסטוריה (${ShortcutHelper.formatShortcutForDisplay(historyShortcut)})',
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.history_24_regular),
+                  tooltip: context.settingsText(
+                    'הצג היסטוריה ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        historyShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showHistoryDialog(context),
-                  style: _kIconButtonStyle,
                 ),
-                IconButton(
+                AppIconButton(
                   key: TourTargetKeys.of(context).titleBarBookmarkButton,
-                  icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
-                  tooltip:
-                      'הצג סימניות (${ShortcutHelper.formatShortcutForDisplay(bookmarksShortcut)})',
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.bookmark_24_regular),
+                  tooltip: context.settingsText(
+                    'הצג סימניות ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        bookmarksShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showBookmarksDialog(context),
-                  style: _kIconButtonStyle,
                 ),
-                IconButton(
-                  icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
-                  tooltip:
-                      'החלף שולחן עבודה (${ShortcutHelper.formatShortcutForDisplay(workspaceShortcut)})',
+                AppIconButton(
+                  size: AppIconButtonSize.small,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(FluentIcons.add_square_24_regular),
+                  tooltip: context.settingsText(
+                    'החלף שולחן עבודה ({shortcut})',
+                    args: {
+                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                        workspaceShortcut,
+                      ),
+                    },
+                  ),
                   onPressed: () => _showSaveWorkspaceDialog(context),
-                  style: _kIconButtonStyle,
                 ),
               ],
             ),
@@ -432,7 +488,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         return Row(
           children: [
             // במצב "בצד" כפתור חיפוש הכרטיסיות יושב בראש העמודה עצמה.
-            if (stacked) TabSearchButton(style: _kIconButtonStyle),
+            if (stacked)
+              const TabSearchButton(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             const Expanded(child: AppDragToMoveArea(child: SizedBox.expand())),
             _buildReadingSettingsButton(context),
           ],
@@ -521,7 +580,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
         return Row(
           children: [
-            TabSearchButton(style: _kIconButtonStyle),
+            const TabSearchButton(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             Expanded(child: _buildScrollableTabsArea(state)),
             const SizedBox(width: 8),
             _buildReadingSettingsButton(context),
@@ -678,45 +739,124 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   recognizer.onDoubleTap = _onTabsAreaDoubleTap;
                 }),
           },
-          child: KeyedSubtree(
-            key: TourTargetKeys.of(context).readingTabs,
-            child: tabStrip,
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(child: _buildTabStripDragAreaAboveDialogs()),
+              KeyedSubtree(
+                key: TourTargetKeys.of(context).readingTabs,
+                child: KeyedSubtree(key: _tabStripKey, child: tabStrip),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  /// גרירת החלון והגדלה בלחיצה כפולה מהאזור הריק שברצועה גם כשדיאלוג פתוח
+  /// (DD-16). מאחורי הרצועה, ופעיל רק מעל דיאלוג: בלי דיאלוג הרצועה מטפלת
+  /// בזה בעצמה, למעלה. הכרטיסיות עצמן לא נכללות, והן נשארות חסומות מאחורי
+  /// הדיאלוג. לחיצה פשוטה כאן מגיעה לשכבת ההחשכה (isDragArea).
+  Widget _buildTabStripDragAreaAboveDialogs() {
+    return WindowCaptionRegion(
+      isDragArea: true,
+      onlyAboveDialogs: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onPanStart: (details) {
+          if (_isOverTabBehindDialog(details.globalPosition)) return;
+          AppWindowScope.controllerOf(context).startDragging();
+        },
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.translucent,
+          gestures: {
+            _EmptyAreaDoubleTapRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _EmptyAreaDoubleTapRecognizer
+                >(() => _EmptyAreaDoubleTapRecognizer(debugOwner: this), (
+                  recognizer,
+                ) {
+                  recognizer.isPointerOnTab = _isOverTabBehindDialog;
+                  recognizer.onDoubleTap = _onTabsAreaDoubleTap;
+                }),
+          },
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+
+  /// האם הנקודה מעל כרטיסיה, כשדיאלוג פתוח. בדיקת הפגיעה הרגילה נעצרת
+  /// בשכבת ההחשכה, ולכן הרצועה נבדקת ישירות.
+  bool _isOverTabBehindDialog(Offset globalPosition) {
+    final strip = _tabStripKey.currentContext?.findRenderObject();
+    if (strip is! RenderBox || !strip.attached || !strip.hasSize) return false;
+    final result = BoxHitTestResult();
+    strip.hitTest(result, position: strip.globalToLocal(globalPosition));
+    return result.path
+        .map((entry) => entry.target)
+        .whereType<RenderMetaData>()
+        .any((target) => target.metaData == _kTabHitMarker);
+  }
+
   Widget _buildOpenLibraryButton(BuildContext context) {
-    return IconButton(
-      icon: const Icon(FluentIcons.add_24_regular, size: 18),
+    return AppIconButton(
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: const Icon(FluentIcons.add_24_regular),
       tooltip: context.settingsText('כרטיסייה חדשה'),
       onPressed: () => PluginNewTabPageRegistry.instance.open(
         windowKeys: AppWindowKeys.of(context),
         viewId: View.of(context).viewId,
       ),
-      style: _kIconButtonStyle,
     );
   }
 
   Widget _buildReadingSettingsButton(BuildContext context) {
+    final settings = AppIconButton(
+      key: TourTargetKeys.of(context).readingSettingsButton,
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: Icon(
+        widget.isReadingSettingsPanelOpen
+            ? FluentIcons.settings_24_filled
+            : FluentIcons.settings_24_regular,
+      ),
+      tooltip: context.settingsText('הגדרות תצוגת הספרים'),
+      onPressed: widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
+    );
+    final fullscreen = _buildMobileFullscreenButton(context);
     return AppDragToMoveArea(
+      aboveDialogs: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: IconButton(
-          key: TourTargetKeys.of(context).readingSettingsButton,
-          icon: Icon(
-            widget.isReadingSettingsPanelOpen
-                ? FluentIcons.settings_24_filled
-                : FluentIcons.settings_24_regular,
-            size: 18,
-          ),
-          tooltip: 'הגדרות תצוגת הספרים',
-          onPressed:
-              widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
-          style: _kIconButtonStyle,
-        ),
+        child: fullscreen == null
+            ? settings
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [settings, fullscreen],
+              ),
       ),
+    );
+  }
+
+  /// בטלפון: כניסה למסך מלא בפינה, משמאל ל"הגדרות תצוגת הספרים", כשיש
+  /// בשורה מקום ([mobileFullscreenInTitleBar]). במחשב הכפתור ליד כפתורי
+  /// החלון ([_buildFullscreenCaptionButton]).
+  Widget? _buildMobileFullscreenButton(BuildContext context) {
+    if (!mobileFullscreenInTitleBar(context)) return null;
+    if (context.select((WindowFullscreenCubit cubit) => cubit.state)) {
+      return null;
+    }
+    if (!FullscreenHelper.isAllowedInContext(context)) return null;
+    return AppIconButton(
+      size: AppIconButtonSize.small,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      icon: const Icon(FluentIcons.full_screen_maximize_24_regular),
+      tooltip: context.settingsText('מסך מלא'),
+      onPressed: () => FullscreenHelper.toggleFullscreen(context, true),
     );
   }
 
@@ -764,9 +904,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     if (!FullscreenHelper.isAllowedInContext(context)) {
       return const SizedBox.shrink();
     }
-    return _CaptionActionButton(
+    return AppCaptionIconButton(
       brightness: Theme.of(context).brightness,
-      tooltip: isFullscreen ? 'צא ממסך מלא' : 'מסך מלא',
+      tooltip: context.settingsText(isFullscreen ? 'צא ממסך מלא' : 'מסך מלא'),
       icon: isFullscreen
           ? FluentIcons.full_screen_minimize_24_regular
           : FluentIcons.full_screen_maximize_24_regular,
@@ -778,16 +918,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   /// מציג אייקון הצמדה רק כשהכרטיסיה מוצמדת
-  Widget _buildPinIconInline(BuildContext context, OpenedTab tab) {
+  Widget _buildPinIconInline(
+    BuildContext context,
+    OpenedTab tab, {
+    required ({double start, double end}) gaps,
+  }) {
     if (!tab.isPinned) return const SizedBox.shrink();
-    return GestureDetector(
-      onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(start: 4.0),
-        child: Tooltip(
-          message: 'בטל הצמדה',
-          child: const Icon(FluentIcons.pin_24_filled, size: 14),
-        ),
+    return Padding(
+      padding: EdgeInsetsDirectional.only(start: gaps.start, end: gaps.end),
+      child: TabPinButton(
+        tooltip: context.settingsText('בטל הצמדה'),
+        onPressed: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
       ),
     );
   }
@@ -848,13 +989,21 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     TabsState state, {
     required bool isSelected,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    if (state.selectedTabs.contains(tab)) {
-      return _TabBackgroundPainter(colorScheme.secondaryContainer);
-    }
-    return isSelected
-        ? _TabBackgroundPainter(AppSurfaces.topBarBackground(context))
-        : null;
+    final inSelection = state.selectedTabs.contains(tab);
+    final color = TabStateColors.background(
+      context,
+      selected: isSelected,
+      inSelection: inSelection,
+    );
+    if (color == null) return null;
+    return _TabBackgroundPainter(
+      color,
+      borderColor: TabStateColors.border(context, inSelection: inSelection),
+      // "לבן" (#2850): הפעילה מוקפת בקו האזורים, שממשיך את הקו של השורה.
+      flareOutline: isSelected && !inSelection
+          ? AppSurfaces.regionBorder(context)
+          : null,
+    );
   }
 
   /// מפריד מוצג רק כשאין הבלטה משני צדיו: הכרטיסיה הפעילה והכרטיסיה שבריחוף
@@ -875,10 +1024,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     required bool isHovered,
     required bool isSelected,
   }) {
-    if (!isHovered || isSelected) return null;
-    return _TabBackgroundPainter(
-      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+    final color = TabStateColors.hover(
+      context,
+      hovered: isHovered,
+      selected: isSelected,
     );
+    return color == null ? null : _TabBackgroundPainter(color);
   }
 
   /// כרטיסיה שהצטמצמה מתחת ל-[_kTabContentMinWidth]. כל שכבות האינטראקציה
@@ -986,7 +1137,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     // X של חצי לשונית — סוגר רק את החלונית שלו, בסגנון ה-X של לשונית רגילה.
     Widget paneCloseButton(OpenedTab pane, double extent) => _tabCloseButton(
-      tooltip: 'סגור חלונית',
+      tooltip: context.settingsText('סגור חלונית'),
       width: extent,
       onPressed: () => closePane(pane, context),
     );
@@ -1000,7 +1151,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         // כל חלונית מפוצלת מציגה את תחילת שמה בחלק שווה מרוחב הטאב.
         // פסים מפרידים מוצגים רק כשיש להם מקום.
         final panes = leafPanes(tab);
-        final showDividers = tabWidth >= 100 * (panes.length - 1);
+        final showDividers = tabWidth >= _kTabIconMinWidth * (panes.length - 1);
         return Row(
           children: [
             for (var i = 0; i < panes.length; i++) ...[
@@ -1030,6 +1181,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final padScale = ((tabWidth - 40) / 40).clamp(0.0, 1.0);
       final outerPad = 3 + 3 * padScale;
       final innerPad = 3 + 5 * padScale;
+      final pinGaps = _tabPinGaps(padScale);
+      final pinExtent = TabPinButton.extent + pinGaps.start + pinGaps.end;
 
       // הרוחב שנשאר לתוכן הכרטיסיה אחרי המפריד, ה-paddings ורווח הטאב הנבחר.
       // הכותרת תמיד ב-Expanded ומתכווצת לאפס בעת הצורך.
@@ -1060,10 +1213,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final closeBudget = showClose
           ? closeExtent
           : (showPaneClose ? 2 * paneCloseExtent : 0);
-      final showPin =
-          tab.isPinned && (contentWidth - closeBudget) >= _kTabPinExtent;
+      final showPin = tab.isPinned && (contentWidth - closeBudget) >= pinExtent;
       // אייקון ליד שם הטאב — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
-      final showPdfIcon = tab is PdfBookTab && tabWidth >= 100;
+      final showPdfIcon = tab is PdfBookTab && tabWidth >= _kTabIconMinWidth;
       // כרטיסיית חיפוש מזוהה באייקון בכל רוחב שבו הוא נכנס; שאר האייקונים
       // רק ברוחב מלא. התקציב שומר מקום ל-X גם כשהוא מוסתר, כדי שהאייקון לא
       // יופיע ויעלם עם הריחוף.
@@ -1073,20 +1225,20 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       final leadingIconFits =
           contentWidth -
               stableCloseBudget -
-              (tab.isPinned &&
-                      contentWidth - stableCloseBudget >= _kTabPinExtent
-                  ? _kTabPinExtent
+              (tab.isPinned && contentWidth - stableCloseBudget >= pinExtent
+                  ? pinExtent
                   : 0) >=
           _kTabLeadingIconExtent;
       final contentIconData =
-          (tabWidth >= 100 || tab is SearchingTab) && leadingIconFits
+          (tabWidth >= _kTabIconMinWidth || tab is SearchingTab) &&
+              leadingIconFits
           ? tabContentIconData(tab)
           : null;
       // אייקון החיפוש מחליף את המילה "חיפוש:" רק כשהוא מוצג.
       final shownTitle = contentIconData == null
           ? displayTitle
           : tabTitleBesideContentIcon(tab, displayTitle);
-      final toolIcon = tab is ToolTab && tabWidth >= 100
+      final toolIcon = tab is ToolTab && tabWidth >= _kTabIconMinWidth
           ? buildToolTabLeadingIcon(
               tab.toolId,
               color: colorScheme.onSurface,
@@ -1105,7 +1257,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         0.0,
         contentWidth -
             closeBudget -
-            (showPin ? _kTabPinExtent : 0) -
+            (showPin ? pinExtent : 0) -
             (showPdfIcon || toolIcon != null || contentIconData != null
                 ? _kTabLeadingIconExtent
                 : 0),
@@ -1162,7 +1314,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 if (isSelected) const SizedBox(width: 4),
-                                if (showPin) _buildPinIconInline(context, tab),
+                                if (showPin)
+                                  _buildPinIconInline(
+                                    context,
+                                    tab,
+                                    gaps: pinGaps,
+                                  ),
                                 if (showPdfIcon)
                                   Padding(
                                     padding: const EdgeInsetsDirectional.only(
@@ -1272,7 +1429,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       child: TabCloseButton(
         tooltip: tooltip,
         size: Size(width, _kTabCloseExtent),
-        iconSize: 10,
+        iconSize: _kTabCloseIconSize,
         preferBelow: false,
         onPressed: onPressed,
       ),
@@ -1331,8 +1488,24 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           _pendingTabSelection = tab;
         }
       },
-      child: AutoScrollBarrier(child: child),
+      child: AutoScrollBarrier(
+        child: TabActivationRegion(
+          selected: index == state.currentTabIndex,
+          label: tabWidth < _kTabContentMinWidth ? tab.title : null,
+          onActivate: () => _activateTab(context, tab),
+          child: child,
+        ),
+      ),
     );
+  }
+
+  /// בחירה מהמקלדת או מקורא מסך.
+  void _activateTab(BuildContext context, OpenedTab tab) {
+    final bloc = context.read<TabsBloc>();
+    final target = bloc.state.tabs.indexOf(tab);
+    if (target != -1 && target != bloc.state.currentTabIndex) {
+      bloc.add(SetCurrentTab(target));
+    }
   }
 
   /// גרירת כרטיסיה מחוץ לחלון — ראו [CrossWindowTabDrag].
@@ -1363,7 +1536,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 class _TabBackgroundPainter extends CustomPainter {
   final Color color;
 
-  _TabBackgroundPainter(this.color);
+  /// מסגרת סביב גוף הכרטיסיה (בלי הכנפיים התחתונות), לבחירה מרובה.
+  final Color? borderColor;
+
+  /// קו סביב הכרטיסיה כולה, כולל הכנפיים, שנפגש בקו התחתון של השורה.
+  final Color? flareOutline;
+
+  _TabBackgroundPainter(this.color, {this.borderColor, this.flareOutline});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1372,8 +1551,8 @@ class _TabBackgroundPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final path = Path();
-    const topRadius = 8.0;
-    const bottomRadius = 15.0;
+    const topRadius = AppTokens.radius;
+    const bottomRadius = _kTabFlareRadius;
 
     // הצורה יושבת בתוך הגבולות, מ-[topInset] ועד `size.height`, ומוסיפה רק
     // [_kTabBottomBleed] מתחת לסרגל — ראו [_kTopBarHeight]. המירכוז נעשה כאן ולא
@@ -1415,95 +1594,75 @@ class _TabBackgroundPainter extends CustomPainter {
 
     path.close();
     canvas.drawPath(path, paint);
+
+    final flare = flareOutline;
+    if (flare != null) {
+      // אותה צורה בלי הבסיס, חצי קו פנימה. הקו של השורה הוא מסגרת ה-Container
+      // שמכווצת את התוכן, ולכן הוא יושב מיד מתחת לצייר: הכנפיים נגמרות בתוכו.
+      const i = AppTokens.borderThin / 2;
+      final h = size.height;
+      final outline = Path()
+        ..moveTo(-bottomRadius, h + i)
+        ..arcToPoint(
+          Offset(i, h - bottomRadius),
+          radius: const Radius.circular(bottomRadius),
+          clockwise: false,
+        )
+        ..lineTo(i, topInset + topRadius)
+        ..arcToPoint(
+          Offset(topRadius, topInset + i),
+          radius: const Radius.circular(topRadius - i),
+        )
+        ..lineTo(size.width - topRadius, topInset + i)
+        ..arcToPoint(
+          Offset(size.width - i, topInset + topRadius),
+          radius: const Radius.circular(topRadius - i),
+        )
+        ..lineTo(size.width - i, h - bottomRadius)
+        ..arcToPoint(
+          Offset(size.width + bottomRadius, h + i),
+          radius: const Radius.circular(bottomRadius),
+          clockwise: false,
+        );
+      canvas.drawPath(
+        outline,
+        Paint()
+          ..color = flare
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = AppTokens.borderThin,
+      );
+    }
+
+    final border = borderColor;
+    if (border == null) return;
+    const inset = AppTokens.multiSelectedBorderWidth / 2;
+    final outline = Path()
+      ..moveTo(inset, size.height)
+      ..lineTo(inset, topInset + topRadius)
+      ..arcToPoint(
+        Offset(topRadius, topInset + inset),
+        radius: const Radius.circular(topRadius - inset),
+      )
+      ..lineTo(size.width - topRadius, topInset + inset)
+      ..arcToPoint(
+        Offset(size.width - inset, topInset + topRadius),
+        radius: const Radius.circular(topRadius - inset),
+      )
+      ..lineTo(size.width - inset, size.height);
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = AppTokens.multiSelectedBorderWidth,
+    );
   }
 
   @override
   bool shouldRepaint(covariant _TabBackgroundPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-class _CaptionActionButton extends StatefulWidget {
-  const _CaptionActionButton({
-    required this.onPressed,
-    required this.icon,
-    required this.brightness,
-    this.tooltip,
-  });
-
-  final VoidCallback onPressed;
-  final IconData icon;
-  final Brightness brightness;
-  final String? tooltip;
-
-  @override
-  State<_CaptionActionButton> createState() => _CaptionActionButtonState();
-}
-
-class _CaptionActionButtonState extends State<_CaptionActionButton> {
-  bool _isHovering = false;
-  bool _isPressed = false;
-
-  void _onHover(bool hovered) {
-    if (_isHovering != hovered) {
-      setState(() => _isHovering = hovered);
-    }
-  }
-
-  void _onPressedState(bool pressed) {
-    if (_isPressed != pressed) {
-      setState(() => _isPressed = pressed);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.brightness == Brightness.dark;
-
-    Color bgColor = Colors.transparent;
-    Color iconColor = isDark
-        ? Colors.white
-        : Colors.black.withValues(alpha: 0.8956);
-
-    if (_isHovering) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0605)
-          : Colors.black.withValues(alpha: 0.0373);
-    }
-    if (_isPressed) {
-      bgColor = isDark
-          ? Colors.white.withValues(alpha: 0.0419)
-          : Colors.black.withValues(alpha: 0.0241);
-      iconColor = isDark
-          ? Colors.white.withValues(alpha: 0.786)
-          : Colors.black.withValues(alpha: 0.6063);
-    }
-
-    final button = MouseRegion(
-      onExit: (_) => _onHover(false),
-      onHover: (_) => _onHover(true),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _onPressedState(true),
-        onTapCancel: () => _onPressedState(false),
-        onTapUp: (_) => _onPressedState(false),
-        onTap: widget.onPressed,
-        child: Container(
-          constraints: const BoxConstraints(
-            minWidth: _kWindowCaptionButtonWidth,
-            minHeight: 32,
-          ),
-          decoration: BoxDecoration(color: bgColor),
-          child: Center(child: Icon(widget.icon, size: 16, color: iconColor)),
-        ),
-      ),
-    );
-
-    if (widget.tooltip == null) {
-      return button;
-    }
-
-    return Tooltip(message: widget.tooltip!, child: button);
-  }
+      oldDelegate.color != color ||
+      oldDelegate.borderColor != borderColor ||
+      oldDelegate.flareOutline != flareOutline;
 }
 
 /// מזהה לחיצה כפולה לאזור הריק של שורת הטאבים בלבד. הדחייה חייבת להיות

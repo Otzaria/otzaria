@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/tour/models/tour_shortcuts.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/widgets/tour_progress_dots.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 class TourTooltipCard extends StatelessWidget {
   /// הטקסט העברי, שהוא גם מפתח התרגום.
@@ -54,7 +54,8 @@ class TourTooltipCard extends StatelessWidget {
       textDirection: SettingsTextScope.languageOf(context).textDirection,
       child: Material(
         color: colorScheme.secondaryContainer,
-        elevation: 18,
+        elevation: AppTokens.elevation2,
+        shadowColor: AppShadows.color(colorScheme),
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,
           side: BorderSide(
@@ -144,23 +145,17 @@ class TourTooltipCard extends StatelessWidget {
                         if (!isLastStep &&
                             !isWelcomeStep &&
                             !isRestartEntry) ...[
-                          Tooltip(
-                            message: context.settingsText(
+                          AppIconButton(
+                            tooltip: context.settingsText(
                               isAutoPlaying
                                   ? 'עצור הצגה אוטומטית'
                                   : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
                             ),
-                            child: FilledButton.tonal(
-                              onPressed: onToggleAutoPlay,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(44, 44),
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Icon(
-                                isAutoPlaying
-                                    ? FluentIcons.pause_circle_24_regular
-                                    : FluentIcons.play_circle_24_regular,
-                              ),
+                            onPressed: onToggleAutoPlay,
+                            icon: Icon(
+                              isAutoPlaying
+                                  ? FluentIcons.pause_circle_24_regular
+                                  : FluentIcons.play_circle_24_regular,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -168,7 +163,7 @@ class TourTooltipCard extends StatelessWidget {
                         _TourNextButton(
                           icon: isLastStep
                               ? FluentIcons.checkmark_24_regular
-                              : FluentIcons.arrow_left_24_regular,
+                              : FluentIcons.arrow_right_24_regular,
                           text: context.settingsText(
                             isLastStep
                                 ? 'סגור'
@@ -205,25 +200,10 @@ class _TourNextButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text,
-          ),
-          const SizedBox(width: 8),
-          RtlIcon(icon),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ActionButton.recommended(
+    onPressed: onPressed,
+    icon: icon,
+    iconAlignment: IconAlignment.end,
+    text: text,
+  );
 }

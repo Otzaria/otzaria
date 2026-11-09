@@ -13,6 +13,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -43,7 +44,8 @@ String tabTitleBesideContentIcon(OpenedTab tab, String title) {
   return title.substring(prefix.length);
 }
 
-/// אייקון סוג הכרטיסיה — משותף לעמודה האנכית ולחלונית חיפוש הכרטיסיות.
+/// אייקון סוג הכרטיסיה — משותף לעמודה האנכית ולחלונית חיפוש הכרטיסיות. כל
+/// מקום בגודל שלו (16 כאן, 14 ברצועה העליונה), מאותו סט אייקונים (q10 Q14 C).
 ///
 /// מחזיר `null` לכרטיסיית טקסט רגילה, שאין לה אייקון ייעודי.
 Widget? buildTabTypeIcon(
@@ -59,7 +61,7 @@ Widget? buildTabTypeIcon(
   }
   if (tab is PdfBookTab) {
     return Icon(
-      FluentIcons.document_pdf_16_regular,
+      OtzariaIcons.document_pdf_24_regular,
       size: size,
       color: resolved,
     );
@@ -97,7 +99,7 @@ Widget? buildTabTypeIcon(
 IconData tabTypeIconData(OpenedTab tab) {
   final contentIcon = tabContentIconData(tab);
   if (contentIcon != null) return contentIcon;
-  if (tab is PdfBookTab) return FluentIcons.document_pdf_16_regular;
+  if (tab is PdfBookTab) return OtzariaIcons.document_pdf_24_regular;
   if (tab is CombinedTab) return FluentIcons.split_horizontal_24_regular;
   if (tab is ToolTab) return FluentIcons.toolbox_24_regular;
   return FluentIcons.document_24_regular;
@@ -140,6 +142,7 @@ Widget buildFadedTabTitle(BuildContext context, String title) => LayoutBuilder(
           begin: isLtr ? Alignment.centerLeft : Alignment.centerRight,
           end: isLtr ? Alignment.centerRight : Alignment.centerLeft,
           stops: const [0.0, 0.82, 1.0],
+          // ui-lint: allow UIL-015 — מסכת השקיפות של ShaderMask (dstIn); הצבע עצמו לא מצויר
           colors: const [Colors.white, Colors.white, Colors.transparent],
         ).createShader(rect),
         child: titleBox,
@@ -365,4 +368,125 @@ class TabCloseButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// הנעץ של כרטיסיה מוצמדת: בתחילת הכרטיסיה, ולחיצה עליו מבטלת את ההצמדה. משותף
+/// לרצועה העליונה ולעמודה האנכית (q10 Q14 C).
+///
+/// IconButton ולא Tooltip סביב אייקון, מאותה סיבה כמו [TabCloseButton]: Tooltip
+/// חיצוני מתמזג לצומת הסמנטיקה של הכרטיסיה (issue #1399).
+class TabPinButton extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  /// גודל האייקון, שהוא גם גודל הכפתור: הנעץ לא תופס יותר מקום מהאייקון.
+  static const double extent = 14;
+
+  const TabPinButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: EdgeInsets.zero,
+      ),
+      constraints: BoxConstraints.tight(const Size.square(extent)),
+      onPressed: onPressed,
+      icon: const Icon(FluentIcons.pin_24_filled, size: extent),
+    );
+  }
+}
+
+/// כרטיסיה כפקד נגיש: מקבלת פוקוס מקלדת (טבעת פוקוס רק בניווט מקלדת),
+/// Enter/רווח בוחרים בה, ולקורא מסך היא כפתור עם מצב "נבחר" ופעולת הקשה.
+/// הלחיצה בעכבר נשארת אצל הרצועה ([child]).
+class TabActivationRegion extends StatefulWidget {
+  final bool selected;
+  final VoidCallback onActivate;
+
+  /// השם הנגיש; null = הטקסט שבתוך [child].
+  final String? label;
+  final Widget child;
+
+  const TabActivationRegion({
+    super.key,
+    required this.selected,
+    required this.onActivate,
+    required this.child,
+    this.label,
+  });
+
+  @override
+  State<TabActivationRegion> createState() => _TabActivationRegionState();
+}
+
+class _TabActivationRegionState extends State<TabActivationRegion> {
+  bool _focusHighlight = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return FocusableActionDetector(
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onActivate();
+            return null;
+          },
+        ),
+      },
+      onShowFocusHighlight: (value) => setState(() => _focusHighlight = value),
+      child: Semantics(
+        container: true,
+        button: true,
+        selected: widget.selected,
+        label: widget.label,
+        onTap: widget.onActivate,
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: _focusHighlight
+              ? AppSurfaces.focusRingDecoration(cs)
+              : const BoxDecoration(),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// צבעי המצב של כרטיסיה, אחד לרצועה האופקית ולאנכית (DD-06).
+abstract final class TabStateColors {
+  /// הרקע: בחירה מרובה, ואחריה הכרטיסיה הפעילה (בצבע הסרגל). null = שקוף.
+  static Color? background(
+    BuildContext context, {
+    required bool selected,
+    required bool inSelection,
+  }) {
+    if (inSelection) {
+      return AppSurfaces.multiSelected(Theme.of(context).colorScheme);
+    }
+    if (selected) return AppSurfaces.topBarBackground(context);
+    return null;
+  }
+
+  /// מסגרת הבחירה המרובה.
+  static Color? border(BuildContext context, {required bool inSelection}) =>
+      inSelection
+      ? AppSurfaces.multiSelectedBorder(Theme.of(context).colorScheme)
+      : null;
+
+  /// הצללת הריחוף; לא על הכרטיסיה הפעילה.
+  static Color? hover(
+    BuildContext context, {
+    required bool hovered,
+    required bool selected,
+  }) => hovered && !selected
+      ? AppSurfaces.hoverRow(Theme.of(context).colorScheme)
+      : null;
 }

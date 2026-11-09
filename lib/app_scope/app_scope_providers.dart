@@ -36,6 +36,16 @@ class AppScopeProviders extends StatelessWidget {
   final SettingsRepository settingsRepository;
   final Widget child;
 
+  /// ה־SettingsBloc של התהליך מקבל גם כתיבות מהקורא ומשחזור גיבוי,
+  /// דרך ההתראות של ספק האחסון הפעיל.
+  @visibleForTesting
+  static SettingsBloc createSettingsBloc(SettingsRepository repository) =>
+      SettingsBloc(
+        repository: repository,
+        initialSettings: repository.readSettings(),
+        externalChanges: Settings.changes,
+      )..add(LoadSettings());
+
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
@@ -49,10 +59,7 @@ class AppScopeProviders extends StatelessWidget {
           BlocProvider<SettingsBloc>(
             create: (_) => StartupTimeline.instance.phaseSync(
               'settingsBloc',
-              () => SettingsBloc(
-                repository: settingsRepository,
-                initialSettings: settingsRepository.readSettings(),
-              )..add(LoadSettings()),
+              () => createSettingsBloc(settingsRepository),
             ),
           ),
           BlocProvider<IndexingBloc>(

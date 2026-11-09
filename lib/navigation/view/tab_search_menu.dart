@@ -13,10 +13,14 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_shadows.dart';
 
 const double _kMenuWidth = 320;
 const double _kMenuMaxHeight = 420;
@@ -24,19 +28,19 @@ const double _kRowHeight = 32;
 
 /// כפתור "חיפוש כרטיסיות" — חץ מטה בקצה רצועת הכרטיסיות, בנוסח דפדפן.
 class TabSearchButton extends StatelessWidget {
-  final double iconSize;
-  final ButtonStyle? style;
+  const TabSearchButton({super.key, this.tapTargetSize});
 
-  const TabSearchButton({super.key, this.iconSize = 18, this.style});
+  /// ראו [AppIconButton.tapTargetSize].
+  final MaterialTapTargetSize? tapTargetSize;
 
   @override
   Widget build(BuildContext context) {
     return Builder(
-      builder: (anchorContext) => IconButton(
-        icon: Icon(FluentIcons.chevron_down_24_regular, size: iconSize),
+      builder: (anchorContext) => AppIconButton(
+        icon: const Icon(FluentIcons.chevron_down_24_regular),
+        size: AppIconButtonSize.small,
+        tapTargetSize: tapTargetSize,
         tooltip: context.settingsText('חיפוש כרטיסיות'),
-        style: style,
-        visualDensity: style == null ? VisualDensity.compact : null,
         onPressed: () =>
             showTabSearchMenu(context, anchorContext: anchorContext),
       ),
@@ -94,6 +98,10 @@ Future<void> showTabSearchMenu(
   final route = _TabSearchRoute(
     rect: Rect.fromLTWH(left, top, width, height),
     tabsBloc: context.read<TabsBloc>(),
+    transitionDuration: AppMotion.duration(
+      context,
+      const Duration(milliseconds: 100),
+    ),
   );
   _openRoutes[keys] = route;
   return Navigator.of(context).push<void>(route).whenComplete(() {
@@ -105,7 +113,11 @@ class _TabSearchRoute extends PopupRoute<void> {
   final Rect rect;
   final TabsBloc tabsBloc;
 
-  _TabSearchRoute({required this.rect, required this.tabsBloc});
+  _TabSearchRoute({
+    required this.rect,
+    required this.tabsBloc,
+    required this.transitionDuration,
+  });
 
   @override
   Color? get barrierColor => null;
@@ -117,7 +129,7 @@ class _TabSearchRoute extends PopupRoute<void> {
   String? get barrierLabel => 'Dismiss';
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 100);
+  final Duration transitionDuration;
 
   @override
   Widget buildPage(
@@ -262,8 +274,9 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
     final cs = Theme.of(context).colorScheme;
 
     return Material(
-      elevation: 8,
-      borderRadius: AppTokens.borderRadiusAll,
+      elevation: AppTokens.elevation2,
+      shadowColor: AppShadows.color(cs),
+      shape: AppSurfaces.raisedShape(context),
       color: Theme.of(context).popupMenuTheme.color ?? cs.surface,
       clipBehavior: Clip.antiAlias,
       child: BlocBuilder<TabsBloc, TabsState>(
@@ -331,7 +344,7 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                     isDense: true,
                     prefixIcon: const Icon(
                       FluentIcons.search_24_regular,
-                      size: 18,
+                      size: AppTokens.iconSM,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: AppTokens.borderRadiusAll,
@@ -499,7 +512,7 @@ class _TabRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       child: Material(
-        color: isCurrent ? cs.secondaryContainer : Colors.transparent,
+        color: isCurrent ? AppSurfaces.selectedRow(cs) : Colors.transparent,
         borderRadius: AppTokens.borderRadiusAll,
         clipBehavior: Clip.antiAlias,
         child: InkWell(

@@ -136,6 +136,74 @@ void main() {
   });
 
   group('NavTreeHeader', () {
+    for (final width in [220.0, 235.0, 600.0]) {
+      for (final direction in TextDirection.values) {
+        for (final scale in [1.0, 1.3]) {
+          testWidgets(
+            'פעולות נשארות גלויות ולחיצות ברוחב $width ${direction.name} ×$scale',
+            (tester) async {
+              await (FontLoader('Roboto')..addFont(
+                    rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'),
+                  ))
+                  .load();
+              final activated = <int>[];
+              await pump(
+                tester,
+                Directionality(
+                  textDirection: direction,
+                  child: MediaQuery(
+                    data: MediaQueryData(
+                      textScaler: TextScaler.linear(scale),
+                    ),
+                    child: SizedBox(
+                      width: width,
+                      child: NavTreeHeader(
+                        title: 'ספריית אוצריא',
+                        onClearFilter: () => activated.add(0),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 1; i <= 3; i++)
+                              AppIconButton(
+                                size: AppIconButtonSize.small,
+                                icon: const Icon(Icons.search),
+                                tooltip: 'פעולה $i',
+                                onPressed: () => activated.add(i),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              expect(tester.takeException(), isNull);
+              final header = tester.getRect(find.byType(NavTreeHeader));
+              final clear = find.text('נקה סינון');
+              await tester.tap(clear);
+              for (var i = 1; i <= 3; i++) {
+                final action = find.byType(AppIconButton).at(i - 1);
+                final bounds = tester.getRect(action);
+                expect(bounds.left, greaterThanOrEqualTo(header.left));
+                expect(bounds.right, lessThanOrEqualTo(header.right));
+                expect(bounds.width, greaterThanOrEqualTo(48));
+                expect(bounds.height, greaterThanOrEqualTo(48));
+                await tester.tapAt(bounds.topLeft + const Offset(1, 1));
+              }
+              expect(activated, [0, 1, 2, 3]);
+              if (width == 600) {
+                expect(
+                  tester.getCenter(find.text('ספריית אוצריא')).dy,
+                  closeTo(tester.getCenter(find.byTooltip('פעולה 1')).dy, 0.01),
+                );
+              }
+              expect(tester.takeException(), isNull);
+            },
+          );
+        }
+      }
+    }
+
     testWidgets('ללא סינון: מציג כותרת ומונה, בלי "נקה סינון"', (tester) async {
       await pump(
         tester,

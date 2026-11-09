@@ -3,21 +3,23 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
 
-enum _Variant { recommended, neutral, ghost, warning }
+enum _Variant { recommended, neutral, ghost, warning, warningSoft, inline }
 
 /// כפתור פעולה גנרי בסגנון M3. השתמש בבנאים הממוינים:
 /// - [ActionButton.recommended] — FilledButton (Primary) לפעולה מומלצת
 /// - [ActionButton.neutral] — FilledButton.tonal לפעולה ניטרלית
 /// - [ActionButton.ghost] — TextButton שקוף וניטרלי
-/// - [ActionButton.warning] — TextButton שקוף עם טקסט cs.error לפעולות מסוכנות
+/// - [ActionButton.warning] — FilledButton ברקע cs.error לפעולות מסוכנות,
+///   בדיאלוג (אישור מחיקה)
+/// - [ActionButton.warningSoft] — אותה פעולה מסוכנת על מסך הגדרות (לא בדיאלוג),
+///   ברקע cs.errorContainer
+/// - [ActionButton.inline] — ghost צפוף לפעולה בתוך שורה, הודעה או פירורי לחם
 class ActionButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -38,6 +40,14 @@ class ActionButton extends StatelessWidget {
   /// עוגן overlay אחר — למשל `MenuAnchor.builder`.
   final String? tooltip;
 
+  /// צבע הטקסט של [ActionButton.inline], כשההקשר קובע אותו (למשל הודעה בטון
+  /// שגיאה). null = primary.
+  final Color? color;
+
+  /// צד האייקון: [IconAlignment.start] (ברירת המחדל) לפני הטקסט, או
+  /// [IconAlignment.end] אחריו ("הבא ←", "הצג עוד ⌄").
+  final IconAlignment iconAlignment;
+
   const ActionButton.recommended({
     super.key,
     required this.text,
@@ -49,7 +59,9 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.recommended;
 
   const ActionButton.neutral({
@@ -64,7 +76,9 @@ class ActionButton extends StatelessWidget {
     this.autofocus = false,
     this.tooltip,
     this.errorText = false,
-  }) : _variant = _Variant.neutral;
+    this.iconAlignment = IconAlignment.start,
+  }) : color = null,
+       _variant = _Variant.neutral;
 
   const ActionButton.ghost({
     super.key,
@@ -77,7 +91,9 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.ghost;
 
   const ActionButton.warning({
@@ -91,31 +107,99 @@ class ActionButton extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.tooltip,
+    this.iconAlignment = IconAlignment.start,
   }) : errorText = false,
+       color = null,
        _variant = _Variant.warning;
+
+  /// פעולה מסוכנת שיושבת על מסך הגדרות ולא בדיאלוג ("נקה הכל", "הסר"):
+  /// רקע errorContainer וטקסט onErrorContainer, אדום רך שלא מושך את העין
+  /// מכל שאר המסך. האדום המלא ([ActionButton.warning]) שמור לכפתור האישור
+  /// שבדיאלוג שהפעולה פותחת.
+  const ActionButton.warningSoft({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.isLoading = false,
+    this.icon,
+    this.iconWidget,
+    this.textAlign = TextAlign.start,
+    this.focusNode,
+    this.autofocus = false,
+    this.tooltip,
+    this.iconAlignment = IconAlignment.start,
+  }) : errorText = false,
+       color = null,
+       _variant = _Variant.warningSoft;
+
+  /// ghost צפוף: בלי גודל מינימלי, ריפוד 8×4, אזור מגע בגודל הכפתור, וטקסט
+  /// 14 מודגש. לפעולה שיושבת בתוך שורה, הודעה צפה או פירורי לחם, שבהן כפתור
+  /// בגובה 40 היה מגביה אותן.
+  const ActionButton.inline({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.color,
+    this.focusNode,
+    this.autofocus = false,
+    this.tooltip,
+  }) : isLoading = false,
+       icon = null,
+       iconWidget = null,
+       textAlign = TextAlign.start,
+       errorText = false,
+       iconAlignment = IconAlignment.start,
+       _variant = _Variant.inline;
 
   Color _loadingColor(ColorScheme cs) => switch (_variant) {
     _Variant.recommended => cs.onPrimary,
     _Variant.neutral => cs.onSecondaryContainer,
     _Variant.ghost => cs.primary,
-    _Variant.warning => cs.error,
+    _Variant.warning => cs.onError,
+    _Variant.warningSoft => cs.onErrorContainer,
+    _Variant.inline => color ?? cs.primary,
   };
 
-  ButtonStyle? _buttonStyle(ColorScheme cs) => switch (_variant) {
-    _Variant.warning => TextButton.styleFrom(foregroundColor: cs.error),
-    _Variant.neutral when errorText => FilledButton.styleFrom(
-      foregroundColor: cs.error,
-    ),
-    _ => null,
-  };
+  ButtonStyle? _buttonStyle(ThemeData theme) {
+    final cs = theme.colorScheme;
+    return switch (_variant) {
+      _Variant.warning => FilledButton.styleFrom(
+        backgroundColor: cs.error,
+        foregroundColor: cs.onError,
+      ),
+      _Variant.warningSoft => FilledButton.styleFrom(
+        backgroundColor: cs.errorContainer,
+        foregroundColor: cs.onErrorContainer,
+      ),
+      _Variant.neutral when errorText => FilledButton.styleFrom(
+        foregroundColor: cs.error,
+      ),
+      _Variant.inline => TextButton.styleFrom(
+        foregroundColor: color,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSM,
+          vertical: AppTokens.spaceXS,
+        ),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      _ => null,
+    };
+  }
 
   Widget _plain({
     required VoidCallback? onPressed,
     required Widget child,
     required ButtonStyle? style,
   }) => switch (_variant) {
-    _Variant.recommended => FilledButton(
+    _Variant.recommended ||
+    _Variant.warning ||
+    _Variant.warningSoft => FilledButton(
       onPressed: onPressed,
+      style: style,
       focusNode: focusNode,
       autofocus: autofocus,
       child: child,
@@ -127,7 +211,7 @@ class ActionButton extends StatelessWidget {
       autofocus: autofocus,
       child: child,
     ),
-    _Variant.ghost || _Variant.warning => TextButton(
+    _Variant.ghost || _Variant.inline => TextButton(
       onPressed: onPressed,
       style: style,
       focusNode: focusNode,
@@ -139,10 +223,14 @@ class ActionButton extends StatelessWidget {
   Widget _withIcon({required Widget leading, required ButtonStyle? style}) {
     final label = Text(text, textAlign: textAlign);
     return switch (_variant) {
-      _Variant.recommended => FilledButton.icon(
+      _Variant.recommended ||
+      _Variant.warning ||
+      _Variant.warningSoft => FilledButton.icon(
         onPressed: onPressed,
+        style: style,
         focusNode: focusNode,
         autofocus: autofocus,
+        iconAlignment: iconAlignment,
         icon: leading,
         label: label,
       ),
@@ -151,13 +239,15 @@ class ActionButton extends StatelessWidget {
         style: style,
         focusNode: focusNode,
         autofocus: autofocus,
+        iconAlignment: iconAlignment,
         icon: leading,
         label: label,
       ),
-      _Variant.ghost || _Variant.warning => TextButton.icon(
+      _Variant.ghost || _Variant.inline => TextButton.icon(
         onPressed: onPressed,
         icon: leading,
         label: label,
+        iconAlignment: iconAlignment,
         style: style,
         focusNode: focusNode,
         autofocus: autofocus,
@@ -174,7 +264,7 @@ class ActionButton extends StatelessWidget {
   Widget _buildButton(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final leading = iconWidget ?? (icon != null ? RtlIcon(icon!) : null);
-    final style = _buttonStyle(cs);
+    final style = _buttonStyle(Theme.of(context));
 
     if (isLoading) {
       return _plain(
@@ -323,7 +413,7 @@ enum _SquareVariant { field, toolbar }
 /// - [SquareIconButton.field] — רקע tonal, לשורה אחת עם [OtzariaSearchField]
 /// - [SquareIconButton.toolbar] — רקע שקוף, בתוך סרגל צף שכבר צבוע
 ///
-/// [slim] = null: יורש מ-[SettingsBloc.compactMenuMode], בדיוק כמו שדה החיפוש,
+/// [slim] = null: יורש מ-[AppDensity], בדיוק כמו שדה החיפוש,
 /// כדי שהגבהים יישארו זהים בשני המצבים.
 class SquareIconButton extends StatelessWidget {
   final IconData icon;
@@ -351,8 +441,7 @@ class SquareIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isSlim =
-        slim ?? context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final isSlim = slim ?? AppDensity.of(context).isCompact;
     final side = AppInputTokens.height(isSlim);
 
     return SizedBox(
@@ -406,6 +495,7 @@ class SecondaryIconButton extends StatelessWidget {
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: AppTokens.roundedShape,
       ),
     );
   }
@@ -436,6 +526,7 @@ class PrimaryIconButton extends StatelessWidget {
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: AppTokens.roundedShape,
       ),
     );
   }

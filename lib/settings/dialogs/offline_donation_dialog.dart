@@ -37,7 +37,7 @@ Future<void> showOfflineDonationDialog(BuildContext context) =>
       context: context,
       title: context.settingsText('תרומה בנדרים+'),
       icon: FluentIcons.heart_24_regular,
-      headerBand: true,
+      size: AppDialogSize.medium,
       confirmText: context.settingsText('סגור'),
       customContent: wrapWithSettingsScope(
         context,
@@ -76,7 +76,6 @@ class _DonationInstructions extends StatelessWidget {
             children: [
               Text(
                 context.settingsText('ניתן לתרום מכל מכשיר בנדרים+'),
-                style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: AppTokens.spaceMD),
               DetailsCard(

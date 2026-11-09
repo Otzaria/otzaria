@@ -103,7 +103,8 @@ List<ToolCatalogEntry> orderedToolEntries(List<ToolCatalogEntry> entries) => [
 @visibleForTesting
 const double kToolTileTargetWidth = 88;
 
-/// המרווח בקצה ימין שמפנה מקום לפס הגלילה, כדי שלא יעלה על הקוביות.
+/// המרווח בקצה ימין שמפנה מקום לפס הגלילה, כדי שלא יעלה על הקוביות. הפס
+/// מוצמד לימין בכל כיוון (EdgeScrollbarBehavior.right), ולכן גם המרווח פיזי (q10 Q16 A).
 @visibleForTesting
 const double kToolGridScrollbarGutter = 14;
 
@@ -520,7 +521,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         label: 'הזזה',
         onTap: null,
         children: [
-          // RtlIcon בשורת התפריט מהפך את החץ, כך שיצביע לכיוון ההזזה בפועל.
+          // החץ מתהפך ב-RTL (matchTextDirection), כך שיצביע לכיוון ההזזה בפועל.
           ToolTileAction(
             icon: FluentIcons.arrow_left_24_regular,
             label: 'הזז אחורה',
@@ -682,9 +683,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                     Padding(
                                       padding: EdgeInsets.only(
                                         bottom:
-                                            AppInputTokens.height(
-                                              settingsState.compactMenuMode,
-                                            ) +
+                                            AppDensity.of(context).fieldHeight +
                                             AppTokens.spaceMD,
                                       ),
                                       child: pluginsFooter,
@@ -696,9 +695,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                   openToolIds,
                                   footer: pluginsFooter,
                                   bottomInset:
-                                      AppInputTokens.height(
-                                        settingsState.compactMenuMode,
-                                      ) +
+                                      AppDensity.of(context).fieldHeight +
                                       AppTokens.spaceMD,
                                 ),
                         ),
@@ -818,8 +815,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
             onMove: (details) => _updateDragAutoScroll(details.offset),
             onLeave: (_) => _onDragEnded(),
             onAcceptWithDetails: (details) => _dropAtEndOfGroup(details.data),
+            // הרשת שומרת לפס רצועה קבועה משלה (kToolGridScrollbarGutter).
             builder: (context, _, _) => ScrollConfiguration(
-              behavior: const EdgeScrollbarBehavior.right(),
+              behavior: const EdgeScrollbarBehavior.right(reserveGutter: false),
               child: CustomScrollView(
                 controller: _gridScrollController,
                 slivers: _buildGridSlivers(
@@ -854,6 +852,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       if (i > 0 && isNewLabel) {
         slivers.add(
           const SliverPadding(
+            // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
             padding: EdgeInsets.only(
               top: AppTokens.spaceMD,
               right: kToolGridScrollbarGutter,
@@ -866,6 +865,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       if (isNewLabel) {
         slivers.add(
           SliverPadding(
+            // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
             padding: const EdgeInsets.only(
               top: AppTokens.spaceSM,
               right: kToolGridScrollbarGutter,
@@ -887,6 +887,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       runningIndex += group.entries.length;
       slivers.add(
         SliverPadding(
+          // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
           padding: const EdgeInsets.only(right: kToolGridScrollbarGutter),
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -910,6 +911,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     }
     slivers.add(
       SliverPadding(
+        // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
         padding: EdgeInsets.only(
           right: kToolGridScrollbarGutter,
           bottom: bottomInset,
@@ -1026,6 +1028,7 @@ class _PluginsFooter extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Padding(
+      // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
       padding: const EdgeInsets.only(
         top: AppTokens.spaceMD,
         right: kToolGridScrollbarGutter,
@@ -1100,6 +1103,7 @@ class _PluginsToolbar extends StatelessWidget {
       color: cs.surfaceContainerHigh,
       shape: AppTokens.roundedShape,
       elevation: AppTokens.elevation1,
+      shadowColor: AppShadows.color(cs),
       clipBehavior: Clip.antiAlias,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1355,20 +1359,17 @@ class _ToolDragFeedback extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
-          boxShadow: [
-            BoxShadow(
-              color: cs.shadow.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppShadows.floating(cs),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             entry.imageIcon != null
-                ? ImageIcon(AssetImage(entry.imageIcon!), size: 18)
-                : Icon(entry.icon, size: 18),
+                ? ImageIcon(
+                    AssetImage(entry.imageIcon!),
+                    size: AppTokens.iconSM,
+                  )
+                : Icon(entry.icon, size: AppTokens.iconSM),
             const SizedBox(width: 8),
             Text(
               context.settingsText(entry.label),

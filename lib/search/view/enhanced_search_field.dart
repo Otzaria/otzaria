@@ -44,6 +44,11 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   static const double _kSearchFieldMinWidth = 300;
   static const double _kControlHeight = 48;
 
+  /// מתחת לרוחב הזה הרמז המלא ("הקלד מילות חיפוש · לצמצום: ...") נחתך בין
+  /// האייקונים, ולכן ברמז רק "הקלד מילות חיפוש", ודרך הצמצום עוברת לשורת עזר
+  /// מתחת לשדה (q12 Q8, טלפון).
+  static const double _kFullHintMinWidth = 520;
+
   @override
   void initState() {
     super.initState();
@@ -91,89 +96,98 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: _kSearchFieldMinWidth,
-                    minHeight: _kControlHeight,
-                  ),
-                  child: Tooltip(
-                    message: context.settingsText(
-                      'הקלד מילות חיפוש ולחץ Enter או על סמל החיפוש כדי לבצע חיפוש.',
-                    ),
-                    child: RtlTextField(
-                      focusNode: widget.tab.searchFieldFocusNode,
-                      controller: widget.tab.queryController,
-                      onSubmitted: (_) => widget.onSubmit(),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerHigh,
-                        hintText: context.settingsText(
-                          'הקלד מילות חיפוש · לצמצום: מצה@רשי/פסחים',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shortHint = constraints.maxWidth < _kFullHintMinWidth;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: _kSearchFieldMinWidth,
+                        minHeight: _kControlHeight,
+                      ),
+                      child: Tooltip(
+                        message: context.settingsText(
+                          'הקלד מילות חיפוש ולחץ Enter או על סמל החיפוש כדי לבצע חיפוש.',
                         ),
-                        labelText: context.settingsText('חיפוש'),
-                        prefixIcon: widget.showInlineSearchButton
-                            ? IconButton(
-                                onPressed: widget.onSubmit,
-                                icon: const Icon(
-                                  OtzariaIcons.search_24_regular,
+                        child: RtlTextField(
+                          focusNode: widget.tab.searchFieldFocusNode,
+                          controller: widget.tab.queryController,
+                          onSubmitted: (_) => widget.onSubmit(),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHigh,
+                            hintText: shortHint
+                                ? context.settingsText('הקלד מילות חיפוש')
+                                : context.settingsText(
+                                    'הקלד מילות חיפוש · לצמצום: מצה@רשי/פסחים',
+                                  ),
+                            helperText: shortHint
+                                ? context.settingsText('לצמצום: מצה@רשי/פסחים')
+                                : null,
+                            labelText: context.settingsText('חיפוש'),
+                            prefixIcon: widget.showInlineSearchButton
+                                ? IconButton(
+                                    onPressed: widget.onSubmit,
+                                    icon: const Icon(
+                                      OtzariaIcons.search_24_regular,
+                                    ),
+                                  )
+                                : const Icon(OtzariaIcons.search_24_regular),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                PluginSearchFieldActions(
+                                  field: PluginSearchField.fullText,
+                                  controller: widget.tab.queryController,
+                                  onSubmitted: (_) => widget.onSubmit(),
+                                  invocationContext:
+                                      widget.pluginInvocationContext,
                                 ),
-                              )
-                            : const Icon(OtzariaIcons.search_24_regular),
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            PluginSearchFieldActions(
-                              field: PluginSearchField.fullText,
-                              controller: widget.tab.queryController,
-                              onSubmitted: (_) => widget.onSubmit(),
-                              invocationContext: widget.pluginInvocationContext,
-                              buttonSize: 40,
-                              iconSize: 22,
+                                ?widget.trailingAction,
+                                OtzariaSearchClearButton(
+                                  controller: widget.tab.queryController,
+                                  showWhenEmpty: true,
+                                  onCleared: () {
+                                    widget.tab.searchOptions.clear();
+                                    widget.tab.globalSearchOptions.clear();
+                                    context.read<SearchBloc>().add(
+                                      UpdateSearchQuery(''),
+                                    );
+                                    context.read<SearchBloc>().add(
+                                      UpdateFacetCounts({}),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
-                            ?widget.trailingAction,
-                            OtzariaSearchClearButton(
-                              controller: widget.tab.queryController,
-                              showWhenEmpty: true,
-                              onCleared: () {
-                                widget.tab.searchOptions.clear();
-                                widget.tab.globalSearchOptions.clear();
-                                context.read<SearchBloc>().add(
-                                  UpdateSearchQuery(''),
-                                );
-                                context.read<SearchBloc>().add(
-                                  UpdateFacetCounts({}),
-                                );
-                              },
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  // הצעת תיקון-מקלדת חיה תוך כדי הקלדה (issue #975):
+                  // מוצגת רק כשהטקסט נראה כהקלדה עברית במצב אנגלי,
+                  // ולחיצה מחליפה את תוכן השדה בלבד — החיפוש לא רץ מעצמו.
+                  TypingLayoutFixSuggestion(
+                    controller: widget.tab.queryController,
+                    fieldFocusNode: widget.tab.searchFieldFocusNode,
+                    hint: 'לחיצה תחליף את הטקסט שהוקלד',
+                  ),
+                ],
               ),
-              // הצעת תיקון-מקלדת חיה תוך כדי הקלדה (issue #975):
-              // מוצגת רק כשהטקסט נראה כהקלדה עברית במצב אנגלי,
-              // ולחיצה מחליפה את תוכן השדה בלבד — החיפוש לא רץ מעצמו.
-              TypingLayoutFixSuggestion(
-                controller: widget.tab.queryController,
-                fieldFocusNode: widget.tab.searchFieldFocusNode,
-                hint: 'לחיצה תחליף את הטקסט שהוקלד',
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

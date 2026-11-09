@@ -15,9 +15,11 @@ import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart'
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -104,7 +106,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final isNarrow = size.width < 600;
+    final isNarrow = WindowClass.of(context).isCompact;
     final maxWidth = isNarrow ? size.width * 0.95 : 640.0;
 
     return BlocProvider.value(
@@ -154,6 +156,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
         builder: (context, state) {
           if (state is AppReportEditing) _syncControllers(state);
           final dialog = Dialog(
+            insetPadding: isNarrow ? AppDialogSize.compactInset : null,
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -171,7 +174,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
                         padding: EdgeInsets.all(AppTokens.spaceXL),
                         child: Center(child: CircularProgressIndicator()),
                       ),
-                      AppReportEditing() => SingleChildScrollView(
+                      // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש
+                      // עוד שדות מתחת.
+                      AppReportEditing() => PanelScrollableContent(
+                        thumbVisibility: true,
                         padding: const EdgeInsets.fromLTRB(
                           AppTokens.spaceLG,
                           AppTokens.spaceMD,
@@ -227,23 +233,32 @@ class _AppReportDialogState extends State<AppReportDialog> {
       padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: AppTokens.spaceSM),
-          Text(
-            context.settingsText(label),
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          Icon(
+            icon,
+            size: AppTokens.iconSM,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          if (hint != null) ...[
-            const SizedBox(width: AppTokens.spaceXS),
-            Text(
-              context.settingsText(hint),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(width: AppTokens.spaceSM),
+          // בטלפון התווית וההערה יורדות שורה, ולא גולשות.
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                text: context.settingsText(label),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                children: [
+                  if (hint != null)
+                    TextSpan(
+                      text: ' ${context.settingsText(hint)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -286,13 +301,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
           enabled: enabled,
           autofocus: true,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('משפט אחד שמתאר את הבעיה'),
             errorText: state.invalidField == 'title'
                 ? context.settingsText('יש למלא כותרת')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportTitleChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -305,17 +318,17 @@ class _AppReportDialogState extends State<AppReportDialog> {
           key: const ValueKey('app-report-description'),
           controller: _description,
           enabled: enabled,
+          // השדה גדל עם הטקסט, והטופס הוא אזור הגלילה היחיד: שדה שגולל בעצמו
+          // לוכד את הגלגלת ואת הגרירה, ובחלון נמוך הוא כמעט כל הגובה.
           minLines: 3,
-          maxLines: 6,
+          maxLines: null,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('מה ציפית שיקרה, ומה קרה בפועל'),
             alignLabelWithHint: true,
             errorText: state.invalidField == 'description'
                 ? context.settingsText('יש לתאר את התקלה')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportDescriptionChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -330,13 +343,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
           controller: _steps,
           enabled: enabled,
           minLines: 2,
-          maxLines: 5,
+          maxLines: null,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: context.settingsText('מה עשית לפני שהתקלה הופיעה'),
             alignLabelWithHint: true,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportStepsChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -351,13 +362,11 @@ class _AppReportDialogState extends State<AppReportDialog> {
           enabled: enabled,
           keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: AppSurfaces.card(context),
             hintText: 'name@example.com',
             errorText: state.invalidField == 'reporterEmail'
                 ? context.settingsText('נדרשת כתובת תקינה')
                 : null,
-          ),
+          ).filledOnDialog(context),
           onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
@@ -399,7 +408,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
       children: [
         Icon(
           FluentIcons.drafts_24_regular,
-          size: 18,
+          size: AppTokens.iconSM,
           color: theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: AppTokens.spaceSM),

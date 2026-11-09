@@ -9,9 +9,10 @@ import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 /// במסך רחב דוחקת תוכן (או מרחפת מעליו — [floatOverContent]), ובמסך צר נפתחת כ-overlay.
 ///
 /// כללי ברירת מחדל:
-/// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (solidPanelBackground).
+/// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (panelBackground).
 /// - מעבר מרוחב רחב למסך צר סוגר אוטומטית את החלונית.
 /// - חלונית ניווט אמורה להיות בצד ימין (`centerEnd`) וחלונית מידע בצד שמאל (`centerStart`).
+///   הצד פיזי ולא תלוי בכיוון: ראו [alignment].
 ///
 /// ## התנהגות גרירה
 /// בזמן גרירת הוו, רוחב הפאנל מנוהל פנימית ב-[ValueNotifier] ולא גורם ל-rebuild
@@ -29,6 +30,11 @@ class AdaptiveSidePane extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback? onOpen;
   final Color? paneColor;
+
+  /// הצד של החלונית. **פיזי, למרות הטיפוס:** `centerEnd` הוא תמיד ימין
+  /// ו־`centerStart` תמיד שמאל, בכל כיוון (ראו [_AdaptiveSidePaneState._isPaneOnRight]).
+  /// המרה לצד לוגי תעביר את כל החלוניות לצד השני ב־8 מסכים, ולכן היא שינוי
+  /// API נפרד, למשל צד מפורש שמאל/ימין (q10 Q17 A).
   final AlignmentDirectional alignment;
   final bool wrapPaneInFloatingPanel;
   final bool isResizable;
@@ -68,8 +74,8 @@ class AdaptiveSidePane extends StatefulWidget {
     this.maintainState = false,
     required this.mainContent,
     required this.paneContent,
-    this.paneWidth = 340,
-    this.minMainContentWidth = 500,
+    this.paneWidth = LayoutConstraints.sidePaneWidth,
+    this.minMainContentWidth = LayoutConstraints.mainContentMinWidth,
     required this.onClose,
     this.onOpen,
     this.paneColor,
@@ -173,7 +179,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   }
 
   Color _effectivePaneColor(BuildContext context) {
-    return widget.paneColor ?? AppSurfaces.solidPanelBackground(context);
+    return widget.paneColor ?? AppSurfaces.panelBackground(context);
   }
 
   bool _isPaneOnRight(BuildContext context) {
@@ -218,18 +224,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     bool attached = false,
   }) {
     final paneColor = _effectivePaneColor(context);
-    final shadowColor = Theme.of(
-      context,
-    ).colorScheme.shadow.withValues(alpha: 0.22);
+    final shadowColor = AppShadows.color(Theme.of(context).colorScheme);
 
     // ממקם את פסי הגלילה בקצה החיצוני של הפאנל (הצמוד לדופן החלון) ולא בקצה
     // הפנימי, שם יושבת ידית הגרירה (ResizableDragHandle) וחוסמת את הלחיצה על
-    // הפס. בצד ימין של המסך הקצה החיצוני הוא ימין, ולהיפך.
+    // הפס. בצד ימין של המסך הקצה החיצוני הוא ימין, ולהיפך: פס בשמאל בחלונית
+    // שמשמאל לתוכן הוא חריג מתועד מהימין הקבוע (q10 Q17).
     final scrollbarWrapped = ScrollbarTheme(
-      data: ScrollbarThemeData(
-        crossAxisMargin: 2,
-        mainAxisMargin: widget.scrollbarTopMargin ?? _kWideTopGap,
-      ),
+      data: ScrollbarTheme.of(
+        context,
+      ).copyWith(mainAxisMargin: widget.scrollbarTopMargin ?? _kWideTopGap),
       child: ScrollConfiguration(
         behavior: EdgeScrollbarBehavior(
           paneOnRight ? ScrollbarOrientation.right : ScrollbarOrientation.left,
@@ -241,30 +245,41 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     if (attached) {
       // מעטפת ריבועית צמודה לכל הקצוות; העיגול הקעור בפינה הפנימית-עליונה
       // מצויר בנפרד כטלאי (_buildTopCornerFillet) באזור התוכן.
+      // "לבן" (#2850): קו כהה דק בקצה הפנימי, בין החלונית לתוכן.
+      final regionBorder = AppSurfaces.regionBorder(context);
+      final innerEdge = regionBorder == null
+          ? null
+          : BorderSide(
+              color: regionBorder,
+              width: AppTokens.borderThin,
+            );
       return Material(
         color: paneColor,
-        elevation: 1,
+        elevation: AppTokens.elevation1,
         shadowColor: shadowColor,
         surfaceTintColor: Colors.transparent,
+        // הקצה הפנימי: הצד הפיזי של החלונית כבר נקבע ב-paneOnRight.
+        shape: innerEdge == null
+            ? null
+            : paneOnRight
+            ? Border(left: innerEdge)
+            : Border(right: innerEdge),
         child: scrollbarWrapped,
       );
     }
 
     if (widget.wrapPaneInFloatingPanel) {
-      return FloatingPanel(
-        color: paneColor,
-        elevation: 8,
-        shadowColor: shadowColor,
-        child: scrollbarWrapped,
-      );
+      return FloatingPanel(color: paneColor, child: scrollbarWrapped);
     }
 
+    // חלונית צפה (לא צמודה, למשל התצוגה המקדימה בספרייה). "לבן": מסגרת
+    // בקו האזורים, כמו תפריט ודיאלוג (#2850).
     return Material(
       color: paneColor,
-      elevation: 4,
+      elevation: AppTokens.elevation2,
       shadowColor: shadowColor,
       surfaceTintColor: Colors.transparent,
-      borderRadius: AppTokens.borderRadiusAll,
+      shape: AppSurfaces.raisedShape(context),
       clipBehavior: Clip.hardEdge,
       child: scrollbarWrapped,
     );
@@ -413,6 +428,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     // ה-handle לא תלוי ברוחב — מוגדר מחוץ ל-ValueListenableBuilder
     final handleWidget = showHandle
+        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
         ? Positioned(
             top: _wideTopGap,
             bottom: _wideBottomGap,
@@ -466,19 +482,25 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           clipBehavior: Clip.none,
           children: [
             AnimatedContainer(
-              duration: _isDragging ? Duration.zero : AppTokens.animPanelSlide,
+              duration: _isDragging
+                  ? Duration.zero
+                  : AppMotion.duration(context, AppTokens.animPanelSlide),
               curve: Curves.easeInOut,
               width: widget.isOpen ? currentOccupied : 0,
               child: ClipRect(
                 child: Align(
                   alignment: paneOnRight
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       ? Alignment.centerRight
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       : Alignment.centerLeft,
                   child: OverflowBox(
                     maxWidth: currentOccupied,
                     minWidth: 0,
                     alignment: paneOnRight
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         ? Alignment.centerRight
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         : Alignment.centerLeft,
                     child: paneSlotContent,
                   ),
@@ -514,8 +536,12 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ValueListenableBuilder<double>(
       valueListenable: _livePaneWidth,
       builder: (context, liveWidth, _) {
-        if (!widget.isOpen) return const SizedBox.shrink();
+        // "לבן": הפינה ישרה, והקווים של הסרגל ושל החלונית נפגשים בה (#2850).
+        if (!widget.isOpen || AppSurfaces.regionBorder(context) != null) {
+          return const SizedBox.shrink();
+        }
         final occupied = liveWidth + _wideOuterSideGap + _wideInnerSideGap;
+        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
         return Positioned(
           top: 0,
           right: paneOnRight ? occupied : null,
@@ -539,10 +565,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       child: GestureDetector(
         onTap: widget.onClose,
         child: AnimatedOpacity(
-          duration: AppTokens.animPanelOpacity,
+          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           opacity: widget.isOpen ? 1.0 : 0.0,
           child: ColoredBox(
-            color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.30),
+            color: AppSurfaces.scrim(Theme.of(context).colorScheme),
           ),
         ),
       ),
@@ -581,13 +607,17 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                   builder: (context, liveWidth, _) {
                     final width = liveWidth.clamp(0.0, areaWidth);
                     final slide = AnimatedSlide(
-                      duration: AppTokens.animPanelSlide,
+                      duration: AppMotion.duration(
+                        context,
+                        AppTokens.animPanelSlide,
+                      ),
                       curve: Curves.easeInOut,
                       offset: widget.isOpen ? Offset.zero : closedOffset,
                       child: pane,
                     );
                     return Stack(
                       children: [
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         Positioned(
                           top: 0,
                           bottom: 0,
@@ -597,6 +627,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                           child: slide,
                         ),
                         if (showHandle && widget.isOpen)
+                          // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                           Positioned(
                             top: 0,
                             bottom: 0,
@@ -664,6 +695,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
                   return Stack(
                     children: [
+                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                       Positioned(
                         top: _kNarrowTopGap,
                         bottom: _kNarrowBottomGap,
@@ -671,10 +703,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                         left: paneOnRight ? null : _kNarrowSideGap,
                         width: currentWidth,
                         child: AnimatedOpacity(
-                          duration: AppTokens.animPanelOpacity,
+                          duration: AppMotion.duration(
+                            context,
+                            AppTokens.animPanelOpacity,
+                          ),
                           opacity: widget.isOpen ? 1.0 : 0.0,
                           child: AnimatedSlide(
-                            duration: AppTokens.animPanelSlide,
+                            duration: AppMotion.duration(
+                              context,
+                              AppTokens.animPanelSlide,
+                            ),
                             curve: Curves.easeInOut,
                             offset: widget.isOpen ? Offset.zero : closedOffset,
                             child: narrowPane,
@@ -682,6 +720,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                         ),
                       ),
                       if (showHandle)
+                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         Positioned(
                           top: _kNarrowTopGap,
                           bottom: _kNarrowBottomGap,
@@ -692,10 +731,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                               ? null
                               : _kNarrowSideGap + currentWidth - overhang,
                           child: AnimatedOpacity(
-                            duration: AppTokens.animPanelOpacity,
+                            duration: AppMotion.duration(
+                              context,
+                              AppTokens.animPanelOpacity,
+                            ),
                             opacity: widget.isOpen ? 1.0 : 0.0,
                             child: AnimatedSlide(
-                              duration: AppTokens.animPanelSlide,
+                              duration: AppMotion.duration(
+                                context,
+                                AppTokens.animPanelSlide,
+                              ),
                               curve: Curves.easeInOut,
                               offset: widget.isOpen
                                   ? Offset.zero

@@ -19,6 +19,8 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -27,6 +29,8 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
+import 'package:otzaria/settings/widgets/settings_scrollbar.dart';
 
 /// מייצג את לשוניות מסך ההגדרות שניתן לנווט אליהן בקוד.
 enum SettingsTab { design, text, library, tools, shortcuts, system, about }
@@ -383,10 +387,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (label: 'מערכת', indices: <int>[5, 6]),
   ];
 
-  TextStyle? _mobileTitleStyle(BuildContext context) => Theme.of(
-    context,
-  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold);
-
   @override
   Widget build(BuildContext context) {
     // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
@@ -402,9 +402,15 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
           final language = resolveSettingsLanguage(languageCode);
           return Directionality(
             textDirection: language.textDirection,
-            child: SettingsTextScope(
-              language: language,
-              child: Builder(builder: _buildContent),
+            // פסי הגלילה בהגדרות בקצה ה-end, ולא בימין הקבוע (חריג מתועד).
+            child: Builder(
+              builder: (context) => SettingsScrollbar.scope(
+                context,
+                child: SettingsTextScope(
+                  language: language,
+                  child: Builder(builder: _buildContent),
+                ),
+              ),
             ),
           );
         },
@@ -431,9 +437,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       color: colorScheme.primary,
                     ),
                     title: Text(context.settingsText(_tabsData[idx].label)),
-                    trailing: const RtlIcon(
-                      FluentIcons.chevron_left_24_regular,
-                    ),
+                    trailing: const Icon(FluentIcons.chevron_right_24_regular),
                     onTap: () {
                       _activeSearchNavigationRequest = null;
                       setState(() {
@@ -481,33 +485,37 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
               onBack: onBack,
               child: Scaffold(
                 backgroundColor: bgColor,
-                appBar: AppBar(
-                  backgroundColor: bgColor,
-                  elevation: 0,
-                  title: Text(
-                    context.settingsText(
-                      isSearching
-                          ? 'תוצאות חיפוש'
-                          : _showMobileMenu
-                          ? 'הגדרות'
-                          : _tabsData[_selectedIndex].label,
-                    ),
-                    style: _mobileTitleStyle(context),
-                  ),
-                  leading: onBack == null
-                      ? null
-                      : Tooltip(
-                          message: context.settingsText('חזור (Esc)'),
-                          child: IconButton(
-                            icon: const RtlIcon(
-                              FluentIcons.arrow_right_24_regular,
-                            ),
-                            onPressed: onBack,
-                          ),
-                        ),
-                ),
                 body: Column(
                   children: [
+                    // סרגל הכותרת של הטלפון הוא AppTopBar, כמו בשאר המסכים
+                    // (q10 Q8b A). בתפריט הוא היה רק "הגדרות" שוב, מתחת
+                    // לשורת הכותרת של החלון שכבר אומרת את זה, ולכן הוא מוצג
+                    // רק כשיש לאן לחזור: בלשונית ובתוצאות החיפוש.
+                    if (onBack != null)
+                      AppTopBar(
+                        leadingItems: [
+                          AppTopBarItem(
+                            widget: BarButton.icon(
+                              tooltip: context.settingsText('חזור (Esc)'),
+                              icon: FluentIcons.arrow_left_24_regular,
+                              onPressed: onBack,
+                            ),
+                          ),
+                        ],
+                        center: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            context.settingsText(
+                              isSearching
+                                  ? 'תוצאות חיפוש'
+                                  : _tabsData[_selectedIndex].label,
+                            ),
+                            style: AppTopBar.titleStyle(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                       child: SettingsSearchField(
@@ -569,18 +577,23 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: 12,
-                                left: 12,
-                                bottom: 20,
+                            // בחלון נמוך (טלפון לרוחב) הכותרת רק חוזרת על שורת
+                            // הכותרת של החלון, ולוקחת מהגובה של הרשימה.
+                            if (!WindowClass.isShortOf(context))
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  right: 12,
+                                  left: 12,
+                                  bottom: 20,
+                                ),
+                                child: Text(
+                                  context.settingsText('הגדרות'),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
                               ),
-                              child: Text(
-                                context.settingsText('הגדרות'),
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                            ),
                             Expanded(
                               child: ListView.builder(
                                 itemCount: availableTabIndexes.length,
@@ -743,16 +756,14 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                   crossAxisMargin: 6,
                   mainAxisMargin: 0,
                 ),
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: Scrollbar(
-                    controller: widget.scrollController,
-                    thumbVisibility: true,
-                    interactive: true,
-                    child: widget.overrideContent ?? widget.child,
-                  ),
+                // התוכן בריווח 16 משלו (SettingsTabScrollView), והפס יושב בתוכו.
+                child: AppScrollbar(
+                  controller: widget.scrollController,
+                  side: SettingsScrollbar.sideOf(context),
+                  thumbVisibility: true,
+                  interactive: true,
+                  contentInset: AppTokens.spaceMD,
+                  child: widget.overrideContent ?? widget.child,
                 ),
               ),
             ),

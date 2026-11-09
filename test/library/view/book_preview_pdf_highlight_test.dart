@@ -33,9 +33,13 @@ class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
 
 class _HighlightCanvas implements Canvas {
   final rects = <Rect>[];
+  final colors = <Color>[];
 
   @override
-  void drawRect(Rect rect, Paint paint) => rects.add(rect);
+  void drawRect(Rect rect, Paint paint) {
+    rects.add(rect);
+    colors.add(paint.color);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -93,8 +97,11 @@ Future<void> main() async {
       Map<int, List<String>> alternatives = const {},
       SearchMatchPolicy policy = SearchMatchPolicy.standard,
       bool isSearchResult = true,
+      Brightness brightness = Brightness.light,
     }) => tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(brightness: brightness),
+        themeAnimationDuration: Duration.zero,
         home: BlocProvider<SettingsBloc>.value(
           value: settings,
           child: BookPreviewPanel(
@@ -121,16 +128,18 @@ Future<void> main() async {
     }
 
     PdfViewer viewer() => tester.widget<PdfViewer>(find.byType(PdfViewer));
-    List<Rect> highlights(int pageNumber) {
+    _HighlightCanvas paintHighlights(int pageNumber) {
       final controller = viewer().controller!;
-      if (!controller.isReady) return [];
-      final page = controller.document.pages[pageNumber - 1];
       final canvas = _HighlightCanvas();
+      if (!controller.isReady) return canvas;
+      final page = controller.document.pages[pageNumber - 1];
       for (final paint in viewer().params.pagePaintCallbacks ?? []) {
         paint(canvas, Rect.fromLTWH(0, 0, page.width, page.height), page);
       }
-      return canvas.rects;
+      return canvas;
     }
+
+    List<Rect> highlights(int pageNumber) => paintHighlights(pageNumber).rects;
 
     await pump('alpha');
     expect(await pumpUntil(() => viewer().controller!.isReady), isTrue);
@@ -141,6 +150,25 @@ Future<void> main() async {
       expect(await pumpUntil(() => highlights(1).length == 2), isTrue);
       expect(highlights(2), isEmpty);
       expect(highlights(1).every((rect) => !rect.isEmpty), isTrue);
+      expect(
+        paintHighlights(1).colors.map((color) => color.toARGB32()),
+        everyElement(0x80FFFF00),
+      );
+
+      // PDF pages keep their original colors when the app theme changes.
+      // An overlay drawn over the glyphs must retain its 50% opacity.
+      await pump('alpha', brightness: Brightness.dark);
+      expect(
+        Theme.of(tester.element(find.byType(PdfViewer))).brightness,
+        Brightness.dark,
+      );
+      expect(viewer().controller, same(controller));
+      final darkHighlights = paintHighlights(1);
+      expect(darkHighlights.rects, hasLength(2));
+      expect(
+        darkHighlights.colors.map((color) => color.toARGB32()),
+        everyElement(0x80FFFF00),
+      );
 
       await pump('alpha', page: 2);
       expect(await pumpUntil(() => highlights(2).length == 1), isTrue);

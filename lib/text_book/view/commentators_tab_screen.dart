@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
 import 'package:otzaria/book_common/view/commentators_side_pane.dart';
@@ -43,6 +46,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 const _kAllChapter = -1;
 
@@ -659,11 +664,16 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         (it) => it.isChapter && it.chapter == chapter,
       );
       if (idx < 0) return;
-      _navScrollController.scrollTo(
-        index: idx,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+      AppMotion.scroll(
+        context,
+        AppTokens.animPanelSlide,
+        animate: (duration) => _navScrollController.scrollTo(
+          index: idx,
+          alignment: 0.4,
+          duration: duration,
+          curve: Curves.easeInOut,
+        ),
+        jump: () => _navScrollController.jumpTo(index: idx, alignment: 0.4),
       );
     });
   }
@@ -755,6 +765,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                             NavSidePanel(
                               isOpen: _navPaneOpen || _pinLeftPane,
                               isPinned: _pinLeftPane,
+                              isGloballyPinned:
+                                  Settings.getValue<bool>(
+                                    SettingsRepository.keyPinSidebar,
+                                  ) ??
+                                  false,
                               onClose: () {
                                 if (!_pinLeftPane) {
                                   setState(() => _navPaneOpen = false);
@@ -987,7 +1002,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     TextBookLoaded state,
     List<TocEntry> chapters,
   ) {
-    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    final isCompact = AppDensity.of(context).isCompact;
     void addBookmark() => _addBookmark(
       context,
       state,

@@ -213,7 +213,7 @@ void _showMeaningDialog({
     context: context,
     title: title,
     icon: FluentIcons.book_open_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     customContent: content,
     confirmText: 'סגור',
   );

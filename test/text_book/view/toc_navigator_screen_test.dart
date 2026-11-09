@@ -19,6 +19,7 @@ import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../support/search_engine_test_init.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
 
 /// Bloc בדיקה שמאפשר emit ידני של states ל-TocViewer.
 /// מאפשר לאמת ש-buildWhen מסנן emits לא רלוונטיים — ההגנה המרכזית של
@@ -256,6 +257,38 @@ Future<void> main() async {
     );
   });
 
+  // DD-26: ההחלטה אם לסגור נמצאת אצל ההורה (לפי פריסת החלונית), לא לפי פלטפורמה.
+  testWidgets('מעבר לערך מבקש מההורה לסגור את החלונית, בכל פלטפורמה', (
+    tester,
+  ) async {
+    final bloc = _TestTextBookBloc(
+      _loadedState(
+        toc: _buildLargeToc(simanim: 3, seifim: 0),
+        visibleIndices: const [0],
+      ),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    var closeRequests = 0;
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          lines: LineScrollController(),
+          closeLeftPaneCallback: () => closeRequests++,
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('siman 1'));
+    await tester.pumpAndSettle();
+    expect(closeRequests, 1);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   // issue #1725 — ברשימה הוירטואלית הכותרת עם אייקון החיפוש נפרקת בגלילה.
   testWidgets('גלילה בעץ גדול מציגה אייקון חיפוש צף שפותח את השדה', (
     tester,
@@ -371,6 +404,8 @@ Future<void> main() async {
     );
     await tester.pump();
     expect(find.text('seif 0'), findsNWidgets(3));
+    // הכפתור המשותף לתוכן העניינים ולעץ החיפוש (#3103).
+    expect(find.byType(NavTreeCollapseAllButton), findsOneWidget);
 
     await tester.tap(find.byTooltip('כווץ הכל'));
     await tester.pumpAndSettle();
@@ -380,6 +415,144 @@ Future<void> main() async {
     await tester.tap(find.byTooltip('הרחב הכל'));
     await tester.pumpAndSettle();
     expect(find.text('seif 0'), findsNWidgets(3));
+  });
+
+  // #3103: הכפתור הולך לפי המצב בפועל — "הרחב הכל" כשאין ענף פתוח (מעבר
+  // לשורש שהמצב המכווץ משאיר פתוח), ו"כווץ הכל" כשיש.
+  group('כפתור הרחב/כווץ הכל לפי מצב העץ (#3103)', () {
+    /// שורש יחיד ששמו אינו שם הספר (ולכן מוצג), ותחתיו פרקים עם דפים.
+    List<TocEntry> rootedToc() {
+      final root = TocEntry(text: 'שורש', index: 0, level: 1);
+      var line = 1;
+      for (var c = 0; c < 3; c++) {
+        final chapter = TocEntry(
+          text: 'פרק $c',
+          index: line++,
+          level: 2,
+          parent: root,
+        );
+        for (var d = 0; d < 2; d++) {
+          chapter.children.add(
+            TocEntry(
+              text: 'דף $c-$d',
+              index: line++,
+              level: 3,
+              parent: chapter,
+            ),
+          );
+        }
+        root.children.add(chapter);
+      }
+      return [root];
+    }
+
+    Future<void> pumpToc(
+      WidgetTester tester,
+      List<TocEntry> toc, {
+      List<int> visibleIndices = const [0],
+    }) async {
+      final bloc = _TestTextBookBloc(
+        _loadedState(toc: toc, visibleIndices: visibleIndices),
+      );
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            lines: LineScrollController(),
+            closeLeftPaneCallback: () {},
+            focusNode: focusNode,
+          ),
+          bloc,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    void expectButton(String tooltip) {
+      const other = {'כווץ הכל': 'הרחב הכל', 'הרחב הכל': 'כווץ הכל'};
+      expect(find.byTooltip(tooltip), findsOneWidget);
+      expect(find.byTooltip(other[tooltip]!), findsNothing);
+      expect(
+        find.byIcon(
+          tooltip == 'כווץ הכל'
+              ? NavTreeCollapseAllButton.collapseIcon
+              : NavTreeCollapseAllButton.expandIcon,
+        ),
+        findsOneWidget,
+      );
+    }
+
+    Future<void> tapChevron(WidgetTester tester, String title) async {
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text(title),
+            matching: find.byType(NavTreeTile),
+          ),
+          matching: find.byType(ExpandingChevron),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('נפתח עם ענפים פתוחים: "כווץ הכל"', (tester) async {
+      await pumpToc(tester, _buildLargeToc(simanim: 3, seifim: 2));
+      expectButton('כווץ הכל');
+    });
+
+    testWidgets('סגירה ידנית של כל הענפים: "הרחב הכל"; פתיחת ענף: "כווץ הכל"', (
+      tester,
+    ) async {
+      await pumpToc(tester, _buildLargeToc(simanim: 3, seifim: 2));
+      for (final siman in ['siman 0', 'siman 1', 'siman 2']) {
+        await tapChevron(tester, siman);
+      }
+      expect(find.text('seif 0'), findsNothing);
+      expectButton('הרחב הכל');
+
+      await tapChevron(tester, 'siman 1');
+      expect(find.text('seif 0'), findsOneWidget);
+      expectButton('כווץ הכל');
+    });
+
+    testWidgets('שורש פתוח בלבד הוא המצב המכווץ, וגם שורש שנסגר ביד', (
+      tester,
+    ) async {
+      await pumpToc(tester, rootedToc());
+      // ברירת המחדל: השורש והפרק הראשון פתוחים.
+      expect(find.text('דף 0-0'), findsOneWidget);
+      expectButton('כווץ הכל');
+
+      await tapChevron(tester, 'פרק 0');
+      expectButton('הרחב הכל');
+
+      await tapChevron(tester, 'שורש');
+      expect(find.text('פרק 0'), findsNothing);
+      expectButton('הרחב הכל');
+
+      await tester.tap(find.byTooltip('הרחב הכל'));
+      await tester.pumpAndSettle();
+      expect(find.text('דף 2-1'), findsOneWidget);
+      expectButton('כווץ הכל');
+    });
+
+    testWidgets('נפתח במיקום הקריאה: הענף שלו פתוח, ולכן "כווץ הכל"', (
+      tester,
+    ) async {
+      // שורה 8 היא "דף 2-0": הפרק השלישי נפתח כדי להראות את מיקום הקריאה.
+      await pumpToc(tester, rootedToc(), visibleIndices: const [8]);
+      expect(find.text('דף 2-0'), findsOneWidget);
+      expectButton('כווץ הכל');
+
+      await tapChevron(tester, 'פרק 0');
+      expectButton('כווץ הכל');
+
+      await tapChevron(tester, 'פרק 2');
+      expect(find.text('דף 2-0'), findsNothing);
+      expectButton('הרחב הכל');
+    });
   });
 
   testWidgets('עץ שטוח בלי ענפים - אין כפתור כווץ הכל', (tester) async {

@@ -1620,6 +1620,11 @@ void main() {
       final initial = await dialogHeight(tester);
 
       expect(initial, lessThan(500), reason: 'לא בגובה של טופס עם עורך');
+      expect(
+        tester.getSize(find.byType(RegularReportTab)).width,
+        closeTo(720, 1),
+        reason: 'הטופס משתמש ברוחב large גם בחלון רחב',
+      );
       await tester.enterText(
         find.byKey(const ValueKey('report-details-field')),
         List.filled(12, 'שורה').join('\n'),
@@ -1630,7 +1635,7 @@ void main() {
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
-      // ההוראות נגללות בתוך הטופס הקצר; כפתורי הפעולה נשארים מחוץ לגלילה.
+      // ההוראות וסימון המיקום נגללים בטופס הקצר; הפעולות נשארות מחוץ לגלילה.
       final scroll = formScroll(tester);
       expect(scroll.maxScrollExtent, greaterThan(0));
       await tester.ensureVisible(
@@ -1653,6 +1658,122 @@ void main() {
       );
 
       expect(height, greaterThan(560));
+    });
+  });
+
+  group('TabbedReportDialog — סגירה (DD-08)', () {
+    Future<void> open(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1600, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => showDialog<void>(
+                  context: ctx,
+                  builder: (_) => const TabbedReportDialog(
+                    selectedText: 'קטע',
+                    fontSize: 18,
+                    bookTitle: 'ספר בדיקה',
+                    currentLineNumber: 1,
+                    directReportTargetLabel: 'אוצריא',
+                  ),
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+    }
+
+    final details = find.byKey(const ValueKey('report-details-field'));
+
+    testWidgets('Escape סוגר טופס ריק', (tester) async {
+      await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsNothing);
+    });
+
+    testWidgets('עם טקסט Escape שואל ו"המשך לערוך" שומר את הטקסט', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.enterText(details, 'פירוט הטעות');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text('המשך לערוך'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsOneWidget);
+      expect(find.text('פירוט הטעות'), findsOneWidget);
+    });
+
+    testWidgets('עם טקסט X וכפתור היציאה שואלים לפני הסגירה', (tester) async {
+      await open(tester);
+      await tester.enterText(details, 'פירוט הטעות');
+      await tester.pump();
+      await tester.tap(find.byTooltip('סגור'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('המשך לערוך'));
+      await tester.pumpAndSettle();
+      final close = find.byKey(const ValueKey('book-report-save-draft'));
+      await tester.ensureVisible(close);
+      await tester.tap(close);
+      await tester.pumpAndSettle();
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text('סגור בלי לשמור'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TabbedReportDialog), findsNothing);
+    });
+
+    testWidgets('מעבר לתיקון עצמי בדיקטה סוגר בלי לשאול, גם עם טקסט', (
+      tester,
+    ) async {
+      final previousLauncher = UrlLauncherPlatform.instance;
+      UrlLauncherPlatform.instance = _SucceedingUrlLauncher();
+      addTearDown(() => UrlLauncherPlatform.instance = previousLauncher);
+      tester.view.physicalSize = const Size(1600, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => showDialog<void>(
+                  context: ctx,
+                  builder: (_) => const TabbedReportDialog(
+                    selectedText: 'קטע',
+                    fontSize: 18,
+                    bookTitle: 'ספר בדיקה',
+                    currentLineNumber: 1,
+                    directReportTargetLabel: 'אוצריא',
+                    isDictaSource: true,
+                  ),
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+      await tester.enterText(details, 'פירוט הטעות');
+      await tester.pump();
+
+      await tester.tap(find.text('לחץ כאן על מנת לתקן את הספר בעצמך'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('לסגור בלי לשמור?'), findsNothing);
+      expect(find.byType(TabbedReportDialog), findsNothing);
     });
   });
 }

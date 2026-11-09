@@ -642,6 +642,7 @@ class _Scenario {
         startUs: startUs,
         endUs: endUs,
         lastFrameNumber: lastFrameNumber,
+        timeout: _deadline,
         requestFrameAfterWindow: () => submitInstalledPluginFrameFence(
           SchedulerBinding.instance,
           repaintViews: () {

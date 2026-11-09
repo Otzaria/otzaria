@@ -12,6 +12,7 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/feedback/app_scrollbar.dart';
 
 // ביטוי רגולרי להסרת תווים מפרידים (מקפים, קווים תחתונים, רווחים)
 final _sourceNormalizationRegex = RegExp(r'[-_\s]');
@@ -125,7 +126,7 @@ Future<void> showBookDetailsDialog(
     context: context,
     title: 'אודות הספר',
     icon: OtzariaIcons.book_information_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: 'סגור',
     customContent: _BookDetailsDialogContent(
       book: book,
@@ -171,15 +172,11 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
     // חותך את הכרטיסים שמתחתיו ובלי פס אין סימן לכך שיש המשך.
     return SizedBox(
       width: 500,
-      child: RawScrollbar(
+      child: AppScrollbar(
         controller: _scroll,
         thumbVisibility: true,
-        thumbColor: Theme.of(context).colorScheme.outline,
-        thickness: 6,
-        radius: const Radius.circular(3),
         child: SingleChildScrollView(
           controller: _scroll,
-          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
           child: FutureBuilder<BookInformation>(
             future: _informationFuture,
             builder: (context, snapshot) {
@@ -366,7 +363,6 @@ class _SourceCredit extends StatelessWidget {
     final label = Text(
       info.text,
       style: TextStyle(
-        fontSize: 14,
         color: hasUrl ? Theme.of(context).colorScheme.primary : null,
         decoration: hasUrl ? TextDecoration.underline : null,
       ),
@@ -548,7 +544,6 @@ class _TashmaCopyrightNoticeState extends State<_TashmaCopyrightNotice> {
   Widget build(BuildContext context) {
     return Text.rich(
       TextSpan(
-        style: const TextStyle(fontSize: 14),
         children: [
           const TextSpan(text: 'כל הזכויות שמורות ל'),
           TextSpan(

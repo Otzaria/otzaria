@@ -16,6 +16,7 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
@@ -62,6 +63,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/book_versions_action.dart';
 import 'package:otzaria/text_book/view/splited_view/splited_view_screen.dart';
@@ -1369,6 +1371,58 @@ void main() {
       );
     });
 
+    testWidgets(
+      'בטלפון בחצי מסך לרוחב, גם בכרטיסייה מפוצלת יש "מסך מלא" (בסרגל או ב"עוד")',
+      (tester) async {
+        // 420×390: הכרטיסיות בשורת הכותרת ואין בה מקום לכפתור, ולכן הוא
+        // בסרגל הקורא. לכל חלונית בפיצול סרגל משלה (reading_screen).
+        DeviceChrome.debugMobileOverride = true;
+        addTearDown(() => DeviceChrome.debugMobileOverride = null);
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(420, 390));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: true,
+        );
+
+        if (find.byTooltip('מסך מלא').evaluate().isEmpty) {
+          await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.byTooltip('מסך מלא').evaluate().isNotEmpty ||
+              find.text('מסך מלא').evaluate().isNotEmpty,
+          isTrue,
+        );
+      },
+    );
+
     testWidgets('במצב משולב לחיצה על "הקטע הבא" משאירה את התפריט פתוח', (
       tester,
     ) async {
@@ -1665,6 +1719,89 @@ void main() {
         size: const Size(780, 900),
       );
       expect(count, 0);
+    });
+  });
+
+  group('סגירת חלונית הניווט אחרי מעבר (DD-26)', () {
+    // נסגרת רק כשהיא מכסה את התוכן (overlay במסך צר, או צפה כשאינה נעוצה);
+    // חלונית שמוצמדת לצד הטקסט נשארת פתוחה, בלי תלות בפלטפורמה.
+    Future<List<bool>> navigateFromToc(
+      WidgetTester tester, {
+      required Size size,
+      bool pinned = true,
+    }) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final loaded = _loadedState(book);
+      final bloc = _TestTextBookBloc(loaded);
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, size);
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      bloc.emitStateForTest(
+        loaded.copyWith(showLeftPane: true, pinLeftPane: pinned),
+      );
+      await tester.pump();
+      // מצב הפריסה מדווח ב-post-frame.
+      await tester.pump();
+
+      bloc.receivedEvents.clear();
+      tester.widget<TocViewer>(find.byType(TocViewer)).closeLeftPaneCallback();
+      await tester.pump();
+      return [
+        for (final event in bloc.receivedEvents)
+          if (event is ToggleLeftPane) event.show,
+      ];
+    }
+
+    testWidgets('מוצמדת לצד הטקסט (מסך רחב) — נשארת פתוחה', (tester) async {
+      final toggles = await navigateFromToc(
+        tester,
+        size: const Size(1600, 900),
+      );
+      expect(toggles, isEmpty);
+    });
+
+    testWidgets('overlay במסך צר — נסגרת', (tester) async {
+      final toggles = await navigateFromToc(
+        tester,
+        size: const Size(780, 900),
+      );
+      expect(toggles, [false]);
+    });
+
+    testWidgets('לא נעוצה, צפה מעל הטקסט — נסגרת', (tester) async {
+      final toggles = await navigateFromToc(
+        tester,
+        size: const Size(1600, 900),
+        pinned: false,
+      );
+      expect(toggles, [false]);
     });
   });
 

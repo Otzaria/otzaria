@@ -32,8 +32,7 @@ Future<void> showCategoryCommentatorsDialog({
     context: context,
     title: 'מפרשים קבועים לקטגוריה',
     icon: FluentIcons.people_24_regular,
-    headerBand: true,
-    content: '',
+    size: AppDialogSize.medium,
     confirmText: 'קבע',
     customContent: StatefulBuilder(
       builder: (context, setState) {

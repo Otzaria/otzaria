@@ -223,7 +223,6 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                       ],
                     ),
                     if (plugins.isNotEmpty) ...[
-                      kSettingsCardSpacing,
                       SettingsCard(
                         cardId: _pluginsCardId,
                         title: context.settingsText('תוספים מותקנים'),
@@ -276,7 +275,10 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                                       ],
                               ),
                               AnimatedSize(
-                                duration: AppTokens.animNormal,
+                                duration: AppMotion.duration(
+                                  context,
+                                  AppTokens.animNormal,
+                                ),
                                 curve: Curves.easeInOut,
                                 child: _isSelectionMode
                                     ? Column(
@@ -728,6 +730,7 @@ Widget _toggleIconButton(
       foregroundColor: isSelected
           ? null
           : (offForegroundColor ?? cs.onSurfaceVariant),
+      shape: AppTokens.roundedShape,
     ),
     onPressed: onPressed,
   );
@@ -755,7 +758,6 @@ class _BuiltInToolRow extends StatelessWidget {
     // Tooltip's OverlayPortal when elements re-activate during layout. Use
     // ListTile directly for all cases.
     return ListTile(
-      hoverColor: Colors.transparent,
       leading: meta.imageIcon != null
           ? ImageIcon(AssetImage(meta.imageIcon!), size: 24)
           : RtlIcon(meta.icon!),
@@ -1048,6 +1050,7 @@ class _PluginRowState extends State<_PluginRow> {
           ? IconButton.styleFrom(
               backgroundColor: a.fixedBg,
               foregroundColor: a.fixedFg,
+              shape: AppTokens.roundedShape,
             )
           : null,
       onPressed: a.onTap,
@@ -1123,7 +1126,11 @@ class _PluginRowState extends State<_PluginRow> {
     final tile = SizedBox(
       height: _rowHeight,
       child: ListTile(
-        hoverColor: widget.isSelectionMode ? Colors.transparent : null,
+        // במצב בחירה לחיצה על השורה מסמנת אותה, ולכן ריחוף כמו בכל שורה
+        // לחיצה (DD-06, q10 שאלה 3).
+        hoverColor: widget.isSelectionMode
+            ? AppSurfaces.hoverRow(Theme.of(context).colorScheme)
+            : null,
         leading: widget.isSelectionMode
             ? SizedBox(
                 width: 24,
@@ -1455,13 +1462,7 @@ class _SettingsDragFeedback extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
-          boxShadow: [
-            BoxShadow(
-              color: cs.shadow.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppShadows.floating(cs),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

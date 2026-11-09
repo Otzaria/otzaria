@@ -201,6 +201,83 @@ void main() {
     );
   });
 
+  testWidgets('X בחלון Dart עם דיאלוג שיש בו שינויים: שואל לפני הכרטיסיות, '
+      'וסוגר רק באישור (q11 Q3)', (tester) async {
+    final windows = FakeViewWindows(tester);
+    final opener = ViewWindowOpener(
+      registry: windows.registry,
+      native: windows.native,
+    );
+    var tabChecks = 0;
+    await pumpApp(
+      tester,
+      windows.registry,
+      (entry) => ViewWindowCloseFlow(
+        entry: entry,
+        opener: opener,
+        confirm: (_, _) async {
+          tabChecks++;
+          return true;
+        },
+        flush: () async {},
+        discardSession: (_) async {},
+      ),
+    );
+    final a = windows.registry.open(size: const Size(800, 600))!;
+    final b = windows.registry.open(size: const Size(800, 600))!;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final dirty = ValueNotifier(true);
+    addTearDown(dirty.dispose);
+    unawaited(
+      showTwoActionsDialog(
+        context: a.keys.navigator.currentContext!,
+        title: 'עריכה',
+        content: 'תוכן',
+        isDirty: dirty,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> answer(String button) async {
+      expect(find.text('לסגור בלי לשמור?'), findsOneWidget);
+      await tester.tap(find.text(button));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    // "המשך לערוך": החלון נשאר, ושאלת הכרטיסיות אינה נשאלת.
+    final kept = a.controller.close();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await answer('המשך לערוך');
+    await kept;
+    expect(windows.stubOf(a).destroyed, isFalse);
+    expect(tabChecks, 0);
+    expect(find.text('עריכה'), findsOneWidget);
+
+    // דיאלוג בחלון אחר אינו עוצר את סגירת B.
+    final closingB = b.controller.close();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await closingB;
+    expect(find.text('לסגור בלי לשמור?'), findsNothing);
+    expect(windows.stubOf(b).destroyed, isTrue);
+    expect(tabChecks, 1);
+
+    // "סגור בלי לשמור": הדיאלוג נסגר, ואחריו החלון.
+    final closingA = a.controller.close();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await answer('סגור בלי לשמור');
+    await closingA;
+    expect(windows.stubOf(a).destroyed, isTrue);
+    expect(tabChecks, 2);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   for (final phase in ['flush', 'remember', 'discard']) {
     testWidgets('אתחול מחדש בזמן $phase מכבד את גבול סגירת הסשן', (
       tester,

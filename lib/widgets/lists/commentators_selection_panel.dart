@@ -471,7 +471,7 @@ class _CommentatorsSelectionPanelState
     if (parseBookCategories(widget.heCategories).isEmpty) return null;
     return IconButton(
       tooltip: 'קבע כמפרשים קבועים לקטגוריה',
-      icon: const Icon(FluentIcons.save_24_regular, size: 18),
+      icon: const Icon(FluentIcons.save_24_regular, size: AppTokens.iconSM),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

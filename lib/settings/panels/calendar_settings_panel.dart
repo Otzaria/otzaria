@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -18,7 +17,6 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
-import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -169,7 +167,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               title: context.settingsText('לוח שנה'),
               children: [
                 // סוג לוח
-                SettingsActionTile.segmentedTile<CalendarType>(
+                SettingsSegmentedTile<CalendarType>(
                   title: context.settingsText('סוג לוח שנה'),
                   options: [
                     SegmentOption(
@@ -202,7 +200,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     context.read<CalendarCubit>().changeCalendarType(value);
                   },
                 ),
-                SettingsActionTile.dropdownTile<CalendarDayTransition>(
+                SettingsDropdownTile<CalendarDayTransition>(
                   icon: OtzariaIcons.sunset_24_regular,
                   title: context.settingsText('מעבר יום'),
                   value: state.dayTransition,
@@ -244,7 +242,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     }
                   },
                 ),
-                SettingsActionTile.switchTile(
+                SettingsSwitchTile(
                   icon: FluentIcons.clock_24_regular,
                   title: context.settingsText('שעון 12 שעות'),
                   subtitle: context.settingsText('הצגת הזמנים בפורמט AM/PM'),
@@ -254,7 +252,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   },
                 ),
                 // עיר
-                SettingsActionTile.dropdownTile<String>(
+                SettingsDropdownTile<String>(
                   icon: FluentIcons.location_24_regular,
                   title: context.settingsText('עיר נבחרת'),
                   subtitle: context.settingsText(
@@ -276,14 +274,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               ],
             ),
 
-            kSettingsCardSpacing,
-
             // ── אירועים ותזכורות: התראות + Google Calendar ──
             SettingsCard(
               cardId: CalendarSettingsTab.eventsCardId,
               title: context.settingsText('אירועים ותזכורות'),
               children: [
-                SettingsActionTile.segmentedTile<CalendarNotificationMode>(
+                SettingsSegmentedTile<CalendarNotificationMode>(
                   title: context.settingsText('התראות'),
                   options: [
                     SegmentOption(
@@ -345,7 +341,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 ),
 
                 // ── לוח שנה גוגל ──
-                SettingsActionTile.switchTile(
+                SettingsSwitchTile(
                   icon: FluentIcons.calendar_sync_24_regular,
                   title: context.settingsText('לוח שנה של Google'),
                   subtitle: isOfflineMode
@@ -553,7 +549,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                           );
                         },
                       ),
-                      ActionButton.warning(
+                      ActionButton.warningSoft(
                         text: context.settingsText('הסר'),
                         onPressed: () async {
                           await context
@@ -678,36 +674,12 @@ class _IcsSubscriptionDialogState extends State<_IcsSubscriptionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return AlertDialog(
-      backgroundColor: cs.surfaceContainerHigh,
-      title: AppDialogTitle(
-        context.settingsText('הוספת יומן מקישור'),
-        icon: FluentIcons.link_24_regular,
-      ),
-      content: SizedBox(
-        width: math.min(400.0, MediaQuery.sizeOf(context).width - 112),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RtlTextField(
-              controller: _nameController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: context.settingsText('שם היומן'),
-              ),
-            ),
-            const SizedBox(height: AppTokens.spaceMD),
-            RtlTextField(
-              controller: _urlController,
-              decoration: InputDecoration(
-                labelText: context.settingsText('קישור (URL)'),
-              ),
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
-        ),
-      ),
+    return AppDialogFrame(
+      size: AppDialogSize.small,
+      title: context.settingsText('הוספת יומן מקישור'),
+      icon: FluentIcons.link_24_regular,
+      onConfirm: _urlValid ? _submit : null,
+      handleEnterKey: _urlValid,
       actions: [
         ActionButton.neutral(
           text: context.settingsText('ביטול'),
@@ -718,6 +690,26 @@ class _IcsSubscriptionDialogState extends State<_IcsSubscriptionDialog> {
           onPressed: _urlValid ? _submit : null,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RtlTextField(
+            controller: _nameController,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: context.settingsText('שם היומן'),
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          RtlTextField(
+            controller: _urlController,
+            decoration: InputDecoration(
+              labelText: context.settingsText('קישור (URL)'),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -827,13 +819,10 @@ class _CalendarMultiSelectionDialogState<T>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return AppDialogFrame(
-      backgroundColor: cs.surfaceContainerHigh,
       title: widget.title,
       icon: OtzariaIcons.calendar_24_regular,
-      width: 460,
+      size: AppDialogSize.small,
       height: 560,
       actions: [
         ActionButton.neutral(
@@ -858,18 +847,18 @@ class _CalendarMultiSelectionDialogState<T>
           const SizedBox(height: AppTokens.spaceSM),
           Expanded(
             child: widget.items.isEmpty
-                ? ToolEmptyState(
+                ? OtzariaEmptyState(
                     icon: OtzariaIcons.calendar_24_regular,
-                    message:
+                    title:
                         widget.emptyMessage ??
                         context.settingsText('לא נמצאו פריטים'),
                   )
                 : filteredItems.isEmpty
-                ? ToolEmptyState(
+                ? OtzariaEmptyState(
                     icon: OtzariaIcons.search_not_found_24_regular,
-                    message: context.settingsText('לא נמצאו תוצאות'),
+                    title: context.settingsText('לא נמצאו תוצאות'),
                   )
-                : ListDialogCard(
+                : AppCard(
                     child: ListView.separated(
                       itemCount: filteredItems.length,
                       separatorBuilder: (context, _) => Divider(

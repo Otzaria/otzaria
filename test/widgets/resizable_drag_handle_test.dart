@@ -115,4 +115,43 @@ void main() {
       expect(size.width, AppTokens.dragHandleRegularHitSize);
     },
   );
+
+  testWidgets('showIdleGrip: הידית הקטנה גלויה במנוחה, בלי הקו לכל האורך', (
+    tester,
+  ) async {
+    /// צבעי הפסים הגלויים בידית (DecoratedBox עם צבע שאינו שקוף), והגובה
+    /// של כל אחד.
+    Map<double, Color> visible() => {
+      for (final e in tester.widgetList<DecoratedBox>(
+        find.descendant(
+          of: find.byType(ResizableDragHandle),
+          matching: find.byType(DecoratedBox),
+        ),
+      ))
+        if ((e.decoration as BoxDecoration).color case final c? when c.a > 0)
+          tester.getSize(find.byWidget(e)).height: c,
+    };
+
+    Future<void> pump({required bool showDivider, bool? showIdleGrip}) =>
+        tester.pumpWidget(
+          _wrap(
+            ResizableDragHandle(
+              key: UniqueKey(),
+              isVertical: true,
+              showDivider: showDivider,
+              showIdleGrip: showIdleGrip,
+              onDragDelta: (_) {},
+            ),
+          ),
+        );
+
+    // ברירת המחדל: showIdleGrip כמו showDivider.
+    await pump(showDivider: true);
+    expect(visible().keys, unorderedEquals([300.0, 24.0]));
+    await pump(showDivider: false);
+    expect(visible(), isEmpty);
+    // עמודת הכרטיסיות: הידית (24) גלויה, והקו לכל הגובה (300) לא.
+    await pump(showDivider: false, showIdleGrip: true);
+    expect(visible().keys, [24.0]);
+  });
 }

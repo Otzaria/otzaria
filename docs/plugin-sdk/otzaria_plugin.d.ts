@@ -113,12 +113,57 @@ export interface Typography {
   /** גופן הממשק — כפתורים, תפריטים, שדות. נשאר חד בגדלים קטנים.
    *  קיים מ-0.9.97; במארח ישן חסר — שמרו fallback ב-CSS. */
   uiFontFamily?: string;
+  /** גופן הממשק של אוצריא עצמה, כערך `font-family` מוכן ל-CSS: גופן המערכת
+   *  של הפלטפורמה (Segoe UI ב-Windows) ורשימת ה-fallback, למשל
+   *  `'Segoe UI', 'SF Pro Text', …, system-ui, sans-serif`. להתאמה מלאה לכרום
+   *  של אוצריא; `uiFontFamily` נשאר Rubik. קיים מ-0.9.99. */
+  uiFont?: string;
+}
+
+/** רקעי המשטחים של אוצריא (`#rrggbb`), כפי שהמסכים המקוריים מציירים אותם.
+ *  במצב כהה הם אינם תפקיד ColorScheme אחד, ולכן נשלחים במפורש. */
+export interface ThemeSurfaces {
+  /** רקע מסך העיון: ספר, PDF, חיפוש. */
+  reader: string;
+  /** רקע מסכי לוח: הגדרות, ספרייה, כלים. רקע טבעי לטאב תוסף. */
+  panel: string;
+  /** רקע כרטיס תוכן. */
+  card: string;
+  /** רקע הסרגל העליון (AppTopBar) — רקע פס הכותרת של התוסף. */
+  topBar: string;
+}
+
+/** סולם הריווח של אוצריא, בפיקסלים. */
+export interface ThemeSpacing {
+  '2xs': number;
+  xs: number;
+  sm: number;
+  smd: number;
+  md: number;
+  lg: number;
+  xl: number;
+}
+
+/** ההגדרה "צפיפות ממשק". */
+export interface ThemeDensity {
+  compact: boolean;
+  /** גובה הסרגל העליון בפיקסלים: 56, או 44 בצפיפות קומפקטית. */
+  topBarHeight: number;
+  /** גובה שדה קלט בפיקסלים: 48, או 36 בצפיפות קומפקטית. */
+  fieldHeight: number;
 }
 
 export interface ThemePayload {
   mode: 'light' | 'dark';
   colorScheme: ColorScheme;
   typography: Typography;
+  // ── משטחים, צורה וריווח (נוספו ב-0.9.99) ─────────────────────────────
+  // אופציונליים: מארח ישן לא שולח אותם — שמרו ערכי ברירת מחדל ב-CSS.
+  surfaces?: ThemeSurfaces;
+  /** רדיוס הפינות האחיד של אוצריא בפיקסלים (8). */
+  radius?: number;
+  spacing?: ThemeSpacing;
+  density?: ThemeDensity;
 }
 
 /** Delivered via `plugin.boot` exactly once, before any user interaction. */

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
@@ -147,7 +148,7 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppTokens.borderRadiusAll,
         ),
         child: Text.rich(
           TextSpan(

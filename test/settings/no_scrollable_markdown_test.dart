@@ -3,9 +3,18 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 // MarkdownBody שומר היקף תוכן מדויק בתוך הגולל החיצוני.
+final _pattern = RegExp(r'(?<![\w.])Markdown\(');
+
 void main() {
+  test('הסורק: Markdown( נתפס, MarkdownBody ו-_buildMarkdown( לא', () {
+    expect(_pattern.hasMatch('child: Markdown(data: d)'), isTrue);
+    expect(_pattern.hasMatch('const Markdown(data: d)'), isTrue);
+    expect(_pattern.hasMatch('MarkdownBody(data: d)'), isFalse);
+    expect(_pattern.hasMatch('_buildMarkdown(data)'), isFalse);
+  });
+
   test('אין שימוש ב-Markdown הגלילתי ב-lib — רק MarkdownBody', () {
-    final pattern = RegExp(r'(?<![\w.])Markdown\(');
+    final pattern = _pattern;
     final violations = <String>[];
 
     for (final entity in Directory('lib').listSync(recursive: true)) {

@@ -1,4 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/navigation/book_view_actions.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
@@ -42,6 +45,11 @@ KeyEventResult handleCommentatorsTabShortcuts(
 
 /// The top bar of a commentators tab, for text and PDF books: the side pane
 /// toggles, the navigation between sections, and the tab's actions.
+///
+/// The four navigation arrows stay in the bar while they fit in the centre,
+/// ahead of the title. Only when they do not fit do they move, all four, to
+/// the icon row at the top of the "עוד" menu, as in the readers
+/// ([ReaderNavCenter], [ReaderNavPlacement]).
 ///
 /// The screens differ in how they navigate and in their text display
 /// button, so those come from the screen, as do the tooltips that name the
@@ -92,6 +100,9 @@ class CommentatorsTabTopBar extends StatelessWidget {
   /// The book whose bookmarks the bookmarks action lists.
   final Book book;
 
+  static const _prevMinorTooltip = 'הקטע הקודם';
+  static const _nextMinorTooltip = 'הקטע הבא';
+
   static String _expandAllTooltip(bool allExpanded) =>
       allExpanded ? 'כווץ את כל המפרשים' : 'הרחב את כל המפרשים';
 
@@ -121,10 +132,13 @@ class CommentatorsTabTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.read<SettingsBloc>();
-    final compact = settings.state.compactMenuMode;
+    final compact = AppDensity.of(context).isCompact;
     void onZoomIn() => settings.add(const AdjustCommentatorsFontSize(2));
     void onZoomOut() => settings.add(const AdjustCommentatorsFontSize(-2));
     void onShowBookmarks() => showBookBookmarksDialog(context, book);
+    // Per build: the centre writes it at layout, and this build's menu reads
+    // it when it opens.
+    final navPlacement = ReaderNavPlacement();
     return AppTopBar(
       minCenterWidth: ReaderNavCenter.minTitleWidth,
       leadingItems: [
@@ -138,11 +152,15 @@ class CommentatorsTabTopBar extends StatelessWidget {
           AppTopBarItem(
             widget: NavPanelPinButton(
               isPinned: navPanePinned,
+              isGloballyPinned:
+                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
+                  false,
               onToggle: onTogglePin,
             ),
           ),
       ],
       center: ReaderNavCenter(
+        placement: navPlacement,
         title: Text(
           title,
           style: AppTopBar.titleStyle(context),
@@ -151,8 +169,8 @@ class CommentatorsTabTopBar extends StatelessWidget {
           maxLines: titleMaxLines,
         ),
         prevMajorTooltip: prevMajorTooltip,
-        prevMinorTooltip: 'הקטע הקודם',
-        nextMinorTooltip: 'הקטע הבא',
+        prevMinorTooltip: _prevMinorTooltip,
+        nextMinorTooltip: _nextMinorTooltip,
         nextMajorTooltip: nextMajorTooltip,
         onPrevMajor: onPrevMajor,
         onPrevMinor: onPrevMinor,
@@ -164,6 +182,29 @@ class CommentatorsTabTopBar extends StatelessWidget {
           flexible: true,
           widget: ResponsiveActionBar(
             overflowMenuOffset: const Offset(0, 8),
+            menuHeaderActions: buildBookViewNavigationActions(
+              firstAction: buildBookViewPreviousTocNavigationAction(
+                widget: const SizedBox.shrink(),
+                tooltip: prevMajorTooltip,
+                onPressed: onPrevMajor,
+              ),
+              previousAction: buildBookViewPreviousNavigationAction(
+                widget: const SizedBox.shrink(),
+                tooltip: _prevMinorTooltip,
+                onPressed: onPrevMinor,
+              ),
+              nextAction: buildBookViewNextNavigationAction(
+                widget: const SizedBox.shrink(),
+                tooltip: _nextMinorTooltip,
+                onPressed: onNextMinor,
+              ),
+              lastAction: buildBookViewNextTocNavigationAction(
+                widget: const SizedBox.shrink(),
+                tooltip: nextMajorTooltip,
+                onPressed: onNextMajor,
+              ),
+            ),
+            menuHeaderActionsVisible: () => !navPlacement.arrowsInBar,
             actions: [
               textDisplayAction,
               _iconAction(

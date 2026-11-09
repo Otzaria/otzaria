@@ -147,13 +147,13 @@ class BarButton extends StatelessWidget {
           backgroundColor: Colors.transparent,
           foregroundColor: fg,
           padding: padding,
-          shape: const StadiumBorder(),
+          shape: AppTokens.roundedShape,
           minimumSize: compact ? const Size(0, 36) : const Size(0, 40),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         icon: iconEl,
         label: AnimatedDefaultTextStyle(
-          duration: AppTokens.animFast,
+          duration: AppMotion.duration(context, AppTokens.animFast),
           style: TextStyle(
             fontSize: fontSize,
             color: fg,
@@ -185,12 +185,13 @@ class BarButton extends StatelessWidget {
         horizontal: outerHorizontalPadding,
       ),
       child: AnimatedContainer(
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         curve: Curves.easeInOut,
+        // עם תווית: פינות 8. אייקון בלבד: עיגול, כמו IconButton (DD-04).
         decoration: BoxDecoration(
           color: bg,
           shape: label != null ? BoxShape.rectangle : BoxShape.circle,
-          borderRadius: label != null ? BorderRadius.circular(100) : null,
+          borderRadius: label != null ? AppTokens.borderRadiusAll : null,
         ),
         child: button,
       ),

@@ -1,8 +1,10 @@
 // SidebarNavItem — פריט ניווט לסיידבר בסגנון Material 3.
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class SidebarNavItem extends StatelessWidget {
   /// אייקון רגיל (כשלא נבחר) — חובה אם לא מסופק [imageAsset]
@@ -52,7 +54,7 @@ class SidebarNavItem extends StatelessWidget {
     final Widget iconWidget = imageAsset != null
         ? ImageIcon(AssetImage(imageAsset!), size: 20, color: iconColor)
         : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
             switchInCurve: Curves.easeInOut,
             switchOutCurve: Curves.easeInOut,
             transitionBuilder: (child, animation) => FadeTransition(
@@ -69,36 +71,43 @@ class SidebarNavItem extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
-      child: Material(
-        color: isSelected ? cs.secondaryContainer : Colors.transparent,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: InkWell(
-          onTap: onTap,
+      child: Semantics(
+        selected: isSelected,
+        child: Material(
+          color: isSelected ? AppSurfaces.selectedRow(cs) : Colors.transparent,
           borderRadius: AppTokens.borderRadiusAll,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: [
-                iconWidget,
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? cs.onSecondaryContainer
-                          : cs.onSurfaceVariant,
-                    ),
-                    child: Text(
-                      label,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTokens.borderRadiusAll,
+            hoverColor: AppSurfaces.hoverRow(cs),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  iconWidget,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: AppMotion.duration(
+                        context,
+                        AppTokens.animPanelOpacity,
+                      ),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? AppSurfaces.onSelectedRow(cs)
+                            : cs.onSurfaceVariant,
+                      ),
+                      child: Text(
+                        label,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 /// מסך טעינה של [ResolvingTab]: מציג מחוון בזמן שהיעד הסופי נפתר ברקע,
 /// ועם סיום הרזולוציה מחליף את הטאב בו-במקום.
@@ -35,18 +36,6 @@ class _ResolvingTabScreenState extends State<ResolvingTabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(
-            'פותח את ${widget.tab.title}...',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ],
-      ),
-    );
+    return LoadingIndicator(message: 'פותח את ${widget.tab.title}...');
   }
 }

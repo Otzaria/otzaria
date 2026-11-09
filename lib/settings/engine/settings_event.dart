@@ -31,6 +31,18 @@ class UpdateFollowSystemTheme extends SettingsEvent {
   List<Object?> get props => [followSystemTheme];
 }
 
+/// מצב התצוגה מהבורר "בהיר / לפי המערכת / כהה" באירוע אחד, כדי ש־MaterialApp
+/// ייבנה מחדש פעם אחת ולא פעמיים. ‏[ThemeMode.system] משאיר את [isDarkMode]
+/// כמו שהוא.
+class UpdateThemeMode extends SettingsEvent {
+  final ThemeMode mode;
+
+  const UpdateThemeMode(this.mode);
+
+  @override
+  List<Object?> get props => [mode];
+}
+
 class UpdateSeedColor extends SettingsEvent {
   final Color seedColor;
 
@@ -101,6 +113,16 @@ class UpdateCommentatorsFontBold extends SettingsEvent {
 
   @override
   List<Object?> get props => [commentatorsFontBold];
+}
+
+/// גודל הטקסט בקטעי תוצאות החיפוש (#2826).
+class UpdateSearchResultsFontSize extends SettingsEvent {
+  final double searchResultsFontSize;
+
+  const UpdateSearchResultsFontSize(this.searchResultsFontSize);
+
+  @override
+  List<Object?> get props => [searchResultsFontSize];
 }
 
 sealed class CommentatorsFontSizeEvent extends SettingsEvent {
@@ -301,10 +323,17 @@ class UpdateLibraryViewMode extends SettingsEvent {
 class UpdateLibraryShowPreview extends SettingsEvent {
   final bool libraryShowPreview;
 
-  const UpdateLibraryShowPreview(this.libraryShowPreview);
+  /// הבחירה נעשתה בחלון נמוך: נשמרת בנפרד
+  /// (`SettingsState.libraryShowPreviewShortWindow`).
+  final bool shortWindow;
+
+  const UpdateLibraryShowPreview(
+    this.libraryShowPreview, {
+    this.shortWindow = false,
+  });
 
   @override
-  List<Object?> get props => [libraryShowPreview];
+  List<Object?> get props => [libraryShowPreview, shortWindow];
 }
 
 class UpdateSearchShowPreview extends SettingsEvent {
@@ -382,8 +411,105 @@ class UpdatePersonalNotesCollapsedByDefault extends SettingsEvent {
   List<Object?> get props => [collapsedByDefault];
 }
 
+class UpdateAutoSync extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateAutoSync(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+/// [value] הוא `UpdateCheckFrequency.storageValue`.
+class UpdateUpdateCheckFrequency extends SettingsEvent {
+  final String value;
+
+  const UpdateUpdateCheckFrequency(this.value);
+
+  @override
+  List<Object?> get props => [value];
+}
+
+class UpdateRestoreAllWindows extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateRestoreAllWindows(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+/// תיקיית הגיבוי שנבחרה; ריק = תיקיית ברירת המחדל.
+class UpdateBackupPath extends SettingsEvent {
+  final String path;
+
+  const UpdateBackupPath(this.path);
+
+  @override
+  List<Object?> get props => [path];
+}
+
+/// none / daily / weekly / monthly.
+class UpdateAutoBackupFrequency extends SettingsEvent {
+  final String frequency;
+
+  const UpdateAutoBackupFrequency(this.frequency);
+
+  @override
+  List<Object?> get props => [frequency];
+}
+
+/// [profile] הוא `RetentionProfile.name`.
+class UpdateBackupRetentionProfile extends SettingsEvent {
+  final String profile;
+
+  const UpdateBackupRetentionProfile(this.profile);
+
+  @override
+  List<Object?> get props => [profile];
+}
+
+/// מתג סעיף גיבוי אחד מתוך `SettingsRepository.backupSectionKeys`.
+class UpdateBackupSection extends SettingsEvent {
+  final String key;
+  final bool include;
+
+  const UpdateBackupSection(this.key, this.include);
+
+  @override
+  List<Object?> get props => [key, include];
+}
+
+/// "גבה הכל": כל סעיפי הגיבוי דולקים.
+class IncludeAllBackupSections extends SettingsEvent {
+  const IncludeAllBackupSections();
+}
+
+/// הצגת המפרשים בחלונית בצד, כברירת מחדל לספרים שנפתחים.
+class UpdateSplitedView extends SettingsEvent {
+  final bool splitedView;
+
+  const UpdateSplitedView(this.splitedView);
+
+  @override
+  List<Object?> get props => [splitedView];
+}
+
+/// מפתח בקובץ ההגדרות השתנה, אולי מחוץ לבלוק: חלון אחר, הקורא (מפצל המפרשים),
+/// שחזור גיבוי. הבלוק קורא מחדש את ההגדרות ופולט מצב אם משהו השתנה.
+class ExternalSettingChanged extends SettingsEvent {
+  final String key;
+
+  const ExternalSettingChanged(this.key);
+
+  @override
+  List<Object?> get props => [key];
+}
+
 class UpdateCompactMenuMode extends SettingsEvent {
-  final bool compactMenuMode;
+  /// null: "אוטומטי" — מוחק את הבחירה, והצפיפות שוב לפי גודל החלון
+  /// (`SettingsState.compactMenuModeFor`).
+  final bool? compactMenuMode;
 
   const UpdateCompactMenuMode(this.compactMenuMode);
 

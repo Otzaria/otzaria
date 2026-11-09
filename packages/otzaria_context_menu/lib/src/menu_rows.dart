@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'menu_metrics.dart';
@@ -19,6 +20,12 @@ final _independentParagraphLabel = RegExp(
   r'[\p{C}\p{Zl}\p{Zp}\u{10000}-\u{10ffff}]',
   unicode: true,
 );
+
+// גופן ברירת המחדל של הפלטפורמה, כמו ב־ThemeData בלי fontFamily (Segoe UI
+// ב־Windows). המדידה והציור חייבים להשתמש באותה משפחה.
+String? get _platformFontFamily => Typography.material2021(
+  platform: defaultTargetPlatform,
+).black.bodyMedium?.fontFamily;
 
 Widget buildAppMenuRowContent(
   BuildContext context,
@@ -59,7 +66,7 @@ Widget buildAppMenuRowContent(
     hasExtraSlot: hasExtraSlot,
   );
   final labelTextStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: _platformFontFamily,
     fontSize: metrics.fontSize,
     fontWeight: isSelected ? _kSelectedItemFontWeight : metrics.itemFontWeight,
     color: foregroundColor,
@@ -72,10 +79,22 @@ Widget buildAppMenuRowContent(
         softWrap: false,
       );
 
+  final styledLabel = DefaultTextStyle.merge(
+    style: labelTextStyle,
+    child: labelMaxWidth == null
+        ? labelChild
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: labelMaxWidth),
+            child: labelChild,
+          ),
+  );
+  final hasTrailing = isSelected || trailing != null;
+
+  // התווית מתכווצת כשהשורה רחבה מהתפריט, למשל בחלון צר או בהגדלת טקסט
+  // של המערכת: קיצור ב־"…" ולא גלישה. כשיש סימון או trailing היא תופסת את
+  // המקום שבין האייקון לסוף השורה (כמו Spacer), ונצמדת להתחלה.
   final row = Row(
-    mainAxisSize: (isSelected || trailing != null)
-        ? MainAxisSize.max
-        : MainAxisSize.min,
+    mainAxisSize: hasTrailing ? MainAxisSize.max : MainAxisSize.min,
     children: [
       if (icon != null) ...[
         presentation.iconBuilder(
@@ -87,17 +106,17 @@ Widget buildAppMenuRowContent(
         ),
         const SizedBox(width: 8),
       ],
-      DefaultTextStyle.merge(
-        style: labelTextStyle,
-        child: labelMaxWidth == null
-            ? labelChild
-            : ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: labelMaxWidth),
-                child: labelChild,
-              ),
-      ),
+      if (hasTrailing)
+        Expanded(
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            heightFactor: 1,
+            child: styledLabel,
+          ),
+        )
+      else
+        Flexible(child: styledLabel),
       if (isSelected && trailing != null) ...[
-        const Spacer(),
         IconTheme.merge(
           data: IconThemeData(
             size: metrics.iconSize,
@@ -115,7 +134,6 @@ Widget buildAppMenuRowContent(
           foregroundColor,
         ),
       ] else if (isSelected) ...[
-        const Spacer(),
         const SizedBox(width: _kCheckmarkGap),
         presentation.selectedMarkBuilder(
           context,
@@ -123,7 +141,6 @@ Widget buildAppMenuRowContent(
           foregroundColor,
         ),
       ] else if (trailing != null) ...[
-        const Spacer(),
         IconTheme.merge(
           data: IconThemeData(
             size: metrics.iconSize,
@@ -239,7 +256,7 @@ Iterable<double> _appMenuPreferredWidths<T>(
   // נמדד במשקל של פריט נבחר (מודגש) — כל פריט עשוי להיות זה שנבחר,
   // והגופן המודגש רחב יותר מהרגיל.
   final textStyle = TextStyle(
-    fontFamily: 'Roboto',
+    fontFamily: _platformFontFamily,
     fontSize: metrics.fontSize,
     fontWeight: _kSelectedItemFontWeight,
   );
@@ -307,10 +324,10 @@ ButtonStyle buildAppSubmenuItemStyle(
         borderRadius: presentation.borderRadius,
       ),
     ),
-    alignment: Alignment.centerRight,
+    alignment: AlignmentDirectional.centerStart,
     textStyle: WidgetStatePropertyAll(
       TextStyle(
-        fontFamily: 'Roboto',
+        fontFamily: _platformFontFamily,
         fontSize: metrics.fontSize,
         fontWeight: metrics.itemFontWeight,
       ),

@@ -10,6 +10,7 @@ import 'package:otzaria/services/support_organizations_service.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/image_decode_size.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 const _organizationsLoadError = 'לא ניתן לטעון את פרטי הארגונים';
 
@@ -178,6 +179,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                       foregroundColor: Theme.of(
                         context,
                       ).colorScheme.onSurfaceVariant,
+                      shape: AppTokens.roundedShape,
                     ),
                   ),
                 ),
@@ -299,6 +301,10 @@ class _AdPopupDialogState extends State<AdPopupDialog>
         alignment: Alignment.centerLeft,
         child: Builder(
           builder: (builderContext) => PopupMenuButton<String>(
+            // הכפתור שבתוכו פותח את התפריט; עטיפת ה-InkWell של התפריט כבויה,
+            // כדי שלא יהיו שתי שכבות ריחוף ושני יעדי פוקוס.
+            enabled: false,
+            tooltip: '',
             onSelected: (value) async {
               final navigator = Navigator.of(builderContext);
               switch (value) {
@@ -346,17 +352,14 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 ),
               ),
             ],
-            child: OutlinedButton.icon(
-              onPressed: null, // הכפתור עצמו לא עושה כלום, רק פותח תפריט
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                side: BorderSide(color: Theme.of(context).colorScheme.outline),
+            child: Builder(
+              builder: (menuContext) => ActionButton.neutral(
+                text: 'אל תציג שוב',
+                icon: FluentIcons.dismiss_24_regular,
+                onPressed: () => menuContext
+                    .findAncestorStateOfType<PopupMenuButtonState<String>>()
+                    ?.showButtonMenu(),
               ),
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-              label: const Text('אל תציג שוב'),
             ),
           ),
         ),
@@ -378,13 +381,13 @@ class _OrganizationsList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // קווי חירום
-        _buildSectionTitle('קווי חירום', cs.error),
+        _buildSectionTitle(context, 'קווי חירום', cs.error),
         ...organizations.emergencyLines.map(
           (org) => _ExpandableOrgCard(org: org, isEmergency: true),
         ),
         const SizedBox(height: 20),
         // ארגוני סיוע
-        _buildSectionTitle('ארגוני סיוע', cs.primary),
+        _buildSectionTitle(context, 'ארגוני סיוע', cs.primary),
         ...organizations.supportOrgs.map(
           (org) => _ExpandableOrgCard(org: org, isEmergency: false),
         ),
@@ -392,7 +395,7 @@ class _OrganizationsList extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(String title, Color color) {
+  Widget _buildSectionTitle(BuildContext context, String title, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
       margin: const EdgeInsets.only(bottom: 12, top: 8),
@@ -410,9 +413,7 @@ class _OrganizationsList extends StatelessWidget {
       ),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: color.withValues(alpha: 0.85),
           letterSpacing: 0.5,
         ),
@@ -487,7 +488,6 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
     final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
       // צבע הכרטיס מערכת הנושא (במקום לבן קשיח) כדי שיתאים לרקע הפופאפ
       color: colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(
@@ -536,16 +536,11 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                   );
                   final name = Text(
                     widget.org.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium,
                   );
                   final phone = Text(
                     widget.org.phone,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color:
                           (widget.isEmergency
                                   ? colorScheme.error
@@ -565,7 +560,8 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                   // הסף 400 הוא הרוחב המינימלי לפריסה השורתית בלי שהשם
                   // יתקפל לתו-לשורה: 50 (לוגו) + 16 + ~150 (טלפון מלא) +
                   // 8 + 24 (חץ) = ~250 קבועים, פלוס ~150 מינימום ל-שם.
-                  final isNarrow = constraints.maxWidth < 400;
+                  const rowMinWidth = 400.0;
+                  final isNarrow = constraints.maxWidth < rowMinWidth;
                   if (isNarrow) {
                     return Row(
                       children: [

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 
 /// כמו [showDialog], אבל משלים `null` גם כשה-Navigator פורק לפני בניית הדיאלוג.
 Future<T?> showDialogUntilTornDown<T>({
@@ -16,7 +17,7 @@ Future<T?> showDialogUntilTornDown<T>({
     barrierColor:
         DialogTheme.of(context).barrierColor ??
         Theme.of(context).dialogTheme.barrierColor ??
-        Colors.black54,
+        AppSurfaces.scrim(Theme.of(context).colorScheme),
     themes: InheritedTheme.capture(from: context, to: navigator.context),
     traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
   );

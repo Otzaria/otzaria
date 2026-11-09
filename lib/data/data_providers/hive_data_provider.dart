@@ -10,13 +10,8 @@ import 'package:otzaria/core/app_paths.dart';
 /// גרסאות שבהן כל חלון היה מנוע נפרד. אינה מגובה — ראו [deleteStaleWindowRoots].
 const String windowRootsDirName = 'windows';
 
-/// הגירה לגרסה אחת: מוחק את [windowRootsDirName] שנשארה מגרסה קודמת.
-///
-/// כשל מדולג בשקט: אי אפשר למחוק תיקייה שקובץ בה נעול, וזה לא מצדיק לעצור
-/// את העלייה.
-///
-/// The folder is renamed aside, which is instant whatever its size, and
-/// deleted in the background; a window opened meanwhile gets a fresh folder.
+/// משנה את שם [windowRootsDirName] ומוחק ברקע, כדי שחלון חדש יקבל תיקייה נקייה.
+/// קבצים נעולים מדולגים בלי לעכב את העלייה.
 Future<void> deleteStaleWindowRoots() async {
   try {
     final dataRoot = await AppPaths.getDataRootPath();
@@ -63,6 +58,9 @@ Future<void> _deleteRenamedRoots(String dataRoot) async {
 class HiveCache extends CacheProvider {
   Box? _preferences;
   static const String keyName = 'app_preferences';
+
+  @override
+  Stream<String> get changes => changedKeys();
 
   @override
   Future<void> init() async {
@@ -140,6 +138,13 @@ class HiveCache extends CacheProvider {
   @override
   Future<void> removeAll() async {
     await _preferences?.deleteAll(getKeys().cast<String>());
+  }
+
+  /// שם המפתח של כל כתיבה או מחיקה בקובץ ההגדרות, מכל מקור: כל החלונות באותו
+  /// תהליך חולקים את הקופסה. ריק כשהקופסה לא פתוחה (בדיקות עם מטמון בזיכרון).
+  static Stream<String> changedKeys() {
+    if (!Hive.isBoxOpen(keyName)) return const Stream<String>.empty();
+    return Hive.box<dynamic>(keyName).watch().map((event) => '${event.key}');
   }
 
   /// מחיקת כל ההגדרות, בהמתנה לסיומה.
