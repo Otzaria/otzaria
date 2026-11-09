@@ -242,8 +242,7 @@ class HtmlLinkHandler {
 
   /// מאתר את הספר שקישור `book://` מפנה אליו, כ-TextBook לפתיחה בלשונית.
   ///
-  /// `findBookByTitle` משווה `runtimeType` ולא `is`, ולכן ספר-מסמך
-  /// (HTML/DOCX/EPUB/ODT) אינו נמצא בחיפוש אחר `TextBook` — אף שהקורא פותח
+  /// ספר-מסמך (HTML/DOCX/EPUB/ODT) אינו `TextBook` — אף שהקורא פותח
   /// אותו דרך אותה לשונית בדיוק, בעטיפת `toTextBook()` (ראו
   /// `OpenedTab.fromBook`). בלי ההשלמה כאן כל קישור `book://` אל ספר כזה
   /// מת, ובקובצי HTML זו הדרך המתועדת לקשר בין ספרים.
@@ -261,8 +260,7 @@ class HtmlLinkHandler {
       if (book.title != title) continue;
       anyBook ??= book;
 
-      // כמו findBookByTitle(title, TextBook): ספר טקסט ישיר עדיף גם אם
-      // מסמך בר-המרה בעל אותו שם הופיע קודם בקטלוג.
+      // ספר טקסט ישיר עדיף גם אם מסמך בר-המרה בעל אותו שם הופיע קודם בקטלוג.
       if (book.runtimeType == TextBook) {
         return (target: book as TextBook, anyBook: anyBook);
       }

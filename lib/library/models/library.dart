@@ -1,7 +1,6 @@
 /* a representation of the library , every entry could be a category or a book, and a category can
 contain other categories and books */
 
-import 'package:collection/collection.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -145,19 +144,6 @@ class Library extends Category {
 
   /// כל הספרים שנכנסים לאינדקס החיפוש: ספרי העץ ואחריהם [offTreeBooks].
   List<Book> getIndexableBooks() => [...getAllBooks(), ...offTreeBooks];
-
-  /// Finds a book by its title in the library.
-  ///
-  /// Searches through all books in the library and its subcategories
-  /// for a book with the specified title.
-  ///
-  /// Returns the first matching [Book] or null if no book is found.
-  Book? findBookByTitle(String title, Type? type) {
-    return getAllBooks().firstWhereOrNull(
-      (book) =>
-          book.title == title && (type == null || book.runtimeType == type),
-    );
-  }
 
   /// מחפש ספר נלווה (Companion Book) כמו גרסת PDF לגרסת טקסט או להיפך.
   /// החיפוש מתבצע תחילה תחת אותה קטגוריה בה נמצא הספר המקורי.
