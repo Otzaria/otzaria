@@ -51,13 +51,17 @@ Future<String?> saveFileWithExtension({
 ///
 /// מחזיר את הנתיב הסופי של הקובץ (המקורי אם הסיומת כבר קיימת).
 Future<String> ensureFileExtension(String path, String extension) async {
-  final suffix = '.${extension.toLowerCase()}';
+  final normalizedExtension = extension.replaceFirst(RegExp(r'^\\.+'), '');
+  if (normalizedExtension.isEmpty) {
+    throw ArgumentError.value(extension, 'extension', 'Must not be empty');
+  }
+  final suffix = '.${normalizedExtension.toLowerCase()}';
   if (path.toLowerCase().endsWith(suffix)) return path;
 
   final file = File(path);
   if (!await file.exists()) return path;
 
-  final target = '$path.$extension';
+  final target = '$path.$normalizedExtension';
   final targetFile = File(target);
   if (await targetFile.exists()) {
     await targetFile.delete();
