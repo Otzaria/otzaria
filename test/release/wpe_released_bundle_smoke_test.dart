@@ -67,6 +67,7 @@ exit "$SMOKE_APT_STATUS"
 const _historicalMissingDependencies = [
   'libwayland-server0',
   'libegl1',
+  'libgles2',
   'libgl1',
   'libgbm1',
   'libx11-xcb1',

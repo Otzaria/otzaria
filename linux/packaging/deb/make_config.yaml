@@ -11,13 +11,14 @@ section: x11
 
 installed_size: 50000
 
-# ספריות המארח שנדרשות ל־ELF המצורפים ואינן נארזות בחבילה.
+# ספריות המארח שנדרשות לקישור או לטעינה דינמית ואינן נארזות בחבילה.
 dependencies:
   - libgtk-3-0
   - libsecret-1-0
   - libharfbuzz-icu0
   - libwayland-server0
   - libegl1
+  - libgles2
   - libgl1
   - libgbm1
   - libx11-xcb1

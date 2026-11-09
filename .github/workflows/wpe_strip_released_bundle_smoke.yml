@@ -61,9 +61,9 @@ jobs:
           # Extraction does not resolve Depends as a user's apt installation does.
           dependencies="$(dpkg-deb --field "$RUNNER_TEMP/released.deb" Depends)"
           test -n "$dependencies"
-          # These unbundled ELF providers are absent from this immutable DEB's Depends.
+          # These link/dlopen providers are absent from this immutable DEB's Depends.
           # Keep the historical payload intact; new DEBs declare them in make_config.yaml.
-          dependencies+=", libwayland-server0, libegl1, libgl1, libgbm1, libx11-xcb1, libcurl4, libxmu6"
+          dependencies+=", libwayland-server0, libegl1, libgles2, libgl1, libgbm1, libx11-xcb1, libcurl4, libxmu6"
           sudo apt-get satisfy -y --no-install-recommends "$dependencies"
 
       - name: Strip WPE in the actual historical DEB payload, never in the SDK
