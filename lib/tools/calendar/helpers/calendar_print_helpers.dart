@@ -13,6 +13,11 @@ import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
+// Rendering a calendar PDF formats dozens of individual days.
+// No mutable formatter settings are changed while formatting events.
+final HebrewDateFormatter _printDateFormatter = HebrewDateFormatter()
+  ..hebrewFormat = true;
+
 enum CalendarPrintLayout { month, week, day }
 
 CalendarPrintLayout resolveCalendarPrintLayout(CalendarView view) {
@@ -25,16 +30,15 @@ CalendarPrintLayout resolveCalendarPrintLayout(CalendarView view) {
 
 List<String> _jewishEventsForDate(DateTime date, bool inIsrael) {
   final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
-  final hdf = HebrewDateFormatter()..hebrewFormat = true;
   final List<String> result = [];
 
-  final yomTov = hdf.formatYomTov(jc);
+  final yomTov = _printDateFormatter.formatYomTov(jc);
   if (yomTov.isNotEmpty) result.addAll(yomTov.split(',').map((e) => e.trim()));
 
   if (jc.isRoshChodesh() && !result.contains('ראש חודש')) result.add('ר"ח');
 
   if (jc.getDayOfWeek() == 7) {
-    final parsha = hdf.formatParsha(jc);
+    final parsha = _printDateFormatter.formatParsha(jc);
     if (parsha.isNotEmpty) result.add(parsha);
   }
 
