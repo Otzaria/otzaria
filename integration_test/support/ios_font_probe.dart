@@ -29,7 +29,7 @@ Future<void> notifyIosFontProbeStarted({
     );
     request.headers.contentType = ContentType.json;
     request.headers.set('X-Apple-Quiet-Token', token);
-    request.write(
+    final encoded = utf8.encode(
       jsonEncode({
         'runId': generation,
         'hostPid': pid,
@@ -41,6 +41,8 @@ Future<void> notifyIosFontProbeStarted({
         'vmServiceIsolate': vmService['vmServiceIsolate'],
       }),
     );
+    request.contentLength = encoded.length;
+    request.add(encoded);
     final response = await request.close().timeout(const Duration(seconds: 45));
     await response.drain<void>().timeout(const Duration(seconds: 10));
     if (response.statusCode != HttpStatus.ok) {
