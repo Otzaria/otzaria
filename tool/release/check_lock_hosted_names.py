@@ -3,11 +3,21 @@
 
 This checks only the deterministic package-block shape emitted by Dart pub.
 It is not a general YAML parser and does not replace flutter pub get.
+Non-hosted packages (git/path/sdk) are deliberately outside its scope.
 """
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
+
+
+# Match pub_semver, including the leading zeros Dart pub preserves in lockfiles.
+_VERSION = re.compile(
+    r"[0-9]+\.[0-9]+\.[0-9]+"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
 
 
 def validate_hosted_names(content: str) -> list[str]:
@@ -17,24 +27,25 @@ def validate_hosted_names(content: str) -> list[str]:
     block: list[str] = []
     package = ""
     line_number = 0
-    hosted_count = 0
 
     def check_block() -> None:
-        nonlocal hosted_count
         if not package:
             return
         source = None
         name = None
         version = None
+        in_description = False
         for line in block:
-            if line.startswith("    source: "):
-                source = line[len("    source: ") :].strip().strip('"')
-            elif line.startswith("      name: "):
+            if line.startswith("    ") and not line.startswith("     "):
+                # Only an immediate child of the package can open a description.
+                in_description = line == "    description:"
+                if line.startswith("    source: "):
+                    source = line[len("    source: ") :].strip().strip('"')
+                elif line.startswith("    version: "):
+                    version = line[len("    version: ") :].strip().strip('"')
+            elif in_description and line.startswith("      name: "):
                 name = line[len("      name: ") :].strip().strip('"')
-            elif line.startswith("    version: "):
-                version = line[len("    version: ") :].strip().strip('"')
         if source == "hosted":
-            hosted_count += 1
             if name != package:
                 errors.append(
                     f"pubspec.lock:{line_number}: hosted package {package!r} "
@@ -44,6 +55,11 @@ def validate_hosted_names(content: str) -> list[str]:
                 errors.append(
                     f"pubspec.lock:{line_number}: hosted package {package!r} "
                     "has no version"
+                )
+            elif _VERSION.fullmatch(version) is None:
+                errors.append(
+                    f"pubspec.lock:{line_number}: hosted package {package!r} "
+                    f"has invalid version {version!r}"
                 )
 
     for number, raw in enumerate(content.splitlines(), 1):
@@ -77,8 +93,6 @@ def validate_hosted_names(content: str) -> list[str]:
 
     if not saw_packages:
         errors.append("pubspec.lock: missing packages: section")
-    if hosted_count == 0:
-        errors.append("pubspec.lock: no hosted package metadata checked")
     return errors
 
 
