@@ -1735,5 +1735,8 @@
   "חפש בעברית": "Search in Hebrew",
   "העתק פירוש": "Copy the definition",
   "הגדל": "Maximize",
-  "עצור את החיפוש": "Stop the search"
+  "עצור את החיפוש": "Stop the search",
+  "חיפוש תוסף": "Search plugins",
+  "לא נמצאו תוספים": "No plugins found",
+  "בחר את המוצגים": "Select shown"
 }
