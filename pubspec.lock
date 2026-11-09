@@ -38,7 +38,7 @@ packages:
     description:
       path: "packages/file_picker_android"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "2.1.4"
@@ -423,7 +423,7 @@ packages:
     description:
       path: "packages/file_picker"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "13.3.2"
@@ -432,7 +432,7 @@ packages:
     description:
       path: "packages/file_picker_darwin"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "2.5.0"
@@ -441,7 +441,7 @@ packages:
     description:
       path: "packages/file_picker_linux"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "2.0.3"
@@ -450,7 +450,7 @@ packages:
     description:
       path: "packages/file_picker_platform_interface"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "4.2.0"
@@ -459,7 +459,7 @@ packages:
     description:
       path: "packages/file_picker_web"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "4.2.0"
@@ -2098,7 +2098,7 @@ packages:
     description:
       path: "packages/file_picker_windows"
       ref: "codex/integrated-fixes"
-      resolved-ref: e7562628dde8579343d368037684844dec9d0e4f
+      resolved-ref: "0e107981d8fd5478afdff0175df5fb784cbbde12"
       url: "https://github.com/Otzaria/flutter_file_picker"
     source: git
     version: "2.0.1"
