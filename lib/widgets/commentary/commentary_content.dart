@@ -25,13 +25,23 @@ import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 
+typedef CommentaryNotesByLine = Map<int, List<PersonalNote>>;
+
+/// אינדוקס הערות לפי שורה, משותף לטעינה ולבדיקות.
+CommentaryNotesByLine indexCommentaryNotesByLine(List<PersonalNote> notes) {
+  final byLine = <int, List<PersonalNote>>{};
+  for (final note in notes) {
+    if (!note.hasLocation) continue;
+    byLine.putIfAbsent(note.lineNumber!, () => <PersonalNote>[]).add(note);
+  }
+  return byLine;
+}
+
 @visibleForTesting
 List<PersonalNote> commentaryNotesForLine(
-  List<PersonalNote> notes,
+  CommentaryNotesByLine notesByLine,
   int lineNumber,
-) => notes
-    .where((note) => note.hasLocation && note.lineNumber == lineNumber)
-    .toList();
+) => notesByLine[lineNumber] ?? const <PersonalNote>[];
 
 @visibleForTesting
 ValueChanged<int>? commentaryNoteTapHandler(
@@ -85,8 +95,9 @@ class CommentaryContent extends StatefulWidget {
   /// בהעתקה רב-שורתית של מפרשים.
   final void Function(String renderedPlainText)? onRendered;
 
-  /// הערות ספר המפרש. אותו Future משותף לכל קטעי המפרש בקבוצה.
-  final Future<List<PersonalNote>>? personalNotes;
+  /// הערות ספר המפרש, ממופתחות לפי שורה. אותו Future משותף לכל הקטעים
+  /// בקבוצה, ולכן האינדוקס נבנה פעם אחת בעת הטעינה ולא בכל קטע מרונדר.
+  final Future<CommentaryNotesByLine>? personalNotes;
   final void Function(Link link, int lineNumber)? onOpenPersonalNote;
 
   @override
@@ -241,13 +252,13 @@ class _CommentaryContentState extends State<CommentaryContent>
 
               _reportRenderedText(data, renderSettings);
 
-              return FutureBuilder<List<PersonalNote>>(
+              return FutureBuilder<CommentaryNotesByLine>(
                 future: widget.personalNotes,
                 builder: (context, snapshot) {
                   // המפרש מרונדר מיד; הסימונים נוספים כשההערות נטענות. הסתרה
                   // עד לטעינה מעלימה את המפרש כשהטעינה נכשלת או נתקעת.
                   final notesForLine = commentaryNotesForLine(
-                    snapshot.data ?? const <PersonalNote>[],
+                    snapshot.data ?? const <int, List<PersonalNote>>{},
                     widget.link.index2,
                   );
                   var displayData = buildAnnotatedLineHtml(
