@@ -171,12 +171,6 @@ dependency_overrides:
       url: https://github.com/Otzaria/packages
       ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
       path: third_party/packages/flutter_svg
-  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
-  provider:
-    git:
-      url: https://github.com/Otzaria/provider
-      ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
-      path: packages/provider
   # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
   pdfrx_engine:
     git:
@@ -236,6 +230,12 @@ dependency_overrides:
       ref: 57080495ee8b89aeee156a4440b6de1c5e0f7ef2
       path: packages/core
   matcher: ^0.12.20
+  # TODO: לחזור לגרסה הרשמית לאחר מיזוג ושחרור תיקוני provider באפסטרים.
+  provider:
+    git:
+      url: https://github.com/Otzaria/provider
+      ref: adeb1d44693fd9a7e863fd1ed4b4b6b8264270ff
+      path: packages/provider
   analyzer: ^14.7.0
   device_info_plus: ^13.3.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
