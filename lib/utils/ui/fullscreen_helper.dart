@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';

@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show Listenable;
 
 import 'package:otzaria/core/windowing/app_window_id.dart';
-import 'package:window_manager/window_manager.dart'
+import 'package:window_manager/legacy.dart'
     show ResizeEdge, TitleBarStyle;
 
 /// פעולות ושאילתות על חלון **אחד**: כל קורא מקבל את החלון שלו, ואין דרך

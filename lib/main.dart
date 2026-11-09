@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show FrameCallback;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -586,7 +586,7 @@ Future<void> _runAppBootstrap() async {
     if (Platform.isWindows) {
       // בעלי דיאלוגי הקבצים מהחלון הראשי; בלי לעכב את העלייה.
       unawaited(
-        windowManager.getId().then<void>(
+        const RunnerWindowChannel().mainWindowHandle().then<void>(
           (hwnd) => DialogOwner.mainWindowHwnd = hwnd,
           onError: (Object e) => debugPrint('main window hwnd failed: $e'),
         ),

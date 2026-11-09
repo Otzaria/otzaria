@@ -22,7 +22,7 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 // AppColors הועבר ל-lib/theme/app_colors.dart
 
