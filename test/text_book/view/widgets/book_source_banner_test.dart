@@ -161,11 +161,11 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
 
       bloc.setOfflineMode(true);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(_linkSpans(tester), isEmpty);
 
       bloc.setOfflineMode(false);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(_linkSpans(tester), hasLength(1));
     });
 
