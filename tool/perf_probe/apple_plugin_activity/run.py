@@ -1036,7 +1036,7 @@ def main():
                 env={**os.environ, **driver_environment, "APPLE_QUIET_OUTPUT": str(directory)},
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             code = wait_for_drive(app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
-        if (code != 0 and coordinator.app_checkpoint_at is None
+        if (args.platform == "macos" and code != 0 and coordinator.app_checkpoint_at is None
                 and not coordinator.completed.is_set()
                 and transient_swiftpm_download_failure(
                     (directory / "flutter-drive.log").read_text(encoding="utf-8", errors="replace"))):

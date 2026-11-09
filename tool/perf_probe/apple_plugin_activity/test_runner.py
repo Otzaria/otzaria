@@ -1114,6 +1114,7 @@ class RunBudgetTests(unittest.TestCase):
 class BuildOrderingTests(unittest.TestCase):
     def run_probe(self, *, budget=3900, build_seconds=0, readiness_seconds=0,
                   drive_seconds=0, completion_seconds=0, control_seconds=0, driver_exit=0,
+                  driver_completes=True,
                   expected_error=None, cleanup_error=None, final_save_error=None,
                   diagnostic_error=None, uninstall_on_exit=False,
                   info_plist=plistlib.dumps({'CFBundleIdentifier': 'com.mendelg.otzaria'}),
@@ -1196,8 +1197,9 @@ class BuildOrderingTests(unittest.TestCase):
                         limits['drive'] = timeout
                         elapsed[0] += drive_seconds
                         self.returncode = driver_exit
-                        runner.save(directory / 'complete.json', {'status': 'passed' if driver_exit == 0 else 'failed'})
-                        coordinator.completed.set()
+                        if driver_completes:
+                            runner.save(directory / 'complete.json', {'status': 'passed' if driver_exit == 0 else 'failed'})
+                            coordinator.completed.set()
                         if uninstall_on_exit:
                             (installed / 'Info.plist').unlink()
                             installed.rmdir()
@@ -1329,6 +1331,18 @@ class BuildOrderingTests(unittest.TestCase):
         self.assertTrue(any(str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart') for command in calls))
         self.assertEqual(report['status'], 'failed')
         self.assertIn('Host driver failed with exit 1', report['error'])
+
+    def test_ios_driver_failure_before_completion_keeps_original_exit_without_retry(self):
+        calls, _, report = self.run_probe(driver_exit=17, driver_completes=False,
+            expected_error=RuntimeError)
+        drivers = [command for command in calls
+            if str(command[-1]).endswith('/test_driver/apple_plugin_activity.dart')]
+        self.assertEqual(len(drivers), 1)
+        self.assertEqual(report['status'], 'failed')
+        self.assertEqual(report['error'],
+            'Host driver failed with exit 17; partial reports are retained')
+        self.assertNotIn('swiftpmRetries', report)
+        self.assertIn(['simctl-terminate'], calls)
 
     def test_direct_driver_does_not_invoke_a_broken_os_log_reader(self):
         calls, _, report = self.run_probe(log_stream_error=subprocess.TimeoutExpired(['log', 'stream'], 10))
