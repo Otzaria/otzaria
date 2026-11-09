@@ -354,7 +354,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   // שמירת הדפים כדי שלא ייבנו מחדש
   Widget? _cachedLibraryPage;
-  Widget? _cachedReadingPage;
+  Widget? _cachedReadingScreen;
   Widget? _cachedSettingsPage;
 
   // GlobalKeys יציבים משמרים את מצב העיון וההגדרות בעת מעבר חוצה.
@@ -2186,10 +2186,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   /// בונה את רשימת עמודי ה-PageView לפי מצב המעבר הנוכחי (ראה
   /// [buildTransitionPages]).
-  List<Widget> _buildPagesList() {
+  List<Widget> _buildPagesList({required bool showSideTabs}) {
     final pages = [
       _cachedLibraryPage!,
-      _cachedReadingPage!,
+      // KeepAlivePage: בלעדיו פריים שבו ה-viewport לא בונה את העמוד
+      // (מזעור לחלון 0x0, החלפת controller) זורק את ה-State של המסך —
+      // וטאב תוסף פתוח נטען מאפס לדף הראשי שלו.
+      KeepAlivePage(
+        key: const ValueKey('page-reading'),
+        // העמודה בתוך עמוד העיון ולפי הכרטיסיות בלבד: סביב כל ה-PageView
+        // היא מצרה גם את הספרייה בזמן המעבר (issue #4173).
+        child: ChromeDirectionality(
+          child: ReadingTabsSidePanel(
+            show: showSideTabs,
+            // מוק הגרירה נמדד מכאן: אזור התוכן שליד העמודה.
+            child: RepaintBoundary(
+              key: _windowKeys.windowContentBoundary,
+              child: _cachedReadingScreen!,
+            ),
+          ),
+        ),
+      ),
       _cachedSettingsPage!,
     ];
     final canonical = excludeOffscreenPagesFromFocus(pages, _currentPageIndex);
@@ -3719,11 +3736,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _cachedLibraryPage = const SizedBox.shrink();
             }
 
-            // KeepAlivePage: בלעדיו פריים שבו ה-viewport לא בונה את העמוד
-            // (מזעור לחלון 0x0, החלפת controller) זורק את ה-State של המסך —
-            // וטאב תוסף פתוח נטען מאפס לדף הראשי שלו.
-            _cachedReadingPage ??= KeepAlivePage(
-              key: const ValueKey('page-reading'),
+            _cachedReadingScreen ??= ContentDirectionality(
               child: ReadingScreen(
                 key: _readingScreenKey,
                 onFindRefRequested: () => _handleFindRefOpen(context),
@@ -3739,8 +3752,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 ),
               ),
             );
-
-            _pages = _buildPagesList();
 
             if (state.hasCheckedLibrary) {
               _scheduleTourStartIfNeeded(libraryLoaded: !state.isLibraryEmpty);
@@ -3827,6 +3838,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         );
                                     _handleNavAxisChange(context, wide);
 
+                                    final showSideTabs =
+                                        orientation == Orientation.landscape &&
+                                        !isImmersive &&
+                                        hasOpenTabs &&
+                                        context.select<SettingsBloc, bool>(
+                                          (b) => b.state.readingTabsOnSide,
+                                        );
+                                    _pages = _buildPagesList(
+                                      showSideTabs: showSideTabs,
+                                    );
+                                    final (
+                                      columnCollapsed,
+                                      columnWidth,
+                                    ) = context
+                                        .select<SettingsBloc, (bool, double)>(
+                                          (b) => (
+                                            b.state.readingTabsColumnCollapsed,
+                                            b.state.readingTabsColumnWidth,
+                                          ),
+                                        );
+
                                     final pageView = Stack(
                                       children: [
                                         // הכרום מתהפך לפי שפת הממשק; המסכים
@@ -3845,28 +3877,46 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         // צמוד לסרגל הניווט (ימין ב-RTL) ובתוך
                                         // אזור התוכן בלבד — כך ה-scrim אינו בולע
                                         // לחיצות בסרגל וכפתור "כלים" נשאר לחיץ
-                                        // לסגירה.
-                                        ContextOverlayPanel(
-                                          isOpen: _isToolsLauncherOpen,
-                                          onClose: _closeToolsLauncher,
-                                          alignment:
-                                              AlignmentDirectional.centerStart,
-                                          // רחב מספיק שארבע הקוביות שבשורה יהיו
-                                          // מרווחות, ועדיין לא חמש.
-                                          width: 440,
-                                          // הרצועה בראש הפאנל רחבה עד הקצוות;
-                                          // הריפוד של התוכן בתוך הפאנל עצמו.
-                                          contentPadding: EdgeInsets.zero,
-                                          deferChildBuildOnOpen: true,
-                                          child: ToolsLauncherPanel(
-                                            key: _windowKeys
-                                                .tour
-                                                .toolsLauncherPanel,
-                                            onClose: _closeToolsLauncher,
-                                            onToolSelected: (entry) {
-                                              _closeToolsLauncher();
-                                              openToolTab(context, entry);
-                                            },
+                                        // לסגירה. בעיון: ליד עמודת הכרטיסיות.
+                                        LayoutBuilder(
+                                          builder: (context, constraints) => AnimatedPadding(
+                                            duration: AppTokens.animPanelSlide,
+                                            curve: Curves.easeInOut,
+                                            padding: EdgeInsetsDirectional.only(
+                                              start:
+                                                  showSideTabs && useReaderStyle
+                                                  ? ReadingTabsSidePanel.reservedWidth(
+                                                      collapsed:
+                                                          columnCollapsed,
+                                                      width: columnWidth,
+                                                      maxWidth:
+                                                          constraints.maxWidth,
+                                                    )
+                                                  : 0,
+                                            ),
+                                            child: ContextOverlayPanel(
+                                              isOpen: _isToolsLauncherOpen,
+                                              onClose: _closeToolsLauncher,
+                                              alignment: AlignmentDirectional
+                                                  .centerStart,
+                                              // רחב מספיק שארבע הקוביות שבשורה יהיו
+                                              // מרווחות, ועדיין לא חמש.
+                                              width: 440,
+                                              // הרצועה בראש הפאנל רחבה עד הקצוות;
+                                              // הריפוד של התוכן בתוך הפאנל עצמו.
+                                              contentPadding: EdgeInsets.zero,
+                                              deferChildBuildOnOpen: true,
+                                              child: ToolsLauncherPanel(
+                                                key: _windowKeys
+                                                    .tour
+                                                    .toolsLauncherPanel,
+                                                onClose: _closeToolsLauncher,
+                                                onToolSelected: (entry) {
+                                                  _closeToolsLauncher();
+                                                  openToolTab(context, entry);
+                                                },
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -3925,30 +3975,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                         ),
                                                 ),
                                                 Expanded(
-                                                  child: ReadingTabsSidePanel(
-                                                    show:
-                                                        isLandscape &&
-                                                        !isImmersive &&
-                                                        hasOpenTabs &&
-                                                        (state.currentScreen ==
-                                                                Screen
-                                                                    .reading ||
-                                                            state.currentScreen ==
-                                                                Screen
-                                                                    .search) &&
-                                                        context.select<
-                                                          SettingsBloc,
-                                                          bool
-                                                        >(
-                                                          (b) => b
-                                                              .state
-                                                              .readingTabsOnSide,
-                                                        ),
-                                                    child: RepaintBoundary(
-                                                      key: _windowKeys
-                                                          .windowContentBoundary,
-                                                      child: pageView,
-                                                    ),
+                                                  child: RepaintBoundary(
+                                                    child: pageView,
                                                   ),
                                                 ),
                                               ],

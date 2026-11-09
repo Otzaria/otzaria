@@ -11,6 +11,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -47,6 +48,10 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/reading_screen.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
+import 'package:otzaria/tools/view/tools_launcher_panel.dart';
+import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -278,6 +283,41 @@ void main() {
         }
         await tester.pumpAndSettle();
       }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
+  testWidgets(
+    'בעיון עם כרטיסיות בצד פאנל הכלים ומוק הגרירה נמדדים ליד העמודה (issue #4173)',
+    (
+      tester,
+    ) async {
+      await _pumpMainWindow(
+        tester,
+        Future.value(Library(categories: [])),
+        isLoading: false,
+        size: const Size(1400, 900),
+        tabsPlacement: SettingsRepository.readingTabsPlacementSide,
+        openTabs: [_StubTab('ספר א')],
+      );
+      await tester.pumpAndSettle();
+      final keys = AppWindowKeys.of(
+        tester.element(find.byType(MainWindowScreen)),
+      );
+      ToolsLauncherController.instance.open(windowKeys: keys);
+      await tester.pumpAndSettle();
+
+      // ה-scrim של הכלים ואזור התוכן הם מסך העיון שליד העמודה, לא העמודה.
+      final reading = tester.getRect(find.byType(ReadingScreen));
+      final tools = find.ancestor(
+        of: find.byType(ToolsLauncherPanel),
+        matching: find.byType(ContextOverlayPanel),
+      );
+      expect(tester.getRect(tools), reading);
+      final content =
+          keys.windowContentBoundary.currentContext!.findRenderObject()!
+              as RenderBox;
+      expect(content.size, reading.size);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
