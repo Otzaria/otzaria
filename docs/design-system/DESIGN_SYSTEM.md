@@ -181,7 +181,7 @@ AlertDialog(...) / TextButton(...) / Card()  // showTwoActionsDialog / ActionBut
 | הדגשת חיפוש וסימון | `AppSurfaces.searchHit`, `searchHitCurrent`, `permanentMark`, ו־CSS role tokens בתוך ה־HTML (`SearchHighlightCss`, כמו `otzaria-reader-link`) | הרקעים שקופים 80%, כדי שסימון בעכבר ייראה גם בתוכם (DD-17, השלמה 2.11) | | קיים (DD-17 A) | קורא, PDF |
 | הדגשה בקטעי תוצאות החיפוש | `cs.error` | | | קיים, **נשאר** (DD-17) | קטעי תוצאה |
 | קישור בספר | `AppSurfaces.readerLink` | `primary` (אפור בערכה נייטרלית) | | קיים | תוכן |
-| בחירת פסקה / שורה מודגשת | `paragraphSelectionBackground`, `highlightedLineBackground` | | | קיים | קורא |
+| בחירת פסקה / שורה מודגשת | `highlightedLineBackground`; שורת מפרש קשורה בצורת הדף: `relatedLineMarker` (סמן צד, בלי רקע) | | | קיים | קורא |
 | scrim | `AppSurfaces.scrim`, אחד לדיאלוגים ולחלוניות | `cs.scrim` עדין (`0x22`) | כנ"ל | קיים (DD-12 A). לסיור ההיכרות החשכה כהה יותר, בשם משלה | — |
 | צל | `AppShadows` | `cs.shadow` 22% | | קיים (DD-12 A). כרטיסים בלי צל | תפריט, חלונית צפה, כפתור צף |
 
