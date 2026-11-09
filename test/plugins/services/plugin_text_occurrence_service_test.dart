@@ -213,7 +213,7 @@ void main() {
   });
 
   test('checks grapheme rather than UTF-16 length for oversized text', () {
-    final text = List.filled(25001, 'א\\u05B0').join();
+    final text = List.filled(25001, 'א\u05B0').join();
     expect(
       text.length,
       greaterThan(PluginTextOccurrenceService.maxSectionGraphemes),
