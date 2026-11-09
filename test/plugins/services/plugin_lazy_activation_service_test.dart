@@ -528,6 +528,55 @@ void main() {
       expect(deactivations, isEmpty);
     });
 
+    test(
+      'backgroundDone closes after its slow originating RPC completes',
+      () async {
+        // Under a slow native WebView callback the RPC may still be in flight
+        // after the 300ms acknowledgement grace period. Do not wait 3 minutes.
+        service.idleDelayOverride = const Duration(minutes: 3);
+        service.trackIdleTeardown('p1');
+        final runtime = service.attachBackgroundInstance('p1');
+        await service.onBackgroundInstanceReady('p1', runtimeToken: runtime);
+        final finishOriginal = service.beginWork('p1', runtimeToken: runtime);
+
+        expect(
+          service.requestImmediateTeardown('p1', runtimeToken: runtime),
+          isTrue,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 420));
+        expect(deactivations, isEmpty, reason: 'Do not dispose an active RPC');
+
+        finishOriginal();
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        expect(deactivations, ['p1']);
+        service.onBackgroundInstanceClosed('p1', runtimeToken: runtime);
+      },
+    );
+
+    test('deferred backgroundDone cannot terminate a replacement runtime', () {
+      fakeAsync((async) {
+        service.idleDelayOverride = const Duration(minutes: 3);
+        service.trackIdleTeardown('p1');
+        final original = service.attachBackgroundInstance('p1');
+        final finishOriginal = service.beginWork('p1', runtimeToken: original);
+        expect(
+          service.requestImmediateTeardown('p1', runtimeToken: original),
+          isTrue,
+        );
+        async.elapse(const Duration(milliseconds: 350));
+        expect(deactivations, isEmpty);
+
+        // The old RPC resolves after its owner has been closed/replaced.
+        service.onBackgroundInstanceClosed('p1', runtimeToken: original);
+        final replacement = service.attachBackgroundInstance('p1');
+        service.trackIdleTeardown('p1');
+        finishOriginal();
+        async.elapse(const Duration(seconds: 1));
+        expect(deactivations, isEmpty);
+        service.onBackgroundInstanceClosed('p1', runtimeToken: replacement);
+      });
+    });
+
     test('backgroundDone defers when new work started meanwhile', () async {
       service.idleDelayOverride = const Duration(milliseconds: 50);
       service.trackIdleTeardown('p1');

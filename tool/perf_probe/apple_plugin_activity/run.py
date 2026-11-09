@@ -41,6 +41,28 @@ NATIVE_PACKAGES = {"flutter_inappwebview", "flutter_inappwebview_android",
                    "flutter_inappwebview_platform_interface", "flutter_inappwebview_windows"}
 
 
+def transient_swiftpm_download_failure(output):
+    """Only an external release download failure, never a compiler/app failure."""
+    if ("Could not resolve package dependencies:" not in output
+            and "Xcode failed to resolve Swift Package Manager dependencies:" not in output):
+        return False
+    if ("https://github.com/" not in output or
+            not any(marker in output for marker in ("downloadError(", "failed downloading"))):
+        return False
+    return any(marker in output for marker in
+               ("HTTP 503", "HTTP 502", "HTTP 504", "returned error: 503",
+                "Could not connect to the server", "connection reset", "timed out"))
+
+
+def swiftpm_log(directory, prefix):
+    """Read the preserved prelaunch transport evidence without modifying it."""
+    return "\n".join(
+        (directory / f"{prefix}.{suffix}.log").read_text(encoding="utf-8", errors="replace")
+        for suffix in ("stdout", "stderr")
+        if (directory / f"{prefix}.{suffix}.log").exists()
+    )
+
+
 def now_ms():
     return time.time_ns() / 1_000_000
 
@@ -760,11 +782,11 @@ def prepare_control(directory, url, token, timeout=120):
     return control
 
 
-def build_ios_probe(directory, timeout=2400):
+def build_ios_probe(directory, timeout=2400, *, label="build-ios-probe"):
     command = ["flutter", "build", "ios", "--simulator", "--debug", "--no-codesign", "--no-pub",
                "--target=integration_test/apple_plugin_activity_probe_test.dart",
                f"--dart-define-from-file={directory / 'defines.json'}"]
-    recorded_output(directory, "build-ios-probe", command, timeout)
+    recorded_output(directory, label, command, timeout)
     return REPO / "build/ios/iphonesimulator/Runner.app"
 
 
@@ -964,7 +986,20 @@ def main():
             return
         application = None
         if args.platform == "ios":
-            application = build_ios_probe(directory, timeout=remaining_timeout(deadline, 2400))
+            try:
+                application = build_ios_probe(directory, timeout=remaining_timeout(deadline, 2400))
+            except subprocess.CalledProcessError:
+                if not transient_swiftpm_download_failure(swiftpm_log(directory, "build-ios-probe")):
+                    raise
+                # Only package resolution failed; no app launch or native lifecycle occurred.
+                environment.setdefault("swiftpmRetries", []).append({
+                    "stage": "iosBuild", "reason": "external SwiftPM download failure",
+                    "previousLog": "build-ios-probe.stdout.log"})
+                save(directory / "environment.json", environment)
+                time.sleep(min(5, remaining_timeout(deadline, 60)))
+                application = build_ios_probe(
+                    directory, timeout=remaining_timeout(deadline, 2400),
+                    label="build-ios-probe-retry")
             if native_source_provenance(deadline=deadline) != provenance:
                 raise ValueError("The resolved native source changed during the app build")
             environment["prebuiltApplication"] = str(application)
@@ -1001,6 +1036,23 @@ def main():
                 env={**os.environ, **driver_environment, "APPLE_QUIET_OUTPUT": str(directory)},
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             code = wait_for_drive(app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
+        if (args.platform == "macos" and code != 0 and coordinator.app_checkpoint_at is None
+                and not coordinator.completed.is_set()
+                and transient_swiftpm_download_failure(
+                    (directory / "flutter-drive.log").read_text(encoding="utf-8", errors="replace"))):
+            # A build-time HTTP failure occurred before any authenticated app
+            # checkpoint. Preserve the failed output; do not retry app failures.
+            environment.setdefault("swiftpmRetries", []).append({
+                "stage": "macosDrive", "reason": "external SwiftPM download failure",
+                "previousLog": "flutter-drive.log"})
+            save(directory / "environment.json", environment)
+            time.sleep(min(5, remaining_timeout(deadline, 60)))
+            with (directory / "flutter-drive-swiftpm-retry.log").open("w") as log:
+                app_process = subprocess.Popen(command, cwd=REPO,
+                    env={**os.environ, "APPLE_QUIET_OUTPUT": str(directory)},
+                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                code = wait_for_drive(
+                    app_process, coordinator, timeout=remaining_timeout(deadline, 2400))
         if code != 0:
             raise RuntimeError(f"Host driver failed with exit {code}; partial reports are retained")
         if not coordinator.completed.wait(remaining_timeout(deadline, 10)):

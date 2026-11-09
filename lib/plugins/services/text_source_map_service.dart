@@ -168,7 +168,10 @@ class TextSourceMapService {
       processedHtml,
     );
     final source = _GraphemeText(sourceText);
-    final rendered = _GraphemeText(renderedText);
+    final rendered =
+        identical(sourceText, renderedText) || sourceText == renderedText
+        ? source
+        : _GraphemeText(renderedText);
 
     return PluginTextSourceMap(
       bookId: bookId,
@@ -179,7 +182,21 @@ class TextSourceMapService {
       renderedTextHash: _hash(renderedText),
       sourceGraphemeLength: source.length,
       renderedGraphemeLength: rendered.length,
-      mappings: _buildSegments(source, rendered),
+      // טקסט שהתצוגה אינה משנה (רוב השורות) הוא מקטע זהות אחד.
+      mappings: identical(source, rendered)
+          ? [
+              if (source.length > 0)
+                _segment(
+                  source,
+                  source,
+                  0,
+                  source.length,
+                  0,
+                  source.length,
+                  PluginTextSourceMapKind.identity,
+                ),
+            ]
+          : _buildSegments(source, rendered),
     );
   }
 
@@ -192,12 +209,20 @@ class TextSourceMapService {
     var renderedIndex = 0;
 
     while (sourceIndex < source.length && renderedIndex < rendered.length) {
-      if (source.values[sourceIndex] == rendered.values[renderedIndex]) {
+      if (source.keys[sourceIndex] == rendered.keys[renderedIndex]) {
+        // אות שרק הניקוד או הטעמים שלה שונים מתאימה לאות המוצגת אחד לאחד.
+        // ההתאמה לפי האות עצמה, ולא לפי ה-grapheme כולו: אחרת כל מילה מנוקדת
+        // היא החלפה, והמיפוי בתוכה יחסי בלבד ומזיז גבולות בין מילים. ריצה
+        // כזו היא מקטע אחד באורך שווה בשני הצדדים, ולכן המיפוי בה מדויק.
         final sourceStart = sourceIndex;
         final renderedStart = renderedIndex;
+        var exact = true;
         while (sourceIndex < source.length &&
             renderedIndex < rendered.length &&
-            source.values[sourceIndex] == rendered.values[renderedIndex]) {
+            source.keys[sourceIndex] == rendered.keys[renderedIndex]) {
+          exact =
+              exact &&
+              source.values[sourceIndex] == rendered.values[renderedIndex];
           sourceIndex++;
           renderedIndex++;
         }
@@ -209,7 +234,9 @@ class TextSourceMapService {
             sourceIndex,
             renderedStart,
             renderedIndex,
-            PluginTextSourceMapKind.identity,
+            exact
+                ? PluginTextSourceMapKind.identity
+                : PluginTextSourceMapKind.substitution,
           ),
         );
         continue;
@@ -294,7 +321,7 @@ class TextSourceMapService {
       for (var sourceOffset = from; sourceOffset <= to; sourceOffset++) {
         final sourceIndex = sourceStart + sourceOffset;
         final renderedIndex = renderedStart + distance - sourceOffset;
-        if (source.values[sourceIndex] != rendered.values[renderedIndex]) {
+        if (source.keys[sourceIndex] != rendered.keys[renderedIndex]) {
           continue;
         }
         final score =
@@ -318,8 +345,7 @@ class TextSourceMapService {
     while (run < _maxResyncRunProbe &&
         sourceIndex + run < source.length &&
         renderedIndex + run < rendered.length &&
-        source.values[sourceIndex + run] ==
-            rendered.values[renderedIndex + run]) {
+        source.keys[sourceIndex + run] == rendered.keys[renderedIndex + run]) {
       run++;
     }
     return run;
@@ -397,6 +423,10 @@ class _MapCacheKey {
 
 class _GraphemeText {
   final List<String> values;
+
+  /// כל grapheme בלי ניקוד וטעמים — מפתח היישור בין המקור לתצוגה. מחושב רק
+  /// כשהמקור והתצוגה שונים.
+  late final List<String> keys = [for (final value in values) _bare(value)];
   final List<PluginTextOffset> boundaries;
 
   _GraphemeText(String text)
@@ -404,6 +434,30 @@ class _GraphemeText {
       boundaries = _buildBoundaries(text);
 
   int get length => values.length;
+
+  /// בלי הסימנים שנצמדים לאות (כמו `removeAttachedMarks`); מקף, פסק וסוף
+  /// פסוק הם תווים בפני עצמם, ונשארים במפתח. נקרא לכל grapheme בכל בניית
+  /// מפה, ולכן בלי RegExp ובלי העתקה כשאין סימן.
+  static String _bare(String grapheme) {
+    if (grapheme.length < 2) return grapheme;
+    var marks = 0;
+    for (var i = 0; i < grapheme.length; i++) {
+      if (_isAttachedMark(grapheme.codeUnitAt(i))) marks++;
+    }
+    if (marks == 0 || marks == grapheme.length) return grapheme;
+    return String.fromCharCodes([
+      for (final unit in grapheme.codeUnits)
+        if (!_isAttachedMark(unit)) unit,
+    ]);
+  }
+
+  static bool _isAttachedMark(int c) =>
+      c >= 0x0591 &&
+      c <= 0x05C7 &&
+      c != 0x05BE &&
+      c != 0x05C0 &&
+      c != 0x05C3 &&
+      c != 0x05C6;
 
   PluginTextOffset offsetAt(int index) => boundaries[index];
 
