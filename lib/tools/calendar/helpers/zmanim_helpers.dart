@@ -1,5 +1,4 @@
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -323,40 +322,6 @@ String _formatHebrewNightLabel(
 // ===========================================================================
 // פונקציות חישוב מותאמות (שאינן קריאה ישירה ל-kosher_dart)
 // ===========================================================================
-
-/// חצות לילה אסטרונומי — נקודת האמצע בין שקיעת היום לזריחת המחרת.
-/// מחושב ידנית בגלל באג ב-getSolarMidnight של kosher_dart 2.0.20 עם
-/// TZDateTime (מסיג את התאריך ביום).
-DateTime? calculateSolarMidnight(
-  ComplexZmanimCalendar zmanimCalendar,
-  String city,
-  DateTime date,
-) {
-  // בקווי רוחב קיצוניים השקיעה/הזריחה עשויות להיות null (יום/לילה רצוף).
-  final sunsetToday = zmanimCalendar.getSunset();
-  if (sunsetToday == null) return null;
-
-  // נפילה אחורה: חצות היום + 12 שעות כקירוב לחצות הלילה.
-  DateTime? fallback() {
-    final chatzos = zmanimCalendar.getChatzos();
-    return chatzos?.add(const Duration(hours: 12));
-  }
-
-  final tomorrowContext = buildZmanimCalendarContext(
-    addCalendarDays(date, 1),
-    city,
-  );
-  final sunriseTomorrow = tomorrowContext?.zmanimCalendar.getSunrise();
-  if (sunriseTomorrow == null) return fallback();
-
-  final nightMs =
-      sunriseTomorrow.millisecondsSinceEpoch -
-      sunsetToday.millisecondsSinceEpoch;
-  return DateTime.fromMillisecondsSinceEpoch(
-    sunsetToday.millisecondsSinceEpoch + nightMs ~/ 2,
-    isUtc: sunsetToday.isUtc,
-  );
-}
 
 /// זמן הדלקת נרות — מספר הדקות לפני השקיעה משתנה לפי מנהג העיר.
 DateTime? calculateCandleLightingTime(
@@ -729,7 +694,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
     category: 'חצות',
     explanation: '''חצות לילה אסטרונומי — אמצע בין שקיעת היום לזריחת המחרת.''',
     defaultEnabled: true,
-    compute: (c) => calculateSolarMidnight(c.cal, c.city, c.date),
+    compute: (c) => c.cal.getSolarMidnight(),
   ),
 
   // ── מנחה ───────────────────────────────────────────────────────────────

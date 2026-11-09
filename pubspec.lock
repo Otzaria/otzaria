@@ -1017,8 +1017,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "18bc36069ca3b8c3eb9dba5154c8031ccc89d3b5"
-      resolved-ref: "18bc36069ca3b8c3eb9dba5154c8031ccc89d3b5"
+      ref: "75938458c8c0cf5b288ce529a4fe4ab2cbec24c0"
+      resolved-ref: "75938458c8c0cf5b288ce529a4fe4ab2cbec24c0"
       url: "https://github.com/Otzaria/kosher_dart"
     source: git
     version: "2.0.20"
