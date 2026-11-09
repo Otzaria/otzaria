@@ -55,6 +55,11 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   FocusNode? _focus;
   FocusNode? _activationFocus;
   Offset? _editPosition;
+  final GlobalKey _originalKey = GlobalKey();
+
+  /// גובה הפסקה הרגילה ברגע ההפעלה: שדה העריכה אינו נמוך ממנו, כדי שהחלפת
+  /// התצוגה לא תשנה את גובה הפסקה ולא תזיז את הגלילה. מתבטל עם התיקון הראשון.
+  double? _lockedHeight;
   String? _lastRejection;
   DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   PluginCorrectionSessionService get _registry =>
@@ -100,6 +105,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
 
   void _focusChanged() {
     if (!mounted) return;
+    if (_focus!.hasFocus && !_showEditor) _lockOriginalHeight();
     setState(() => _showEditor = _focus!.hasFocus);
     final handoff = _handoff;
     if (!_focus!.hasFocus || handoff == null) return;
@@ -125,7 +131,13 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (_activationFocus!.hasPrimaryFocus) _startEditing();
   }
 
+  void _lockOriginalHeight() {
+    final height = _originalKey.currentContext?.size?.height;
+    if (height != null && height.isFinite && height > 0) _lockedHeight = height;
+  }
+
   void _startEditing({Offset? position}) {
+    _lockOriginalHeight();
     setState(() => _showEditor = true);
     _focus!.requestFocus();
     if (position == null) return;
@@ -298,7 +310,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
           behavior: HitTestBehavior.translucent,
           onTapDown: (details) => _editPosition = details.globalPosition,
           onTap: () => _startEditing(position: _editPosition),
-          child: widget.original,
+          child: KeyedSubtree(key: _originalKey, child: widget.original),
         ),
       );
     }
@@ -315,7 +327,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
               : BorderSide.none,
         ),
       ),
-      child: _buildEditor(),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: _corrected ? 0 : (_lockedHeight ?? 0),
+        ),
+        child: _buildEditor(),
+      ),
     );
   }
 

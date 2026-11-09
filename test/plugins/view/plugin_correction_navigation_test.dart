@@ -139,6 +139,45 @@ void main() {
     await finish(tester, service);
   });
 
+  testWidgets('הפעלת עריכה אינה מקטינה את גובה הפסקה', (tester) async {
+    final service = await begin(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Column(
+              children: [
+                PluginCorrectionParagraph(
+                  tabId: 'tab',
+                  sectionIndex: 0,
+                  sourceText: sources[0],
+                  settings: const RenderSettings(),
+                  original: const SizedBox(height: 150, child: Text('קריאה 0')),
+                  service: service,
+                  sessionActive: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final before = tester
+        .getSize(find.byType(PluginCorrectionParagraph))
+        .height;
+    expect(before, 150);
+    await tester.tap(find.text('קריאה 0'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(find.byType(EditableText), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(PluginCorrectionParagraph)).height,
+      greaterThanOrEqualTo(before),
+    );
+    await finish(tester, service);
+  });
+
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
     final service = await begin(tester);
     await pump(tester, service, searchText: 'ראשונה');
