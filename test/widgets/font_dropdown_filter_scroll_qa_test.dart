@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/font_dropdown_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
