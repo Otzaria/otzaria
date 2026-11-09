@@ -13,7 +13,7 @@ import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
-import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+import 'package:window_manager/legacy.dart' show TitleBarStyle;
 
 import '../test_helpers/second_test_view.dart';
 import '../test_helpers/memory_cache_provider.dart';

@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_native.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
-import 'package:window_manager/window_manager.dart' show ResizeEdge;
+import 'package:window_manager/legacy.dart' show ResizeEdge;
 
 import 'second_test_view.dart';
 

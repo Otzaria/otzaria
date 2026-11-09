@@ -1,27 +1,22 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/legacy.dart';
 
 void main() {
-  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  TestWidgetsFlutterBinding.ensureInitialized();
   final dispatcher = PluginRuntimeDispatcher.instance;
   const main = (pluginId: 'native-window', instanceId: 'main');
   const other = (pluginId: 'native-window', instanceId: 'other');
-  const channel = MethodChannel('window_manager');
   late AppWindowListener listener;
 
+  // window_manager 0.6's legacy API is backed by nativeapi, without the old
+  // MethodChannel. Exercise the app's generic listener contract directly.
   Future<void> nativeEvent(String event) async {
-    final reply = await binding.defaultBinaryMessenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(
-        MethodCall('onEvent', {'eventName': event}),
-      ),
-      null,
-    );
-    expect(reply, isNotNull);
-    expect(channel.codec.decodeEnvelope(reply!), isNull);
+    for (final current in windowManager.listeners) {
+      if (!windowManager.listeners.contains(current)) continue;
+      current.onWindowEvent(event);
+    }
   }
 
   setUp(() {
@@ -37,7 +32,7 @@ void main() {
     dispatcher.resetVisibilityForTesting();
   });
 
-  test('native hide and show reach the app through window_manager', () async {
+  test('legacy visibility callbacks update plugin runtime', () async {
     expect(dispatcher.isInstanceShown(main), isTrue);
     await nativeEvent('hide');
     expect(dispatcher.isInstanceShown(main), isFalse);
