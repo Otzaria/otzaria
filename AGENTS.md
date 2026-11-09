@@ -251,7 +251,10 @@ called from `BeginFrame` or a platform message). The cause is in the `app.so+0xâ
 Name those frames with the release asset `otzaria-dart-symbols-windows-<arch>.debug`:
 `dart run tool/symbolize_hang_report.dart --symbols <file> errors.txt`. The tool skips any record
 whose `Dart build-id` does not match the file. `Build commit` identifies a dev build, and those have no
-published symbols. To name `flutter_windows.dll` frames, use its PDB from
+published symbols. Windows builds published by `build-and-announce.yml` ship a patched `flutter_windows.dll`
+(`.github/actions/patched-flutter-engine`): name its frames with the `.pdb` from the `palmoni5/flutter` release
+`otzaria-3.47.7-a11y.1`, picked by the GUID in the record's `Module PDB:` line (x64
+`9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64 `7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
 `flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
 For system-DLL frames, fetch the PDB from the Microsoft symbol server using the record's `Module PDB`
 line (the tool prints the URL).
