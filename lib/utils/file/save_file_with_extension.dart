@@ -64,9 +64,9 @@ Future<String> ensureFileExtension(String path, String extension) async {
   // The system picker approved the path it returned, not a second target
   // with an appended extension. Never silently replace that other file.
   var target = '$path.$normalizedExtension';
-  var suffix = 1;
+  var collisionIndex = 1;
   while (await File(target).exists()) {
-    target = '$path (${suffix++}).$normalizedExtension';
+    target = '$path (${collisionIndex++}).$normalizedExtension';
   }
   await file.rename(target);
   return target;
