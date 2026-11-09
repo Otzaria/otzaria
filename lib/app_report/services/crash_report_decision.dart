@@ -45,10 +45,8 @@ abstract class CrashReportDecision {
     return CrashReportAction.prompt;
   }
 
-  /// תקיעה, או 0xc0000006 (קריאת דף מהדיסק נכשלה): בהתקנה ניידת אלה כמעט
-  /// תמיד כונן נייד איטי או מנותק, ואין בהם מה לתקן בקוד.
+  /// 0xc0000006 מעיד על כשל בקריאת דף מהדיסק. תקיעה לבדה אינה ראיה לכשל בכונן.
   static bool isLikelySlowDrive(CrashCandidate candidate) =>
-      candidate.isHang ||
       _isInPageError(candidate.signature) ||
       _isInPageError(candidate.minidumpSignature);
 

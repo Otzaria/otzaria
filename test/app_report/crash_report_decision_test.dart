@@ -3,7 +3,10 @@ import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
-CrashCandidate _candidate({CrashSignature? signature}) => CrashCandidate(
+CrashCandidate _candidate({
+  CrashSignature? signature,
+  CrashSignature? minidumpSignature,
+}) => CrashCandidate(
   previousSession: SessionLock(
     pid: 1,
     version: '0.9.98',
@@ -11,6 +14,7 @@ CrashCandidate _candidate({CrashSignature? signature}) => CrashCandidate(
   ),
   entries: const [],
   signature: signature,
+  minidumpSignature: minidumpSignature,
   hasStartupStall: false,
   hasMinidump: signature == null,
 );
@@ -50,7 +54,7 @@ void main() {
     }
   });
 
-  group('התקנה ניידת: תקיעה או 0xc0000006 → המלצה לכונן מהיר', () {
+  group('התקנה ניידת: רק ראיה לכשל בקריאת דף → המלצה לכונן מהיר', () {
     const inPageError = CrashSignature(
       exceptionType: '0xc0000006 sqlite3.dll+0x154bc6',
       frames: ['sqlite3.dll+0x154bc6'],
@@ -59,22 +63,37 @@ void main() {
       exceptionType: '0xc0000005 app.so+0x10',
       frames: ['app.so+0x10'],
     );
-    const hang = CrashCandidate.hang(signature: null);
+    const hang = CrashCandidate.hang(
+      signature: CrashSignature(
+        exceptionType: 'AppHang',
+        frames: ['app.so+0x1234', 'flutter_windows.dll+0x5678'],
+      ),
+    );
 
     CrashReportAction decide(
       AppCrashReportMode mode,
       CrashCandidate candidate, {
       bool isPortable = true,
+      bool throttleAllows = true,
     }) => CrashReportDecision.decide(
       mode: mode,
       candidate: candidate,
-      throttleAllows: true,
+      throttleAllows: throttleAllows,
       isPortable: isPortable,
     );
 
     test('ask ו-always: לא שואל ולא שולח, אלא ממליץ', () {
       for (final mode in [AppCrashReportMode.ask, AppCrashReportMode.always]) {
-        expect(decide(mode, hang), CrashReportAction.suggestFasterDrive);
+        expect(
+          decide(
+            mode,
+            _candidate(
+              signature: accessViolation,
+              minidumpSignature: inPageError,
+            ),
+          ),
+          CrashReportAction.suggestFasterDrive,
+        );
         expect(
           decide(mode, _candidate(signature: inPageError)),
           CrashReportAction.suggestFasterDrive,
@@ -97,12 +116,50 @@ void main() {
     });
 
     test('never: גם ההמלצה לא מוצגת', () {
-      expect(decide(AppCrashReportMode.never, hang), CrashReportAction.none);
+      expect(
+        decide(AppCrashReportMode.never, _candidate(signature: inPageError)),
+        CrashReportAction.none,
+      );
     });
 
-    test('התקנה רגילה: תקיעה מדווחת כרגיל', () {
+    for (final isPortable in [false, true]) {
+      for (final mode in AppCrashReportMode.values) {
+        for (final throttleAllows in [false, true]) {
+          test('תקיעה: נייד=$isPortable / $mode / מגבלה=$throttleAllows', () {
+            final expected = switch (mode) {
+              AppCrashReportMode.never => CrashReportAction.none,
+              AppCrashReportMode.ask => CrashReportAction.prompt,
+              AppCrashReportMode.always =>
+                throttleAllows
+                    ? CrashReportAction.sendAutomatically
+                    : CrashReportAction.none,
+            };
+            for (final candidate in [
+              hang,
+              const CrashCandidate.hang(signature: null),
+            ]) {
+              expect(
+                decide(
+                  mode,
+                  candidate,
+                  isPortable: isPortable,
+                  throttleAllows: throttleAllows,
+                ),
+                expected,
+              );
+            }
+          });
+        }
+      }
+    }
+
+    test('התקנה רגילה: כשל בקריאת דף מדווח כרגיל', () {
       expect(
-        decide(AppCrashReportMode.always, hang, isPortable: false),
+        decide(
+          AppCrashReportMode.always,
+          _candidate(signature: inPageError),
+          isPortable: false,
+        ),
         CrashReportAction.sendAutomatically,
       );
     });
