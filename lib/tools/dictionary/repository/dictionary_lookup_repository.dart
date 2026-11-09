@@ -500,16 +500,25 @@ class DictionaryLookupRepository {
         const <LaazDictionaryEntry>[];
   }
 
-  /// קטלוג לחיפוש עם תווית מקורית ומפתח מנורמל.
+  /// קטלוג לחיפוש עם תווית מקורית ומפתח מנורמל, ממוין לפי אורך התווית ואז
+  /// לפי א"ב — שוברי השוויון של דירוג החיפוש במסך ראשי התיבות.
   List<AcronymCatalogEntry> getAcronymSearchCatalog() {
-    return List<AcronymCatalogEntry>.unmodifiable([
+    final catalog = [
       for (final entry in _acronymsByKey.entries)
         AcronymCatalogEntry(
           displayAcronym: _originalAcronymByKey[entry.key] ?? entry.key,
           normalizedKey: entry.key,
           meanings: entry.value,
         ),
-    ]);
+    ];
+    catalog.sort((a, b) {
+      final lengthCompare = a.displayAcronym.length.compareTo(
+        b.displayAcronym.length,
+      );
+      if (lengthCompare != 0) return lengthCompare;
+      return a.displayAcronym.compareTo(b.displayAcronym);
+    });
+    return List<AcronymCatalogEntry>.unmodifiable(catalog);
   }
 
   /// מנרמל שאילתת חיפוש לראשי תיבות, לשימוש חד-פעמי מחוץ ל-repository —

@@ -88,10 +88,17 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
     consumeToolQuery();
   }
 
+  // השאילתה הקודמת וההתאמות שלה, בסדר הקטלוג שבו נמצאו.
+  List<AcronymCatalogEntry> _lastCatalog = const [];
+  String _lastQuery = '';
+  String _lastNormalizedQuery = '';
+  List<AcronymCatalogEntry> _lastMatches = const [];
+
   void _performSearch(String query) {
     query = query.trim();
 
     if (query.isEmpty) {
+      _lastQuery = '';
       setState(() {
         _filteredResults = [];
       });
@@ -100,32 +107,34 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
 
     final normalizedQuery = _dictionaryRepository.normalizeAcronymQuery(query);
 
-    // הדירוג מחושב פעם אחת לכל תוצאה ולא בכל השוואה במיון — בשאילתה של אות
-    // אחת כמעט כל המילון תואם.
-    final ranked = <({AcronymCatalogEntry entry, int rank})>[];
-    for (final entry in _catalog) {
+    // שאילתה שמכילה את הקודמת (גם אחרי נרמול) מתאימה רק למה שהתאים לקודמת.
+    final narrows =
+        identical(_lastCatalog, _catalog) &&
+        _lastQuery.isNotEmpty &&
+        query.contains(_lastQuery) &&
+        (normalizedQuery.isEmpty ||
+            (_lastNormalizedQuery.isNotEmpty &&
+                normalizedQuery.contains(_lastNormalizedQuery)));
+    final matches = <AcronymCatalogEntry>[];
+    // הקטלוג כבר ממוין לפי שוברי השוויון של הדירוג (אורך ואז א"ב), ולכן די
+    // לקבץ לפי _matchRank (0–4) בלי למיין.
+    final byRank = List.generate(5, (_) => <AcronymCatalogEntry>[]);
+    for (final entry in narrows ? _lastMatches : _catalog) {
       if (entry.displayAcronym.contains(query) ||
           (normalizedQuery.isNotEmpty &&
               entry.normalizedKey.contains(normalizedQuery)) ||
           entry.meanings.any((meaning) => meaning.contains(query))) {
-        ranked.add((
-          entry: entry,
-          rank: _matchRank(entry, query, normalizedQuery),
-        ));
+        matches.add(entry);
+        byRank[_matchRank(entry, query, normalizedQuery)].add(entry);
       }
     }
-    ranked.sort((a, b) {
-      final rankCompare = a.rank.compareTo(b.rank);
-      if (rankCompare != 0) return rankCompare;
-      final lengthCompare = a.entry.displayAcronym.length.compareTo(
-        b.entry.displayAcronym.length,
-      );
-      if (lengthCompare != 0) return lengthCompare;
-      return a.entry.displayAcronym.compareTo(b.entry.displayAcronym);
-    });
+    _lastCatalog = _catalog;
+    _lastQuery = query;
+    _lastNormalizedQuery = normalizedQuery;
+    _lastMatches = matches;
 
     setState(() {
-      _filteredResults = [for (final match in ranked) match.entry];
+      _filteredResults = [for (final group in byRank) ...group];
     });
   }
 
