@@ -74,6 +74,7 @@ class _ControlledSearcher extends PdfTextSearchSession {
     bool caseInsensitive = true,
     bool goToFirstMatch = true,
     bool searchImmediately = false,
+    int? startPageNumber,
   }) {}
 
   @override
