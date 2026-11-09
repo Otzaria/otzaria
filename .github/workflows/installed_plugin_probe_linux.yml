@@ -178,7 +178,12 @@ jobs:
           # PDFium 8125 for pdfrx must not be replaced by the printing copy.
           echo "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723  $public" \
             | sha256sum -c -
-          ! cmp -s "$public" "$private"
+          cmp_status=0
+          cmp -s "$public" "$private" || cmp_status=$?
+          if [ "$cmp_status" -ne 1 ]; then
+            echo "::error::PDFium binaries must differ and both must be readable"
+            exit 1
+          fi
           readelf -d "$plugin" | tee "$INSTALLED_PROBE_ROOT/printing-elf-dynamic.txt"
           if readelf -d "$plugin" | grep -E 'NEEDED.*(libpdfium|libpdfium_printing)'; then
             echo "::error::printing must not bind either PDFium in the base namespace"
