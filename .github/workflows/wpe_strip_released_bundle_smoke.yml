@@ -6,6 +6,8 @@ on:
       - 'tool/release/strip_wpe_runtime.sh'
       - '.github/workflows/build-and-announce.yml'
       - '.github/workflows/wpe_strip_released_bundle_smoke.yml'
+      - 'linux/packaging/deb/make_config.yaml'
+      - 'test/release/wpe_released_bundle_smoke_test.dart'
   workflow_dispatch:
 
 permissions:
@@ -32,8 +34,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install ELF tools and virtual desktop graphics
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils xvfb libegl1 libgbm1
+      - name: Install ELF tools and virtual desktop
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binutils xvfb
 
       - name: Download and checksum-verify the immutable historical release
         shell: bash
@@ -52,13 +54,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/extracted"
           dpkg-deb --extract "$RUNNER_TEMP/released.deb" "$RUNNER_TEMP/extracted"
 
-      - name: Install the verified DEB's declared runtime dependencies
+      - name: Install the verified DEB runtime dependencies and audited omissions
         shell: bash
         run: |
           set -euo pipefail
           # Extraction does not resolve Depends as a user's apt installation does.
           dependencies="$(dpkg-deb --field "$RUNNER_TEMP/released.deb" Depends)"
           test -n "$dependencies"
+          # These unbundled ELF providers are absent from this immutable DEB's Depends.
+          # Keep the historical payload intact; new DEBs declare them in make_config.yaml.
+          dependencies+=", libwayland-server0, libegl1, libgl1, libgbm1, libx11-xcb1, libcurl4, libxmu6"
           sudo apt-get satisfy -y --no-install-recommends "$dependencies"
 
       - name: Strip WPE in the actual historical DEB payload, never in the SDK
