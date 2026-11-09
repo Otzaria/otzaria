@@ -83,17 +83,26 @@ jobs:
           compact = pathlib.Path('assets/icon/icon_256.png').read_bytes()
           assert compact[:8] == b'\x89PNG\r\n\x1a\n'
           assert struct.unpack_from('>II', compact, 16) == (256, 256)
-          paths = [
-              root / 'usr/share/icons/hicolor/128x128/apps/otzaria.png',
-              root / 'usr/share/icons/hicolor/256x256/apps/otzaria.png',
-          ]
-          for path in paths:
-              if not path.is_file() or path.is_symlink():
-                  raise SystemExit(f'missing/ambiguous published icon: {path}')
-              if path.read_bytes() != current:
-                  raise SystemExit(f'published icon differs from source: {path}')
+          # Debian and RPM packagers can install different numbers/paths of icons.
+          # Count only original, byte-identical icon copies; do not invent RPM savings.
+          dirs = [root / 'usr/share/icons', root / 'usr/share/pixmaps']
+          icons = sorted(p for d in dirs if d.exists() for p in d.rglob('otzaria.png'))
+          if not icons:
+              raise SystemExit('published package contains no discoverable Otzaria icon')
+          if any(not p.is_file() or p.is_symlink() for p in icons):
+              raise SystemExit('ambiguous/symlinked icon path in released archive')
+          identical = [p for p in icons if p.read_bytes() == current]
+          if not identical:
+              raise SystemExit('published package has no full-size source icon copy')
+          if os.environ['KIND'] == 'deb':
+              required = {
+                  root / 'usr/share/icons/hicolor/128x128/apps/otzaria.png',
+                  root / 'usr/share/icons/hicolor/256x256/apps/otzaria.png',
+              }
+              if not required.issubset(set(identical)):
+                  raise SystemExit('DEB no longer matches its two known full-size hicolor icons')
           before = sum(p.stat().st_size for p in root.rglob('*') if p.is_file() and not p.is_symlink())
-          delta = len(paths) * (len(current) - len(compact))
+          delta = len(identical) * (len(current) - len(compact))
           report = {
               'scope': 'published_unmodified_release_0.9.98.3+809',
               'package': os.environ['KIND'],
@@ -101,7 +110,9 @@ jobs:
               'publishedSHA256': os.environ['EXPECTED_SHA256'],
               'downloadBytes': package.stat().st_size,
               'baselineExtractedRegularFileBytes': before,
-              'iconCopies': len(paths),
+              'publishedOtzariaIconPaths': [str(p.relative_to(root)) for p in icons],
+              'publishedIconsByteIdenticalToSource': len(identical),
+              'sourceIconBytesSavedIfEachMatchingCopyReplaced': delta,
               'publishedIconBytesEach': len(current),
               'proposedSourceIconBytesEach': len(compact),
               'hypotheticalLogicalPayloadSavingsBytes': delta,
