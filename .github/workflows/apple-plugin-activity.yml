@@ -216,13 +216,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Save native build hook output
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.hooks_cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/dev' && steps.hooks_cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6.1.0
         with:
           path: .dart_tool/hooks_runner
           key: ${{ steps.hooks_cache.outputs.cache-primary-key }}
       - name: Save SwiftPM downloads
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.swiftpm_cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/dev' && steps.swiftpm_cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6.1.0
         with:
           path: |
