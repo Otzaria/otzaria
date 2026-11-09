@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,6 +62,7 @@ import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
+
 import '../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -106,30 +110,23 @@ void main() {
     ).called(1);
   });
 
-  testWidgets(
-    'החלטת האינדוקס בעלייה שואלת את ProcessDuties',
-    (
+  testWidgets('החלטת האינדוקס בעלייה שואלת את ProcessDuties', (tester) async {
+    // לפני הבנייה: המסך קורא את ProcessDuties פעם אחת, ב-initState.
+    ProcessDuties.debugOverride = ProcessDuties(isProcessOwner: () => false);
+    addTearDown(() => ProcessDuties.debugOverride = null);
+    final harness = await _pumpMainWindow(
       tester,
-    ) async {
-      // לפני הבנייה: המסך קורא את ProcessDuties פעם אחת, ב-initState.
-      ProcessDuties.debugOverride = ProcessDuties(isProcessOwner: () => false);
-      addTearDown(() => ProcessDuties.debugOverride = null);
-      final harness = await _pumpMainWindow(
-        tester,
-        Future.value(Library(categories: [])),
-      );
-      harness.libraryChanges.add(
-        harness.initialState.copyWith(isLoading: false),
-      );
-      await tester.pump();
-      await tester.pump();
+      Future.value(Library(categories: [])),
+    );
+    harness.libraryChanges.add(harness.initialState.copyWith(isLoading: false));
+    await tester.pump();
+    await tester.pump();
 
-      expect(tester.takeException(), isNull);
-      verify(
-        () => harness.indexing.add(any(that: isA<CheckIndexStatus>())),
-      ).called(1);
-    },
-  );
+    expect(tester.takeException(), isNull);
+    verify(
+      () => harness.indexing.add(any(that: isA<CheckIndexStatus>())),
+    ).called(1);
+  });
 
   testWidgets('סוף רצף העלייה מכבה את סימון ההמתנה כשהאינדוקס מתחיל (#2646)', (
     tester,
@@ -218,9 +215,7 @@ void main() {
 
   testWidgets(
     'מעבר לעיון וחזרה אינו מזיז את פס הגלילה של הספרייה (issue #4173)',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final folder = Category(
         title: 'תיקייה',
         description: '',
@@ -289,9 +284,7 @@ void main() {
 
   testWidgets(
     'בעיון עם כרטיסיות בצד פאנל הכלים ומוק הגרירה נמדדים ליד העמודה (issue #4173)',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await _pumpMainWindow(
         tester,
         Future.value(Library(categories: [])),
@@ -318,6 +311,121 @@ void main() {
           keys.windowContentBoundary.currentContext!.findRenderObject()!
               as RenderBox;
       expect(content.size, reading.size);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+  testWidgets('כרטיסייה צפה נשארת לחיצה מעל פאנל הכלים', (tester) async {
+    await _pumpMainWindow(
+      tester,
+      Future.value(Library(categories: [])),
+      isLoading: false,
+      size: const Size(1400, 900),
+      tabsPlacement: SettingsRepository.readingTabsPlacementSide,
+      openTabs: [_StubTab('ספר א'), _StubTab('ספר ב כותרת ארוכה מאוד של ספר')],
+      collapsedTabs: true,
+    );
+    await tester.pumpAndSettle();
+    final strip = find.byType(VerticalReadingTabStrip);
+    final keys = AppWindowKeys.of(
+      tester.element(find.byType(MainWindowScreen)),
+    );
+    ToolsLauncherController.instance.open(windowKeys: keys);
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(10, 10));
+    await mouse.moveTo(tester.getRect(strip).center);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(strip).width, greaterThan(100));
+    final title = find.descendant(
+      of: strip,
+      matching: find.text('ספר ב כותרת ארוכה מאוד של ספר'),
+    );
+    final tabs = tester.element(strip).read<TabsBloc>();
+    await tester.tapAt(tester.getCenter(title));
+    await tester.pump();
+    verify(() => tabs.add(const SetCurrentTab(1))).called(1);
+    await mouse.removePointer();
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  testWidgets(
+    'פאנל כלים יחיד שומר מצב בזמן סגירה ומעבר בין עמודים',
+    (tester) async {
+      final harness = await _pumpMainWindow(
+        tester,
+        Future.value(Library(categories: [])),
+        isLoading: false,
+        size: const Size(1400, 900),
+        tabsPlacement: SettingsRepository.readingTabsPlacementSide,
+        openTabs: [_StubTab('ספר א')],
+      );
+      await tester.pumpAndSettle();
+      final keys = AppWindowKeys.of(
+        tester.element(find.byType(MainWindowScreen)),
+      );
+      State? overlayState;
+      for (final screen in [
+        Screen.library,
+        Screen.settings,
+        Screen.reading,
+        Screen.search,
+      ]) {
+        ToolsLauncherController.instance.open(windowKeys: keys);
+        await tester.pumpAndSettle();
+        final tools = find.byType(ToolsLauncherPanel);
+        final overlay = find.ancestor(
+          of: tools,
+          matching: find.byType(ContextOverlayPanel),
+        );
+        final key = tester.widget<ContextOverlayPanel>(overlay).key!;
+        final keyedOverlay = find.byKey(key, skipOffstage: false);
+        overlayState ??= tester.state(overlay);
+        expect(tester.state(overlay), same(overlayState));
+        final contentState = tester.state(tools);
+        final search = find
+            .descendant(of: tools, matching: find.byType(EditableText))
+            .first;
+        await tester.enterText(search, 'לוח');
+        harness.navigationChanges.add(NavigationState(currentScreen: screen));
+        await tester.pump();
+        await tester.pump();
+        expect(keyedOverlay, findsOneWidget);
+        expect(tester.state(keyedOverlay), same(overlayState));
+        expect(
+          tester.widget<ContextOverlayPanel>(keyedOverlay).isOpen,
+          isFalse,
+        );
+        final closingTools = find.byType(
+          ToolsLauncherPanel,
+          skipOffstage: false,
+        );
+        expect(tester.state(closingTools), same(contentState));
+        final closingSearch = find
+            .descendant(
+              of: closingTools,
+              matching: find.byType(EditableText, skipOffstage: false),
+              skipOffstage: false,
+            )
+            .first;
+        final editable = tester.widget<EditableText>(closingSearch);
+        expect(editable.controller.text, 'לוח');
+        expect(editable.focusNode.hasFocus, isFalse);
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(ToolsLauncherPanel, skipOffstage: false),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      }
+      ToolsLauncherController.instance.open(windowKeys: keys);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(ToolsLauncherPanel, skipOffstage: false),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
@@ -356,6 +464,7 @@ Future<_Harness> _pumpMainWindow(
   String tabsPlacement = SettingsRepository.readingTabsPlacementTop,
   List<OpenedTab> openTabs = const [],
   Screen initialScreen = Screen.reading,
+  bool collapsedTabs = false,
 }) async {
   await Settings.init(cacheProvider: MemoryCacheProvider());
   // כמו חלון שאינו בעל התהליך: בלי ניקוז הפעלות חיצוניות.
@@ -385,14 +494,11 @@ Future<_Harness> _pumpMainWindow(
     initialState: SettingsState.initial().copyWith(
       isOfflineMode: true,
       readingTabsPlacement: tabsPlacement,
+      readingTabsColumnCollapsed: collapsedTabs,
     ),
   );
   final indexing = _IndexingBloc();
-  whenListen(
-    indexing,
-    indexingStates,
-    initialState: IndexingInitial(),
-  );
+  whenListen(indexing, indexingStates, initialState: IndexingInitial());
   final history = _HistoryBloc();
   whenListen(
     history,
@@ -467,10 +573,8 @@ Future<_Harness> _pumpMainWindow(
             BlocProvider<WorkStatusCubit>.value(value: workStatus),
             BlocProvider<SettingsBloc>.value(value: settings),
             BlocProvider<WindowFullscreenCubit>(
-              create: (_) => WindowFullscreenCubit(
-                initial: false,
-                persist: (_) async {},
-              ),
+              create: (_) =>
+                  WindowFullscreenCubit(initial: false, persist: (_) async {}),
             ),
             BlocProvider<IndexingBloc>.value(value: indexing),
             BlocProvider<HistoryBloc>.value(value: history),

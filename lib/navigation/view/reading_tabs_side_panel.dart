@@ -31,13 +31,6 @@ class ReadingTabsSidePanel extends StatefulWidget {
     required this.child,
   });
 
-  /// הרוחב שהעמודה שומרת לצד התוכן; ריחוף אינו משנה אותו.
-  static double reservedWidth({
-    required bool collapsed,
-    required double width,
-    required double maxWidth,
-  }) => collapsed ? kCollapsedTabsColumnWidth : width.clamp(0.0, maxWidth);
-
   @override
   State<ReadingTabsSidePanel> createState() => _ReadingTabsSidePanelState();
 }
@@ -138,11 +131,9 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
             final width = visuallyCollapsed
                 ? kCollapsedTabsColumnWidth
                 : expandedWidth;
-            final reservedWidth = ReadingTabsSidePanel.reservedWidth(
-              collapsed: collapsed,
-              width: dragging ?? savedWidth,
-              maxWidth: constraints.maxWidth,
-            );
+            final reservedWidth = collapsed
+                ? kCollapsedTabsColumnWidth
+                : expandedWidth;
             final duration = dragging == null
                 ? AppMotion.duration(context, AppTokens.animPanelSlide)
                 : Duration.zero;
