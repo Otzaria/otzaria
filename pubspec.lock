@@ -1315,8 +1315,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfium_dart"
-      ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
-      resolved-ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
+      ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
+      resolved-ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "0.4.1"
@@ -1332,8 +1332,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
-      resolved-ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
+      ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
+      resolved-ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "2.12.0"
@@ -1341,8 +1341,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: "packages/pdfrx_engine"
-      ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
-      resolved-ref: "3b45d585adcdd3a9a934d844e923e84c8eb690fe"
+      ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
+      resolved-ref: "21dd589dadfaf03eafe8854fbd2950f1b34db5a0"
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "0.9.1"

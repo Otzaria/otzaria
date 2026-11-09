@@ -50,11 +50,10 @@ dependencies:
   html: ^0.15.7
   # TODO: לחזור ל-pub.dev (pdfrx, pdfrx_engine, pdfium_dart) אחרי מיזוג ושחרור
   # espresso3389/pdfrx#798, #799, #800, #801, #802, #803, #804, #805, #806, #807, #808, #809, #810, #811.
-  # עד אז הענף המשולב fix/3579-visible-area-only ב-Otzaria/pdfrx מוצמד לקומיט.
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: 3b45d585adcdd3a9a934d844e923e84c8eb690fe
+      ref: 21dd589dadfaf03eafe8854fbd2950f1b34db5a0
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.1
@@ -161,12 +160,12 @@ dependency_overrides:
   pdfrx_engine:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: 3b45d585adcdd3a9a934d844e923e84c8eb690fe
+      ref: 21dd589dadfaf03eafe8854fbd2950f1b34db5a0
       path: packages/pdfrx_engine
   pdfium_dart:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: 3b45d585adcdd3a9a934d844e923e84c8eb690fe
+      ref: 21dd589dadfaf03eafe8854fbd2950f1b34db5a0
       path: packages/pdfium_dart
   # Windows clipboard history requires the CF_BITMAP reader patch; see UPSTREAM.md.
   super_native_extensions:
