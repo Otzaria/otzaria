@@ -116,6 +116,29 @@ void main() {
     await finish(tester, service);
   });
 
+  testWidgets('לחיצה אחת מפעילה עריכה, ושדה העריכה מקבל ירידת שורה', (
+    tester,
+  ) async {
+    final service = await begin(tester);
+    await pump(tester, service);
+    await tester.tap(find.text('קריאה 0'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(find.byType(EditableText), findsOneWidget);
+    await tester.showKeyboard(find.byType(EditableText));
+    await tester.pump(const Duration(seconds: 1));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'פסקה\n ראשונה',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    await tester.pump();
+    expect(service.editableText('tab', 0, sources[0]), 'פסקה\n ראשונה');
+    expect(service.isCorrected('tab', 0, sources[0]), isTrue);
+    await finish(tester, service);
+  });
+
   testWidgets('חיפוש מודגש בעורך כמו בפסקה הרגילה', (tester) async {
     final service = await begin(tester);
     await pump(tester, service, searchText: 'ראשונה');

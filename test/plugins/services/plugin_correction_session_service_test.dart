@@ -349,7 +349,7 @@ void main() {
 
   for (final text in [
     '<b>טקסט</b>',
-    'שתי\nפסקאות',
+    'שתי\rפסקאות',
     '\uD800',
     '&amp;',
     '&#10;',
@@ -364,6 +364,12 @@ void main() {
       expect((await current())['revision'], 0);
     });
   }
+
+  test('ירידת שורה בהצעה (פיצול פסקה) מתקבלת ונשמרת', () async {
+    await restore([change(0, 'שתי\nפסקאות')]);
+    final changes = (await current())['changes'] as List;
+    expect((changes.single as Map)['proposedText'], 'שתי\nפסקאות');
+  });
 
   test('דוחה פסקאות כפולות ומגבלות גודל לפני טעינת מקור', () async {
     await expectLater(

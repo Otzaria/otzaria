@@ -296,8 +296,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         focusNode: _activationFocus,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onDoubleTapDown: (details) => _editPosition = details.globalPosition,
-          onDoubleTap: () => _startEditing(position: _editPosition),
+          onTapDown: (details) => _editPosition = details.globalPosition,
+          onTap: () => _startEditing(position: _editPosition),
           child: widget.original,
         ),
       );
@@ -331,7 +331,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       highlightText: settings.searchText,
       maxLines: null,
       minLines: 1,
-      textInputAction: TextInputAction.done,
+      textInputAction: TextInputAction.newline,
       textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
       decoration: const InputDecoration(
         border: InputBorder.none,
@@ -350,7 +350,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       ),
       inputFormatters: [TextInputFormatter.withFunction(_validate)],
       onChanged: _applyText,
-      onSubmitted: (_) => _focus!.unfocus(),
     );
   }
 
