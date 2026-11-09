@@ -17,7 +17,9 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 class BiographiesScreen extends StatefulWidget {
   const BiographiesScreen({super.key, this.repository, this.queryInbox});
@@ -35,7 +37,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   final FocusNode _searchFocusNode = FocusNode();
   late final BiographiesRepository _repository =
       widget.repository ?? BiographiesRepository.instance;
-  final ScrollController _scrollController = ScrollController();
+  final ItemScrollController _itemScrollController = ItemScrollController();
   final ScrollController _eraScroll = ScrollController();
   BiographiesBundle? _bundle;
   Map<String, Biography> _byId = const {};
@@ -74,7 +76,6 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _scrollController.dispose();
     _eraScroll.dispose();
     super.dispose();
   }
@@ -194,24 +195,30 @@ class _BiographiesScreenState extends State<BiographiesScreen>
 
     if (_filteredResults.isEmpty) return _buildNoResults();
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceMD,
-        AppTokens.spaceXS,
-        AppTokens.spaceMD,
-        AppTokens.spaceMD,
-      ),
+    // ScrollablePositionedList: גובה הכרטיסים משתנה, ו-ListView בונה בקפיצה של
+    // פס הגלילה את כל הכרטיסים שבדרך (אלפים); כאן נבנים רק כרטיסי היעד.
+    return ScrollablePositionedListScrollbar(
+      scrollController: _itemScrollController,
       itemCount: _filteredResults.length,
-      itemBuilder: (context, index) {
-        final bio = _filteredResults[index];
-        return BiographyCard(
-          key: ValueKey(bio.id),
-          biography: bio,
-          canOpen: _byId.containsKey,
-          onOpen: _openEntry,
-        );
-      },
+      child: ScrollablePositionedList.builder(
+        itemScrollController: _itemScrollController,
+        padding: const EdgeInsets.fromLTRB(
+          AppTokens.spaceMD,
+          AppTokens.spaceXS,
+          AppTokens.spaceMD,
+          AppTokens.spaceMD,
+        ),
+        itemCount: _filteredResults.length,
+        itemBuilder: (context, index) {
+          final bio = _filteredResults[index];
+          return BiographyCard(
+            key: ValueKey(bio.id),
+            biography: bio,
+            canOpen: _byId.containsKey,
+            onOpen: _openEntry,
+          );
+        },
+      ),
     );
   }
 

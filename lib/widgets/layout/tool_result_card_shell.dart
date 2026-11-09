@@ -13,15 +13,19 @@ class ToolResultCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResultCardFrame(
-      // The tap target sits inside the selection area: a tap on the text
-      // would otherwise go to the selection and never reach the card.
-      child: AppSelectionArea(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppTokens.borderRadiusAll,
-          focusColor: Colors.transparent,
-          child: Padding(padding: AppTokens.cardPadding, child: child),
+    // notifier לכל כרטיס מגביל את עלות הסרת מאזיני הטיקרים בפירוק הרשימה.
+    return TickerMode(
+      enabled: true,
+      child: ResultCardFrame(
+        // The tap target sits inside the selection area: a tap on the text
+        // would otherwise go to the selection and never reach the card.
+        child: AppSelectionArea(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTokens.borderRadiusAll,
+            focusColor: Colors.transparent,
+            child: Padding(padding: AppTokens.cardPadding, child: child),
+          ),
         ),
       ),
     );

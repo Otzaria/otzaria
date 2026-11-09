@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,7 @@ import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
@@ -47,6 +50,42 @@ class _FakeRepository extends BiographiesRepository {
   );
 }
 
+/// רשימת ערכים שסופרת קריאות לפי אינדקס: כל כרטיס שנבנה קורא את הערך שלו.
+class _CountingEntries extends ListBase<Biography> {
+  _CountingEntries(this._inner);
+
+  final List<Biography> _inner;
+  int reads = 0;
+
+  @override
+  int get length => _inner.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read only');
+
+  @override
+  Biography operator [](int index) {
+    reads++;
+    return _inner[index];
+  }
+
+  @override
+  void operator []=(int index, Biography value) =>
+      throw UnsupportedError('read only');
+}
+
+class _LargeRepository extends BiographiesRepository {
+  _LargeRepository(this.entries);
+
+  final _CountingEntries entries;
+
+  @override
+  Future<BiographiesBundle> loadBundle() async => BiographiesBundle(
+    eras: const [BiographyEra('rishonim', 'ראשונים')],
+    entries: entries,
+  );
+}
+
 List<String> _shownIds(WidgetTester tester) => tester
     .widgetList<BiographyCard>(find.byType(BiographyCard))
     .map((card) => card.biography.id)
@@ -60,7 +99,10 @@ String _fieldText(WidgetTester tester) =>
     tester.widget<TextField>(find.byType(TextField)).controller!.text;
 
 void main() {
-  Future<void> pumpScreen(WidgetTester tester) async {
+  Future<void> pumpScreen(
+    WidgetTester tester, {
+    BiographiesRepository? repository,
+  }) async {
     final bloc = _FakeSettingsBloc();
     addTearDown(bloc.close);
     await tester.pumpWidget(
@@ -68,7 +110,9 @@ void main() {
         home: BlocProvider<SettingsBloc>.value(
           value: bloc,
           child: Scaffold(
-            body: BiographiesScreen(repository: _FakeRepository()),
+            body: BiographiesScreen(
+              repository: repository ?? _FakeRepository(),
+            ),
           ),
         ),
       ),
@@ -141,5 +185,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(_fieldText(tester), isEmpty);
     expect(_shownIds(tester), ['a', 'm', 'r']);
+  });
+
+  testWidgets('גרירת פס הגלילה לסוף רשימה ארוכה בונה רק את כרטיסי היעד', (
+    tester,
+  ) async {
+    final entries = _CountingEntries([
+      for (var i = 0; i < 3000; i++)
+        Biography(
+          id: 'b$i',
+          name: 'רב $i',
+          era: 'rishonim',
+          summary: 'ערך מספר $i.',
+        ),
+    ]);
+    await pumpScreen(tester, repository: _LargeRepository(entries));
+    entries.reads = 0;
+
+    await tester.drag(
+      find.byKey(ScrollablePositionedListScrollbar.thumbKey),
+      const Offset(0, 2000),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_shownIds(tester), contains('b2999'));
+    // ListView בונה בקפיצה כזו כל כרטיס שבדרך: אלפי קריאות.
+    expect(entries.reads, lessThan(200));
   });
 }
