@@ -2,7 +2,12 @@ name: Apple installed plugin activity
 
 on:
   workflow_dispatch:
+  # Catches dependency regressions that a PR filter skipped, and refreshes
+  # the base-branch caches that pull requests restore.
+  schedule:
+    - cron: '23 2 * * *'
   pull_request:
+    # The changes job narrows this list per job; pubspec files only start it.
     paths:
       - '.github/workflows/apple-plugin-activity.yml'
       - 'integration_test/apple_plugin_activity_probe_test.dart'
@@ -31,11 +36,34 @@ permissions:
   contents: read
 
 concurrency:
-  group: apple-plugin-activity-${{ github.event.pull_request.number || github.ref }}
+  group: apple-plugin-activity-${{ github.event.pull_request.number || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      contracts: ${{ steps.decide.outputs.contracts }}
+      apple: ${{ steps.decide.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # The PR merge commit and its base parent.
+          fetch-depth: 2
+      - name: Decide which jobs this change needs
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            printf 'contracts=true\napple=true\n' >> "$GITHUB_OUTPUT"
+          else
+            python3 tool/perf_probe/apple_plugin_activity/changes.py --base HEAD^1 --head HEAD
+          fi
+
   contracts:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -76,6 +104,8 @@ jobs:
 
   actual-app:
     name: Actual app (${{ matrix.platform }} ${{ matrix.mode }})
+    needs: [contracts, changes]
+    if: needs.changes.outputs.apple == 'true'
     runs-on: macos-latest
     timeout-minutes: 75
     strategy:
