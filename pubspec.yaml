@@ -175,10 +175,12 @@ dependency_overrides:
   # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
+  # כולל תיקון memory ownership (#4), helper isolates ו-native teardown (#5).
+  # נעיצה ל-SHA המדויק שנבדק ב-Windows, ללא שינוי public Dart API.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: ad21cf2cddfa7c79ea7903ad95b38a8d716b5f85
+      ref: faf17437daccb8c74a4d17e6881dc834415de6d8
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשימוזגו וישוחררו getsentry/sentry-dart#4094 ו-#4126 (ה-backport ל-9.x בענף
   # fix/9.x-windows-scope-sync-worker: טעינת sentry.dll, sentry_init ועדכוני ה-scope ב-isolate עזר ב-Windows).
