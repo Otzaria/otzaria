@@ -15,6 +15,10 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     on<SettingsEvent>((_, _) {});
   }
 
+  void setOfflineMode(bool offline) {
+    emit(state.copyWith(isOfflineMode: offline));
+  }
+
   @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
@@ -138,6 +142,31 @@ void main() {
         ),
       );
       expect(container.delegate, isNull);
+    });
+
+    testWidgets('refreshes link visibility on offline-mode changes', (
+      tester,
+    ) async {
+      final bloc = _FakeSettingsBloc();
+      addTearDown(bloc.close);
+
+      await tester.pumpWidget(
+        BlocProvider<SettingsBloc>.value(
+          value: bloc,
+          child: const MaterialApp(
+            home: Scaffold(body: BookSourceBanner(text: text)),
+          ),
+        ),
+      );
+      expect(_linkSpans(tester), hasLength(1));
+
+      bloc.setOfflineMode(true);
+      await tester.pumpAndSettle();
+      expect(_linkSpans(tester), isEmpty);
+
+      bloc.setOfflineMode(false);
+      await tester.pumpAndSettle();
+      expect(_linkSpans(tester), hasLength(1));
     });
 
     testWidgets('omits lines that contain a link when offline', (

@@ -133,7 +133,9 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
       color: cs.primary,
       decoration: TextDecoration.underline,
     );
-    final isOfflineMode = context.watch<SettingsBloc>().state.isOfflineMode;
+    final isOfflineMode = context.select<SettingsBloc, bool>(
+      (bloc) => bloc.state.isOfflineMode,
+    );
     // במצב לא מקוון שורה עם קישור אינה מוצגת — ההנחיה שבה אינה ברת ביצוע.
     final lineIndices = [
       for (var i = 0; i < _lines.length; i++)
