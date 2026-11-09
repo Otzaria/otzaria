@@ -75,6 +75,38 @@ Library _lib(List<Category> categories) {
   return library;
 }
 
+String _resultKey(ScopeSearchResultItem r) =>
+    '${r.facet}|${r.title}|${r.subtitle}|${r.isBook}|${r.score}|${r.lengthDelta}';
+
+/// יותר מ-32 תוצאות שוות בכל מפתחות המיון: List.sort אינו יציב בהן, ולכן גם
+/// סדרן תלוי בסדר הסריקה.
+Library _tiedLibrary() => _lib([
+  for (var i = 0; i < 40; i++)
+    _mkCat(
+      'תיקייה $i',
+      books: [
+        TextBook(
+          title: 'פירוש',
+          categoryPath: '/תיקייה $i',
+          author: i.isEven ? 'רש"י' : 'רבי עקיבא',
+        ),
+        TextBook(title: 'פֵּירוּשׁ רש"י על התורה'),
+      ],
+    ),
+  _mkCat(
+    'תורה',
+    books: [
+      TextBook(title: 'בראשית', categoryPath: '/תנ״ך/תורה'),
+      TextBook(title: 'ספר', author: 'פירושים'),
+    ],
+  ),
+]);
+
+/// חיפוש ראשון בעץ חדש — אין בו התאמות קודמות לצמצם מהן.
+List<String> _freshSearch(String query) => ScopeTree.fromLibrary(
+  _tiedLibrary(),
+).search(query).map(_resultKey).toList();
+
 void main() {
   late ScopeTree tree;
 
@@ -194,6 +226,69 @@ void main() {
         final actual = t.search(query).map((r) => r.facet).toSet();
         expect(actual, equals(expected), reason: query);
         expect(actual, isNotEmpty, reason: query);
+      }
+    });
+
+    test('רצף הקלדה, מחיקה וקפיצה: ההתאמות לפי findNormalizedTextMatches, '
+        'והתוצאות וסדרן כמו בחיפוש ראשון בעץ חדש', () {
+      final t = ScopeTree.fromLibrary(_tiedLibrary());
+      const queries = [
+        'פ',
+        'פי',
+        'פיר',
+        'פירו',
+        'פירוש',
+        'פירושי',
+        'פיר',
+        'פירוש ר',
+        'רשי',
+        'רשי ע',
+        'רשי עק',
+        'עקיבא',
+        'תנך/ת',
+        'תנך/תו',
+        'ספ',
+        'ספרז',
+        'ספרזז',
+        'ספר',
+        'ש',
+        'שי',
+        'פירוש',
+      ];
+      for (final query in queries) {
+        final results = t.search(query);
+        expect(
+          results.map((r) => r.facet).toSet(),
+          {
+            for (final node in t.nodesByFacet.values)
+              if (findNormalizedTextMatches(
+                normalizedQuery: query,
+                normalizedPrimaryText: node.normalizedTitle,
+                normalizedSecondaryText: node.normalizedSubtitle,
+              ))
+                node.facet,
+          },
+          reason: query,
+        );
+        expect(
+          results.map(_resultKey).toList(),
+          _freshSearch(query),
+          reason: query,
+        );
+      }
+    });
+
+    test('שני תפריטים על אותו עץ מקלידים לסירוגין', () {
+      final library = _tiedLibrary();
+      final shared = ScopeTree.fromLibrary(library);
+      expect(identical(ScopeTree.fromLibrary(library), shared), isTrue);
+      const queries = ['פי', 'רש', 'פיר', 'רשי', 'פירו', 'רשי ע', 'פירוש'];
+      for (final query in queries) {
+        expect(
+          shared.search(query).map(_resultKey).toList(),
+          _freshSearch(query),
+          reason: query,
+        );
       }
     });
   });
