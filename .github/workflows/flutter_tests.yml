@@ -484,7 +484,7 @@ jobs:
             $status = $LASTEXITCODE
             if ($status -eq 0) { exit 0 }
             if (($output | Out-String) -notmatch 'Building native assets failed') { exit $status }
-            Get-ChildItem .dart_tool/hooks_runner -Recurse -Filter stderr.txt |
+            Get-ChildItem .dart_tool/hooks_runner -Recurse -Filter stderr.txt -ErrorAction SilentlyContinue |
               Where-Object Length -gt 0 |
               ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 40 }
             if ($attempt -lt 3) {

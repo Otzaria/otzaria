@@ -43,9 +43,9 @@ _ClipboardHolder? _clipboardHolder() => using((arena) {
 
 bool _isOpenClipboardFailure(PlatformException error) =>
     // Flutter's engine reports OpenClipboard's ERROR_ACCESS_DENIED; OLE (used by
-    // super_clipboard) reports CLIPBRD_E_CANT_OPEN.
+    // super_clipboard) reports CLIPBRD_E_CANT_OPEN, whose text is localized.
     error.message == 'Unable to open clipboard' ||
-    (error.message ?? '').contains('OpenClipboard Failed');
+    (error.message ?? '').contains('0x800401D0');
 
 /// Runs [action] again while another process has the clipboard open.
 ///
