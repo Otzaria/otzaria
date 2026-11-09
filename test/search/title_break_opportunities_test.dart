@@ -3,7 +3,10 @@ import 'package:otzaria/search/utils/title_break_opportunities.dart';
 
 void main() {
   test('short titles are returned unchanged', () {
-    expect(insertGraphemeBreakOpportunities('abcdefghijkl', 12), 'abcdefghijkl');
+    expect(
+      insertGraphemeBreakOpportunities('abcdefghijkl', 12),
+      'abcdefghijkl',
+    );
     expect(insertGraphemeBreakOpportunities('שלום', 12), 'שלום');
   });
 
@@ -32,8 +35,8 @@ void main() {
   test('supplementary Unicode grapheme clusters are preserved', () {
     const flag = '\u{1F1EE}\u{1F1F1}';
     expect(
-      insertGraphemeBreakOpportunities('$flag$flagג', 2),
-      '$flag$flag\u200Bג',
+      insertGraphemeBreakOpportunities('${flag}${flag}ג', 2),
+      '${flag}${flag}\u200Bג',
     );
   });
 
