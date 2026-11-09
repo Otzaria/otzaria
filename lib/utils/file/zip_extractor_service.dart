@@ -244,7 +244,7 @@ class ZipExtractorService {
         final progress = 0.25 + (0.65 * extractedFiles / totalFiles);
         onProgress?.call(
           progress,
-          'מחלץ קבצים... ($extractedFiles מתוך $totalFiles)\\n'
+          'מחלץ קבצים... ($extractedFiles מתוך $totalFiles)\n'
           '${formatMegabytesProgressHebrew(processedBytes, totalBytes)}',
         );
       }
