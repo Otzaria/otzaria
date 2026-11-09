@@ -68,6 +68,19 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateSide());
+  }
+
+  // כיוון הפתיחה נקבע בפריים הראשון, לפני שהחץ מוצג בתת־תפריט פתוח.
+  void _updateSide() {
+    if (!mounted) return;
+    final side = _shouldOpenToRight();
+    if (_openToRight != side) setState(() => _openToRight = side);
+  }
+
+  @override
   void didUpdateWidget(AppSubmenuButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.preserveFocus != widget.preserveFocus) {
@@ -223,8 +236,7 @@ class _AppSubmenuButtonState extends State<AppSubmenuButton> {
             if (!focused && !widget.controller.isOpen) _clearPointerFocus();
           },
           onOpen: () {
-            final side = _shouldOpenToRight();
-            if (_openToRight != side) setState(() => _openToRight = side);
+            _updateSide();
             _setTrackingPointer(!widget.preserveFocus);
             widget.onOpen?.call();
           },
