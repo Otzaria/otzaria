@@ -47,8 +47,8 @@ class _PluginUpdateChipState extends State<PluginUpdateChip> {
 
   @override
   Widget build(BuildContext context) {
-    final update = context.watch<PluginUpdatesCubit>().state.updateFor(
-      widget.plugin.pluginId,
+    final update = context.select<PluginUpdatesCubit, PluginUpdateInfo?>(
+      (cubit) => cubit.state.updateFor(widget.plugin.pluginId),
     );
     if (!shouldShowUpdateChip(update, widget.plugin.version)) {
       return const SizedBox.shrink();
