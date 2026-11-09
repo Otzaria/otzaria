@@ -381,6 +381,30 @@ void main() {
     expect(selected, contains('שורה שנוספה מחוץ לתצוגה'));
   });
 
+  // issue #4553 - תיבת ה-\n של <br> נמדדת מחוץ לרוחב הפסקה, ויוצרת בליטה
+  // בבחירה בסוף השורה שלפניו.
+  testWidgets('תיבות הבחירה לא חורגות מרוחב הפסקה, גם בשורה שלפני <br>', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        const SmartTextWidget(
+          text: '$_longText<br>$_longText',
+          settings: _settings,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraph = tester
+        .renderObjectList<RenderParagraph>(find.byType(SelectionFillRichText))
+        .firstWhere((p) => p.text.toPlainText().contains('חונן'));
+    expect(paragraph.text.toPlainText(), contains('\n'));
+    for (final box in _paintedBoxes(paragraph)) {
+      expect(box.left, greaterThanOrEqualTo(0));
+      expect(box.right, lessThanOrEqualTo(paragraph.size.width));
+    }
+  });
+
   // issue #1402: מי שממקם ציור ביחס לאותיות (סימונים מורמים, הדגשות תוספים)
   // חייב לקבל תיבות בגובה הגליף גם כשהבחירה ממופה לגובה השורה.
   testWidgets('glyphBoxesForSelection מחזיר תיבות tight גם בטקסט בר-בחירה', (
