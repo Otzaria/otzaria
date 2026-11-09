@@ -265,6 +265,17 @@ Future<void> main() async {
 
       expect(tab.titleNotifier.value, 'חיפוש: התחלתי');
     });
+
+    test('שאילתה ארוכה מאוד מקוצרת בכותרת', () {
+      final query = List.filled(5000, 'בראשית').join(' ');
+
+      final title = SearchingTab.titleForQuery(query);
+
+      expect(title, startsWith('חיפוש: בראשית'));
+      expect(title, endsWith('…'));
+      expect(title.length, lessThan(120));
+      expect(SearchingTab.titleForQuery('צדיק גאולה'), 'חיפוש: צדיק גאולה');
+    });
   });
 
   group('SearchingTab.clone', () {

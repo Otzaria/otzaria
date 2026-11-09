@@ -87,7 +87,16 @@ class SearchingTab extends OpenedTab {
     if (trimmedQuery.isEmpty) {
       return 'חיפוש';
     }
-    return 'חיפוש: $trimmedQuery';
+    return 'חיפוש: ${shortenQueryForTitle(trimmedQuery)}';
+  }
+
+  /// הכותרת נמדדת ומצוירת בשורה אחת ברוחב לא מוגבל; שאילתה של ספר שלם
+  /// שהודבק תוקעת את ה-UI לשניות.
+  static String shortenQueryForTitle(String query) {
+    const maxChars = 100;
+    final runes = query.runes;
+    if (runes.length <= maxChars) return query;
+    return '${String.fromCharCodes(runes.take(maxChars))}…';
   }
 
   SearchingTab(
