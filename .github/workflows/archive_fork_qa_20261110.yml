@@ -1,0 +1,41 @@
+name: Archive fork QA matrix
+
+on:
+  push:
+    branches:
+      - qa/archive-fork-20261110
+
+permissions:
+  contents: read
+
+jobs:
+  validate-dart-package:
+    name: Dart analyze + tests (${{ matrix.archive_branch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        archive_branch:
+          - main
+          - perf/zip-file-encoder-bounded-enumeration
+          - fix/file-buffer-eof-boundaries
+          - perf/zip-eocd-bounded-search
+          - fix/input-file-stream-truncated-scalars
+          - perf/tar-file-encoder-lazy-traversal
+          - fix/extraction-callbacks-only-written-files
+    steps:
+      - name: Checkout archive branch
+        uses: actions/checkout@v4
+        with:
+          repository: Otzaria/archive
+          ref: ${{ matrix.archive_branch }}
+          persist-credentials: false
+      - name: Set up Dart SDK
+        uses: dart-lang/setup-dart@v1
+      - name: Fetch package dependencies
+        run: dart pub get
+      - name: Analyze package
+        run: dart analyze --fatal-infos
+      - name: Run complete package tests
+        run: dart test
