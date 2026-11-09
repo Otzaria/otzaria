@@ -17,8 +17,7 @@ void main() {
   final metrics = AppMenuMetrics.create(compactMenus: false);
 
   test('a bounded menu always constrains its text label', () {
-    final minimumSlots =
-        metrics.itemPadding.horizontal + metrics.iconSize + 8;
+    final minimumSlots = metrics.itemPadding.horizontal + metrics.iconSize + 8;
     for (final width in [0.0, 1.0, minimumSlots - 1, minimumSlots]) {
       expect(
         calculateAppMenuLabelMaxWidth(
