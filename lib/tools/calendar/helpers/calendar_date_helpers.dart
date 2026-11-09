@@ -7,6 +7,13 @@ import 'package:otzaria/utils/text/numeral_formats.dart';
 
 export 'package:otzaria/utils/calendar_days.dart';
 
+// These formatters contain large holiday/parsha maps and month lists.
+// They are not mutated after initialization; reusing them avoids allocating
+// the whole data set on every date/number formatting call.
+final HebrewDateFormatter _hebrewDateFormatter = HebrewDateFormatter()
+  ..hebrewFormat = true;
+final HebrewDateFormatter _plainNumberFormatter = HebrewDateFormatter();
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  קבועים
 // ═══════════════════════════════════════════════════════════════════════════
@@ -64,9 +71,7 @@ Daf getDafYomi(DateTime date) {
 /// מחזיר תאריך עברי מפורמט כמחרוזת
 String getHebrewDateFormattedAsString(DateTime dateTime) {
   final hebrewCalendar = JewishCalendar.fromDateTime(dateTime);
-  HebrewDateFormatter hebrewDateFormatter = HebrewDateFormatter()
-    ..hebrewFormat = true;
-  return hebrewDateFormatter.format(hebrewCalendar);
+  return _hebrewDateFormatter.format(hebrewCalendar);
 }
 
 /// מחזיר חותמת זמן עברית (תאריך + שעה)
@@ -77,7 +82,7 @@ String getHebrewTimeStamp() {
 
 /// מעצב מספר עמוד לאותיות עבריות ללא גרשיים
 String formatAmud(int amud) {
-  return HebrewDateFormatter()
+  return _plainNumberFormatter
       .formatHebrewNumber(amud)
       .replaceAll('״', '')
       .replaceAll('׳', '');
@@ -123,10 +128,9 @@ String getGregorianMonthName(int month) => kGregorianMonths[month - 1];
 
 /// מעצב שנה עברית בפורמט ה׳תשפ״ה
 String formatHebrewYear(int year) {
-  final hdf = HebrewDateFormatter()..hebrewFormat = true;
   final thousands = year ~/ 1000;
   final remainder = year % 1000;
-  String remainderStr = hdf
+  String remainderStr = _hebrewDateFormatter
       .formatHebrewNumber(remainder)
       .replaceAll('"', '')
       .replaceAll("'", '')
