@@ -21,7 +21,10 @@ void main() {
 
   tearDown(AppFonts.debugResetSystemFontsCache);
 
-  Widget field({required String value, required ValueChanged<String> onChanged}) {
+  Widget field({
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) {
     return MaterialApp(
       home: Directionality(
         textDirection: TextDirection.rtl,
@@ -169,13 +172,15 @@ void main() {
           matching: find.byType(InkWell, skipOffstage: false),
         );
         final intersects = tester.getRect(row).overlaps(viewport);
-        for (final text in tester.widgetList<Text>(
+        final texts = tester.widgetList<Text>(
           find.descendant(
             of: row,
             matching: find.byType(Text, skipOffstage: false),
             skipOffstage: false,
           ),
-        )) {
+        ).toList();
+        expect(texts, hasLength(2));
+        for (final text in texts) {
           expect(
             text.style?.fontFamily,
             intersects ? AppFonts.renderFontFamily(font.value) : isNull,
