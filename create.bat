@@ -13,7 +13,7 @@ call iscc installer\otzaria.iss
 call iscc installer\otzaria_full.iss
 
 REM Build Flutter Android app
-call flutter build apk 
+call flutter build apk --flavor direct
 
 REM build Flutter linux binaries
 call flutter build linux

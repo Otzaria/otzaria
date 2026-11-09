@@ -122,7 +122,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: >-
-            flutter test integration_test/external_line_text_test.dart -d emulator-5554 --timeout 10m
+            flutter test integration_test/external_line_text_test.dart -d emulator-5554 --flavor direct --timeout 10m
             --dart-define=OTZARIA_TEST_ZSTD_DICT="$(base64 < test/fixtures/line_content_codec/dict.zdict | tr -d '\r\n')"
 
   # אין בנייה ל-iOS בשום workflow, ולא אומת שהאפליקציה נבנית לסימולטור. לכן

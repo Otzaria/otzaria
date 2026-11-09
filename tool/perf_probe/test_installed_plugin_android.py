@@ -386,6 +386,78 @@ class RunnerTests(unittest.TestCase):
         self.runner.result["sourceCommit"] = COMMIT
         self.runner.original = self.runner.wait_native(foreground=True)
 
+    def test_build_verifies_and_installs_the_direct_flavor_output(self):
+        root = self.directory / "source"
+        (root / ".dart_tool").mkdir(parents=True)
+        (root / "pubspec.lock").write_bytes(b"controlled lockfile\n")
+        (root / ".dart_tool/package_config.json").write_text(json.dumps({"packages": [
+            {"name": name, "rootUri": (root / "native" / name).as_uri()} for name in probe.PACKAGES
+        ]}))
+        sdk = self.directory / "flutter-sdk"
+        flutter = str(sdk / "bin/flutter")
+        self.runner.args.flutter = flutter
+        apk = root / "build/app/outputs/flutter-apk/app-direct-debug.apk"
+        apk.parent.mkdir(parents=True)
+        stale = apk.with_name("app-debug.apk")
+        stale.write_bytes(b"stale unflavored APK")
+        payload = b"new direct installed-probe APK"
+        badging = (f"package: name='{probe.PACKAGE}'\n"
+                   f"launchable-activity: name='{probe.ACTIVITY}'\napplication-debuggable\n").encode()
+        device = {("get-state",): "device", ("shell", "getprop", "ro.kernel.qemu"): "1",
+                  ("shell", "am", "get-current-user"): "0",
+                  ("shell", "getprop", "ro.product.cpu.abi"): "x86_64"}
+        calls = []
+
+        def command(argv, **kwargs):
+            calls.append(argv)
+            out = b""
+            if argv == [flutter, "--version", "--machine"]:
+                out = json.dumps({"frameworkVersion": "3.47.7", "frameworkRevision": COMMIT}).encode()
+            elif argv[:3] == [flutter, "build", "apk"]:
+                self.assertIn("--flavor", argv)
+                self.assertEqual(argv[argv.index("--flavor") + 1], "direct")
+                self.assertEqual(kwargs["env"]["ORG_GRADLE_PROJECT_otzariaInstalledProbe"], "true")
+                self.assertNotIn("ORG_GRADLE_PROJECT_otzariaStartupProbe", kwargs["env"])
+                apk.write_bytes(payload)
+            elif argv == ["git", "rev-parse", "HEAD"]:
+                out = COMMIT.encode()
+            elif argv == ["git", "rev-parse", "HEAD^{tree}"]:
+                out = b"d" * 40
+            elif argv[:2] == ["git", "-C"] and argv[3:] == ["rev-parse", "HEAD"]:
+                out = (COMMIT if argv[2] == str(sdk) else probe.NATIVE_PIN).encode()
+            elif argv[:3] == ["aapt2", "dump", "badging"]:
+                self.assertEqual(argv[3], str(apk))
+                self.assertEqual(apk.read_bytes(), payload)
+                out = badging
+            elif argv == [flutter, "pub", "get", "--enforce-lockfile"]:
+                pass
+            elif argv[:1] == ["git"] and argv[-3:] == ["status", "--porcelain", "--untracked-files=no"]:
+                pass
+            else:
+                self.fail(f"Unexpected build command: {argv}")
+            return subprocess.CompletedProcess(argv, 0, out, b"")
+
+        with patch.object(probe, "ROOT", root), \
+                patch.object(probe.shutil, "which", side_effect=lambda name: flutter if name == flutter else "aapt2"), \
+                patch.dict(probe.os.environ, {"ORG_GRADLE_PROJECT_otzariaStartupProbe": "true"}), \
+                patch.object(probe, "prepare"), \
+                patch.object(probe, "write_defines", side_effect=lambda source, path: path.write_text("{}")), \
+                patch.object(self.runner, "text", side_effect=lambda *args: device.get(args, "controlled-device")), \
+                patch.object(self.runner, "adb", return_value=subprocess.CompletedProcess([], 0, b"", b"")), \
+                patch.object(self.runner, "resolve_home", return_value=LAUNCHER), \
+                patch.object(self.runner, "command", side_effect=command), \
+                patch.object(self.runner, "install") as install:
+            self.runner.build()
+
+        self.assertIn(["aapt2", "dump", "badging", str(apk)], calls)
+        self.assertEqual(self.runner.result["apk"], {
+            "package": probe.PACKAGE, "activity": probe.ACTIVITY, "debuggable": True,
+            "sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload),
+        })
+        self.assertEqual(stale.read_bytes(), b"stale unflavored APK")
+        install.assert_called_once_with(apk)
+
+
     def event_stream(self, *, close_error=False, changed_after_receipt=False):
         runner, directory = self.runner, self.directory
 

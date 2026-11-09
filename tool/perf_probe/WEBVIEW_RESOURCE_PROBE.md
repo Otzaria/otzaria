@@ -442,6 +442,8 @@ flutter drive --profile -d "$installedProbeDevice" --no-dds --no-pub \
   --dart-define=INSTALLED_PROBE_IDLE_MS=3000
 ```
 
+במכשיר Android הוסף לפקודת `flutter drive` את `--flavor direct`.
+
 ההובלה משתמשת ב־gzip/JSON, עם גבולות של 256 KiB לטקסט המקודד,
 128 KiB לקלט הדחוס ו־512 KiB לתוכן המפוענח. רק חמשת הנתיבים המקובעים
 מותרים, וכל ה־SHA נבדקים לפני כתיבת קובץ. המכשיר מקצה תיקיית temp

@@ -1,4 +1,5 @@
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/android_update/view/android_update_view.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -801,6 +802,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             ),
           ],
         ),
+        if (Platform.isAndroid) const AndroidUpdateSettingsTile(),
         SettingsActionTile.text(
           icon: OtzariaIcons.library_info_24_regular,
           title: context.settingsText(

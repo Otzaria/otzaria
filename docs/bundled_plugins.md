@@ -70,7 +70,7 @@ const bundledPlugins = <String, String>{
      `Contents/MacOS` אינה מתאימה: היא שמורה לקוד, וקובצי נתונים בה נחתמים
      כקוד לא חתום ומפילים את האימות (TN2206).
    - **אנדרואיד** — ה-workflow מעתיק אל `assets/bundled_plugins/` לפני
-     `flutter build apk`; התיקייה מוצהרת ב-pubspec.yaml (בריפו היא ריקה —
+     `flutter build apk --flavor direct`; התיקייה מוצהרת ב-pubspec.yaml (בריפו היא ריקה —
      מאוכלסת רק ב-CI) והארכיונים נארזים כ-assets בתוך ה-APK.
 3. **בעליית אוצריא** — `BundledPluginSeedService` (דרך אירוע
    `SeedBundledPlugins` ב-`PluginSystemBloc`) סורק את התיקייה — ובמובייל,

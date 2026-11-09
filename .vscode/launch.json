@@ -2,19 +2,34 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "אוצריא (debug)",
+      "name": "אוצריא — מחשב / iOS (debug)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
       "toolArgs": ["--dart-define-from-file=dart_defines.local.json"]
     },
     {
-      "name": "אוצריא (profile)",
+      "name": "אוצריא — מחשב / iOS (profile)",
       "request": "launch",
       "type": "dart",
       "flutterMode": "profile",
       "program": "lib/main.dart",
       "toolArgs": ["--dart-define-from-file=dart_defines.local.json"]
+    },
+    {
+      "name": "אוצריא — Android direct (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "direct", "--dart-define-from-file=dart_defines.local.json"]
+    },
+    {
+      "name": "אוצריא — Android direct (profile)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "direct", "--dart-define-from-file=dart_defines.local.json"]
     }
   ]
 }
