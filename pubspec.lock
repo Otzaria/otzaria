@@ -527,8 +527,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "6.2.0-beta.3"
@@ -536,8 +536,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_android
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -553,8 +553,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_ios
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -562,8 +562,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_linux
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.1.0-beta.1"
@@ -571,8 +571,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_macos
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -580,8 +580,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_platform_interface
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.4.0-beta.3"
@@ -589,8 +589,8 @@ packages:
     dependency: transitive
     description:
       path: flutter_inappwebview_web
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "1.2.0-beta.3"
@@ -598,8 +598,8 @@ packages:
     dependency: "direct main"
     description:
       path: flutter_inappwebview_windows
-      ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
-      resolved-ref: "ab6953a7d69016bcfcd6d47c301ded0d2a6d5400"
+      ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
+      resolved-ref: ab6953a7d69016bcfcd6d47c301ded0d2a6d5400
       url: "https://github.com/Otzaria/flutter_inappwebview"
     source: git
     version: "0.7.0-beta.3"
@@ -1202,8 +1202,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "d303a03d00986c5c64243cfc6a7d84015fba5dac"
-      resolved-ref: "d303a03d00986c5c64243cfc6a7d84015fba5dac"
+      ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
+      resolved-ref: d303a03d00986c5c64243cfc6a7d84015fba5dac
       url: "https://github.com/Otzaria/otzaria_search_engine"
     source: git
     version: "7.0.1"
@@ -1315,8 +1315,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfium_dart"
-      ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
-      resolved-ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "0.4.1"
@@ -1332,8 +1332,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
-      resolved-ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "2.12.0"
@@ -1341,8 +1341,8 @@ packages:
     dependency: "direct overridden"
     description:
       path: "packages/pdfrx_engine"
-      ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
-      resolved-ref: "d898e52b1526532c8d66a5f7fee0ca6b867a77d0"
+      ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
+      resolved-ref: d898e52b1526532c8d66a5f7fee0ca6b867a77d0
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "0.9.1"
@@ -1414,8 +1414,8 @@ packages:
     dependency: "direct main"
     description:
       path: printing
-      ref: "f7f992b49370307143a4f82f59341bb1e6189792"
-      resolved-ref: "f7f992b49370307143a4f82f59341bb1e6189792"
+      ref: f7f992b49370307143a4f82f59341bb1e6189792
+      resolved-ref: f7f992b49370307143a4f82f59341bb1e6189792
       url: "https://github.com/Otzaria/dart_pdf"
     source: git
     version: "5.15.1"
@@ -1599,8 +1599,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: 6bfd33c3bc14392c1a6bb0887fdb23209068eab5
-      resolved-ref: 6bfd33c3bc14392c1a6bb0887fdb23209068eab5
+      ref: "6bfd33c3bc14392c1a6bb0887fdb23209068eab5"
+      resolved-ref: "6bfd33c3bc14392c1a6bb0887fdb23209068eab5"
       url: "https://github.com/Otzaria/otzaria_library_updater"
     source: git
     version: "0.9.0"
